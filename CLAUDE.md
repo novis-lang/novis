@@ -33,6 +33,7 @@ behind a decision, or the detail of something the brief only names.
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md). Holds the only copy of the rule that every callable and every constant is a class member, and the `Core` domain-class shape built-ins are organised into. |
 | `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$_REQUEST`, `$argv`, or anything else PHP populates ambiently | [ADR 0012](docs/adr/0012-no-superglobals.md). Holds the only copy of the rule that no variable is ever host-populated — each becomes a `Core\Server`/`Core\Request`/`Core\Session`/`Core\Env`/`Core\Cli`/`Core\Script` call, and `$GLOBALS`/`$_REQUEST` have no replacement at all. |
+| Comparing two objects with `<`/`>`/`<=`/`>=`/`<=>`, operator overloading, `Comparable`, `compareTo` | [ADR 0013](docs/adr/0013-comparable-interface.md). Holds the only copy of the rule that ordering two objects requires implementing `Comparable`; PHP's ambient property-walk fallback is rejected outright, and there is no cross-class overload. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
@@ -122,6 +123,13 @@ When choosing between designs:
   per the rule above, and `$_REQUEST`'s only job was hiding which of `$_GET`/`$_POST`/`$_COOKIE` a value
   came from. Inside a spawned isolate, `Core\Request`/`Core\Server`/`Core\Session` throw rather than
   returning the parent's data ([ADR 0012](docs/adr/0012-no-superglobals.md)).
+- **Ordering two objects requires the global `Comparable` interface; there is no property-walk fallback.**
+  `<`, `>`, `<=`, `>=` and `<=>` between two objects lower to a call to `compareTo(self $other): int`
+  (negative/zero/positive, like `<=>` on scalars); a class that does not implement `Comparable` makes those
+  operators a **compile-time diagnostic**, not PHP's ambient recursive property-by-property comparison. Two
+  different classes are never directly orderable, even when both implement it — there is no cross-class
+  overload. `==`/`===`/`!=`/`!==` are untouched by this and keep their existing behaviour
+  ([ADR 0013](docs/adr/0013-comparable-interface.md)).
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.

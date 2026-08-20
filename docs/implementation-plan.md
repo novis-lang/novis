@@ -80,8 +80,9 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 | Enums | **A closed, named integer type, C#-style — PHP's enum design is disregarded entirely.** `enum Status { Active, Banned }` declares cases as compile-time constants of an underlying `int` (default) or `uint`, auto-incrementing unless given a literal; no methods, no interfaces, no `::cases()`/`::from()`/`::tryFrom()`, no `string` backing, no runtime storage at all. The enum's name is a type usable anywhere ADR 0007 requires one — property, constant, parameter, local ([ADR 0010](adr/0010-enums-are-a-value-type.md)) |
 | Scoping and state | **`static` is a class-member modifier only.** Static methods, static properties and late static binding (`static::`, `new static()`, `: static`) kept as PHP has them; function-scope `static` and `static fn` rejected with a diagnostic. No `global`. State that outlives a call lives in a class static, a constant, or an object property, and nowhere else ([ADR 0008](adr/0008-static-and-global.md)) |
 | No superglobals | **No variable is ever populated by the host.** `$GLOBALS` and `$_REQUEST` are dropped with no replacement; every other PHP superglobal (`$_SERVER`, `$_GET`/`$_POST`/`$_COOKIE`/`$_FILES`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and MWL's own `$_ARGS` become `static` methods on reserved `Core` classes (`Core\Server`, `Core\Request`, `Core\Session`, `Core\Env`, `Core\Cli`, `Core\Script`), host-populated per isolate. Inside a spawned isolate, `Core\Request`/`Core\Server`/`Core\Session` throw rather than returning the parent's data or a fresh-and-empty result ([ADR 0012](adr/0012-no-superglobals.md)) |
+| Object comparison | **Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright.** `<`, `>`, `<=`, `>=` and `<=>` between two objects lower to a call to `compareTo(self $other): int`; a class that does not implement `Comparable` makes those operators a compile-time diagnostic, and two different classes are never directly orderable even when both implement it. `==`/`===`/`!=`/`!==` are untouched ([ADR 0013](adr/0013-comparable-interface.md)) |
 | OOP-only: no free functions, no global constants | **Every callable is a method, every constant a class constant — no exception for built-ins.** `function` and `const` are rejected outside a class body. Built-ins live under `Core`, a reserved namespace organised into domain classes (`Core\Str`, `Core\Arr`, `Core\Math`, …) rather than one god class; `strlen($s)` becomes `Core\Str::len($s)`, `PHP_EOL` becomes `Core\Env::EOL`, reached via ordinary `use`/fully-qualified resolution with nothing auto-imported. Anonymous functions and arrow functions are unaffected — they are values, not named declarations ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) |
-| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all; [ADR 0012](adr/0012-no-superglobals.md) adds a twelfth — no PHP superglobal exists as a variable, `$GLOBALS` and `$_REQUEST` have no replacement at all) |
+| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all; [ADR 0012](adr/0012-no-superglobals.md) adds a twelfth — no PHP superglobal exists as a variable, `$GLOBALS` and `$_REQUEST` have no replacement at all; [ADR 0013](adr/0013-comparable-interface.md) adds a thirteenth — ordering two objects with `<`/`>` no longer falls back to PHP's implicit property walk) |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
@@ -400,14 +401,18 @@ a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class
 definite-assignment checking, flow-sensitive narrowing of unions, array element types checked at every
 write and at every nesting depth, the arithmetic result-type table including the refusal of `int + uint`,
 and interned type descriptors. There is **no inference engine and no `Unknown` type** — that is the
-simplification the mandatory declarations buy. Lowering to a CFG/SSA IR carrying explicit safepoints,
-refcount operations and runtime-helper calls.
+simplification the mandatory declarations buy. Also from that table: `<`/`>`/`<=`/`>=`/`<=>` between two
+objects refused unless both sides are provably the same class implementing `Comparable`
+([ADR 0013](adr/0013-comparable-interface.md)) — there is no property-walk fallback to fall into. Lowering
+to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls.
 
 **Verify:** `mwl check` on a curated corpus where every diagnostic named in ADR 0007 is its own file — an
 undeclared local, a re-declared local, a read before definite assignment, `int + uint`, `int $n = 7 / 2;`,
 a `mixed` assigned into a typed binding, an element-type violation at depth 1, 2 and 3, a missing narrowing
 and a present one. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
-no longer has one.
+no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
+refused when the class does not implement `Comparable`, refused across two different classes even when
+both do.
 
 ### M3 — Baseline Cranelift backend → **Hello World** (~3 weeks)
 The checked-return calling convention from [ADR 0002](adr/0002-error-propagation.md), which is normative
@@ -436,7 +441,9 @@ its logical `>>`, the conversion operator over every row of that ADR's conversio
 propagating correctly by checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)),
 closures that bind
 `$this` only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
-inheritance/interfaces/traits, enums as a closed named integer type with cases inlined as compile-time
+inheritance/interfaces/traits, the built-in global `Comparable` interface lowering `< <= > >= <=>` between
+two objects to `compareTo`, with no property-walk fallback ([ADR 0013](adr/0013-comparable-interface.md)),
+enums as a closed named integer type with cases inlined as compile-time
 constants ([ADR 0010](adr/0010-enums-are-a-value-type.md)), generators (nearly free given stackful
 coroutines), `foreach`
 and iterators, references (`&$x`), instance members and static members including late static binding

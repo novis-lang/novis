@@ -13,6 +13,8 @@
   `int` when omitted; an enum's name joins `ClassName` as its own kind of atom in § 3.
   [0011](0011-functions-and-constants-are-class-members.md) — the *global constant* row is gone from § 1: a
   constant is never declared outside a class, so there is no such binding site left to require a type for.
+  [0013](0013-comparable-interface.md) — § 4's operator table gains the *object ⊕ object* row it names,
+  previously silent on two object operands.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -205,6 +207,7 @@ diagnostic saying exactly that. There is no literal suffix.
 | either operand a `float` | `float` | — |
 | `>>` | arithmetic on `int`, **logical on `uint`** | — |
 | `& \| ^ ~ <<` | the operand type, preserved | — |
+| `object` against `object` in `< <= > >= <=>` | see [ADR 0013](0013-comparable-interface.md) — requires `Comparable`, no fallback | **compile error** when the class does not implement it |
 
 Rejecting mixed-signedness arithmetic while allowing mixed-signedness comparison is the line C gets wrong
 and pays for: a comparison has an exact answer in the mathematical integers and can be lowered as one,
