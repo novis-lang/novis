@@ -1,0 +1,114 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+# ---------------------------------------------------------------------------
+# Shared package metadata. Every crate inherits these with `x.workspace = true`.
+# ---------------------------------------------------------------------------
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
+authors = ["The MWL authors"]
+repository = "https://github.com/mwl-lang/mwl"
+homepage = "https://github.com/mwl-lang/mwl"
+description = "MWL — Modern Web Lang: a JIT-compiled, memory-safe language for web and CLI"
+keywords = ["language", "jit", "web", "php", "compiler"]
+categories = ["compilers", "development-tools"]
+
+# ---------------------------------------------------------------------------
+# Single source of truth for dependency versions.
+# ---------------------------------------------------------------------------
+[workspace.dependencies]
+# --- internal ---
+mwl-diagnostics = { path = "crates/mwl-diagnostics", version = "0.0.1" }
+mwl-syntax = { path = "crates/mwl-syntax", version = "0.0.1" }
+mwl-hir = { path = "crates/mwl-hir", version = "0.0.1" }
+mwl-types = { path = "crates/mwl-types", version = "0.0.1" }
+mwl-ir = { path = "crates/mwl-ir", version = "0.0.1" }
+mwl-codegen = { path = "crates/mwl-codegen", version = "0.0.1" }
+mwl-runtime = { path = "crates/mwl-runtime", version = "0.0.1" }
+mwl-stdlib = { path = "crates/mwl-stdlib", version = "0.0.1" }
+
+# --- codegen backend (versions validated by the M0 spikes) ---
+cranelift = "0.128"
+cranelift-jit = "0.128"
+cranelift-module = "0.128"
+cranelift-native = "0.128"
+
+# --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
+corosensei = "0.2"
+
+# --- core utilities ---
+anyhow = "1"
+thiserror = "2"
+bitflags = "2"
+smallvec = { version = "1", features = ["union", "const_generics"] }
+indexmap = "2"
+rustc-hash = "2"
+blake3 = "1"
+
+# --- cli / diagnostics rendering ---
+# Diagnostic layout is hand-written in mwl-diagnostics (the output format is
+# part of the language's UI and should not shift with a dependency bump), so
+# only the styling primitives and terminal detection are external.
+clap = { version = "4", features = ["derive", "wrap_help"] }
+anstream = "0.6"
+anstyle = "1"
+
+# --- dev / test ---
+insta = "1"
+proptest = "1"
+criterion = "0.7"
+
+# ---------------------------------------------------------------------------
+# Lint policy. Safe crates opt in wholesale via `lints.workspace = true`.
+# The two crates that need `unsafe` (mwl-runtime, mwl-codegen) declare their
+# own `[lints]` with `unsafe_code = "deny"` and narrow module-level allows,
+# so every unsafe block is a deliberate, reviewable exception. See
+# docs/adr/0004-unsafe-policy.md.
+# ---------------------------------------------------------------------------
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# Correctness-adjacent pedantry we do want.
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"    # user-facing output belongs in mwl-cli, not libraries
+print_stderr = "warn"
+
+# ---------------------------------------------------------------------------
+# Profiles
+# ---------------------------------------------------------------------------
+[profile.dev]
+# `catch_unwind` at the helper and request boundaries is how MWL contains a
+# runtime panic to one request. `panic = "abort"` would break that guarantee,
+# so unwinding is mandatory in every profile. See docs/adr/0003.
+panic = "unwind"
+
+[profile.release]
+panic = "unwind"
+lto = "thin"
+codegen-units = 1
+debug = "line-tables-only" # keep backtraces useful in production builds
+
+# Compiling MWL's own dependencies with optimisation makes debug builds of the
+# compiler usable; Cranelift is unbearably slow otherwise.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.bench]
+inherits = "release"
+debug = true

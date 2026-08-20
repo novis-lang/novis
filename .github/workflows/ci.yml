@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0        # incremental compilation is noise in CI
+  RUST_BACKTRACE: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The matrix that matters: MWL generates native code, so "it compiles" is not
+  # the same claim on each platform. Windows uses SEH and a different calling
+  # convention; aarch64 is a different backend in Cranelift entirely.
+  # ---------------------------------------------------------------------------
+  test:
+    name: test / ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+          - name: windows-x86_64
+            os: windows-latest
+          - name: macos-aarch64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust-toolchain.toml pins the version; this action just honours it.
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: none
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+
+      - run: cargo build --workspace --all-targets
+      - run: cargo test --workspace --all-targets
+      # Doc tests are excluded from --all-targets and are real tests for a
+      # library this API-heavy.
+      - run: cargo test --workspace --doc
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: none
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Enforces the claims in docs/adr: no unsafe outside the audited modules, no
+  # C dependencies sneaking into the trusted core, no yanked or vulnerable deps.
+  # ---------------------------------------------------------------------------
+  supply-chain:
+    name: supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: none
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+  unsafe-audit:
+    name: unsafe audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: none
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger --locked
+      # Informational for now. Becomes a hard gate once the unsafe modules in
+      # mwl-runtime and mwl-codegen are written and their expected counts known.
+      - name: Count unsafe
+        run: cargo geiger --workspace --output-format GitHubMarkdown >> "$GITHUB_STEP_SUMMARY"
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Miri validates the safe subset; the audited unsafe modules get ASAN/TSAN
+  # jobs added in M3 and M5, when there is unsafe code to validate.
+  # ---------------------------------------------------------------------------
+  miri:
+    name: miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: miri
+      # Cranelift-dependent crates cannot run under Miri (they execute JIT
+      # code), so the front-end crates are tested here and the backend relies
+      # on ASAN instead.
+      - name: miri test (front end)
+        run: |
+          cargo +nightly miri test \
+            -p mwl-diagnostics \
+            -p mwl-syntax \
+            -p mwl-hir \
+            -p mwl-types \
+            -p mwl-ir

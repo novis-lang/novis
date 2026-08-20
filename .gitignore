@@ -1,0 +1,47 @@
+# Rust build output
+/target
+**/target
+*.pdb
+
+# Cargo
+Cargo.lock.bak
+
+# MWL artifact cache (content-addressed native code; never committed)
+/.mwl-cache
+*.mwlo
+
+# Insta snapshot review leftovers
+*.snap.new
+*.pending-snap
+
+# Fuzzing
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+
+# Profiling / benchmark output
+/benches/results
+perf.data*
+flamegraph.svg
+*.profraw
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+*.iml
+*.swp
+*~
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local developer config (mwl.ini is server config; keep local overrides out)
+/mwl.local.ini
+/.env
+
+# Machine-local agent/tool settings
+.claude/settings.local.json

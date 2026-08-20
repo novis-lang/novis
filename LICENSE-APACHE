@@ -1,0 +1,14 @@
+PLACEHOLDER — REPLACE WITH THE CANONICAL APACHE-2.0 TEXT BEFORE ANY RELEASE.
+
+This file must contain the verbatim Apache License, Version 2.0, obtained from:
+
+    https://www.apache.org/licenses/LICENSE-2.0.txt
+
+It is left as a placeholder deliberately: a licence is a legal document, and
+transcribing one from memory risks introducing a subtle alteration that would
+make it something other than Apache-2.0. Download the canonical text and commit
+it in place of this file.
+
+The appendix at the end of the canonical text ("APPENDIX: How to apply the
+Apache License to your work") is boilerplate instructions and is conventionally
+kept as-is; the copyright holder for this project is "The MWL authors".
