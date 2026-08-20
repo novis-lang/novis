@@ -15,6 +15,23 @@ project-start section below is what would have been it.
 [`benches/abi-probe`](../../benches/abi-probe/) named in that ADR's *Validated by* line. The tests are
 authoritative; a number written anywhere else is a copy that can go stale.
 
+**Adding a decision.** Touch exactly these, in order — nothing else should ever need its own copy:
+
+1. Write the ADR file, following the shape every other one has: metadata block, **In short**, then
+   `## Context` / `## Investigation` / `## Alternatives rejected` / `## Decision` / `## Consequences` as
+   needed.
+2. Add its row to the table below: number, one-line decision, status.
+3. If it changes a prior ADR's decision, add **Amends** / **Amended by** lines linking the two, both
+   directions.
+4. If the topic is one an agent will search for by keyword, add one row to
+   [CLAUDE.md](../../CLAUDE.md)'s "Where to look" table, and — only if it is a hard invariant — one bullet
+   (a sentence, not a paragraph) to its "Ground rules enforced elsewhere".
+5. If it changes what a milestone builds, update that milestone's paragraph in
+   [the plan](../implementation-plan.md) with a link and a headline, not a restatement.
+
+`.claude/brief.sh` needs no update for any of this: it slices this file's table and the plan's status block
+live, so a new row is picked up automatically.
+
 | # | Decision | Status |
 |---|---|---|
 | [0002](0002-error-propagation.md) | Exceptions propagate by checked return, not by unwinding | Accepted |

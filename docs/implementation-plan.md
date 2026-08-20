@@ -66,35 +66,43 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 
 ## Confirmed design decisions
 
+Every row that names an ADR states only the headline — open that ADR for the mechanism, the exact
+spellings rejected, and the reasoning. Do not restate that detail here when adding a row.
+
 | Area | Decision |
 |---|---|
 | Implementation language | Rust (stable, pinned via `rust-toolchain.toml`) |
-| Resource priorities | **Security → semantics → latency → simplicity → memory footprint.** Memory is spent to buy the other four, within an enforced per-request cap. Not a low-footprint runtime |
-| Execution | **Cranelift JIT from day one.** No interpreter tier. Baseline codegen first, optimising tier later |
+| Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap ([ADR 0004](adr/0004-memory-for-simplicity.md)) |
+| Execution | Cranelift JIT from day one, no interpreter tier; baseline codegen first, optimising tier later |
 | Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing |
-| Parallelism | **Hybrid**: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
-| Suspension | **Stackful coroutines** — no async colouring; any function may yield |
-| Isolated execution | **`spawn script 'file.mwl'`** — runs another file in-process with its own heap, globals and config overlay, on the caller's budget. File-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
-| Type system | **Static, mandatory, explicit.** Every binding declares a type and its type never changes; conversions are explicit and checked; unions and intersections as in PHP; `mixed` is the one unchecked position. `uint` added alongside signed `int`; `float` is always `f64`. Arrays keep PHP's ordered hash but every key is a `string` and the element type may be declared and nested (`array<array<uint>>`) ([ADR 0007](adr/0007-explicit-type-system.md)) |
-| Enums | **A closed, named integer type, C#-style — PHP's enum design is disregarded entirely.** `enum Status { Active, Banned }` declares cases as compile-time constants of an underlying `int` (default) or `uint`, auto-incrementing unless given a literal; no methods, no interfaces, no `::cases()`/`::from()`/`::tryFrom()`, no `string` backing, no runtime storage at all. The enum's name is a type usable anywhere ADR 0007 requires one — property, constant, parameter, local ([ADR 0010](adr/0010-enums-are-a-value-type.md)) |
-| Scoping and state | **`static` is a class-member modifier only.** Static methods, static properties and late static binding (`static::`, `new static()`, `: static`) kept as PHP has them; function-scope `static` and `static fn` rejected with a diagnostic. No `global`. State that outlives a call lives in a class static, a constant, or an object property, and nowhere else ([ADR 0008](adr/0008-static-and-global.md)) |
-| No superglobals | **No variable is ever populated by the host.** `$GLOBALS` and `$_REQUEST` are dropped with no replacement; every other PHP superglobal (`$_SERVER`, `$_GET`/`$_POST`/`$_COOKIE`/`$_FILES`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and MWL's own `$_ARGS` become `static` methods on reserved `Core` classes (`Core\Server`, `Core\Request`, `Core\Session`, `Core\Env`, `Core\Cli`, `Core\Script`), host-populated per isolate. Inside a spawned isolate, `Core\Request`/`Core\Server`/`Core\Session` throw rather than returning the parent's data or a fresh-and-empty result ([ADR 0012](adr/0012-no-superglobals.md)) |
-| Object comparison | **Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright.** `<`, `>`, `<=`, `>=` and `<=>` between two objects lower to a call to `compareTo(self $other): int`; a class that does not implement `Comparable` makes those operators a compile-time diagnostic, and two different classes are never directly orderable even when both implement it. `==`/`===`/`!=`/`!==` are untouched ([ADR 0013](adr/0013-comparable-interface.md)) |
-| Property access | **A property's own hook runs first, then a declared `PropertyObserver` runs second — always both, never a fallback.** Per-property `get`/`set` hooks stay PHP 8.4's. A class implementing the global `PropertyObserver` interface additionally gets `onPropertyGet`/`onPropertySet` called, purely as an observer, after every property access, hooked or not; it cannot override the value. Accessing an undeclared property is always a hard error — a compile diagnostic for a literal name, a checked throw for a computed one — so PHP's `__get`/`__set` fallback for missing properties has nothing left to catch. `__call`/`__callStatic` are not recognized by name at all ([ADR 0014](adr/0014-property-observer.md)) |
-| OOP-only: no free functions, no global constants | **Every callable is a method, every constant a class constant — no exception for built-ins.** `function` and `const` are rejected outside a class body. Built-ins live under `Core`, a reserved namespace organised into domain classes (`Core\Str`, `Core\Arr`, `Core\Math`, …) rather than one god class; `strlen($s)` becomes `Core\Str::len($s)`, `PHP_EOL` becomes `Core\Env::EOL`, reached via ordinary `use`/fully-qualified resolution with nothing auto-imported. Anonymous functions and arrow functions are unaffected — they are values, not named declarations ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) |
-| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all; [ADR 0012](adr/0012-no-superglobals.md) adds a twelfth — no PHP superglobal exists as a variable, `$GLOBALS` and `$_REQUEST` have no replacement at all; [ADR 0013](adr/0013-comparable-interface.md) adds a thirteenth — ordering two objects with `<`/`>` no longer falls back to PHP's implicit property walk; [ADR 0014](adr/0014-property-observer.md) adds a fourteenth — `__get`/`__set` no longer fire for an undefined property, since one no longer exists to fire for, and `__call`/`__callStatic` are gone with no replacement) |
+| Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
+| Suspension | Stackful coroutines — no async colouring; any function may yield |
+| Isolated execution | `spawn script 'file.mwl'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
+| Type system | Static, mandatory, explicit; every binding's declared type never changes; `uint` alongside signed `int` ([ADR 0007](adr/0007-explicit-type-system.md)) |
+| Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely ([ADR 0010](adr/0010-enums-are-a-value-type.md)) |
+| Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` ([ADR 0008](adr/0008-static-and-global.md)) |
+| No superglobals | No variable is ever populated by the host; every PHP superglobal becomes a `Core` accessor class, and `$GLOBALS`/`$_REQUEST` have no replacement ([ADR 0012](adr/0012-no-superglobals.md)) |
+| Object comparison | Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright ([ADR 0013](adr/0013-comparable-interface.md)) |
+| Property access | A property's own hook runs first, then a declared `PropertyObserver` second, always both, never a fallback for a missing property ([ADR 0014](adr/0014-property-observer.md)) |
+| OOP-only: no free functions, no global constants | Every callable is a method, every constant a class constant; built-ins live under `Core` domain classes ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) |
+| Name aliasing | No `class_alias`, import `as`, or trait-use `as`; a compile-time-only `type` alias for a type expression is the one exception ([ADR 0015](adr/0015-no-name-aliasing.md)) |
+| PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`. Existing PHP does not run unconverted — see *Consequences to accept* below, and each ADR above for its own divergence from PHP |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
-| Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
+| Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
-| Security | Server-level `mwl.ini`, root-owned, php.ini-style, deny-by-default capabilities + hard per-request limits. Per-directive changeability: capabilities tighten-only, limits freely settable per request up to a `System` ceiling ([ADR 0005](adr/0005-config-changeability.md)) |
+| Security | Server-level `mwl.ini`, root-owned, php.ini-style, deny-by-default capabilities + hard per-request limits ([ADR 0005](adr/0005-config-changeability.md)) |
 | Serving | Built-in HTTP/1.1 + h2c server. FastCGI deferred to optional transport. HTTP/3 out of scope |
 | Databases | MySQL/MariaDB, PostgreSQL, SQLite, MS SQL Server |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
 | Testing | Hand-written suite is normative; `.phpt → .mwlt` transpiler imports PHP's corpus |
 | Migration | `mwl convert` — real PHP→MWL transpiler |
-| Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.mwlx`), statically linked native. No `dlopen` |
+| Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.mwlx`), statically linked native. No `dlopen` ([ADR 0003](adr/0003-extension-system.md)) |
 | Platforms | Windows x86_64, Linux x86_64, macOS (x86_64 + aarch64) |
 | Licence | MIT |
+
+One decision — `string` is guaranteed-valid UTF-8, `bytes` is the separate binary type — is drafted but not
+yet in this table: it is **Proposed**, not Accepted, pending a cost measurement
+([ADR 0009](adr/0009-string-and-bytes.md)).
 
 ### Rationale for the two calls left open
 
@@ -377,14 +385,14 @@ member, static or instance — see [ADR 0011](adr/0011-functions-and-constants-a
 attributes, `match`, closures and arrow functions, generators, named arguments, spread, nullsafe,
 `readonly`, promoted constructor parameters, first-class callable syntax, property hooks (their pipeline
 relative to the new `PropertyObserver` interface is [ADR 0014](adr/0014-property-observer.md)), asymmetric
-visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static
-fn`/enum methods/`enum … implements`/`enum … : string`/a `function` or `const` declared outside a class
-body/a `namespace` or class named `Core` (or nested under it)/any superglobal spelling (`$GLOBALS`,
-`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST`, `$_SESSION`, `$_ENV`, `$argv`, `$argc`)/
-`use Path\To\Name as Other;`/any `as` clause inside a trait `use` block, rename or visibility-only alike
-(`insteadof` alone still parses) — with a diagnostic naming the replacement
-([ADR 0012](adr/0012-no-superglobals.md), [ADR 0015](adr/0015-no-name-aliasing.md)). Error recovery good
-enough for the LSP.
+visibility. Rejects, with a diagnostic naming the replacement, every construct an earlier ADR closes:
+`eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static fn`
+([ADR 0008](adr/0008-static-and-global.md)), enum methods/`implements`/`string` backing
+([ADR 0010](adr/0010-enums-are-a-value-type.md)), a `function` or `const` outside a class body and a
+`namespace` or class named `Core` ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
+every superglobal spelling ([ADR 0012](adr/0012-no-superglobals.md)), and `use … as …` or trait-use `as`
+(`insteadof` alone still parses; [ADR 0015](adr/0015-no-name-aliasing.md)). Error recovery good enough for
+the LSP.
 
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
 is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the

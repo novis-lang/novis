@@ -1,7 +1,7 @@
 #!/bin/sh
 # One call, whole orientation. Prints the parts of this repository an agent reads at the start of
-# nearly every session: where the plan stands, what each ADR decided, what the guard tests hold, and
-# what actually exists on disk.
+# nearly every session: where the plan stands, the title and status of every ADR (not its content),
+# what the guard tests hold, and what actually exists on disk.
 #
 # It stores no facts of its own. Every line it prints is sliced out of a file it names, so it cannot
 # go stale. When a slice comes back empty it says so loudly rather than printing a plausible nothing.
@@ -9,9 +9,10 @@
 # Usage:  sh .claude/brief.sh            # the digest
 #         sh .claude/brief.sh --no-git   # skip the working-tree section
 #
-# This is not a substitute for reading a file you are about to change. It gives you every *decision*;
-# the argument behind one still lives in its ADR's Context / Investigation / Alternatives sections,
-# which you only need when you intend to overturn it.
+# Deliberately small and O(1) per ADR added: it names which file decided something, never what the
+# decision says. Once you know which ADR a task touches, open it directly -- CLAUDE.md's "Where to
+# look" table maps topics to files. Context / Investigation / Alternatives sections inside an ADR are
+# for when you intend to overturn its decision; skip them otherwise.
 
 set -eu
 
@@ -57,15 +58,15 @@ fi
 
 # ------------------------------------------------------------------ decisions
 
-section "DECISIONS WITH AN ADR" "$ADR_DIR/*.md (metadata block + In short: everything before ## Context)"
-found_adr=0
-for adr in "$ADR_DIR"/0*.md; do
-  [ -f "$adr" ] || continue
-  found_adr=1
-  printf -- '---- %s\n' "$adr"
-  awk '/^## / { exit } { print }' "$adr"
-done
-[ "$found_adr" = 1 ] || warn "no ADRs found under $ADR_DIR"
+section "DECISIONS WITH AN ADR (number, decision, status)" "$ADR_DIR/README.md (the index table)"
+adr_table=$(awk '/^\| \[/ { print }' "$ADR_DIR/README.md")
+if [ -n "$adr_table" ]; then
+  printf '%s\n' "$adr_table"
+  printf '\nThis table intentionally omits the full rule and reasoning -- open the file it names for those.\n'
+  printf 'CLAUDE.md, section "Where to look", maps a topic to the same file.\n'
+else
+  warn "could not slice the ADR index table out of $ADR_DIR/README.md"
+fi
 
 section "DECISIONS WITH NO ADR (titles only)" "$ADR_DIR/README.md section Decisions taken at project start"
 lead=$(awk '

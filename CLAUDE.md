@@ -11,14 +11,16 @@ named below is authoritative and the other is a bug — fix it rather than recon
 
 ## Where to look
 
-Read this file, then **one** row below. Do not read the docs tree breadth-first; it is 120 KB and most of
-it is reasoning you only need when you are about to overturn a decision.
+Read this file, then **one** row below. Do not read the docs tree breadth-first: it is several hundred KB
+and only grows as ADRs are added, and most of it is reasoning you only need when you are about to overturn
+a decision.
 
-**First, run `sh .claude/brief.sh`.** One call, ~11 KB: the plan's status block, the current and next
-milestone, every ADR's decision paragraph, what the guard tests actually hold with their thresholds, and
-what exists on disk. It stores no facts — it slices the live files and names each source, so it cannot go
-stale, and it says so loudly if a slice comes back empty. Open a row below when you need the *reasoning*
-behind a decision, or the detail of something the brief only names.
+**First, run `sh .claude/brief.sh`.** One call, well under 15 KB: the plan's status block, the current and
+next milestone, the one-line title and status of every ADR, what the guard tests actually hold with their
+thresholds, and what exists on disk. It stores no facts — it slices the live files and names each source,
+so it cannot go stale, and it says so loudly if a slice comes back empty. It deliberately does not print
+each ADR's full rule, so it stays small as more ADRs are added — open the row below for whatever you're
+touching to get that.
 
 | Doing this | Open this |
 |---|---|
@@ -29,6 +31,7 @@ behind a decision, or the detail of something the brief only names.
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
+| `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md). Holds the only copy of the rule that every callable and every constant is a class member, and the `Core` domain-class shape built-ins are organised into. |
@@ -71,89 +74,41 @@ When choosing between designs:
 
 ## Ground rules enforced elsewhere
 
+Each bullet is the one-sentence rule; the full mechanism, the exact spellings rejected, and the reasoning
+live only in the ADR it links to. **When you add a new decision, add one bullet here — not a paragraph.**
+If you find yourself restating more than a sentence, that detail belongs in the ADR instead.
+
 - **`unsafe` is forbidden workspace-wide**; only `mwl-runtime`, `mwl-codegen` and `benches/abi-probe` opt
   down to `deny` with narrow, reasoned allows. Lint policy is in [Cargo.toml](Cargo.toml).
-- **Nothing unwinds through a JIT frame.** Errors propagate as a checked `i32` status after every call, and
-  helpers are `extern "C"` wrapping `catch_unwind` — never `extern "C-unwind"`
-  ([ADR 0002](docs/adr/0002-error-propagation.md)). `panic = "unwind"` is load-bearing in every profile:
-  `abort` would turn a containable bug into a process kill. No caller constructs a raw `call` instruction;
-  a missing status check would silently swallow an exception.
+- **Nothing unwinds through a JIT frame** — every call returns a checked status instead, never
+  `extern "C-unwind"` ([ADR 0002](docs/adr/0002-error-propagation.md)).
 - **Pure-Rust dependencies by default**, enforced by [deny.toml](deny.toml) in CI. Deviations are argued
   individually.
 - **Extensions are sandboxed wasm, never `dlopen`** ([ADR 0003](docs/adr/0003-extension-system.md)).
-- **An isolate shares nothing but compiled code, and spends its parent's budget.** `spawn script` runs
-  another `.mwl` file in-process ([ADR 0006](docs/adr/0006-isolated-script-execution.md)). Three invariants
-  no optimisation may trade away: values cross by copy under the *same* rules as worker dispatch (never a
-  pointer, never a shared heap, or non-atomic refcounts break); limits are accounted at the **root of the
-  request tree**, never per isolate, or memory stops being attributable and the process worst case becomes
-  unbounded in what a script chooses to spawn; and a child's grants are its parent's, optionally narrowed.
-  Isolation is one implementation shared with request handling — if you find yourself writing a second
-  arena setup or a second teardown path, that is the bug.
-- **Nothing is untyped, and no type ever changes by itself.** Every binding — parameter, property,
-  constant, local, loop variable, closure parameter, return — declares a type, and that declared type is
-  fixed for its lifetime. A value's type changes only through an explicit checked conversion that throws
-  rather than coercing, or by using a second binding. `mixed` is the *only* unchecked position, it is where
-  untrusted input lands, and getting a value out of it is an explicit conversion — that is the security
-  argument, not an ergonomic detail. `int` is signed, `uint` is unsigned, `int + uint` is a compile error,
-  and integer overflow throws rather than silently becoming a `float`. Array keys are **always** strings.
-  ([ADR 0007](docs/adr/0007-explicit-type-system.md)). If you find yourself writing type *inference* in the
-  compiler, stop: it belongs in `mwl convert`, and the absence of it is what pays for the mandatory
-  annotations.
-- **Every function is a method, and every constant is a class constant; there is no free function and no
-  global constant.** `function` and `const` are rejected with a diagnostic naming the replacement anywhere
-  outside a class body — no exception for the standard library. Built-ins live under `Core`, a reserved
-  namespace organised into domain classes (`Core\Str`, `Core\Arr`, `Core\Math`, …), one per PHP-extension-
-  shaped grouping rather than one class holding everything; a call reaches them through ordinary `use`/
-  fully-qualified resolution, with nothing auto-imported
-  ([ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md)). Anonymous functions and arrow
-  functions are unaffected — they are values, not named declarations, and creating one inside a method body
-  or the script's own frame is not the free-floating name this rule closes.
-- **`static` marks a class member; nothing else holds state behind a function's back.** Static methods,
-  static properties and late static binding (`static::`, `new static()`, `: static`) are kept exactly as
-  PHP has them. A function-scope `static` variable and a `static` closure are **rejected with a
-  diagnostic naming the replacement**, and `global` does not exist
-  ([ADR 0008](docs/adr/0008-static-and-global.md)). State that outlives a call lives in a class static, a
-  constant, or an object property, and that list is exhaustive — a top-level `$x` is a local
-  of the script's own frame and no function can reach it. A closure captures `$this` only when its body
-  uses it. If you find yourself adding a second per-isolate slot table so one keyword can survive a
-  return, that is this decision being undone.
-- **No variable is ever populated by the host — PHP's superglobals do not exist.** `$_SERVER`, `$_GET`,
-  `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION` and `$_ENV` become `static` method calls on reserved `Core`
-  classes (`Core\Server`, `Core\Request`, `Core\Session`, `Core\Env`), populated per isolate by the host;
-  the CLI SAPI's `$argv`/`$argc` become `Core\Cli`, and MWL's own spawn-script `$_ARGS` becomes
-  `Core\Script::args()`. `$GLOBALS` and `$_REQUEST` are dropped outright, with **no** replacement — there is
-  nothing left for `$GLOBALS` to expose once every top-level variable is already unreachable from a function
-  per the rule above, and `$_REQUEST`'s only job was hiding which of `$_GET`/`$_POST`/`$_COOKIE` a value
-  came from. Inside a spawned isolate, `Core\Request`/`Core\Server`/`Core\Session` throw rather than
-  returning the parent's data ([ADR 0012](docs/adr/0012-no-superglobals.md)).
-- **Ordering two objects requires the global `Comparable` interface; there is no property-walk fallback.**
-  `<`, `>`, `<=`, `>=` and `<=>` between two objects lower to a call to `compareTo(self $other): int`
-  (negative/zero/positive, like `<=>` on scalars); a class that does not implement `Comparable` makes those
-  operators a **compile-time diagnostic**, not PHP's ambient recursive property-by-property comparison. Two
-  different classes are never directly orderable, even when both implement it — there is no cross-class
-  overload. `==`/`===`/`!=`/`!==` are untouched by this and keep their existing behaviour
-  ([ADR 0013](docs/adr/0013-comparable-interface.md)).
-- **A property access runs its own hook first, then a declared `PropertyObserver` second; there is no
-  `__get`/`__set`-by-name and no `__call`/`__callStatic` at all.** Per-property `get`/`set` hooks stay
-  exactly PHP 8.4's. A class additionally implementing the global `PropertyObserver` interface
-  (`onPropertyGet(string $name, mixed $value): void`, `onPropertySet(string $name, mixed $value): void`) has
-  those methods called, purely as an observer, after every property's own hook (or plain storage) has
-  already settled the value — `PropertyObserver` never overrides what a read returns or what a write stores,
-  and it runs whether or not the specific property being accessed has its own hook. Accessing a property
-  that is not declared on the class is **always a hard error** — a compile-time diagnostic for a literal
-  name, a checked throw for a computed one — so unlike PHP, `__get`/`__set` are never reached as a fallback
-  for a missing property; there is no such fallback. `__call`/`__callStatic` are not recognized by name
-  anywhere: calling an undeclared method is already a diagnostic, and a method literally named `__call`
-  compiles as an ordinary method the runtime never invokes on its own
+- **An isolate shares nothing but compiled code, and spends its parent's budget** — the same value-crossing
+  rules as cross-core worker dispatch, limits accounted at the request tree's root, never per isolate
+  ([ADR 0006](docs/adr/0006-isolated-script-execution.md)).
+- **Nothing is untyped, and no type ever changes by itself** — every binding declares a type; `mixed` is the
+  one unchecked position; `int + uint` is a compile error; overflow throws rather than becoming a `float`
+  ([ADR 0007](docs/adr/0007-explicit-type-system.md)). Type *inference* belongs in `mwl convert`, never in
+  the compiler.
+- **`string` is guaranteed-valid UTF-8; binary data is the separate `bytes` type** — not yet Accepted, see
+  the table above ([ADR 0009](docs/adr/0009-string-and-bytes.md)).
+- **Every function is a method, every constant a class constant** — no free function, no global constant,
+  no exception for the standard library; built-ins live under `Core` domain classes
+  ([ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md)).
+- **`static` marks a class member; nothing else holds state behind a function's back** — no function-scope
+  `static`, no `static fn`, no `global`; a second per-isolate slot table for one would undo this decision
+  ([ADR 0008](docs/adr/0008-static-and-global.md)).
+- **No variable is ever populated by the host** — PHP's superglobals become `Core` accessor classes;
+  `$GLOBALS`/`$_REQUEST` have no replacement at all ([ADR 0012](docs/adr/0012-no-superglobals.md)).
+- **Ordering two objects requires the global `Comparable` interface** — there is no property-walk fallback,
+  and no cross-class overload ([ADR 0013](docs/adr/0013-comparable-interface.md)).
+- **A property access runs its own hook, then a declared `PropertyObserver`, in that order** — accessing an
+  undeclared property is always a hard error, and `__call`/`__callStatic` do not exist
   ([ADR 0014](docs/adr/0014-property-observer.md)).
-- **Nothing gets a second runtime-reachable name.** `class_alias()` does not exist in `Core` and never will;
-  `use Path\To\Name as Other;` is a diagnostic, not an import — a class, interface, trait or enum is reachable
-  only under its declared short name or a fully-qualified path; and trait composition keeps only `insteadof`
-  — both the renaming and the visibility-only forms of trait-use `as` are rejected, with the replacement
-  being an ordinary overriding method that calls `TraitName::method()` explicitly. The one alias kept is a
-  new **`type Name = TypeExpr;`** declaration: a compile-time-only synonym for a type *expression*, erased
-  entirely by the checker, that may not name a single bare class/interface/enum on its own — that case is
-  import aliasing wearing the type grammar as a disguise, and is rejected the same way
+- **Nothing gets a second runtime-reachable name** — no `class_alias`, no import `as`, no trait-use `as`; a
+  compile-time-only `type` alias for a type expression is the one exception
   ([ADR 0015](docs/adr/0015-no-name-aliasing.md)).
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
