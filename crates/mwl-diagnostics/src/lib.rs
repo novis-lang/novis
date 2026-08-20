@@ -108,6 +108,12 @@ pub mod code {
     pub const E_UNSUPPORTED_EXTENSION: Code = Code::new("E0206");
     /// A `preg` pattern using a construct the pure-Rust engine cannot express.
     pub const E_UNSUPPORTED_REGEX: Code = Code::new("E0207");
+    /// `settype($x, ...)`: no assignment, operator or call can change what a
+    /// binding's type is.
+    pub const E_SETTYPE_UNSUPPORTED: Code = Code::new("E0208");
+    /// `static $x = ...;` inside a function: there is no function-scope
+    /// storage class — see ADR 0008.
+    pub const E_STATIC_LOCAL_UNSUPPORTED: Code = Code::new("E0209");
     /// `static function`/`static fn`: closures already capture `$this` only
     /// if they use it, so `static` has nothing left to mean here.
     pub const E_STATIC_CLOSURE_UNSUPPORTED: Code = Code::new("E0210");

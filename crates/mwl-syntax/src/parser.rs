@@ -1,4 +1,4 @@
-//! The recursive-descent parser: types and expressions so far.
+//! The recursive-descent parser: types, expressions and statements.
 //!
 //! # What is here so far
 //!
@@ -7,16 +7,39 @@
 //! every operator at its PHP precedence, `as` conversion (binding tighter
 //! than any binary operator per ADR 0007 § 2), `match`, closures and arrow
 //! functions, generators (`yield`/`yield from`), named arguments, spread,
-//! nullsafe, first-class callable syntax, and `spawn script … with(…)`
+//! nullsafe, first-class callable syntax, `include`/`require` (an
+//! expression, not a statement), and `spawn script … with(…)`
 //! ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)).
-//! [`Parser::parse_block`]/[`Parser::parse_statement`] exist only so a closure
-//! literal has a body to parse — see [`crate::ast`]'s module docs for what is
-//! deliberately not here yet.
+//!
+//! Every control-flow statement (`if`/`elseif`/`else`, `while`, `do`/`while`,
+//! `for`, `foreach` with ADR 0007 § 3.2's mandatory typed bindings, `switch`,
+//! `break`/`continue`, `try`/`catch`/`finally`), `echo`, `unset`, § 3.1's
+//! typed local declaration and § 3.3's destructuring statement, and the
+//! statement-shaped rejects (`global`, `goto`, function-scope `static`) are
+//! also here. Class/interface/trait/enum declarations — plus `namespace`,
+//! `use` and the `type`-alias declaration, which sit at file scope rather
+//! than being executable statements — are the parser's next and last M1
+//! chunk; see [`crate::ast`]'s module docs.
 //!
 //! Attributes (`#[...]`) are not consumed here: every place PHP allows one is
 //! a declaration site (a class, a method, a parameter), so attribute parsing
 //! arrives with the declarations chunk rather than being bolted onto
-//! expressions now.
+//! expressions or statements now.
+//!
+//! # Backtracking
+//!
+//! Every production above is a single, committed pass — except two statement
+//! forms whose grammar is ambiguous on a token prefix alone: a typed local
+//! declaration versus an ordinary expression statement that happens to start
+//! with a name (`Foo $x = ...;` versus `Foo::bar();`), and a destructuring
+//! target versus a plain array-literal expression statement (`[int $a] =
+//! $p;` versus `[1, 2, 3];`). Both trial-parse the more specific production
+//! and [`Parser::restore`] a [`Checkpoint`] if the deciding token — a
+//! `Variable` after the type, a `=` after the pattern — doesn't show up,
+//! rather than a hand-written lookahead classifier that would duplicate
+//! [`Parser::parse_type`]'s grammar and drift from it. See
+//! [`Parser::parse_stmt_maybe_local_decl`] and
+//! [`Parser::parse_stmt_maybe_destructure`].
 //!
 //! # Error recovery
 //!
@@ -34,9 +57,11 @@ use std::collections::VecDeque;
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
-    Arg, ArrayItem, ArrowFnExpr, AssignOp, BinaryOp, Block, CallArgs, CastType, ClosureExpr,
-    ClosureUse, Expr, ExprKind, IncDecOp, MatchArm, MemberName, Modifier, Name, NewTarget, Param,
-    SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind, UnaryOp,
+    Arg, ArrayItem, ArrowFnExpr, AssignOp, BinaryOp, Block, CallArgs, CastType, CatchClause,
+    ClosureExpr, ClosureUse, DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding,
+    IncDecOp, IncludeKind, MatchArm, MemberName, Modifier, Name, NewTarget, Param, SpawnOption,
+    SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind,
+    UnaryOp,
 };
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind};
@@ -56,6 +81,25 @@ pub struct Parser<'src, 'd> {
     /// finished a sub-production can build `first.span.to(self.last_span)`
     /// without threading a running span through every helper.
     last_span: Span,
+    /// Set only while parsing a `foreach` header's subject: `as` there
+    /// belongs to `foreach`, not the conversion operator, so
+    /// [`Self::parse_postfix`]'s loop must not consume a bare one — see
+    /// [`Self::parse_expr_no_top_as`].
+    suppress_as: bool,
+}
+
+/// A saved parser position, for the one place this parser backtracks: a
+/// statement whose grammar is genuinely ambiguous on a token prefix alone
+/// (a type-then-`$name` local declaration versus an ordinary expression
+/// statement; a destructuring target versus a plain array literal). Trying
+/// the more specific production and restoring on a mismatch is simpler and
+/// far less error-prone than hand-writing a lookahead classifier that
+/// duplicates the type grammar.
+struct Checkpoint<'src> {
+    lexer: Lexer<'src>,
+    lookahead: VecDeque<Token>,
+    last_span: Span,
+    diags_len: usize,
 }
 
 impl<'src, 'd> Parser<'src, 'd> {
@@ -70,7 +114,28 @@ impl<'src, 'd> Parser<'src, 'd> {
             diags,
             lookahead: VecDeque::new(),
             last_span: start,
+            suppress_as: false,
         }
+    }
+
+    /// Saves the current position, so a speculative parse can be undone by
+    /// [`Self::restore`] if it turns out to be the wrong production.
+    fn checkpoint(&self) -> Checkpoint<'src> {
+        Checkpoint {
+            lexer: self.lexer.clone(),
+            lookahead: self.lookahead.clone(),
+            last_span: self.last_span,
+            diags_len: self.diags.len(),
+        }
+    }
+
+    /// Undoes every token consumed and every diagnostic reported since
+    /// `cp` was taken.
+    fn restore(&mut self, cp: Checkpoint<'src>) {
+        self.lexer = cp.lexer;
+        self.lookahead = cp.lookahead;
+        self.last_span = cp.last_span;
+        self.diags.truncate(cp.diags_len);
     }
 
     // --- cursor -------------------------------------------------------------
@@ -129,6 +194,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         } else {
             None
         }
+    }
+
+    fn expect_keyword(&mut self, kw: Keyword, what: &str) -> Span {
+        self.eat_keyword(kw)
+            .unwrap_or_else(|| self.error_expected(what))
     }
 
     /// The lower-cased text of an identifier-shaped span, for matching a
@@ -231,8 +301,16 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// decide, without committing, whether a mandatory type was actually
     /// omitted (e.g. a parameter written without one).
     fn can_start_type(&mut self) -> bool {
+        Self::token_starts_type(self.peek().kind)
+    }
+
+    /// The token-kind half of [`Self::can_start_type`], factored out so a
+    /// statement-position lookahead ([`Self::at_function_scope_static`]) can
+    /// ask the same question one token further ahead without a second,
+    /// drifting copy of this list.
+    fn token_starts_type(kind: TokenKind) -> bool {
         matches!(
-            self.peek().kind,
+            kind,
             TokenKind::Keyword(
                 Keyword::Null
                     | Keyword::Bool
@@ -260,6 +338,18 @@ impl<'src, 'd> Parser<'src, 'd> {
         )
     }
 
+    /// Whether `static` at the current position starts the rejected
+    /// function-scope storage declaration (ADR 0008 § 5) rather than an
+    /// ordinary `static::`/`static function`/`static fn`/bare-`static`
+    /// expression — decided by one token of lookahead past `static` itself:
+    /// a `$name` (the ordinary untyped PHP spelling) or a type-start token
+    /// (the ADR's own illustrative typed spelling) both mean this is the
+    /// rejected construct.
+    fn at_function_scope_static(&mut self) -> bool {
+        matches!(self.peek_at(1).kind, TokenKind::Variable)
+            || Self::token_starts_type(self.peek_at(1).kind)
+    }
+
     /// Parses one type expression: `union`.
     pub(crate) fn parse_type(&mut self) -> Type {
         self.parse_type_union()
@@ -283,11 +373,12 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     fn parse_type_intersection(&mut self) -> Type {
         let first = self.parse_type_operand();
-        if !self.at(TokenKind::Amp) {
+        if !self.at_intersection_amp() {
             return first;
         }
         let mut items = vec![first];
-        while self.eat(TokenKind::Amp).is_some() {
+        while self.at_intersection_amp() {
+            self.bump();
             items.push(self.parse_type_operand());
         }
         let span = items[0].span.to(items[items.len() - 1].span);
@@ -295,6 +386,16 @@ impl<'src, 'd> Parser<'src, 'd> {
             kind: TypeKind::Intersection(items),
             span,
         }
+    }
+
+    /// Whether an `&` here continues an intersection type (`A&B`) rather
+    /// than being a by-reference marker that happens to follow a type with
+    /// nothing between them (`int &$x` — a parameter, a `foreach` value
+    /// binding, a destructuring leaf). Both shapes start identically; the
+    /// deciding token is one further ahead: an intersection member is always
+    /// another type atom, never a bare `$name`.
+    fn at_intersection_amp(&mut self) -> bool {
+        self.at(TokenKind::Amp) && Self::token_starts_type(self.peek_at(1).kind)
     }
 
     fn parse_type_operand(&mut self) -> Type {
@@ -450,7 +551,32 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// needs "an expression" calls this.
     #[must_use]
     pub fn parse_expr(&mut self) -> Expr {
-        self.parse_low_or()
+        // Any nested expression (a call argument, an array item, a
+        // parenthesized group, ...) is unambiguous again once its own
+        // delimiters bound it, regardless of whether an enclosing `foreach`
+        // header suppressed `as` for the expression it is nested inside —
+        // see `parse_expr_no_top_as`.
+        let prev = self.suppress_as;
+        self.suppress_as = false;
+        let e = self.parse_low_or();
+        self.suppress_as = prev;
+        e
+    }
+
+    /// Parses a `foreach` header's subject. Identical to [`Self::parse_expr`]
+    /// except that [`Self::parse_postfix`]'s loop will not consume a bare
+    /// `as` — that keyword belongs to `foreach` itself
+    /// ([`docs/spec/00-overview.md` § 3.2](../../../docs/spec/00-overview.md)).
+    /// Converting the subject still works, just parenthesized:
+    /// `foreach (($m as array<int>) as int $v)` — the parens start a fresh
+    /// [`Self::parse_expr`] call, which lifts the suppression for its own
+    /// duration.
+    fn parse_expr_no_top_as(&mut self) -> Expr {
+        let prev = self.suppress_as;
+        self.suppress_as = true;
+        let e = self.parse_low_or();
+        self.suppress_as = prev;
+        e
     }
 
     fn parse_left_assoc(
@@ -895,7 +1021,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         },
                     };
                 }
-                TokenKind::Keyword(Keyword::As) => {
+                TokenKind::Keyword(Keyword::As) if !self.suppress_as => {
                     self.bump();
                     let ty = self.parse_type();
                     let span = e.span.to(ty.span);
@@ -1209,6 +1335,17 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Isset) => self.parse_isset(),
             TokenKind::Keyword(Keyword::Empty) => self.parse_empty(),
             TokenKind::Keyword(Keyword::Exit | Keyword::Die) => self.parse_exit(),
+            TokenKind::Keyword(Keyword::Eval) => self.parse_eval(),
+            TokenKind::Keyword(Keyword::Extract) => self.parse_extract(),
+            TokenKind::Keyword(Keyword::Settype) => self.parse_settype(),
+            TokenKind::Keyword(Keyword::Include) => self.parse_include(IncludeKind::Include),
+            TokenKind::Keyword(Keyword::IncludeOnce) => {
+                self.parse_include(IncludeKind::IncludeOnce)
+            }
+            TokenKind::Keyword(Keyword::Require) => self.parse_include(IncludeKind::Require),
+            TokenKind::Keyword(Keyword::RequireOnce) => {
+                self.parse_include(IncludeKind::RequireOnce)
+            }
             TokenKind::Ident
                 if self.at_contextual("spawn") && self.peek_at(1).kind == TokenKind::Ident =>
             {
@@ -1709,6 +1846,105 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
+    // Rejected calls that need their own argument-list parse, so their
+    // diagnostic covers the whole call rather than "expected an expression"
+    // at a keyword that shouldn't be one
+    // ========================================================================
+
+    /// Consumes `'(' expr (',' expr)* ')'` without keeping any of it — for a
+    /// rejected pseudo-call whose arguments never reach the AST.
+    fn skip_call_args(&mut self) {
+        self.expect(TokenKind::LParen, "`(`");
+        if !self.at(TokenKind::RParen) {
+            let _ = self.parse_expr();
+            while self.eat(TokenKind::Comma).is_some() && !self.at(TokenKind::RParen) {
+                let _ = self.parse_expr();
+            }
+        }
+        self.expect(TokenKind::RParen, "`)`");
+    }
+
+    /// `eval(...)` — ADR 0007 § 2: there is no such construct, since a string
+    /// has no stable identity to compile ahead of time.
+    fn parse_eval(&mut self) -> Expr {
+        let start = self.bump().span;
+        self.skip_call_args();
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(code::E_EVAL_UNSUPPORTED, "`eval` is not supported")
+                .with_primary(span, "MWL compiles ahead of execution")
+                .with_help(
+                    "give the code a path: `include` it to share this frame, or `spawn script` \
+                     it to isolate it",
+                ),
+        );
+        Expr {
+            span,
+            kind: ExprKind::Error,
+        }
+    }
+
+    /// `extract(...)` — ADR 0007 § 2: introduces bindings whose names are not
+    /// known statically, which every later stage assumes it can enumerate.
+    fn parse_extract(&mut self) -> Expr {
+        let start = self.bump().span;
+        self.skip_call_args();
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(code::E_EXTRACT_UNSUPPORTED, "`extract` is not supported")
+                .with_primary(
+                    span,
+                    "introduces bindings whose names are not known statically",
+                )
+                .with_help("destructure the array explicitly, or index it by key"),
+        );
+        Expr {
+            span,
+            kind: ExprKind::Error,
+        }
+    }
+
+    /// `settype(...)` — ADR 0007 § 2: no assignment, operator or call may
+    /// change what a binding's declared type is; `as` converts into a new
+    /// binding instead.
+    fn parse_settype(&mut self) -> Expr {
+        let start = self.bump().span;
+        self.skip_call_args();
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(code::E_SETTYPE_UNSUPPORTED, "`settype` is not supported")
+                .with_primary(
+                    span,
+                    "no binding's declared type ever changes after the fact",
+                )
+                .with_help("convert into a new, differently typed binding with `as` instead"),
+        );
+        Expr {
+            span,
+            kind: ExprKind::Error,
+        }
+    }
+
+    /// `include`/`include_once`/`require`/`require_once` — an expression,
+    /// not a statement, per
+    /// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md):
+    /// same frame, same globals, same statics as the caller. Precedence
+    /// mirrors `print`/`throw` above: it consumes a full expression, not
+    /// just a primary.
+    fn parse_include(&mut self, kind: IncludeKind) -> Expr {
+        let start = self.bump().span;
+        let path = self.parse_expr();
+        let span = start.to(path.span);
+        Expr {
+            span,
+            kind: ExprKind::Include {
+                kind,
+                path: Box::new(path),
+            },
+        }
+    }
+
+    // ========================================================================
     // `spawn script … with(…)`
     // ========================================================================
 
@@ -1875,7 +2111,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Minimal statements — just enough for a closure/arrow-function body
+    // Statements
     // ========================================================================
 
     /// A `{ ... }` block. If a statement consumes no tokens at all (a
@@ -1908,6 +2144,13 @@ impl<'src, 'd> Parser<'src, 'd> {
                     kind: StmtKind::Block(block),
                 }
             }
+            TokenKind::Semicolon => {
+                self.bump();
+                Stmt {
+                    span: start,
+                    kind: StmtKind::Empty,
+                }
+            }
             TokenKind::Keyword(Keyword::Return) => {
                 self.bump();
                 let value = if self.at(TokenKind::Semicolon) {
@@ -1922,15 +2165,585 @@ impl<'src, 'd> Parser<'src, 'd> {
                     kind: StmtKind::Return(value),
                 }
             }
-            _ => {
-                let expr = self.parse_expr();
-                self.expect(TokenKind::Semicolon, "`;`");
-                let span = start.to(self.last_span);
-                Stmt {
-                    span,
-                    kind: StmtKind::Expr(expr),
-                }
+            TokenKind::Keyword(Keyword::If) => {
+                self.bump();
+                self.finish_if(start)
             }
+            TokenKind::Keyword(Keyword::While) => self.parse_while(start),
+            TokenKind::Keyword(Keyword::Do) => self.parse_do_while(start),
+            TokenKind::Keyword(Keyword::For) => self.parse_for(start),
+            TokenKind::Keyword(Keyword::Foreach) => self.parse_foreach(start),
+            TokenKind::Keyword(Keyword::Switch) => self.parse_switch(start),
+            TokenKind::Keyword(Keyword::Break) => self.parse_break_continue(start, true),
+            TokenKind::Keyword(Keyword::Continue) => self.parse_break_continue(start, false),
+            TokenKind::Keyword(Keyword::Try) => self.parse_try(start),
+            TokenKind::Keyword(Keyword::Echo) => self.parse_echo(start),
+            TokenKind::Keyword(Keyword::Unset) => self.parse_unset_stmt(start),
+            TokenKind::Keyword(Keyword::Global) => self.parse_global(start),
+            TokenKind::Keyword(Keyword::Goto) => self.parse_goto(start),
+            TokenKind::Keyword(Keyword::Static) if self.at_function_scope_static() => {
+                self.parse_static_local(start)
+            }
+            TokenKind::Keyword(Keyword::List) => self.parse_destructure_from_list(start),
+            TokenKind::LBracket => self.parse_stmt_maybe_destructure(start),
+            _ if self.can_start_type() && !self.at_keyword(Keyword::Static) => {
+                self.parse_stmt_maybe_local_decl(start)
+            }
+            _ => self.parse_expr_statement(start),
+        }
+    }
+
+    fn parse_expr_statement(&mut self, start: Span) -> Stmt {
+        let expr = self.parse_expr();
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Expr(expr),
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // `if`/`elseif`/`else`
+    // ------------------------------------------------------------------------
+
+    /// Parses the rest of an `if`/`elseif` given its keyword was already
+    /// consumed at `start`. `elseif` re-enters here directly — its keyword is
+    /// a single token, not `else` followed by `if`, but produces exactly the
+    /// same nested-`If`-inside-`else_` shape as the two-word spelling (which
+    /// falls out for free: `else` bumps its own keyword, then
+    /// `parse_statement` sees `if` next and recurses through the ordinary
+    /// dispatch arm above).
+    fn finish_if(&mut self, start: Span) -> Stmt {
+        self.expect(TokenKind::LParen, "`(`");
+        let cond = self.parse_expr();
+        self.expect(TokenKind::RParen, "`)`");
+        let then = Box::new(self.parse_statement());
+        let else_ = if let Some(elseif_start) = self.eat_keyword(Keyword::Elseif) {
+            Some(Box::new(self.finish_if(elseif_start)))
+        } else if self.eat_keyword(Keyword::Else).is_some() {
+            Some(Box::new(self.parse_statement()))
+        } else {
+            None
+        };
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::If { cond, then, else_ },
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // Loops
+    // ------------------------------------------------------------------------
+
+    fn parse_while(&mut self, start: Span) -> Stmt {
+        self.bump();
+        self.expect(TokenKind::LParen, "`(`");
+        let cond = self.parse_expr();
+        self.expect(TokenKind::RParen, "`)`");
+        let body = Box::new(self.parse_statement());
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::While { cond, body },
+        }
+    }
+
+    fn parse_do_while(&mut self, start: Span) -> Stmt {
+        self.bump();
+        let body = Box::new(self.parse_statement());
+        self.expect_keyword(Keyword::While, "`while`");
+        self.expect(TokenKind::LParen, "`(`");
+        let cond = self.parse_expr();
+        self.expect(TokenKind::RParen, "`)`");
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::DoWhile { body, cond },
+        }
+    }
+
+    /// A comma-separated list of expressions, any of which may be absent —
+    /// one clause of a `for` header.
+    fn parse_expr_list_until(&mut self, closer: TokenKind) -> Vec<Expr> {
+        let mut list = Vec::new();
+        if self.at(closer) {
+            return list;
+        }
+        loop {
+            list.push(self.parse_expr());
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        list
+    }
+
+    fn parse_for(&mut self, start: Span) -> Stmt {
+        self.bump();
+        self.expect(TokenKind::LParen, "`(`");
+        let init = self.parse_expr_list_until(TokenKind::Semicolon);
+        self.expect(TokenKind::Semicolon, "`;`");
+        let cond = self.parse_expr_list_until(TokenKind::Semicolon);
+        self.expect(TokenKind::Semicolon, "`;`");
+        let step = self.parse_expr_list_until(TokenKind::RParen);
+        self.expect(TokenKind::RParen, "`)`");
+        let body = Box::new(self.parse_statement());
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::For {
+                init,
+                cond,
+                step,
+                body,
+            },
+        }
+    }
+
+    /// One `type '&'? '$' identifier` binding — the shared tail of both
+    /// `foreach`-target alternatives (ADR 0007 § 3.2). The reference marker
+    /// is parsed here and reported back to the caller, since only the
+    /// *value* position may carry one; the key position never calls this
+    /// with a marker present without the caller first checking for one.
+    fn parse_foreach_binding(&mut self) -> (ForeachBinding, bool) {
+        let start = self.peek().span;
+        let ty = if self.can_start_type() {
+            Some(self.parse_type())
+        } else {
+            let span = self.peek().span.shrink_to_start();
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_EXPECTED_TOKEN,
+                    "expected a `foreach` binding's type",
+                )
+                .with_primary(
+                    span,
+                    "every `foreach` binding declares a type (ADR 0007 § 3.2)",
+                ),
+            );
+            None
+        };
+        let by_ref = self.eat(TokenKind::Amp).is_some();
+        let name = self.expect(TokenKind::Variable, "a `foreach` binding name");
+        let span = start.to(self.last_span);
+        (ForeachBinding { ty, name, span }, by_ref)
+    }
+
+    /// `foreach (subject as key? value) body`, ADR 0007 § 3.2. The header's
+    /// own `as` is looked for explicitly after a suppressed-`as` subject
+    /// parse (see [`Self::parse_expr_no_top_as`]), and the first binding is
+    /// re-read as the key only once a `=>` confirms it was one — a reference
+    /// marker right after the first binding's type can only mean the
+    /// no-key, by-reference form (`foreach ($x as int &$v)`), since the
+    /// two-binding form's marker sits after the *second* type instead.
+    fn parse_foreach(&mut self, start: Span) -> Stmt {
+        self.bump();
+        self.expect(TokenKind::LParen, "`(`");
+        let subject = self.parse_expr_no_top_as();
+        self.expect_keyword(Keyword::As, "`as`");
+        let (first, first_by_ref) = self.parse_foreach_binding();
+        let (key, value, value_by_ref) = if !first_by_ref && self.eat(TokenKind::FatArrow).is_some()
+        {
+            let (value, value_by_ref) = self.parse_foreach_binding();
+            (Some(first), value, value_by_ref)
+        } else {
+            (None, first, first_by_ref)
+        };
+        self.expect(TokenKind::RParen, "`)`");
+        let body = Box::new(self.parse_statement());
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Foreach {
+                subject,
+                key,
+                value,
+                value_by_ref,
+                body,
+            },
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // `switch`
+    // ------------------------------------------------------------------------
+
+    fn parse_switch(&mut self, start: Span) -> Stmt {
+        self.bump();
+        self.expect(TokenKind::LParen, "`(`");
+        let subject = self.parse_expr();
+        self.expect(TokenKind::RParen, "`)`");
+        self.expect(TokenKind::LBrace, "`{`");
+        let mut cases = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            cases.push(self.parse_switch_case());
+        }
+        self.expect(TokenKind::RBrace, "`}`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Switch { subject, cases },
+        }
+    }
+
+    fn parse_switch_case(&mut self) -> SwitchCase {
+        let start = self.peek().span;
+        let cond = if self.eat_keyword(Keyword::Default).is_some() {
+            None
+        } else {
+            self.expect_keyword(Keyword::Case, "`case` or `default`");
+            Some(self.parse_expr())
+        };
+        self.expect(TokenKind::Colon, "`:`");
+        let mut body = Vec::new();
+        while !matches!(
+            self.peek().kind,
+            TokenKind::Keyword(Keyword::Case | Keyword::Default) | TokenKind::RBrace
+        ) && !self.at(TokenKind::Eof)
+        {
+            body.push(self.parse_statement());
+        }
+        let span = start.to(self.last_span);
+        SwitchCase { cond, body, span }
+    }
+
+    // ------------------------------------------------------------------------
+    // `break`/`continue`
+    // ------------------------------------------------------------------------
+
+    fn parse_break_continue(&mut self, start: Span, is_break: bool) -> Stmt {
+        self.bump();
+        let level = if self.at(TokenKind::Semicolon) {
+            None
+        } else {
+            Some(self.parse_expr())
+        };
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: if is_break {
+                StmtKind::Break(level)
+            } else {
+                StmtKind::Continue(level)
+            },
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // `try`/`catch`/`finally`
+    // ------------------------------------------------------------------------
+
+    fn parse_try(&mut self, start: Span) -> Stmt {
+        self.bump();
+        let body = self.parse_block();
+        let mut catches = Vec::new();
+        while self.at_keyword(Keyword::Catch) {
+            catches.push(self.parse_catch_clause());
+        }
+        let finally = self
+            .eat_keyword(Keyword::Finally)
+            .map(|_| self.parse_block());
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Try {
+                body,
+                catches,
+                finally,
+            },
+        }
+    }
+
+    /// `catch (Type ('|' Type)* '$'? identifier?) { ... }`. Multi-type catch
+    /// falls out of reusing the ordinary type grammar's union — no separate
+    /// type-list production is needed.
+    fn parse_catch_clause(&mut self) -> CatchClause {
+        let start = self.bump().span; // 'catch'
+        self.expect(TokenKind::LParen, "`(`");
+        let ty = self.parse_type();
+        let var = self.eat(TokenKind::Variable);
+        self.expect(TokenKind::RParen, "`)`");
+        let body = self.parse_block();
+        let span = start.to(body.span);
+        CatchClause {
+            ty,
+            var,
+            body,
+            span,
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // `echo`, `unset`
+    // ------------------------------------------------------------------------
+
+    fn parse_echo(&mut self, start: Span) -> Stmt {
+        self.bump();
+        let mut exprs = vec![self.parse_expr()];
+        while self.eat(TokenKind::Comma).is_some() {
+            exprs.push(self.parse_expr());
+        }
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Echo(exprs),
+        }
+    }
+
+    fn parse_unset_stmt(&mut self, start: Span) -> Stmt {
+        self.bump();
+        self.expect(TokenKind::LParen, "`(`");
+        let mut exprs = vec![self.parse_expr()];
+        while self.eat(TokenKind::Comma).is_some() && !self.at(TokenKind::RParen) {
+            exprs.push(self.parse_expr());
+        }
+        self.expect(TokenKind::RParen, "`)`");
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Unset(exprs),
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // The statement-shaped rejects: `global`, `goto`, function-scope `static`
+    // ------------------------------------------------------------------------
+
+    fn parse_global(&mut self, start: Span) -> Stmt {
+        self.bump();
+        let mut vars = vec![self.expect(TokenKind::Variable, "a variable name")];
+        while self.eat(TokenKind::Comma).is_some() {
+            vars.push(self.expect(TokenKind::Variable, "a variable name"));
+        }
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(code::E_GLOBAL_UNSUPPORTED, "`global` is not supported")
+                .with_primary(
+                    span,
+                    "no function may reach outside its own frame for state",
+                )
+                .with_help(
+                    "pass it as a parameter, or make it a `static` property or a `const` \
+                     (ADR 0008 § 5)",
+                ),
+        );
+        Stmt {
+            span,
+            kind: StmtKind::Global(vars),
+        }
+    }
+
+    fn parse_goto(&mut self, start: Span) -> Stmt {
+        self.bump();
+        let label = self.expect(TokenKind::Ident, "a label name");
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(code::E_GOTO_UNSUPPORTED, "`goto` is not supported")
+                .with_primary(span, "makes the control-flow graph unstructured")
+                .with_help("restructure with a loop, an early `return`, or a boolean flag"),
+        );
+        Stmt {
+            span,
+            kind: StmtKind::Goto(label),
+        }
+    }
+
+    fn parse_static_var(&mut self) -> StaticVar {
+        let name = self.expect(TokenKind::Variable, "a variable name");
+        let default = self.eat(TokenKind::Equals).map(|_| self.parse_expr());
+        StaticVar { name, default }
+    }
+
+    /// Function-scope `static` — always rejected, whether written in PHP's
+    /// ordinary untyped spelling (`static $calls = 0;`) or the typed
+    /// spelling ADR 0008 § 5's own diagnostic wording illustrates
+    /// (`static int $calls = 0;`); [`Self::at_function_scope_static`]
+    /// already confirmed one of those two shapes follows `static`.
+    fn parse_static_local(&mut self, start: Span) -> Stmt {
+        self.bump();
+        let ty = if self.at(TokenKind::Variable) {
+            None
+        } else {
+            Some(self.parse_type())
+        };
+        let mut vars = vec![self.parse_static_var()];
+        while self.eat(TokenKind::Comma).is_some() {
+            vars.push(self.parse_static_var());
+        }
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_STATIC_LOCAL_UNSUPPORTED,
+                "function-scope `static` is not supported",
+            )
+            .with_primary(span, "there is no per-function storage class")
+            .with_help(
+                "declare a `private static` property on a class, or pass the value as a \
+                 parameter (ADR 0008 § 5)",
+            ),
+        );
+        Stmt {
+            span,
+            kind: StmtKind::StaticLocal { ty, vars },
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // ADR 0007 § 3.1: typed local declaration, vs. an ordinary expression
+    // statement that happens to start with the same tokens (a class name
+    // used as a type, versus the same name used as a constant fetch or a
+    // static-call receiver). The one deciding signal is structural — "the
+    // type comes first, in the same position PHP already uses for a
+    // parameter" — so a genuine trial parse of the type, checked against
+    // whatever token follows it, resolves every case correctly without a
+    // second, hand-written classifier that would drift from `parse_type`.
+    // ------------------------------------------------------------------------
+
+    fn parse_stmt_maybe_local_decl(&mut self, start: Span) -> Stmt {
+        let cp = self.checkpoint();
+        let ty = self.parse_type();
+        if !self.at(TokenKind::Variable) {
+            self.restore(cp);
+            return self.parse_expr_statement(start);
+        }
+        let name = self.bump().span;
+        let value = self.eat(TokenKind::Equals).map(|_| self.parse_expr());
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::LocalDecl { ty, name, value },
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // ADR 0007 § 3.3: destructuring statement
+    // ------------------------------------------------------------------------
+
+    /// `list(...)` never means anything but a destructuring target — unlike
+    /// `[...]`, it collides with no expression grammar — so no backtracking
+    /// is needed here.
+    fn parse_destructure_from_list(&mut self, start: Span) -> Stmt {
+        let open = self.bump().span; // 'list'
+        self.expect(TokenKind::LParen, "`(`");
+        let elements = self.parse_destructure_elements(TokenKind::RParen);
+        let close = self.expect(TokenKind::RParen, "`)`");
+        let target = DestructureTarget {
+            elements,
+            span: open.to(close),
+        };
+        self.finish_destructure_stmt(start, target)
+    }
+
+    /// `[...]` at statement start is ambiguous with a plain array-literal
+    /// expression statement (`[1, 2, 3];`, legal if useless) — trial-parse
+    /// the more specific destructuring-target grammar and only keep it if a
+    /// `=` actually follows, exactly the same backtracking shape as
+    /// [`Self::parse_stmt_maybe_local_decl`].
+    fn parse_stmt_maybe_destructure(&mut self, start: Span) -> Stmt {
+        let cp = self.checkpoint();
+        let target = self.parse_destructure_target();
+        if !self.at(TokenKind::Equals) {
+            self.restore(cp);
+            return self.parse_expr_statement(start);
+        }
+        self.finish_destructure_stmt(start, target)
+    }
+
+    fn finish_destructure_stmt(&mut self, start: Span, target: DestructureTarget) -> Stmt {
+        self.expect(TokenKind::Equals, "`=`");
+        let value = self.parse_expr();
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Destructure { target, value },
+        }
+    }
+
+    fn parse_destructure_target(&mut self) -> DestructureTarget {
+        let open = self.expect(TokenKind::LBracket, "`[`");
+        let elements = self.parse_destructure_elements(TokenKind::RBracket);
+        let close = self.expect(TokenKind::RBracket, "`]`");
+        DestructureTarget {
+            elements,
+            span: open.to(close),
+        }
+    }
+
+    fn parse_destructure_elements(&mut self, closer: TokenKind) -> Vec<DestructureElement> {
+        let mut elements = Vec::new();
+        while !self.at(closer) && !self.at(TokenKind::Eof) {
+            elements.push(self.parse_destructure_element());
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        elements
+    }
+
+    /// An optional `(string-literal | expr) '=>'` key. `[` never starts a key
+    /// (an array cannot be a destructuring key), so it is excluded up front;
+    /// otherwise a checkpointed trial parse decides — the same reasoning as
+    /// [`Self::parse_stmt_maybe_local_decl`], now nested one level deeper.
+    fn parse_destructure_key(&mut self) -> Option<Expr> {
+        if self.at(TokenKind::LBracket) {
+            return None;
+        }
+        let cp = self.checkpoint();
+        let key = self.parse_expr();
+        if self.eat(TokenKind::FatArrow).is_some() {
+            return Some(key);
+        }
+        self.restore(cp);
+        None
+    }
+
+    fn parse_destructure_element(&mut self) -> DestructureElement {
+        if self.at(TokenKind::Comma) {
+            return DestructureElement::Skip;
+        }
+        let start = self.peek().span;
+        let key = self.parse_destructure_key();
+        if self.at(TokenKind::LBracket) {
+            let target = self.parse_destructure_target();
+            let span = start.to(target.span);
+            return DestructureElement::Nested { key, target, span };
+        }
+        let ty = if self.can_start_type() {
+            Some(self.parse_type())
+        } else {
+            let span = self.peek().span.shrink_to_start();
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_EXPECTED_TOKEN,
+                    "expected a destructuring leaf's type",
+                )
+                .with_primary(
+                    span,
+                    "every destructuring leaf declares a type (ADR 0007 § 3.3)",
+                ),
+            );
+            None
+        };
+        let by_ref = self.eat(TokenKind::Amp).is_some();
+        let name = self.expect(TokenKind::Variable, "a destructuring leaf's name");
+        let span = start.to(self.last_span);
+        DestructureElement::Leaf {
+            key,
+            ty,
+            by_ref,
+            name,
+            span,
         }
     }
 }
@@ -2527,5 +3340,414 @@ mod tests {
         let (e, diags) = parse_with_diags("${$name}");
         assert!(diags.has_errors());
         assert!(matches!(e.kind, ExprKind::Error));
+    }
+
+    // ========================================================================
+    // Chunk 2: statements
+    // ========================================================================
+
+    /// Parses `src` as one statement (wrapped in `<?mwl `) and asserts no
+    /// diagnostics were reported.
+    fn parse_stmt_ok(src: &str) -> Stmt {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", format!("<?mwl {src}"));
+        let mut diags = Diagnostics::new();
+        let mut p = Parser::new(map.file(id), &mut diags);
+        p.bump(); // OpenTagMwl
+        let s = p.parse_statement();
+        assert!(
+            !diags.has_errors(),
+            "unexpected diagnostics for {src:?}: {diags:?}"
+        );
+        s
+    }
+
+    /// Parses `src` as one statement and returns it along with whatever
+    /// diagnostics were reported, for tests that expect a reported error.
+    fn parse_stmt_with_diags(src: &str) -> (Stmt, Diagnostics) {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", format!("<?mwl {src}"));
+        let mut diags = Diagnostics::new();
+        let mut p = Parser::new(map.file(id), &mut diags);
+        p.bump();
+        let s = p.parse_statement();
+        (s, diags)
+    }
+
+    #[test]
+    fn if_elseif_else_chain() {
+        let s = parse_stmt_ok("if ($a) { 1; } elseif ($b) { 2; } else { 3; }");
+        let StmtKind::If { then, else_, .. } = s.kind else {
+            panic!("expected an if: {s:?}");
+        };
+        assert!(matches!(then.kind, StmtKind::Block(_)));
+        let else_ = else_.expect("elseif chain");
+        let StmtKind::If {
+            else_: inner_else, ..
+        } = else_.kind
+        else {
+            panic!("expected `elseif` to produce a nested if: {else_:?}");
+        };
+        assert!(matches!(inner_else.unwrap().kind, StmtKind::Block(_)));
+    }
+
+    #[test]
+    fn else_if_two_words_matches_elseif() {
+        // `else if (...)` recurses through the ordinary statement dispatch
+        // rather than a dedicated `elseif` production, but produces the same
+        // nested-`If` shape.
+        let s = parse_stmt_ok("if ($a) { 1; } else if ($b) { 2; }");
+        let StmtKind::If { else_, .. } = s.kind else {
+            panic!("expected an if: {s:?}");
+        };
+        assert!(matches!(else_.unwrap().kind, StmtKind::If { .. }));
+    }
+
+    #[test]
+    fn while_do_while_and_for() {
+        let s = parse_stmt_ok("while ($i < 10) { $i++; }");
+        assert!(matches!(s.kind, StmtKind::While { .. }));
+
+        let s = parse_stmt_ok("do { $i++; } while ($i < 10);");
+        assert!(matches!(s.kind, StmtKind::DoWhile { .. }));
+
+        let s = parse_stmt_ok("for ($i = 0; $i < 10; $i++) { }");
+        let StmtKind::For {
+            init, cond, step, ..
+        } = s.kind
+        else {
+            panic!("expected a for loop: {s:?}");
+        };
+        assert_eq!(init.len(), 1);
+        assert_eq!(cond.len(), 1);
+        assert_eq!(step.len(), 1);
+    }
+
+    #[test]
+    fn empty_statement_and_empty_for_body() {
+        let s = parse_stmt_ok(";");
+        assert!(matches!(s.kind, StmtKind::Empty));
+        let s = parse_stmt_ok("for (;;) ;");
+        let StmtKind::For { body, .. } = s.kind else {
+            panic!("expected a for loop: {s:?}");
+        };
+        assert!(matches!(body.kind, StmtKind::Empty));
+    }
+
+    #[test]
+    fn foreach_with_typed_key_and_value() {
+        let s = parse_stmt_ok("foreach ($rows as string $k => array<int> $row) { }");
+        let StmtKind::Foreach {
+            key,
+            value,
+            value_by_ref,
+            ..
+        } = s.kind
+        else {
+            panic!("expected a foreach: {s:?}");
+        };
+        assert!(key.is_some());
+        assert!(value.ty.is_some());
+        assert!(!value_by_ref);
+    }
+
+    #[test]
+    fn foreach_value_only_by_reference() {
+        let s = parse_stmt_ok("foreach ($items as int &$v) { }");
+        let StmtKind::Foreach {
+            key, value_by_ref, ..
+        } = s.kind
+        else {
+            panic!("expected a foreach: {s:?}");
+        };
+        assert!(key.is_none());
+        assert!(value_by_ref);
+    }
+
+    #[test]
+    fn foreach_key_and_by_reference_value() {
+        let s = parse_stmt_ok("foreach ($items as string $k => int &$v) { }");
+        let StmtKind::Foreach {
+            key, value_by_ref, ..
+        } = s.kind
+        else {
+            panic!("expected a foreach: {s:?}");
+        };
+        assert!(key.is_some());
+        assert!(value_by_ref);
+    }
+
+    #[test]
+    fn foreach_header_as_belongs_to_foreach_not_conversion() {
+        // ADR 0007 § 2 / docs/spec/00-overview.md § 3.2: converting the
+        // *subject* inside a `foreach` header needs parens, since a bare
+        // `as` right after the subject is `foreach`'s own separator.
+        let s = parse_stmt_ok("foreach (($m as array<int>) as int $v) { }");
+        insta::assert_debug_snapshot!(s);
+    }
+
+    #[test]
+    fn switch_with_fallthrough_and_default() {
+        let s = parse_stmt_ok("switch ($x) { case 1: case 2: echo $x; break; default: echo 0; }");
+        let StmtKind::Switch { cases, .. } = s.kind else {
+            panic!("expected a switch: {s:?}");
+        };
+        assert_eq!(cases.len(), 3);
+        assert!(cases[0].cond.is_some());
+        assert!(cases[0].body.is_empty(), "fallthrough case has no body");
+        assert!(cases[2].cond.is_none(), "the last arm is `default`");
+    }
+
+    #[test]
+    fn break_and_continue_with_level() {
+        let s = parse_stmt_ok("break;");
+        assert!(matches!(s.kind, StmtKind::Break(None)));
+        let s = parse_stmt_ok("continue 2;");
+        assert!(matches!(s.kind, StmtKind::Continue(Some(_))));
+    }
+
+    #[test]
+    fn try_multi_catch_and_finally() {
+        let s = parse_stmt_ok(
+            "try { risky(); } catch (TypeError|ValueError $e) { } finally { cleanup(); }",
+        );
+        let StmtKind::Try {
+            catches, finally, ..
+        } = s.kind
+        else {
+            panic!("expected a try: {s:?}");
+        };
+        assert_eq!(catches.len(), 1);
+        assert!(matches!(catches[0].ty.kind, TypeKind::Union(_)));
+        assert!(catches[0].var.is_some());
+        assert!(finally.is_some());
+    }
+
+    #[test]
+    fn catch_without_a_variable() {
+        let s = parse_stmt_ok("try { } catch (Throwable) { }");
+        let StmtKind::Try { catches, .. } = s.kind else {
+            panic!("expected a try: {s:?}");
+        };
+        assert!(catches[0].var.is_none());
+    }
+
+    #[test]
+    fn echo_and_unset() {
+        let s = parse_stmt_ok("echo 1, 2, 3;");
+        let StmtKind::Echo(exprs) = s.kind else {
+            panic!("expected echo: {s:?}");
+        };
+        assert_eq!(exprs.len(), 3);
+
+        let s = parse_stmt_ok("unset($a, $b);");
+        let StmtKind::Unset(exprs) = s.kind else {
+            panic!("expected unset: {s:?}");
+        };
+        assert_eq!(exprs.len(), 2);
+    }
+
+    #[test]
+    fn typed_local_declaration_with_and_without_initializer() {
+        let s = parse_stmt_ok("int $n = 0;");
+        let StmtKind::LocalDecl { ty, value, .. } = s.kind else {
+            panic!("expected a local decl: {s:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Int)));
+        assert!(value.is_some());
+
+        let s = parse_stmt_ok("array<uint> $ids;");
+        let StmtKind::LocalDecl { value, .. } = s.kind else {
+            panic!("expected a local decl: {s:?}");
+        };
+        assert!(value.is_none());
+    }
+
+    #[test]
+    fn a_name_used_as_a_type_is_not_confused_with_a_static_call() {
+        let s = parse_stmt_ok("User $owner = User::find($id);");
+        assert!(matches!(s.kind, StmtKind::LocalDecl { .. }));
+
+        let s = parse_stmt_ok("Foo::bar();");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        assert!(matches!(e.kind, ExprKind::StaticCall { .. }));
+    }
+
+    #[test]
+    fn a_bitwise_or_of_two_constants_is_not_confused_with_a_union_type() {
+        let s = parse_stmt_ok("Foo | Bar;");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        assert!(matches!(
+            e.kind,
+            ExprKind::Binary {
+                op: BinaryOp::BitOr,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn destructure_brackets_typed_nested_and_skipped() {
+        let s = parse_stmt_ok("[int $a, , string $b] = $triple;");
+        let StmtKind::Destructure { target, .. } = s.kind else {
+            panic!("expected a destructure: {s:?}");
+        };
+        assert_eq!(target.elements.len(), 3);
+        assert!(matches!(
+            target.elements[0],
+            DestructureElement::Leaf { .. }
+        ));
+        assert!(matches!(target.elements[1], DestructureElement::Skip));
+        assert!(matches!(
+            target.elements[2],
+            DestructureElement::Leaf { .. }
+        ));
+
+        let s = parse_stmt_ok("[[int $x, int $y], string $label] = $point;");
+        let StmtKind::Destructure { target, .. } = s.kind else {
+            panic!("expected a destructure: {s:?}");
+        };
+        assert!(matches!(
+            target.elements[0],
+            DestructureElement::Nested { .. }
+        ));
+    }
+
+    #[test]
+    fn destructure_with_string_keys() {
+        let s = parse_stmt_ok("['id' => uint $id, 'name' => string $name] = $row;");
+        let StmtKind::Destructure { target, .. } = s.kind else {
+            panic!("expected a destructure: {s:?}");
+        };
+        let DestructureElement::Leaf { key, .. } = &target.elements[0] else {
+            panic!("expected a leaf: {:?}", target.elements[0]);
+        };
+        assert!(key.is_some());
+    }
+
+    #[test]
+    fn list_is_a_second_spelling_of_bracket_destructuring() {
+        let s = parse_stmt_ok("list(int $a, string $b) = $pair;");
+        assert!(matches!(s.kind, StmtKind::Destructure { .. }));
+    }
+
+    #[test]
+    fn list_elements_still_require_a_type_like_brackets_do() {
+        // Unlike plain PHP, neither spelling has an untyped form.
+        let (_, diags) = parse_stmt_with_diags("list($a, $b) = $pair;");
+        assert!(diags.has_errors());
+    }
+
+    #[test]
+    fn a_plain_array_literal_statement_is_not_confused_with_destructuring() {
+        let s = parse_stmt_ok("[1, 2, 3];");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        assert!(matches!(e.kind, ExprKind::ArrayLiteral(_)));
+    }
+
+    #[test]
+    fn global_is_diagnosed_but_still_parses() {
+        let (s, diags) = parse_stmt_with_diags("global $a, $b;");
+        assert!(diags.has_errors());
+        let StmtKind::Global(vars) = s.kind else {
+            panic!("expected global: {s:?}");
+        };
+        assert_eq!(vars.len(), 2);
+    }
+
+    #[test]
+    fn goto_is_diagnosed_but_still_parses() {
+        let (s, diags) = parse_stmt_with_diags("goto done;");
+        assert!(diags.has_errors());
+        assert!(matches!(s.kind, StmtKind::Goto(_)));
+    }
+
+    #[test]
+    fn function_scope_static_is_diagnosed_but_still_parses() {
+        let (s, diags) = parse_stmt_with_diags("static $calls = 0;");
+        assert!(diags.has_errors());
+        let StmtKind::StaticLocal { ty, vars } = s.kind else {
+            panic!("expected a static local: {s:?}");
+        };
+        assert!(ty.is_none());
+        assert_eq!(vars.len(), 1);
+    }
+
+    #[test]
+    fn typed_function_scope_static_is_also_diagnosed() {
+        let (s, diags) = parse_stmt_with_diags("static int $calls = 0;");
+        assert!(diags.has_errors());
+        let StmtKind::StaticLocal { ty, .. } = s.kind else {
+            panic!("expected a static local: {s:?}");
+        };
+        assert!(ty.is_some());
+    }
+
+    #[test]
+    fn static_closure_and_static_property_are_not_confused_with_function_static() {
+        // `static fn`/`static function` are already diagnosed as unsupported
+        // closure modifiers (chunk 1) — the point here is that they must
+        // NOT also be routed into the function-scope-`static` rejection.
+        let (s, diags) = parse_stmt_with_diags("static fn (int $x) => $x;");
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STATIC_LOCAL_UNSUPPORTED))
+        );
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        assert!(matches!(e.kind, ExprKind::ArrowFn(_)));
+
+        parse_stmt_ok("static::method();");
+        parse_stmt_ok("$x = static::$prop;");
+    }
+
+    #[test]
+    fn eval_extract_settype_are_diagnosed() {
+        for (src, code) in [
+            ("eval($src);", code::E_EVAL_UNSUPPORTED),
+            ("extract($arr);", code::E_EXTRACT_UNSUPPORTED),
+            ("settype($x, 'int');", code::E_SETTYPE_UNSUPPORTED),
+        ] {
+            let (s, diags) = parse_stmt_with_diags(src);
+            assert!(diags.has_errors(), "expected a diagnostic for {src:?}");
+            assert!(
+                diags.iter().any(|d| d.code == Some(code)),
+                "expected {code:?} for {src:?}, got {diags:?}"
+            );
+            let StmtKind::Expr(e) = s.kind else {
+                panic!("expected an expression statement: {s:?}");
+            };
+            assert!(matches!(e.kind, ExprKind::Error));
+        }
+    }
+
+    #[test]
+    fn include_and_require_are_expressions() {
+        let s = parse_stmt_ok("$x = include 'a.mwl';");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        let ExprKind::Assign { value, .. } = e.kind else {
+            panic!("expected an assignment: {e:?}");
+        };
+        assert!(matches!(
+            value.kind,
+            ExprKind::Include {
+                kind: IncludeKind::Include,
+                ..
+            }
+        ));
+
+        parse_stmt_ok("require_once 'b.mwl';");
+        parse_stmt_ok("include_once 'c.mwl';");
+        parse_stmt_ok("require 'd.mwl';");
     }
 }

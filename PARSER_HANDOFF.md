@@ -10,180 +10,184 @@ that it stops being useful (e.g. once M1 is verified per the plan).
 M1 is split into three chunks, agreed with the user: **expressions/precedence**, **statements**,
 **class/interface/trait/enum declarations** — landed and reviewed one at a time.
 
-**Chunk 1 (expressions + types) is done, tested, and committed. The three gaps it left (below) are also now
-fixed, tested, and committed — chunk 2 (statements) can start clean.**
+**Chunks 1 and 2 are done, tested, and committed. Chunk 3 (declarations) has not been started.**
 
-- [`crates/mwl-syntax/src/ast.rs`](crates/mwl-syntax/src/ast.rs) (~710 lines): `Type`/`TypeKind`/`TypeAtom`
-  (ADR 0007 § 3's full grammar), `Expr`/`ExprKind` (every construct M1's plan names), plus a deliberately
-  minimal `Block`/`Stmt`/`StmtKind` (`Expr`/`Return`/`Block` only) so a closure body has somewhere to live.
-- [`crates/mwl-syntax/src/parser.rs`](crates/mwl-syntax/src/parser.rs) (~2450 lines): a `Parser` with a
-  small lookahead buffer over the existing `Lexer`, the full PHP-precedence expression grammar via
-  precedence climbing, the full type grammar, `parse_block`/`parse_statement` (same minimal set as above),
-  and the three closed-construct rejections below. 66 unit tests inline (`#[cfg(test)] mod tests` at the
-  bottom of `parser.rs`), all passing.
-- `crates/mwl-syntax/src/lib.rs` updated: `pub mod ast;`, `mod parser;`, re-exports `Parser` and
-  `parse_expression`.
-- `crates/mwl-diagnostics/src/lib.rs`: two new E02xx codes, `E_STATIC_CLOSURE_UNSUPPORTED` (`E0210`) and
-  `E_SUPERGLOBAL_UNSUPPORTED` (`E0211`) — see below.
-- `cargo build` / `cargo test -p mwl-syntax` / `cargo fmt --check` / `cargo clippy --all-targets -- -D
+- [`crates/mwl-syntax/src/ast.rs`](crates/mwl-syntax/src/ast.rs): `Type`/`TypeKind`/`TypeAtom` (ADR 0007
+  § 3's full grammar); `Expr`/`ExprKind` (every construct M1's plan names, now including
+  `ExprKind::Include` for `include`/`include_once`/`require`/`require_once` — an expression, not a
+  statement); `Block`/`Stmt`/`StmtKind` now cover every control-flow statement, `echo`, `unset`, ADR 0007
+  § 3.1's typed local declaration, § 3.3's destructuring statement, and the statement-shaped rejects
+  (`global`, `goto`, function-scope `static`) — see the new-types list below.
+- [`crates/mwl-syntax/src/parser.rs`](crates/mwl-syntax/src/parser.rs): a `Parser` with a small lookahead
+  buffer over the `Lexer`, the full type and expression grammar (chunk 1), and now the full statement
+  grammar (chunk 2). 94 unit tests inline (`#[cfg(test)] mod tests`), all passing, plus one `insta` snapshot
+  test (the first real use of that dev-dependency — see *Backtracking and snapshot testing* below).
+- `crates/mwl-diagnostics/src/lib.rs`: two more E02xx codes landed this chunk, closing the two that were
+  reserved-but-unused: `E_SETTYPE_UNSUPPORTED` (`E0208`) and `E_STATIC_LOCAL_UNSUPPORTED` (`E0209`).
+- `crates/mwl-diagnostics/src/diagnostic.rs`: `Diagnostics::truncate(len)` — new, undoes a speculative
+  parse's diagnostics on backtrack. See *Backtracking* below.
+- `crates/mwl-syntax/src/lexer.rs`: `Lexer` and its private `Mode` enum are now `Clone` — needed so the
+  parser can checkpoint and restore a lexer position wholesale. See *Backtracking* below.
+- `cargo build` / `cargo test` (whole workspace) / `cargo fmt --check` / `cargo clippy --all-targets -- -D
   warnings` are all clean as of this commit.
 
-### Design conventions established (keep following these)
+### New AST added this chunk (in `ast.rs`)
 
-- **AST nodes store `Span`s, never cooked values** — an int literal's digits, a string's escapes, are
-  parsed later (checker/IR), never in the parser. Mirrors the lexer's own documented discipline
-  (`crates/mwl-syntax/src/lexer.rs` module docs).
-- **`as` conversion is parsed as a postfix operator** (in `parse_postfix`'s loop), so it binds tighter than
-  any binary operator per ADR 0007 § 2 — verified by a test using the ADR's own `$a as int + 1` example.
-- **`array<T>`'s closing `>` may arrive fused into `>>`/`>=`/`>>=`** by the lexer (it has no reason to know
-  it's in type position). `Parser::expect_type_close_angle` splits the token in place and pushes the
-  remainder back onto the lookahead buffer. This is the mechanism `array<array<uint>>` needs, and it's
-  covered by a test (`nested_array_generic_closes_through_a_split_shift_token`).
-- **Error recovery**: every `parse_*` method always returns something (never `Result`); a missing token is
-  `E_EXPECTED_TOKEN` at an empty span, a missing expression is `E_EXPECTED_EXPR` + `ExprKind::Error`.
-  `parse_block`'s statement loop force-consumes one token if a statement made no progress at all, so a
-  construct that isn't implemented yet can't hang the parser.
-- **Testing style**: plain `let-else` + `matches!` structural assertions in an inline test module, not
-  `insta` snapshots — avoids needing the `cargo insta review` workflow for now. The plan's M1 verification
-  section explicitly wants one **`insta`** snapshot test for the `foreach`-header `as` wrinkle (see below);
-  that'll be the first real use of the `insta` dev-dependency that's already in `Cargo.toml`.
+- `StmtKind`: `Empty`, `If`, `While`, `DoWhile`, `For`, `Foreach`, `Switch`, `Break`, `Continue`, `Try`,
+  `Echo`, `Unset`, `LocalDecl`, `Destructure`, `Global`, `Goto`, `StaticLocal` (plus the pre-existing
+  `Expr`/`Return`/`Block`/`Error`).
+- Supporting structs/enums: `ForeachBinding`, `CatchClause`, `SwitchCase`, `DestructureElement`
+  (`Skip`/`Leaf`/`Nested`), `DestructureTarget`, `StaticVar`, `IncludeKind`.
+- `ExprKind::Include { kind: IncludeKind, path: Box<Expr> }` — `include`/`include_once`/`require`/
+  `require_once`, parsed in `parse_primary` next to `print`/`throw` since it is an expression
+  ([`docs/spec/00-overview.md` § 2](docs/spec/00-overview.md): `$x = include 'a.php';` is legal).
 
-### A real bug chunk 1's tests caught (already fixed, worth knowing about)
+### A real chunk-1 bug found and fixed while building `foreach`
 
-`bytes` is a reserved keyword (ADR 0009), matched case-insensitively by the lexer like every other keyword.
-So `Core\Bytes` — literally the spec's own example
-([`docs/spec/00-overview.md` § 5](docs/spec/00-overview.md)) — lexes `Bytes` as `Keyword(Bytes)`, not
-`Ident`. Fixed by having `Parser::parse_name` accept a keyword-shaped token as a qualified-name *segment*
-(after a `\` — never as the unqualified leading token, which still goes through the ordinary
-`Ident`/`Keyword` dispatch in `parse_primary`/`parse_type_atom`), the same reasoning already used for a
-member name after `->`/`::`. Keep an eye out for the same class of collision elsewhere (`Core\Static`? —
-currently untested).
+`parse_type_intersection` used to treat any `&` right after a type as continuing an intersection
+(`A&B`) unconditionally. That's wrong whenever the `&` is actually a by-reference marker sitting right
+after a type with nothing between — `int &$v` in a `foreach` value binding, but **also already possible in
+chunk 1's own `parse_param`**: `function f(int &$x)` would have hit `parse_type`'s intersection loop, tried
+to parse another type atom after `&`, found `$x` instead, and reported a spurious "expected a type" error.
+No chunk-1 test happened to cover a by-ref *typed* parameter, so this shipped unnoticed.
 
-## Gaps chunk 1 left, now closed
+Fixed with one extra token of lookahead (`Parser::at_intersection_amp`): `&` continues an intersection only
+if what follows it is itself a type-start token, via the same `token_starts_type` list `can_start_type` and
+`at_function_scope_static` share. A bare `$name` after `&` now always means "by-reference marker," never "a
+second intersection member" — mirrors real PHP 8.1's own resolution of the identical ambiguity. This is a
+parser-wide fix, not something scoped to `foreach`: every existing and future caller of `parse_type`
+benefits.
 
-Reading ADR 0008 in depth (for chunk 2's statement grammar) surfaced three things chunk 1 quietly did
-*wrong* per the ADRs, because chunk 1 was scoped to "parse the grammar," not "reject what's closed." All
-three are fixed and tested (commit after this handoff update):
+### The `eval`/`extract`/`settype` open question — closed
 
-1. **`static function`/`static fn`** — `Parser::parse_closure`/`parse_arrow_fn` now call
-   `report_static_closure_modifier` when `is_static`, reporting `E_STATIC_CLOSURE_UNSUPPORTED` (new code,
-   see below) naming ADR 0008 § 5's rule, then still bump past `static` and build the closure node as
-   before (pragmatic-superset style). Tests: `static_closure_modifier_is_diagnosed_but_still_parses`,
-   `static_arrow_fn_modifier_is_diagnosed_but_still_parses`, `ordinary_closure_is_not_diagnosed`.
-2. **Superglobal variable names** — `parse_primary`'s `Variable` case now calls `check_superglobal`, which
-   matches the raw `$…` text against ADR 0012 § 8's exact list and reports `E_SUPERGLOBAL_UNSUPPORTED` (new
-   code) with that section's exact replacement text per name (`$GLOBALS`/`$_REQUEST` get "does not exist,"
-   no `Core` class suggested). Covers all twelve ADR 0012 spellings, including `$_COOKIE`/`$_FILES`/`$argc`/
-   `$_ARGS` which the handoff note's example list didn't spell out but the ADR's table does. Still builds
-   the ordinary `ExprKind::Variable` node. Tests: `superglobals_are_diagnosed_but_still_parse_as_variables`
-   (parametrized over all 12), `an_ordinary_variable_is_not_mistaken_for_a_superglobal`.
-3. **`$$name`/`${expr}`** — `parse_primary` now has a `TokenKind::Dollar` arm: it bumps the `$`, then
-   best-effort consumes the rest of the shape (`Variable` for `$$name`, `{expr}` for `${expr}`) so the
-   caller doesn't immediately trip over a leftover token, reports `E_VARIABLE_VARIABLE` (already existed)
-   naming "defeats name resolution and type inference" (the reason already on `TokenKind::Dollar`'s own doc
-   comment) with a suggested `array<string, T>` replacement, and returns `ExprKind::Error`. Tests:
-   `dollar_dollar_name_is_variable_variable`, `dollar_brace_expr_is_variable_variable`.
+The previous handoff left open whether to intercept `eval`/`extract`/`settype` by identifier text in
+`parse_primary` (like `spawn`/`script`) or defer rejection to name resolution. Turns out the lexer already
+reserves all three as hard keywords (`Keyword::Eval`/`Extract`/`Settype` in `token.rs`) — they are not
+plain identifiers at all, so the "defer to M2" option was never actually on the table; there is no
+`Ident`-shaped `eval` for a resolver to see. `parse_primary` now has dedicated arms for all three
+(`Parser::parse_eval`/`parse_extract`/`parse_settype`, sharing `Parser::skip_call_args`), each reporting its
+ADR-0007-§2 diagnostic and producing `ExprKind::Error` — the same "report and keep going, discard the
+payload" shape `$$var` already used in chunk 1.
 
-All three follow the existing "report and keep going" convention — nothing here introduces a `Result` or
-changes the "every `parse_*` always returns something" rule.
+### Backtracking, and why it exists now
 
-## New diagnostic codes added
+Two statement forms are ambiguous on a token prefix alone, and resolving them needs more than one token of
+lookahead:
 
-Added to `crates/mwl-diagnostics/src/lib.rs`'s `code` module (E02xx = "rejected PHP constructs"), used by
-the fixes above:
+- **Typed local declaration vs. an ordinary expression statement.** `Foo $x = ...;` (a local of type `Foo`)
+  and `Foo::bar();` (a static call) both start with an `Ident`. `Foo|Bar $x;` (a union-typed local) and
+  `Foo | Bar;` (a bitwise-or expression statement) both start with an `Ident` followed by `|`. The type
+  grammar is compositional (`?T`, `array<T>`, `A|B`, `(A&B)|C`, qualified names) so no fixed lookahead
+  distance resolves every case — only "does a `Variable` immediately follow wherever the type parse
+  concludes" does, which is exactly the language's own committed rule ("the type comes first, in the same
+  position PHP already uses for a parameter").
+- **Destructuring target vs. a plain array-literal expression statement.** `[int $a] = $p;` versus
+  `[1, 2, 3];` (legal, if useless). Same shape of ambiguity, resolved the same way: try the destructuring
+  grammar, keep it only if `=` follows.
 
-- `E_STATIC_CLOSURE_UNSUPPORTED` (`E0210`) — `static function`/`static fn`.
-- `E_SUPERGLOBAL_UNSUPPORTED` (`E0211`) — any of the twelve ADR 0012 spellings.
+Rather than hand-write a lookahead classifier that re-implements `parse_type`'s (or the destructuring
+grammar's) shape just to decide "does this end where I think it does" — a second copy that *would* drift,
+exactly the kind of thing [CLAUDE.md](CLAUDE.md) calls a bug — the parser now has genuine backtracking:
+`Parser::checkpoint`/`Parser::restore`, backed by `Lexer: Clone` and `Diagnostics::truncate`. A speculative
+parse commits to the trial's tokens *and* diagnostics only if the trial's deciding token shows up;
+otherwise every token and every diagnostic the trial produced is undone and the alternative production
+runs instead. See `Parser::parse_stmt_maybe_local_decl` and `Parser::parse_stmt_maybe_destructure` (the
+latter's own key-detection, `Parser::parse_destructure_key`, nests the same trick one level deeper for
+`(string-literal | expr) '=>'`). `list(...)` needed none of this — it collides with no expression grammar,
+so it always means a destructuring target.
 
-**Still not added — reserved for chunk 2, do not reuse these numbers for anything else:**
+This is new, reusable infrastructure: chunk 3 (declarations) may well hit its own token-prefix ambiguities
+and can reach for the same `checkpoint`/`restore` pair instead of inventing another mechanism.
 
-- **`settype()`** — ADR 0007 § 2: *"joins `eval`, `$$var`, `goto`, `global` and `extract()` on the rejected
-  list, with a diagnostic naming `as` as the replacement."* Needs e.g. `E_SETTYPE_UNSUPPORTED` (`E0208`).
-- **function-scope `static`** (`static int $calls = 0;` inside a function) — ADR 0008 § 5's exact wording:
-  *"function-scope `static` is not supported; declare a `private static` property on a class, or pass the
-  value as a parameter."* Needs e.g. `E_STATIC_LOCAL_UNSUPPORTED` (`E0209`).
+### The `foreach`-header `as` wrinkle — pinned down with `insta`
 
-These weren't added yet because nothing calls them until chunk 2 parses statements (`static $x;` as a
-statement) and resolves the `eval`/`extract`/`settype` open question below — adding an unused constant now
-would just be dead code until then. `E0208`/`E0209` are reserved (skipped) so the numbering already agreed
-here doesn't shift later; add them as real constants only once chunk 2 wires up their call sites, same
-pattern as `E0210`/`E0211` above.
+ADR 0007 § 2 / [`docs/spec/00-overview.md` § 3.2](docs/spec/00-overview.md): inside a `foreach` header, `as`
+is `foreach`'s own separator, not the conversion operator — converting the *subject* needs parens:
+`foreach (($m as array<int>) as int $v)`. Implemented with a `Parser::suppress_as` field and
+`Parser::parse_expr_no_top_as` (used only for the subject): `parse_postfix`'s `as`-handling arm is skipped
+while it's set, and `Parser::parse_expr` (the ordinary, public entry point every nested sub-expression
+already goes through — call arguments, array items, a parenthesized group, ternary branches, …) always
+clears it for its own duration and restores it after. That one property is what makes the parenthesized
+form work correctly: entering `(...)` re-enters via `parse_expr`, which lifts the suppression just for
+what's inside the parens, so the *inner* `$m as array<int>` still converts while the outer, un-parenthesized
+`as` stays reserved for `foreach`.
 
-**Open question, worth resolving early in chunk 2**: `eval(...)`, `extract(...)` and `settype(...)` are
-*syntactically* ordinary function calls — nothing in the grammar distinguishes `eval($x)` from any other
-call except the name `eval`. Chunk 1 already special-cases `isset`/`empty`/`exit` by recognizing their
-*keyword* token in `parse_primary`, but `eval`/`extract`/`settype` are plain identifiers, not keywords. Two
-ways to reject them at the right stage:
-  - **(a)** Special-case them by identifier text in `parse_primary`'s `Ident` branch (like the
-    `spawn`/`script` contextual-keyword check already does), immediately after `parse_name`, before
-    building the ordinary `ConstFetch`/postfix-call chain — parser-stage rejection, matching how the plan's
-    M1 text frames this ("Rejects... every construct").
-  - **(b)** Leave them as ordinary `Call` nodes and defer the rejection to name resolution (M2), since
-    that's genuinely where a call's callee name is authoritative.
-  Given M1's plan text explicitly lists these under **M1's** reject column, (a) is probably right — but
-  confirm this doesn't conflict with anything M2 already assumes before committing to it.
+Pinned down with the plan's requested `insta` snapshot test —
+`foreach_header_as_belongs_to_foreach_not_conversion` in `parser.rs`'s test module — the first real use of
+the `insta` dev-dependency. Its snapshot file is
+`crates/mwl-syntax/src/snapshots/mwl_syntax__parser__tests__foreach_header_as_belongs_to_foreach_not_conversion.snap`,
+committed alongside the code. **Anyone adding another snapshot test needs `cargo insta review` (or
+`INSTA_UPDATE=always cargo test -p mwl-syntax` for a first pass, then eyeball the diff before committing
+the `.snap` file)** — a fresh snapshot test fails on its first run by design (no `.snap` file exists yet)
+and that is not a bug in the test.
 
-## Chunk 2 plan: statements
+### Where `type` alias / `namespace` / `use` ended up
 
-Not yet started. Scope, gathered from the plan + ADR 0007 § 3 + ADR 0008 + ADR 0012:
+The previous handoff left this "not settled." Settled now: they travel with **chunk 3**, alongside the
+declaration grammar, not with chunk 2's statements — `type Name = TypeExpr;` sits at file/namespace scope
+per ADR 0015 § 5 and is closer in spirit to a declaration than to anything in this chunk's executable-
+statement list.
 
-- **Control flow**: `if`/`elseif`/`else`, `while`, `do`/`while`, `for`, `switch`/`case`/`default` (with
-  fallthrough), `break`/`continue` with an optional integer level.
-- **`foreach`, with ADR 0007 § 3.2's typed bindings**:
-  `foreach (expr as type $k => type &? $v) block` — both key and value are **mandatory** typed bindings (no
-  untyped `foreach ($rows as $row)` left), reference marker only ever on the value. **The grammar wrinkle
-  the plan's M1 verification explicitly requires a snapshot test for**: inside a `foreach` header, `as`
-  belongs to `foreach`, not to the conversion operator, so converting the *subject* needs parens —
-  `foreach (($m as array<int>) as int $v)`. Chunk 1's expression parser already produces exactly this
-  misparse-without-parens behavior by construction (see "`as` is parsed as a postfix operator" above) — this
-  is expected, not a bug to fix; write the snapshot test to pin it down, per
-  [`docs/spec/00-overview.md` § 3.2](docs/spec/00-overview.md).
-- **`try`/`catch`/`finally`**, multi-type catch via `Type|Type $e`.
-- **`echo expr, expr, …;`**
-- **`unset(expr, …);`** (kept — this is an ordinary accepted builtin, unlike `extract`/`settype`).
-- **ADR 0007 § 3.1 typed local declaration**: `type '$' identifier ('=' expr)? ';'`.
-- **ADR 0007 § 3.3 destructuring statement**: bracket form with typed leaves at any nesting depth
-  (`[int $a, string $b] = $pair;`, empty-slot skips, string/expr keys), plus `list(...)` as a second
-  spelling with the same typed-leaf requirement (no untyped form of either). This is a **distinct**
-  production from chunk 1's plain array-literal expression grammar — do not try to reuse
-  `parse_array_literal_brackets`, its elements are shaped completely differently (`type '&'? '$' name`
-  instead of an arbitrary expression).
-- **`include`/`require`/`include_once`/`require_once`** — note these are PHP *expressions* (they return a
-  value; `$x = include 'a.php';` is legal PHP), not statements. Likely belongs next to `throw`/`print` in
-  the expression grammar (chunk 1's territory) rather than here — retrofit `parse_primary` alongside this
-  chunk rather than adding an ExprKind. See [`docs/spec/00-overview.md` § 2](docs/spec/00-overview.md).
-- **The rejects**: `goto`/labels (`Keyword::Goto` already exists in the lexer — parse `goto ident;`, reject
-  with the existing `E_GOTO_UNSUPPORTED`), `global $x, $y;` (`Keyword::Global` exists — reject with the
-  existing `E_GLOBAL_UNSUPPORTED`), function-scope `static $x;` (new code, see above), plus the
-  `eval`/`extract`/`settype` question above.
-- **Open, not yet decided where it belongs**: `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5) sits
-  "at file/namespace scope, alongside `use` and `namespace` — never inside a class body." Namespace/`use`
-  declarations themselves aren't clearly assigned to chunk 2 or chunk 3 yet either — decide when starting
-  this chunk; leaning toward: file-scope declarations (`namespace`, `use`, `type` alias) travel with chunk 3
-  since they're closer in spirit to "declarations" than to executable statements, but this isn't settled.
+## New diagnostic codes added this chunk
 
-## Chunk 3 (not started): class/interface/trait/enum declarations
+- `E_SETTYPE_UNSUPPORTED` (`E0208`) — `settype(...)`.
+- `E_STATIC_LOCAL_UNSUPPORTED` (`E0209`) — function-scope `static $x (= ...)?;`.
 
-Everything else the M1 milestone names: classes, interfaces, traits, enums (cases + optional backing type
-only, ADR 0010), methods, attributes (`#[...]` — deliberately *not* touched in chunk 1, see its module
-docs), property hooks feeding `PropertyObserver` (ADR 0014), asymmetric visibility, promoted constructor
-parameters (the `Param.modifiers` field already exists in `ast.rs` for this — chunk 1 parses the modifiers
-generically on every parameter; restricting them to constructors is presumably a later semantic check, not
-a chunk-3 parser change), `insteadof` without `as` (ADR 0015), rejecting `class_alias`/import `as`/trait-use
-`as`, rejecting a `function`/`const` outside a class body and a class/namespace literally named `Core`
-(ADR 0011).
+Both were reserved-but-unused placeholders in the previous handoff; both are now real constants with real
+call sites. No codes remain reserved-and-unused.
+
+## Known gaps chunk 2 leaves (not silently — read this before relying on the parser for anything these touch)
+
+- **PHP's alternative colon syntax is not implemented**: `if (...): ... endif;`, `while (...): ... endwhile;`,
+  `for (...): ... endfor;`, `foreach (...): ... endforeach;`, `switch (...): ... endswitch;`. The `Keyword::
+  End*` variants already exist in `token.rs` (lexed, unused), but nothing in `parser.rs` recognizes the
+  `:` -delimited body form — a statement like `if ($x): echo 1; endif;` will currently misparse (the `:`
+  after `)` is not `{`, so `parse_statement`'s body call falls through to an ordinary expression statement,
+  and `endif;` becomes its own, likely-erroring statement). This is real PHP syntax still found in template-
+  style code, so it is a plausible source of failures once M1's "parse the full local PHP 8.5 install"
+  verification step actually runs. Worth doing before that step, or at least confirming the local PHP
+  install's corpus doesn't use it.
+- **`goto` target labels** (`label:` as its own statement, independent of any `goto`) are not parsed. Only
+  `goto ident;` itself is handled (rejected). A bare `done:` statement will currently fall into the generic
+  expression-statement path and misparse (`done` parses as a `ConstFetch`, then the `:` is unexpected).
+  Low priority since `goto` itself is rejected outright and has no legitimate use left to label, but a
+  real `.php` file with a leftover label could still trip the M1 corpus-parse verification step.
+- **`Core\Static`-style keyword-segment collisions past the first one are still only spot-checked.** Chunk
+  1's handoff flagged this as untested for names beyond `Core\Bytes`; still true, not investigated further
+  this chunk.
+- Attributes (`#[...]`) remain entirely unparsed, as chunk 1 already noted — still deferred to chunk 3.
+
+## Chunk 3 (not started): class/interface/trait/enum declarations, plus file-scope declarations
+
+Everything else M1 names, now confirmed to include the file-scope forms too:
+
+- Classes, interfaces, traits, enums (cases + optional backing type only, ADR 0010), methods, attributes
+  (`#[...]`), property hooks feeding `PropertyObserver` (ADR 0014), asymmetric visibility, promoted
+  constructor parameters (the `Param.modifiers` field already exists in `ast.rs` for this — chunk 1 parses
+  the modifiers generically on every parameter; restricting them to constructors is presumably a later
+  semantic check, not a chunk-3 parser change), `insteadof` without `as` (ADR 0015), rejecting
+  `class_alias`/import `as`/trait-use `as`, rejecting a `function`/`const` outside a class body and a
+  class/namespace literally named `Core` (ADR 0011).
+- **`namespace` and `use` declarations.**
+- **`type Name = TypeExpr;`** (ADR 0007 § 3.5 / ADR 0015 § 5) — file/namespace scope, never inside a class
+  body. Parses like any other alias declaration; the restriction that `TypeExpr` isn't a single bare
+  class/interface/enum atom (ADR 0015 § 6) is M2's job, not the parser's.
+- Consider whether `Parser::checkpoint`/`Parser::restore` (new this chunk, see above) resolves any
+  declaration-grammar ambiguity chunk 3 runs into, before inventing a second backtracking mechanism.
 
 ## Verification still open for all of M1
 
 From the plan: `mwl ast file.mwl` dumping the AST (no CLI crate exists yet — `mwl-cli` isn't in the
 workspace per `.claude/brief.sh`'s "what exists on disk" listing, so this needs the crate scaffolded, not
 just a function), `cargo fuzz` on the parser finding no panics in a 1h run, and parsing the full local PHP
-8.5 install's `.php` files without crashing (not *checking* — that's M2). None of this is started.
+8.5 install's `.php` files without crashing (not *checking* — that's M2). None of this is started. The
+alternative-colon-syntax and `goto`-label gaps above are the most likely sources of surprises once the
+corpus-parse step actually runs — check those first rather than debugging blind.
 
 ## Housekeeping
 
 - ADR 0009's grapheme-segmentation cost guard test (`benches/abi-probe`) is independent of all of this and
   can slot in whenever — see the plan's status block.
-- Once chunks 2 and 3 land and the verification above is done, M1 closes and update
+- Once chunk 3 lands and the verification above is done, M1 closes and update
   [`docs/implementation-plan.md`](docs/implementation-plan.md)'s status block accordingly — that's the one
   place "where the plan stands" actually lives; don't let this file become a second copy of it.

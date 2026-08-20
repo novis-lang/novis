@@ -1,0 +1,63 @@
+---
+source: crates/mwl-syntax/src/parser.rs
+expression: s
+---
+Stmt {
+    kind: Foreach {
+        subject: Expr {
+            kind: Paren(
+                Expr {
+                    kind: Conversion {
+                        expr: Expr {
+                            kind: Variable(
+                                0:16..18,
+                            ),
+                            span: 0:16..18,
+                        },
+                        ty: Type {
+                            kind: Atom(
+                                Array(
+                                    Some(
+                                        Type {
+                                            kind: Atom(
+                                                Int,
+                                            ),
+                                            span: 0:28..31,
+                                        },
+                                    ),
+                                ),
+                            ),
+                            span: 0:22..32,
+                        },
+                    },
+                    span: 0:16..32,
+                },
+            ),
+            span: 0:15..33,
+        },
+        key: None,
+        value: ForeachBinding {
+            ty: Some(
+                Type {
+                    kind: Atom(
+                        Int,
+                    ),
+                    span: 0:37..40,
+                },
+            ),
+            name: 0:41..43,
+            span: 0:37..43,
+        },
+        value_by_ref: false,
+        body: Stmt {
+            kind: Block(
+                Block {
+                    stmts: [],
+                    span: 0:45..48,
+                },
+            ),
+            span: 0:45..48,
+        },
+    },
+    span: 0:6..48,
+}

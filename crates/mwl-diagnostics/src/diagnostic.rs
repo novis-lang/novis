@@ -338,6 +338,18 @@ impl Diagnostics {
         self.errors = 0;
         std::mem::take(&mut self.items)
     }
+
+    /// Discards every diagnostic reported after the first `len`, undoing a
+    /// speculative parse that decided to backtrack. `len` must be `<=
+    /// self.len()` — it always is when it came from an earlier call to
+    /// [`Self::len`] on this same sink.
+    pub fn truncate(&mut self, len: usize) {
+        for d in self.items.drain(len..) {
+            if d.is_error() {
+                self.errors -= 1;
+            }
+        }
+    }
 }
 
 impl Extend<Diagnostic> for Diagnostics {

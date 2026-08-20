@@ -32,7 +32,7 @@ use crate::token::{Keyword, Token, TokenKind};
 
 /// One entry in the lexer's mode stack. See the module docs for how `modes[0]`
 /// differs from everything above it.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Mode {
     /// Inline HTML/text, emitted verbatim as output.
     Html,
@@ -64,7 +64,11 @@ enum Mode {
 /// Reports into a caller-supplied [`Diagnostics`] sink and keeps going after
 /// an error — a malformed heredoc header, an unterminated string — rather
 /// than aborting, so one lexer run surfaces every lexical problem in a file.
-#[derive(Debug)]
+///
+/// `Clone` so the parser can checkpoint and restore a lexer position wholesale
+/// when a statement's grammar is genuinely ambiguous on a token prefix alone —
+/// see [`crate::parser::Parser::checkpoint`].
+#[derive(Debug, Clone)]
 pub struct Lexer<'a> {
     file: &'a SourceFile,
     text: &'a str,
