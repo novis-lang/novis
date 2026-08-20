@@ -30,6 +30,7 @@ authoritative; a number written anywhere else is a copy that can go stale.
 | [0012](0012-no-superglobals.md) | There are no superglobals; request, session, environment and CLI state are `Core` accessor classes | Accepted |
 | [0013](0013-comparable-interface.md) | Ordering two objects requires `Comparable`; PHP's property-walk fallback is rejected | Accepted |
 | [0014](0014-property-observer.md) | Property hooks feed a declared `PropertyObserver`; no undefined-property fallback, no `__call`/`__callStatic` | Accepted |
+| [0015](0015-no-name-aliasing.md) | No `class_alias`, import `as`, or trait-use `as`; `type` aliases are the disciplined exception | Accepted |
 
 ## Decisions taken at project start
 

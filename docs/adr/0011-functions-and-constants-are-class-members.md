@@ -19,7 +19,10 @@
   boundary)
 - **Amended by:** [0012](0012-no-superglobals.md) — `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` join the domain-class roster below, replacing PHP's superglobals and MWL's own
-  `$_ARGS`.
+  `$_ARGS`. [0015](0015-no-name-aliasing.md) — § 2's "a `use` alias that shadows anything under [`Core`]"
+  no longer describes a real construct, since import aliasing is rejected outright; see that ADR's § 4 for
+  the reworded rule. That ADR's *Revisiting* also notes that any future `use function`/`use const`-style
+  shorthand named in this ADR's own *Revisiting* inherits the same no-renaming rule.
 
 > **In short:** no `function` and no `const` may be declared outside a class body — a function is always a
 > `static` or instance method, and a constant is always a class constant, with no exception for built-ins.
@@ -95,8 +98,10 @@ Two things are deliberately **not** affected:
 ### 2. The reserved `Core` namespace
 
 - **`Core` and everything nested under it** (`Core\Str`, `Core\Foo\Bar`, …) **is reserved.** User code and
-  every Tier 1/Tier 2 extension ([ADR 0003](0003-extension-system.md)) are refused a `namespace` declaration,
-  a class declaration, or a `use` alias that shadows anything under it — a diagnostic naming the collision.
+  every Tier 1/Tier 2 extension ([ADR 0003](0003-extension-system.md)) are refused a `namespace` declaration
+  or a class declaration that shadows anything under it — a diagnostic naming the collision. (An import
+  *renamed* to collide with a `Core` name is no longer a separate case to guard against:
+  [ADR 0015](0015-no-name-aliasing.md) removes `use … as …` outright, so there is no alias left to spoof one.)
 - **Domain classes, not one class.** Built-ins are grouped the way PHP's own extensions already group them —
   `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`, and more as later
   milestones build them out — matching the Tier 0/Tier 2 split [ADR 0003](0003-extension-system.md) already
@@ -218,7 +223,9 @@ tenth.
   enough**, or whether it should instead prompt for a class name per file, is an M11 UX question this ADR
   does not resolve.
 - **A `use function`/`use const`-style shorthand for `Core` members**, if the `Class::method` spelling proves
-  noisier in practice than the "nothing is global by default" argument in *2* anticipated.
+  noisier in practice than the "nothing is global by default" argument in *2* anticipated. Whatever shape it
+  takes, it inherits [ADR 0015](0015-no-name-aliasing.md)'s no-renaming rule — a shorthand import, not an
+  alias.
 
 Verification, in the order it becomes possible:
 

@@ -380,13 +380,17 @@ relative to the new `PropertyObserver` interface is [ADR 0014](adr/0014-property
 visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static
 fn`/enum methods/`enum … implements`/`enum … : string`/a `function` or `const` declared outside a class
 body/a `namespace` or class named `Core` (or nested under it)/any superglobal spelling (`$GLOBALS`,
-`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST`, `$_SESSION`, `$_ENV`, `$argv`, `$argc`)
-with a diagnostic naming the replacement ([ADR 0012](adr/0012-no-superglobals.md)). Error recovery good
+`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST`, `$_SESSION`, `$_ENV`, `$argv`, `$argc`)/
+`use Path\To\Name as Other;`/any `as` clause inside a trait `use` block, rename or visibility-only alike
+(`insteadof` alone still parses) — with a diagnostic naming the replacement
+([ADR 0012](adr/0012-no-superglobals.md), [ADR 0015](adr/0015-no-name-aliasing.md)). Error recovery good
 enough for the LSP.
 
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
 is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the
-declaration slots PHP has no syntax for — typed locals, `foreach` bindings and destructuring targets.
+declaration slots PHP has no syntax for — typed locals, `foreach` bindings and destructuring targets. Also
+new here: `type Name = TypeExpr;` ([ADR 0015](adr/0015-no-name-aliasing.md)), a file/namespace-scope
+declaration using the same grammar, parsed but not yet resolved — that is M2's job.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 1h run; parse the full local PHP 8.5 install's `.php` files without crashing (they will
@@ -394,10 +398,16 @@ not *check* — see M2 — but they must parse). A snapshot pins the one grammar
 `foreach` header belongs to `foreach`, so a conversion of the subject needs parentheses.
 
 ### M2 — HIR, types, IR (~4 weeks)
-Name resolution, namespaces and `use`, class hierarchy with trait flattening, statically resolved
-`require`/`include` with a dynamic fallback. Every callable and constant resolves as a class member — there
+Name resolution, namespaces and `use`, class hierarchy with trait flattening (conflicts resolved by
+`insteadof` alone — there is no rename or visibility-change path, see
+[ADR 0015](adr/0015-no-name-aliasing.md)), statically resolved `require`/`include` with a dynamic fallback.
+Every callable and constant resolves as a class member — there
 is no bare-name fallback in the resolver at all — and a declaration reusing the reserved `Core` namespace is
-a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). The same
+a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). A `class`,
+`interface`, `trait` or `enum` resolves to exactly the name it declared — there is no alias table anywhere in
+the resolver — and a `type` alias resolves and is substituted away before anything downstream sees it, unless
+its expression is a single bare class/interface/enum atom, which is a diagnostic
+([ADR 0015](adr/0015-no-name-aliasing.md)). The same
 resolver refuses a property access naming anything not declared on the class or an ancestor/trait, for
 every literal-identifier access — there is no `__get`/`__set` fallback for a missing property, since one
 cannot exist under this rule ([ADR 0014](adr/0014-property-observer.md)). The type checker of
@@ -606,7 +616,10 @@ what the construct provides, a backed enum's case declarations and `->value` rea
 an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call or reference to a PHP
 built-in global function or constant (`strlen`, `array_map`, `PHP_EOL`, …) → the matching `Core`
 class-and-member, `Core\Str::len`, `Core\Arr::map`, `Core\Env::EOL`, via a maintained PHP-name → `Core`
-table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md))); a
+table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
+`use Path\To\Name as Other;` → the local alias replaced with the real short name or the FQN at every use, and
+`TraitA::method as newName;` → a synthesized delegating override method named `newName` that calls
+`TraitA::method()` ([ADR 0015](adr/0015-no-name-aliasing.md))); a
 rewrite that needs a human look because it changes the shape of the surrounding code (a source file's own
 top-level `function`/`const` declarations, with no built-in counterpart, are grouped into one generated
 class named after the file — the same "needs a class to hang it on" shape the function-static rewrite
@@ -617,7 +630,9 @@ and visible here rather than at run time — an enum that implements an interfac
 has no mechanical destination under [ADR 0010](adr/0010-enums-are-a-value-type.md), a class declaring
 `__get`/`__set` that needs a human call on whether the original logic was observation (→ `PropertyObserver`)
 or computation (→ a per-property hook), a class declaring `__call`/`__callStatic` with no mechanical
-destination at all ([ADR 0014](adr/0014-property-observer.md)), and C extensions).
+destination at all ([ADR 0014](adr/0014-property-observer.md)), a `class_alias()` call whose target name is
+computed dynamically or that exists only so two libraries can address one class under different names, with
+no mechanical destination either ([ADR 0015](adr/0015-no-name-aliasing.md)), and C extensions).
 `--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
 reuses the same pipeline to import PHP's test corpus as native MWL tests. A PHP project depending on a C
 extension is reported as needing either a Tier 1 `.mwlx` replacement or a Tier 2 native one — the converter

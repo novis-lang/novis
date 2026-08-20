@@ -35,6 +35,7 @@ behind a decision, or the detail of something the brief only names.
 | `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$_REQUEST`, `$argv`, or anything else PHP populates ambiently | [ADR 0012](docs/adr/0012-no-superglobals.md). Holds the only copy of the rule that no variable is ever host-populated — each becomes a `Core\Server`/`Core\Request`/`Core\Session`/`Core\Env`/`Core\Cli`/`Core\Script` call, and `$GLOBALS`/`$_REQUEST` have no replacement at all. |
 | Comparing two objects with `<`/`>`/`<=`/`>=`/`<=>`, operator overloading, `Comparable`, `compareTo` | [ADR 0013](docs/adr/0013-comparable-interface.md). Holds the only copy of the rule that ordering two objects requires implementing `Comparable`; PHP's ambient property-walk fallback is rejected outright, and there is no cross-class overload. |
 | Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [ADR 0014](docs/adr/0014-property-observer.md). Holds the only copy of the rule that a property access runs its own hook first and a declared `PropertyObserver` second; accessing an undeclared property is always a hard error, and `__call`/`__callStatic` are not implemented at all. |
+| `class_alias`, `use … as …`, trait-use `as`, or a `type` alias | [ADR 0015](docs/adr/0015-no-name-aliasing.md). Holds the only copy of the rule that nothing gets a second runtime-reachable name — `class_alias` does not exist, import renaming is rejected, and trait composition keeps only `insteadof` — while a `type` alias is kept as a distinct, compile-time-only synonym for a type expression, never for a single bare class. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
@@ -144,6 +145,15 @@ When choosing between designs:
   anywhere: calling an undeclared method is already a diagnostic, and a method literally named `__call`
   compiles as an ordinary method the runtime never invokes on its own
   ([ADR 0014](docs/adr/0014-property-observer.md)).
+- **Nothing gets a second runtime-reachable name.** `class_alias()` does not exist in `Core` and never will;
+  `use Path\To\Name as Other;` is a diagnostic, not an import — a class, interface, trait or enum is reachable
+  only under its declared short name or a fully-qualified path; and trait composition keeps only `insteadof`
+  — both the renaming and the visibility-only forms of trait-use `as` are rejected, with the replacement
+  being an ordinary overriding method that calls `TraitName::method()` explicitly. The one alias kept is a
+  new **`type Name = TypeExpr;`** declaration: a compile-time-only synonym for a type *expression*, erased
+  entirely by the checker, that may not name a single bare class/interface/enum on its own — that case is
+  import aliasing wearing the type grammar as a disguise, and is rejected the same way
+  ([ADR 0015](docs/adr/0015-no-name-aliasing.md)).
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.

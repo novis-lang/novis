@@ -14,7 +14,9 @@
   [0011](0011-functions-and-constants-are-class-members.md) — the *global constant* row is gone from § 1: a
   constant is never declared outside a class, so there is no such binding site left to require a type for.
   [0013](0013-comparable-interface.md) — § 4's operator table gains the *object ⊕ object* row it names,
-  previously silent on two object operands.
+  previously silent on two object operands. [0015](0015-no-name-aliasing.md) — resolves the *Negative*
+  section's "a `type` alias is deferred" line: § 3's grammar gains `type` alias names as a third kind of
+  identifier atom, alongside `ClassName` and an enum's name.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -357,8 +359,10 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
   permanent semantic authority inside the compiler — which is the better place for a heuristic to live. M11
   gets harder, and becomes mandatory rather than a convenience.
 - **Verbosity.** `array<array<int|string>> $rows` at every declaration is a cost against priority 4's
-  simplicity of the language surface. A `type` alias is the obvious relief, and is deliberately deferred to
-  *Revisiting* rather than smuggled in beside the core decision.
+  simplicity of the language surface. A `type` alias is the relief, decided in
+  [ADR 0015](0015-no-name-aliasing.md) rather than smuggled in beside this ADR's core decision, and barred
+  there from aliasing a single bare class — the one shape that would reopen that ADR's rejection of
+  PHP-style name aliasing.
 - **Array invariance will chafe** where a function wants to accept `array<int>` and `array<int|string>`
   alike. Mitigated by literals being checked against the target and by `array<never>` for `[]`; the escape
   hatch is an O(n) `as`. If this bites in real code the answer is read-only parameters, which is a separate
@@ -421,7 +425,6 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 
 Deferred deliberately, each needing its own argument rather than an extension of this one:
 
-- **`type` aliases.** The first relief for verbosity, and the most likely thing to be wanted early.
 - **User-defined generics, typed callables (`callable(int): string`), `Generator<T>`, generic classes.** The
   stdlib's parametric array signatures already prove the checker can carry type variables; opening them to
   user code is a language-surface decision, not a checker one.
