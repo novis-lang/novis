@@ -18,6 +18,9 @@
 - **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — § 2's *class constant, global
   constant* row narrows to **class constant** only; there is no free-floating constant left to share the
   row with, since every constant now lives on a class.
+  [0012](0012-no-superglobals.md) — § 2's *superglobal* row is dropped entirely; host-populated request,
+  session and CLI state is ordinary class-static state on a `Core` class, populated by the host instead of a
+  user initialiser, so it needs no row of its own.
 
 > **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
 > methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —
@@ -27,7 +30,9 @@
 > replaces them: a class static property for state that must outlive a call, a parameter for state that must
 > cross a function boundary, and nothing at all for `static fn` — a closure captures `$this` only if its
 > body uses it. The complete list of things that hold state across a call is in **Decision § 2**, and it is
-> meant to be read as exhaustive.
+> meant to be read as exhaustive. It no longer includes superglobals: [ADR 0012](0012-no-superglobals.md)
+> replaces every PHP superglobal with a method call on a `Core` class, so request/session/CLI state is a
+> class static populated by the host rather than a fifth kind of storage.
 
 ## Context
 
@@ -86,8 +91,13 @@ not an implementation detail:
 | class static property | the isolate | `private static int $calls = 0;` |
 | class constant | the isolate, immutable | `public const int MAX = 10;` |
 | object property | the object | `public readonly uint $id;` |
-| superglobal (`$_GET`, `$_POST`, …) | the isolate, populated by the host | not user-declared |
 | top-level script variable | the script's own frame, **unreachable from a function** | `int $n = 0;` at file scope |
+
+A **superglobal** is deliberately not in this table, and not because it is missing — because it is not a
+distinct storage class at all. [ADR 0012](0012-no-superglobals.md) replaces every PHP superglobal
+(`$_GET`, `$_POST`, `$_SERVER`, …) with a `static` method call on a `Core` class; the value it returns lives
+in that class's own static state, which is the *class static property* row above, host-populated at isolate
+construction rather than by a user initialiser. Nothing new is needed to hold it.
 
 An enum case is deliberately **not** in this table. Under [0010](0010-enums-are-a-value-type.md) a case is a
 compile-time constant of its enum's underlying integer type, inlined at every use site like any other
@@ -203,7 +213,8 @@ not make it checkable, and the carve-out lands in the one analysis that pays for
 **Keep it, but run the initialiser at isolate start rather than on first call.** This removes the run-once
 flag and the definite-assignment hole in one move — the slot is simply initialised before any code runs.
 Rejected because it changes PHP's semantics silently rather than loudly: an initialiser with a side effect,
-or one that reads a superglobal, would run at a different time and in a different order, and the construct
+or one that reads request state through a `Core` accessor ([ADR 0012](0012-no-superglobals.md)), would run
+at a different time and in a different order, and the construct
 would look like PHP's while behaving differently. A rejection with a named replacement is honest; a lookalike
 is not. It also keeps the second storage table, which is most of the cost.
 

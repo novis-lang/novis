@@ -12,6 +12,9 @@
   [0005](0005-config-changeability.md) (how a child's config is derived),
   [0008](0008-static-and-global.md) (what "fresh globals and statics" is a list of, and why it is a short
   one — there is no function-scope `static` to reset)
+- **Amended by:** [0012](0012-no-superglobals.md) — `$_ARGS` becomes `Core\Script::args()`, and a spawned
+  isolate calling `Core\Request`/`Core\Server`/`Core\Session` throws rather than seeing fresh-and-empty
+  state.
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable
@@ -69,8 +72,9 @@ The cost is not the whole objection. A child process is also *worse at the isola
 - **It re-enters through the front door.** Every framework that does this ends up passing arguments as
   serialised strings on a command line or through a temp file, which is its own injection surface.
 
-MWL already has every part needed to do better, built for requests: a per-request arena with a hard cap, a
-fresh set of superglobals, a copy-on-write config overlay, a coroutine tree, safepoint-driven limits, and a
+MWL already has every part needed to do better, built for requests: a per-request arena with a hard cap,
+fresh request/session state behind the `Core` accessor classes ([ADR 0012](0012-no-superglobals.md)), a
+copy-on-write config overlay, a coroutine tree, safepoint-driven limits, and a
 process-wide immutable compiled-unit cache. An HTTP request is precisely "run this `.mwl` file, isolated,
 under these limits, and give me its output". The requirement in this ADR asks for the same thing from
 inside the language, and the honest observation is that MWL would otherwise be shipping that machinery and
@@ -99,12 +103,16 @@ $result = await $job;                            // a ScriptResult, never a thro
 if (!$result->ok) { log($result->error->message); }
 ```
 
-and the callee is an ordinary script, receiving its arguments as a fresh superglobal and answering with a
-top-level `return` — which is what `include` already means in PHP, so nothing new has to be learned:
+and the callee is an ordinary script, receiving its arguments through `Core\Script::args()` and answering
+with a top-level `return` — which is what `include` already means in PHP, so nothing new has to be learned
+beyond the one accessor call ([ADR 0012](0012-no-superglobals.md) fixes that it is a method, not a magic
+variable):
 
 ```php
 <?mwl
-$month = $_ARGS['month'];
+use Core\Script;
+
+mixed $month = Script::args()['month'];
 return ['rows' => build_report($month)];
 ```
 
@@ -119,7 +127,8 @@ dies with its parent like them, and `on: 'worker'` composes the two axes instead
 | Compiled code (`Arc<CompiledUnit>`) | **yes** — immutable, process-wide, content-addressed. 10 000 isolates of one file compile it once |
 | The resource budget | **yes**, deliberately — see *Budgets* below |
 | Heap arena, refcounts, values | no. Its own arena, dropped wholesale when it ends |
-| Superglobals, globals, class statics, constants defined at runtime | no. Fresh. `$_GET`/`$_POST`/`$_SERVER`/`$_SESSION` are **not** inherited; `$_ARGS` is what it gets |
+| Globals, class statics, constants defined at runtime | no. Fresh |
+| Request/server/session state (`Core\Request`, `Core\Server`, `Core\Session`, [ADR 0012](0012-no-superglobals.md)) | no — **throws** inside the child rather than returning the parent's data or a fresh-and-empty result; `Core\Script::args()` is what the child gets instead |
 | Output buffer | no. Captured separately |
 | Open resources — files, sockets, DB connections | no, and they cannot be passed |
 | Config overlay | derived, never shared: a copy of the parent's *effective* config, which the spawn may narrow |
@@ -223,7 +232,8 @@ because the alternative silently mixes another script's bytes into a response th
 
 `mwl-host` grows a single `Isolate` type, and **an inbound HTTP request becomes the root isolate of a
 request tree**. The server path and the `spawn script` path are then the same code: one arena setup, one
-superglobal construction, one config-overlay derivation, one teardown, one place where a limit is enforced.
+construction of the `Core` accessor classes' backing state, one config-overlay derivation, one teardown, one
+place where a limit is enforced.
 That is worth more than it sounds — it means the cross-request state-bleed suite in M7 is simultaneously the
 state-bleed suite for isolates, and that a fix on either path cannot forget the other.
 
@@ -306,8 +316,10 @@ Verification, in the order it becomes possible:
 - **M5**, when the construct lands: the isolate's own end-to-end spawn-to-result figure for a trivial child
   on a warm cache goes into `benches/isolation.rs` next to the baseline it beats, with a guard test — the
   target is single-digit microseconds, and anything at millisecond scale means the arena or the globals are
-  being built the expensive way. Plus: a child cannot see a parent variable, global, static or superglobal;
-  a closure, reference or resource is refused at the boundary; a cyclic argument crosses; a child's uncaught
+  being built the expensive way. Plus: a child cannot see a parent variable, global or static, and a
+  `Core\Request`/`Core\Server`/`Core\Session` call inside it throws rather than seeing the parent's request
+  ([ADR 0012](0012-no-superglobals.md)); a closure, reference or resource is refused at the boundary; a
+  cyclic argument crosses; a child's uncaught
   throw and a child's contained panic both leave the parent running; a cancelled parent leaves no orphan.
 - **M6**, when limits and capabilities land: spawning without `script.spawn` fails; a path outside the
   granted roots fails, including via `..`; a child cannot widen a capability the parent narrowed; N isolates

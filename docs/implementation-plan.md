@@ -21,8 +21,9 @@
 >    [ADR 0008](adr/0008-static-and-global.md) decided: which `static` survives, and that the list of
 >    places state may outlive a call is closed.
 > 2. The remaining ADRs for the decision table below. [0002](adr/0002-error-propagation.md)
->    through [0008](adr/0008-static-and-global.md), [0010](adr/0010-enums-are-a-value-type.md) and
->    [0011](adr/0011-functions-and-constants-are-class-members.md) are written and Accepted;
+>    through [0008](adr/0008-static-and-global.md), [0010](adr/0010-enums-are-a-value-type.md),
+>    [0011](adr/0011-functions-and-constants-are-class-members.md) and
+>    [0012](adr/0012-no-superglobals.md) are written and Accepted;
 >    [0009](adr/0009-string-and-bytes.md) is drafted but Proposed, pending the cost measurement its own
 >    *Revisiting* names; the rest are not written.
 > 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it.
@@ -77,9 +78,10 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 | Isolated execution | **`spawn script 'file.mwl'`** — runs another file in-process with its own heap, globals and config overlay, on the caller's budget. File-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
 | Type system | **Static, mandatory, explicit.** Every binding declares a type and its type never changes; conversions are explicit and checked; unions and intersections as in PHP; `mixed` is the one unchecked position. `uint` added alongside signed `int`; `float` is always `f64`. Arrays keep PHP's ordered hash but every key is a `string` and the element type may be declared and nested (`array<array<uint>>`) ([ADR 0007](adr/0007-explicit-type-system.md)) |
 | Enums | **A closed, named integer type, C#-style — PHP's enum design is disregarded entirely.** `enum Status { Active, Banned }` declares cases as compile-time constants of an underlying `int` (default) or `uint`, auto-incrementing unless given a literal; no methods, no interfaces, no `::cases()`/`::from()`/`::tryFrom()`, no `string` backing, no runtime storage at all. The enum's name is a type usable anywhere ADR 0007 requires one — property, constant, parameter, local ([ADR 0010](adr/0010-enums-are-a-value-type.md)) |
-| Scoping and state | **`static` is a class-member modifier only.** Static methods, static properties and late static binding (`static::`, `new static()`, `: static`) kept as PHP has them; function-scope `static` and `static fn` rejected with a diagnostic. No `global`. State that outlives a call lives in a class static, a constant, an object property or a superglobal, and nowhere else ([ADR 0008](adr/0008-static-and-global.md)) |
+| Scoping and state | **`static` is a class-member modifier only.** Static methods, static properties and late static binding (`static::`, `new static()`, `: static`) kept as PHP has them; function-scope `static` and `static fn` rejected with a diagnostic. No `global`. State that outlives a call lives in a class static, a constant, or an object property, and nowhere else ([ADR 0008](adr/0008-static-and-global.md)) |
+| No superglobals | **No variable is ever populated by the host.** `$GLOBALS` and `$_REQUEST` are dropped with no replacement; every other PHP superglobal (`$_SERVER`, `$_GET`/`$_POST`/`$_COOKIE`/`$_FILES`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and MWL's own `$_ARGS` become `static` methods on reserved `Core` classes (`Core\Server`, `Core\Request`, `Core\Session`, `Core\Env`, `Core\Cli`, `Core\Script`), host-populated per isolate. Inside a spawned isolate, `Core\Request`/`Core\Server`/`Core\Session` throw rather than returning the parent's data or a fresh-and-empty result ([ADR 0012](adr/0012-no-superglobals.md)) |
 | OOP-only: no free functions, no global constants | **Every callable is a method, every constant a class constant — no exception for built-ins.** `function` and `const` are rejected outside a class body. Built-ins live under `Core`, a reserved namespace organised into domain classes (`Core\Str`, `Core\Arr`, `Core\Math`, …) rather than one god class; `strlen($s)` becomes `Core\Str::len($s)`, `PHP_EOL` becomes `Core\Env::EOL`, reached via ordinary `use`/fully-qualified resolution with nothing auto-imported. Anonymous functions and arrow functions are unaffected — they are values, not named declarations ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) |
-| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all) |
+| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all; [ADR 0012](adr/0012-no-superglobals.md) adds a twelfth — no PHP superglobal exists as a variable, `$GLOBALS` and `$_REQUEST` have no replacement at all) |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
@@ -280,8 +282,10 @@ broadcast — N simultaneous first-hits compile exactly once, and none of them b
 
 ### Per-request isolation
 
-Each request gets: its own heap arena with a hard byte cap; a fresh set of superglobals; a
-copy-on-write overlay of the config; its own coroutine tree. At request end the arena is released
+Each request gets: its own heap arena with a hard byte cap; fresh backing state for the `Core\Request`/
+`Core\Server`/`Core\Session` accessors ([ADR 0012](adr/0012-no-superglobals.md), replacing PHP's
+superglobals); a copy-on-write overlay of the config; its own coroutine tree. At request end the arena is
+released
 wholesale. `catch_unwind` at the request boundary means a runtime panic kills one request, never the
 process, which is why `panic = "unwind"` is load-bearing in every profile. Every capability check
 consults the *request's* config snapshot, so a script cannot affect its neighbours.
@@ -295,7 +299,8 @@ $job    = spawn script 'jobs/report.mwl' with(args: ['month' => 7], limits: ['me
 $result = await $job;                    // ScriptResult { ok, value, output, error, usage }
 ```
 
-with the callee an ordinary script that reads `$_ARGS` and answers with a top-level `return`.
+with the callee an ordinary script that reads `Core\Script::args()` and answers with a top-level `return`
+([ADR 0012](adr/0012-no-superglobals.md)).
 
 The semantics are decided and stated in full in [ADR 0006](adr/0006-isolated-script-execution.md): what is
 shared (only immutable compiled code), how values cross (the same deep-copy-or-move rules and the same
@@ -372,8 +377,10 @@ attributes, `match`, closures and arrow functions, generators, named arguments, 
 `readonly`, promoted constructor parameters, first-class callable syntax, property hooks, asymmetric
 visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static
 fn`/enum methods/`enum … implements`/`enum … : string`/a `function` or `const` declared outside a class
-body/a `namespace` or class named `Core` (or nested under it) with a diagnostic naming the replacement.
-Error recovery good enough for the LSP.
+body/a `namespace` or class named `Core` (or nested under it)/any superglobal spelling (`$GLOBALS`,
+`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST`, `$_SESSION`, `$_ENV`, `$argv`, `$argc`)
+with a diagnostic naming the replacement ([ADR 0012](adr/0012-no-superglobals.md)). Error recovery good
+enough for the LSP.
 
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
 is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the
@@ -456,8 +463,9 @@ backpressure, `parallel_map`, cross-core worker dispatch with deep-copy-or-move,
 (a task tree dies with its parent — no orphans), async-native file I/O, sockets, timers and HTTP client.
 
 **Also in this milestone: `spawn script`** ([ADR 0006](adr/0006-isolated-script-execution.md)) — the
-`Isolate` type in `mwl-host` with its own arena, superglobals and config overlay; the request tree and its
-shared budget; `$_ARGS` and the top-level `return` contract; the `ScriptResult` shape; the value-crossing
+`Isolate` type in `mwl-host` with its own arena, `Core` accessor backing state and config overlay; the
+request tree and its shared budget; `Core\Script::args()` ([ADR 0012](adr/0012-no-superglobals.md)) and the
+top-level `return` contract; the `ScriptResult` shape; the value-crossing
 rules shared with worker dispatch (graph copy, refusal of closures, references and resources, refusal of an
 unresolvable class); `output: capture|inherit`; `on: worker`; cancellation of a child at its next safepoint.
 It belongs here rather than later because it is a task with a heap boundary, which is exactly what this
@@ -468,8 +476,10 @@ compiled-in defaults.
 
 **Verify:** stress tests with 100k concurrent tasks; a deliberate deadlock test proves cancellation
 works; `parallel_map` shows near-linear speedup across cores on a CPU-bound benchmark; ThreadSanitizer
-clean. For isolates: a child cannot read or write a parent variable, global, static, superglobal or output
-buffer; a closure, reference or resource is refused at the boundary; a cyclic argument crosses without
+clean. For isolates: a child cannot read or write a parent variable, global, static, or output buffer, and
+a `Core\Request`/`Core\Server`/`Core\Session` call inside it throws rather than seeing the parent's request
+([ADR 0012](adr/0012-no-superglobals.md)); a closure, reference or resource is refused at the boundary; a
+cyclic argument crosses without
 hanging; a child's uncaught throw, its limit breach and a contained panic inside it all leave the parent
 running with `ok = false`; a cancelled parent leaves no orphan and no leaked arena; spawn-to-result for a
 trivial child on a warm cache is single-digit microseconds, committed to `benches/isolation.rs` next to the
@@ -496,8 +506,10 @@ than as an out-of-memory.
 
 ### M7 — Built-in HTTP server (~4 weeks)
 `mwl serve`: hyper h1 + h2c, per-core accept and dispatch, request → the root isolate of a request tree
-(the same `Isolate` M5 built, not a second isolation path), superglobals
-(`$_GET`, `$_POST`, `$_SERVER`, `$_COOKIE`, `$_FILES`), multipart and urlencoded body parsing with limits,
+(the same `Isolate` M5 built, not a second isolation path), the `Core\Request`/`Core\Server` accessor
+classes populated from it (`Core\Request::query()`/`::post()`/`::cookie()`/`::file()`,
+`Core\Server::meta()`/`::header()` — replacing `$_GET`/`$_POST`/`$_SERVER`/`$_COOKIE`/`$_FILES`, see
+[ADR 0012](adr/0012-no-superglobals.md)), multipart and urlencoded body parsing with limits,
 streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured request
 logging, optional TLS via `rustls`.
 

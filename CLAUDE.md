@@ -32,6 +32,7 @@ behind a decision, or the detail of something the brief only names.
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md). Holds the only copy of the rule that every callable and every constant is a class member, and the `Core` domain-class shape built-ins are organised into. |
+| `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$_REQUEST`, `$argv`, or anything else PHP populates ambiently | [ADR 0012](docs/adr/0012-no-superglobals.md). Holds the only copy of the rule that no variable is ever host-populated — each becomes a `Core\Server`/`Core\Request`/`Core\Session`/`Core\Env`/`Core\Cli`/`Core\Script` call, and `$GLOBALS`/`$_REQUEST` have no replacement at all. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
@@ -108,10 +109,19 @@ When choosing between designs:
   PHP has them. A function-scope `static` variable and a `static` closure are **rejected with a
   diagnostic naming the replacement**, and `global` does not exist
   ([ADR 0008](docs/adr/0008-static-and-global.md)). State that outlives a call lives in a class static, a
-  constant, an object property or a superglobal, and that list is exhaustive — a top-level `$x` is a local
+  constant, or an object property, and that list is exhaustive — a top-level `$x` is a local
   of the script's own frame and no function can reach it. A closure captures `$this` only when its body
   uses it. If you find yourself adding a second per-isolate slot table so one keyword can survive a
   return, that is this decision being undone.
+- **No variable is ever populated by the host — PHP's superglobals do not exist.** `$_SERVER`, `$_GET`,
+  `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION` and `$_ENV` become `static` method calls on reserved `Core`
+  classes (`Core\Server`, `Core\Request`, `Core\Session`, `Core\Env`), populated per isolate by the host;
+  the CLI SAPI's `$argv`/`$argc` become `Core\Cli`, and MWL's own spawn-script `$_ARGS` becomes
+  `Core\Script::args()`. `$GLOBALS` and `$_REQUEST` are dropped outright, with **no** replacement — there is
+  nothing left for `$GLOBALS` to expose once every top-level variable is already unreachable from a function
+  per the rule above, and `$_REQUEST`'s only job was hiding which of `$_GET`/`$_POST`/`$_COOKIE` a value
+  came from. Inside a spawned isolate, `Core\Request`/`Core\Server`/`Core\Session` throw rather than
+  returning the parent's data ([ADR 0012](docs/adr/0012-no-superglobals.md)).
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.

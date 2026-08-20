@@ -54,7 +54,7 @@ entirely, so the three priorities argue *for* the requirement rather than merely
 
 **Security and simplicity (priorities 1 and 4).** A closed set of named values, checked at the same
 boundary every other typed input already is, is exactly the shape priority 1 wants: `Status $s =
-$_GET['status'] as Status;` throws on anything that is not a declared case, with no second API
+Core\Request::query('status') as Status;` throws on anything that is not a declared case, with no second API
 (`::tryFrom()`) to remember exists beside the general conversion operator. PHP's enum gives that plus a
 class's worth of machinery (interfaces, methods, singleton identity, reflection) that a value this small has
 no use for — priority 4 says the machinery is the wrong trade, not that the closed-set idea is.
@@ -165,8 +165,8 @@ lexically identical to a class reference, distinguished by what the name resolve
 | `EnumName` ↔ `string` | **not part of this decision** — see *Revisiting* for name/value introspection |
 
 ```php
-Status $s = $_GET['status'] as Status;   // throws on anything but a declared case's value — never a silent default
-uint   $bits = Permission::Write as uint; // total: reads the backing value
+Status $s = Core\Request::query('status') as Status;   // throws on anything but a declared case's value — never a silent default
+uint   $bits = Permission::Write as uint;               // total: reads the backing value
 ```
 
 `==` and `===` on two values of the same enum type compare the underlying integer — there is no identity

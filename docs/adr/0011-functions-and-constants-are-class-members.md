@@ -17,13 +17,17 @@
   surface rather than by spending memory), [0006](0006-isolated-script-execution.md) (a `Core` class is
   compiled code, shared across isolates exactly like any other class — nothing new for the isolation
   boundary)
+- **Amended by:** [0012](0012-no-superglobals.md) — `Core\Server`, `Core\Request`, `Core\Session`,
+  `Core\Cli` and `Core\Script` join the domain-class roster below, replacing PHP's superglobals and MWL's own
+  `$_ARGS`.
 
 > **In short:** no `function` and no `const` may be declared outside a class body — a function is always a
 > `static` or instance method, and a constant is always a class constant, with no exception for built-ins.
 > PHP's global functions and global constants live in **`Core`**, a reserved namespace organised into
 > **domain classes** — `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`,
-> and more as the stdlib milestones build them out — mirroring the groupings PHP itself already splits its
-> extensions into, rather than one class holding everything. `strlen($s)` becomes `Core\Str::len($s)`,
+> `Core\Server`, `Core\Request`, `Core\Session`, `Core\Cli`, `Core\Script`, and more as the stdlib milestones
+> build them out — mirroring the groupings PHP itself already splits its extensions into, rather than one
+> class holding everything. `strlen($s)` becomes `Core\Str::len($s)`,
 > `PHP_EOL` becomes `Core\Env::EOL`. Call sites use ordinary namespace resolution — `use Core\Str;` then
 > `Str::len($s)`, or the fully-qualified form — nothing under `Core` is auto-imported, which is the same
 > "nothing is global by default" reading [ADR 0008](0008-static-and-global.md) already gives the rest of
@@ -98,7 +102,9 @@ Two things are deliberately **not** affected:
   milestones build them out — matching the Tier 0/Tier 2 split [ADR 0003](0003-extension-system.md) already
   draws by domain (`mwl-regex`, `mwl-db`). The exact roster is stdlib design, due at M2/M8, not fixed by this
   ADR; what *is* fixed here is the shape: one class per domain, `static` methods and `const` members, no
-  free function or constant anywhere, ever.
+  free function or constant anywhere, ever. `Core\Server`, `Core\Request`, `Core\Session`, `Core\Cli` and
+  `Core\Script` are the one part of the roster fixed ahead of the stdlib milestones, because they replace
+  PHP's superglobals rather than a PHP function library — see [ADR 0012](0012-no-superglobals.md).
 - **The array domain class is spelled `Core\Arr`, not `Core\Array`.** `array` is a type atom in
   [ADR 0007](0007-explicit-type-system.md) § 3's grammar; a class literally named `Array` would collide with
   it exactly where a type is expected. This is the one naming wrinkle worth fixing now rather than

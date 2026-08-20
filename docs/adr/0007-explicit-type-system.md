@@ -56,9 +56,9 @@ is a wrong answer, delivered far from its cause:
 Three things make this worse for MWL than it is for PHP.
 
 **Security (priority 1).** Every value entering a request — query string, form body, header, JSON body,
-`$_ARGS` from a [spawned isolate](0006-isolated-script-execution.md), a database column — is untrusted.
-PHP's coercions are precisely what turn "this input is not a number" into "this input is zero", and
-`(int)$_GET['id'] → 0` is the shape of a long line of authorisation and IDOR bugs. A conversion of
+`Core\Script::args()` from a [spawned isolate](0006-isolated-script-execution.md), a database column — is
+untrusted. PHP's coercions are precisely what turn "this input is not a number" into "this input is zero",
+and `(int)$_GET['id'] → 0` is the shape of a long line of authorisation and IDOR bugs. A conversion of
 untrusted data should be a *place in the source* that can be reviewed, and it should fail loudly.
 
 **Latency (priority 3).** The baseline tier lowers every operation to a call into a runtime helper that
@@ -123,8 +123,8 @@ There are exactly two ways to obtain a value of a different type, and they are t
 names:
 
 ```php
-uint $id  = $_GET['id'] as uint;     // an explicit, checked conversion — the "on purpose" marker
-string $s = $id as string;           // a second binding, with the type you want
+uint $id  = Core\Request::query('id') as uint;   // an explicit, checked conversion — the "on purpose" marker
+string $s = $id as string;                       // a second binding, with the type you want
 ```
 
 There is no third way. No assignment, no operator, no function call and no `settype` can change what `$id`
@@ -288,13 +288,16 @@ narrowing, which is flow-sensitive and branch-local: `is_int()`, `is_uint()`, `i
 allowed, and every operation on it is resolved dynamically at runtime through the generic helper path. That
 is PHP's semantics, exactly, at PHP's cost, which is the right pressure: the fast path is the typed one.
 
-`mixed` is where untrusted input lands, and deliberately so. `$_GET`, `$_POST`, `$_SERVER`, `$_ARGS` and
-`json_decode`'s result are `array<mixed>`, because input genuinely is untyped and pretending otherwise would
-be a lie in the type. Getting a value *out* of `mixed` into a typed binding is an `as` or a narrowing
-guard — so validating input becomes a reviewable place in the source instead of an accident:
+`mixed` is where untrusted input lands, and deliberately so. `Core\Request::query()`/`::post()`,
+`Core\Server::*`, `Core\Script::args()` and `json_decode`'s result are `array<mixed>` (or return `mixed`
+per key), because input genuinely is untyped and pretending otherwise would be a lie in the type. These
+calls replace PHP's `$_GET`/`$_POST`/`$_SERVER`/`$_ARGS` superglobals — see
+[ADR 0012](0012-no-superglobals.md) — without changing this shape at all. Getting a value *out* of `mixed`
+into a typed binding is an `as` or a narrowing guard — so validating input becomes a reviewable place in the
+source instead of an accident:
 
 ```php
-uint $id = $_GET['id'] as uint;     // throws on "abc", on "-1", on "" — never quietly 0
+uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
 ```
 
 `mixed` never absorbs implicitly in the other direction either: `int $n = $m;` where `$m` is `mixed` is a
@@ -405,8 +408,8 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
   declaration, which is the one thing this ADR forbids, and it converts an arithmetic bug into a precision
   bug that surfaces somewhere else.
 - **Making `mixed` checked at its boundaries** — that is, no true escape hatch. Then there is no way to
-  express "this is untyped input" honestly, and `json_decode`, `$_GET` and every dynamic-shape library would
-  need a lie in their signatures.
+  express "this is untyped input" honestly, and `json_decode`, `Core\Request` and every dynamic-shape
+  library would need a lie in their signatures.
 - **Defaulting an omitted return type to `mixed`** instead of requiring the annotation. That is a second
   untyped position beside the one `mixed` is deliberately for, reached by silence rather than by writing
   `mixed` — exactly the accident *1* closes for every other binding site.
