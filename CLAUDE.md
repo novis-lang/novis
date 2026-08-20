@@ -34,6 +34,7 @@ behind a decision, or the detail of something the brief only names.
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md). Holds the only copy of the rule that every callable and every constant is a class member, and the `Core` domain-class shape built-ins are organised into. |
 | `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$_REQUEST`, `$argv`, or anything else PHP populates ambiently | [ADR 0012](docs/adr/0012-no-superglobals.md). Holds the only copy of the rule that no variable is ever host-populated — each becomes a `Core\Server`/`Core\Request`/`Core\Session`/`Core\Env`/`Core\Cli`/`Core\Script` call, and `$GLOBALS`/`$_REQUEST` have no replacement at all. |
 | Comparing two objects with `<`/`>`/`<=`/`>=`/`<=>`, operator overloading, `Comparable`, `compareTo` | [ADR 0013](docs/adr/0013-comparable-interface.md). Holds the only copy of the rule that ordering two objects requires implementing `Comparable`; PHP's ambient property-walk fallback is rejected outright, and there is no cross-class overload. |
+| Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [ADR 0014](docs/adr/0014-property-observer.md). Holds the only copy of the rule that a property access runs its own hook first and a declared `PropertyObserver` second; accessing an undeclared property is always a hard error, and `__call`/`__callStatic` are not implemented at all. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
@@ -130,6 +131,19 @@ When choosing between designs:
   different classes are never directly orderable, even when both implement it — there is no cross-class
   overload. `==`/`===`/`!=`/`!==` are untouched by this and keep their existing behaviour
   ([ADR 0013](docs/adr/0013-comparable-interface.md)).
+- **A property access runs its own hook first, then a declared `PropertyObserver` second; there is no
+  `__get`/`__set`-by-name and no `__call`/`__callStatic` at all.** Per-property `get`/`set` hooks stay
+  exactly PHP 8.4's. A class additionally implementing the global `PropertyObserver` interface
+  (`onPropertyGet(string $name, mixed $value): void`, `onPropertySet(string $name, mixed $value): void`) has
+  those methods called, purely as an observer, after every property's own hook (or plain storage) has
+  already settled the value — `PropertyObserver` never overrides what a read returns or what a write stores,
+  and it runs whether or not the specific property being accessed has its own hook. Accessing a property
+  that is not declared on the class is **always a hard error** — a compile-time diagnostic for a literal
+  name, a checked throw for a computed one — so unlike PHP, `__get`/`__set` are never reached as a fallback
+  for a missing property; there is no such fallback. `__call`/`__callStatic` are not recognized by name
+  anywhere: calling an undeclared method is already a diagnostic, and a method literally named `__call`
+  compiles as an ordinary method the runtime never invokes on its own
+  ([ADR 0014](docs/adr/0014-property-observer.md)).
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.

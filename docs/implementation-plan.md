@@ -21,11 +21,10 @@
 >    [ADR 0008](adr/0008-static-and-global.md) decided: which `static` survives, and that the list of
 >    places state may outlive a call is closed.
 > 2. The remaining ADRs for the decision table below. [0002](adr/0002-error-propagation.md)
->    through [0008](adr/0008-static-and-global.md), [0010](adr/0010-enums-are-a-value-type.md),
->    [0011](adr/0011-functions-and-constants-are-class-members.md) and
->    [0012](adr/0012-no-superglobals.md) are written and Accepted;
+>    through [0008](adr/0008-static-and-global.md) and [0010](adr/0010-enums-are-a-value-type.md)
+>    through [0014](adr/0014-property-observer.md) are written and Accepted;
 >    [0009](adr/0009-string-and-bytes.md) is drafted but Proposed, pending the cost measurement its own
->    *Revisiting* names; the rest are not written.
+>    *Revisiting* names.
 > 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
@@ -81,8 +80,9 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 | Scoping and state | **`static` is a class-member modifier only.** Static methods, static properties and late static binding (`static::`, `new static()`, `: static`) kept as PHP has them; function-scope `static` and `static fn` rejected with a diagnostic. No `global`. State that outlives a call lives in a class static, a constant, or an object property, and nowhere else ([ADR 0008](adr/0008-static-and-global.md)) |
 | No superglobals | **No variable is ever populated by the host.** `$GLOBALS` and `$_REQUEST` are dropped with no replacement; every other PHP superglobal (`$_SERVER`, `$_GET`/`$_POST`/`$_COOKIE`/`$_FILES`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and MWL's own `$_ARGS` become `static` methods on reserved `Core` classes (`Core\Server`, `Core\Request`, `Core\Session`, `Core\Env`, `Core\Cli`, `Core\Script`), host-populated per isolate. Inside a spawned isolate, `Core\Request`/`Core\Server`/`Core\Session` throw rather than returning the parent's data or a fresh-and-empty result ([ADR 0012](adr/0012-no-superglobals.md)) |
 | Object comparison | **Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright.** `<`, `>`, `<=`, `>=` and `<=>` between two objects lower to a call to `compareTo(self $other): int`; a class that does not implement `Comparable` makes those operators a compile-time diagnostic, and two different classes are never directly orderable even when both implement it. `==`/`===`/`!=`/`!==` are untouched ([ADR 0013](adr/0013-comparable-interface.md)) |
+| Property access | **A property's own hook runs first, then a declared `PropertyObserver` runs second — always both, never a fallback.** Per-property `get`/`set` hooks stay PHP 8.4's. A class implementing the global `PropertyObserver` interface additionally gets `onPropertyGet`/`onPropertySet` called, purely as an observer, after every property access, hooked or not; it cannot override the value. Accessing an undeclared property is always a hard error — a compile diagnostic for a literal name, a checked throw for a computed one — so PHP's `__get`/`__set` fallback for missing properties has nothing left to catch. `__call`/`__callStatic` are not recognized by name at all ([ADR 0014](adr/0014-property-observer.md)) |
 | OOP-only: no free functions, no global constants | **Every callable is a method, every constant a class constant — no exception for built-ins.** `function` and `const` are rejected outside a class body. Built-ins live under `Core`, a reserved namespace organised into domain classes (`Core\Str`, `Core\Arr`, `Core\Math`, …) rather than one god class; `strlen($s)` becomes `Core\Str::len($s)`, `PHP_EOL` becomes `Core\Env::EOL`, reached via ordinary `use`/fully-qualified resolution with nothing auto-imported. Anonymous functions and arrow functions are unaffected — they are values, not named declarations ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) |
-| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all; [ADR 0012](adr/0012-no-superglobals.md) adds a twelfth — no PHP superglobal exists as a variable, `$GLOBALS` and `$_REQUEST` have no replacement at all; [ADR 0013](adr/0013-comparable-interface.md) adds a thirteenth — ordering two objects with `<`/`>` no longer falls back to PHP's implicit property walk) |
+| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all; [ADR 0012](adr/0012-no-superglobals.md) adds a twelfth — no PHP superglobal exists as a variable, `$GLOBALS` and `$_REQUEST` have no replacement at all; [ADR 0013](adr/0013-comparable-interface.md) adds a thirteenth — ordering two objects with `<`/`>` no longer falls back to PHP's implicit property walk; [ADR 0014](adr/0014-property-observer.md) adds a fourteenth — `__get`/`__set` no longer fire for an undefined property, since one no longer exists to fire for, and `__call`/`__callStatic` are gone with no replacement) |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
@@ -375,7 +375,8 @@ traits, enums (cases and an optional backing type only — no methods, no `imple
 [ADR 0010](adr/0010-enums-are-a-value-type.md)), methods (a `function` declaration is only ever a class
 member, static or instance — see [ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
 attributes, `match`, closures and arrow functions, generators, named arguments, spread, nullsafe,
-`readonly`, promoted constructor parameters, first-class callable syntax, property hooks, asymmetric
+`readonly`, promoted constructor parameters, first-class callable syntax, property hooks (their pipeline
+relative to the new `PropertyObserver` interface is [ADR 0014](adr/0014-property-observer.md)), asymmetric
 visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static
 fn`/enum methods/`enum … implements`/`enum … : string`/a `function` or `const` declared outside a class
 body/a `namespace` or class named `Core` (or nested under it)/any superglobal spelling (`$GLOBALS`,
@@ -396,7 +397,10 @@ not *check* — see M2 — but they must parse). A snapshot pins the one grammar
 Name resolution, namespaces and `use`, class hierarchy with trait flattening, statically resolved
 `require`/`include` with a dynamic fallback. Every callable and constant resolves as a class member — there
 is no bare-name fallback in the resolver at all — and a declaration reusing the reserved `Core` namespace is
-a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). The type checker of
+a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). The same
+resolver refuses a property access naming anything not declared on the class or an ancestor/trait, for
+every literal-identifier access — there is no `__get`/`__set` fallback for a missing property, since one
+cannot exist under this rule ([ADR 0014](adr/0014-property-observer.md)). The type checker of
 [ADR 0007](adr/0007-explicit-type-system.md): every binding's declared type recorded and enforced,
 definite-assignment checking, flow-sensitive narrowing of unions, array element types checked at every
 write and at every nesting depth, the arithmetic result-type table including the refusal of `int + uint`,
@@ -447,7 +451,9 @@ enums as a closed named integer type with cases inlined as compile-time
 constants ([ADR 0010](adr/0010-enums-are-a-value-type.md)), generators (nearly free given stackful
 coroutines), `foreach`
 and iterators, references (`&$x`), instance members and static members including late static binding
-(`static::`, `new static()`, `: static`), magic methods, the first `Core` domain classes'
+(`static::`, `new static()`, `: static`), property hooks feeding the built-in global `PropertyObserver`
+interface with a hard error on any undeclared property and no `__call`/`__callStatic` at all
+([ADR 0014](adr/0014-property-observer.md)), the first `Core` domain classes'
 `static` methods for string/array/math operations
 ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode`.
 
@@ -461,8 +467,11 @@ rather than promoting to `float`; key order preserved across insert, delete, re-
 function; `array_keys()` typed `array<string>`; `json_encode` output identical to PHP's for both lists and
 maps. `new static()` through two levels of inheritance returns the called class, and a closure written in a
 method without naming `$this` is unbound — `bindTo()` on it rebinds nothing, which is ADR 0008's single
-divergence and gets its own case. A non-trivial CLI program (an argument-parsing file-processing tool) runs
-correctly; no leaks under Valgrind/ASAN.
+divergence and gets its own case. A class implementing `PropertyObserver` runs its `onPropertyGet`/
+`onPropertySet` after each property's own hook or storage, for hooked and un-hooked properties alike, and
+cannot override the value; a class that does not implement it shows no measurable overhead over plain field
+access ([ADR 0014](adr/0014-property-observer.md)). A non-trivial CLI program (an argument-parsing
+file-processing tool) runs correctly; no leaks under Valgrind/ASAN.
 
 ### M5 — Concurrency and script isolates (~5 weeks)
 Per-core runtimes, coroutine scheduler, `spawn` / `await` / `all` / `race` / `timeout`, `Channel` with
@@ -605,7 +614,10 @@ already has, per [ADR 0011](adr/0011-functions-and-constants-are-class-members.m
 diagnostics where neither applies (`eval` of constructed source, dynamic includes, unsupported `preg`
 constructs, a `bindTo()` whose target closure never names `$this` — the one divergence ADR 0008 introduces,
 and visible here rather than at run time — an enum that implements an interface or declares a method, which
-has no mechanical destination under [ADR 0010](adr/0010-enums-are-a-value-type.md), and C extensions).
+has no mechanical destination under [ADR 0010](adr/0010-enums-are-a-value-type.md), a class declaring
+`__get`/`__set` that needs a human call on whether the original logic was observation (→ `PropertyObserver`)
+or computation (→ a per-property hook), a class declaring `__call`/`__callStatic` with no mechanical
+destination at all ([ADR 0014](adr/0014-property-observer.md)), and C extensions).
 `--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
 reuses the same pipeline to import PHP's test corpus as native MWL tests. A PHP project depending on a C
 extension is reported as needing either a Tier 1 `.mwlx` replacement or a Tier 2 native one — the converter
