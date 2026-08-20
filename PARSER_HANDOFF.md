@@ -10,17 +10,21 @@ that it stops being useful (e.g. once M1 is verified per the plan).
 M1 is split into three chunks, agreed with the user: **expressions/precedence**, **statements**,
 **class/interface/trait/enum declarations** — landed and reviewed one at a time.
 
-**Chunk 1 (expressions + types) is done, tested, and committed.**
+**Chunk 1 (expressions + types) is done, tested, and committed. The three gaps it left (below) are also now
+fixed, tested, and committed — chunk 2 (statements) can start clean.**
 
 - [`crates/mwl-syntax/src/ast.rs`](crates/mwl-syntax/src/ast.rs) (~710 lines): `Type`/`TypeKind`/`TypeAtom`
   (ADR 0007 § 3's full grammar), `Expr`/`ExprKind` (every construct M1's plan names), plus a deliberately
   minimal `Block`/`Stmt`/`StmtKind` (`Expr`/`Return`/`Block` only) so a closure body has somewhere to live.
-- [`crates/mwl-syntax/src/parser.rs`](crates/mwl-syntax/src/parser.rs) (~2380 lines): a `Parser` with a
+- [`crates/mwl-syntax/src/parser.rs`](crates/mwl-syntax/src/parser.rs) (~2450 lines): a `Parser` with a
   small lookahead buffer over the existing `Lexer`, the full PHP-precedence expression grammar via
-  precedence climbing, the full type grammar, and `parse_block`/`parse_statement` (same minimal set as
-  above). 59 unit tests inline (`#[cfg(test)] mod tests` at the bottom of `parser.rs`), all passing.
+  precedence climbing, the full type grammar, `parse_block`/`parse_statement` (same minimal set as above),
+  and the three closed-construct rejections below. 66 unit tests inline (`#[cfg(test)] mod tests` at the
+  bottom of `parser.rs`), all passing.
 - `crates/mwl-syntax/src/lib.rs` updated: `pub mod ast;`, `mod parser;`, re-exports `Parser` and
   `parse_expression`.
+- `crates/mwl-diagnostics/src/lib.rs`: two new E02xx codes, `E_STATIC_CLOSURE_UNSUPPORTED` (`E0210`) and
+  `E_SUPERGLOBAL_UNSUPPORTED` (`E0211`) — see below.
 - `cargo build` / `cargo test -p mwl-syntax` / `cargo fmt --check` / `cargo clippy --all-targets -- -D
   warnings` are all clean as of this commit.
 
@@ -55,54 +59,55 @@ So `Core\Bytes` — literally the spec's own example
 member name after `->`/`::`. Keep an eye out for the same class of collision elsewhere (`Core\Static`? —
 currently untested).
 
-## Gaps chunk 1 left that chunk 2 needs to close first
+## Gaps chunk 1 left, now closed
 
-Reading ADR 0008 in depth (for chunk 2's statement grammar) surfaced three things chunk 1 quietly does
-*wrong* per the ADRs, because chunk 1 was scoped to "parse the grammar," not "reject what's closed." These
-are cheap, self-contained fixes — do them before or alongside the statement grammar:
+Reading ADR 0008 in depth (for chunk 2's statement grammar) surfaced three things chunk 1 quietly did
+*wrong* per the ADRs, because chunk 1 was scoped to "parse the grammar," not "reject what's closed." All
+three are fixed and tested (commit after this handoff update):
 
-1. **`static function`/`static fn` currently parse silently as `ClosureExpr{is_static: true, ...}`.**
-   ADR 0008 § 1/§ 5 rejects this outright: *"`static` is not a closure modifier; a closure captures `$this`
-   only if it uses it, so drop the keyword."* Fix: in `Parser::parse_closure`/`parse_arrow_fn`, when
-   `is_static` is true, report that diagnostic immediately (still build the node — pragmatic-superset style,
-   same as every other rejected-but-parsed construct) rather than silently accepting it.
-2. **Superglobal variable names ($_GET, $_POST, $_SESSION, $_ENV, $_SERVER, $_REQUEST, $GLOBALS, `$argv`,
-   …) currently parse as ordinary `ExprKind::Variable`.** ADR 0012 replaces all of them with `Core\*`
-   accessor calls; `$GLOBALS`/`$_REQUEST` get **no replacement at all** (say so in the diagnostic — don't
-   suggest a `Core` class that doesn't exist for those two). Fix: in `parse_primary`'s `Variable` case,
-   check the variable's name against the closed superglobal list and report a diagnostic naming the
-   replacement (or "no replacement" for the two exceptions) — re-read
-   [ADR 0012](docs/adr/0012-no-superglobals.md) for the exact list and exact replacement names before
-   writing this.
-3. **`$$name`/`${expr}` ("variable variables") currently fall through to the generic
-   `error_expected_expr` ("expected an expression")** when `parse_primary` sees a bare `Dollar` token,
-   instead of the specific, named `code::E_VARIABLE_VARIABLE` diagnostic ADR 0007 § 2 wants. Fix: add a
-   `TokenKind::Dollar` case to `parse_primary` that reports `E_VARIABLE_VARIABLE` by name (with the
-   replacement it names) and still produces a recovering `ExprKind::Error` node.
+1. **`static function`/`static fn`** — `Parser::parse_closure`/`parse_arrow_fn` now call
+   `report_static_closure_modifier` when `is_static`, reporting `E_STATIC_CLOSURE_UNSUPPORTED` (new code,
+   see below) naming ADR 0008 § 5's rule, then still bump past `static` and build the closure node as
+   before (pragmatic-superset style). Tests: `static_closure_modifier_is_diagnosed_but_still_parses`,
+   `static_arrow_fn_modifier_is_diagnosed_but_still_parses`, `ordinary_closure_is_not_diagnosed`.
+2. **Superglobal variable names** — `parse_primary`'s `Variable` case now calls `check_superglobal`, which
+   matches the raw `$…` text against ADR 0012 § 8's exact list and reports `E_SUPERGLOBAL_UNSUPPORTED` (new
+   code) with that section's exact replacement text per name (`$GLOBALS`/`$_REQUEST` get "does not exist,"
+   no `Core` class suggested). Covers all twelve ADR 0012 spellings, including `$_COOKIE`/`$_FILES`/`$argc`/
+   `$_ARGS` which the handoff note's example list didn't spell out but the ADR's table does. Still builds
+   the ordinary `ExprKind::Variable` node. Tests: `superglobals_are_diagnosed_but_still_parse_as_variables`
+   (parametrized over all 12), `an_ordinary_variable_is_not_mistaken_for_a_superglobal`.
+3. **`$$name`/`${expr}`** — `parse_primary` now has a `TokenKind::Dollar` arm: it bumps the `$`, then
+   best-effort consumes the rest of the shape (`Variable` for `$$name`, `{expr}` for `${expr}`) so the
+   caller doesn't immediately trip over a leftover token, reports `E_VARIABLE_VARIABLE` (already existed)
+   naming "defeats name resolution and type inference" (the reason already on `TokenKind::Dollar`'s own doc
+   comment) with a suggested `array<string, T>` replacement, and returns `ExprKind::Error`. Tests:
+   `dollar_dollar_name_is_variable_variable`, `dollar_brace_expr_is_variable_variable`.
 
-None of these need new diagnostic codes — `E_VARIABLE_VARIABLE` already exists; the `static`-closure and
-superglobal cases need new codes (see below).
+All three follow the existing "report and keep going" convention — nothing here introduces a `Result` or
+changes the "every `parse_*` always returns something" rule.
 
-## New diagnostic codes to add to `mwl-diagnostics` before/during chunk 2
+## New diagnostic codes added
 
-`crates/mwl-diagnostics/src/lib.rs`'s `code` module (E02xx = "rejected PHP constructs") already has
-`E_EVAL_UNSUPPORTED`, `E_VARIABLE_VARIABLE`, `E_GOTO_UNSUPPORTED`, `E_GLOBAL_UNSUPPORTED`,
-`E_EXTRACT_UNSUPPORTED`. M1's reject list (plan + ADR 0007 + ADR 0008) needs a few more, none of which
-exist yet:
+Added to `crates/mwl-diagnostics/src/lib.rs`'s `code` module (E02xx = "rejected PHP constructs"), used by
+the fixes above:
+
+- `E_STATIC_CLOSURE_UNSUPPORTED` (`E0210`) — `static function`/`static fn`.
+- `E_SUPERGLOBAL_UNSUPPORTED` (`E0211`) — any of the twelve ADR 0012 spellings.
+
+**Still not added — reserved for chunk 2, do not reuse these numbers for anything else:**
 
 - **`settype()`** — ADR 0007 § 2: *"joins `eval`, `$$var`, `goto`, `global` and `extract()` on the rejected
   list, with a diagnostic naming `as` as the replacement."* Needs e.g. `E_SETTYPE_UNSUPPORTED` (`E0208`).
 - **function-scope `static`** (`static int $calls = 0;` inside a function) — ADR 0008 § 5's exact wording:
   *"function-scope `static` is not supported; declare a `private static` property on a class, or pass the
   value as a parameter."* Needs e.g. `E_STATIC_LOCAL_UNSUPPORTED` (`E0209`).
-- **`static` closure modifier** (`static function () {}`, `static fn() => …`) — ADR 0008 § 5: *"`static` is
-  not a closure modifier; a closure captures `$this` only if it uses it, so drop the keyword."* Needs e.g.
-  `E_STATIC_CLOSURE_UNSUPPORTED` (`E0210`).
-- **Superglobals** — ADR 0012. Probably one code covering every spelling (the message/replacement varies
-  per name, the code doesn't need to), e.g. `E_SUPERGLOBAL_UNSUPPORTED` (`E0211`).
 
-Add these as new constants in the existing `code` module (same pattern as the existing E02xx entries) —
-don't repurpose an existing code, per that module's own doc comment ("a code is a promise").
+These weren't added yet because nothing calls them until chunk 2 parses statements (`static $x;` as a
+statement) and resolves the `eval`/`extract`/`settype` open question below — adding an unused constant now
+would just be dead code until then. `E0208`/`E0209` are reserved (skipped) so the numbering already agreed
+here doesn't shift later; add them as real constants only once chunk 2 wires up their call sites, same
+pattern as `E0210`/`E0211` above.
 
 **Open question, worth resolving early in chunk 2**: `eval(...)`, `extract(...)` and `settype(...)` are
 *syntactically* ordinary function calls — nothing in the grammar distinguishes `eval($x)` from any other

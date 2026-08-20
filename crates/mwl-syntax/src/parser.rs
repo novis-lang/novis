@@ -168,6 +168,61 @@ impl<'src, 'd> Parser<'src, 'd> {
         span
     }
 
+    /// ADR 0008 § 5: `static` is not a closure modifier — a closure captures
+    /// `$this` only if it uses it, so the keyword has nothing left to mean.
+    /// Reports and keeps going; the caller still builds the closure node.
+    fn report_static_closure_modifier(&mut self, span: Span) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_STATIC_CLOSURE_UNSUPPORTED,
+                "`static` is not a closure modifier",
+            )
+            .with_primary(
+                span,
+                "a closure already captures `$this` only if it uses it",
+            )
+            .with_help("drop `static` (ADR 0008 § 5)"),
+        );
+    }
+
+    /// The `Core` replacement ADR 0012 § 8 names for a PHP superglobal, or
+    /// `None` if `name` (the raw `$…` text) is not one.
+    fn superglobal_replacement(name: &str) -> Option<&'static str> {
+        Some(match name {
+            "$GLOBALS" => {
+                "`$GLOBALS` does not exist; declare a `static` property, a constant, or pass the \
+                 value as a parameter"
+            }
+            "$_REQUEST" => {
+                "`$_REQUEST` does not exist; read `Core\\Request::query()`, `::post()` or \
+                 `::cookie()` explicitly, so the source is visible at the call site"
+            }
+            "$_GET" | "$_POST" | "$_COOKIE" | "$_FILES" => "use `Core\\Request`",
+            "$_SERVER" => "use `Core\\Server`",
+            "$_SESSION" => "use `Core\\Session`, after calling `Core\\Session::start()`",
+            "$_ENV" => "use `Core\\Env`",
+            "$argv" | "$argc" => "use `Core\\Cli`",
+            "$_ARGS" => "use `Core\\Script::args()`",
+            _ => return None,
+        })
+    }
+
+    /// ADR 0012: no variable is ever populated by the host. Reports and keeps
+    /// going — the caller still builds the ordinary `Variable` node.
+    fn check_superglobal(&mut self, span: Span) {
+        let name = self.file.span_text(span).unwrap_or_default();
+        if let Some(replacement) = Self::superglobal_replacement(name) {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_SUPERGLOBAL_UNSUPPORTED,
+                    format!("`{name}` is not supported"),
+                )
+                .with_primary(span, "no variable is ever populated by the host")
+                .with_help(replacement),
+            );
+        }
+    }
+
     // ========================================================================
     // Types (ADR 0007 § 3)
     // ========================================================================
@@ -1051,9 +1106,35 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::HeredocOpen | TokenKind::NowdocOpen => self.parse_heredoc_string(),
             TokenKind::Variable => {
                 self.bump();
+                self.check_superglobal(start);
                 Expr {
                     span: start,
                     kind: ExprKind::Variable(start),
+                }
+            }
+            TokenKind::Dollar => {
+                self.bump();
+                let end = match self.peek().kind {
+                    TokenKind::Variable => self.bump().span,
+                    TokenKind::LBrace => {
+                        self.bump();
+                        let _ = self.parse_expr();
+                        self.expect(TokenKind::RBrace, "`}`")
+                    }
+                    _ => start,
+                };
+                let span = start.to(end);
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_VARIABLE_VARIABLE,
+                        "variable variables (`$$name` / `${expr}`) are not supported",
+                    )
+                    .with_primary(span, "defeats name resolution and type inference")
+                    .with_help("use an explicit `array<string, T>` keyed by name instead"),
+                );
+                Expr {
+                    span,
+                    kind: ExprKind::Error,
                 }
             }
             TokenKind::Keyword(Keyword::SelfKw) => {
@@ -1452,6 +1533,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     fn parse_closure(&mut self, is_static: bool) -> Expr {
         let start = self.peek().span;
         if is_static {
+            self.report_static_closure_modifier(start);
             self.bump();
         }
         self.expect(TokenKind::Keyword(Keyword::Function), "`function`");
@@ -1496,6 +1578,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     fn parse_arrow_fn(&mut self, is_static: bool) -> Expr {
         let start = self.peek().span;
         if is_static {
+            self.report_static_closure_modifier(start);
             self.bump();
         }
         self.expect(TokenKind::Keyword(Keyword::Fn), "`fn`");
@@ -2375,5 +2458,74 @@ mod tests {
             panic!("expected a name: {class:?}");
         };
         assert_eq!(text(&map, id, name.span), "Core\\Bytes");
+    }
+
+    #[test]
+    fn static_closure_modifier_is_diagnosed_but_still_parses() {
+        let (e, diags) = parse_with_diags("static function () { return 1; }");
+        assert!(diags.has_errors());
+        let ExprKind::Closure(c) = e.kind else {
+            panic!("expected a closure: {e:?}");
+        };
+        assert!(c.is_static);
+    }
+
+    #[test]
+    fn static_arrow_fn_modifier_is_diagnosed_but_still_parses() {
+        let (e, diags) = parse_with_diags("static fn ($x) => $x");
+        assert!(diags.has_errors());
+        let ExprKind::ArrowFn(f) = e.kind else {
+            panic!("expected an arrow function: {e:?}");
+        };
+        assert!(f.is_static);
+    }
+
+    #[test]
+    fn ordinary_closure_is_not_diagnosed() {
+        parse_ok("function () { return 1; }");
+        parse_ok("fn (int $x) => $x");
+    }
+
+    #[test]
+    fn superglobals_are_diagnosed_but_still_parse_as_variables() {
+        for name in [
+            "$GLOBALS",
+            "$_REQUEST",
+            "$_GET",
+            "$_POST",
+            "$_COOKIE",
+            "$_FILES",
+            "$_SERVER",
+            "$_SESSION",
+            "$_ENV",
+            "$argv",
+            "$argc",
+            "$_ARGS",
+        ] {
+            let (e, diags) = parse_with_diags(name);
+            assert!(diags.has_errors(), "expected a diagnostic for {name}");
+            assert!(matches!(e.kind, ExprKind::Variable(_)), "for {name}");
+        }
+    }
+
+    #[test]
+    fn an_ordinary_variable_is_not_mistaken_for_a_superglobal() {
+        parse_ok("$_getter");
+        parse_ok("$server");
+        parse_ok("$globals");
+    }
+
+    #[test]
+    fn dollar_dollar_name_is_variable_variable() {
+        let (e, diags) = parse_with_diags("$$name");
+        assert!(diags.has_errors());
+        assert!(matches!(e.kind, ExprKind::Error));
+    }
+
+    #[test]
+    fn dollar_brace_expr_is_variable_variable() {
+        let (e, diags) = parse_with_diags("${$name}");
+        assert!(diags.has_errors());
+        assert!(matches!(e.kind, ExprKind::Error));
     }
 }

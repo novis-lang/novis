@@ -108,6 +108,12 @@ pub mod code {
     pub const E_UNSUPPORTED_EXTENSION: Code = Code::new("E0206");
     /// A `preg` pattern using a construct the pure-Rust engine cannot express.
     pub const E_UNSUPPORTED_REGEX: Code = Code::new("E0207");
+    /// `static function`/`static fn`: closures already capture `$this` only
+    /// if they use it, so `static` has nothing left to mean here.
+    pub const E_STATIC_CLOSURE_UNSUPPORTED: Code = Code::new("E0210");
+    /// A PHP superglobal (`$_GET`, `$_SERVER`, `$GLOBALS`, `$argv`, …): no
+    /// variable is ever populated by the host — see ADR 0012.
+    pub const E_SUPERGLOBAL_UNSUPPORTED: Code = Code::new("E0211");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
