@@ -16,6 +16,10 @@ starting point and no build step: change a file, run it.
   fully isolated, all sharing one in-memory compiled-code cache.
 - **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
   runtime bug or a resource-limit breach kills one request, never the process.
+- **Fast and simple first; memory is what pays for that.** MWL targets server-class hardware, so where a
+  design can be safer, faster or simpler by holding more memory, it holds more memory — deliberately, within
+  an enforced per-request cap ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)). It is not a
+  low-footprint runtime, and sizing it means sizing for concurrency.
 - **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
   precompiled binary runs on every platform, written in whatever language you like, and a crashing or
   hostile extension harms one request rather than the process.
@@ -30,6 +34,7 @@ starting point and no build step: change a file, run it.
 | Execution | baseline JIT now, optimising tier later, no interpreter |
 | Errors | checked return status, never unwinding ([ADR 0002](docs/adr/0002-error-propagation.md)) |
 | Concurrency | thread-per-core executors, stackful coroutines, isolated cross-core workers |
+| Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
 | Config | root-owned `mwl.ini`; scripts may tighten limits, never widen them |
@@ -92,6 +97,9 @@ cargo bench -p mwl-abi-probe                                   # track the numbe
 ```
 
 ## Roadmap
+
+The full plan — milestones broken into deliverables, with their verification criteria and the reasoning
+behind each design decision — is [docs/implementation-plan.md](docs/implementation-plan.md).
 
 | | Milestone | State |
 |---|---|---|

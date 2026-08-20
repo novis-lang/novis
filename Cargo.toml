@@ -71,8 +71,8 @@ criterion = "0.7"
 # Lint policy. Safe crates opt in wholesale via `lints.workspace = true`.
 # The two crates that need `unsafe` (mwl-runtime, mwl-codegen) declare their
 # own `[lints]` with `unsafe_code = "deny"` and narrow module-level allows,
-# so every unsafe block is a deliberate, reviewable exception. See
-# docs/adr/0004-unsafe-policy.md.
+# so every unsafe block is a deliberate, reviewable exception. The policy is
+# recorded in docs/adr/README.md.
 # ---------------------------------------------------------------------------
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -10,6 +10,7 @@ recorded, with no live tension worth arguing, live in the table below.
 |---|---|---|
 | [0002](0002-error-propagation.md) | Exceptions propagate by checked return, not by unwinding | Accepted |
 | [0003](0003-extension-system.md) | Extensions are sandboxed WebAssembly components, not native shared libraries | Accepted |
+| [0004](0004-memory-for-simplicity.md) | Memory is spent for security, speed and simplicity, in that order | Accepted |
 
 ## Decisions taken at project start
 
@@ -34,12 +35,14 @@ immutable and therefore shared across all cores through `Arc` with no copying.
 **Stackful coroutines for suspension.** Validated by spike #3 at 25 ns per suspend/resume round trip
 through live JIT frames. The decisive property is the absence of *function colouring*: any MWL function may
 perform I/O and yield without being marked `async`, so converted PHP call chains become concurrent with no
-rewriting. The cost is a stack per in-flight task (default 64 KiB, configurable) and a small audited unsafe
-core for stack switching, taken as a dependency (`corosensei`) rather than hand-rolled.
+rewriting. The cost is a stack per in-flight task (default 64 KiB, configurable, grown lazily) and a small
+audited unsafe core for stack switching, taken as a dependency (`corosensei`) rather than hand-rolled. The
+memory is paid deliberately, under [0004](0004-memory-for-simplicity.md).
 
 **Isolated workers for CPU parallelism.** Work dispatched to another core gets its own heap; values
 crossing the boundary are deep-copied, or moved when the refcount is 1. Data races are impossible by
-construction rather than by discipline, which is what lets the refcounts stay non-atomic.
+construction rather than by discipline, which is what lets the refcounts stay non-atomic. The copy is
+another instance of [0004](0004-memory-for-simplicity.md).
 
 **Strict shared-nothing requests.** Only compiled code survives a request. The consequence — reconnecting
 to the database every request — is accepted for v1; `mwl-host` reserves an unused `PersistentRegistry` seam
