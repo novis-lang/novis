@@ -144,7 +144,8 @@ pub mod code {
     // --- E06xx configuration and capabilities ------------------------------
     /// An `mwl.ini` directive that does not exist, or an invalid value.
     pub const E_BAD_DIRECTIVE: Code = Code::new("E0601");
-    /// An attempt to widen a boot-locked capability or limit at runtime.
+    /// An `ini_set` the directive's changeability class refuses: a `System`
+    /// directive, widening a `RuntimeTighten` one, or exceeding a hard ceiling.
     pub const E_CAPABILITY_DENIED: Code = Code::new("E0602");
     /// A per-request limit was exceeded.
     pub const E_LIMIT_EXCEEDED: Code = Code::new("E0603");

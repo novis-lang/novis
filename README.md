@@ -37,7 +37,7 @@ starting point and no build step: change a file, run it.
 | Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
-| Config | root-owned `mwl.ini`; scripts may tighten limits, never widen them |
+| Config | root-owned `mwl.ini` states defaults; a script may retune its own limits within operator-set ceilings ([ADR 0005](docs/adr/0005-config-changeability.md)) |
 | Serving | built-in HTTP/1.1 + h2c; FastCGI optional and later |
 | Extensions | built-in, sandboxed wasm (`.mwlx`), or statically linked native — never `dlopen` ([ADR 0003](docs/adr/0003-extension-system.md)) |
 

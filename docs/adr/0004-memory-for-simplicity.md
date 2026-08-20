@@ -65,7 +65,8 @@ welcome.
 Memory is a currency, not a landfill. Three bounds, and one review obligation.
 
 **Bounded, not merely modest.** Every per-request allocation stays under a cap the runtime can *enforce* —
-the `memory` directive in the root-owned `mwl.ini` for script code, `StoreLimits` for wasm guests. Those
+the `[limits.hard]` memory ceiling in the root-owned `mwl.ini` for script code, which a request may spend up
+to but not past ([0005](0005-config-changeability.md)), and `StoreLimits` for wasm guests. Those
 caps exist so that a hostile or buggy request cannot exhaust the host, which makes them priority 1, and
 this ADR does not touch them. Spending generously *inside* a cap is the point of the ADR; a design whose
 consumption cannot be attributed to a request and capped is not a memory trade-off, it is a hole in

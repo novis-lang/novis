@@ -11,6 +11,7 @@ recorded, with no live tension worth arguing, live in the table below.
 | [0002](0002-error-propagation.md) | Exceptions propagate by checked return, not by unwinding | Accepted |
 | [0003](0003-extension-system.md) | Extensions are sandboxed WebAssembly components, not native shared libraries | Accepted |
 | [0004](0004-memory-for-simplicity.md) | Memory is spent for security, speed and simplicity, in that order | Accepted |
+| [0005](0005-config-changeability.md) | `mwl.ini` states defaults, not ceilings | Accepted |
 
 ## Decisions taken at project start
 
@@ -53,10 +54,10 @@ the single mechanism behind CPU-time limits, client-disconnect cancellation, the
 profiler, debugger breakpoints and later deoptimisation. Retrofitting it would mean rewriting codegen, so
 it is not deferrable.
 
-**Server-level configuration, not per-project.** `mwl.ini` is root-owned, php.ini-style. Per-directive
-changeability classes (`System` / `RuntimeTighten` / `Runtime`) let a script narrow a limit but never widen
-one, and per-app capability blocks live in the *root* config so an application can never grant itself
-rights.
+**Server-level configuration, not per-project.** `mwl.ini` is root-owned, php.ini-style, and per-app
+capability blocks live in the *root* config so an application can never grant itself rights. What a script
+may change about its own configuration at runtime is per-directive and is argued in
+[0005](0005-config-changeability.md).
 
 **Pure-Rust dependencies by default.** A memory-safe runtime cannot contain arbitrary C. Deviations are
 explicit, argued and few — currently only SQLite (`rusqlite`), where no credible pure-Rust implementation

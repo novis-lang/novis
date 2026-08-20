@@ -42,7 +42,7 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved) |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
-| Security | Server-level `mwl.ini`, root-owned, php.ini-style, deny-by-default capabilities + hard per-request limits; per-directive changeability so scripts may tighten but never widen |
+| Security | Server-level `mwl.ini`, root-owned, php.ini-style, deny-by-default capabilities + hard per-request limits. Per-directive changeability: capabilities tighten-only, limits freely settable per request up to a `System` ceiling ([ADR 0005](adr/0005-config-changeability.md)) |
 | Serving | Built-in HTTP/1.1 + h2c server. FastCGI deferred to optional transport. HTTP/3 out of scope |
 | Databases | MySQL/MariaDB, PostgreSQL, SQLite, MS SQL Server |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
@@ -291,23 +291,33 @@ process (`panic = "unwind"` in release for this reason). Every capability check 
 
 ### `mwl.ini` — server-level, root-owned
 
-php.ini-style directive registry. Each directive carries a changeability class:
+php.ini-style directive registry. `mwl.ini` states **defaults**, not ceilings: a directive is a limit that
+cannot be exceeded only when it cannot be changed at runtime at all. Each directive carries a changeability
+class ([ADR 0005](adr/0005-config-changeability.md)):
 
-- `System` — boot only, immutable at runtime,
-- `RuntimeTighten` — a script may narrow it, never widen it (all capabilities, memory ceiling),
-- `Runtime` — freely settable per request, discarded at request end.
+- `System` — settable in `mwl.ini` only; `ini_set` fails,
+- `Runtime` — `mwl.ini` gives the default; a request may set any value, wider or narrower, for itself,
+- `RuntimeTighten` — narrowing only. Argued per directive, not the general policy: capability grants, and
+  the directives where PHP behaves this way too (`open_basedir`).
 
 ```ini
-[core]
+[core]                                          ; System
 opcache.validate       = hash
 cache.dir              = /var/cache/mwl        ; refuses to start if world-writable
 
-[limits]                                        ; RuntimeTighten
+[limits]                                        ; Runtime — what a request starts with
 memory                 = 128M
 cpu_time               = 5s
 wall_time              = 30s
 max_tasks              = 64
 max_output             = 32M
+
+[limits.hard]                                   ; System — what one request may raise itself to
+memory                 = 2G                    ; `off` removes the ceiling entirely
+cpu_time               = 60s
+wall_time              = 300s
+max_tasks              = 4096
+max_output             = 512M
 
 [capabilities]                                  ; deny-by-default, RuntimeTighten
 fs.read                = /srv/www:/srv/shared
@@ -319,9 +329,12 @@ env.read               = APP_ENV
 [app "shop"]                                    ; per-app blocks live in the ROOT config,
 root                   = /srv/www/shop          ; so an app can never grant itself rights
 capabilities.fs.write  = /srv/www/shop/var
+limits.hard.memory     = 512M                   ; may lower a ceiling, never raise it
 ```
 
-`ini_set()`/`ini_get()` operate on the request-local overlay under those rules.
+`ini_set()`/`ini_get()`/`ini_restore()` operate on the request-local copy-on-write overlay under those
+rules, so a widened limit dies with the request that set it and is never visible to another. A set refused
+by a ceiling or a class returns `false` and leaves the value unchanged — it is not clamped.
 
 ---
 
@@ -446,9 +459,11 @@ semantics, capability enforcement at every syscall-touching stdlib entry point, 
 enforcement, content-addressed artifact cache with integrity verification and a refusal to use a
 world-writable cache directory.
 
-**Verify:** adversarial suite — a script attempting to widen a boot-locked capability fails; memory/CPU
-caps terminate runaway scripts with a catchable error; warm-cache CLI startup under 10 ms; a tampered
-cache artifact is rejected.
+**Verify:** adversarial suite — a script attempting to widen a capability or set a `System` directive
+fails; `ini_set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
+`[limits.hard]` ceiling returns `false` with the previous value intact, and is invisible to the next request
+on the same core; memory/CPU caps terminate runaway scripts with a catchable error; warm-cache CLI startup
+under 10 ms; a tampered cache artifact is rejected.
 
 ### M7 — Built-in HTTP server (~4 weeks)
 `mwl serve`: hyper h1 + h2c, per-core accept and dispatch, request → isolated task, superglobals
