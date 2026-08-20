@@ -1,0 +1,435 @@
+# ADR 0007 — Types are declared, checked, and never change by themselves
+
+- **Status:** Accepted
+- **Date:** 2026-08-20
+- **Scope:** the type grammar; the declaration requirement at every binding site; `uint`; typed and
+  nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
+  every arithmetic operator
+- **Supersedes:** the *gradual type system — declared types checked, locals inferred* line in the M2
+  milestone and the `mwl-types` crate description. MWL has no inference engine and no untyped position.
+- **Amended by:** [0008](0008-static-and-global.md) — the *function `static`* row is gone from § 1. MWL has
+  no function-scope `static`, so it has no type slot either; `static` as a type atom in § 3 is unaffected.
+- **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
+  a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
+  [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
+  [0005](0005-config-changeability.md) (none of this is a directive — the type discipline is not
+  per-request configuration, and there is no `strict_types` switch to set),
+  [0006](0006-isolated-script-execution.md) (a value crossing an isolate boundary carries its element type
+  with it)
+
+> **In short:** every binding — parameter, property, constant, local, loop variable, closure parameter,
+> return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
+> where the source says so: a new binding, or the checked conversion operator (provisional spelling
+> `expr as T`), which throws rather than silently losing information. The types are
+> `null bool int uint float string array<T> <class> Closure resource`, plus unions (`int|string`),
+> intersections, and `mixed` — the one position that is not checked at all. `int` is signed `i64`;
+> **`uint` is new and unsigned**, so the full 64-bit range is representable; `float` is always `f64`.
+> Arrays keep PHP's ordered hash exactly, with two changes: **every key is a string**, and the element
+> type may be declared and nested to any depth (`array<array<uint>>`), enforced on every write. The
+> headline cost is in *Consequences*: **PHP source no longer runs unconverted**, because PHP has no syntax
+> for the type of a local.
+
+## Context
+
+PHP's type system is lazy in two distinct ways, and only one of them is a feature.
+
+The feature is *unions*: a value that is legitimately "an `int` or a `string`" is common in real code, and
+PHP 8 can say so. MWL keeps that.
+
+The liability is *mutability of a binding's type*. In PHP a variable is a slot that will hold anything, and
+the language converts silently to make each operation succeed. The failure mode is never a type error; it
+is a wrong answer, delivered far from its cause:
+
+| PHP | result | what it should have been |
+|---|---|---|
+| `(int)$_GET['id']` where `id=abc` | `0` | a refusal — and `0` is frequently a valid row id |
+| `(int)$_GET['id']` where `id=9999999999999999999` | `PHP_INT_MAX` | a refusal |
+| `PHP_INT_MAX + 1` | a `float`, precision gone | a refusal, or a wider type |
+| `settype($x, 'array')` | `$x` is now an array; every later assumption about it is stale | a new binding |
+| `$total = "12 apples" + 3` | `15` before 8.0, `TypeError` after — the fix took a major version | — |
+| `$a[8]` vs `$a["8"]` vs `$a["08"]` | the first two are one slot, the third is another | one rule, stated once |
+
+Three things make this worse for MWL than it is for PHP.
+
+**Security (priority 1).** Every value entering a request — query string, form body, header, JSON body,
+`$_ARGS` from a [spawned isolate](0006-isolated-script-execution.md), a database column — is untrusted.
+PHP's coercions are precisely what turn "this input is not a number" into "this input is zero", and
+`(int)$_GET['id'] → 0` is the shape of a long line of authorisation and IDOR bugs. A conversion of
+untrusted data should be a *place in the source* that can be reviewed, and it should fail loudly.
+
+**Latency (priority 3).** The baseline tier lowers every operation to a call into a runtime helper that
+inspects its operands' tags and dispatches. A statically known type is the *only* thing that lets the
+backend emit an `iadd` instead. Under gradual typing the interesting types are known in the code that was
+already fast and unknown everywhere else; under mandatory declaration they are known by construction, so
+the baseline tier starts out at a speed the original plan deferred to M12.
+
+**Simplicity (priority 4).** A gradual system is two type systems that must agree: a declared one and an
+inferred one, plus a soundness story for the boundary between them, plus `Unknown` propagating through the
+IR, plus a rule for what happens when inference and declaration disagree. Requiring the declaration deletes
+all of it. There is no solver, no `Unknown`, and no second system — `mwl-types` becomes a checker.
+
+### The 64-bit gap
+
+PHP's only integer is a signed `i64`, and the values web software actually handles routinely need the other
+half of the range: MySQL `BIGINT UNSIGNED` keys, snowflake-style 64-bit ids, hash words (xxhash64, the
+BLAKE3 output words), nanosecond timestamps, and file offsets and sizes above 8 EiB — plus every `u32`/`u64`
+in a WIT world ([0003](0003-extension-system.md)). PHP's answers are to carry such values as strings, to
+lose precision through `float`, or to reach for GMP; all three push the problem into every call site that
+touches the value. A distinct `uint` costs nothing in the value layout — the tagged value already carries a
+`u64` payload — and it makes the boundary conversions exact.
+
+## Decision
+
+**MWL is statically and explicitly typed. Every binding declares its type; no binding's type ever changes;
+a value's type changes only through an explicit, checked conversion. `mixed` is the single opt-out, and it
+is opt-out from checking, not from safety.**
+
+### 1. Every binding site declares a type
+
+Positions PHP already has a type slot for become **mandatory**. Positions PHP has no slot for **get one**:
+
+| binding site | spelling | new? |
+|---|---|---|
+| function / method parameter | `function f(int $n, array<string> $rows): void` | PHP syntax, now mandatory |
+| return type, including `void` / `never` | `: array<User>` | PHP syntax, now mandatory |
+| property, promoted constructor parameter | `public readonly uint $id;` | PHP syntax, now mandatory |
+| class constant | `public const int MAX = 10;` | PHP 8.3 syntax, now mandatory |
+| global constant | `const uint PAGE_SIZE = 4096;` | **new slot** |
+| local variable, at its declaration | `int $n = 0;` | **new slot** |
+| `foreach` key and value | `foreach ($rows as string $k => array<int> $row)` | **new slot** |
+| destructuring | `[int $a, string $b] = $pair;` | **new slot** |
+| closure / arrow-function parameters and return | `fn(int $n): string => …` | PHP syntax, now mandatory |
+| `catch` | `catch (JsonError $e)` | already typed in PHP |
+| enum backing type | `enum Status: uint` — `int`, `uint` or `string` | PHP syntax, `uint` added |
+
+A binding is declared **once**. Later assignments are bare — `$n = 5;` is an assignment, and it is legal
+only if `$n` is already declared in the enclosing function. Re-declaring a live name is a diagnostic naming
+the first declaration; there is no shadowing.
+
+Declaration is **function-scoped**, as in PHP: a variable declared inside an `if` is visible after it. What
+changes is that *definite assignment is checked* — reading a binding on a path that may not have reached its
+initialiser is a compile error rather than PHP's "undefined variable" warning and a `null`.
+
+A reference (`&$x`) binds two names to one slot, so both sides must declare **the same** type. An alias that
+widens or narrows is a diagnostic: it would be a second declared type for one storage location, which is
+exactly what the rule below forbids.
+
+### 2. A declared type never changes; a value converts only on request
+
+There are exactly two ways to obtain a value of a different type, and they are the two the requirement
+names:
+
+```php
+uint $id  = $_GET['id'] as uint;     // an explicit, checked conversion — the "on purpose" marker
+string $s = $id as string;           // a second binding, with the type you want
+```
+
+There is no third way. No assignment, no operator, no function call and no `settype` can change what `$id`
+is. `settype()` therefore joins `eval`, `$$var`, `goto`, `global` and `extract()` on the rejected list, with
+a diagnostic naming `as` as the replacement. [0008](0008-static-and-global.md) adds two more entries to that
+list; the plan's decision table holds it in full.
+
+`as` is **total in intent and checked in fact**: it either produces a value of the target type or throws. It
+never rounds, truncates, or substitutes a default.
+
+| conversion | behaviour |
+|---|---|
+| `int` ↔ `uint` | exact, or throws — a negative into `uint`, or above `i64::MAX` into `int` |
+| `int` / `uint` → `float` | exact, or throws above 2^53, where `f64` stops representing every integer |
+| `float` → `int` / `uint` | integral and in range, or throws. Rounding is `floor`/`ceil`/`round`, said out loud |
+| `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
+| anything → `string` | total for scalars; an object needs `__toString`, or it throws |
+| `array<T>` → `array<U>` | every element must satisfy `U`; O(n), see *5* |
+
+PHP's cast syntax `(int)$x` is accepted as a second spelling of `$x as int`, carrying `as`'s semantics
+rather than PHP's. Keeping the syntax and changing the behaviour is deliberate: rejecting the spelling would
+break the superset promise for no gain, and reproducing lossy-silent coercion would reintroduce the bug
+class this ADR exists to remove. It is listed in *7* as the divergence it is.
+
+Implicit conversion happens in exactly one place: **`int` or `uint` widening into a `float` position**,
+which is the one coercion PHP's own `strict_types` permits, and it throws above 2^53 rather than rounding.
+Everything else is a diagnostic.
+
+`as` binds tighter than any binary operator, so `$a as int + 1` is `($a as int) + 1`. One grammar wrinkle
+for M1: inside a `foreach` header the `as` belongs to `foreach`, so converting the subject needs
+parentheses — `foreach (($m as array<int>) as int $v)`.
+
+### 3. The type grammar
+
+```
+type         := union
+union        := intersection ('|' intersection)*
+intersection := atom ('&' atom)*  |  '(' union ')'            // DNF, as PHP 8.2
+atom         := 'null' | 'bool' | 'int' | 'uint' | 'float' | 'string'
+              | 'array' | 'array' '<' type '>'
+              | 'object' | 'mixed' | 'void' | 'never' | 'true' | 'false'
+              | 'iterable' | 'callable' | 'self' | 'static' | 'parent'
+              | ClassName
+              | '?' atom                                      // sugar for atom|null
+```
+
+Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and
+`string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never` are
+return-only. `array<T>` is parsed **only in type position**, so `<` never has to be disambiguated against
+comparison; that is also why user-defined generic *functions* are not part of this decision.
+
+`Closure`, `callable`, `Generator` and container classes are **opaque** in v1 — there is no
+`callable(int): string` and no `Generator<T>`. Calling through one is a dynamic call with runtime-checked
+arguments, at `mixed`'s cost. Deferred, not rejected; see *Revisiting*.
+
+### 4. `uint`, and what every arithmetic operator returns
+
+`uint` is an unsigned 64-bit integer, `0 … 2^64−1`. It is a new **tag** in the existing tagged value, whose
+layout is owned by § *Value representation* in [the plan](../implementation-plan.md) — the payload is
+already a `u64`, so `uint` costs **zero additional bytes per value**. `is_int()` is false for a `uint`,
+`is_uint()` is added, `gettype()` returns
+`"uint"`, and `var_dump` prints `uint(18446744073709551615)`.
+
+An integer literal that does not fit `int` is legal only where a `uint` is expected, and is otherwise a
+diagnostic saying exactly that. There is no literal suffix.
+
+| operation | result | on overflow / edge |
+|---|---|---|
+| `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
+| `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
+| `int` against `uint` in `< <= > >= == ===` | `bool`, mathematically exact over the full range of both | — |
+| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `DivisionByZeroError` |
+| either operand a `float` | `float` | — |
+| `>>` | arithmetic on `int`, **logical on `uint`** | — |
+| `& \| ^ ~ <<` | the operand type, preserved | — |
+
+Rejecting mixed-signedness arithmetic while allowing mixed-signedness comparison is the line C gets wrong
+and pays for: a comparison has an exact answer in the mathematical integers and can be lowered as one,
+while `int + uint` has no type to return. The division rows return unions rather than diverge from PHP, and
+in practice the union is absorbed by the target's declared type through the `int → float` widening in *2* —
+`float $avg = $sum / $n;` works, `int $n = 7 / 2;` is a diagnostic, and `intdiv()` is there when integer
+division is what was meant.
+
+Overflow throwing is a divergence from PHP (*7*), and the one this ADR is least willing to trade: a silent
+promotion to `float` changes a binding's type behind its declaration, and a silent wrap is the classic
+size-computation bug. Code that genuinely wants unbounded magnitude declares `float`, or converts.
+
+### 5. Arrays: PHP's ordered hash, with string keys and a declared element type
+
+The container is unchanged — an insertion-ordered hash with copy-on-write value semantics. Two changes.
+
+**Every key is a `string`.** There is no integer key.
+
+- `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from the same
+  counter PHP keeps, so lists behave as they always did.
+- An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is `$a["8"]`.
+  This is key normalisation, not a value conversion, and it needs no `as` — PHP already normalises, in the
+  other direction. `"08"` remains a distinct key from `"8"`, exactly as in PHP, so which subscripts collide
+  does not change.
+- A `float`, `bool` or `null` subscript is **rejected**. PHP truncates a float, stringifies `true` to `"1"`
+  and `null` to `""`; each is a silent conversion at the one place where a mistake becomes a missing row.
+- Iteration order is **insertion order, always** — `foreach`, `array_keys`, `var_dump`, `json_encode`. Only
+  the sort functions reorder, and they say so in their names.
+- `json_encode` emits a JSON array iff the keys are exactly `"0" … "n−1"` in order, which is the test PHP
+  already applies expressed over strings, so encoded output does not change.
+
+What is observably different is what comes *back*: `array_keys()` returns `array<string>`, `gettype()` of a
+key is `"string"`, and `foreach ($a as string $k => …)` types `$k` as `string`. That is the whole blast
+radius, and it is listed in *7*.
+
+**The element type may be declared, and nests to any depth.**
+
+```php
+array<uint>                 $ids;
+array<array<int|string>>    $rows;
+array<array<array<float>>>  $cube;
+array<User|null>            $lookup;
+array                       $anything;    // exactly array<mixed>
+```
+
+One type parameter, not two, because the key type is fixed by the language.
+
+- **Enforced on every write** — `$a['k'] = $v`, `$a[] = $v`, `+=`, `array_push`, `array_splice`, and every
+  stdlib function that writes into an array. Where the value's static type satisfies the element type the
+  check is compile-time and there is no runtime cost; where the value arrives through `mixed` it is a
+  runtime check, and a failure is a throw like any other ([0002](0002-error-propagation.md)).
+- **Invariant.** `array<int>` is not an `array<int|string>`. Converting is `as array<int|string>`, and costs
+  an O(n) restamp — a real copy, since the two cannot share a copy-on-write buffer. Covariance was tempting
+  and is rejected in *Alternatives*: it would hide that O(n) inside an assignment.
+- The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`, so invariance never gets
+  in the way of initialising.
+- **Array literals are checked against the target type, never inferred and then compared.** Because every
+  binding is annotated, a literal always has a target: `array<int|string> $r = [1, 'x'];` is checked
+  directly, and `return [1, 'x'];` is checked against the declared return type. This is the second place
+  where the mandatory annotation deletes machinery rather than adding it.
+- **At runtime** an array header carries a pointer to an interned, immutable type descriptor. It is what
+  lets a value arriving through `mixed`, `json_decode` or an
+  [isolate boundary](0006-isolated-script-execution.md) be checked at all, and what lets a diagnostic name
+  the type it expected. Descriptors are interned process-wide and are O(distinct types in the program), not
+  O(requests served) — the [0004](0004-memory-for-simplicity.md) rule. The cost, stated as that ADR
+  requires: **one pointer per array header**, plus the O(n) widening copies above.
+- The checker bounds descriptor nesting at depth 32 with a diagnostic, so a pathological type cannot make
+  checking superlinear.
+- **The stdlib's array signatures are parametric in `T`** — `array_map(callable, array<T>): array<U>`,
+  `array_filter(array<T>, callable): array<T>`, `array_merge(array<T>, array<U>): array<T|U>`. Type
+  variables are available to declarations the compiler owns: the built-ins, and from M9 the WIT-declared
+  extension functions. User-written generic functions are not part of this decision.
+
+### 6. Unions, narrowing, and `mixed`
+
+A union permits only the operations valid for *every* member. Reaching a member's own operations means
+narrowing, which is flow-sensitive and branch-local: `is_int()`, `is_uint()`, `is_string()`, `instanceof`,
+`=== null`, `match (true)`. Assigning a union into a narrower binding needs a guard or an `as`.
+
+`mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it is
+allowed, and every operation on it is resolved dynamically at runtime through the generic helper path. That
+is PHP's semantics, exactly, at PHP's cost, which is the right pressure: the fast path is the typed one.
+
+`mixed` is where untrusted input lands, and deliberately so. `$_GET`, `$_POST`, `$_SERVER`, `$_ARGS` and
+`json_decode`'s result are `array<mixed>`, because input genuinely is untyped and pretending otherwise would
+be a lie in the type. Getting a value *out* of `mixed` into a typed binding is an `as` or a narrowing
+guard — so validating input becomes a reviewable place in the source instead of an accident:
+
+```php
+uint $id = $_GET['id'] as uint;     // throws on "abc", on "-1", on "" — never quietly 0
+```
+
+`mixed` never absorbs implicitly in the other direction either: `int $n = $m;` where `$m` is `mixed` is a
+diagnostic, not a runtime check.
+
+### 7. Deliberate divergences from PHP
+
+Priority 2 is PHP-compatible observable behaviour, so every departure is listed here rather than discovered
+later. Each is reachable in PHP only *because* its variables are untyped:
+
+| # | PHP | MWL |
+|---|---|---|
+| 1 | array keys are `int` or `string` | always `string`; which subscripts collide is unchanged, but `array_keys()` returns strings |
+| 2 | one integer type | `int` and `uint`; `is_int()` is false for a `uint`, `gettype()` says `"uint"` |
+| 3 | a variable holds anything, always | every binding declared, its type fixed; `settype()` rejected |
+| 4 | `(int)"abc"` is `0` | throws. The same syntax, checked semantics |
+| 5 | `PHP_INT_MAX + 1` becomes a `float` | throws `ArithmeticError` |
+| 6 | `(int)9.9` is `9`; `$a[1.7]` is `$a[1]` | throws; `floor`/`round` say it out loud |
+| 7 | `int` → `float` rounds silently above 2^53 | throws |
+| 8 | reading an undefined variable warns and yields `null` | a definite-assignment error at check time |
+
+The consequence to plan around: the imported `.phpt` corpus (M11) will have a **structurally lower** pass
+rate than a compatibility-first design would, and failures in these eight classes are intentional
+divergence, not bugs. The tracked number must distinguish the two or it will be read as regression.
+
+## Consequences
+
+**Positive**
+
+- The conversion of untrusted input becomes an explicit, reviewable, loudly-failing operation. Priority 1,
+  and the single largest reason to accept everything below.
+- The baseline backend emits typed operations from M3 instead of dispatching through a generic helper for
+  everything, so much of what M12 was for arrives with the first backend. M12's inline caches and unboxing
+  then only have to cover `mixed`, unions and dynamic calls.
+- No inference engine, no `Unknown` in the IR, no gradual-typing boundary to keep sound. `mwl-types` is a
+  checker over declared types plus flow narrowing.
+- `uint` closes the 64-bit gap at zero cost in the value layout, and makes the `BIGINT UNSIGNED`, hash-word
+  and WIT `u64` boundaries exact rather than lossy.
+- Declared types make the [isolate boundary](0006-isolated-script-execution.md) checks largely static: a
+  closure, reference or resource that cannot cross becomes mostly a compile error at the spawn site rather
+  than a refusal at run time.
+- Errors arrive at their cause. Every row of the *Context* table becomes a diagnostic with a span.
+
+**Negative**
+
+- **PHP source no longer runs unconverted, and this is the real price.** PHP has no syntax for the type of a
+  local, a `foreach` binding, a destructuring target or a global constant, so no existing PHP file satisfies
+  the declaration requirement. "Drop your `.php` files in" is gone; migration goes through `mwl convert`,
+  which must now run an inference pass and *write the annotations into the source*. The compensation is real
+  but partial: inference becomes a one-time source rewrite a human reviews and edits, rather than a
+  permanent semantic authority inside the compiler — which is the better place for a heuristic to live. M11
+  gets harder, and becomes mandatory rather than a convenience.
+- **Verbosity.** `array<array<int|string>> $rows` at every declaration is a cost against priority 4's
+  simplicity of the language surface. A `type` alias is the obvious relief, and is deliberately deferred to
+  *Revisiting* rather than smuggled in beside the core decision.
+- **Array invariance will chafe** where a function wants to accept `array<int>` and `array<int|string>`
+  alike. Mitigated by literals being checked against the target and by `array<never>` for `[]`; the escape
+  hatch is an O(n) `as`. If this bites in real code the answer is read-only parameters, which is a separate
+  decision.
+- **Eight observable divergences** from PHP, each argued above, each a place a ported program can change
+  behaviour. Three of them (4, 5, 7) turn a silent wrong answer into a throw, which is still a behaviour
+  change even though it is the change we want.
+- **Parametric signatures exist for built-ins but not for user code**, a visible asymmetry: the stdlib can
+  be generic over `T` and a developer cannot.
+- **`mixed` is a hole by design**, and a program can be written entirely in it. It will then run at PHP's
+  speed with PHP's failure modes, which is the honest outcome — but code review, not the compiler, is what
+  keeps `mixed` at the boundaries.
+
+## Alternatives rejected
+
+- **The gradual system in the original plan** — declared types checked, locals inferred. Rejected on all
+  three counts in *Context*: it leaves the untrusted-input conversion implicit, it leaves the baseline tier
+  generic exactly where inference fails, and it is two type systems to keep in agreement. It also has to
+  answer "what does an inferred type mean when the value changes type later", and the honest answer is a
+  union nobody wrote down.
+- **Inference for locals only** (`var $x = 5;`, the type fixed forever at first assignment). The strongest
+  alternative — it is not "untyped", the binding still has exactly one immutable type, and it removes most
+  of the verbosity. Rejected because the requirement is explicit that no position may be undeclared, and
+  because the annotation is what makes an array literal checkable against a target instead of inferred (*5*),
+  which is load-bearing. It is the first thing to reconsider if verbosity proves worse in practice than it
+  looks on paper.
+- **No `uint`; carry big unsigned values as `string` or `float`.** PHP's answer. It pushes a conversion into
+  every call site that touches the value, and `float` loses precision above 2^53 silently — the exact
+  failure this ADR removes elsewhere.
+- **One arbitrary-precision integer type instead of `int` + `uint`.** Correct by construction, and it breaks
+  the value layout: integers stop fitting the tagged value's `u64`, so every arithmetic operation becomes a
+  possible allocation on the hot path. Priority 3 forbids it, and priority 2 does too — PHP's `int` is an
+  `i64`, and programs observe `PHP_INT_MAX`.
+- **Signed/unsigned mixed arithmetic with a promotion rule.** Every language that has one is quoted as a
+  cautionary tale. There is no representable common type of `int` and `uint`, so any rule is a silent choice
+  about which range to sacrifice.
+- **Keeping integer array keys alongside string ones.** It is PHP's behaviour, and it is two key domains
+  with a juggling rule between them — the `$a[8]` / `$a["8"]` / `$a["08"]` row in *Context*. One domain costs
+  a listed divergence in what `array_keys()` returns, and removes the rule entirely.
+- **A two-parameter `array<K, V>`.** Follows naturally from typed elements, and is pointless once keys are
+  always strings: `K` would have exactly one inhabitant.
+- **Covariant arrays** (`array<int>` accepted where `array<int|string>` is wanted). Sound, because PHP's
+  value semantics make the assignment a copy — but the copy is O(n) and the restamp cannot share a
+  copy-on-write buffer, so the ergonomic win is bought by hiding a linear cost inside an innocuous-looking
+  assignment. Priority 3 says put it in the source instead.
+- **Preserving PHP's lossy casts under their own syntax**, with `as` alongside for the checked version. Two
+  conversion operators differing only in whether they tell you the truth; the lossy one would win by being
+  shorter to type.
+- **Overflow promoting to `float`, as PHP does.** It changes a binding's runtime type behind its
+  declaration, which is the one thing this ADR forbids, and it converts an arithmetic bug into a precision
+  bug that surfaces somewhere else.
+- **Making `mixed` checked at its boundaries** — that is, no true escape hatch. Then there is no way to
+  express "this is untyped input" honestly, and `json_decode`, `$_GET` and every dynamic-shape library would
+  need a lie in their signatures.
+
+## Revisiting
+
+Deferred deliberately, each needing its own argument rather than an extension of this one:
+
+- **`type` aliases.** The first relief for verbosity, and the most likely thing to be wanted early.
+- **User-defined generics, typed callables (`callable(int): string`), `Generator<T>`, generic classes.** The
+  stdlib's parametric array signatures already prove the checker can carry type variables; opening them to
+  user code is a language-surface decision, not a checker one.
+- **Read-only or covariant array parameters**, if invariance is what people actually trip over.
+- **Local type inference** (`var $x = 5;`) if the annotation burden measured on real code exceeds what the
+  explicitness buys.
+- **Integer literal suffixes**, if "too large for `int`, and no `uint` expected here" turns out to be a
+  frequent diagnostic rather than a rare one.
+
+Verification, in the order it becomes possible:
+
+- **M1**: the grammar in *3* parses, including nested `array<…>`, DNF unions and every new declaration slot
+  in *1*; `settype` is rejected with the diagnostic naming `as`; the `foreach`-header `as` ambiguity is a
+  snapshot test rather than a surprise.
+- **M2**: a corpus where every diagnostic in this ADR is one file — an undeclared local, a re-declared
+  local, a read before definite assignment, `int + uint`, `int $n = 7 / 2;`, a `mixed` assigned to a typed
+  binding, an element-type violation at every nesting depth, a narrowing that is missing and one that is
+  present. Plus the negative half: no program in the corpus produces an `Unknown` type, because the IR no
+  longer has one.
+- **M3**: typed operations lower to native instructions rather than generic helpers — the claim that
+  mandatory types pay for themselves on the request path becomes a figure in `benches/`, with a guard.
+- **M4**: conformance cases for `uint` at `0`, `i64::MAX`, `i64::MAX + 1` and `2^64 − 1`; every conversion
+  row in *2* both succeeding and throwing; overflow throwing rather than promoting; key ordering preserved
+  across insert, delete, re-insert and every sort function; `array_keys()` typed `array<string>`;
+  `json_encode` output unchanged from PHP's for both lists and maps. `proptest` on the ordered hash covers
+  key normalisation.
+- **M8**: the parametric array signatures are written once and shared by the built-ins and the WIT world
+  ([0003](0003-extension-system.md)), so `uint` maps to `u64` with no conversion and the Tier 0 and Tier 1
+  signature languages stay one design.
+- **M11**: the converter's inference pass, measured as *annotations written* against *`TODO`s emitted* on a
+  real project, and the `.phpt` pass rate split into "fails" and "diverges intentionally, per ADR 0007 §7".

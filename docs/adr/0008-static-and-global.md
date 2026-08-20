@@ -1,0 +1,219 @@
+# ADR 0008 — `static` marks a class member; there are no function statics and no `global`
+
+- **Status:** Accepted
+- **Date:** 2026-08-20
+- **Scope:** every meaning PHP gives the `static` keyword; the `global` keyword; the complete list of
+  places a program may hold state that outlives a call
+- **Supersedes:** the *function `static`* row in [0007](0007-explicit-type-system.md) § 1 and the `static`
+  entry in the M1 list of new declaration slots. MWL has no function-scope `static`, so there is no type
+  slot to add to it.
+- **Relates to:** [0004](0004-memory-for-simplicity.md) (simplicity of the language surface is priority 4,
+  and it is bought here by deleting a storage class rather than by spending memory),
+  [0006](0006-isolated-script-execution.md) (every storage class listed here must be built fresh and torn
+  down per isolate; this ADR shortens that list),
+  [0007](0007-explicit-type-system.md) (a function `static` is the one binding whose definite assignment
+  cannot be decided at check time)
+
+> **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
+> methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —
+> late static binding is load-bearing in the OO code MWL wants to convert. Two PHP meanings of the keyword
+> are **rejected with a diagnostic**: the function-scope static variable (`static int $calls = 0;`) and the
+> static closure modifier (`static fn() => …`). `global` is rejected outright, as already recorded. What
+> replaces them: a class static property for state that must outlive a call, a parameter for state that must
+> cross a function boundary, and nothing at all for `static fn` — a closure captures `$this` only if its
+> body uses it. The complete list of things that hold state across a call is in **Decision § 2**, and it is
+> meant to be read as exhaustive.
+
+## Context
+
+PHP spells five unrelated things with one keyword. Three are about a class; two are about storage:
+
+| PHP spelling | what it means | kind |
+|---|---|---|
+| `public static function f()`, `public static int $n` | the member belongs to the class, not the instance | class |
+| `static::f()`, `new static()` | resolve against the *called* class, not the defining one | class |
+| `function f(): static` | the return type is the called class | class |
+| `static int $calls = 0;` inside a function | one slot per function, initialised at most once, surviving the call | storage |
+| `static function () {}`, `static fn() => …` | this closure does not capture `$this` | storage |
+
+`global $x;` is a sixth thing again: it rebinds a local name onto the script's top-level variable table for
+the duration of a call.
+
+The three class meanings are unavoidable. Late static binding is not a legacy corner — it is how every
+fluent builder, ActiveRecord-style model and static factory in the PHP ecosystem is written, and a
+`new static()` that silently behaved like `new self()` would return the wrong class rather than fail to
+compile. Rejecting it would not make PHP code unconvertible; it would make it convert *wrongly*, which is
+worse.
+
+The two storage meanings are a different question, and `global` is a settled one — it was already on the
+rejected list before this ADR, and [0006](0006-isolated-script-execution.md) already assumes a function
+cannot reach outside its own frame for mutable state. What this ADR does is finish the job: name the storage
+classes MWL actually has, and stop treating the leftovers as a syntax gap to be filled with a type
+annotation.
+
+## Decision
+
+**`static` is a class-member modifier and a class-relative type. It is never a storage class. `global` does
+not exist.**
+
+### 1. What each spelling does
+
+| spelling | status | replacement |
+|---|---|---|
+| `public static function`, `public static int $n` | **kept**, type mandatory as everywhere else | — |
+| `static::`, `new static()`, `: static` | **kept**, PHP semantics unchanged | — |
+| `static::$prop` | **kept** — a static property, reached through late static binding | — |
+| `static int $calls = 0;` in a function | **rejected**, diagnostic | a `private static` property on a class, or a parameter |
+| `static function () {}`, `static fn() => …` | **rejected**, diagnostic | nothing — write the closure without it |
+| `global $x;` | **rejected**, diagnostic | pass it as a parameter, or make it a `static` property or a `const` |
+
+`static` remains an atom in the type grammar of [0007](0007-explicit-type-system.md) § 3, which is where its
+meaning *as a type* is normatively fixed. Nothing here changes that line.
+
+### 2. Where state may outlive a call — the whole list
+
+Exhaustive by construction. If a design needs a slot that is not on this list, that is a change to this ADR,
+not an implementation detail:
+
+| storage | lifetime | declared |
+|---|---|---|
+| local variable, parameter | the call | `int $n = 0;` |
+| class static property | the isolate | `private static int $calls = 0;` |
+| class constant, global constant, enum case | the isolate, immutable | `public const int MAX = 10;` |
+| object property | the object | `public readonly uint $id;` |
+| superglobal (`$_GET`, `$_POST`, …) | the isolate, populated by the host | not user-declared |
+| top-level script variable | the script's own frame, **unreachable from a function** | `int $n = 0;` at file scope |
+
+The last row is the one to read twice. A top-level `$x` in a `.mwl` file is a local of the script's own frame
+and nothing more. Without `global`, no function can see it — the intended reading rather than an omission:
+the script body is a function, so its variables are locals, so the shared-nothing story holds at file scope
+for the same reason it holds everywhere else.
+
+### 3. Why the function static goes
+
+Four reasons, strongest first.
+
+**It is the one binding whose definite assignment cannot be checked.**
+[0007](0007-explicit-type-system.md) § 1 makes reading a binding on a path that may not have reached its
+initialiser a *compile* error. A function static breaks that flatly: its initialiser runs on the first call
+and on no later one, so on every call after the first the binding is live while its initialiser is not on
+the executed path. The rule would need one carve-out, for one keyword, in the exact analysis whose value
+comes from having none. Every other new declaration slot in ADR 0007 strengthens the checker; this one would
+be the sole hole in it.
+
+**It is a third storage class, for one keyword.** A per-function slot, per isolate, with a run-once flag the
+JIT cannot fold away because it is genuinely dynamic; an entry in a table
+[0006](0006-isolated-script-execution.md) must build fresh per isolate and walk on teardown; a value that
+must be excluded from the boundary-crossing rules because it belongs to no frame. `spawn script` already
+promises "fresh globals and statics" — with this decision that means class statics only, one table with one
+lifetime, and the second reset path ADR 0006 calls a bug does not get written.
+
+**It hides state from the signature.** Priority 4 is simplicity of the language surface first: a function
+whose result depends on how many times it has been called, with nothing at the call site or in the signature
+to say so, is exactly the state MWL asks people to declare everywhere else. A `private static` property has
+a name, a type, a visibility and a home.
+
+**Every real use has a better-placed replacement.** Memoisation → a `private static array<T>` on the class
+that owns the cache, where it can also be cleared and inspected. One-time initialisation → a static property
+or a constant. A call counter → a static property. Each rewrite is mechanical, and the result is more, not
+less, expressive.
+
+Note what is *not* an argument here: persistence. A PHP function static resets per request too, so nothing
+is lost that PHP was providing. The construct never held state across requests in either language.
+
+### 4. Why the static closure goes, and the one divergence that buys
+
+`static fn()` is an *assertion* that a closure does not capture `$this`, and MWL has no other assertion
+syntax — everything else in the language is a declaration the compiler enforces. The property it asserts is
+better obtained by making it true: **a closure captures `$this` only when its body uses it**, decided by the
+compiler.
+
+That is an observable divergence, and it is the only one this ADR introduces:
+
+| # | PHP | MWL |
+|---|---|---|
+| 1 | a closure created inside a method always binds `$this`, used or not | it binds `$this` only if the body uses it; one that does not is unbound, and `bindTo()` / `Closure::bind()` on it returns an equivalent closure rather than rebinding anything |
+
+The practical effect is the one `static` existed to produce — a closure that does not mention `$this` cannot
+extend the enclosing object's lifetime — obtained without a keyword. The cost is that a program which builds
+a `$this`-free closure inside a method and then `bindTo()`s it to a *different* object gets a closure that
+ignores the binding. That pattern is rare, it is precisely what `static fn` was used to forbid, and
+`mwl convert` can see it: a `bindTo` whose target closure never names `$this` is reportable at convert time
+rather than surprising at run time.
+
+### 5. Diagnostics
+
+Each rejection names its replacement, in the style the rest of the rejected list uses. A diagnostic that
+only says "not supported" is a bug in this decision, not a faithful implementation of it:
+
+- `static int $calls = 0;` → *function-scope `static` is not supported; declare a `private static` property
+  on a class, or pass the value as a parameter*
+- `static fn() => …` → *`static` is not a closure modifier; a closure captures `$this` only if it uses it,
+  so drop the keyword*
+- `global $x;` → *`global` is not supported; pass `$x` as a parameter, or make it a `static` property or a
+  `const`*
+
+## Consequences
+
+**Positive**
+
+- One storage-class table per isolate instead of two, and one teardown path — the shape
+  [0006](0006-isolated-script-execution.md) requires rather than tolerates.
+- ADR 0007's definite-assignment analysis has no exceptions, so "reading an undeclared or unassigned binding
+  is a compile error" is true without qualification. That is worth more than the construct.
+- The M1 parser has one fewer new declaration slot to invent syntax for. There is no `static` type slot to
+  design, because there is no `static` declaration.
+- The keyword has one meaning per position: modifier before a member, type or scope in an expression.
+  Nothing about `static` depends on whether it appears inside a function body.
+- Late static binding is untouched, so the OO PHP that most conversion candidates are made of keeps
+  converting.
+
+**Negative**
+
+- Two more PHP constructs stop compiling, on top of the ADR 0007 list. Both have mechanical rewrites, so
+  they land in `mwl convert` as rewrites rather than `TODO`s, but they are still work in M11.
+- The function-static rewrite is not purely local: it needs a class to hang the property on. For a free
+  function in a procedural file the converter must introduce one, or hoist the state into a parameter, and
+  either way a human should look at it. This is the only rewrite in the list that changes the shape of the
+  surrounding code.
+- Closure capture becoming use-based is a real semantic difference in a corner (`bindTo` on a `$this`-free
+  closure) rather than a pure removal, so it belongs in the divergence accounting for the `.phpt` corpus
+  alongside ADR 0007's eight.
+
+## Alternatives rejected
+
+**Keep the function static and give it a type slot.** What ADR 0007 originally assumed. Rejected on the
+definite-assignment argument in § 3: it is not that the construct is hard to type, it is that typing it does
+not make it checkable, and the carve-out lands in the one analysis that pays for the mandatory annotations.
+
+**Keep it, but run the initialiser at isolate start rather than on first call.** This removes the run-once
+flag and the definite-assignment hole in one move — the slot is simply initialised before any code runs.
+Rejected because it changes PHP's semantics silently rather than loudly: an initialiser with a side effect,
+or one that reads a superglobal, would run at a different time and in a different order, and the construct
+would look like PHP's while behaving differently. A rejection with a named replacement is honest; a lookalike
+is not. It also keeps the second storage table, which is most of the cost.
+
+**Reject late static binding too, for one meaning of the keyword.** Tempting for simplicity, and rejected on
+priority 2. `new static()` compiled as `new self()` returns the wrong class, and there is no annotation a
+converter could add to preserve the original behaviour — the information lives at the call site, not in the
+definition. Simplicity is priority 4; it does not buy a semantic break of that size. One keyword carrying
+two roles is a smaller cost than the ecosystem not converting, and the roles are unambiguous by position.
+
+**Allow `global` for read-only access.** Rejected: a readable script-global still makes a function's inputs
+invisible in its signature, and the resolver still cannot tell which top-level variable a name refers to
+without whole-script analysis. A `const` already covers everything a read-only global legitimately wanted,
+with a type and a compile-time value.
+
+**A `#[Memoize]` attribute as the sanctioned replacement for the memoisation use.** Deferred, not rejected —
+a plausible later convenience, but it is a caching feature with its own questions (key derivation, lifetime,
+size bound, interaction with limits), and it should not be smuggled in as part of a decision about a keyword.
+
+## Revisiting
+
+Reopen this if a profile shows the class-static replacement is measurably worse than a function static on a
+hot memoisation path — that would be an argument about priority 3, not about the keyword, and the answer
+would more likely be a caching construct with a declared bound than a revival of `static`.
+
+The closure-capture divergence should be revisited if the imported `.phpt` corpus shows `bindTo` on a
+`$this`-free closure is more common than assumed. The fallback is not to bring `static fn` back, but to make
+that `bindTo` a diagnostic instead of a no-op.

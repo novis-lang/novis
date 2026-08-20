@@ -9,7 +9,9 @@
 - **Relates to:** [0002](0002-error-propagation.md) (nothing unwinds across the boundary either),
   [0003](0003-extension-system.md) (this is not a sandbox for foreign code),
   [0004](0004-memory-for-simplicity.md) (what an isolate spends),
-  [0005](0005-config-changeability.md) (how a child's config is derived)
+  [0005](0005-config-changeability.md) (how a child's config is derived),
+  [0008](0008-static-and-global.md) (what "fresh globals and statics" is a list of, and why it is a short
+  one — there is no function-scope `static` to reset)
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable

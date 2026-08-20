@@ -28,6 +28,8 @@ behind a decision, or the detail of something the brief only names.
 | Weighing memory against safety, speed or simplicity | [ADR 0004](docs/adr/0004-memory-for-simplicity.md) |
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
+| Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
+| `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
@@ -80,6 +82,25 @@ When choosing between designs:
   unbounded in what a script chooses to spawn; and a child's grants are its parent's, optionally narrowed.
   Isolation is one implementation shared with request handling — if you find yourself writing a second
   arena setup or a second teardown path, that is the bug.
+- **Nothing is untyped, and no type ever changes by itself.** Every binding — parameter, property,
+  constant, local, loop variable, closure parameter, return — declares a type, and that declared type is
+  fixed for its lifetime. A value's type changes only through an explicit checked conversion that throws
+  rather than coercing, or by using a second binding. `mixed` is the *only* unchecked position, it is where
+  untrusted input lands, and getting a value out of it is an explicit conversion — that is the security
+  argument, not an ergonomic detail. `int` is signed, `uint` is unsigned, `int + uint` is a compile error,
+  and integer overflow throws rather than silently becoming a `float`. Array keys are **always** strings.
+  ([ADR 0007](docs/adr/0007-explicit-type-system.md)). If you find yourself writing type *inference* in the
+  compiler, stop: it belongs in `mwl convert`, and the absence of it is what pays for the mandatory
+  annotations.
+- **`static` marks a class member; nothing else holds state behind a function's back.** Static methods,
+  static properties and late static binding (`static::`, `new static()`, `: static`) are kept exactly as
+  PHP has them. A function-scope `static` variable and a `static` closure are **rejected with a
+  diagnostic naming the replacement**, and `global` does not exist
+  ([ADR 0008](docs/adr/0008-static-and-global.md)). State that outlives a call lives in a class static, a
+  constant, an object property or a superglobal, and that list is exhaustive — a top-level `$x` is a local
+  of the script's own frame and no function can reach it. A closure captures `$this` only when its body
+  uses it. If you find yourself adding a second per-isolate slot table so one keyword can survive a
+  return, that is this decision being undone.
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.

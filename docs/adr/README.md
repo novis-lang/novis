@@ -22,6 +22,8 @@ authoritative; a number written anywhere else is a copy that can go stale.
 | [0004](0004-memory-for-simplicity.md) | Memory is spent for security, speed and simplicity, in that order | Accepted |
 | [0005](0005-config-changeability.md) | `mwl.ini` states defaults, not ceilings | Accepted |
 | [0006](0006-isolated-script-execution.md) | Running another script is an in-process isolate, not a subprocess | Accepted |
+| [0007](0007-explicit-type-system.md) | Types are declared, checked, and never change by themselves | Accepted |
+| [0008](0008-static-and-global.md) | `static` marks a class member; there are no function statics and no `global` | Accepted |
 
 ## Decisions taken at project start
 

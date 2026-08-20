@@ -18,6 +18,11 @@ starting point and no build step: change a file, run it.
   heap, its own globals and its own slice of the caller's budget — the isolation PHP can only get by
   starting another interpreter, at microseconds instead of tens of milliseconds
   ([ADR 0006](docs/adr/0006-isolated-script-execution.md)).
+- **Typed on purpose.** Every parameter, property and variable declares its type, and no value changes
+  type behind your back: conversions are explicit and throw rather than quietly yielding `0`. Unions and
+  `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole 64-bit range PHP
+  cannot represent, and arrays keep PHP's ordered hash while gaining declarable, nestable element types —
+  `array<array<uint>>` ([ADR 0007](docs/adr/0007-explicit-type-system.md)).
 - **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
   runtime bug or a resource-limit breach kills one request, never the process.
 - **Fast and simple first; memory is what pays for that.** MWL targets server-class hardware, so where a
@@ -28,7 +33,9 @@ starting point and no build step: change a file, run it.
   precompiled binary runs on every platform, written in whatever language you like, and a crashing or
   hostile extension harms one request rather than the process.
 - **A migration target for PHP.** `mwl convert` transpiles existing PHP projects, including their `.phpt`
-  test suites.
+  test suites. Note the direction of travel: MWL takes PHP's *syntax*, not its type discipline, so PHP
+  files are converted rather than dropped in — the converter infers the types PHP has no syntax for and
+  writes them into the output for you to review.
 
 ## Design in one page
 
@@ -39,6 +46,8 @@ starting point and no build step: change a file, run it.
 | Errors | checked return status, never unwinding ([ADR 0002](docs/adr/0002-error-propagation.md)) |
 | Concurrency | thread-per-core executors, stackful coroutines, isolated cross-core workers |
 | Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)) |
+| Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/adr/0007-explicit-type-system.md)) |
+| Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` ([ADR 0008](docs/adr/0008-static-and-global.md)) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
 | Isolates | `spawn script` runs another `.mwl` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/adr/0006-isolated-script-execution.md)) |
@@ -61,7 +70,7 @@ crates/
   mwl-diagnostics   spans, source maps, error rendering                            exists
   mwl-syntax        lexer (inline HTML + PHP mode), parser, AST                        M1
   mwl-hir           name resolution, namespaces, class graph                           M2
-  mwl-types         gradual type system, inference, checking                           M2
+  mwl-types         declared types, unions, narrowing, no inference                    M2
   mwl-ir            CFG/SSA IR, safepoints, refcount ops                               M2
   mwl-codegen       Cranelift backend  [audited unsafe]                                M3
   mwl-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3

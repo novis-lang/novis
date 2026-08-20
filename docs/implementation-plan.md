@@ -15,9 +15,13 @@
 > 1. `docs/spec/00-overview.md` — the semantics need writing down before code encodes them by
 >    accident. It must define `spawn script` next to `include`, since the two run a file and
 >    isolate opposite amounts, and that is the confusion
->    [ADR 0006](adr/0006-isolated-script-execution.md) predicts.
+>    [ADR 0006](adr/0006-isolated-script-execution.md) predicts. It also owns the *spelling* of the
+>    type surface whose semantics [ADR 0007](adr/0007-explicit-type-system.md) fixes — the
+>    declaration slots, `array<T>`, and the conversion operator. Its scoping section states what
+>    [ADR 0008](adr/0008-static-and-global.md) decided: which `static` survives, and that the list of
+>    places state may outlive a call is closed.
 > 2. The remaining ADRs for the decision table below. [0002](adr/0002-error-propagation.md)
->    through [0006](adr/0006-isolated-script-execution.md) are written; the rest are not.
+>    through [0008](adr/0008-static-and-global.md) are written; the rest are not.
 > 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
@@ -68,7 +72,9 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 | Parallelism | **Hybrid**: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | **Stackful coroutines** — no async colouring; any function may yield |
 | Isolated execution | **`spawn script 'file.mwl'`** — runs another file in-process with its own heap, globals and config overlay, on the caller's budget. File-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
-| PHP compatibility | **Pragmatic superset.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)) |
+| Type system | **Static, mandatory, explicit.** Every binding declares a type and its type never changes; conversions are explicit and checked; unions and intersections as in PHP; `mixed` is the one unchecked position. `uint` added alongside signed `int`; `float` is always `f64`. Arrays keep PHP's ordered hash but every key is a `string` and the element type may be declared and nested (`array<array<uint>>`) ([ADR 0007](adr/0007-explicit-type-system.md)) |
+| Scoping and state | **`static` is a class-member modifier only.** Static methods, static properties and late static binding (`static::`, `new static()`, `: static`) kept as PHP has them; function-scope `static` and `static fn` rejected with a diagnostic. No `global`. State that outlives a call lives in a class static, a constant, an object property or a superglobal, and nowhere else ([ADR 0008](adr/0008-static-and-global.md)) |
+| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the eight deliberate divergences) |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
@@ -114,6 +120,13 @@ talks h1/h2 upstream → h3 is pure cost.
   per-request arena held to its peak are all deliberate purchases of safety, speed or simplicity. Sizing a
   deployment therefore means sizing for concurrency — tasks × stack, plus concurrent requests × their
   `memory` cap — and deployment docs must say so rather than quote a typical RSS.
+- **Existing PHP does not run unconverted.** PHP has no syntax for the type of a local, a `foreach`
+  binding, a destructuring target or a global constant, and MWL requires all four
+  ([ADR 0007](adr/0007-explicit-type-system.md)). So the migration story is `mwl convert` writing
+  annotations into the source, not dropping `.php` files into a document root. That moves type inference
+  out of the compiler and into a one-time source rewrite a human reviews — better placed, but it makes M11
+  mandatory rather than a convenience, and it lowers the imported `.phpt` pass rate structurally rather
+  than through bugs.
 - **One new language construct that PHP has no equivalent of.** `spawn script` is a surface a developer
   has to learn and the spec has to define next to `include`, which they will confuse it with. Accepted:
   the requirement it answers — run another file, isolated, without a second process — has no other honest
@@ -175,8 +188,8 @@ drift. Deferring it to M9 would mean retrofitting.
     │ mwl-hir       name resolution, namespaces,    │
     │               class graph, symbol table       │
     ├───────────────────────────────────────────────┤
-    │ mwl-types     gradual typing, inference,      │
-    │               declared-type checking          │
+    │ mwl-types     declared types, unions, flow    │
+    │               narrowing, no inference engine  │
     ├───────────────────────────────────────────────┤
     │ mwl-ir        CFG/SSA, safepoints, refcount   │
     │               ops, optimisation passes        │
@@ -214,8 +227,10 @@ load-balanced across cores; a request never migrates between cores.
 ### Value representation
 
 16-byte tagged value: `{ tag: u8, _pad: [u8;7], bits: u64 }`. NaN-boxing is rejected because PHP semantics
-require full-range `i64`. Types: `null | bool | int(i64) | float(f64) | string | array | object | closure |
-resource`.
+require full-range `i64`. Tags: `null | bool | int(i64) | uint(u64) | float(f64) | string | array | object |
+closure | resource`. `uint` is a tag, not a wider slot, so it costs nothing here; the type system that
+demands it is [ADR 0007](adr/0007-explicit-type-system.md), which also owns the array element-type stamp
+carried on the array header.
 
 Memory: refcounting + copy-on-write arrays/strings (PHP semantics). Reference cycles are bounded by the
 request lifetime — the whole request heap is dropped wholesale at request end, which makes cycle leaks
@@ -345,20 +360,34 @@ Lexer with dual mode (`<?mwl`, `<?php`, `<?=`), inline HTML, heredoc/nowdoc, str
 PHP 8.5 tokens. Recursive-descent parser covering the pragmatic-superset grammar: functions, classes,
 interfaces, traits, enums, attributes, `match`, closures and arrow functions, generators, named arguments,
 spread, nullsafe, `readonly`, promoted constructor parameters, first-class callable syntax, property hooks,
-asymmetric visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract` with a diagnostic naming the
-replacement. Error recovery good enough for the LSP.
+asymmetric visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static fn` with a diagnostic naming
+the replacement. Error recovery good enough for the LSP.
+
+Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
+is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the
+declaration slots PHP has no syntax for — typed locals, `foreach` bindings, destructuring targets
+and global constants.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
-finds no panic in a 1h run; parse the full local PHP 8.5 install's `.php` files without crashing.
+finds no panic in a 1h run; parse the full local PHP 8.5 install's `.php` files without crashing (they will
+not *check* — see M2 — but they must parse). A snapshot pins the one grammar wrinkle in ADR 0007: `as` in a
+`foreach` header belongs to `foreach`, so a conversion of the subject needs parentheses.
 
 ### M2 — HIR, types, IR (~4 weeks)
 Name resolution, namespaces and `use`, class hierarchy with trait flattening, statically resolved
-`require`/`include` with a dynamic fallback. Gradual type system: declared types checked, locals inferred,
-`mwl check` reports provable mismatches. Lowering to a CFG/SSA IR carrying explicit safepoints, refcount
-operations and runtime-helper calls.
+`require`/`include` with a dynamic fallback. The type checker of
+[ADR 0007](adr/0007-explicit-type-system.md): every binding's declared type recorded and enforced,
+definite-assignment checking, flow-sensitive narrowing of unions, array element types checked at every
+write and at every nesting depth, the arithmetic result-type table including the refusal of `int + uint`,
+and interned type descriptors. There is **no inference engine and no `Unknown` type** — that is the
+simplification the mandatory declarations buy. Lowering to a CFG/SSA IR carrying explicit safepoints,
+refcount operations and runtime-helper calls.
 
-**Verify:** `mwl check` on a curated corpus of correct/incorrect programs; IR snapshot tests; typed
-programs produce no `Unknown` types in the IR dump.
+**Verify:** `mwl check` on a curated corpus where every diagnostic named in ADR 0007 is its own file — an
+undeclared local, a re-declared local, a read before definite assignment, `int + uint`, `int $n = 7 / 2;`,
+a `mixed` assigned into a typed binding, an element-type violation at depth 1, 2 and 3, a missing narrowing
+and a present one. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+no longer has one.
 
 ### M3 — Baseline Cranelift backend → **Hello World** (~3 weeks)
 The checked-return calling convention from [ADR 0002](adr/0002-error-propagation.md), which is normative
@@ -367,25 +396,43 @@ is no platform unwind-table registration to do — that is the point of that ADR
 table, `echo`, string concat, arithmetic, comparison, control flow, function calls, safepoint polls and
 W^X page management.
 
+Because [ADR 0007](adr/0007-explicit-type-system.md) makes operand types known by construction, the
+baseline tier emits a native instruction wherever the static type is a single scalar and falls back to the
+generic helper only for `mixed`, unions and dynamic calls. That is a chunk of what M12 was for, arriving
+with the first backend.
+
 **Verify:** `mwl run hello.mwl` prints `Hello World` from natively compiled code on all three platforms. A
 throw crosses several JIT frames and is caught; a helper panic terminates the script with a `FATAL` status
 and leaves the process able to run the next one. An MWL-level backtrace names the right functions, resolved
 from MWL's own frame chain rather than from the platform unwinder. `mwl run --dump-asm` shows generated
-code.
+code. A typed arithmetic loop lowers to native instructions rather than helper calls, committed as a figure
+in `benches/` with a guard, so ADR 0007's claim that mandatory types pay for themselves on the request path
+is tested rather than asserted.
 
 ### M4 — Language completeness — a usable CLI language (~10 weeks)
-Full ordered-hash arrays with COW, exceptions propagating correctly by checked return across JIT frames
-([ADR 0002](adr/0002-error-propagation.md)), closures with bound
-`$this`, inheritance/interfaces/traits/enums, generators (nearly free given stackful coroutines), `foreach`
-and iterators, references (`&$x`), static and instance members, magic methods, core string/array/math
-functions, `var_dump`/`print_r`/`json_encode`.
+Full ordered-hash arrays with COW — string-only keys, insertion order, declared element types enforced at
+every write ([ADR 0007](adr/0007-explicit-type-system.md)) — `uint` arithmetic with its overflow throws and
+its logical `>>`, the conversion operator over every row of that ADR's conversion table, exceptions
+propagating correctly by checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)),
+closures that bind
+`$this` only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
+inheritance/interfaces/traits/enums, generators (nearly free given stackful coroutines), `foreach`
+and iterators, references (`&$x`), instance members and static members including late static binding
+(`static::`, `new static()`, `: static`), magic methods, core string/array/math functions,
+`var_dump`/`print_r`/`json_encode`.
 
 Also in this milestone: `mwl test` and the `.mwlt` format — deliberately defined as a **superset of
 `.phpt` sections** (`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`,
 `--ARGS--`, `--ENV--`, `--CLEAN--`) so the M11 importer is mechanical rather than a rewrite.
 
-**Verify:** hand-written conformance suite ≥ 1000 `.mwlt` cases green; a non-trivial CLI program (an
-argument-parsing file-processing tool) runs correctly; no leaks under Valgrind/ASAN.
+**Verify:** hand-written conformance suite ≥ 1000 `.mwlt` cases green, including `uint` at `0`, `i64::MAX`,
+`i64::MAX + 1` and `2^64 − 1`; every conversion in ADR 0007 both succeeding and throwing; overflow throwing
+rather than promoting to `float`; key order preserved across insert, delete, re-insert and every sort
+function; `array_keys()` typed `array<string>`; `json_encode` output identical to PHP's for both lists and
+maps. `new static()` through two levels of inheritance returns the called class, and a closure written in a
+method without naming `$this` is unbound — `bindTo()` on it rebinds nothing, which is ADR 0008's single
+divergence and gets its own case. A non-trivial CLI program (an argument-parsing file-processing tool) runs
+correctly; no leaks under Valgrind/ASAN.
 
 ### M5 — Concurrency and script isolates (~5 weeks)
 Per-core runtimes, coroutine scheduler, `spawn` / `await` / `all` / `race` / `timeout`, `Channel` with
@@ -455,7 +502,12 @@ exception to the pure-Rust rule).
 
 **Also in this milestone: author the `mwl:ext@1.0.0` WIT world.** It must be designed from the same
 value-access model as the built-in functions, so the Tier 0 internal interface and the Tier 1 guest
-interface are one design rather than two that drift. Writing it later would mean retrofitting.
+interface are one design rather than two that drift. Writing it later would mean retrofitting. The same
+applies to the signatures themselves: the parametric array signatures
+([ADR 0007](adr/0007-explicit-type-system.md) — `array_map(callable, array<T>): array<U>` and friends) are
+written once for the built-ins and reused by the WIT world, where `uint` now maps to `u64` with no
+conversion. Type variables stay available only to declarations the compiler owns; user-defined generics are
+not part of this milestone.
 
 **Verify:** per-subsystem conformance suites; DB drivers tested against real servers in CI containers,
 including TLS, prepared statements, transactions and large result streaming.
@@ -491,25 +543,41 @@ lockfile, semver resolution and a registry.
 breakpoints hit in JIT-compiled code with correct variable values; profiler output attributes time to the
 right MWL functions.
 
-### M11 — PHP transpiler (~8 weeks)
-`mwl convert`: PHP source → AST → rewrite passes → idiomatic `.mwl` output. Mechanical rewrites where
-possible (`global` → parameter passing, `extract()` → explicit assignment, simple `$$var` → match on a
-map, and `exec('php script.php …')` job dispatch → `spawn script`, which is a real rewrite rather than a
-`TODO` because the isolation the original bought is what the construct provides); annotated `TODO`
-diagnostics where not (`eval` of constructed source, dynamic includes, unsupported `preg` constructs,
-C extensions). `--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
+### M11 — PHP transpiler (~10 weeks)
+`mwl convert`: PHP source → AST → rewrite passes → idiomatic `.mwl` output. **This milestone is now on the
+critical path for adoption rather than a convenience**, because PHP has no syntax for a local's type and
+[ADR 0007](adr/0007-explicit-type-system.md) requires one: the converter carries the type-inference engine
+MWL's compiler deliberately does not have, and writes the annotations into the output for a human to review.
+Where inference cannot decide, it emits `mixed` with a `TODO` naming the binding rather than guessing — an
+honest `mixed` runs, and a wrong annotation would not. That inference pass is the reason for the two extra
+weeks over the original estimate.
+
+Mechanical rewrites where possible (`global` → parameter passing, function-scope `static` → a
+`private static` property on the owning class or a parameter where there is no class, `static fn` → the
+keyword dropped ([ADR 0008](adr/0008-static-and-global.md)), `extract()` → explicit assignment,
+`settype()` → a second binding or an `as` conversion, lossy `(int)` casts flagged where the source relied
+on PHP's silent `0`, simple `$$var` → match on a map, and `exec('php script.php …')` job dispatch →
+`spawn script`, which is a real rewrite rather than a `TODO` because the isolation the original bought is
+what the construct provides); annotated `TODO`
+diagnostics where not (`eval` of constructed source, dynamic includes, unsupported `preg` constructs, a
+`bindTo()` whose target closure never names `$this` — the one divergence ADR 0008 introduces, and visible
+here rather than at run time — and C extensions). `--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
 reuses the same pipeline to import PHP's test corpus as native MWL tests. A PHP project depending on a C
 extension is reported as needing either a Tier 1 `.mwlx` replacement or a Tier 2 native one — the converter
 cannot synthesise either, and says so rather than emitting code that fails at runtime.
 
-**Verify:** convert a real open-source PHP project end to end and run its test suite under MWL; imported
-`.phpt` cases run in `mwl test` with a tracked pass rate and failures triaged as bug vs intentional
-divergence.
+**Verify:** convert a real open-source PHP project end to end and run its test suite under MWL, reporting
+*annotations written* against *`TODO`s emitted*; imported `.phpt` cases run in `mwl test` with a tracked
+pass rate and failures triaged as bug vs intentional divergence — the eight type-discipline divergences in
+[ADR 0007](adr/0007-explicit-type-system.md) §7 are counted separately, or the structural gap reads as
+regression.
 
 ### M12 — Optimising JIT tier (ongoing)
 Profiling counters, inline caches for property and method access (monomorphic → polymorphic →
-megamorphic), unboxed int/float fast paths, inlining, refcount elision, escape analysis, deopt and OSR at
-existing safepoints.
+megamorphic), unboxed int/uint/float fast paths, inlining, refcount elision, escape analysis, deopt and OSR
+at existing safepoints. Narrower than originally scoped: the declared types of
+[ADR 0007](adr/0007-explicit-type-system.md) mean the baseline tier is already typed, so speculation only
+has to cover `mixed`, unions and dynamic calls.
 
 **Verify:** macro benchmarks show a multiple over the baseline tier and over PHP 8.5 with JIT; no
 correctness regressions in the full conformance suite when the optimising tier is forced on.
