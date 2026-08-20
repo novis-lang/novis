@@ -1,0 +1,304 @@
+# ADR 0010 — Enums are a closed, named integer type, not PHP's class-like construct
+
+- **Status:** Accepted
+- **Date:** 2026-08-20
+- **Scope:** the `enum` declaration; a case's underlying value and type; conversion between an enum and its
+  underlying integer type; what an enum type may and may not carry (methods, interfaces, constants, case
+  singletons)
+- **Amends:** [0007](0007-explicit-type-system.md) — the *enum backing type* row in § 1 drops `string` and
+  defaults to `int` when the backing type is omitted; an enum's name joins `ClassName` in the atom grammar
+  of § 3, resolved as its own kind of atom rather than a class. [0008](0008-static-and-global.md) — the
+  *enum case* entry is gone from § 2's storage-class table: a case is a compile-time constant of its
+  enum's underlying type and needs no runtime storage at all, which shortens that exhaustive list rather
+  than adding to it.
+- **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — the *standalone function*
+  destination named in *Consequences* and *Revisiting* below assumed a free-function concept that no
+  longer exists; the only destination for a user-defined enum behaviour is a `static` method.
+- **Relates to:** [0002](0002-error-propagation.md) (a conversion into an enum that names no matching case
+  throws, and propagates as a checked status like every other conversion), [0004](0004-memory-for-simplicity.md)
+  (an enum value costs what `uint` already costs — nothing extra — and a case costs less than that: no
+  storage at all), [0006](0006-isolated-script-execution.md) (an enum value crossing an isolate boundary is
+  a plain scalar, copied under the same rule as any other scalar, never an object with identity to
+  preserve), [0007](0007-explicit-type-system.md) (the conversion operator, the atom grammar, and "one
+  checked operator rather than a second per-type API" all come from there)
+
+> **In short:** MWL's `enum` ignores PHP's design and follows C#'s instead — an enum declares a new, closed,
+> named **integer** type. A case is a compile-time constant of that type, never a singleton object, so an
+> enum has no methods, no interfaces, no `::cases()` / `::from()` / `::tryFrom()`, and needs no runtime
+> storage whatsoever. Every enum has exactly one underlying integer type — `uint` by default, or `int` when
+> declared — and PHP's split between "pure" (no backing value) and "backed" enums is gone along with
+> `string` backing: cases auto-increment from `0` unless given an explicit literal, exactly as C#. An enum's
+> name is a type like any other, usable at every binding site [ADR 0007](0007-explicit-type-system.md) § 1
+> lists, which is the whole point: `enum Status { Active, Banned }` then `public Status $status;` or
+> `public const Status DEFAULT = Status::Active;` is the requirement this ADR exists to satisfy. Converting
+> between an enum and its underlying type goes through the one operator ADR 0007 already has (`as`), checked
+> and throwing on a value no case names — which is where MWL diverges from C# too: C# lets any integer be
+> cast into an enum type even when no case names it, and MWL refuses that as loudly as it refuses
+> `(int)"abc" → 0`.
+
+## Context
+
+PHP's enum (8.1) is a class in a trench coat. Each case is a singleton instance of the enum, created once
+and shared; an enum can implement interfaces, declare methods, and reference `$this` inside them; a backed
+enum stores its value on that instance and exposes `::from()`/`::tryFrom()` as static factory methods and
+`::cases()` as a reflection-style enumerator; a pure enum has no backing value at all, only identity. None
+of that is an accident — it followed from PHP not having a lighter-weight nominal type to build enums out
+of, so it reused the one construct that already existed: the class.
+
+C# took the other route, because C# already had a real value-type story to put an enum in: `enum Color {
+Red, Green, Blue }` declares a new type whose values are just an integer, with names attached at compile
+time. There is no object, no allocation, no methods, no interface — a `Color` is exactly as heavyweight as
+the `int` it wraps, and the language spends nothing making it feel otherwise. This ADR is not a compromise
+between the two; the requirement is explicit that MWL's enum follows C#'s model and PHP's is disregarded
+entirely, so the three priorities argue *for* the requirement rather than merely tolerating it:
+
+**Security and simplicity (priorities 1 and 4).** A closed set of named values, checked at the same
+boundary every other typed input already is, is exactly the shape priority 1 wants: `Status $s =
+$_GET['status'] as Status;` throws on anything that is not a declared case, with no second API
+(`::tryFrom()`) to remember exists beside the general conversion operator. PHP's enum gives that plus a
+class's worth of machinery (interfaces, methods, singleton identity, reflection) that a value this small has
+no use for — priority 4 says the machinery is the wrong trade, not that the closed-set idea is.
+
+**Memory (priority 5, spent nowhere here).** A PHP enum case is a heap object: allocated once, refcounted,
+reached through a pointer everywhere it is used. A C#-shaped case is a plain integer with a name attached at
+compile time — the same zero-extra-bytes trick [ADR 0007](0007-explicit-type-system.md) § 4 already used for
+`uint`. There is nothing to spend memory on here at all, which is unusual for this project: most of these
+ADRs argue for spending memory to buy something higher up the list; this one buys priorities 1 and 4 for
+*less* memory than the alternative, not more.
+
+**Correctness of language semantics (priority 2) is the one priority this ADR knowingly spends.** MWL is a
+PHP-syntax superset that does not preserve PHP's enum *semantics* at all — a ported `enum Suit: string {
+case Hearts = 'H'; }` with a method on it does not run unconverted, the same way [ADR
+0007](0007-explicit-type-system.md) already accepts nine divergences in the name of a mandatory type
+discipline. This is the tenth, tracked here rather than folded into that ADR's table, following the
+precedent [ADR 0008](0008-static-and-global.md) and [ADR 0009](0009-string-and-bytes.md) set of keeping a
+decision's own divergence local to it.
+
+## Decision
+
+**`enum` declares a new, closed, named integer type. A case is a compile-time constant of that type, never
+an object. There is exactly one underlying integer type per enum, `int` by default. The enum's name is a
+type like any other, usable everywhere ADR 0007 § 1 requires a declared type.**
+
+### 1. Declaration
+
+```php
+enum Status {                  // underlying type defaults to int; Active = 0, Banned = 1, auto-incrementing
+    Active,
+    Banned,
+}
+
+enum Permission: uint {        // explicit backing type
+    Read  = 0b001,
+    Write = 0b010,
+    Admin = 0b100,
+}
+```
+
+A case with no explicit literal takes the previous case's value plus one, starting at `0` — C#'s rule,
+kept exactly, including that an explicit value resets the counter for whatever follows it. Two cases may
+share a value (an alias, as C# allows); nothing in this decision forbids it, because equality is value
+equality (*5*) and there is no identity to collide.
+
+### 2. Exactly one underlying integer type per enum — the pure/backed split is gone
+
+PHP has three shapes: a pure enum (no backing value, only identity), a backed enum with an `int` value, and
+a backed enum with a `string` value. MWL collapses all three into one: **every enum has an underlying
+integer type**, `uint` unless `: int` is written. There is no pure enum and no string-backed enum.
+
+- **No pure enum.** PHP's pure enum exists because cases are objects with identity — comparing them needs
+  no backing value. MWL's cases are integers; the "no backing value" case is simply "the auto-incrementing
+  default nobody overrode," not a separate kind of declaration. A program that only ever compares cases
+  never has to look at the underlying integer, so nothing is lost by always having one.
+- **No `string` backing.** C# enums are integral only, and the reason transfers directly: an underlying
+  `string` forces case values to be heap-allocated, interned buffers instead of a scalar that fits the
+  tagged value's existing payload for free, which is exactly the cost *Context* argues this decision should
+  not pay. A program that wants a case's name as a string reads it through the introspection function in
+  *Revisiting*, not through the backing type.
+
+### 3. A case is a compile-time constant, not an object
+
+| PHP enum | MWL enum |
+|---|---|
+| a case is a singleton instance, allocated once, reached by pointer | a case is an integer constant, inlined at every use site, no allocation |
+| an enum may implement interfaces | **rejected** — an enum declares only cases and an optional backing type |
+| an enum may declare methods, referencing `$this` | **rejected** — see *Revisiting* for a possible later function-based replacement |
+| an enum may declare its own class constants | **rejected** — a constant belongs on a class, not an enum |
+| `::cases()` enumerates all cases | **not part of the language** — see *Revisiting* |
+| `::from()` / `::tryFrom()` construct a case from its backing value | **replaced by `as`** (*5*) — one checked conversion operator, not a second per-enum API |
+| `$case->value` reads the backing value | **replaced by `as`** — converting the case to its underlying type |
+| `$case->name` reads the case's identifier as a string | **not part of the language** — see *Revisiting* |
+
+The consequence that matters most: **an enum needs no entry in [ADR 0008](0008-static-and-global.md) § 2's
+storage-class table at all.** A case is baked into generated code the same way a literal `5` is; there is
+no per-isolate slot to build, no teardown, and nothing for [ADR 0006](0006-isolated-script-execution.md)'s
+isolate boundary to copy except the plain integer a value already carries.
+
+### 4. The enum's name is a type, usable everywhere ADR 0007 requires one
+
+```php
+enum Status { Active, Banned }
+
+class Account {
+    public Status $status = Status::Active;             // property
+    public const Status DEFAULT_STATUS = Status::Active; // class constant
+}
+
+function ban(Status $s): Status { ... }                  // parameter and return
+Status $s = Status::Active;                              // local
+foreach ($accounts as Status $status => $account) { ... } // foreach binding, same as any other type
+```
+
+This is the requirement in full: the `enum` keyword only ever appears at the *declaration* site, exactly as
+it does in C# and in PHP; everywhere a type is used, it is spelled with the enum's own name, precisely like
+a class. `EnumName` joins `ClassName` as an atom in [ADR 0007](0007-explicit-type-system.md) § 3's grammar —
+lexically identical to a class reference, distinguished by what the name resolves to, exactly the way
+`self`/`static`/`parent` are already contextual in that grammar.
+
+### 5. Conversion
+
+| conversion | behaviour |
+|---|---|
+| `EnumName` → its underlying type (`int`/`uint`) | **total, free.** Same representation, reinterpreted — no copy, no check needed |
+| underlying type / `mixed` → `EnumName` | **checked.** Throws unless the value equals some case's value, exactly the shape `as uint` already has for untrusted input |
+| `EnumName` → a different `EnumName`, even with the same underlying type | **rejected**, even via `as`. Two enums sharing an underlying type are not the same closed set; converting between them needs an explicit `match` naming every case, the same way two unrelated classes are not interconvertible by `as` |
+| `EnumName` ↔ `string` | **not part of this decision** — see *Revisiting* for name/value introspection |
+
+```php
+Status $s = $_GET['status'] as Status;   // throws on anything but a declared case's value — never a silent default
+uint   $bits = Permission::Write as uint; // total: reads the backing value
+```
+
+`==` and `===` on two values of the same enum type compare the underlying integer — there is no identity
+distinct from value, because there is no object. Comparing values of two *different* enum types is a
+diagnostic, the same rule [ADR 0007](0007-explicit-type-system.md) § 4 already applies to `int` against
+`uint`: no representable common type, so the comparison is refused rather than silently coerced.
+
+No arithmetic or bitwise operator is defined on an enum type directly — `Permission::Read | Permission::Write`
+is a diagnostic naming `as uint` as the fix. A program that wants bit-combinable flags converts to the
+underlying type first, does the arithmetic there, and converts back with the checked `as`. A dedicated
+flags-enum construct that skips the round trip is deferred; see *Revisiting*.
+
+### 6. Runtime representation
+
+An enum value is a new tag in the existing tagged value, carrying its underlying `int`/`uint` payload —
+**zero additional bytes**, the same trick [ADR 0007](0007-explicit-type-system.md) § 4 used for `uint`
+itself. Where the static type is known — which ADR 0007 makes the common case by construction — there is
+nothing else to carry; codegen already knows which enum it is. Telling *which* enum type a value holds when
+it arrives through `mixed`, or is checked at an [isolate boundary](0006-isolated-script-execution.md), uses
+the same interned type-descriptor pointer mechanism arrays already pay for their element type
+([0007](0007-explicit-type-system.md) § 5) — paid only where the type is not already known statically, and
+the descriptor is interned once per distinct enum in the program, not per value or per request
+([0004](0004-memory-for-simplicity.md)).
+
+### 7. Deliberate divergences, gathered in one place
+
+| # | PHP | MWL |
+|---|---|---|
+| 1 | a case is a singleton object with identity | a case is an integer constant; equality is value equality, there is no identity |
+| 2 | an enum may implement interfaces and declare methods | rejected outright — an enum has cases and an optional backing type, nothing else |
+| 3 | pure enums (no backing value) and backed enums (`int` or `string`) are different declarations | one shape: every enum has an underlying `int` (default) or `uint`; no `string` backing |
+| 4 | `::cases()`, `::from()`, `::tryFrom()`, `->value`, `->name` | replaced by the one checked conversion operator `as`; name/value introspection deferred, see *Revisiting* |
+| 5 | (C#, for comparison) casting an arbitrary integer into an enum type always succeeds, even for a value no case names | `as` into an enum throws on a value no case names — checked, like every other MWL conversion |
+
+Row 5 is listed even though it is a divergence *from the model this ADR is named after*, not from PHP,
+because the brief's own priority ordering said so first: priority 1 does not relax because the requirement
+named a language to imitate rather than one to stay compatible with.
+
+## Consequences
+
+**Positive**
+
+- The requirement is satisfied exactly: `enum` declares a type, and that type is usable as a property,
+  constant, parameter, return, local or `foreach` binding like any other — no special case anywhere in ADR
+  0007's binding-site table.
+- An enum case costs strictly less than any alternative considered: no allocation, no refcount, no entry in
+  [ADR 0008](0008-static-and-global.md)'s storage-class table, and zero additional bytes in the tagged value
+  beyond what `uint` already costs.
+- Untrusted input into an enum type is a reviewable, throwing conversion through the same operator every
+  other conversion in [ADR 0007](0007-explicit-type-system.md) uses — one fewer per-type API
+  (`::tryFrom()`) for a reviewer or a static analyzer to know about.
+- The isolate-boundary story ([ADR 0006](0006-isolated-script-execution.md)) is trivial: an enum value is a
+  plain scalar, copied exactly like an `int` or `uint`, with no object identity to preserve or discard across
+  the boundary.
+- One property PHP's design cannot offer at all: a case that is genuinely free to inline, since it is a
+  constant rather than a heap reference the optimiser must first prove is immutable.
+
+**Negative**
+
+- **A structural break from PHP's enum**, on top of the nine in [ADR 0007](0007-explicit-type-system.md) §
+  7: a PHP enum with methods, an implemented interface, or a `string` backing type does not convert
+  mechanically. `mwl convert` ([M11](../implementation-plan.md)) can rewrite case declarations and
+  `->value` reads, but a method on an enum must become a `static` method on some other class, taking the
+  enum as a parameter — there is no standalone-function destination to begin with
+  ([ADR 0011](0011-functions-and-constants-are-class-members.md)) — and an implemented interface has no
+  destination at all; both are `TODO`s for a human, not a rewrite.
+- **No `::cases()` in the language.** Code that iterates "every case of this enum" — validation, generating
+  a dropdown, a switch statement's exhaustiveness check written by hand — loses a one-line PHP idiom until
+  the stdlib grows a replacement (*Revisiting*).
+- **No name/value introspection (`->name`, `->value` as PHP spells them)** without a stdlib call, so logging
+  or serializing an enum by its case name is not as immediate as it was in PHP.
+- **Enum-to-enum conversion is refused even between two enums with the same underlying type**, which will
+  read as strict to someone used to C#'s permissive integer casting; the fix is always an explicit `match`,
+  which is more to write but names every case at the point where a silent wrong mapping would otherwise
+  hide.
+
+## Alternatives rejected
+
+- **Keep PHP's enum as-is (singleton objects, methods, interfaces, `::cases()`/`::from()`).** This is the
+  alternative the requirement explicitly rules out. It would also be the one enum design in the language
+  that is a class in every way but name, at exactly the memory and complexity cost *Context* argues against.
+- **A middle ground: singleton case objects, but reject methods and interfaces.** Keeps identity-based
+  comparison and the allocation cost while dropping the features that would have justified paying it —
+  worse on priority 5 than either PHP's design or this ADR's, for no benefit over the integer-constant
+  model.
+- **Permissive conversion, matching C# exactly** (`as EnumName` never throws; an out-of-range value becomes
+  an enum value no case names). Rejected on priority 1: this is precisely the "coercion instead of a
+  refusal" shape [ADR 0007](0007-explicit-type-system.md) *Context* built its whole argument against, and
+  copying a real C# footgun on the strength of "that's what the reference model does" is not a reason this
+  project accepts anywhere else.
+- **Keep `string` as an allowed backing type, matching PHP's backed enums.** Rejected in *Decision § 2*: it
+  reintroduces a heap-allocated case for a feature (`enum Suit: string`) that a `match` over the enum
+  already gives a string result from, at zero backing-type cost, when one is actually needed.
+- **Keep the pure/backed split as two distinct declaration forms.** Rejected in *Decision § 2*: the split
+  exists in PHP because pure enums have no integer to fall back on; once every MWL enum has one by
+  construction, the split has nothing left to distinguish.
+- **A `#[Flags]`-style attribute enabling bitwise operators directly on an enum type**, matching C#'s
+  convention for combinable flag enums. Deferred rather than rejected — it is a real, separate design
+  question (which operators, what a `match` over a combined value even means) and should not be smuggled in
+  beside the base decision; see *Revisiting*.
+
+## Revisiting
+
+Deferred deliberately, each needing its own argument:
+
+- **Case introspection** — a case's name as a `string`, and enumerating all of an enum's cases
+  (`::cases()`'s replacement). The likely shape is a stdlib function taking the enum's type rather than a
+  per-enum static method, keeping with *3*'s "one operator/function, not a second API per type" principle,
+  but the exact signature is undecided.
+- **A flags-style enum** that supports `| & ^ ~` directly and stays typed as the enum rather than round-
+  tripping through the underlying integer. Wants its own argument about what a non-power-of-two combined
+  value prints as and whether `match` needs to change to handle it.
+- **`match` exhaustiveness checking over an enum's cases.** A real correctness win — a `match` that misses a
+  case gets a diagnostic instead of a runtime fallthrough — but it is a checker feature orthogonal to what
+  an enum *is*, and belongs with `match`'s own design rather than this ADR.
+- **User-defined behaviour on an enum, as `static` methods on some class that the checker treats as if
+  namespaced to the enum type** — the only shape available at all once
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) forecloses a free-function version of this
+  idea. Only worth reopening if the `TODO` rate from *Consequences* proves high enough in real converted
+  code to justify dedicated syntax for it.
+
+Verification, in the order it becomes possible:
+
+- **M1**: the declaration grammar in *1* parses, including an omitted backing type, an explicit `: int`,
+  and an explicit literal resetting the auto-increment counter; `enum … implements`, a method inside an
+  `enum` body, and `: string` are all rejected with a diagnostic naming the replacement in *3*'s table.
+- **M2**: `EnumName` resolves as its own kind of atom, not a class, in [ADR 0007](0007-explicit-type-system.md)
+  § 3's grammar; a checked conversion into an enum is in the same diagnostic corpus that ADR's M2 entry
+  already builds — a value matching no case, a comparison between two different enum types, arithmetic
+  attempted directly on an enum value.
+- **M4**: an enum used at every binding site in *4*'s example; `as` both succeeding and throwing per *5*'s
+  table; two aliased cases (same value, different name) comparing equal; a case's value inlined rather than
+  loaded from any per-isolate table, confirmed by `--dump-asm`.
+- **M11**: the converter's enum rewrite — case declarations and `->value` reads mechanical; a method on an
+  enum or an implemented interface reported as a `TODO`, per *Consequences*' negative list.

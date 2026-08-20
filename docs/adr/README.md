@@ -24,6 +24,9 @@ authoritative; a number written anywhere else is a copy that can go stale.
 | [0006](0006-isolated-script-execution.md) | Running another script is an in-process isolate, not a subprocess | Accepted |
 | [0007](0007-explicit-type-system.md) | Types are declared, checked, and never change by themselves | Accepted |
 | [0008](0008-static-and-global.md) | `static` marks a class member; there are no function statics and no `global` | Accepted |
+| [0009](0009-string-and-bytes.md) | `string` is text; binary data is a distinct `bytes` type | Proposed |
+| [0010](0010-enums-are-a-value-type.md) | Enums are a closed, named integer type, not PHP's class-like construct | Accepted |
+| [0011](0011-functions-and-constants-are-class-members.md) | Functions and constants are class members; `Core` is the reserved namespace for built-ins | Accepted |
 
 ## Decisions taken at project start
 

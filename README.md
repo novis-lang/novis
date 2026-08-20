@@ -48,6 +48,7 @@ starting point and no build step: change a file, run it.
 | Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)) |
 | Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/adr/0007-explicit-type-system.md)) |
 | Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` ([ADR 0008](docs/adr/0008-static-and-global.md)) |
+| OOP-only | Every function is a method, every constant a class constant — no free function, no global constant, no exception for built-ins. Built-ins live under the reserved `Core` namespace, one domain class per grouping (`Core\Str`, `Core\Arr`, `Core\Math`, …) ([ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md)) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
 | Isolates | `spawn script` runs another `.mwl` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/adr/0006-isolated-script-execution.md)) |
@@ -75,7 +76,7 @@ crates/
   mwl-codegen       Cranelift backend  [audited unsafe]                                M3
   mwl-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3
   mwl-cli           the `mwl` binary                                                   M3
-  mwl-stdlib        native builtin functions                                           M4
+  mwl-stdlib        Core domain classes, native builtin static methods                  M4
   mwl-test          .mwlt runner                                                       M4
   mwl-host          Transport trait, unit cache, the Isolate boundary                  M5
   mwl-config        mwl.ini registry, changeability classes, overlays                  M6

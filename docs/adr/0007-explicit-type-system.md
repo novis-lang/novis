@@ -9,6 +9,10 @@
   milestone and the `mwl-types` crate description. MWL has no inference engine and no untyped position.
 - **Amended by:** [0008](0008-static-and-global.md) — the *function `static`* row is gone from § 1. MWL has
   no function-scope `static`, so it has no type slot either; `static` as a type atom in § 3 is unaffected.
+  [0010](0010-enums-are-a-value-type.md) — the *enum backing type* row in § 1 drops `string` and defaults to
+  `int` when omitted; an enum's name joins `ClassName` as its own kind of atom in § 3.
+  [0011](0011-functions-and-constants-are-class-members.md) — the *global constant* row is gone from § 1: a
+  constant is never declared outside a class, so there is no such binding site left to require a type for.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -94,13 +98,12 @@ Positions PHP already has a type slot for become **mandatory**. Positions PHP ha
 | return type, including `void` / `never` | `: array<User>` | PHP syntax, now mandatory |
 | property, promoted constructor parameter | `public readonly uint $id;` | PHP syntax, now mandatory |
 | class constant | `public const int MAX = 10;` | PHP 8.3 syntax, now mandatory |
-| global constant | `const uint PAGE_SIZE = 4096;` | **new slot** |
 | local variable, at its declaration | `int $n = 0;` | **new slot** |
 | `foreach` key and value | `foreach ($rows as string $k => array<int> $row)` | **new slot** |
 | destructuring | `[int $a, string $b] = $pair;` | **new slot** |
 | closure / arrow-function parameters and return | `fn(int $n): string => …` | PHP syntax, now mandatory |
 | `catch` | `catch (JsonError $e)` | already typed in PHP |
-| enum backing type | `enum Status: uint` — `int`, `uint` or `string` | PHP syntax, `uint` added |
+| enum backing type | `enum Status: uint` — `int` (default) or `uint`; no `string` backing, no unbacked (pure) form | PHP syntax, semantics redefined — see [0010](0010-enums-are-a-value-type.md) |
 
 A binding is declared **once**. Later assignments are bare — `$n = 5;` is an assignment, and it is legal
 only if `$n` is already declared in the enclosing function. Re-declaring a live name is a diagnostic naming
@@ -172,6 +175,11 @@ Unions are canonicalised — flattened, de-duplicated, order-insensitive — so 
 `string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never` are
 return-only. `array<T>` is parsed **only in type position**, so `<` never has to be disambiguated against
 comparison; that is also why user-defined generic *functions* are not part of this decision.
+
+`ClassName` is lexically what an enum's name matches too — the grammar does not need a separate `EnumName`
+production, only a checker that resolves the identifier to one kind of atom or the other, the same way
+`self`/`static`/`parent` are already contextual here. What an enum atom means, and how it differs from a
+class one, is [0010](0010-enums-are-a-value-type.md)'s decision, not this one's.
 
 `Closure`, `callable`, `Generator` and container classes are **opaque** in v1 — there is no
 `callable(int): string` and no `Generator<T>`. Calling through one is a dynamic call with runtime-checked
@@ -295,7 +303,7 @@ diagnostic, not a runtime check.
 ### 7. Deliberate divergences from PHP
 
 Priority 2 is PHP-compatible observable behaviour, so every departure is listed here rather than discovered
-later. Each is reachable in PHP only *because* its variables are untyped:
+later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 
 | # | PHP | MWL |
 |---|---|---|
@@ -307,9 +315,10 @@ later. Each is reachable in PHP only *because* its variables are untyped:
 | 6 | `(int)9.9` is `9`; `$a[1.7]` is `$a[1]` | throws; `floor`/`round` say it out loud |
 | 7 | `int` → `float` rounds silently above 2^53 | throws |
 | 8 | reading an undefined variable warns and yields `null` | a definite-assignment error at check time |
+| 9 | a function, method, closure or arrow function may omit its return type entirely | mandatory on every one of them — `void` or `never` stated explicitly when there is no value, exactly as the return-type row of *1* already requires |
 
 The consequence to plan around: the imported `.phpt` corpus (M11) will have a **structurally lower** pass
-rate than a compatibility-first design would, and failures in these eight classes are intentional
+rate than a compatibility-first design would, and failures in these nine classes are intentional
 divergence, not bugs. The tracked number must distinguish the two or it will be read as regression.
 
 ## Consequences
@@ -333,8 +342,10 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 **Negative**
 
 - **PHP source no longer runs unconverted, and this is the real price.** PHP has no syntax for the type of a
-  local, a `foreach` binding, a destructuring target or a global constant, so no existing PHP file satisfies
-  the declaration requirement. "Drop your `.php` files in" is gone; migration goes through `mwl convert`,
+  local, a `foreach` binding, or a destructuring target, so no existing PHP file satisfies the declaration
+  requirement — and a PHP global constant has no MWL binding site at all to satisfy, since
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) requires it to move onto a class first.
+  "Drop your `.php` files in" is gone; migration goes through `mwl convert`,
   which must now run an inference pass and *write the annotations into the source*. The compensation is real
   but partial: inference becomes a one-time source rewrite a human reviews and edits, rather than a
   permanent semantic authority inside the compiler — which is the better place for a heuristic to live. M11
@@ -346,7 +357,7 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
   alike. Mitigated by literals being checked against the target and by `array<never>` for `[]`; the escape
   hatch is an O(n) `as`. If this bites in real code the answer is read-only parameters, which is a separate
   decision.
-- **Eight observable divergences** from PHP, each argued above, each a place a ported program can change
+- **Nine observable divergences** from PHP, each argued above, each a place a ported program can change
   behaviour. Three of them (4, 5, 7) turn a silent wrong answer into a throw, which is still a behaviour
   change even though it is the change we want.
 - **Parametric signatures exist for built-ins but not for user code**, a visible asymmetry: the stdlib can
@@ -396,6 +407,9 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 - **Making `mixed` checked at its boundaries** — that is, no true escape hatch. Then there is no way to
   express "this is untyped input" honestly, and `json_decode`, `$_GET` and every dynamic-shape library would
   need a lie in their signatures.
+- **Defaulting an omitted return type to `mixed`** instead of requiring the annotation. That is a second
+  untyped position beside the one `mixed` is deliberately for, reached by silence rather than by writing
+  `mixed` — exactly the accident *1* closes for every other binding site.
 
 ## Revisiting
 

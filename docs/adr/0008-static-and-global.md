@@ -12,7 +12,12 @@
   [0006](0006-isolated-script-execution.md) (every storage class listed here must be built fresh and torn
   down per isolate; this ADR shortens that list),
   [0007](0007-explicit-type-system.md) (a function `static` is the one binding whose definite assignment
-  cannot be decided at check time)
+  cannot be decided at check time),
+  [0010](0010-enums-are-a-value-type.md) (shortens § 2's table further: an enum case needs no runtime
+  storage at all, so it comes off this list rather than staying on it)
+- **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — § 2's *class constant, global
+  constant* row narrows to **class constant** only; there is no free-floating constant left to share the
+  row with, since every constant now lives on a class.
 
 > **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
 > methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —
@@ -79,10 +84,19 @@ not an implementation detail:
 |---|---|---|
 | local variable, parameter | the call | `int $n = 0;` |
 | class static property | the isolate | `private static int $calls = 0;` |
-| class constant, global constant, enum case | the isolate, immutable | `public const int MAX = 10;` |
+| class constant | the isolate, immutable | `public const int MAX = 10;` |
 | object property | the object | `public readonly uint $id;` |
 | superglobal (`$_GET`, `$_POST`, …) | the isolate, populated by the host | not user-declared |
 | top-level script variable | the script's own frame, **unreachable from a function** | `int $n = 0;` at file scope |
+
+An enum case is deliberately **not** in this table. Under [0010](0010-enums-are-a-value-type.md) a case is a
+compile-time constant of its enum's underlying integer type, inlined at every use site like any other
+literal — it holds no state to build per isolate or tear down, so it needs no row here at all.
+
+A **global constant** is deliberately not in this table either, and for a related reason: under
+[0011](0011-functions-and-constants-are-class-members.md) a constant is never declared outside a class in
+the first place, so "class constant, global constant" — one row up to that decision — narrows to class
+constant alone. There is no free-floating constant left for the row to have covered.
 
 The last row is the one to read twice. A top-level `$x` in a `.mwl` file is a local of the script's own frame
 and nothing more. Without `global`, no function can see it — the intended reading rather than an omission:
@@ -178,7 +192,7 @@ only says "not supported" is a bug in this decision, not a faithful implementati
   surrounding code.
 - Closure capture becoming use-based is a real semantic difference in a corner (`bindTo` on a `$this`-free
   closure) rather than a pure removal, so it belongs in the divergence accounting for the `.phpt` corpus
-  alongside ADR 0007's eight.
+  alongside ADR 0007's nine.
 
 ## Alternatives rejected
 

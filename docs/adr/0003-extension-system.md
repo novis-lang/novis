@@ -5,6 +5,10 @@
 - **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/wasm_sandbox.rs` and the
   `wasm-probe` cost guards. Originally spike #4, on wasmtime 41 + cranelift 0.128,
   `x86_64-pc-windows-msvc`.
+- **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — Tier 0's "fine-grained
+  primitives" are `static` methods on `Core` domain classes, never bare functions; a manifest registers
+  classes, whose `static` methods and `const` members the host adds to the symbol table, not functions or
+  constants directly.
 
 > **In short:** third-party extensions are sandboxed WebAssembly components (`.mwlx`), never
 > shared libraries loaded with `dlopen`. Three tiers: built-in (`mwl-stdlib`), wasm component, and
@@ -65,8 +69,9 @@ different class of code.
 ### Tier 0 — built-in (`mwl-stdlib`)
 
 Compiled into the binary. Native speed, direct heap access, no boundary at all. This is where
-**fine-grained primitives** live: string and array functions, arithmetic and conversion helpers, anything
-whose total cost is comparable to a function call.
+**fine-grained primitives** live: string and array operations, arithmetic and conversion helpers, anything
+whose total cost is comparable to a function call — each a `static` method on a `Core` domain class rather
+than a bare function ([ADR 0011](0011-functions-and-constants-are-class-members.md)).
 
 ### Tier 1 — WebAssembly component extensions (`.mwlx`)
 
@@ -112,10 +117,12 @@ per-call handle table that the host bounds-checks — and reads through host acc
 
 ### Extension functions are statically typed
 
-At load time the host reads the manifest — declared functions, classes, constants, and any `mwl.ini`
-directives the extension wants — and registers them into the compiler's symbol table. Consequently
-`mwl check` **type-checks calls into extensions at compile time**, and codegen emits a direct call to the
-extension trampoline rather than a dynamic dispatch. PHP cannot do either.
+At load time the host reads the manifest — declared classes, with their `static` methods and `const`
+members, and any `mwl.ini` directives the extension wants — and registers them into the compiler's symbol
+table. There is no separate function- or constant-shaped registration: an extension follows the same
+class-only shape [ADR 0011](0011-functions-and-constants-are-class-members.md) requires of user code.
+Consequently `mwl check` **type-checks calls into extensions at compile time**, and codegen emits a direct
+call to the extension trampoline rather than a dynamic dispatch. PHP cannot do either.
 
 ## Isolation, limits and loading
 

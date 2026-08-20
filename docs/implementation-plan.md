@@ -21,7 +21,10 @@
 >    [ADR 0008](adr/0008-static-and-global.md) decided: which `static` survives, and that the list of
 >    places state may outlive a call is closed.
 > 2. The remaining ADRs for the decision table below. [0002](adr/0002-error-propagation.md)
->    through [0008](adr/0008-static-and-global.md) are written; the rest are not.
+>    through [0008](adr/0008-static-and-global.md), [0010](adr/0010-enums-are-a-value-type.md) and
+>    [0011](adr/0011-functions-and-constants-are-class-members.md) are written and Accepted;
+>    [0009](adr/0009-string-and-bytes.md) is drafted but Proposed, pending the cost measurement its own
+>    *Revisiting* names; the rest are not written.
 > 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
@@ -73,8 +76,10 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 | Suspension | **Stackful coroutines** — no async colouring; any function may yield |
 | Isolated execution | **`spawn script 'file.mwl'`** — runs another file in-process with its own heap, globals and config overlay, on the caller's budget. File-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
 | Type system | **Static, mandatory, explicit.** Every binding declares a type and its type never changes; conversions are explicit and checked; unions and intersections as in PHP; `mixed` is the one unchecked position. `uint` added alongside signed `int`; `float` is always `f64`. Arrays keep PHP's ordered hash but every key is a `string` and the element type may be declared and nested (`array<array<uint>>`) ([ADR 0007](adr/0007-explicit-type-system.md)) |
+| Enums | **A closed, named integer type, C#-style — PHP's enum design is disregarded entirely.** `enum Status { Active, Banned }` declares cases as compile-time constants of an underlying `int` (default) or `uint`, auto-incrementing unless given a literal; no methods, no interfaces, no `::cases()`/`::from()`/`::tryFrom()`, no `string` backing, no runtime storage at all. The enum's name is a type usable anywhere ADR 0007 requires one — property, constant, parameter, local ([ADR 0010](adr/0010-enums-are-a-value-type.md)) |
 | Scoping and state | **`static` is a class-member modifier only.** Static methods, static properties and late static binding (`static::`, `new static()`, `: static`) kept as PHP has them; function-scope `static` and `static fn` rejected with a diagnostic. No `global`. State that outlives a call lives in a class static, a constant, an object property or a superglobal, and nowhere else ([ADR 0008](adr/0008-static-and-global.md)) |
-| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the eight deliberate divergences) |
+| OOP-only: no free functions, no global constants | **Every callable is a method, every constant a class constant — no exception for built-ins.** `function` and `const` are rejected outside a class body. Built-ins live under `Core`, a reserved namespace organised into domain classes (`Core\Str`, `Core\Arr`, `Core\Math`, …) rather than one god class; `strlen($s)` becomes `Core\Str::len($s)`, `PHP_EOL` becomes `Core\Env::EOL`, reached via ordinary `use`/fully-qualified resolution with nothing auto-imported. Anonymous functions and arrow functions are unaffected — they are values, not named declarations ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) |
+| PHP compatibility | **Pragmatic superset of the syntax, not of the type discipline.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`, `settype()`, function-scope `static` or `static fn`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)). PHP has no syntax for the type of a local, so existing PHP does **not** run unconverted — `mwl convert` writes the annotations ([ADR 0007](adr/0007-explicit-type-system.md) lists the nine deliberate divergences; [ADR 0010](adr/0010-enums-are-a-value-type.md) adds a tenth for `enum`, since MWL's is not PHP's class-like construct at all; [ADR 0011](adr/0011-functions-and-constants-are-class-members.md) adds an eleventh — PHP's global function and global constant declarations do not exist in MWL at all) |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
@@ -121,11 +126,13 @@ talks h1/h2 upstream → h3 is pure cost.
   deployment therefore means sizing for concurrency — tasks × stack, plus concurrent requests × their
   `memory` cap — and deployment docs must say so rather than quote a typical RSS.
 - **Existing PHP does not run unconverted.** PHP has no syntax for the type of a local, a `foreach`
-  binding, a destructuring target or a global constant, and MWL requires all four
-  ([ADR 0007](adr/0007-explicit-type-system.md)). So the migration story is `mwl convert` writing
-  annotations into the source, not dropping `.php` files into a document root. That moves type inference
-  out of the compiler and into a one-time source rewrite a human reviews — better placed, but it makes M11
-  mandatory rather than a convenience, and it lowers the imported `.phpt` pass rate structurally rather
+  binding or a destructuring target ([ADR 0007](adr/0007-explicit-type-system.md)), and every one of its
+  global functions and global constants needs a new home on a class before it type-checks at all
+  ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). So the migration story is
+  `mwl convert` writing annotations and rewriting call sites into the source, not dropping `.php` files
+  into a document root. That moves type inference out of the compiler and into a one-time source rewrite a
+  human reviews — better placed, but it makes M11 mandatory rather than a convenience, and it lowers the
+  imported `.phpt` pass rate structurally rather
   than through bugs.
 - **One new language construct that PHP has no equivalent of.** `spawn script` is a surface a developer
   has to learn and the spec has to define next to `include`, which they will confuse it with. Accepted:
@@ -357,16 +364,20 @@ scratchpad.
 
 ### M1 — Front end (~3 weeks)
 Lexer with dual mode (`<?mwl`, `<?php`, `<?=`), inline HTML, heredoc/nowdoc, string interpolation, all
-PHP 8.5 tokens. Recursive-descent parser covering the pragmatic-superset grammar: functions, classes,
-interfaces, traits, enums, attributes, `match`, closures and arrow functions, generators, named arguments,
-spread, nullsafe, `readonly`, promoted constructor parameters, first-class callable syntax, property hooks,
-asymmetric visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static fn` with a diagnostic naming
-the replacement. Error recovery good enough for the LSP.
+PHP 8.5 tokens. Recursive-descent parser covering the pragmatic-superset grammar: classes, interfaces,
+traits, enums (cases and an optional backing type only — no methods, no `implements`, see
+[ADR 0010](adr/0010-enums-are-a-value-type.md)), methods (a `function` declaration is only ever a class
+member, static or instance — see [ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
+attributes, `match`, closures and arrow functions, generators, named arguments, spread, nullsafe,
+`readonly`, promoted constructor parameters, first-class callable syntax, property hooks, asymmetric
+visibility. Rejects `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static
+fn`/enum methods/`enum … implements`/`enum … : string`/a `function` or `const` declared outside a class
+body/a `namespace` or class named `Core` (or nested under it) with a diagnostic naming the replacement.
+Error recovery good enough for the LSP.
 
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
 is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the
-declaration slots PHP has no syntax for — typed locals, `foreach` bindings, destructuring targets
-and global constants.
+declaration slots PHP has no syntax for — typed locals, `foreach` bindings and destructuring targets.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 1h run; parse the full local PHP 8.5 install's `.php` files without crashing (they will
@@ -375,7 +386,9 @@ not *check* — see M2 — but they must parse). A snapshot pins the one grammar
 
 ### M2 — HIR, types, IR (~4 weeks)
 Name resolution, namespaces and `use`, class hierarchy with trait flattening, statically resolved
-`require`/`include` with a dynamic fallback. The type checker of
+`require`/`include` with a dynamic fallback. Every callable and constant resolves as a class member — there
+is no bare-name fallback in the resolver at all — and a declaration reusing the reserved `Core` namespace is
+a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). The type checker of
 [ADR 0007](adr/0007-explicit-type-system.md): every binding's declared type recorded and enforced,
 definite-assignment checking, flow-sensitive narrowing of unions, array element types checked at every
 write and at every nesting depth, the arithmetic result-type table including the refusal of `int + uint`,
@@ -416,10 +429,13 @@ its logical `>>`, the conversion operator over every row of that ADR's conversio
 propagating correctly by checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)),
 closures that bind
 `$this` only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
-inheritance/interfaces/traits/enums, generators (nearly free given stackful coroutines), `foreach`
+inheritance/interfaces/traits, enums as a closed named integer type with cases inlined as compile-time
+constants ([ADR 0010](adr/0010-enums-are-a-value-type.md)), generators (nearly free given stackful
+coroutines), `foreach`
 and iterators, references (`&$x`), instance members and static members including late static binding
-(`static::`, `new static()`, `: static`), magic methods, core string/array/math functions,
-`var_dump`/`print_r`/`json_encode`.
+(`static::`, `new static()`, `: static`), magic methods, the first `Core` domain classes'
+`static` methods for string/array/math operations
+([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode`.
 
 Also in this milestone: `mwl test` and the `.mwlt` format — deliberately defined as a **superset of
 `.phpt` sections** (`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`,
@@ -501,7 +517,7 @@ and MS SQL Server drivers plus SQLite (documenting `rusqlite`'s C dependency as 
 exception to the pure-Rust rule).
 
 **Also in this milestone: author the `mwl:ext@1.0.0` WIT world.** It must be designed from the same
-value-access model as the built-in functions, so the Tier 0 internal interface and the Tier 1 guest
+value-access model as the `Core` domain classes' static methods, so the Tier 0 internal interface and the Tier 1 guest
 interface are one design rather than two that drift. Writing it later would mean retrofitting. The same
 applies to the signatures themselves: the parametric array signatures
 ([ADR 0007](adr/0007-explicit-type-system.md) — `array_map(callable, array<T>): array<U>` and friends) are
@@ -556,19 +572,29 @@ Mechanical rewrites where possible (`global` → parameter passing, function-sco
 `private static` property on the owning class or a parameter where there is no class, `static fn` → the
 keyword dropped ([ADR 0008](adr/0008-static-and-global.md)), `extract()` → explicit assignment,
 `settype()` → a second binding or an `as` conversion, lossy `(int)` casts flagged where the source relied
-on PHP's silent `0`, simple `$$var` → match on a map, and `exec('php script.php …')` job dispatch →
+on PHP's silent `0`, simple `$$var` → match on a map, `exec('php script.php …')` job dispatch →
 `spawn script`, which is a real rewrite rather than a `TODO` because the isolation the original bought is
-what the construct provides); annotated `TODO`
-diagnostics where not (`eval` of constructed source, dynamic includes, unsupported `preg` constructs, a
-`bindTo()` whose target closure never names `$this` — the one divergence ADR 0008 introduces, and visible
-here rather than at run time — and C extensions). `--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
+what the construct provides, a backed enum's case declarations and `->value` reads → an MWL `enum` and
+an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call or reference to a PHP
+built-in global function or constant (`strlen`, `array_map`, `PHP_EOL`, …) → the matching `Core`
+class-and-member, `Core\Str::len`, `Core\Arr::map`, `Core\Env::EOL`, via a maintained PHP-name → `Core`
+table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md))); a
+rewrite that needs a human look because it changes the shape of the surrounding code (a source file's own
+top-level `function`/`const` declarations, with no built-in counterpart, are grouped into one generated
+class named after the file — the same "needs a class to hang it on" shape the function-static rewrite
+already has, per [ADR 0011](adr/0011-functions-and-constants-are-class-members.md)); annotated `TODO`
+diagnostics where neither applies (`eval` of constructed source, dynamic includes, unsupported `preg`
+constructs, a `bindTo()` whose target closure never names `$this` — the one divergence ADR 0008 introduces,
+and visible here rather than at run time — an enum that implements an interface or declares a method, which
+has no mechanical destination under [ADR 0010](adr/0010-enums-are-a-value-type.md), and C extensions).
+`--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
 reuses the same pipeline to import PHP's test corpus as native MWL tests. A PHP project depending on a C
 extension is reported as needing either a Tier 1 `.mwlx` replacement or a Tier 2 native one — the converter
 cannot synthesise either, and says so rather than emitting code that fails at runtime.
 
 **Verify:** convert a real open-source PHP project end to end and run its test suite under MWL, reporting
 *annotations written* against *`TODO`s emitted*; imported `.phpt` cases run in `mwl test` with a tracked
-pass rate and failures triaged as bug vs intentional divergence — the eight type-discipline divergences in
+pass rate and failures triaged as bug vs intentional divergence — the nine type-discipline divergences in
 [ADR 0007](adr/0007-explicit-type-system.md) §7 are counted separately, or the structural gap reads as
 regression.
 

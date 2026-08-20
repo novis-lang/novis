@@ -1,0 +1,229 @@
+# ADR 0011 — Functions and constants are class members; `Core` is the reserved namespace for built-ins
+
+- **Status:** Accepted
+- **Date:** 2026-08-20
+- **Scope:** where a `function` or a `const` may be declared; the reserved `Core` namespace and its
+  domain-class shape; how PHP's global functions and global constants are organised as built-ins
+- **Amends:** [0003](0003-extension-system.md) — Tier 0's "fine-grained primitives" and the manifest's
+  "declared functions, classes, constants" both assumed a free-function shape that no longer exists; an
+  extension registers **classes**, never a bare function or constant. [0007](0007-explicit-type-system.md)
+  § 1 — the *global constant* row is gone: a constant is never declared outside a class, so there is no
+  such binding site to require a type for. [0008](0008-static-and-global.md) § 2 — the *class constant,
+  global constant* row narrows to **class constant** only; there is no free-floating constant left to share
+  it with. [0010](0010-enums-are-a-value-type.md) — the *standalone function* destination for a
+  user-defined enum behaviour, in both *Consequences* and *Revisiting*, assumed a free-function concept
+  this ADR removes; the only destination left is a static method.
+- **Relates to:** [0004](0004-memory-for-simplicity.md) (simplicity is bought here, again, by removing a
+  surface rather than by spending memory), [0006](0006-isolated-script-execution.md) (a `Core` class is
+  compiled code, shared across isolates exactly like any other class — nothing new for the isolation
+  boundary)
+
+> **In short:** no `function` and no `const` may be declared outside a class body — a function is always a
+> `static` or instance method, and a constant is always a class constant, with no exception for built-ins.
+> PHP's global functions and global constants live in **`Core`**, a reserved namespace organised into
+> **domain classes** — `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`,
+> and more as the stdlib milestones build them out — mirroring the groupings PHP itself already splits its
+> extensions into, rather than one class holding everything. `strlen($s)` becomes `Core\Str::len($s)`,
+> `PHP_EOL` becomes `Core\Env::EOL`. Call sites use ordinary namespace resolution — `use Core\Str;` then
+> `Str::len($s)`, or the fully-qualified form — nothing under `Core` is auto-imported, which is the same
+> "nothing is global by default" reading [ADR 0008](0008-static-and-global.md) already gives the rest of
+> the language. Anonymous functions and arrow functions are unaffected: they are values, not named
+> declarations, and creating one inside a method body or the script's own top-level frame was never a
+> "global function" in the sense this ADR closes.
+
+## Context
+
+MWL is meant to be a language where a name is always reachable from exactly one declared place. ADR 0008
+already did this for *state* — `global` is gone, a function-scope `static` is gone, and the storage-class
+table in that ADR's § 2 is meant to be read as exhaustive. It never did it for *behaviour*: nothing in the
+plan so far stopped a `.mwl` file from declaring `function totalOrders(): int { ... }` at file scope, the
+same way PHP does, and the stdlib was still implicitly assumed to be a flat set of global functions —
+`strlen`, `array_map`, `json_encode` — exactly as PHP has them.
+
+That is the gap this ADR closes, on an explicit requirement rather than one derived purely from the
+priority order: **MWL is OOP-only. A function lives inside a class, static or instance, with no exception —
+not for user code, and not for the built-ins.** The priorities still argue for it once stated:
+
+**Simplicity (priority 4).** ADR 0008's storage-class table is exhaustive for *where state may live*
+precisely because every row names a class-relative home. A free function is the same shape of ungoverned
+surface for *behaviour* that `global` was for state: reachable from anywhere, declared nowhere in particular.
+Closing it is the same move ADR 0008 already made, applied to the other half of "what a name can refer to."
+
+**Security (priority 1), in a narrow but real way.** PHP has exactly one namespace for its ~1000 global
+functions and constants, shared with every extension and every project's own top-level declarations. A
+function that shadows a built-in name is a fatal redeclaration error, discovered at whichever request
+happens to load both files first — a load-order bug, not a compile-time one. Once every built-in lives under
+a reserved `Core` namespace, that collision becomes a namespace check at the declaration site, the same way
+any other name collision already is.
+
+**What this ADR does not argue.** It does not re-derive whether OOP-only is a good idea — that is the
+requirement, taken as given, the same way [ADR 0010](0010-enums-are-a-value-type.md) took "follow C#'s enum,
+not PHP's" as given. This ADR's job is the mechanics and the consequences: what gets rejected, what replaces
+it, and where the built-ins go.
+
+## Decision
+
+**No `function` declaration and no `const` declaration may appear outside a class body. Every callable is a
+`static` or instance method; every constant is a class constant. Built-ins live in `Core`, a reserved
+namespace organised into domain classes — one per PHP-extension-shaped grouping, never one class holding
+everything.**
+
+### 1. What's rejected, and the replacement
+
+| PHP spelling | status | replacement |
+|---|---|---|
+| `function foo(...) { ... }` at file or namespace scope | **rejected**, diagnostic | a `public static function` on some class |
+| `const FOO = 1;` at file or namespace scope | **rejected**, diagnostic | a `public const` on some class |
+| a bare call to a built-in, e.g. `strlen($s)`, `array_map($f, $a)` | **rejected**, diagnostic naming the `Core` class | `Core\Str::len($s)`, `Core\Arr::map($f, $a)` — via `use Core\Str;` or fully qualified |
+| a bare built-in constant, e.g. `PHP_EOL`, `M_PI` | **rejected**, diagnostic naming the `Core` class | `Core\Env::EOL`, `Core\Math::PI` |
+
+Two things are deliberately **not** affected:
+
+- **Anonymous functions and arrow functions** (`function () { ... }`, `fn($x) => ...`) remain exactly as
+  PHP has them. They are values, not named declarations reachable from anywhere — the problem this ADR
+  closes is a name with no declared home, and a closure has no name at all until something binds it to one.
+  Storing one in a variable, a property, or a class constant is unaffected.
+- **The script's own top-level statements.** [ADR 0008](0008-static-and-global.md) already establishes
+  that a `.mwl` script's body is a function of its own, so its statements are not a `function` *declaration*
+  in the sense this ADR restricts. What is restricted is a *named* `function` or `const` appearing at that
+  scope — the script body executing statements, including ones that create and call closures, is untouched.
+
+### 2. The reserved `Core` namespace
+
+- **`Core` and everything nested under it** (`Core\Str`, `Core\Foo\Bar`, …) **is reserved.** User code and
+  every Tier 1/Tier 2 extension ([ADR 0003](0003-extension-system.md)) are refused a `namespace` declaration,
+  a class declaration, or a `use` alias that shadows anything under it — a diagnostic naming the collision.
+- **Domain classes, not one class.** Built-ins are grouped the way PHP's own extensions already group them —
+  `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`, and more as later
+  milestones build them out — matching the Tier 0/Tier 2 split [ADR 0003](0003-extension-system.md) already
+  draws by domain (`mwl-regex`, `mwl-db`). The exact roster is stdlib design, due at M2/M8, not fixed by this
+  ADR; what *is* fixed here is the shape: one class per domain, `static` methods and `const` members, no
+  free function or constant anywhere, ever.
+- **The array domain class is spelled `Core\Arr`, not `Core\Array`.** `array` is a type atom in
+  [ADR 0007](0007-explicit-type-system.md) § 3's grammar; a class literally named `Array` would collide with
+  it exactly where a type is expected. This is the one naming wrinkle worth fixing now rather than
+  discovering it at M2.
+- **Every PHP global function becomes a `public static` method** on the matching domain class, and **every
+  PHP global constant becomes a `public const`**: `strlen($s)` → `Core\Str::len($s)`; `array_map($f, $a)` →
+  `Core\Arr::map($f, $a)`; `PHP_EOL` → `Core\Env::EOL`.
+- **Call sites use ordinary namespace resolution, nothing more.** `use Core\Str; Str::len($s);` or the
+  fully-qualified `Core\Str::len($s);` — `Core` gets no special auto-import. This is the same reading
+  [ADR 0008](0008-static-and-global.md) already gives the rest of the language: nothing is reachable without
+  a declared name in scope, and a reserved namespace is not an exemption from that.
+- **An extension manifest registers classes, not bare functions or constants.**
+  [ADR 0003](0003-extension-system.md)'s "declared functions, classes, constants" is amended to "declared
+  classes, whose `static` methods and `const` members the host registers" — Tier 1 and Tier 2 extensions
+  follow the same shape user code does; there is no second, function-shaped registration path for them to
+  use instead.
+
+### 3. Why global constants fold in too
+
+A global constant is the same shape of problem as a global function: a name reachable from anywhere with no
+declared class to look it up on. [ADR 0008](0008-static-and-global.md) § 2 already listed *class constant,
+global constant* as one storage row, because up to now nothing distinguished them — both were immutable,
+isolate-lifetime values, and only the function half of "free-floating name" was in question. Leaving
+constants out once functions are folded in would be the asymmetry, not the caution: it is exactly the free-
+floating-name property this ADR removes for callables, on the one binding [ADR 0008](0008-static-and-global.md)
+happened to already tolerate. This decision closes that row rather than leaving it half-done.
+
+### 4. Diagnostics
+
+Each rejection names its replacement, in the style [ADR 0008](0008-static-and-global.md) § 5 already set:
+
+- `function foo() { ... }` outside any class → *a function must be a method; wrap it in a class as
+  `public static function foo()`, or add it to the class it logically belongs to*
+- `const FOO = 1;` outside any class → *a constant must belong to a class; declare it `public const`*
+- an unresolvable bare call, e.g. `strlen($s)` → *`strlen` does not exist; built-ins live under `Core` —
+  use `Core\Str::len`, or `use Core\Str;` and call `Str::len`*
+- an unresolvable bare constant, e.g. `PHP_EOL` → *`PHP_EOL` does not exist; use `Core\Env::EOL`*
+- `namespace Core;` / `namespace Core\Anything;`, or a class declared directly under it, in user or
+  extension code → *`Core` is reserved for built-ins*
+
+### 5. A deliberate divergence, tracked here
+
+PHP's global-function and global-constant declarations simply do not exist in MWL, at all — not "converted
+with different syntax," removed outright. Tracked locally, following the precedent
+[ADR 0008](0008-static-and-global.md) and [ADR 0010](0010-enums-are-a-value-type.md) set of keeping a
+decision's own divergence local to it rather than folding it into [ADR 0007](0007-explicit-type-system.md)
+§ 7's table: this is the eleventh, after that table's nine and [ADR 0010](0010-enums-are-a-value-type.md)'s
+tenth.
+
+| # | PHP | MWL |
+|---|---|---|
+| 1 | a global function or a global constant may be declared at file scope | rejected outright; every callable is a method, every constant a class constant, with no exception for built-ins |
+| 2 | built-in functions and constants share PHP's one global namespace with user code and extensions | organised into domain classes under the reserved `Core` namespace, reached through ordinary `use`/FQN resolution like any other class |
+
+## Consequences
+
+**Positive**
+
+- One place behaviour can live (a method) and one place state can live
+  ([ADR 0008](0008-static-and-global.md)'s table) — together they answer "where is this name declared" for
+  every kind of name the language has, not just the stateful half of it.
+- Every built-in call is namespaced and explicit at the call site: a reviewer sees exactly which `Core` class
+  a line depends on, rather than a bare name that could be a built-in, an extension global, or user code,
+  indistinguishably, the way it can in PHP.
+- User code and extensions share exactly one registration shape — a class — so `mwl check`'s symbol table has
+  one kind of entry to resolve a call or constant against, not two.
+- `Core` being reserved closes a real PHP footgun structurally: redeclaring a name that collides with a
+  built-in is a fatal error in PHP, discovered at whichever request loads both definitions first; here it is
+  a compile-time namespace collision at the declaration site, checked the same way any other name collision
+  already is.
+
+**Negative**
+
+- Every PHP global-function or global-constant call in a converted program needs a name-mapping rewrite
+  (`strlen` → `Core\Str::len`), on top of the type-annotation rewrite
+  [ADR 0007](0007-explicit-type-system.md) already requires. `mwl convert` (M11) needs a maintained
+  PHP-name → `Core`-class-and-member table that grows with the stdlib rather than being fixed at M0.
+- A PHP file's own free functions and constants — user-authored procedural code with no built-in
+  counterpart — have no destination class the converter can infer automatically. This is the same shape of
+  problem [ADR 0008](0008-static-and-global.md) already has for its function-static rewrite (it also needs a
+  class to hang state on), and the default answer is the same: the converter groups a file's former free
+  functions and constants into one generated class, named after the file, that a human is expected to review
+  and re-home rather than leave as-is.
+- The stdlib design (M2, M8) now carries a naming-scheme decision — how PHP's roughly 1000 global functions
+  map onto some number of `Core` domain classes — that a flat function list would not have needed. This is
+  due before M2's checker milestone can claim call resolution works end to end.
+
+## Alternatives rejected
+
+- **One flat `Core` class holding every built-in as a static method.** Rejected per the domain-class
+  requirement: a single class with hundreds of unrelated static methods is a global namespace with extra
+  syntax around it, working against the OOP-only motivation as much as free functions did.
+- **Auto-importing `Core`, so a bare `Str::len()` or even a bare `len()` resolves without a `use`.**
+  Rejected: it reintroduces exactly the "reachable from anywhere with no declared import" property this ADR
+  removes for callables generally, and a reader would need the whole `Core` roster memorised to tell a
+  `Core` call from a name that does not resolve at all.
+- **Leave global constants out of scope, matching only the functions half of the requirement.**
+  Considered, and rejected in *3*: it leaves exactly one row in [ADR 0008](0008-static-and-global.md) § 2 as
+  the sole remaining free-floating name, with no argument left for why it alone should keep that status once
+  functions do not.
+- **A single per-file generated class as the *only* rewrite `mwl convert` offers**, with no
+  `--check`-mode flag. Rejected: [ADR 0008](0008-static-and-global.md)'s function-static rewrite already
+  established that a rewrite changing the shape of surrounding code needs a human look, and this one is no
+  narrower.
+
+## Revisiting
+
+- **The exact `Core` class roster and member names** are M2/M8 stdlib design, not this ADR; the class list
+  here is illustrative and will be filled in incrementally as each domain is implemented.
+- **Whether `mwl convert`'s one-generated-class-per-file default for leftover procedural code is good
+  enough**, or whether it should instead prompt for a class name per file, is an M11 UX question this ADR
+  does not resolve.
+- **A `use function`/`use const`-style shorthand for `Core` members**, if the `Class::method` spelling proves
+  noisier in practice than the "nothing is global by default" argument in *2* anticipated.
+
+Verification, in the order it becomes possible:
+
+- **M1**: the parser rejects a top-level `function`/`const` declaration outside a class with a diagnostic
+  naming the replacement in *4*; `namespace Core` (or anything nested under it) in user source is rejected
+  as reserved.
+- **M2**: name resolution has exactly one shape for a callable (a class member) and one for a constant (a
+  class member) — no bare-name fallback exists in the resolver at all; a collision with `Core` is a
+  diagnostic at the declaration site.
+- **M8**: the stdlib milestone stands up the first `Core` domain classes; each is checked against
+  [ADR 0003](0003-extension-system.md)'s Tier 0 boundary and this ADR's "one manifest entry is a class" rule.
+- **M11**: the converter's PHP-global → `Core`-class-and-member table exercised on a real project; the
+  free-function/constant grouping heuristic for leftover procedural code checked against a human review of
+  the generated class(es).

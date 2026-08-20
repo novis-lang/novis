@@ -29,7 +29,9 @@ behind a decision, or the detail of something the brief only names.
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
+| `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
+| Free functions, global constants, the `Core` namespace, where a built-in lives | [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md). Holds the only copy of the rule that every callable and every constant is a class member, and the `Core` domain-class shape built-ins are organised into. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
@@ -92,6 +94,15 @@ When choosing between designs:
   ([ADR 0007](docs/adr/0007-explicit-type-system.md)). If you find yourself writing type *inference* in the
   compiler, stop: it belongs in `mwl convert`, and the absence of it is what pays for the mandatory
   annotations.
+- **Every function is a method, and every constant is a class constant; there is no free function and no
+  global constant.** `function` and `const` are rejected with a diagnostic naming the replacement anywhere
+  outside a class body — no exception for the standard library. Built-ins live under `Core`, a reserved
+  namespace organised into domain classes (`Core\Str`, `Core\Arr`, `Core\Math`, …), one per PHP-extension-
+  shaped grouping rather than one class holding everything; a call reaches them through ordinary `use`/
+  fully-qualified resolution, with nothing auto-imported
+  ([ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md)). Anonymous functions and arrow
+  functions are unaffected — they are values, not named declarations, and creating one inside a method body
+  or the script's own frame is not the free-floating name this rule closes.
 - **`static` marks a class member; nothing else holds state behind a function's back.** Static methods,
   static properties and late static binding (`static::`, `new static()`, `: static`) are kept exactly as
   PHP has them. A function-scope `static` variable and a `static` closure are **rejected with a
