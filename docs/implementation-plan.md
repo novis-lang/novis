@@ -74,7 +74,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Implementation language | Rust (stable, pinned via `rust-toolchain.toml`) |
 | Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap ([ADR 0004](adr/0004-memory-for-simplicity.md)) |
 | Execution | Cranelift JIT from day one, no interpreter tier; baseline codegen first, optimising tier later |
-| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing |
+| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart ([ADR 0017](adr/0017-hot-reload-without-restart.md)) |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
 | Isolated execution | `spawn script 'file.mwl'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
@@ -288,6 +288,13 @@ request-serving core, so compilation cannot stall request handling). Concurrent 
 broadcast — N simultaneous first-hits compile exactly once, and none of them block a core. Staleness:
 `stat` (mtime+size) → BLAKE3 content hash → atomic swap. Governed by
 `opcache.validate = never|mtime|hash`. Native pages are mapped `RX`, never `RWX` (W^X discipline).
+
+Because the key above is `{path, content_hash}`, not `{path}`, a `Ready` entry is write-once — two versions
+of a file are two entries, never one overwritten. A small separate index, `path → current content_hash`,
+sits in front of it and is the one thing a hot-reload actually swaps; [ADR 0017](adr/0017-hot-reload-without-restart.md)
+holds the only copy of that mechanism, why revalidation needs no filesystem watcher, and how a file edited
+under a live server reaches the next request with no restart while a request already running keeps the
+version it started with.
 
 ### Per-request isolation
 
@@ -547,13 +554,25 @@ classes populated from it (`Core\Request::query()`/`::post()`/`::cookie()`/`::fi
 streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured request
 logging, optional TLS via `rustls`.
 
+**Also in this milestone: hot-reload of the compiled-unit cache**, which is what makes "no restart to see an
+edit" true of a running server rather than only of `mwl run`. [ADR 0017](adr/0017-hot-reload-without-restart.md)
+holds the only copy of the mechanism — a per-path pointer over the content-addressed cache M5/M6 already
+built, revalidated lazily and rate-capped, swapped without ever blocking a request-serving core. Every
+request stays as isolated as a fresh subprocess regardless: compiled code is the only thing this milestone
+ever lets one request share with another, and that sharing is exactly what M5's `Isolate` and M6's
+`[limits]`/`[limits.hard]` already bound per request tree, not per file.
+
 **Verify:** the core requirement demonstrated under load — 10k concurrent cold requests for the same file
 compile it **exactly once** (assert via a compile counter) with no stalled requests; a state-bleed test
 suite proves nothing leaks between requests, and the same suite runs across an isolate boundary, which the
 shared `Isolate` makes a parameterisation rather than a second suite; a request whose isolates are still
 running when the client disconnects leaves none of them behind; path traversal, header injection and
 request-smuggling suites pass; `wrk`/`oha` throughput compared against PHP 8.5 + FPM + opcache and recorded
-in `benches/`.
+in `benches/`. For hot-reload specifically ([ADR 0017](adr/0017-hot-reload-without-restart.md)): editing a
+file under concurrent load recompiles it exactly once no matter how many in-flight requests race to notice;
+a request that resolved the old version runs it to completion while a newer version is already being served
+to new requests; a revalidation that fails to compile fails only requests resolving it afterwards; a `stat`
+storm against one hot, `mtime`-validated file is bounded by `revalidate_freq`, not by request rate.
 
 ### M8 — Stdlib and databases (~16 weeks)
 Two-tier regex with the `preg_*` layer; JSON; hashing and crypto (RustCrypto: sha2, blake3, argon2,

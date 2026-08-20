@@ -30,6 +30,7 @@ touching to get that.
 | Weighing memory against safety, speed or simplicity | [ADR 0004](docs/adr/0004-memory-for-simplicity.md) |
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
+| The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [ADR 0017](docs/adr/0017-hot-reload-without-restart.md). Holds the only copy of the path-pointer-swap mechanism, why it needs no filesystem watcher, and why a request-serving core is never blocked on a recompile. |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
@@ -110,6 +111,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
 - **Nothing gets a second runtime-reachable name** — no `class_alias`, no import `as`, no trait-use `as`; a
   compile-time-only `type` alias for a type expression is the one exception
   ([ADR 0015](docs/adr/0015-no-name-aliasing.md)).
+- **Compiled code is the only thing a request shares with any other** — an edited source file is picked up
+  by revalidating a small per-path pointer, never by a filesystem watcher or a process restart, and no
+  request-serving core is ever blocked on a recompile it did not ask for
+  ([ADR 0017](docs/adr/0017-hot-reload-without-restart.md)).
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.
