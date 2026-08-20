@@ -91,11 +91,19 @@ crates/
   mwl-pkg           package manager                                                   M10
   mwl-convert       PHP→MWL transpiler, .phpt→.mwlt                                   M11
   mwl-fcgi          optional FastCGI transport                                        M13
+editors/
+  vscode            TextMate grammar, language-configuration.json, LSP client        M10
+  phpstorm          file-type registration, LSP-bridge plugin (Kotlin/Gradle)         M10
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]     exists
 docs/adr/           architecture decision records                                  exists
 docs/spec/          normative language reference                                unwritten
 ```
+
+`editors/` sits outside the Cargo workspace — the VS Code extension is TypeScript/Node tooling, the
+PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform tooling — and is a thin client over `mwl-lsp`/`mwl-fmt`
+in both cases, never a second implementation of language smarts or formatting
+([ADR 0016](docs/adr/0016-ide-integration.md)).
 
 [`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/adr/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on MWL's own code, so a dependency

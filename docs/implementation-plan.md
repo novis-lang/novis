@@ -587,15 +587,43 @@ next request. Benchmark in-guest compute throughput against the equivalent nativ
 **commit the numbers** — this is the one figure in ADR 0003 that is currently asserted rather than
 measured.
 
-### M10 — Developer tooling (~12 weeks)
-`mwl fmt` (canonical, idempotent); `mwl lsp` over `tower-lsp` reusing the front end with incremental
-reparse (completion, go-to-definition, hover types, diagnostics, rename); `mwl dap` using safepoints for
-breakpoints plus deopt-to-debug in codegen; a sampling profiler emitting flamegraphs; `mwl pkg` with
-lockfile, semver resolution and a registry.
+### M10 — Developer tooling and IDE integration (~14 weeks)
+`mwl fmt` (canonical, idempotent — the **only** formatting implementation; neither editor client below gets
+its own); `mwl lsp` over `tower-lsp` reusing the front end with incremental reparse (completion,
+go-to-definition, hover types, diagnostics, rename); `mwl dap` using safepoints for breakpoints plus
+deopt-to-debug in codegen; a sampling profiler emitting flamegraphs; `mwl pkg` with lockfile, semver
+resolution and a registry.
 
-**Verify:** VS Code and PhpStorm both drive the LSP; `mwl fmt` is idempotent across the whole corpus;
-breakpoints hit in JIT-compiled code with correct variable values; profiler output attributes time to the
-right MWL functions.
+**Also in this milestone: the two editor clients**, per [ADR 0016](adr/0016-ide-integration.md) — a
+language server alone does not give either editor tight integration, so this is real, scoped work rather
+than a side effect of `mwl lsp` existing:
+
+- **`editors/vscode`** — a `vscode-languageclient` extension: `.mwl` language registration, a TextMate
+  grammar for instant syntax colour ahead of the first LSP response, semantic-token colour layered on once
+  the server is warm, `mwl lsp` process spawning, format-on-save and format commands wired to `mwl fmt`, and
+  `mwl run`/`mwl test` surfaced as VS Code Tasks.
+- **`editors/phpstorm`** — a Kotlin/Gradle plugin that registers `.mwl` as its own file type (distinct from
+  PhpStorm's bundled PHP support, which must not claim it), bridges to the **same** `mwl lsp`/`mwl fmt`
+  binaries through JetBrains' LSP client support (or LSP4IJ, per ADR 0016 *Revisiting*), and ships an
+  equivalent TextMate-or-equivalent baseline grammar. PSI-level refactoring, structural search, and a native
+  Formatter/Code Style page are explicitly out of scope for this phase — [ADR 0016](adr/0016-ide-integration.md)
+  names the native-plugin path as a later decision, not a silent gap.
+
+**Deferred out of this milestone, on record rather than by omission:** wiring either editor's debugger UI
+to `mwl dap` (VS Code's `DebugAdapterDescriptorFactory` + `launch.json` schema, PhpStorm's `XDebugger` UI).
+`mwl dap` itself still ships and is verified below; the editor-side debugger wiring is a tracked fast-follow
+([ADR 0016](adr/0016-ide-integration.md) *Revisiting*).
+
+**Verify:** `mwl fmt` is idempotent across the whole corpus, and neither editor extension contains its own
+formatting logic. The VS Code extension activates on `.mwl`, shows TextMate-grammar colour immediately and
+semantic-token colour once `mwl lsp` responds, and completion/hover/diagnostics/go-to-definition/rename/
+format-on-save all round-trip through `mwl lsp`/`mwl fmt`. The PhpStorm plugin registers `.mwl` as its own
+file type (opening one does not invoke PhpStorm's bundled PHP support) and gets the same
+completion/hover/diagnostics/rename/formatting round trip through the identical `mwl lsp`/`mwl fmt`
+binaries — evidenced by both editors agreeing byte-for-byte on the same file's formatted output and
+diagnostics. Breakpoints hit in JIT-compiled code with correct variable values (via `mwl dap` directly;
+neither editor's debugger UI is expected to exist yet). Profiler output attributes time to the right MWL
+functions.
 
 ### M11 — PHP transpiler (~10 weeks)
 `mwl convert`: PHP source → AST → rewrite passes → idiomatic `.mwl` output. **This milestone is now on the
