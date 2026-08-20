@@ -16,15 +16,17 @@
 //! `break`/`continue`, `try`/`catch`/`finally`), `echo`, `unset`, § 3.1's
 //! typed local declaration and § 3.3's destructuring statement, and the
 //! statement-shaped rejects (`global`, `goto`, function-scope `static`) are
-//! also here. Class/interface/trait/enum declarations — plus `namespace`,
-//! `use` and the `type`-alias declaration, which sit at file scope rather
-//! than being executable statements — are the parser's next and last M1
-//! chunk; see [`crate::ast`]'s module docs.
+//! also here.
 //!
-//! Attributes (`#[...]`) are not consumed here: every place PHP allows one is
-//! a declaration site (a class, a method, a parameter), so attribute parsing
-//! arrives with the declarations chunk rather than being bolted onto
-//! expressions or statements now.
+//! M1's last chunk is also here: classes, interfaces, traits and enums
+//! ([`Parser::parse_class_decl`]/[`Parser::parse_interface_decl`]/
+//! [`Parser::parse_trait_decl`]/[`Parser::parse_enum_decl`]), their members
+//! (properties with PHP 8.4's hooks, consts, methods, trait `use` and its
+//! `insteadof`/`as` adaptations), attributes (`#[...]`,
+//! [`Parser::parse_attribute_groups`]), and the file-scope declarations that
+//! sit alongside them rather than being executable statements —
+//! `namespace`, `use`, and the `type`-alias declaration. See
+//! [`crate::ast`]'s module docs for the node shapes.
 //!
 //! # Backtracking
 //!
@@ -57,11 +59,14 @@ use std::collections::VecDeque;
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
-    Arg, ArrayItem, ArrowFnExpr, AssignOp, BinaryOp, Block, CallArgs, CastType, CatchClause,
-    ClosureExpr, ClosureUse, DestructureElement, DestructureTarget, Expr, ExprKind, ForeachBinding,
-    IncDecOp, IncludeKind, MatchArm, MemberName, Modifier, Name, NewTarget, Param, SpawnOption,
-    SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind,
-    UnaryOp,
+    AnonClassDecl, Arg, ArrayItem, ArrowFnExpr, AssignOp, Attribute, AttributeGroup, BinaryOp,
+    Block, CallArgs, CastType, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ClosureExpr,
+    ClosureUse, ConstMember, DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr,
+    ExprKind, ForeachBinding, IncDecOp, IncludeKind, InterfaceDecl, MatchArm, MemberName,
+    MethodMember, Modifier, Name, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody,
+    PropertyHookKind, PropertyMember, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind,
+    StringPart, SwitchCase, TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type,
+    TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
 };
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind};
@@ -1456,6 +1461,9 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     fn parse_new(&mut self) -> Expr {
         let start = self.bump().span; // 'new'
+        if self.at_keyword(Keyword::Class) {
+            return self.parse_new_anon_class(start);
+        }
         let target = match self.peek().kind {
             TokenKind::Keyword(Keyword::SelfKw) => {
                 self.bump();
@@ -1490,6 +1498,44 @@ impl<'src, 'd> Parser<'src, 'd> {
         Expr {
             span,
             kind: ExprKind::New { target, args },
+        }
+    }
+
+    /// `new class (args)? (extends Base)? (implements Iface, ...)? { ... }`
+    /// — an anonymous class declaration used directly as a `new` target.
+    /// Unlike an ordinary `new Name(args)`, the argument list sits right
+    /// after `class`, before `extends`/`implements`/the body, so it cannot
+    /// reuse [`Self::parse_new`]'s generic post-target `args` parsing.
+    fn parse_new_anon_class(&mut self, start: Span) -> Expr {
+        self.bump(); // 'class'
+        let args = if self.at(TokenKind::LParen) {
+            self.parse_call_args()
+        } else {
+            CallArgs::List(Vec::new())
+        };
+        let extends = if self.eat_keyword(Keyword::Extends).is_some() {
+            Some(self.parse_name())
+        } else {
+            None
+        };
+        let implements = if self.eat_keyword(Keyword::Implements).is_some() {
+            self.parse_name_list()
+        } else {
+            Vec::new()
+        };
+        let members = self.parse_class_body();
+        let span = start.to(self.last_span);
+        Expr {
+            span,
+            kind: ExprKind::New {
+                target: NewTarget::AnonClass(Box::new(AnonClassDecl {
+                    span,
+                    extends,
+                    implements,
+                    members,
+                })),
+                args,
+            },
         }
     }
 
@@ -1625,18 +1671,8 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     fn parse_param(&mut self) -> Param {
         let start = self.peek().span;
-        let mut modifiers = Vec::new();
-        loop {
-            let m = match self.peek().kind {
-                TokenKind::Keyword(Keyword::Public) => Modifier::Public,
-                TokenKind::Keyword(Keyword::Protected) => Modifier::Protected,
-                TokenKind::Keyword(Keyword::Private) => Modifier::Private,
-                TokenKind::Keyword(Keyword::Readonly) => Modifier::Readonly,
-                _ => break,
-            };
-            self.bump();
-            modifiers.push(m);
-        }
+        let attributes = self.parse_attribute_groups();
+        let modifiers = self.parse_modifiers();
         let ty = if self.can_start_type() {
             Some(self.parse_type())
         } else {
@@ -1658,6 +1694,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         Param {
             span,
+            attributes,
             modifiers,
             ty,
             by_ref,
@@ -2186,6 +2223,27 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Keyword(Keyword::List) => self.parse_destructure_from_list(start),
             TokenKind::LBracket => self.parse_stmt_maybe_destructure(start),
+            TokenKind::AttributeOpen => self.parse_attributed_decl_stmt(start),
+            TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class) => {
+                self.parse_class_decl(start)
+            }
+            TokenKind::Keyword(Keyword::Interface) => self.parse_interface_decl(start),
+            TokenKind::Keyword(Keyword::Trait) => self.parse_trait_decl(start),
+            TokenKind::Keyword(Keyword::Enum) => self.parse_enum_decl(start),
+            TokenKind::Keyword(Keyword::Namespace) => self.parse_namespace_decl(start),
+            TokenKind::Keyword(Keyword::Use) => self.parse_use_decl(start),
+            TokenKind::Keyword(Keyword::Const) => {
+                self.parse_toplevel_const_reject(start, Vec::new())
+            }
+            TokenKind::Keyword(Keyword::Function) if self.at_named_function_decl() => {
+                self.parse_toplevel_function_reject(start, Vec::new())
+            }
+            _ if self.at_contextual("type")
+                && self.peek_at(1).kind == TokenKind::Ident
+                && self.peek_at(2).kind == TokenKind::Equals =>
+            {
+                self.parse_type_alias_decl(start)
+            }
             _ if self.can_start_type() && !self.at_keyword(Keyword::Static) => {
                 self.parse_stmt_maybe_local_decl(start)
             }
@@ -2744,6 +2802,954 @@ impl<'src, 'd> Parser<'src, 'd> {
             by_ref,
             name,
             span,
+        }
+    }
+
+    // ========================================================================
+    // Attributes (`#[...]`)
+    // ========================================================================
+
+    /// Zero or more `#[...]` groups, in source order — the standard prefix
+    /// of every declaration site (a class, a property, a method, a
+    /// parameter, an enum case, ...).
+    fn parse_attribute_groups(&mut self) -> Vec<AttributeGroup> {
+        let mut groups = Vec::new();
+        while self.at(TokenKind::AttributeOpen) {
+            groups.push(self.parse_attribute_group());
+        }
+        groups
+    }
+
+    fn parse_attribute_group(&mut self) -> AttributeGroup {
+        let start = self.bump().span; // '#['
+        let mut attributes = vec![self.parse_attribute()];
+        while self.eat(TokenKind::Comma).is_some() && !self.at(TokenKind::RBracket) {
+            attributes.push(self.parse_attribute());
+        }
+        let close = self.expect(TokenKind::RBracket, "`]`");
+        AttributeGroup {
+            attributes,
+            span: start.to(close),
+        }
+    }
+
+    fn parse_attribute(&mut self) -> Attribute {
+        let start = self.peek().span;
+        let name = self.parse_name();
+        let args = if self.at(TokenKind::LParen) {
+            Some(self.parse_call_args())
+        } else {
+            None
+        };
+        let span = start.to(self.last_span);
+        Attribute { name, args, span }
+    }
+
+    // ========================================================================
+    // Declaration modifiers
+    // ========================================================================
+
+    /// Every modifier the parser knows, in any combination and any order —
+    /// a class header, a property, a constant, a method and a parameter all
+    /// call this one loop. Which modifiers make sense in which position is
+    /// a later check, not a grammar rule (see [`Modifier`]'s docs).
+    fn parse_modifiers(&mut self) -> Vec<Modifier> {
+        let mut modifiers = Vec::new();
+        loop {
+            let m = match self.peek().kind {
+                TokenKind::Keyword(Keyword::Public) => {
+                    self.parse_visibility_modifier(Visibility::Public)
+                }
+                TokenKind::Keyword(Keyword::Protected) => {
+                    self.parse_visibility_modifier(Visibility::Protected)
+                }
+                TokenKind::Keyword(Keyword::Private) => {
+                    self.parse_visibility_modifier(Visibility::Private)
+                }
+                TokenKind::Keyword(Keyword::Readonly) => {
+                    self.bump();
+                    Modifier::Readonly
+                }
+                TokenKind::Keyword(Keyword::Static) => {
+                    self.bump();
+                    Modifier::Static
+                }
+                TokenKind::Keyword(Keyword::Abstract) => {
+                    self.bump();
+                    Modifier::Abstract
+                }
+                TokenKind::Keyword(Keyword::Final) => {
+                    self.bump();
+                    Modifier::Final
+                }
+                _ => break,
+            };
+            modifiers.push(m);
+        }
+        modifiers
+    }
+
+    /// `public`/`protected`/`private`, optionally followed by PHP 8.4's
+    /// asymmetric-visibility suffix `(set)` — `private(set)` etc. — which
+    /// becomes [`Modifier::SetVisibility`] instead of the plain form.
+    fn parse_visibility_modifier(&mut self, v: Visibility) -> Modifier {
+        self.bump();
+        if self.eat(TokenKind::LParen).is_none() {
+            return match v {
+                Visibility::Public => Modifier::Public,
+                Visibility::Protected => Modifier::Protected,
+                Visibility::Private => Modifier::Private,
+            };
+        }
+        if self.at_contextual("set") {
+            self.bump();
+        } else {
+            self.error_expected("`set`");
+        }
+        self.expect(TokenKind::RParen, "`)`");
+        Modifier::SetVisibility(v)
+    }
+
+    // ========================================================================
+    // Shared declaration helpers
+    // ========================================================================
+
+    /// One unqualified declared name — a class, interface, trait, enum,
+    /// method, constant or `type`-alias name. Unlike [`Self::parse_name`],
+    /// this never admits a `\`-qualified path: nothing is ever declared
+    /// under a path, only referred to by one. A keyword-shaped spelling is
+    /// accepted, same as a member name after `->`/`::`.
+    fn parse_decl_name(&mut self, what: &str) -> Name {
+        let span = if Self::is_name_segment(self.peek().kind) {
+            self.bump().span
+        } else {
+            self.error_expected(what)
+        };
+        Name { span }
+    }
+
+    /// `extends`/`implements`'s comma-separated name list — shared by every
+    /// declaration that has one.
+    fn parse_name_list(&mut self) -> Vec<Name> {
+        let mut names = vec![self.parse_name()];
+        while self.eat(TokenKind::Comma).is_some() {
+            names.push(self.parse_name());
+        }
+        names
+    }
+
+    /// ADR 0011 § 2: `Core` is reserved for built-ins. Reports and keeps
+    /// going.
+    fn check_reserved_core_namespace(&mut self, name: &Name) {
+        let text = self.file.span_text(name.span).unwrap_or_default();
+        let first_segment = text
+            .trim_start_matches('\\')
+            .split('\\')
+            .next()
+            .unwrap_or(text);
+        if first_segment.eq_ignore_ascii_case("Core") {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_RESERVED_CORE_NAMESPACE,
+                    "`Core` is reserved for built-ins",
+                )
+                .with_primary(name.span, "not available to user code"),
+            );
+        }
+    }
+
+    // ========================================================================
+    // `namespace`, `use`, `type` alias — file-scope declarations
+    // ========================================================================
+
+    fn parse_namespace_decl(&mut self, start: Span) -> Stmt {
+        self.bump(); // 'namespace'
+        let name = if matches!(self.peek().kind, TokenKind::Ident | TokenKind::Backslash) {
+            Some(self.parse_name())
+        } else {
+            None
+        };
+        if let Some(name) = &name {
+            self.check_reserved_core_namespace(name);
+        }
+        let body = if self.at(TokenKind::LBrace) {
+            Some(self.parse_block())
+        } else {
+            self.expect(TokenKind::Semicolon, "`;`");
+            None
+        };
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::NamespaceDecl(NamespaceDecl { span, name, body }),
+        }
+    }
+
+    fn parse_use_decl(&mut self, start: Span) -> Stmt {
+        self.bump(); // 'use'
+        let path = self.parse_name();
+        let alias = if self.eat_keyword(Keyword::As).is_some() {
+            Some(self.expect(TokenKind::Ident, "an alias name"))
+        } else {
+            None
+        };
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        if let Some(alias) = alias {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_IMPORT_ALIAS_UNSUPPORTED,
+                    "an import cannot be renamed",
+                )
+                .with_primary(alias, "rename not supported")
+                .with_help(
+                    "refer to it by its declared short name, or use the fully-qualified path \
+                     directly (ADR 0015 § 2)",
+                ),
+            );
+        }
+        Stmt {
+            span,
+            kind: StmtKind::UseDecl(UseDecl { span, path, alias }),
+        }
+    }
+
+    fn parse_type_alias_decl(&mut self, start: Span) -> Stmt {
+        self.bump(); // 'type' (contextual — see `Self::parse_statement`)
+        let name = self.parse_decl_name("a type alias name");
+        self.expect(TokenKind::Equals, "`=`");
+        let ty = self.parse_type();
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::TypeAliasDecl(TypeAliasDecl { span, name, ty }),
+        }
+    }
+
+    // ========================================================================
+    // Classes, interfaces, traits (ADR 0011 §§ 1/4, ADR 0015 § 3)
+    // ========================================================================
+
+    fn parse_class_decl(&mut self, start: Span) -> Stmt {
+        self.finish_class_decl(start, Vec::new())
+    }
+
+    fn finish_class_decl(&mut self, start: Span, attributes: Vec<AttributeGroup>) -> Stmt {
+        let modifiers = self.parse_modifiers();
+        self.expect_keyword(Keyword::Class, "`class`");
+        let name = self.parse_decl_name("a class name");
+        let extends = if self.eat_keyword(Keyword::Extends).is_some() {
+            Some(self.parse_name())
+        } else {
+            None
+        };
+        let implements = if self.eat_keyword(Keyword::Implements).is_some() {
+            self.parse_name_list()
+        } else {
+            Vec::new()
+        };
+        let members = self.parse_class_body();
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::ClassDecl(ClassDecl {
+                span,
+                attributes,
+                modifiers,
+                name,
+                extends,
+                implements,
+                members,
+            }),
+        }
+    }
+
+    fn parse_interface_decl(&mut self, start: Span) -> Stmt {
+        self.finish_interface_decl(start, Vec::new())
+    }
+
+    fn finish_interface_decl(&mut self, start: Span, attributes: Vec<AttributeGroup>) -> Stmt {
+        self.bump(); // 'interface'
+        let name = self.parse_decl_name("an interface name");
+        let extends = if self.eat_keyword(Keyword::Extends).is_some() {
+            self.parse_name_list()
+        } else {
+            Vec::new()
+        };
+        let members = self.parse_class_body();
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::InterfaceDecl(InterfaceDecl {
+                span,
+                attributes,
+                name,
+                extends,
+                members,
+            }),
+        }
+    }
+
+    fn parse_trait_decl(&mut self, start: Span) -> Stmt {
+        self.finish_trait_decl(start, Vec::new())
+    }
+
+    fn finish_trait_decl(&mut self, start: Span, attributes: Vec<AttributeGroup>) -> Stmt {
+        self.bump(); // 'trait'
+        let name = self.parse_decl_name("a trait name");
+        let members = self.parse_class_body();
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::TraitDecl(TraitDecl {
+                span,
+                attributes,
+                name,
+                members,
+            }),
+        }
+    }
+
+    /// A `{ ... }` class/interface/trait body. Mirrors [`Self::parse_block`]'s
+    /// force-progress guard exactly, for the same reason: a malformed member
+    /// must not hang the parser.
+    fn parse_class_body(&mut self) -> Vec<ClassMember> {
+        self.expect(TokenKind::LBrace, "`{`");
+        let mut members = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let before = self.peek().span;
+            self.parse_class_member(&mut members);
+            if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
+            {
+                self.bump();
+            }
+        }
+        self.expect(TokenKind::RBrace, "`}`");
+        members
+    }
+
+    fn parse_class_member(&mut self, out: &mut Vec<ClassMember>) {
+        let start = self.peek().span;
+        let attributes = self.parse_attribute_groups();
+        self.parse_class_member_with_attrs(start, attributes, out);
+    }
+
+    /// One or more members can come from a single source construct — a
+    /// property or constant may name several declarators at once
+    /// (`public int $a, $b;`) — so this pushes into `out` rather than
+    /// returning a single [`ClassMember`].
+    fn parse_class_member_with_attrs(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+        out: &mut Vec<ClassMember>,
+    ) {
+        if self.at_keyword(Keyword::Use) {
+            out.push(self.parse_use_trait_member(start, attributes));
+            return;
+        }
+        let modifiers = self.parse_modifiers();
+        if self.at_keyword(Keyword::Const) {
+            let consts = self.parse_const_body(&attributes, &modifiers);
+            let span = start.to(self.last_span);
+            for c in consts {
+                out.push(ClassMember {
+                    span,
+                    kind: ClassMemberKind::Const(c),
+                });
+            }
+            return;
+        }
+        if self.at_keyword(Keyword::Function) {
+            out.push(self.parse_method_member(start, attributes, modifiers));
+            return;
+        }
+        if self.can_start_type() {
+            self.parse_property_members(start, attributes, modifiers, out);
+            return;
+        }
+        let span = self.error_expected("a class member");
+        out.push(ClassMember {
+            kind: ClassMemberKind::Error,
+            span,
+        });
+    }
+
+    /// `const (Type)? Name = expr (',' Name = expr)*;` — `const` and the
+    /// trailing `;` are both consumed here, so this is the whole
+    /// declaration regardless of whether it ends up wrapped as a class
+    /// member or (with empty `modifiers`) rejected as a top-level `const`.
+    fn parse_const_body(
+        &mut self,
+        attributes: &[AttributeGroup],
+        modifiers: &[Modifier],
+    ) -> Vec<ConstMember> {
+        self.bump(); // 'const'
+        let ty = if self.can_start_type() && !self.at_const_name_without_type() {
+            Some(self.parse_type())
+        } else {
+            None
+        };
+        let mut members = Vec::new();
+        loop {
+            let name = self.parse_decl_name("a constant name").span;
+            self.expect(TokenKind::Equals, "`=`");
+            let value = self.parse_expr();
+            members.push(ConstMember {
+                attributes: attributes.to_vec(),
+                modifiers: modifiers.to_vec(),
+                ty: ty.clone(),
+                name,
+                value,
+            });
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        self.expect(TokenKind::Semicolon, "`;`");
+        members
+    }
+
+    /// Whether `const` is immediately followed by `Name '='` — PHP 8.3's
+    /// untyped spelling — rather than a type. A bare `Ident` here is
+    /// ambiguous with a class-name type atom; the deciding token is
+    /// whether `=` follows it directly.
+    fn at_const_name_without_type(&mut self) -> bool {
+        matches!(self.peek().kind, TokenKind::Ident) && self.peek_at(1).kind == TokenKind::Equals
+    }
+
+    fn parse_method_member(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+        modifiers: Vec<Modifier>,
+    ) -> ClassMember {
+        let method = self.parse_method_body(attributes, modifiers);
+        let span = start.to(self.last_span);
+        ClassMember {
+            span,
+            kind: ClassMemberKind::Method(method),
+        }
+    }
+
+    /// `function '&'? name(params) (: ReturnType)? (block | ';')` —
+    /// `function` itself consumed here, exactly like
+    /// [`Self::parse_const_body`] consumes `const`.
+    fn parse_method_body(
+        &mut self,
+        attributes: Vec<AttributeGroup>,
+        modifiers: Vec<Modifier>,
+    ) -> MethodMember {
+        self.bump(); // 'function'
+        let by_ref = self.eat(TokenKind::Amp).is_some();
+        let name = self.parse_decl_name("a method name").span;
+        let params = self.parse_params();
+        let return_type = if self.eat(TokenKind::Colon).is_some() {
+            Some(self.parse_type())
+        } else {
+            None
+        };
+        let body = if self.at(TokenKind::LBrace) {
+            Some(self.parse_block())
+        } else {
+            self.expect(TokenKind::Semicolon, "`;`");
+            None
+        };
+        MethodMember {
+            attributes,
+            modifiers,
+            by_ref,
+            name,
+            params,
+            return_type,
+            body,
+        }
+    }
+
+    /// `Type '$'name (',' '$'name)* ';'`, or the single-declarator hooked
+    /// form `Type '$'name '{' hooks '}'` (PHP 8.4 property hooks, feeding
+    /// `PropertyObserver` — ADR 0014). A hooked property is never part of a
+    /// comma list — real PHP requires it declared alone — so the hooked
+    /// branch returns as soon as it is taken.
+    fn parse_property_members(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+        modifiers: Vec<Modifier>,
+        out: &mut Vec<ClassMember>,
+    ) {
+        let ty = self.parse_type();
+        loop {
+            let name = self.expect(TokenKind::Variable, "a property name");
+            if self.at(TokenKind::LBrace) {
+                let hooks = self.parse_property_hooks();
+                let span = start.to(self.last_span);
+                out.push(ClassMember {
+                    span,
+                    kind: ClassMemberKind::Property(PropertyMember {
+                        attributes,
+                        modifiers,
+                        ty,
+                        name,
+                        default: None,
+                        hooks: Some(hooks),
+                    }),
+                });
+                return;
+            }
+            let default = self.eat(TokenKind::Equals).map(|_| self.parse_expr());
+            let span = start.to(self.last_span);
+            out.push(ClassMember {
+                span,
+                kind: ClassMemberKind::Property(PropertyMember {
+                    attributes: attributes.clone(),
+                    modifiers: modifiers.clone(),
+                    ty: ty.clone(),
+                    name,
+                    default,
+                    hooks: None,
+                }),
+            });
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        self.expect(TokenKind::Semicolon, "`;`");
+    }
+
+    /// `{ hook+ }` — PHP 8.4's property-hook block, kept exactly as PHP has
+    /// it (ADR 0014 § 1: this ADR "adds no new syntax beyond an ordinary
+    /// interface declaration"). Mirrors [`Self::parse_block`]'s
+    /// force-progress guard.
+    fn parse_property_hooks(&mut self) -> Vec<PropertyHook> {
+        self.expect(TokenKind::LBrace, "`{`");
+        let mut hooks = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let before = self.peek().span;
+            hooks.push(self.parse_property_hook());
+            if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
+            {
+                self.bump();
+            }
+        }
+        self.expect(TokenKind::RBrace, "`}`");
+        hooks
+    }
+
+    fn parse_property_hook(&mut self) -> PropertyHook {
+        let start = self.peek().span;
+        let attributes = self.parse_attribute_groups();
+        let by_ref = self.eat(TokenKind::Amp).is_some();
+        let kind = if self.at_contextual("set") {
+            self.bump();
+            PropertyHookKind::Set
+        } else {
+            if self.at_contextual("get") {
+                self.bump();
+            } else {
+                self.error_expected("`get` or `set`");
+            }
+            PropertyHookKind::Get
+        };
+        let param = if kind == PropertyHookKind::Set && self.at(TokenKind::LParen) {
+            Some(self.parse_hook_param())
+        } else {
+            None
+        };
+        let body = if self.eat(TokenKind::FatArrow).is_some() {
+            let e = self.parse_expr();
+            self.expect(TokenKind::Semicolon, "`;`");
+            Some(PropertyHookBody::Expr(Box::new(e)))
+        } else if self.at(TokenKind::LBrace) {
+            Some(PropertyHookBody::Block(self.parse_block()))
+        } else {
+            self.expect(TokenKind::Semicolon, "`;`");
+            None
+        };
+        let span = start.to(self.last_span);
+        PropertyHook {
+            span,
+            attributes,
+            kind,
+            by_ref,
+            param,
+            body,
+        }
+    }
+
+    /// `'(' Type? '$'name ')'` — a `set` hook's parameter. Unlike an
+    /// ordinary [`Self::parse_param`], the type may be omitted with no
+    /// diagnostic: PHP 8.4 infers it from the property's own declared type.
+    fn parse_hook_param(&mut self) -> Param {
+        let start = self.expect(TokenKind::LParen, "`(`");
+        let attributes = self.parse_attribute_groups();
+        let ty = if self.can_start_type() {
+            Some(self.parse_type())
+        } else {
+            None
+        };
+        let name = self.expect(TokenKind::Variable, "the hook's parameter name");
+        let close = self.expect(TokenKind::RParen, "`)`");
+        Param {
+            span: start.to(close),
+            attributes,
+            modifiers: Vec::new(),
+            ty,
+            by_ref: false,
+            variadic: false,
+            name,
+            default: None,
+        }
+    }
+
+    /// `use Trait, Trait2 (';' | '{' adaptations '}')` inside a class/trait
+    /// body. Nothing in PHP's grammar, or any ADR, gives this an attribute
+    /// position, so `attributes` (parsed uniformly by the caller before
+    /// dispatching on `use`) is simply unused here.
+    fn parse_use_trait_member(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+    ) -> ClassMember {
+        let _ = attributes;
+        self.bump(); // 'use'
+        let traits = self.parse_name_list();
+        let adaptations = if self.at(TokenKind::LBrace) {
+            self.parse_trait_adaptations()
+        } else {
+            self.expect(TokenKind::Semicolon, "`;`");
+            Vec::new()
+        };
+        let span = start.to(self.last_span);
+        ClassMember {
+            span,
+            kind: ClassMemberKind::UseTrait(UseTraitMember {
+                traits,
+                adaptations,
+            }),
+        }
+    }
+
+    fn parse_trait_adaptations(&mut self) -> Vec<TraitAdaptation> {
+        self.expect(TokenKind::LBrace, "`{`");
+        let mut adaptations = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let before = self.peek().span;
+            adaptations.push(self.parse_trait_adaptation());
+            if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
+            {
+                self.bump();
+            }
+        }
+        self.expect(TokenKind::RBrace, "`}`");
+        adaptations
+    }
+
+    /// `(Trait '::')? method` — the `Trait::` qualifier is required for
+    /// `insteadof` (it names which trait's method wins) but optional for a
+    /// visibility-only `as` clause, where a single trait already makes the
+    /// method unambiguous.
+    fn parse_trait_method_ref(&mut self) -> TraitMethodRef {
+        let first = self.parse_name();
+        if self.eat(TokenKind::DoubleColon).is_some() {
+            let method = self.expect_name_segment();
+            TraitMethodRef {
+                trait_name: Some(first),
+                method,
+            }
+        } else {
+            TraitMethodRef {
+                trait_name: None,
+                method: first.span,
+            }
+        }
+    }
+
+    fn parse_trait_adaptation(&mut self) -> TraitAdaptation {
+        let start = self.peek().span;
+        let method = self.parse_trait_method_ref();
+        let kind = if self.eat_keyword(Keyword::Insteadof).is_some() {
+            let over = self.parse_name_list();
+            TraitAdaptationKind::InsteadOf { method, over }
+        } else {
+            self.expect_keyword(Keyword::As, "`insteadof` or `as`");
+            let visibility = match self.peek().kind {
+                TokenKind::Keyword(Keyword::Public) => {
+                    self.bump();
+                    Some(Modifier::Public)
+                }
+                TokenKind::Keyword(Keyword::Protected) => {
+                    self.bump();
+                    Some(Modifier::Protected)
+                }
+                TokenKind::Keyword(Keyword::Private) => {
+                    self.bump();
+                    Some(Modifier::Private)
+                }
+                _ => None,
+            };
+            let new_name = if Self::is_name_segment(self.peek().kind) {
+                Some(self.bump().span)
+            } else {
+                None
+            };
+            TraitAdaptationKind::As {
+                method,
+                visibility,
+                new_name,
+            }
+        };
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        if let TraitAdaptationKind::As {
+            visibility,
+            new_name,
+            ..
+        } = &kind
+        {
+            self.report_trait_as_rejection(span, visibility.is_some(), new_name.is_some());
+        }
+        TraitAdaptation { kind, span }
+    }
+
+    /// ADR 0015 § 3: both forms of a trait `use` block's `as` clause are
+    /// rejected — renaming a method, and changing its visibility alone —
+    /// while `insteadof` is kept. A rename takes priority in the message
+    /// when both parts are written at once.
+    fn report_trait_as_rejection(&mut self, span: Span, has_visibility: bool, has_rename: bool) {
+        if has_rename {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_TRAIT_METHOD_RENAME_UNSUPPORTED,
+                    "a trait method cannot be renamed",
+                )
+                .with_primary(span, "rename not supported")
+                .with_help(
+                    "give the class its own method with the new name, calling the trait's \
+                     method explicitly (ADR 0015 § 3)",
+                ),
+            );
+        } else if has_visibility {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED,
+                    "a trait method's visibility cannot be changed by `as`",
+                )
+                .with_primary(span, "visibility change not supported")
+                .with_help(
+                    "override the method in the class with the visibility you want \
+                     (ADR 0015 § 3)",
+                ),
+            );
+        }
+    }
+
+    // ========================================================================
+    // Enums (ADR 0010)
+    // ========================================================================
+
+    fn parse_enum_decl(&mut self, start: Span) -> Stmt {
+        self.finish_enum_decl(start, Vec::new())
+    }
+
+    fn finish_enum_decl(&mut self, start: Span, attributes: Vec<AttributeGroup>) -> Stmt {
+        self.bump(); // 'enum'
+        let name = self.parse_decl_name("an enum name");
+        let backing = if self.eat(TokenKind::Colon).is_some() {
+            Some(self.parse_enum_backing_type())
+        } else {
+            None
+        };
+        let implements = if self.eat_keyword(Keyword::Implements).is_some() {
+            self.parse_name_list()
+        } else {
+            Vec::new()
+        };
+        if let (Some(first), Some(last)) = (implements.first(), implements.last()) {
+            let span = first.span.to(last.span);
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_ENUM_IMPLEMENTS_UNSUPPORTED,
+                    "an enum cannot implement an interface",
+                )
+                .with_primary(
+                    span,
+                    "an enum declares only cases and an optional backing type",
+                )
+                .with_help(
+                    "give the enum's consumer a `static` method on some other class instead \
+                     (ADR 0010 § 3)",
+                ),
+            );
+        }
+        let (cases, members) = self.parse_enum_body();
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::EnumDecl(EnumDecl {
+                span,
+                attributes,
+                name,
+                backing,
+                implements,
+                cases,
+                members,
+            }),
+        }
+    }
+
+    /// The `: Type` backing-type clause, parsed with the full ADR 0007 § 3
+    /// grammar — only the one rejection ADR 0010 § 3 names explicitly
+    /// (`string`) is checked here; that the result is otherwise exactly
+    /// `int` or `uint` is a later check, not the parser's.
+    fn parse_enum_backing_type(&mut self) -> Type {
+        let ty = self.parse_type();
+        if matches!(ty.kind, TypeKind::Atom(TypeAtom::String)) {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_ENUM_STRING_BACKING_UNSUPPORTED,
+                    "an enum cannot be backed by `string`",
+                )
+                .with_primary(ty.span, "only `int`/`uint` back an enum")
+                .with_help("use `: int` or `: uint`, or omit the backing type (ADR 0010 § 3)"),
+            );
+        }
+        ty
+    }
+
+    /// An enum body mixes cases (bare names) with, if the input is
+    /// malformed, member-shaped constructs that ADR 0010 § 3 rejects
+    /// outright — a method, a property, a constant, a trait `use`. Both are
+    /// parsed, since attributes may precede either and only the token after
+    /// them tells them apart; mirrors [`Self::parse_block`]'s force-progress
+    /// guard.
+    fn parse_enum_body(&mut self) -> (Vec<EnumCase>, Vec<ClassMember>) {
+        self.expect(TokenKind::LBrace, "`{`");
+        let mut cases = Vec::new();
+        let mut members = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let before = self.peek().span;
+            let attributes = self.parse_attribute_groups();
+            if matches!(self.peek().kind, TokenKind::Ident) {
+                cases.push(self.finish_enum_case(before, attributes));
+                self.eat(TokenKind::Comma);
+            } else {
+                self.parse_class_member_with_attrs(before, attributes, &mut members);
+                let span = before.to(self.last_span);
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_ENUM_MEMBER_UNSUPPORTED,
+                        "an enum declares only cases and an optional backing type",
+                    )
+                    .with_primary(span, "not a case")
+                    .with_help("move this to a separate class (ADR 0010 § 3)"),
+                );
+            }
+            if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
+            {
+                self.bump();
+            }
+        }
+        self.expect(TokenKind::RBrace, "`}`");
+        (cases, members)
+    }
+
+    fn finish_enum_case(&mut self, start: Span, attributes: Vec<AttributeGroup>) -> EnumCase {
+        let name = self.parse_decl_name("a case name");
+        let value = self.eat(TokenKind::Equals).map(|_| self.parse_expr());
+        let span = start.to(self.last_span);
+        EnumCase {
+            span,
+            attributes,
+            name,
+            value,
+        }
+    }
+
+    // ========================================================================
+    // The statement-shaped rejects: a top-level `function`/`const`
+    // (ADR 0011 § 1)
+    // ========================================================================
+
+    /// `#[...]` groups precede a class/interface/trait/enum declaration, a
+    /// rejected top-level `function`/`const`, or nothing this parser
+    /// recognizes yet — decided by the keyword that follows them.
+    fn parse_attributed_decl_stmt(&mut self, start: Span) -> Stmt {
+        let attributes = self.parse_attribute_groups();
+        match self.peek().kind {
+            TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class) => {
+                self.finish_class_decl(start, attributes)
+            }
+            TokenKind::Keyword(Keyword::Interface) => self.finish_interface_decl(start, attributes),
+            TokenKind::Keyword(Keyword::Trait) => self.finish_trait_decl(start, attributes),
+            TokenKind::Keyword(Keyword::Enum) => self.finish_enum_decl(start, attributes),
+            TokenKind::Keyword(Keyword::Const) => {
+                self.parse_toplevel_const_reject(start, attributes)
+            }
+            TokenKind::Keyword(Keyword::Function) if self.at_named_function_decl() => {
+                self.parse_toplevel_function_reject(start, attributes)
+            }
+            _ => {
+                self.error_expected("a declaration after `#[...]`");
+                self.parse_statement()
+            }
+        }
+    }
+
+    /// Whether `function` at the current position starts a rejected
+    /// top-level declaration (`function foo() { ... }`) rather than an
+    /// anonymous closure used as a bare expression statement
+    /// (`function () { ... };`) — decided by whether a name, not `(`,
+    /// follows, skipping an optional by-reference `&`.
+    fn at_named_function_decl(&mut self) -> bool {
+        let idx = if self.peek_at(1).kind == TokenKind::Amp {
+            2
+        } else {
+            1
+        };
+        Self::is_name_segment(self.peek_at(idx).kind)
+    }
+
+    fn parse_toplevel_function_reject(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+    ) -> Stmt {
+        let method = self.parse_method_body(attributes, Vec::new());
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_TOPLEVEL_FUNCTION_UNSUPPORTED,
+                "a function must be a method",
+            )
+            .with_primary(span, "not inside any class")
+            .with_help("wrap it in a class as `public static function` (ADR 0011 § 1)"),
+        );
+        Stmt {
+            span,
+            kind: StmtKind::TopLevelFunction(method),
+        }
+    }
+
+    fn parse_toplevel_const_reject(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+    ) -> Stmt {
+        let consts = self.parse_const_body(&attributes, &[]);
+        let span = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_TOPLEVEL_CONST_UNSUPPORTED,
+                "a constant must belong to a class",
+            )
+            .with_primary(span, "not inside any class")
+            .with_help("declare it `public const` on the class it belongs to (ADR 0011 § 1)"),
+        );
+        Stmt {
+            span,
+            kind: StmtKind::TopLevelConst(consts),
         }
     }
 }
@@ -3749,5 +4755,316 @@ mod tests {
         parse_stmt_ok("require_once 'b.mwl';");
         parse_stmt_ok("include_once 'c.mwl';");
         parse_stmt_ok("require 'd.mwl';");
+    }
+
+    // ========================================================================
+    // Chunk 3: declarations
+    // ========================================================================
+
+    #[test]
+    fn class_with_extends_implements_and_members() {
+        let s = parse_stmt_ok(
+            "class Account extends Base implements Comparable, Countable { \
+             public readonly uint $id; \
+             public const int MAX = 10; \
+             public function __construct(public readonly string $name) {} \
+             }",
+        );
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        assert!(class.extends.is_some());
+        assert_eq!(class.implements.len(), 2);
+        assert_eq!(class.members.len(), 3);
+        let ClassMemberKind::Property(prop) = &class.members[0].kind else {
+            panic!("expected a property: {:?}", class.members[0]);
+        };
+        assert!(prop.modifiers.contains(&Modifier::Readonly));
+        let ClassMemberKind::Const(c) = &class.members[1].kind else {
+            panic!("expected a const: {:?}", class.members[1]);
+        };
+        assert!(c.ty.is_some());
+        let ClassMemberKind::Method(m) = &class.members[2].kind else {
+            panic!("expected a method: {:?}", class.members[2]);
+        };
+        assert_eq!(m.params.len(), 1);
+        assert!(m.params[0].modifiers.contains(&Modifier::Public));
+        assert!(m.params[0].modifiers.contains(&Modifier::Readonly));
+        assert!(m.body.is_some());
+    }
+
+    #[test]
+    fn abstract_and_final_class_modifiers() {
+        let s = parse_stmt_ok("abstract class Shape { public abstract function area(): float; }");
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        assert!(class.modifiers.contains(&Modifier::Abstract));
+        let ClassMemberKind::Method(m) = &class.members[0].kind else {
+            panic!("expected a method: {:?}", class.members[0]);
+        };
+        assert!(m.modifiers.contains(&Modifier::Abstract));
+        assert!(m.body.is_none());
+
+        let s = parse_stmt_ok("final class Sealed {}");
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        assert!(class.modifiers.contains(&Modifier::Final));
+    }
+
+    #[test]
+    fn interface_with_multiple_extends() {
+        let s = parse_stmt_ok(
+            "interface Shape extends Comparable, Countable { public function area(): float; }",
+        );
+        let StmtKind::InterfaceDecl(iface) = s.kind else {
+            panic!("expected an interface decl: {s:?}");
+        };
+        assert_eq!(iface.extends.len(), 2);
+        assert_eq!(iface.members.len(), 1);
+    }
+
+    #[test]
+    fn trait_use_insteadof_is_kept() {
+        let s = parse_stmt_ok(
+            "class Greeter { use Greets, Announces { Greets::hello insteadof Announces; } }",
+        );
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        let ClassMemberKind::UseTrait(u) = &class.members[0].kind else {
+            panic!("expected a trait use: {:?}", class.members[0]);
+        };
+        assert_eq!(u.traits.len(), 2);
+        assert_eq!(u.adaptations.len(), 1);
+        assert!(matches!(
+            u.adaptations[0].kind,
+            TraitAdaptationKind::InsteadOf { .. }
+        ));
+    }
+
+    #[test]
+    fn trait_use_as_rename_and_visibility_are_rejected() {
+        let (_, diags) =
+            parse_stmt_with_diags("class Greeter { use Greets { Greets::hello as sayHello; } }");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TRAIT_METHOD_RENAME_UNSUPPORTED))
+        );
+
+        let (_, diags) =
+            parse_stmt_with_diags("class Greeter { use Greets { Greets::hello as protected; } }");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED))
+        );
+    }
+
+    #[test]
+    fn enum_cases_and_explicit_backing_type() {
+        let s = parse_stmt_ok("enum Status { Active, Banned, }");
+        let StmtKind::EnumDecl(e) = s.kind else {
+            panic!("expected an enum decl: {s:?}");
+        };
+        assert!(e.backing.is_none());
+        assert_eq!(e.cases.len(), 2);
+        assert!(e.cases[0].value.is_none());
+
+        let s =
+            parse_stmt_ok("enum Permission: uint { Read = 0b001, Write = 0b010, Admin = 0b100 }");
+        let StmtKind::EnumDecl(e) = s.kind else {
+            panic!("expected an enum decl: {s:?}");
+        };
+        assert!(matches!(
+            e.backing.unwrap().kind,
+            TypeKind::Atom(TypeAtom::Uint)
+        ));
+        assert_eq!(e.cases.len(), 3);
+        assert!(e.cases[0].value.is_some());
+    }
+
+    #[test]
+    fn enum_implements_method_and_string_backing_are_rejected() {
+        let (_, diags) = parse_stmt_with_diags("enum Status implements Comparable { Active }");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ENUM_IMPLEMENTS_UNSUPPORTED))
+        );
+
+        let (_, diags) = parse_stmt_with_diags("enum Status: string { Active }");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ENUM_STRING_BACKING_UNSUPPORTED))
+        );
+
+        let (s, diags) =
+            parse_stmt_with_diags("enum Status { Active, public function foo(): void {} }");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ENUM_MEMBER_UNSUPPORTED))
+        );
+        let StmtKind::EnumDecl(e) = s.kind else {
+            panic!("expected an enum decl: {s:?}");
+        };
+        assert_eq!(e.cases.len(), 1);
+        assert_eq!(e.members.len(), 1);
+    }
+
+    #[test]
+    fn property_hooks_get_and_set() {
+        let s = parse_stmt_ok(
+            "class Temperature { \
+             public float $celsius; \
+             public float $fahrenheit { \
+                 get => $this->celsius * 9 / 5 + 32; \
+                 set(float $f) { $this->celsius = ($f - 32) * 5 / 9; } \
+             } \
+             }",
+        );
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        let ClassMemberKind::Property(prop) = &class.members[1].kind else {
+            panic!("expected a property: {:?}", class.members[1]);
+        };
+        let hooks = prop.hooks.as_ref().expect("hooked property");
+        assert_eq!(hooks.len(), 2);
+        assert_eq!(hooks[0].kind, PropertyHookKind::Get);
+        assert!(matches!(hooks[0].body, Some(PropertyHookBody::Expr(_))));
+        assert_eq!(hooks[1].kind, PropertyHookKind::Set);
+        assert!(hooks[1].param.is_some());
+        assert!(matches!(hooks[1].body, Some(PropertyHookBody::Block(_))));
+    }
+
+    #[test]
+    fn asymmetric_visibility_modifier() {
+        let s = parse_stmt_ok("class Point { public private(set) int $x; }");
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        let ClassMemberKind::Property(prop) = &class.members[0].kind else {
+            panic!("expected a property: {:?}", class.members[0]);
+        };
+        assert!(prop.modifiers.contains(&Modifier::Public));
+        assert!(
+            prop.modifiers
+                .contains(&Modifier::SetVisibility(Visibility::Private))
+        );
+    }
+
+    #[test]
+    fn namespace_statement_and_block_forms() {
+        let s = parse_stmt_ok("namespace App\\Models;");
+        let StmtKind::NamespaceDecl(ns) = s.kind else {
+            panic!("expected a namespace decl: {s:?}");
+        };
+        assert!(ns.name.is_some());
+        assert!(ns.body.is_none());
+
+        let s = parse_stmt_ok("namespace App { class Foo {} }");
+        let StmtKind::NamespaceDecl(ns) = s.kind else {
+            panic!("expected a namespace decl: {s:?}");
+        };
+        assert!(ns.body.is_some());
+    }
+
+    #[test]
+    fn namespace_core_is_reserved() {
+        let (_, diags) = parse_stmt_with_diags("namespace Core;");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_RESERVED_CORE_NAMESPACE))
+        );
+
+        let (_, diags) = parse_stmt_with_diags("namespace Core\\Sub;");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_RESERVED_CORE_NAMESPACE))
+        );
+    }
+
+    #[test]
+    fn use_import_plain_and_rejected_alias() {
+        let s = parse_stmt_ok("use App\\Models\\User;");
+        let StmtKind::UseDecl(u) = s.kind else {
+            panic!("expected a use decl: {s:?}");
+        };
+        assert!(u.alias.is_none());
+
+        let (s, diags) = parse_stmt_with_diags("use App\\Models\\User as Model;");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_IMPORT_ALIAS_UNSUPPORTED))
+        );
+        let StmtKind::UseDecl(u) = s.kind else {
+            panic!("expected a use decl: {s:?}");
+        };
+        assert!(u.alias.is_some());
+    }
+
+    #[test]
+    fn type_alias_declaration() {
+        let s = parse_stmt_ok("type UserId = uint;");
+        let StmtKind::TypeAliasDecl(t) = s.kind else {
+            panic!("expected a type alias decl: {s:?}");
+        };
+        assert!(matches!(t.ty.kind, TypeKind::Atom(TypeAtom::Uint)));
+
+        // A single bare class atom parses fine — the restriction is M2's.
+        parse_stmt_ok("type Id = SomeClass;");
+    }
+
+    #[test]
+    fn anonymous_class_as_new_target() {
+        let s = parse_stmt_ok("$x = new class (1) implements Comparable { public int $n = 1; };");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        let ExprKind::Assign { value, .. } = e.kind else {
+            panic!("expected an assignment: {e:?}");
+        };
+        let ExprKind::New { target, args } = value.kind else {
+            panic!("expected a `new`: {value:?}");
+        };
+        let NewTarget::AnonClass(decl) = target else {
+            panic!("expected an anonymous class target: {target:?}");
+        };
+        assert_eq!(decl.implements.len(), 1);
+        assert_eq!(decl.members.len(), 1);
+        assert!(matches!(args, CallArgs::List(list) if list.len() == 1));
+    }
+
+    #[test]
+    fn toplevel_function_and_const_are_rejected() {
+        let (s, diags) = parse_stmt_with_diags("function greet(): void {}");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TOPLEVEL_FUNCTION_UNSUPPORTED))
+        );
+        assert!(matches!(s.kind, StmtKind::TopLevelFunction(_)));
+
+        let (s, diags) = parse_stmt_with_diags("const FOO = 1;");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TOPLEVEL_CONST_UNSUPPORTED))
+        );
+        let StmtKind::TopLevelConst(consts) = s.kind else {
+            panic!("expected a rejected top-level const: {s:?}");
+        };
+        assert_eq!(consts.len(), 1);
+
+        // An anonymous closure statement is unaffected.
+        parse_stmt_ok("function () {};");
     }
 }

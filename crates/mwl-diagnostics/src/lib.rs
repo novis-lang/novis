@@ -120,6 +120,35 @@ pub mod code {
     /// A PHP superglobal (`$_GET`, `$_SERVER`, `$GLOBALS`, `$argv`, …): no
     /// variable is ever populated by the host — see ADR 0012.
     pub const E_SUPERGLOBAL_UNSUPPORTED: Code = Code::new("E0211");
+    /// `use Path\To\Name as Other;`: an import cannot be renamed — see
+    /// ADR 0015 § 2.
+    pub const E_IMPORT_ALIAS_UNSUPPORTED: Code = Code::new("E0212");
+    /// `Trait::method as newName;` inside a trait `use` block: a trait method
+    /// cannot be renamed — see ADR 0015 § 3.
+    pub const E_TRAIT_METHOD_RENAME_UNSUPPORTED: Code = Code::new("E0213");
+    /// `Trait::method as public;` (or `protected`/`private`) inside a trait
+    /// `use` block: a trait method's visibility cannot be changed by `as` —
+    /// see ADR 0015 § 3.
+    pub const E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED: Code = Code::new("E0214");
+    /// `function foo() { ... }` outside any class: a function must be a
+    /// method — see ADR 0011 § 1.
+    pub const E_TOPLEVEL_FUNCTION_UNSUPPORTED: Code = Code::new("E0215");
+    /// `const FOO = 1;` outside any class: a constant must belong to a
+    /// class — see ADR 0011 § 1.
+    pub const E_TOPLEVEL_CONST_UNSUPPORTED: Code = Code::new("E0216");
+    /// `namespace Core;` (or anything nested under it) in user source:
+    /// `Core` is reserved for built-ins — see ADR 0011 § 2.
+    pub const E_RESERVED_CORE_NAMESPACE: Code = Code::new("E0217");
+    /// `enum Name implements Iface { ... }`: an enum declares only cases and
+    /// an optional backing type — see ADR 0010 § 3.
+    pub const E_ENUM_IMPLEMENTS_UNSUPPORTED: Code = Code::new("E0218");
+    /// `enum Name: string { ... }`: no `string` backing, only `int`/`uint` —
+    /// see ADR 0010 § 3.
+    pub const E_ENUM_STRING_BACKING_UNSUPPORTED: Code = Code::new("E0219");
+    /// A method, property, class constant or trait use inside an `enum`
+    /// body: an enum declares only cases and an optional backing type — see
+    /// ADR 0010 § 3.
+    pub const E_ENUM_MEMBER_UNSUPPORTED: Code = Code::new("E0220");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

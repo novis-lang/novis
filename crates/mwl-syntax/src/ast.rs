@@ -11,9 +11,13 @@
 //! mandatory typed bindings, `switch`, `break`/`continue`, `try`/`catch`/
 //! `finally`), `echo`, `unset`, ADR 0007 § 3.1's typed local declaration,
 //! § 3.3's destructuring statement, and the statement-shaped rejects
-//! (`global`, `goto`, function-scope `static`). Class/interface/trait/enum
-//! declarations — plus `namespace`, `use` and the `type`-alias declaration —
-//! are the parser's next and last M1 chunk.
+//! (`global`, `goto`, function-scope `static`). Classes, interfaces, traits
+//! and enums ([`ClassDecl`]/[`InterfaceDecl`]/[`TraitDecl`]/[`EnumDecl`]),
+//! their members ([`ClassMember`]: properties with PHP 8.4's hooks, consts,
+//! methods, trait `use`), attributes ([`AttributeGroup`]), and the
+//! file-scope declarations that sit alongside them
+//! ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) round out M1's last
+//! chunk.
 //!
 //! # Conventions
 //!
@@ -301,9 +305,34 @@ pub enum StringPart {
     Expr(Expr),
 }
 
-/// A modifier on a promoted constructor parameter — `public`, `protected`,
-/// `private` or `readonly`. The parser accepts these on any parameter;
-/// restricting them to a constructor is a later check, not a grammar rule.
+/// `#[Attr, Attr2(args)]` — one bracketed group, possibly naming several
+/// attributes. Every declaration site (a class, a property, a method, a
+/// parameter, ...) may carry any number of these groups, in source order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AttributeGroup {
+    /// The attributes named in this one `#[...]` group.
+    pub attributes: Vec<Attribute>,
+    /// The whole group, `#[` through the matching `]`.
+    pub span: Span,
+}
+
+/// One `Name` or `Name(args)` inside an [`AttributeGroup`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct Attribute {
+    /// The attribute class's name.
+    pub name: Name,
+    /// The constructor-style argument list, if written.
+    pub args: Option<CallArgs>,
+    /// The whole attribute, name and args.
+    pub span: Span,
+}
+
+/// A declaration modifier — visibility, `readonly`, `static`, `abstract` or
+/// `final`. The parser accepts any of these anywhere a modifier list is
+/// parsed (a parameter, a property, a method, a class header, ...);
+/// restricting which combinations, and which positions, make sense is a
+/// later check, not a grammar rule — the same discipline chunk 1 already
+/// applied to a promoted constructor parameter's modifiers.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[expect(missing_docs, reason = "each variant is exactly its keyword spelling")]
 pub enum Modifier {
@@ -311,6 +340,25 @@ pub enum Modifier {
     Protected,
     Private,
     Readonly,
+    Static,
+    Abstract,
+    Final,
+    /// `private(set)`/`protected(set)`/`public(set)` — PHP 8.4's asymmetric
+    /// visibility: a separate, always-at-least-as-strict visibility for
+    /// writes.
+    SetVisibility(Visibility),
+}
+
+/// One of the three visibility levels, as named by
+/// [`Modifier::SetVisibility`] (the plain `public`/`protected`/`private`
+/// modifiers are their own `Modifier` variants instead, since they can also
+/// stand alone).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[expect(missing_docs, reason = "each variant is exactly its keyword spelling")]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
 }
 
 /// One parameter of a function, method, closure or arrow function.
@@ -323,6 +371,8 @@ pub enum Modifier {
 pub struct Param {
     /// The whole parameter.
     pub span: Span,
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
     /// Promoted-property modifiers (constructor parameters only).
     pub modifiers: Vec<Modifier>,
     /// The declared type, or `None` if omitted (a diagnostic was already
@@ -402,6 +452,24 @@ pub enum NewTarget {
     ParentTy,
     /// `new $class(...)`, `new (expr)(...)` — a runtime-computed class value.
     Expr(Box<Expr>),
+    /// `new class (...) extends X implements Y { ... }` — an anonymous
+    /// class declaration used directly as a `new` target.
+    AnonClass(Box<AnonClassDecl>),
+}
+
+/// The body of an anonymous class (`new class { ... }`): everything
+/// [`ClassDecl`] has except a name and its own `abstract`/`final` modifiers,
+/// neither of which PHP allows here.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnonClassDecl {
+    /// The whole declaration, `class` through the closing brace.
+    pub span: Span,
+    /// The single superclass, if any.
+    pub extends: Option<Name>,
+    /// The implemented interfaces, in source order.
+    pub implements: Vec<Name>,
+    /// The class body's members, in source order.
+    pub members: Vec<ClassMember>,
 }
 
 /// Which of PHP's four same-frame code-inclusion keywords an
@@ -460,10 +528,7 @@ pub struct Expr {
 
 /// Every expression form the parser produces.
 ///
-/// Literal payloads are spans, not cooked values — see the module docs. An
-/// anonymous class (`new class { ... }`) is deliberately not part of
-/// [`NewTarget`] yet: it needs class-body parsing, which arrives with the
-/// declarations chunk.
+/// Literal payloads are spans, not cooked values — see the module docs.
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
@@ -944,6 +1009,359 @@ pub enum StmtKind {
         /// The bindings declared.
         vars: Vec<StaticVar>,
     },
+    /// A class declaration.
+    ClassDecl(ClassDecl),
+    /// An interface declaration.
+    InterfaceDecl(InterfaceDecl),
+    /// A trait declaration.
+    TraitDecl(TraitDecl),
+    /// An enum declaration (ADR 0010).
+    EnumDecl(EnumDecl),
+    /// A `namespace` declaration, either form.
+    NamespaceDecl(NamespaceDecl),
+    /// A `use Path\To\Name;` import.
+    UseDecl(UseDecl),
+    /// `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5), at
+    /// file/namespace scope.
+    TypeAliasDecl(TypeAliasDecl),
+    /// `function foo() { ... }` outside any class body — rejected, ADR 0011
+    /// § 1. Still parses to a full [`MethodMember`] shape, for a precise
+    /// diagnostic; nothing downstream ever acts on it.
+    TopLevelFunction(MethodMember),
+    /// `const FOO = 1 (, BAR = 2)*;` outside any class body — rejected,
+    /// ADR 0011 § 1. Still parses to full [`ConstMember`] shapes (one per
+    /// comma-separated declarator), for a precise diagnostic; nothing
+    /// downstream ever acts on it.
+    TopLevelConst(Vec<ConstMember>),
     /// A placeholder produced during error recovery.
     Error,
+}
+
+// ============================================================================
+// Declarations: classes, interfaces, traits, enums, and their members
+// (ADR 0010, ADR 0011, ADR 0014); `namespace`, `use` and `type`-alias
+// declarations (ADR 0007 § 3.5, ADR 0015)
+// ============================================================================
+
+/// `class Name (extends Base)? (implements Iface, ...)? { ... }`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClassDecl {
+    /// The whole declaration, `class` through the closing brace (attributes
+    /// and modifiers, if any, are not included).
+    pub span: Span,
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// `abstract`/`final`, if written. The parser accepts any [`Modifier`]
+    /// here; which ones make sense on a class is a later check.
+    pub modifiers: Vec<Modifier>,
+    /// The declared name.
+    pub name: Name,
+    /// The single superclass, if any.
+    pub extends: Option<Name>,
+    /// The implemented interfaces, in source order.
+    pub implements: Vec<Name>,
+    /// The class body's members, in source order.
+    pub members: Vec<ClassMember>,
+}
+
+/// `interface Name (extends Base, ...)? { ... }`. PHP allows an interface to
+/// extend more than one other interface, unlike a class's single `extends`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InterfaceDecl {
+    /// The whole declaration, `interface` through the closing brace.
+    pub span: Span,
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// The declared name.
+    pub name: Name,
+    /// The extended interfaces, in source order.
+    pub extends: Vec<Name>,
+    /// The interface body's members (method signatures, consts, and PHP
+    /// 8.4's abstract property hooks), in source order.
+    pub members: Vec<ClassMember>,
+}
+
+/// `trait Name { ... }`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TraitDecl {
+    /// The whole declaration, `trait` through the closing brace.
+    pub span: Span,
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// The declared name.
+    pub name: Name,
+    /// The trait body's members, in source order.
+    pub members: Vec<ClassMember>,
+}
+
+/// `enum Name (: BackingType)? (implements Iface, ...)? { cases... }`
+/// (ADR 0010). `implements`, and any [`ClassMember`] other than a case, are
+/// rejected — both still parse, so the diagnostic can be precise.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnumDecl {
+    /// The whole declaration, `enum` through the closing brace.
+    pub span: Span,
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// The declared name.
+    pub name: Name,
+    /// The `: Type` backing-type clause, if written. Parsed with the full
+    /// ADR 0007 § 3 grammar; that only `int`/`uint` are legal (no `string`,
+    /// no other atom) is enforced only for the one case ADR 0010 § 3 names
+    /// explicitly (`string`) — anything else is a later check.
+    pub backing: Option<Type>,
+    /// `implements ...` — always rejected (ADR 0010 § 3).
+    pub implements: Vec<Name>,
+    /// The declared cases, in source order.
+    pub cases: Vec<EnumCase>,
+    /// Any member other than a case — always rejected (ADR 0010 § 3): an
+    /// enum declares only cases and an optional backing type.
+    pub members: Vec<ClassMember>,
+}
+
+/// One `Name (= expr)?` case of an [`EnumDecl`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct EnumCase {
+    /// The whole case, name through its optional value.
+    pub span: Span,
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// The case's name.
+    pub name: Name,
+    /// The explicit value, if written; omitted, a case takes the previous
+    /// case's value plus one (ADR 0010 § 1) — a later stage's job, not the
+    /// parser's.
+    pub value: Option<Expr>,
+}
+
+/// One member of a class, interface, trait or (rejected, except for
+/// [`ClassMemberKind::Error`]-free recovery) enum body.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClassMember {
+    /// What kind of member this is.
+    pub kind: ClassMemberKind,
+    /// The member's full span, attributes and modifiers included.
+    pub span: Span,
+}
+
+/// The shape of a [`ClassMember`].
+#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ClassMemberKind {
+    /// A property declaration, with or without hooks.
+    Property(PropertyMember),
+    /// A class constant declaration.
+    Const(ConstMember),
+    /// A method declaration, abstract (`body: None`) or concrete.
+    Method(MethodMember),
+    /// A trait `use` clause, with its adaptations if any.
+    UseTrait(UseTraitMember),
+    /// A placeholder produced during error recovery.
+    Error,
+}
+
+/// `modifiers type $name (= expr)?;`, or the hooked form
+/// `modifiers type $name { hooks... }` (PHP 8.4 property hooks, feeding
+/// `PropertyObserver` — ADR 0014). A declaration naming several properties
+/// at once (`public int $a, $b;`) is flattened into one [`ClassMember`] per
+/// name at parse time — hooks apply to exactly one property, so this loses
+/// nothing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PropertyMember {
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// Visibility, `readonly`, `static`, and PHP 8.4's asymmetric-visibility
+    /// `(set)` modifier, in any combination the parser accepts permissively.
+    pub modifiers: Vec<Modifier>,
+    /// The declared type.
+    pub ty: Type,
+    /// The property's name, `$`-sigil included.
+    pub name: Span,
+    /// The default value, if any. Never present together with `hooks`.
+    pub default: Option<Expr>,
+    /// The `{ get ...; set ...; }` hook block, if written; `None` for an
+    /// ordinary, `;`- or `= expr;`-terminated property.
+    pub hooks: Option<Vec<PropertyHook>>,
+}
+
+/// One `get`/`set` hook inside a [`PropertyMember`]'s hook block.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PropertyHook {
+    /// The whole hook, `get`/`set` through its body.
+    pub span: Span,
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// Whether this is `get` or `set`.
+    pub kind: PropertyHookKind,
+    /// `&get` — the hook returns a reference. Never set for `set`.
+    pub by_ref: bool,
+    /// `set(Type $name)`'s parameter, if given explicitly. Unlike an
+    /// ordinary [`Param`], its type may be omitted with no diagnostic —
+    /// PHP 8.4 infers it from the property's own type.
+    pub param: Option<Param>,
+    /// The hook's body; `None` for an abstract hook (`get;`), legal only in
+    /// an interface or an abstract class.
+    pub body: Option<PropertyHookBody>,
+}
+
+/// Which accessor a [`PropertyHook`] is.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PropertyHookKind {
+    /// `get`
+    Get,
+    /// `set`
+    Set,
+}
+
+/// The body of a [`PropertyHook`] that isn't abstract.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PropertyHookBody {
+    /// `=> expr;` — the short form.
+    Expr(Box<Expr>),
+    /// `{ ... }` — the block form.
+    Block(Block),
+}
+
+/// `modifiers const type? Name = expr;` (ADR 0007 § 1's
+/// `public const int MAX = 10;`, PHP 8.3's optional type). A declaration
+/// naming several constants at once (`public const A = 1, B = 2;`) is
+/// flattened into one [`ClassMember`] per name at parse time, same as
+/// [`PropertyMember`].
+///
+/// Also used, with an empty `modifiers` list, for a rejected top-level
+/// `const` declaration ([`StmtKind::TopLevelConst`]) — the shape is
+/// identical, only the legality of where it sits differs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConstMember {
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// Visibility, if written.
+    pub modifiers: Vec<Modifier>,
+    /// The declared type, if written — optional per PHP 8.3.
+    pub ty: Option<Type>,
+    /// The constant's name (no sigil).
+    pub name: Span,
+    /// The constant's value.
+    pub value: Expr,
+}
+
+/// `modifiers function '&'? name(params) (: ReturnType)? (block | ';')`.
+///
+/// Also used, with an empty `modifiers` list, for a rejected top-level
+/// `function` declaration ([`StmtKind::TopLevelFunction`]) — the shape is
+/// identical, only the legality of where it sits differs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MethodMember {
+    /// `#[...]` attribute groups, if any.
+    pub attributes: Vec<AttributeGroup>,
+    /// Visibility, `static`, `abstract`, `final`, in any combination the
+    /// parser accepts permissively.
+    pub modifiers: Vec<Modifier>,
+    /// Whether the method returns by reference.
+    pub by_ref: bool,
+    /// The method's name (no sigil) — a keyword-shaped spelling (`list`,
+    /// `default`, ...) is accepted, same as a member name after `->`/`::`.
+    pub name: Span,
+    /// The parameter list.
+    pub params: Vec<Param>,
+    /// The declared return type, if written.
+    pub return_type: Option<Type>,
+    /// The method's body; `None` for an abstract method or an interface's
+    /// method signature, both of which end in `;` instead.
+    pub body: Option<Block>,
+}
+
+/// `use Trait, Trait2 (';' | '{' adaptations '}')` inside a class/trait
+/// body.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UseTraitMember {
+    /// The traits named, in source order.
+    pub traits: Vec<Name>,
+    /// The `{ ... }` adaptation block's entries, if a block was written.
+    pub adaptations: Vec<TraitAdaptation>,
+}
+
+/// One `Trait::method` reference inside a trait adaptation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TraitMethodRef {
+    /// The trait named, if the `Trait::` qualifier was written — omitted
+    /// only when a single unqualified method name is enough to be
+    /// unambiguous.
+    pub trait_name: Option<Name>,
+    /// The method's name.
+    pub method: Span,
+}
+
+/// One entry of a trait `use { ... }` adaptation block (ADR 0015 § 3).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TraitAdaptation {
+    /// What this adaptation does.
+    pub kind: TraitAdaptationKind,
+    /// The whole adaptation, method reference through the trailing `;`.
+    pub span: Span,
+}
+
+/// The shape of a [`TraitAdaptation`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum TraitAdaptationKind {
+    /// `Trait::method insteadof Other, ...;` — kept, and the only trait
+    /// adaptation that is (ADR 0015 § 3): picks a winner on a collision.
+    InsteadOf {
+        /// The method being kept.
+        method: TraitMethodRef,
+        /// The traits it is kept over, in source order.
+        over: Vec<Name>,
+    },
+    /// `Trait::method as (visibility)? (name)?;` — always rejected
+    /// (ADR 0015 § 3), whether it renames, changes visibility, or both.
+    /// Parsed in full so the diagnostic can say which part is the problem.
+    As {
+        /// The method being adapted.
+        method: TraitMethodRef,
+        /// The visibility-only part, if written.
+        visibility: Option<Modifier>,
+        /// The new name, if written.
+        new_name: Option<Span>,
+    },
+}
+
+/// `namespace Name;` or `namespace Name? { ... }`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamespaceDecl {
+    /// The whole declaration.
+    pub span: Span,
+    /// The declared namespace, or `None` for the unnamed/global form
+    /// (`namespace { ... }`).
+    pub name: Option<Name>,
+    /// `Some` for the bracketed form (scoped to the block); `None` for the
+    /// statement form, which applies to the rest of the enclosing scope.
+    pub body: Option<Block>,
+}
+
+/// `use Path\To\Name;`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct UseDecl {
+    /// The whole declaration.
+    pub span: Span,
+    /// The imported path.
+    pub path: Name,
+    /// `as Alias`, if written — always rejected (ADR 0015 § 2): an import
+    /// cannot be renamed. Parsed anyway, for a precise diagnostic.
+    pub alias: Option<Span>,
+}
+
+/// `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5), at
+/// file/namespace scope, never inside a class body. `TypeExpr` uses the
+/// full ADR 0007 § 3 grammar unconditionally — the restriction that it may
+/// not be a single bare class/interface/enum atom (ADR 0015 § 6) is a
+/// resolution-time check (M2), not a parse-time one; `type Id = SomeClass;`
+/// parses exactly like any other alias.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TypeAliasDecl {
+    /// The whole declaration.
+    pub span: Span,
+    /// The alias's declared name.
+    pub name: Name,
+    /// The type it stands for.
+    pub ty: Type,
 }

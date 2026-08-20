@@ -1,31 +1,27 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-> **Status — 2026-08-20.** Milestone **M0**, closing. Nothing runs yet; `Hello World` is M3.
+> **Status — 2026-08-20.** Milestone **M1**, front end, in progress. Nothing runs yet; `Hello World`
+> is M3.
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
-> `crates/mwl-diagnostics`, and [`benches/abi-probe`](../benches/abi-probe/) holding the promoted
-> M0 spikes as permanent guard tests. Every other crate in the layout is unwritten, and is created
-> when its milestone starts rather than sitting empty.
+> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below), and
+> [`benches/abi-probe`](../benches/abi-probe/) holding the promoted M0 spikes as permanent guard
+> tests. Every other crate in the layout is unwritten, and is created when its milestone starts
+> rather than sitting empty.
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
 > + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle.
 >
-> **Next, in order:**
->
-> 1. ~~`docs/spec/00-overview.md`~~ — **done.** Defines `spawn script` next to `include`/`eval`, the
->    statement-level spelling of every declaration slot [ADR 0007](adr/0007-explicit-type-system.md)
->    requires (typed locals, `foreach` bindings, destructuring, `type` aliases), finalises the
->    conversion operator as `as`, restates [ADR 0008](adr/0008-static-and-global.md)'s closed storage
->    list as a syntax table, and resolves [ADR 0009](adr/0009-string-and-bytes.md)'s deferred `bytes`
->    literal question (no dedicated literal — `as bytes` plus `Core\Bytes::fromHex`/`::fromBase64`).
-> 2. The remaining ADR. [0002](adr/0002-error-propagation.md) through
->    [0008](adr/0008-static-and-global.md) and [0010](adr/0010-enums-are-a-value-type.md) through
->    [0016](adr/0016-ide-integration.md) are written and Accepted; [0009](adr/0009-string-and-bytes.md)
->    is drafted but Proposed, pending the grapheme-segmentation cost guard test its own *Revisiting*
->    names — a `benches/abi-probe` measurement, not a spec question.
-> 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it. The
->    spec above now gives it a grammar for every new declaration slot and for `spawn script`, so M1 is
->    unblocked.
+> **M1 progress:** the lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full
+> recursive-descent parser are done — types and expressions, every control-flow statement, and
+> declarations (classes/interfaces/traits/enums, their members, attributes, `namespace`/`use`/`type`
+> alias). **What's left is M1's own verification**, per the *Verify* bullet below: an `mwl ast`
+> command to dump the AST (needs `mwl-cli` scaffolded — not started), `cargo fuzz` finding no panic
+> in a 1h run on the lexer and parser, and parsing the full local PHP 8.5 install's `.php` files
+> without crashing. Two known gaps from the parser work are the likeliest sources of surprises once
+> that corpus-parse step runs: PHP's alternative colon syntax (`if (...): ... endif;` and friends) is
+> entirely unimplemented, and `goto` target labels (`label:`) are unparsed — see `crates/mwl-syntax`'s
+> module docs for the full list of known gaps.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

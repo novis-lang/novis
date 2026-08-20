@@ -25,7 +25,7 @@
 > **In short:** MWL's `enum` ignores PHP's design and follows C#'s instead — an enum declares a new, closed,
 > named **integer** type. A case is a compile-time constant of that type, never a singleton object, so an
 > enum has no methods, no interfaces, no `::cases()` / `::from()` / `::tryFrom()`, and needs no runtime
-> storage whatsoever. Every enum has exactly one underlying integer type — `uint` by default, or `int` when
+> storage whatsoever. Every enum has exactly one underlying integer type — `int` by default, or `uint` when
 > declared — and PHP's split between "pure" (no backing value) and "backed" enums is gone along with
 > `string` backing: cases auto-increment from `0` unless given an explicit literal, exactly as C#. An enum's
 > name is a type like any other, usable at every binding site [ADR 0007](0007-explicit-type-system.md) § 1
@@ -104,7 +104,7 @@ equality (*5*) and there is no identity to collide.
 
 PHP has three shapes: a pure enum (no backing value, only identity), a backed enum with an `int` value, and
 a backed enum with a `string` value. MWL collapses all three into one: **every enum has an underlying
-integer type**, `uint` unless `: int` is written. There is no pure enum and no string-backed enum.
+integer type**, `int` unless `: uint` is written. There is no pure enum and no string-backed enum.
 
 - **No pure enum.** PHP's pure enum exists because cases are objects with identity — comparing them needs
   no backing value. MWL's cases are integers; the "no backing value" case is simply "the auto-incrementing
