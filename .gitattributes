@@ -1,0 +1,37 @@
+# Normalise to LF in the repository and in working copies on every platform.
+#
+# This is not cosmetic. MWL's conformance tests (`.mwlt`) compare program output
+# byte-for-byte against an expected block, and the lexer must be exercised
+# against both line endings deliberately rather than by accident of checkout.
+* text=auto eol=lf
+
+# Source and config
+*.rs      text eol=lf
+*.toml    text eol=lf
+*.md      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.json    text eol=lf
+*.ini     text eol=lf
+*.sh      text eol=lf
+
+# MWL sources and tests
+*.mwl     text eol=lf
+*.mwlt    text eol=lf
+*.php     text eol=lf
+*.phpt    text eol=lf
+
+# Fixtures that deliberately contain CRLF, to test the lexer's handling of it.
+# Anything under a `crlf/` directory is preserved exactly as committed.
+**/fixtures/crlf/**  -text
+
+# Windows scripts keep CRLF
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+*.ps1     text eol=crlf
+
+# Binary
+*.png     binary
+*.jpg     binary
+*.ico     binary
+*.mwlo    binary

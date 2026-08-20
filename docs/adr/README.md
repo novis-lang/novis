@@ -9,6 +9,7 @@ recorded, with no live tension worth arguing, live in the table below.
 | # | Decision | Status |
 |---|---|---|
 | [0002](0002-error-propagation.md) | Exceptions propagate by checked return, not by unwinding | Accepted |
+| [0003](0003-extension-system.md) | Extensions are sandboxed WebAssembly components, not native shared libraries | Accepted |
 
 ## Decisions taken at project start
 

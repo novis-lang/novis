@@ -16,6 +16,9 @@ starting point and no build step: change a file, run it.
   fully isolated, all sharing one in-memory compiled-code cache.
 - **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
   runtime bug or a resource-limit breach kills one request, never the process.
+- **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
+  precompiled binary runs on every platform, written in whatever language you like, and a crashing or
+  hostile extension harms one request rather than the process.
 - **A migration target for PHP.** `mwl convert` transpiles existing PHP projects, including their `.phpt`
   test suites.
 
@@ -31,6 +34,7 @@ starting point and no build step: change a file, run it.
 | Requests | shared-nothing; only compiled code is shared |
 | Config | root-owned `mwl.ini`; scripts may tighten limits, never widen them |
 | Serving | built-in HTTP/1.1 + h2c; FastCGI optional and later |
+| Extensions | built-in, sandboxed wasm (`.mwlx`), or statically linked native — never `dlopen` ([ADR 0003](docs/adr/0003-extension-system.md)) |
 
 The reasoning behind each of these, and the measurements backing them, are in
 [docs/adr/](docs/adr/README.md).
@@ -53,8 +57,8 @@ docs/spec/          normative language reference
 ```
 
 Crates for later milestones — `mwl-host`, `mwl-http`, `mwl-db`, `mwl-regex`, `mwl-config`, `mwl-cache`,
-`mwl-lsp`, `mwl-fmt`, `mwl-dap`, `mwl-test`, `mwl-convert`, `mwl-pkg` — are added when their milestone
-starts, rather than sitting empty.
+`mwl-ext`, `mwl-lsp`, `mwl-fmt`, `mwl-dap`, `mwl-test`, `mwl-convert`, `mwl-pkg` — are added when their
+milestone starts, rather than sitting empty.
 
 ## Building
 
@@ -80,13 +84,12 @@ cargo fmt --check
 | M5 | Concurrency: coroutines, channels, workers | |
 | M6 | `mwl.ini`, capabilities, limits, artifact cache | |
 | M7 | Built-in HTTP server | |
-| M8 | Stdlib and database drivers | |
-| M9 | LSP, formatter, debugger, profiler, package manager | |
-| M10 | PHP → MWL transpiler | |
-| M11 | Optimising JIT tier | |
+| M8 | Stdlib, database drivers, the `mwl:ext` WIT world | |
+| M9 | Extension system: `.mwlx` loading, sandboxing, `mwl ext` tooling | |
+| M10 | LSP, formatter, debugger, profiler, package manager | |
+| M11 | PHP → MWL transpiler | |
+| M12 | Optimising JIT tier | |
 
 ## Licence
 
-Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
-
-Contributions are accepted under the same dual licence.
+[MIT](LICENSE). Contributions are accepted under the same licence.

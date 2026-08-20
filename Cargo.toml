@@ -9,7 +9,7 @@ members = ["crates/*"]
 version = "0.0.1"
 edition = "2024"
 rust-version = "1.97"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 authors = ["The MWL authors"]
 repository = "https://github.com/mwl-lang/mwl"
 homepage = "https://github.com/mwl-lang/mwl"
@@ -39,6 +39,11 @@ cranelift-native = "0.128"
 
 # --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
 corosensei = "0.2"
+
+# --- extension sandbox (M9). Built on the same cranelift version above;
+# --- spike #4 confirmed wasmtime 41 and cranelift 0.128 coexist.
+# --- See docs/adr/0003-extension-system.md.
+wasmtime = "41"
 
 # --- core utilities ---
 anyhow = "1"

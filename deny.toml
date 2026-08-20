@@ -23,8 +23,9 @@ yanked = "deny"
 ignore = []
 
 # ---------------------------------------------------------------------------
-# Licences. MWL ships as MIT OR Apache-2.0; anything we link must be compatible
-# with distributing a permissively licensed binary.
+# Licences. MWL itself ships as MIT; anything we link must be compatible with
+# distributing a permissively licensed binary. Apache-2.0 dependencies are
+# fine (cranelift and wasmtime are Apache-2.0 WITH LLVM-exception).
 # ---------------------------------------------------------------------------
 [licenses]
 version = 2
