@@ -53,6 +53,36 @@ jobs:
       # library this API-heavy.
       - run: cargo test --workspace --doc
 
+      # Runs on every platform on purpose. These are the invariants MWL's
+      # execution model rests on, they are properties of native code generation,
+      # and they differ per platform: Windows unwinds through SEH, and aarch64 is
+      # a different Cranelift backend entirely. The cost guards only run in
+      # release, because the baselines they compare against are release figures.
+      - name: Architecture invariants and cost guards
+        run: cargo test --release -p mwl-abi-probe
+
+  # ---------------------------------------------------------------------------
+  # Separated because it pulls in Wasmtime, which is minutes of build time that
+  # the front-end crates should not pay on every run before M9.
+  # ---------------------------------------------------------------------------
+  extension-sandbox:
+    name: extension sandbox probes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: none
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm-probe
+      - name: Sandbox containment and boundary costs
+        run: cargo test --release -p mwl-abi-probe --features wasm-probe
+      - name: Lint with the feature enabled
+        run: |
+          cargo clippy --workspace --all-targets \
+            --features mwl-abi-probe/wasm-probe -- -D warnings
+
   lint:
     name: lint
     runs-on: ubuntu-latest

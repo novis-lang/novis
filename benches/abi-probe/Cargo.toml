@@ -1,0 +1,65 @@
+[package]
+name = "mwl-abi-probe"
+description = "Architecture invariants and cost baselines for MWL's calling convention, coroutines and extension sandbox"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# The wasm probes pull in wasmtime, which is ~1 minute of build time we do not
+# want on every `cargo build` for the ~18 months before M9. CI runs a dedicated
+# job with this feature on; day-to-day work on the front end does not pay for it.
+wasm-probe = ["dep:wasmtime"]
+
+[dependencies]
+anyhow.workspace = true
+cranelift.workspace = true
+cranelift-jit.workspace = true
+cranelift-module.workspace = true
+cranelift-native.workspace = true
+corosensei.workspace = true
+wasmtime = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "abi"
+harness = false
+
+[[bench]]
+name = "coroutine"
+harness = false
+
+[[bench]]
+name = "wasm_boundary"
+harness = false
+required-features = ["wasm-probe"]
+
+# ---------------------------------------------------------------------------
+# This crate cannot inherit the workspace lint policy: calling JIT-compiled
+# code requires transmuting a code pointer to a function pointer, and the probe
+# helpers dereference pointers that codegen supplies. `deny` rather than the
+# workspace's `forbid`, so the handful of genuinely necessary blocks can be
+# allowed individually with a stated reason.
+#
+# This does not widen MWL's own unsafe surface: the crate is `publish = false`,
+# is not a dependency of any shipped crate, and exists only to check that the
+# platform still behaves the way the ADRs assume.
+# ---------------------------------------------------------------------------
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"

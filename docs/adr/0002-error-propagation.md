@@ -75,15 +75,32 @@ of a landing pad.
 
 ## Measured cost
 
-Spike #2, release build, `opt_level = "speed"`, 5,000,000 iterations of a 3-frame chain where every frame
-checks the status and copies a 16-byte value up:
+Release build, `opt_level = "speed"`, on `x86_64-pc-windows-msvc`. The figure that matters is the
+**marginal** cost of one more frame, measured as the slope between a 2-frame and an 18-frame chain so that
+the benchmark's own call-out overhead cancels:
 
 ```
-3.9 ns per outer call  =  1.3 ns per frame
+0.85 ns per frame        (6.2 ns at depth 2, 19.8 ns at depth 18)
 ```
 
-For comparison, a single L2 cache miss is roughly 10 ns. The branch is perfectly predicted on the happy
-path, so the real cost is the instruction slot, not the branch.
+The initial spike reported 1.3 ns by dividing a 3-frame total, which included that harness overhead; the
+slope is the more accurate number and the one to hold the design to. For comparison, a single L2 cache
+miss is roughly 10 ns. The branch is perfectly predicted on the happy path, so the real cost is the
+instruction slot, not the branch.
+
+**A throw costs slightly *less* than a normal return** — measured at 0.79–0.82× at depth 8 — because the
+error path returns the status immediately while the success path also copies a 16-byte value up through
+every frame. This is the claim that matters most for PHP compatibility, since frameworks throw on ordinary
+control-flow paths.
+
+That result only holds if throwing does not allocate. The probe originally stored its message as a
+`String`, and that single allocation made a throw **2.8× a return** — more than the entire propagation
+path it was meant to measure. The runtime must keep the same property: a static exception message must
+not allocate, so the pending-error slot is a `Cow<'static, str>` rather than a `String`.
+
+These numbers are guarded continuously rather than measured once. `benches/abi-probe/` carries both the
+criterion benchmarks that track them and loose threshold tests that fail the build on an
+order-of-magnitude regression.
 
 ## Consequences
 
@@ -102,7 +119,7 @@ path, so the real cost is the instruction slot, not the branch.
 **Negative**
 
 - One compare-and-branch per call on the happy path, which native unwinding would not pay. Measured at
-  1.3 ns/frame; accepted.
+  0.85 ns/frame; accepted.
 - Every call site must be generated correctly. A missing status check silently swallows an exception, which
   is a nastier failure mode than a crash. Mitigation: call-site generation goes through a single
   `emit_call()` helper in `mwl-codegen` that always emits the check — no caller constructs a raw
@@ -131,3 +148,9 @@ registration as a supported API on all three target platforms; the optimising ti
 branch to be a measurable bottleneck in application benchmarks (not microbenchmarks); and a design exists
 for unwinding safely across coroutine stack boundaries. Until then, checked returns are not a workaround —
 they are the better design.
+
+The first of those conditions is checked automatically.
+`benches/abi-probe/tests/unwind_unavailable.rs` re-executes itself as a child process, provokes a panic
+beneath a JIT frame, and asserts the child is *terminated* rather than catching it. If a future Cranelift
+starts registering unwind info, that test fails with a message pointing back here — so this ADR gets
+revisited deliberately instead of quietly remaining true by inertia.

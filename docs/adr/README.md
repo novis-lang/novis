@@ -61,3 +61,16 @@ exists.
 
 **Checked-return call sites go through one code path.** See [0002](0002-error-propagation.md): a missing
 status check would silently swallow an exception, so no caller constructs a raw `call` instruction.
+
+**`unsafe` is confined to named crates, each declaring its own policy.** The workspace sets
+`unsafe_code = "forbid"`; crates that genuinely need it opt down to `deny` and allow individual blocks with
+a stated reason. Currently that is `mwl-runtime` and `mwl-codegen` (planned: the coroutine stack switcher,
+the request arena, JIT page mapping) plus `benches/abi-probe`, which must call JIT-compiled code to
+measure it. The probe is `publish = false` and is not a dependency of anything shipped, so it does not
+widen the runtime's unsafe surface.
+
+**Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
+`corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them
+silently. `benches/abi-probe/` checks them on every CI run, including the *premise* of
+[0002](0002-error-propagation.md) — that native unwinding through JIT frames is unavailable — so if that
+ever changes we are told rather than left paying for a workaround that is no longer needed.

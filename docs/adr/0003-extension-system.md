@@ -158,8 +158,18 @@ From spike #4, release build:
 | fresh instance + one call, pooled | 7.57 µs |
 | runaway guest stopped by epoch interruption | traps correctly |
 
-For comparison, a built-in call frame costs 1.3 ns (spike #2). **An extension call therefore carries
-roughly 10 ns more overhead than a built-in call.**
+For comparison, a built-in call frame costs 0.85 ns ([ADR 0002](0002-error-propagation.md)). **An
+extension call therefore carries roughly 10 ns more overhead than a built-in call.**
+
+The instantiation figure is the most environment-sensitive of these: 7.57 µs was measured in an isolated
+binary, and the same code under a parallel test runner competing for cores measures ~17 µs. Both sit
+inside the 8–23 µs realistic range quoted above, so the conclusion is unaffected — but quote it as a range
+rather than a constant.
+
+All five are guarded continuously in `benches/abi-probe/` (build the `wasm-probe` feature), which carries
+criterion benchmarks for the costs and separate tests asserting the containment properties: that a guest
+reading past the end of the host heap gets nothing rather than adjacent memory, that a runaway guest is
+trapped by its deadline, and that a fresh instance cannot observe state written by a previous one.
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 significant for fine-grained work. This is precisely why Tier 0 exists for primitives and Tier 2 for

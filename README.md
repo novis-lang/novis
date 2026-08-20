@@ -52,9 +52,18 @@ crates/
   mwl-runtime       values, arrays, coroutines, scheduler     [audited unsafe]
   mwl-stdlib        native builtin functions
   mwl-cli           the `mwl` binary
+benches/
+  abi-probe         architecture invariants + cost baselines  [audited unsafe]
 docs/adr/           architecture decision records
 docs/spec/          normative language reference
 ```
+
+[`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/adr/`
+depend on how Cranelift, `corosensei` and Wasmtime behave rather than on MWL's own code, so a dependency
+bump can invalidate them silently. It checks them continuously: that a throw propagates and a runtime
+panic is *contained* across native frames, that a coroutine can suspend from beneath live JIT frames, that
+a wasm guest cannot read past the host heap or outlive its deadline — and that native unwinding through
+JIT frames is still unavailable, which is the premise the calling convention exists for.
 
 Crates for later milestones — `mwl-host`, `mwl-http`, `mwl-db`, `mwl-regex`, `mwl-config`, `mwl-cache`,
 `mwl-ext`, `mwl-lsp`, `mwl-fmt`, `mwl-dap`, `mwl-test`, `mwl-convert`, `mwl-pkg` — are added when their
@@ -70,6 +79,16 @@ cargo build            # debug; dependencies are still built with opt-level 2
 cargo test             # unit + integration
 cargo clippy --all-targets -- -D warnings
 cargo fmt --check
+```
+
+The cost baselines are release-mode figures, so their guard tests are skipped in a debug build. The
+extension-sandbox probes pull in Wasmtime and sit behind a feature flag, so day-to-day builds do not pay
+for it:
+
+```sh
+cargo test --release -p mwl-abi-probe                          # cost guards
+cargo test --release -p mwl-abi-probe --features wasm-probe    # + sandbox probes
+cargo bench -p mwl-abi-probe                                   # track the numbers
 ```
 
 ## Roadmap
