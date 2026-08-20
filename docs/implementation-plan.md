@@ -1,16 +1,45 @@
 # MWL — Modern Web Lang: Implementation Plan
 
+> **Status — 2026-08-20.** Milestone **M0**, closing. Nothing runs yet; `Hello World` is M3.
+>
+> **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
+> `crates/mwl-diagnostics`, and [`benches/abi-probe`](../benches/abi-probe/) holding the promoted
+> M0 spikes as permanent guard tests. Every other crate in the layout is unwritten, and is created
+> when its milestone starts rather than sitting empty.
+>
+> **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
+> + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle.
+>
+> **Next, in order:**
+>
+> 1. `docs/spec/00-overview.md` — the semantics need writing down before code encodes them by
+>    accident. It must define `spawn script` next to `include`, since the two run a file and
+>    isolate opposite amounts, and that is the confusion
+>    [ADR 0006](adr/0006-isolated-script-execution.md) predicts.
+> 2. The remaining ADRs for the decision table below. [0002](adr/0002-error-propagation.md)
+>    through [0006](adr/0006-isolated-script-execution.md) are written; the rest are not.
+> 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it.
+
+**How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
+and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
+[docs/adr/](adr/README.md), and where a decision has its own ADR this document links to it instead of
+restating it — follow the link rather than expecting the argument here. For decisions with no ADR of their
+own, the *why* is in [adr/README.md](adr/README.md) under *Decisions taken at project start* and the
+*mechanics* are in this document's **Architecture** section.
+
 ## Context
 
 This is the living implementation plan for **MWL**, the language this repository builds. It is the
-single place where the plan of record lives; the decisions it summarises are argued out in full in
-[docs/adr/](adr/README.md). Keep it in sync as milestones land.
+single place where the plan of record lives; every decision it states is argued out in full in
+[docs/adr/](adr/README.md). Keep the status block above in sync as milestones land.
 
 The goal is a new programming language for web servers and CLI, written in Rust, that:
 
 - takes PHP 8.5 syntax as its starting point so existing PHP projects can be migrated,
 - compiles to native code just-in-time with no build step (edit file → run),
 - has first-class in-language parallelism,
+- can run another `.mwl` file as a fully isolated unit of work **inside the same process**, so a script
+  never has to spawn an interpreter to get isolation ([ADR 0006](adr/0006-isolated-script-execution.md)),
 - is memory-safe and hard to attack,
 - serves HTTP from a **single process** handling unlimited concurrent, fully isolated requests while
   sharing one compiled-code cache across all of them,
@@ -18,9 +47,9 @@ The goal is a new programming language for web servers and CLI, written in Rust,
   ([ADR 0004](adr/0004-memory-for-simplicity.md)).
 
 The motivation is the structural ceiling of PHP itself: process-per-request or worker-pool models, no
-in-language parallelism, a C runtime with a long CVE history, and a stdlib whose semantics block
-optimisation. MWL keeps PHP's authoring experience (no build step, inline templating, familiar syntax)
-and replaces the execution model underneath it.
+in-language parallelism, no way to run code in isolation short of another process, a C runtime with a long
+CVE history, and a stdlib whose semantics block optimisation. MWL keeps PHP's authoring experience (no
+build step, inline templating, familiar syntax) and replaces the execution model underneath it.
 
 Intended outcome: a self-hosted toolchain (`mwl` binary) that runs `.mwl` files on the CLI, serves them
 over HTTP from one process, and can mechanically transpile existing PHP codebases — including their
@@ -38,9 +67,10 @@ over HTTP from one process, and can mechanically transpile existing PHP codebase
 | Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing |
 | Parallelism | **Hybrid**: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | **Stackful coroutines** — no async colouring; any function may yield |
-| PHP compatibility | **Pragmatic superset.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()` |
+| Isolated execution | **`spawn script 'file.mwl'`** — runs another file in-process with its own heap, globals and config overlay, on the caller's budget. File-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
+| PHP compatibility | **Pragmatic superset.** PHP 8.5 syntax accepted; `strict_types` implicit; no `eval`, `$$var`, `goto`, `global`, `extract()`. `eval` and `exec('php …')` have a replacement rather than only a rejection: `spawn script` ([ADR 0006](adr/0006-isolated-script-execution.md)) |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
-| Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved) |
+| Request state | **Strict shared-nothing.** Only compiled code survives a request. No connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
 | Security | Server-level `mwl.ini`, root-owned, php.ini-style, deny-by-default capabilities + hard per-request limits. Per-directive changeability: capabilities tighten-only, limits freely settable per request up to a `System` ceiling ([ADR 0005](adr/0005-config-changeability.md)) |
 | Serving | Built-in HTTP/1.1 + h2c server. FastCGI deferred to optional transport. HTTP/3 out of scope |
@@ -84,110 +114,54 @@ talks h1/h2 upstream → h3 is pure cost.
   per-request arena held to its peak are all deliberate purchases of safety, speed or simplicity. Sizing a
   deployment therefore means sizing for concurrency — tasks × stack, plus concurrent requests × their
   `memory` cap — and deployment docs must say so rather than quote a typical RSS.
+- **One new language construct that PHP has no equivalent of.** `spawn script` is a surface a developer
+  has to learn and the spec has to define next to `include`, which they will confuse it with. Accepted:
+  the requirement it answers — run another file, isolated, without a second process — has no other honest
+  answer, and it reuses the request boundary and the worker value rules rather than adding either
+  ([ADR 0006](adr/0006-isolated-script-execution.md)).
 - **This is an 18–24 month effort at full-time pace for one experienced engineer**, front-loaded: M0–M4
   (a usable CLI language) is roughly 3–4 months; the stdlib and DB drivers are the long tail.
 
 ---
 
-## Spike results (2026-08-20) — one design change forced
+## Validated premises
 
-Rust 1.97.1 + Cranelift 0.128.4 on `x86_64-pc-windows-msvc`. Spikes live in the scratchpad
-(`clif-spike/src/{main,bin/abi,bin/coro}.rs`).
+The M0 spikes are now permanent guard tests in [`benches/abi-probe`](../benches/abi-probe/), because
+several decisions here rest on how Cranelift, `corosensei` and Wasmtime behave rather than on MWL's own
+code, and a dependency bump can invalidate them silently. **The tests own the numbers; this document does
+not restate them.**
 
-**Finding 1 — native unwinding is unavailable, on every platform.** A Rust panic raised in a runtime
-helper called from JIT code escaped as SEH `0xE06D7363` and killed the process; `catch_unwind` above the
-JIT frame never saw it. Cause confirmed in the crate source: `cranelift-jit` never calls
-`RtlAddFunctionTable` (Windows) or `__register_frame` (ELF). Its only unwind support sits behind the
-`wasmtime-unwinder` feature, which is Wasmtime's *private* side-table unwinder, not the platform unwinder
-that Rust panics and C++ exceptions use. Setting `unwind_info = true` makes Cranelift *emit* unwind data
-that nothing registers with the OS.
+| Premise | Guarded by | Argued in |
+|---|---|---|
+| Native unwinding through JIT frames is unavailable on every platform — the premise the calling convention exists for | `tests/unwind_unavailable.rs` | [0002](adr/0002-error-propagation.md) |
+| A throw propagates, and a runtime panic is *contained*, across native frames | `tests/invariants.rs` | [0002](adr/0002-error-propagation.md) |
+| A checked-return frame stays cheap, and throwing costs no more than returning | `a_checked_return_frame_stays_cheap`, `throwing_costs_about_the_same_as_returning` | [0002](adr/0002-error-propagation.md) |
+| A coroutine can suspend from beneath live JIT frames, cheaply | `a_helper_can_suspend_with_jit_frames_live_above_it`, `a_coroutine_round_trip_stays_cheap` | [adr/README.md](adr/README.md), *Stackful coroutines* |
+| A wasm guest cannot read past the host heap or outlive its deadline, and the boundary is affordable | `tests/wasm_sandbox.rs`, `a_host_to_guest_call_stays_cheap`, `per_request_instantiation_stays_affordable` | [0003](adr/0003-extension-system.md) |
+| An OS process still costs orders of magnitude more than a task — the whole cost case for in-process isolation | `an_os_process_costs_orders_of_magnitude_more_than_a_task` | [0006](adr/0006-isolated-script-execution.md) |
 
-**Design change — exceptions propagate by checked return, not by unwinding.** Normative ABI for every
-compiled MWL function and every runtime helper:
-
-```rust
-extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32   // 0 = ok, non-zero = throw pending in Ctx
-```
-
-Codegen emits `icmp_imm ne 0` + `brif` after every call; the error block drops this frame's locals and
-returns the status onward. **Measured cost: 1.3 ns per frame** (3.9 ns for a 3-frame chain, 5M
-iterations). This is strictly better than native unwinding for MWL: no platform-specific unwind
-registration on 3 platforms × 2 architectures, nothing to unwind across a coroutine stack switch, and
-error-path refcount drops become explicit IR the optimiser can see instead of opaque landing pads.
-
-**Corollary — helper ABI is `extern "C"`, never `extern "C-unwind"`, and every helper wraps its body in
-`catch_unwind`** (one macro, zero happy-path cost) to convert a runtime panic into a `FATAL` status. This
-is what preserves per-request isolation without unwind tables, and it makes `panic = "unwind"` load-bearing
-rather than merely preferred. A custom panic hook must route the message to the request log instead of
-stderr.
-
-**Finding 2 — stackful coroutines work under JIT frames.** `corosensei` 0.2.2 suspends from a helper with
-two JIT frames live above it and resumes correctly back into them; repeated switches leave frames intact;
-checked-return throws and contained panics both still propagate correctly inside a coroutine. **Measured:
-25 ns per suspend/resume round trip.** The "no async colouring" promise holds — any MWL function can do
-I/O without being marked `async`.
-
-**Finding 3 — the toolchain is in place.** Rust 1.97.1 stable, MSVC 14.44 + Windows SDK 10.0.26100 for
-linking, PHP 8.5.8 available as a comparison oracle.
-
-**Finding 4 — WebAssembly is viable as the extension mechanism.** wasmtime 41 coexists with cranelift
-0.128 (no dependency conflict, since wasmtime is built on it). Measured: host→guest call 11.5 ns,
-guest→host accessor call 9.0 ns, 1 KiB bulk copy into guest memory 11.7 ns, fresh pooled instance plus one
-call 7.57 µs, and epoch interruption correctly traps a deliberately infinite guest loop. Against a 1.3 ns
-built-in call frame, an extension call costs ~10 ns more — noise for coarse-grained work, significant for
-fine-grained work, which is what the tier split below is for.
+Those spikes forced one design change, and it is normative for everything below: **exceptions propagate by
+checked return, not by unwinding**, and every runtime helper is `extern "C"` wrapping `catch_unwind`. The
+signature, the measured cost and the reasoning are in [ADR 0002](adr/0002-error-propagation.md).
 
 ## Extension system
 
-Full reasoning in `docs/adr/0003-extension-system.md`. Three tiers, each the right answer for a different
-class of code rather than a compromise:
+Three tiers, each the right answer for a different class of code rather than a compromise. The full
+reasoning — the WIT interface, the handle-table value model, the measured boundary costs, the isolation and
+loading rules, and the decisive rejection of `dlopen` — is in [ADR 0003](adr/0003-extension-system.md).
 
-**Tier 0 — built-in (`mwl-stdlib`).** Compiled into the binary. Native, direct heap access, no boundary.
-Home of the fine-grained primitives: string and array functions, conversions, anything whose total cost is
-comparable to a call.
+- **Tier 0 — built-in (`mwl-stdlib`).** Compiled into the binary, native, direct heap access, no boundary.
+  Home of the fine-grained primitives whose total cost is comparable to a call.
+- **Tier 1 — WebAssembly component extensions (`.mwlx`).** The default for third parties: one binary that
+  runs on every platform, sandboxed by construction, authorable in any language `wit-bindgen` targets.
+- **Tier 2 — statically linked native.** A Rust crate compiled into a custom `mwl` binary, for first-party
+  subsystems needing raw sockets, TLS or direct heap access — `mwl-db`, `mwl-regex`, crypto. It requires
+  building from source, which is the right friction for code that runs unsandboxed.
 
-**Tier 1 — WebAssembly component extensions (`.mwlx`).** The default for third parties. A `.mwlx` is a
-wasm component with an `mwl.manifest` custom section — one file, one binary, every platform. Sandboxed and
-memory-safe by construction, so a crashing or hostile extension harms one request rather than the process.
-Interface declared in WIT (`mwl:ext@1.0.0`); `wit-bindgen` generates bindings for Rust, C, C++, Zig, Go,
-JS and Python, so authors are not restricted to C the way PHP's are. Semantic versioning is part of the
-contract, which fixes PHP's recompile-every-minor-release problem.
-
-**Tier 2 — statically linked native extensions.** A Rust crate compiled into a custom `mwl` binary, for
-first-party subsystems needing raw sockets, TLS or direct heap access — `mwl-db`, `mwl-regex`, crypto.
-Native speed, safe because it is safe Rust, and it requires building from source, which is the right
-friction for code that runs unsandboxed.
-
-**Explicitly rejected: `dlopen` of native shared libraries** — the PHP/Python/Node model. It destroys
-memory safety (the central product claim), destroys request isolation (one segfault kills every in-flight
-request in a single-process server), makes every `mwl.ini` capability grant advisory rather than enforced,
-and cannot ship one precompiled binary per platform anyway — Rust has no stable ABI, so an extension would
-also have to match the host's compiler version. It fails both of the requirements that motivated asking.
-
-Key mechanics:
-
-- **Values cross as handles, never pointers.** MWL values stay in the host heap; the guest gets an opaque
-  `value` resource — a bounds-checked index into a per-call handle table — and reads through host accessors
-  (9.0 ns). The guest cannot forge a host pointer, the host stays authoritative for refcount and COW, and
-  large arrays are never copied wholesale.
-- **Statically typed.** The manifest declares functions, classes, constants and wanted `mwl.ini`
-  directives; the host registers them into the compiler's symbol table, so `mwl check` type-checks calls
-  into extensions and codegen emits a direct trampoline call rather than dynamic dispatch.
-- **Root-controlled loading.** `extension = image.mwlx` in the root-owned `mwl.ini`, with optional hash
-  pinning and signature verification. A project cannot cause code to be loaded.
-- **Fresh instance per request, created lazily.** Extension state cannot leak between requests — something
-  PHP cannot offer. Paid only for extensions a request actually calls, so realistically 8–23 µs.
-- **No ambient authority.** No WASI by default; the guest gets only MWL's capability-checked host
-  functions, so extension I/O obeys the same root config as script code. WASI is an opt-in world whose
-  preopens derive from the capability grants.
-- **Epoch interruption** ties guest execution to the per-request CPU cap, so a runaway extension traps
-  instead of hanging a core.
-- **Async composes for free** — wasmtime's async support is stack switching, the same mechanism as MWL's
-  coroutines, so an extension doing I/O suspends the request like any other function.
-
-One sequencing constraint: the WIT world must be authored **during** the stdlib milestone, from the same
-value-access design, so the internal Tier 0 interface and the Tier 1 WIT world are the same shape rather
-than two designs that drift apart.
+One sequencing constraint, which is why this section is in the plan at all: the `mwl:ext@1.0.0` WIT world
+must be authored **during** the stdlib milestone (M8), from the same value-access design as the built-ins,
+so that the Tier 0 internal interface and the Tier 1 guest interface are one design rather than two that
+drift. Deferring it to M9 would mean retrofitting.
 
 ## Architecture
 
@@ -208,12 +182,13 @@ than two designs that drift apart.
     │               ops, optimisation passes        │
     ├───────────────────────────────────────────────┤
     │ mwl-codegen   Cranelift → native code (W^X),  │
-    │               unwind tables, helper calls     │
+    │               status checks, helper calls     │
     └───────────────────────┬───────────────────────┘
                             │  Arc<CompiledUnit>  (immutable, shared)
     ┌───────────────────────▼───────────────────────┐
     │ mwl-host   unit cache (single-flight compile) │
-    │            per-request isolation + limits     │
+    │            isolate = arena + globals + limits │
+    │            (a request is one isolate's root)  │
     └───────┬───────────────────────────────┬───────┘
             │                               │
     ┌───────▼───────┐               ┌───────▼───────┐
@@ -286,108 +261,69 @@ broadcast — N simultaneous first-hits compile exactly once, and none of them b
 Each request gets: its own heap arena with a hard byte cap; a fresh set of superglobals; a
 copy-on-write overlay of the config; its own coroutine tree. At request end the arena is released
 wholesale. `catch_unwind` at the request boundary means a runtime panic kills one request, never the
-process (`panic = "unwind"` in release for this reason). Every capability check consults the
-*request's* config snapshot, so a script cannot affect its neighbours.
+process, which is why `panic = "unwind"` is load-bearing in every profile. Every capability check
+consults the *request's* config snapshot, so a script cannot affect its neighbours.
+
+### In-process isolated script execution
+
+Provisional surface — the spec pins it down in M5:
+
+```php
+$job    = spawn script 'jobs/report.mwl' with(args: ['month' => 7], limits: ['memory' => '256M']);
+$result = await $job;                    // ScriptResult { ok, value, output, error, usage }
+```
+
+with the callee an ordinary script that reads `$_ARGS` and answers with a top-level `return`.
+
+The semantics are decided and stated in full in [ADR 0006](adr/0006-isolated-script-execution.md): what is
+shared (only immutable compiled code), how values cross (the same deep-copy-or-move rules and the same
+implementation as cross-core worker dispatch), how budgets are accounted (at the root of the request tree,
+never per isolate), the `script.spawn` capability and its path resolution, and failure arriving as a value
+rather than as an unwind. The three invariants no optimisation may trade away are listed in
+[CLAUDE.md](../CLAUDE.md).
+
+The structural consequence for this plan: `mwl-host` gains **one** `Isolate` type, and an inbound HTTP
+request *is* the root isolate of its tree. The server path (M7) and the `spawn script` path (M5) therefore
+share one arena setup, one teardown, one place limits are enforced — and one state-bleed test suite. That
+is why isolates land in M5, before the server that depends on them.
 
 ### `mwl.ini` — server-level, root-owned
 
-php.ini-style directive registry. `mwl.ini` states **defaults**, not ceilings: a directive is a limit that
-cannot be exceeded only when it cannot be changed at runtime at all. Each directive carries a changeability
-class ([ADR 0005](adr/0005-config-changeability.md)):
+php.ini-style directive registry, root-owned, with per-app capability blocks living in the *root* config so
+an application can never grant itself rights. `mwl.ini` states **defaults, not ceilings**: a directive is a
+limit that cannot be exceeded only when it cannot be changed at runtime at all. Each directive carries one
+of three changeability classes — `System`, `Runtime`, `RuntimeTighten`.
 
-- `System` — settable in `mwl.ini` only; `ini_set` fails,
-- `Runtime` — `mwl.ini` gives the default; a request may set any value, wider or narrower, for itself,
-- `RuntimeTighten` — narrowing only. Argued per directive, not the general policy: capability grants, and
-  the directives where PHP behaves this way too (`open_basedir`).
+[ADR 0005](adr/0005-config-changeability.md) holds the only copy of the directive layout: the classes and
+why each is argued per directive, the `[core]`, `[limits]`, `[limits.hard]`, `[capabilities]` and `[app]`
+sections, and the `ini_set`/`ini_get`/`ini_restore` overlay rules. Do not restate it here.
 
-```ini
-[core]                                          ; System
-opcache.validate       = hash
-cache.dir              = /var/cache/mwl        ; refuses to start if world-writable
+Two cross-cutting consequences the milestones below depend on:
 
-[limits]                                        ; Runtime — what a request starts with
-memory                 = 128M
-cpu_time               = 5s
-wall_time              = 30s
-max_tasks              = 64
-max_output             = 32M
-
-[limits.hard]                                   ; System — what one request may raise itself to
-memory                 = 2G                    ; `off` removes the ceiling entirely
-cpu_time               = 60s
-wall_time              = 300s
-max_tasks              = 4096
-max_output             = 512M
-
-[capabilities]                                  ; deny-by-default, RuntimeTighten
-fs.read                = /srv/www:/srv/shared
-fs.write               = /srv/www/var
-net.out                = api.stripe.com:443
-process.exec           = off
-env.read               = APP_ENV
-
-[app "shop"]                                    ; per-app blocks live in the ROOT config,
-root                   = /srv/www/shop          ; so an app can never grant itself rights
-capabilities.fs.write  = /srv/www/shop/var
-limits.hard.memory     = 512M                   ; may lower a ceiling, never raise it
-```
-
-`ini_set()`/`ini_get()`/`ini_restore()` operate on the request-local copy-on-write overlay under those
-rules, so a widened limit dies with the request that set it and is never visible to another. A set refused
-by a ceiling or a class returns `false` and leaves the value unchanged — it is not clamped.
+- A widened limit lives on the request-local copy-on-write overlay, so it dies with the request that set it
+  and is never visible to another. A set refused by a ceiling or a class returns `false` and leaves the
+  value unchanged — it is **not** clamped.
+- Every `[limits]` value is accounted against the **root of a request tree**, not per isolate, which is
+  what keeps the process worst case independent of how many isolates a script creates
+  ([ADR 0006](adr/0006-isolated-script-execution.md)).
 
 ---
 
 ## Repository layout
 
-```
-d:\swlang\
-├─ Cargo.toml                 # workspace
-├─ rust-toolchain.toml        # pinned stable + rustfmt, clippy, llvm-tools
-├─ deny.toml                  # cargo-deny: advisories, licences, bans
-├─ .github/workflows/ci.yml   # win/linux/macos × test, clippy -D warnings, fmt, deny, miri
-├─ docs/
-│  ├─ spec/                   # normative language reference (grammar, semantics)
-│  ├─ adr/                    # architecture decision records (one per table row above)
-│  └─ threat-model.md
-├─ crates/
-│  ├─ mwl-diagnostics/        # spans, source maps, rendering (terminal + JSON for LSP)
-│  ├─ mwl-syntax/             # lexer (MWL + PHP mode, inline HTML), parser, AST
-│  ├─ mwl-hir/                # resolution, namespaces, class graph, symbols
-│  ├─ mwl-types/              # gradual type system, inference, checking
-│  ├─ mwl-ir/                 # CFG/SSA IR, safepoints, refcount ops, passes
-│  ├─ mwl-codegen/            # Cranelift backend, unwind info, W^X, helper table
-│  ├─ mwl-runtime/            # values, arrays, strings, objects, coroutines,
-│  │                          #   scheduler, arena, limits   (holds the unsafe core)
-│  ├─ mwl-stdlib/             # native builtins
-│  ├─ mwl-regex/              # two-tier engine + preg_* layer          [tier 2]
-│  ├─ mwl-db/                 # driver trait + mysql / pgsql / sqlite / mssql [tier 2]
-│  ├─ mwl-ext/                # .mwlx loader, WIT host impl, handle tables,
-│  │                          #   per-request instancing, capability bridge
-│  ├─ mwl-config/             # mwl.ini registry, changeability classes, overlays
-│  ├─ mwl-cache/              # content-addressed artifact cache
-│  ├─ mwl-host/              # Transport trait, unit cache, request isolation
-│  ├─ mwl-http/               # hyper h1 + h2c transport, optional rustls
-│  ├─ mwl-fcgi/               # (M12) optional FastCGI transport
-│  ├─ mwl-test/               # .mwlt runner
-│  ├─ mwl-fmt/                # formatter
-│  ├─ mwl-lsp/                # tower-lsp language server
-│  ├─ mwl-dap/                # debug adapter
-│  ├─ mwl-convert/            # PHP→MWL transpiler, .phpt→.mwlt, migration report
-│  ├─ mwl-pkg/                # package manager
-│  └─ mwl-cli/                # the `mwl` binary
-├─ tests/                     # cross-crate integration + conformance
-├─ benches/                   # criterion micro + macro benchmarks vs PHP 8.5
-└─ fuzz/                      # cargo-fuzz targets
-```
+The layout, and which crates exist today versus which are deferred:
+[README](../README.md#repository-layout). Crates for later milestones are created when their milestone
+starts rather than sitting empty.
 
 ### Unsafe policy
 
-`#![forbid(unsafe_code)]` in every crate except three allow-listed modules in `mwl-runtime` and
-`mwl-codegen`: the coroutine stack switcher, the request arena, and JIT page mapping. Those carry
-`#![deny(unsafe_op_in_unsafe_fn)]`, a safety-invariant doc comment per block, dedicated Miri/ASAN
-coverage, and require an ADR to grow. Prefer `corosensei` (audited, handles Windows SEH and aarch64) over
-a hand-rolled switcher.
+`unsafe_code = "forbid"` workspace-wide. Crates that genuinely need it opt down to `deny` and allow
+individual blocks with a stated reason: `mwl-runtime` and `mwl-codegen` (planned — the coroutine stack
+switcher, the request arena, JIT page mapping), plus `benches/abi-probe`, which must call JIT-compiled code
+to measure it and is `publish = false`, so it does not widen the runtime's unsafe surface. Those modules
+carry `deny(unsafe_op_in_unsafe_fn)`, a safety-invariant doc comment per block, dedicated Miri/ASAN
+coverage, and require an ADR to grow. Prefer `corosensei` (audited, handles Windows SEH and aarch64) over a
+hand-rolled switcher. The policy is enforced in [Cargo.toml](../Cargo.toml).
 
 ---
 
@@ -396,12 +332,13 @@ a hand-rolled switcher.
 Each milestone ends with something runnable and its own tests. Do not start the next until the current
 one's verification passes.
 
-### M0 — Project setup (~3 days)
-Install `rustup` (absent on this machine). Scaffold the workspace, all crate skeletons, CI matrix across
-the three platforms, `clippy -D warnings`, `rustfmt`, `cargo-deny`, `cargo-fuzz`, dual licence files,
-`CONTRIBUTING.md`, first commit on the empty repo, and the first ADRs recording the decision table above.
+### M0 — Project setup (~3 days) — **done**
+Workspace scaffold, the CI matrix across the three platforms, `clippy -D warnings`, `rustfmt`,
+`cargo-deny`, `cargo-fuzz`, the licence, and the first ADRs recording the decision table above. The
+architecture spikes were promoted into `benches/abi-probe` as permanent guard tests rather than left in a
+scratchpad.
 
-**Verify:** `cargo test` / `cargo clippy` / `cargo deny check` green on all three platforms in CI.
+**Verified:** `cargo test` / `cargo clippy` / `cargo deny check` green on all three platforms in CI.
 
 ### M1 — Front end (~3 weeks)
 Lexer with dual mode (`<?mwl`, `<?php`, `<?=`), inline HTML, heredoc/nowdoc, string interpolation, all
@@ -424,57 +361,90 @@ operations and runtime-helper calls.
 programs produce no `Unknown` types in the IR dump.
 
 ### M3 — Baseline Cranelift backend → **Hello World** (~3 weeks)
-Calling convention (`fn(*mut Frame, *mut Ctx) -> ValueOrUnwind`), runtime helper table, `echo`, string
-concat, arithmetic, comparison, control flow, function calls, safepoint polls, W^X page management, unwind
-registration (SEH on Windows, DWARF elsewhere).
+The checked-return calling convention from [ADR 0002](adr/0002-error-propagation.md), which is normative
+for the signature, the `catch_unwind` helper wrapper and the status check emitted after every call. There
+is no platform unwind-table registration to do — that is the point of that ADR. Plus the runtime helper
+table, `echo`, string concat, arithmetic, comparison, control flow, function calls, safepoint polls and
+W^X page management.
 
-**Verify:** `mwl run hello.mwl` prints `Hello World` from natively compiled code on all three platforms.
-Backtraces resolve through JIT frames. `mwl run --dump-asm` shows generated code.
+**Verify:** `mwl run hello.mwl` prints `Hello World` from natively compiled code on all three platforms. A
+throw crosses several JIT frames and is caught; a helper panic terminates the script with a `FATAL` status
+and leaves the process able to run the next one. An MWL-level backtrace names the right functions, resolved
+from MWL's own frame chain rather than from the platform unwinder. `mwl run --dump-asm` shows generated
+code.
 
 ### M4 — Language completeness — a usable CLI language (~10 weeks)
-Full ordered-hash arrays with COW, exceptions unwinding correctly through JIT frames, closures with bound
+Full ordered-hash arrays with COW, exceptions propagating correctly by checked return across JIT frames
+([ADR 0002](adr/0002-error-propagation.md)), closures with bound
 `$this`, inheritance/interfaces/traits/enums, generators (nearly free given stackful coroutines), `foreach`
 and iterators, references (`&$x`), static and instance members, magic methods, core string/array/math
 functions, `var_dump`/`print_r`/`json_encode`.
 
 Also in this milestone: `mwl test` and the `.mwlt` format — deliberately defined as a **superset of
 `.phpt` sections** (`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`,
-`--ARGS--`, `--ENV--`, `--CLEAN--`) so the M10 importer is mechanical rather than a rewrite.
+`--ARGS--`, `--ENV--`, `--CLEAN--`) so the M11 importer is mechanical rather than a rewrite.
 
 **Verify:** hand-written conformance suite ≥ 1000 `.mwlt` cases green; a non-trivial CLI program (an
 argument-parsing file-processing tool) runs correctly; no leaks under Valgrind/ASAN.
 
-### M5 — Concurrency (~4 weeks)
+### M5 — Concurrency and script isolates (~5 weeks)
 Per-core runtimes, coroutine scheduler, `spawn` / `await` / `all` / `race` / `timeout`, `Channel` with
 backpressure, `parallel_map`, cross-core worker dispatch with deep-copy-or-move, structured concurrency
 (a task tree dies with its parent — no orphans), async-native file I/O, sockets, timers and HTTP client.
 
+**Also in this milestone: `spawn script`** ([ADR 0006](adr/0006-isolated-script-execution.md)) — the
+`Isolate` type in `mwl-host` with its own arena, superglobals and config overlay; the request tree and its
+shared budget; `$_ARGS` and the top-level `return` contract; the `ScriptResult` shape; the value-crossing
+rules shared with worker dispatch (graph copy, refusal of closures, references and resources, refusal of an
+unresolvable class); `output: capture|inherit`; `on: worker`; cancellation of a child at its next safepoint.
+It belongs here rather than later because it is a task with a heap boundary, which is exactly what this
+milestone builds — and doing it now means the HTTP server in M7 is written against the same `Isolate`
+instead of growing a second isolation path that has to be unified afterwards. Enforcement of its *limits*
+and of the `script.spawn` capability lands with the rest of the config work in M6; until then it runs under
+compiled-in defaults.
+
 **Verify:** stress tests with 100k concurrent tasks; a deliberate deadlock test proves cancellation
 works; `parallel_map` shows near-linear speedup across cores on a CPU-bound benchmark; ThreadSanitizer
-clean.
+clean. For isolates: a child cannot read or write a parent variable, global, static, superglobal or output
+buffer; a closure, reference or resource is refused at the boundary; a cyclic argument crosses without
+hanging; a child's uncaught throw, its limit breach and a contained panic inside it all leave the parent
+running with `ok = false`; a cancelled parent leaves no orphan and no leaked arena; spawn-to-result for a
+trivial child on a warm cache is single-digit microseconds, committed to `benches/isolation.rs` next to the
+process baseline it replaces, with a guard test alongside
+`an_os_process_costs_orders_of_magnitude_more_than_a_task`.
 
 ### M6 — Config, limits, capabilities, disk cache (~3 weeks)
 Directive registry with changeability classes, boot config parsing, per-request overlay, `ini_set`
 semantics, capability enforcement at every syscall-touching stdlib entry point, safepoint-driven limit
 enforcement, content-addressed artifact cache with integrity verification and a refusal to use a
-world-writable cache directory.
+world-writable cache directory. Isolates get their governance here: the `script.spawn` capability with
+canonicalise-then-prefix path resolution, `max_script_depth`, per-tree accounting of every `[limits]` value,
+spawn-site sub-caps, and derivation of a child's overlay from its parent's effective config.
 
 **Verify:** adversarial suite — a script attempting to widen a capability or set a `System` directive
 fails; `ini_set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
 `[limits.hard]` ceiling returns `false` with the previous value intact, and is invisible to the next request
 on the same core; memory/CPU caps terminate runaway scripts with a catchable error; warm-cache CLI startup
-under 10 ms; a tampered cache artifact is rejected.
+under 10 ms; a tampered cache artifact is rejected. For isolates: `spawn script` without `script.spawn`
+fails; a path outside the granted roots fails, including one reaching it through `..` or a symlink; a child
+cannot widen a capability its parent narrowed; N concurrent isolates cannot together exceed the tree's
+memory, CPU or output budget; a recursive spawn is stopped by `max_script_depth` and reported as that rather
+than as an out-of-memory.
 
 ### M7 — Built-in HTTP server (~4 weeks)
-`mwl serve`: hyper h1 + h2c, per-core accept and dispatch, request → isolated task, superglobals
+`mwl serve`: hyper h1 + h2c, per-core accept and dispatch, request → the root isolate of a request tree
+(the same `Isolate` M5 built, not a second isolation path), superglobals
 (`$_GET`, `$_POST`, `$_SERVER`, `$_COOKIE`, `$_FILES`), multipart and urlencoded body parsing with limits,
 streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured request
 logging, optional TLS via `rustls`.
 
 **Verify:** the core requirement demonstrated under load — 10k concurrent cold requests for the same file
 compile it **exactly once** (assert via a compile counter) with no stalled requests; a state-bleed test
-suite proves nothing leaks between requests; path traversal, header injection and request-smuggling suites
-pass; `wrk`/`oha` throughput compared against PHP 8.5 + FPM + opcache and recorded in `benches/`.
+suite proves nothing leaks between requests, and the same suite runs across an isolate boundary, which the
+shared `Isolate` makes a parameterisation rather than a second suite; a request whose isolates are still
+running when the client disconnects leaves none of them behind; path traversal, header injection and
+request-smuggling suites pass; `wrk`/`oha` throughput compared against PHP 8.5 + FPM + opcache and recorded
+in `benches/`.
 
 ### M8 — Stdlib and databases (~16 weeks)
 Two-tier regex with the `preg_*` layer; JSON; hashing and crypto (RustCrypto: sha2, blake3, argon2,
@@ -524,7 +494,9 @@ right MWL functions.
 ### M11 — PHP transpiler (~8 weeks)
 `mwl convert`: PHP source → AST → rewrite passes → idiomatic `.mwl` output. Mechanical rewrites where
 possible (`global` → parameter passing, `extract()` → explicit assignment, simple `$$var` → match on a
-map); annotated `TODO` diagnostics where not (`eval`, dynamic includes, unsupported `preg` constructs,
+map, and `exec('php script.php …')` job dispatch → `spawn script`, which is a real rewrite rather than a
+`TODO` because the isolation the original bought is what the construct provides); annotated `TODO`
+diagnostics where not (`eval` of constructed source, dynamic includes, unsupported `preg` constructs,
 C extensions). `--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
 reuses the same pipeline to import PHP's test corpus as native MWL tests. A PHP project depending on a C
 extension is reported as needing either a Tier 1 `.mwlx` replacement or a Tier 2 native one — the converter
@@ -549,16 +521,6 @@ resolves within a configured root — closing the historical vulnerability class
 
 ---
 
-## Immediate next steps
-
-1. ~~Confirm `cranelift-jit` builds and executes a trivial function on Windows x86_64~~ — done; the spikes
-   are now permanent guard tests in [`benches/abi-probe`](../benches/abi-probe/).
-2. ~~Scaffold the workspace and CI (M0)~~ — done.
-3. Write `docs/spec/00-overview.md`, and the remaining ADRs for the decision table, so the semantics are
-   written down before code encodes them by accident. ADRs [0002](adr/0002-error-propagation.md) and
-   [0003](adr/0003-extension-system.md) are written; the rest are not.
-4. Begin M1 with the lexer, since inline-HTML mode plus interpolation shapes every layer above it.
-
 ## Overall verification strategy
 
 - **Unit** — `cargo test` per crate; `insta` snapshots for AST/IR/codegen.
@@ -568,6 +530,7 @@ resolves within a configured root — closing the historical vulnerability class
   HTTP parser, multipart, regex and JSON, run continuously in CI.
 - **Sanitisers** — Miri on the safe subset, ASAN/TSAN on the unsafe core and the scheduler.
 - **Security** — the adversarial suites from M6/M7 (capability escape, resource exhaustion, cross-request
-  state bleed, traversal, smuggling) plus `cargo deny` advisories on every build.
+  *and* cross-isolate state bleed, execution-root escape, traversal, smuggling) plus `cargo deny` advisories
+  on every build.
 - **Performance** — `criterion` microbenchmarks and application-level macro benchmarks, always compared
   against the locally installed PHP 8.5.8, with results committed so regressions are visible in diffs.

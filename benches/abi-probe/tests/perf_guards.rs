@@ -223,3 +223,55 @@ mod wasm_guards {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Isolation boundaries
+// ---------------------------------------------------------------------------
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
+    // ADR 0006 gives MWL an in-process script isolate because PHP's only way to
+    // run a script under its own heap, globals and limits is another process.
+    // The whole argument is this ratio, so it is measured rather than asserted.
+    //
+    // Both sides are floors: the process side is the cheapest do-nothing image
+    // the platform can start (a real child would also boot an interpreter — PHP
+    // 8.5.8 on this machine takes 35.9 ms to start and exit, 6x the floor), and
+    // the task side is a bare coroutine (an isolate also builds an arena and a
+    // set of globals). Measured on x86_64-pc-windows-msvc: 5.95 ms vs 4.29 us,
+    // a ratio of ~1390x. `CreateProcess` is dearer than `fork`+`exec`, so a
+    // Linux runner will report a smaller ratio; the 20x guard is set low enough
+    // to hold everywhere and fires only on a change of kind — a task acquiring a
+    // syscall, or committing its stack eagerly.
+    const MIN_RATIO: f64 = 20.0;
+
+    let task_ns = ns_per_op(50_000, 5, || {
+        let run = mwl_abi_probe::in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
+        black_box(run.value);
+    });
+
+    // A spawn is milliseconds, so batches of one, and the minimum across them.
+    let mut best_process = Duration::MAX;
+    mwl_abi_probe::process::spawn_noop(); // warm the image cache
+    for _ in 0..25 {
+        let start = Instant::now();
+        mwl_abi_probe::process::spawn_noop();
+        best_process = best_process.min(start.elapsed());
+    }
+    let process_ns = best_process.as_secs_f64() * 1e9;
+
+    let ratio = process_ns / task_ns;
+    println!(
+        "isolation boundary: os process {:.0} us vs task {task_ns:.2} us, ratio {ratio:.0}x",
+        process_ns / 1000.0,
+        task_ns = task_ns / 1000.0
+    );
+
+    assert!(
+        ratio > MIN_RATIO,
+        "an OS process now costs only {ratio:.1}x a task ({process_ns:.0} ns vs {task_ns:.0} ns), \
+         under the {MIN_RATIO}x guard. ADR 0006 justifies in-process script isolates on that gap; \
+         if the gap has really closed, the ADR needs revisiting."
+    );
+}

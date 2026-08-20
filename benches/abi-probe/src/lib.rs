@@ -14,6 +14,7 @@
 //! | `tests/unwind_unavailable.rs` | the *premise* of ADR 0002 — that native unwinding is unavailable |
 //! | `tests/wasm_sandbox.rs` | the sandbox guarantees of [ADR 0003](../../../docs/adr/0003-extension-system.md) |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
+//! | [`process`] | the cost of the child process that [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) replaces with an in-process isolate |
 //! | `benches/*` | the quoted costs themselves, tracked over time |
 //!
 //! # The ABI under test
@@ -27,6 +28,8 @@
 //!
 //! Errors travel in the return value, never by unwinding. See [`OK`], [`THROWN`]
 //! and [`FATAL`].
+
+pub mod process;
 
 #[cfg(feature = "wasm-probe")]
 pub mod wasm;

@@ -14,6 +14,10 @@ starting point and no build step: change a file, run it.
   CPU work — with no `async` function colouring, so any function may do I/O.
 - **One process, many requests.** A single server process handles unlimited concurrent requests, each
   fully isolated, all sharing one in-memory compiled-code cache.
+- **Isolation you can reach from the language.** `spawn script 'job.mwl'` runs another file with its own
+  heap, its own globals and its own slice of the caller's budget — the isolation PHP can only get by
+  starting another interpreter, at microseconds instead of tens of milliseconds
+  ([ADR 0006](docs/adr/0006-isolated-script-execution.md)).
 - **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
   runtime bug or a resource-limit breach kills one request, never the process.
 - **Fast and simple first; memory is what pays for that.** MWL targets server-class hardware, so where a
@@ -37,42 +41,59 @@ starting point and no build step: change a file, run it.
 | Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
+| Isolates | `spawn script` runs another `.mwl` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/adr/0006-isolated-script-execution.md)) |
 | Config | root-owned `mwl.ini` states defaults; a script may retune its own limits within operator-set ceilings ([ADR 0005](docs/adr/0005-config-changeability.md)) |
 | Serving | built-in HTTP/1.1 + h2c; FastCGI optional and later |
 | Extensions | built-in, sandboxed wasm (`.mwlx`), or statically linked native — never `dlopen` ([ADR 0003](docs/adr/0003-extension-system.md)) |
 
-The reasoning behind each of these, and the measurements backing them, are in
-[docs/adr/](docs/adr/README.md).
+This is the short form. The fuller decision table, with the sequencing each choice implies, is in
+[docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice and the
+measurements backing it are in [docs/adr/](docs/adr/README.md).
 
 ## Repository layout
 
+Two of these exist today. The rest are the shape the workspace grows into; the right-hand column is the
+milestone that creates each one, since a crate is added when its milestone starts rather than sitting
+empty.
+
 ```
 crates/
-  mwl-diagnostics   spans, source maps, error rendering
-  mwl-syntax        lexer (inline HTML + PHP mode), parser, AST
-  mwl-hir           name resolution, namespaces, class graph
-  mwl-types         gradual type system, inference, checking
-  mwl-ir            CFG/SSA IR, safepoints, refcount ops
-  mwl-codegen       Cranelift backend                        [audited unsafe]
-  mwl-runtime       values, arrays, coroutines, scheduler     [audited unsafe]
-  mwl-stdlib        native builtin functions
-  mwl-cli           the `mwl` binary
+  mwl-diagnostics   spans, source maps, error rendering                            exists
+  mwl-syntax        lexer (inline HTML + PHP mode), parser, AST                        M1
+  mwl-hir           name resolution, namespaces, class graph                           M2
+  mwl-types         gradual type system, inference, checking                           M2
+  mwl-ir            CFG/SSA IR, safepoints, refcount ops                               M2
+  mwl-codegen       Cranelift backend  [audited unsafe]                                M3
+  mwl-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3
+  mwl-cli           the `mwl` binary                                                   M3
+  mwl-stdlib        native builtin functions                                           M4
+  mwl-test          .mwlt runner                                                       M4
+  mwl-host          Transport trait, unit cache, the Isolate boundary                  M5
+  mwl-config        mwl.ini registry, changeability classes, overlays                  M6
+  mwl-cache         content-addressed artifact cache                                   M6
+  mwl-http          hyper h1 + h2c transport, optional rustls                          M7
+  mwl-regex         two-tier engine + `preg_*` layer                                   M8
+  mwl-db            driver trait + mysql / pgsql / sqlite / mssql                      M8
+  mwl-ext           .mwlx loader, WIT host, per-request instancing                     M9
+  mwl-fmt           formatter                                                         M10
+  mwl-lsp           tower-lsp language server                                         M10
+  mwl-dap           debug adapter                                                     M10
+  mwl-pkg           package manager                                                   M10
+  mwl-convert       PHP→MWL transpiler, .phpt→.mwlt                                   M11
+  mwl-fcgi          optional FastCGI transport                                        M13
 benches/
-  abi-probe         architecture invariants + cost baselines  [audited unsafe]
-docs/adr/           architecture decision records
-docs/spec/          normative language reference
+  abi-probe         architecture invariants + cost baselines  [audited unsafe]     exists
+docs/adr/           architecture decision records                                  exists
+docs/spec/          normative language reference                                unwritten
 ```
 
 [`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/adr/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on MWL's own code, so a dependency
 bump can invalidate them silently. It checks them continuously: that a throw propagates and a runtime
 panic is *contained* across native frames, that a coroutine can suspend from beneath live JIT frames, that
-a wasm guest cannot read past the host heap or outlive its deadline — and that native unwinding through
-JIT frames is still unavailable, which is the premise the calling convention exists for.
-
-Crates for later milestones — `mwl-host`, `mwl-http`, `mwl-db`, `mwl-regex`, `mwl-config`, `mwl-cache`,
-`mwl-ext`, `mwl-lsp`, `mwl-fmt`, `mwl-dap`, `mwl-test`, `mwl-convert`, `mwl-pkg` — are added when their
-milestone starts, rather than sitting empty.
+a wasm guest cannot read past the host heap or outlive its deadline, that an OS process still costs orders
+of magnitude more than a task — and that native unwinding through JIT frames is still unavailable, which is
+the premise the calling convention exists for.
 
 ## Building
 
@@ -103,12 +124,12 @@ behind each design decision — is [docs/implementation-plan.md](docs/implementa
 
 | | Milestone | State |
 |---|---|---|
-| M0 | Project setup, CI, architecture spikes | in progress |
-| M1 | Lexer, parser, diagnostics | |
+| M0 | Project setup, CI, architecture spikes | **done** |
+| M1 | Lexer, parser, diagnostics | **next** |
 | M2 | HIR, type system, IR | |
 | M3 | Baseline Cranelift backend → **Hello World** | |
 | M4 | Language completeness, test runner | |
-| M5 | Concurrency: coroutines, channels, workers | |
+| M5 | Concurrency: coroutines, channels, workers, script isolates | |
 | M6 | `mwl.ini`, capabilities, limits, artifact cache | |
 | M7 | Built-in HTTP server | |
 | M8 | Stdlib, database drivers, the `mwl:ext` WIT world | |
@@ -116,6 +137,14 @@ behind each design decision — is [docs/implementation-plan.md](docs/implementa
 | M10 | LSP, formatter, debugger, profiler, package manager | |
 | M11 | PHP → MWL transpiler | |
 | M12 | Optimising JIT tier | |
+| M13 | Optional FastCGI transport | if a deployment target needs it |
+
+## Contributing
+
+Read [CLAUDE.md](CLAUDE.md) first — it carries the priority ordering every design choice is judged
+against, the invariants that are easy to break, and a table pointing at the *one* document to open for a
+given piece of work. Every fact in this repository has a single home; if two documents disagree, the one
+CLAUDE.md names is right and the other is a bug.
 
 ## Licence
 

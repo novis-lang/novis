@@ -6,6 +6,13 @@
 - **Amends:** [0004](0004-memory-for-simplicity.md) — the enforceable per-request cap is now the *ceiling*
   directive, not the default one
 
+> **In short:** `mwl.ini` states defaults, not ceilings. Every directive carries a changeability
+> class: `System` (settable in `mwl.ini` only), `Runtime` (`mwl.ini` gives the default and a request
+> may set any value for itself, wider or narrower, up to the `[limits.hard]` ceiling), or
+> `RuntimeTighten` (narrowing only — capabilities, plus the directives where PHP behaves that
+> way too). A set refused by a ceiling or by a class returns `false` and leaves the value unchanged;
+> it is **not** clamped. This document holds the only copy of the directive layout.
+
 ## Context
 
 The project-start decision on configuration said that a script "may narrow a limit but never widen one",

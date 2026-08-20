@@ -3,7 +3,15 @@
 - **Status:** Accepted
 - **Date:** 2026-08-20
 - **Supersedes:** the "exceptions unwind through JIT frames" assumption in the original M3/M4 plan
-- **Validated by:** `clif-spike` (spikes #1 and #2), Rust 1.97.1 + Cranelift 0.128.4, `x86_64-pc-windows-msvc`
+- **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/unwind_unavailable.rs`
+  (the premise), `tests/invariants.rs` (propagation and containment), `tests/perf_guards.rs` (the
+  cost). Originally spikes #1 and #2, on Rust 1.97.1 + Cranelift 0.128.4, `x86_64-pc-windows-msvc`.
+
+> **In short:** exceptions and runtime errors propagate as a checked `i32` status returned from every
+> call, never by unwinding — because `cranelift-jit` registers no unwind tables with the OS on
+> any platform. Every runtime helper is `extern "C"` wrapping `catch_unwind`, which is what contains a
+> runtime panic to one request. The normative signature is in **Decision**; the measured cost is in
+> **Measured cost** and is guarded by the tests named above.
 
 ## Context
 

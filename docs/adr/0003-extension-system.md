@@ -2,7 +2,16 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
-- **Validated by:** `clif-spike/src/bin/wasmext.rs` (spike #4), wasmtime 41 + cranelift 0.128, `x86_64-pc-windows-msvc`
+- **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/wasm_sandbox.rs` and the
+  `wasm-probe` cost guards. Originally spike #4, on wasmtime 41 + cranelift 0.128,
+  `x86_64-pc-windows-msvc`.
+
+> **In short:** third-party extensions are sandboxed WebAssembly components (`.mwlx`), never
+> shared libraries loaded with `dlopen`. Three tiers: built-in (`mwl-stdlib`), wasm component, and
+> statically linked native. Values cross as bounds-checked handles rather than pointers, instances
+> are fresh per request, and the guest gets no ambient authority. `dlopen` is rejected because it
+> would destroy both memory safety and request isolation, which are the two claims the product
+> rests on.
 
 ## Context
 

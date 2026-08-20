@@ -4,6 +4,12 @@
 - **Date:** 2026-08-20
 - **Scope:** project-wide; constrains every later design decision rather than one subsystem
 
+> **In short:** memory is the resource MWL spends to buy security, semantics, latency and
+> simplicity, in that order. It is *not* licence to leak: memory must stay attributable to a
+> request, under an enforceable cap, and O(in-flight) rather than O(requests served). The ordering
+> itself is restated in [CLAUDE.md](../../CLAUDE.md); before invoking this ADR to justify a design,
+> read **What this does not license**.
+
 ## Context
 
 MWL exists to execute two kinds of code securely and fast: web requests inside a long-lived server

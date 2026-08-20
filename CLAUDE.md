@@ -1,8 +1,40 @@
 # Working on MWL
 
 MWL is a JIT-compiled, memory-safe language for web servers and the command line. It exists to run web
-requests and CLI programs **securely and fast**; the architecture and its measurements live in
-[docs/adr/](docs/adr/README.md), and this file is only what is easy to get wrong.
+requests and CLI programs **securely and fast**.
+
+This is the only file you always need to read. It carries the rules that are easy to get wrong, plus a
+table telling you the *one* other file to open for whatever you are doing.
+
+**Every fact in this repository has exactly one home.** If two documents state the same thing, the one
+named below is authoritative and the other is a bug — fix it rather than reconciling it in your head.
+
+## Where to look
+
+Read this file, then **one** row below. Do not read the docs tree breadth-first; it is 120 KB and most of
+it is reasoning you only need when you are about to overturn a decision.
+
+**First, run `sh .claude/brief.sh`.** One call, ~11 KB: the plan's status block, the current and next
+milestone, every ADR's decision paragraph, what the guard tests actually hold with their thresholds, and
+what exists on disk. It stores no facts — it slices the live files and names each source, so it cannot go
+stale, and it says so loudly if a slice comes back empty. Open a row below when you need the *reasoning*
+behind a decision, or the detail of something the brief only names.
+
+| Doing this | Open this |
+|---|---|
+| Deciding what to build next; scoping a milestone; checking what exists | [docs/implementation-plan.md](docs/implementation-plan.md) — the status block at the top, then your milestone. This is the plan of record. |
+| Exceptions, the call ABI, helper signatures, panic containment | [ADR 0002](docs/adr/0002-error-propagation.md). It holds the only normative copy of the calling convention, and it *supersedes* any unwinding language you find elsewhere. |
+| Extensions, wasm, WIT, `.mwlx` | [ADR 0003](docs/adr/0003-extension-system.md) |
+| Weighing memory against safety, speed or simplicity | [ADR 0004](docs/adr/0004-memory-for-simplicity.md) |
+| `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
+| `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
+| A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
+| Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
+| What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
+
+Each ADR opens with a metadata block and reaches `## Decision` within ~60 lines. Read those two. The
+`## Context`, `## Investigation` and `## Alternatives rejected` sections are for when you intend to
+*change* the decision — skip them otherwise.
 
 ## The priority ordering
 
@@ -30,16 +62,24 @@ When choosing between designs:
 
 ## Ground rules enforced elsewhere
 
-- **`unsafe`** is forbidden workspace-wide; only `mwl-runtime`, `mwl-codegen` and `benches/abi-probe` opt
-  down to `deny` with narrow, reasoned allows. Lint policy is in [Cargo.toml](Cargo.toml); the policy
-  itself is in [docs/adr/](docs/adr/README.md).
+- **`unsafe` is forbidden workspace-wide**; only `mwl-runtime`, `mwl-codegen` and `benches/abi-probe` opt
+  down to `deny` with narrow, reasoned allows. Lint policy is in [Cargo.toml](Cargo.toml).
 - **Nothing unwinds through a JIT frame.** Errors propagate as a checked `i32` status after every call, and
   helpers are `extern "C"` wrapping `catch_unwind` — never `extern "C-unwind"`
   ([ADR 0002](docs/adr/0002-error-propagation.md)). `panic = "unwind"` is load-bearing in every profile:
-  `abort` would turn a containable bug into a process kill.
+  `abort` would turn a containable bug into a process kill. No caller constructs a raw `call` instruction;
+  a missing status check would silently swallow an exception.
 - **Pure-Rust dependencies by default**, enforced by [deny.toml](deny.toml) in CI. Deviations are argued
   individually.
 - **Extensions are sandboxed wasm, never `dlopen`** ([ADR 0003](docs/adr/0003-extension-system.md)).
+- **An isolate shares nothing but compiled code, and spends its parent's budget.** `spawn script` runs
+  another `.mwl` file in-process ([ADR 0006](docs/adr/0006-isolated-script-execution.md)). Three invariants
+  no optimisation may trade away: values cross by copy under the *same* rules as worker dispatch (never a
+  pointer, never a shared heap, or non-atomic refcounts break); limits are accounted at the **root of the
+  request tree**, never per isolate, or memory stops being attributable and the process worst case becomes
+  unbounded in what a script chooses to spawn; and a child's grants are its parent's, optionally narrowed.
+  Isolation is one implementation shared with request handling — if you find yourself writing a second
+  arena setup or a second teardown path, that is the bug.
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.
@@ -55,9 +95,16 @@ cargo test --release -p mwl-abi-probe                          # cost guards (sk
 cargo test --release -p mwl-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
 
-## Where decisions go
+## Writing docs here
 
-A choice that would be expensive to reverse gets recorded with its reasoning. Its own numbered ADR if the
-reasoning is subtle or contested; otherwise a paragraph in *Decisions taken at project start* in
-[docs/adr/README.md](docs/adr/README.md). Crates for later milestones are created when their milestone
-starts, not left sitting empty.
+The docs are optimised for an agent that reads one file and starts working. Keep them that way:
+
+- **State a fact once.** Put it in the home named in *Where to look*, and link to it from everywhere else.
+  Summarising an ADR into another document creates a second copy that will silently go stale — that is how
+  the plan came to carry a superseded ABI cost and a superseded unwinding design at the same time.
+- **Never quote a measured number outside the ADR that owns it.** Numbers live with their guard test.
+- **Front-load.** Decision first, reasoning below it. Assume the reader stops after the first screen.
+- A choice that would be expensive to reverse gets its own numbered ADR if the reasoning is subtle or
+  contested; otherwise a paragraph in *Decisions taken at project start* in
+  [docs/adr/README.md](docs/adr/README.md).
+- Crates for later milestones are created when their milestone starts, not left sitting empty.

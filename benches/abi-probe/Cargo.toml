@@ -37,6 +37,10 @@ name = "coroutine"
 harness = false
 
 [[bench]]
+name = "isolation"
+harness = false
+
+[[bench]]
 name = "wasm_boundary"
 harness = false
 required-features = ["wasm-probe"]
