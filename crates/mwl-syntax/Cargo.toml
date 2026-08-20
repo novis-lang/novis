@@ -1,0 +1,18 @@
+[package]
+name = "mwl-syntax"
+description = "Lexer and parser for MWL: dual-mode source (inline HTML + code), AST with spans"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+mwl-diagnostics.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true

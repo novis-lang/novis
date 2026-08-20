@@ -200,8 +200,11 @@ exact multiplier is for whoever writes the guard test, not asserted here.
 
 Also deferred, each needing its own resolution before or alongside M1:
 
-- **`bytes` literal syntax** — a `b"…"` prefix versus a constructor function versus something else. Belongs
-  in `docs/spec/00-overview.md`, which owns the spelling of the type surface.
+- **`bytes` literal syntax** — resolved in
+  [`docs/spec/00-overview.md` § 5](../spec/00-overview.md#5-bytes-no-dedicated-literal): no dedicated
+  literal token; `"…" as bytes` covers the valid-UTF-8 case for free, `Core\Bytes::fromHex()`/`::fromBase64()`
+  cover arbitrary binary constants. This is a spelling decision only — it does not touch this ADR's own
+  Proposed status, which still turns on the grapheme-cost guard test below.
 - **Random access by grapheme index.** Sequential iteration is cheap once the boundary logic exists;
   "the k-th character" without iterating needs either an O(n) scan or a cached offset table, and which one
   v1 needs should be decided from real MWL programs, not guessed now.

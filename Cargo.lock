@@ -970,6 +970,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mwl-syntax"
+version = "0.0.1"
+dependencies = [
+ "insta",
+ "mwl-diagnostics",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"

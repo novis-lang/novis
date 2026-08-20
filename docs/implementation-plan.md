@@ -12,20 +12,20 @@
 >
 > **Next, in order:**
 >
-> 1. `docs/spec/00-overview.md` — the semantics need writing down before code encodes them by
->    accident. It must define `spawn script` next to `include`, since the two run a file and
->    isolate opposite amounts, and that is the confusion
->    [ADR 0006](adr/0006-isolated-script-execution.md) predicts. It also owns the *spelling* of the
->    type surface whose semantics [ADR 0007](adr/0007-explicit-type-system.md) fixes — the
->    declaration slots, `array<T>`, and the conversion operator. Its scoping section states what
->    [ADR 0008](adr/0008-static-and-global.md) decided: which `static` survives, and that the list of
->    places state may outlive a call is closed.
-> 2. The remaining ADRs for the decision table below. [0002](adr/0002-error-propagation.md)
->    through [0008](adr/0008-static-and-global.md) and [0010](adr/0010-enums-are-a-value-type.md)
->    through [0014](adr/0014-property-observer.md) are written and Accepted;
->    [0009](adr/0009-string-and-bytes.md) is drafted but Proposed, pending the cost measurement its own
->    *Revisiting* names.
-> 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it.
+> 1. ~~`docs/spec/00-overview.md`~~ — **done.** Defines `spawn script` next to `include`/`eval`, the
+>    statement-level spelling of every declaration slot [ADR 0007](adr/0007-explicit-type-system.md)
+>    requires (typed locals, `foreach` bindings, destructuring, `type` aliases), finalises the
+>    conversion operator as `as`, restates [ADR 0008](adr/0008-static-and-global.md)'s closed storage
+>    list as a syntax table, and resolves [ADR 0009](adr/0009-string-and-bytes.md)'s deferred `bytes`
+>    literal question (no dedicated literal — `as bytes` plus `Core\Bytes::fromHex`/`::fromBase64`).
+> 2. The remaining ADR. [0002](adr/0002-error-propagation.md) through
+>    [0008](adr/0008-static-and-global.md) and [0010](adr/0010-enums-are-a-value-type.md) through
+>    [0016](adr/0016-ide-integration.md) are written and Accepted; [0009](adr/0009-string-and-bytes.md)
+>    is drafted but Proposed, pending the grapheme-segmentation cost guard test its own *Revisiting*
+>    names — a `benches/abi-probe` measurement, not a spec question.
+> 3. Begin M1 with the lexer — inline-HTML mode plus interpolation shapes every layer above it. The
+>    spec above now gives it a grammar for every new declaration slot and for `spawn script`, so M1 is
+>    unblocked.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
