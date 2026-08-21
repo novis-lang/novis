@@ -240,5 +240,5 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 ## Keep work small, commit your work
 - Always commit your work, when a step is done, you dont need to verify the history before, just commit everything that has changed
 - Once you are done show me the next prompt i need to use for a new session to start right off where we left. Also store this next prompt into a seperate .md file, so i can use it whenever i want. Also update this file with the latest prompt, so we do not keep any content that already was in that file.
-- The docs accumulate rationale bloat as ADRs are added. Periodically (not every session) re-run the pass
+- The docs accumulate rationale bloat as ADRs are added. Periodically (the user does this manually, you never automatically) re-run the pass
   captured in [DOC_CLEANUP_PROMPT.md](DOC_CLEANUP_PROMPT.md) rather than re-deciding its rules from scratch.
