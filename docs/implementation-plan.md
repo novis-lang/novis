@@ -427,7 +427,10 @@ cannot exist under this rule ([ADR 0014](adr/0014-property-observer.md)). The ty
 [ADR 0007](adr/0007-explicit-type-system.md): every binding's declared type recorded and enforced,
 definite-assignment checking, flow-sensitive narrowing of unions, array element types checked at every
 write and at every nesting depth, the arithmetic result-type table including the refusal of `int + uint`,
-and interned type descriptors. There is **no inference engine and no `Unknown` type** — that is the
+and interned type descriptors. Definite assignment covers a second binding kind here too: every
+constructor must assign every property its class declares on every path, or the diagnostic names the
+property or the missing path ([ADR 0022](adr/0022-definite-property-initialization.md)). There is **no
+inference engine and no `Unknown` type** — that is the
 simplification the mandatory declarations buy. Also from that table: `<`/`>`/`<=`/`>=`/`<=>` between two
 objects refused unless both sides are provably the same class implementing `Comparable`
 ([ADR 0013](adr/0013-comparable-interface.md)) — there is no property-walk fallback to fall into. Lowering
@@ -439,7 +442,9 @@ on top of the IR without it.
 **Verify:** `mwl check` on a curated corpus where every diagnostic named in ADR 0007 is its own file — an
 undeclared local, a re-declared local, a read before definite assignment, `int + uint`, `int $n = 7 / 2;`,
 a `mixed` assigned into a typed binding, an element-type violation at depth 1, 2 and 3, a missing narrowing
-and a present one. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+and a present one. Plus ADR 0022's own corpus entries: a constructor with a branch that leaves a
+non-nullable property unassigned, a subclass constructor with a path that skips `parent::__construct(...)`,
+and a class with no constructor and no inline default for a non-nullable property. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.

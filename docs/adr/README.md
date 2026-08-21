@@ -54,6 +54,7 @@ live, so a new row is picked up automatically.
 | [0019](0019-reflection-and-ast-parsing-are-core-features.md) | Reflection and AST/source parsing are first-class `Core` features, not aftermarket extensions | Accepted |
 | [0020](0020-error-escalation-ladder.md) | Fatal errors escalate through a reserved-budget handler ladder, never through `catch` | Accepted |
 | [0021](0021-single-file-inclusion-construct.md) | `require` is the only same-frame file-inclusion construct; `include`/`include_once`/`require_once` are rejected | Accepted |
+| [0022](0022-definite-property-initialization.md) | Properties are definitely initialized at compile time; no new `undefined` type, no silent defaults | Accepted |
 
 ## Decisions taken at project start
 

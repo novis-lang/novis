@@ -31,6 +31,7 @@ touching to get that.
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
 | `include`/`require`, loading another file into the current frame | [ADR 0021](docs/adr/0021-single-file-inclusion-construct.md). Holds the only copy of the rule that `require` is the one surviving spelling — `include`, `include_once` and `require_once` are all rejected with a diagnostic naming it. |
+| Uninitialized properties, `undefined`, `lateinit`, why a typed property can't silently be `null`/zero/`undefined` | [ADR 0022](docs/adr/0022-definite-property-initialization.md). Holds the only copy of the rule that every constructor must definitely assign every property it declares, with no new type and no silent per-type default; the one residual runtime throw is scoped to `Core\Reflect`-bypassed construction. |
 | The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [ADR 0017](docs/adr/0017-hot-reload-without-restart.md). Holds the only copy of the path-pointer-swap mechanism, why it needs no filesystem watcher, and why a request-serving core is never blocked on a recompile. |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
@@ -137,6 +138,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   `require_once` are all rejected with a diagnostic naming `require`; it already throws on a missing file
   and runs every time it is reached, so no second spelling was needed for either axis
   ([ADR 0021](docs/adr/0021-single-file-inclusion-construct.md)).
+- **Every constructor must definitely assign every property it declares** — the same flow analysis that
+  checks local variables, extended to a second binding kind; there is no new `undefined` type and no
+  per-type silent default, and the one residual runtime throw is scoped to a `Core\Reflect`-constructed
+  object that never ran a constructor at all ([ADR 0022](docs/adr/0022-definite-property-initialization.md)).
 
 ## Commands
 
