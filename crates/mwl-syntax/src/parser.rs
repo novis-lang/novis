@@ -59,6 +59,17 @@
 //! cannot hang the parser or grow its result vector without bound. A
 //! comma-separated list (call arguments, array items, parameters, ...)
 //! never needs this: it already breaks out the moment no comma follows.
+//!
+//! A separate concern from either of the above: how *deep* one construct can
+//! nest inside another. [`Parser::enter_recursive`] bounds every kind of
+//! nesting (an expression in an expression, a type in a type, a statement in
+//! a statement, a destructuring target in one, a postfix chain link) with
+//! one shared counter and a sticky give-up flag, so a fuzzer-shaped input —
+//! thousands of nested `(`/`[`, or a long `->`/`[...]` chain — can neither
+//! overflow the native call stack nor, once it gives up once, cost more than
+//! one more token of work per token remaining in the file. See that method's
+//! docs for the full reasoning and `PARSER_HANDOFF.md` for how a fuzz run
+//! found this.
 
 use std::collections::VecDeque;
 
@@ -97,7 +108,44 @@ pub struct Parser<'src, 'd> {
     /// [`Self::parse_postfix`]'s loop must not consume a bare one — see
     /// [`Self::parse_expr_no_top_as`].
     suppress_as: bool,
+    /// How many nested recursive-descent entries deep the parser currently
+    /// is, across every kind of nesting (expressions, types, statements,
+    /// destructuring targets) — one shared counter, since they all draw on
+    /// the same physical call stack. See [`Self::enter_recursive`].
+    depth: u32,
+    /// Set once [`Self::enter_recursive`] first refuses to recurse further,
+    /// and never cleared — see that method's docs for why staying tripped
+    /// for the rest of this parse (rather than only refusing *this*
+    /// recursion) is the part that actually keeps pathological input to
+    /// bounded total work, not just bounded stack depth.
+    depth_exceeded: bool,
 }
+
+/// How deep [`Parser::enter_recursive`] lets recursive-descent parsing go
+/// before it bails out instead of recursing further. Thousands of nested
+/// `[`/`(` (or a long `->`/`[...]` chain) in adversarial or fuzzed input
+/// previously overflowed the native call stack outright — a real crash a
+/// fuzz run found (see `PARSER_HANDOFF.md`).
+///
+/// This one counter is shared by several unrelated axes — a delimiter
+/// nesting one level (an array literal, a parenthesized expression) costs
+/// five increments in one pass down the precedence chain
+/// (`parse_low_or`/`_assignment`/`_coalesce`/`_not`/`_unary` each guard a
+/// distinct chained-operator vector and all sit on that one path), while a
+/// chained `!`/`??`/`=`/cast costs one increment per repetition — so this
+/// number is *not* "how many levels of legitimate nesting we allow": for
+/// the delimiter case it is roughly `/5`. A real, unremarkable numerical
+/// formula in the corpus this parser is validated against (a Chebyshev
+/// polynomial approximation, eleven parenthesized levels deep) already
+/// used close to 64 of a 64-deep budget before this was raised to 96 — so
+/// treat headroom for that axis, not raw stack safety, as the binding
+/// constraint when tuning this, and re-check with a corpus, not just a
+/// stack-depth probe. 96 is still comfortably under the ~120 this parser's
+/// debug build can survive on a 1 MiB thread stack (measured directly:
+/// nested-paren inputs stop crashing somewhere between 118 and 120), and
+/// was re-confirmed crash-free under `cargo fuzz`'s ASan-instrumented
+/// release build too, which has larger per-frame overhead than either.
+const MAX_RECURSION_DEPTH: u32 = 96;
 
 /// A saved parser position, for the one place this parser backtracks: a
 /// statement whose grammar is genuinely ambiguous on a token prefix alone
@@ -126,6 +174,93 @@ impl<'src, 'd> Parser<'src, 'd> {
             lookahead: VecDeque::new(),
             last_span: start,
             suppress_as: false,
+            depth: 0,
+            depth_exceeded: false,
+        }
+    }
+
+    /// Guards every independent recursive-descent re-entry point (an
+    /// expression nested in an expression, a type nested in a type, a
+    /// statement nested in a statement, a destructuring target nested in
+    /// one, a postfix chain link) against unbounded stack growth. Returns
+    /// `true` once the shared depth counter — incremented on entry, always
+    /// decremented by the caller before returning — has gone past
+    /// [`MAX_RECURSION_DEPTH`]; the caller must then stop recursing and
+    /// return an error node instead of parsing further, exactly as if it
+    /// had reported any other diagnostic.
+    ///
+    /// The first time this trips, it also sets the sticky
+    /// [`Self::depth_exceeded`] flag and returns `true` unconditionally on
+    /// every call for the rest of this parse, *without* touching `depth` —
+    /// so [`Self::exit_recursive`] must check the same flag before
+    /// decrementing, or the two would drift out of the pairing `guarded`
+    /// relies on. Bailing out once and staying bailed out (rather than only
+    /// refusing to recurse *this* deep before letting the next sibling
+    /// attempt its own full-depth recursion) is what keeps a single
+    /// pathological run of nesting to O(depth) work instead of O(depth ×
+    /// remaining input): every recursive descent function still runs on
+    /// every leftover token, but sees the flag first and returns
+    /// immediately, so the outer statement/block loop's own force-progress
+    /// guard is what actually consumes the rest, one token at a time. A
+    /// fuzz run's minimized reproducer for this — plain nested parens, no
+    /// checkpointing involved at all — took over two minutes on 100,000
+    /// levels before this fix; it is not merely a large constant.
+    fn enter_recursive(&mut self) -> bool {
+        if self.depth_exceeded {
+            return true;
+        }
+        self.depth += 1;
+        if self.depth > MAX_RECURSION_DEPTH {
+            self.depth_exceeded = true;
+            let span = self.peek().span.shrink_to_start();
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_TOO_DEEPLY_NESTED,
+                    "parsing nested too deeply and was stopped",
+                )
+                .with_primary(span, "nested past the limit here")
+                .with_note(format!(
+                    "the recursion limit is {MAX_RECURSION_DEPTH} levels; legitimate source never \
+                     comes close to it"
+                )),
+            );
+            true
+        } else {
+            false
+        }
+    }
+
+    fn exit_recursive(&mut self) {
+        if !self.depth_exceeded {
+            self.depth -= 1;
+        }
+    }
+
+    /// Runs `body` under [`Self::enter_recursive`]'s guard, calling
+    /// `fallback` instead once the depth limit is hit. Every self- or
+    /// mutually-recursive precedence-tier function is written as a thin
+    /// wrapper around this rather than checking the guard inline, so the
+    /// matching [`Self::exit_recursive`] can never be missed on some
+    /// early-return path the guard was added after the fact.
+    fn guarded<T>(
+        &mut self,
+        fallback: impl FnOnce(&mut Self) -> T,
+        body: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let result = if self.enter_recursive() {
+            fallback(self)
+        } else {
+            body(self)
+        };
+        self.exit_recursive();
+        result
+    }
+
+    fn error_expr_here(&mut self) -> Expr {
+        let span = self.peek().span.shrink_to_start();
+        Expr {
+            span,
+            kind: ExprKind::Error,
         }
     }
 
@@ -409,7 +544,25 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.at(TokenKind::Amp) && Self::token_starts_type(self.peek_at(1).kind)
     }
 
+    /// Self-recursive both for a nested `?` (`??int`, absurd but legal
+    /// grammar) and via [`Self::parse_type_union`] for a parenthesized type
+    /// (`((((int))))`) — needs the same recursion guard as
+    /// [`Self::parse_assignment`], and guarding it alone is enough to bound
+    /// the paren cycle too, since `parse_type_union`/`_intersection` always
+    /// lead straight back here with no branching in between.
     fn parse_type_operand(&mut self) -> Type {
+        self.guarded(Self::error_type_here, Self::parse_type_operand_inner)
+    }
+
+    fn error_type_here(&mut self) -> Type {
+        let span = self.peek().span.shrink_to_start();
+        Type {
+            kind: TypeKind::Atom(TypeAtom::Mixed),
+            span,
+        }
+    }
+
+    fn parse_type_operand_inner(&mut self) -> Type {
         if let Some(q) = self.eat(TokenKind::Question) {
             let inner = self.parse_type_operand();
             let span = q.to(inner.span);
@@ -616,11 +769,21 @@ impl<'src, 'd> Parser<'src, 'd> {
         lhs
     }
 
+    /// The shared re-entry point for every nested expression (an array
+    /// item, a call argument, a parenthesized group, ...), so guarding it
+    /// alone would catch that whole class of unbounded nesting — but not a
+    /// long flat chain of one repeated prefix/infix operator, which
+    /// recurses through [`Self::parse_assignment`]/[`Self::parse_ternary`]/
+    /// [`Self::parse_not`]/[`Self::parse_unary`]/[`Self::parse_power`]
+    /// without ever coming back through here. Each of those is guarded
+    /// individually for that reason.
     fn parse_low_or(&mut self) -> Expr {
-        self.parse_left_assoc(
-            Self::parse_low_xor,
-            &[(TokenKind::Keyword(Keyword::Or), BinaryOp::LowOr)],
-        )
+        self.guarded(Self::error_expr_here, |p| {
+            p.parse_left_assoc(
+                Self::parse_low_xor,
+                &[(TokenKind::Keyword(Keyword::Or), BinaryOp::LowOr)],
+            )
+        })
     }
 
     fn parse_low_xor(&mut self) -> Expr {
@@ -637,7 +800,14 @@ impl<'src, 'd> Parser<'src, 'd> {
         )
     }
 
+    /// Right-recursive on its own operand (`$a = $b = $c = ...`), so a long
+    /// chain of `=` needs the same recursion guard as the array-literal
+    /// nesting that originally motivated it — see [`Self::guarded`].
     fn parse_assignment(&mut self) -> Expr {
+        self.guarded(Self::error_expr_here, Self::parse_assignment_inner)
+    }
+
+    fn parse_assignment_inner(&mut self) -> Expr {
         let target = self.parse_ternary();
         let op = match self.peek().kind {
             TokenKind::Equals => AssignOp::Assign,
@@ -714,7 +884,14 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// Right-recursive on its own operand (`$a ?? $b ?? $c ?? ...`) — needs
+    /// its own guard for the same reason [`Self::parse_assignment`] does;
+    /// nothing else in the chain passes back through here.
     fn parse_coalesce(&mut self) -> Expr {
+        self.guarded(Self::error_expr_here, Self::parse_coalesce_inner)
+    }
+
+    fn parse_coalesce_inner(&mut self) -> Expr {
         let lhs = self.parse_logic_or();
         if self.eat(TokenKind::QuestionQuestion).is_some() {
             let rhs = self.parse_coalesce();
@@ -815,8 +992,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `!expr` — stacks (`!!expr` is `!(!expr)`), and otherwise defers to
-    /// `instanceof`, which binds tighter.
+    /// `instanceof`, which binds tighter. The stacking is unbounded self-
+    /// recursion (`!!!!!!...`), so it needs the same guard as
+    /// [`Self::parse_assignment`].
     fn parse_not(&mut self) -> Expr {
+        self.guarded(Self::error_expr_here, Self::parse_not_inner)
+    }
+
+    fn parse_not_inner(&mut self) -> Expr {
         if let Some(start) = self.eat(TokenKind::Bang) {
             let expr = self.parse_not();
             let span = start.to(expr.span);
@@ -864,7 +1047,17 @@ impl<'src, 'd> Parser<'src, 'd> {
         (self.peek_at(2).kind == TokenKind::RParen).then_some(ty)
     }
 
+    /// Self-recursive on its own operand for every prefix form it handles
+    /// (a cast, `-`/`+`/`~`/`@`/`!`, `++`/`--`), and mutually recursive with
+    /// [`Self::parse_power`] for a chain of `**` — needs the same guard as
+    /// [`Self::parse_assignment`], and guarding it alone is enough to bound
+    /// that `**` cycle too, since every trip around it passes back through
+    /// here.
     fn parse_unary(&mut self) -> Expr {
+        self.guarded(Self::error_expr_here, Self::parse_unary_inner)
+    }
+
+    fn parse_unary_inner(&mut self) -> Expr {
         if self.at(TokenKind::LParen)
             && let Some(ty) = self.peek_cast_type()
         {
@@ -958,9 +1151,35 @@ impl<'src, 'd> Parser<'src, 'd> {
     // Postfix chain: member access, calls, indexing, `as`, `++`/`--`
     // ========================================================================
 
+    /// Chains `->`/`?->`/`::`/`[...]`/`(...)`/`++`/`--`/`as` onto a primary
+    /// expression in a loop, not recursion — so unlike every guarded
+    /// function above, an unbounded chain here (`$x[0][0][0]...` thousands
+    /// deep) never risks overflowing *this* function's own stack. It still
+    /// builds a `Box`-nested `Expr` exactly that deep, though, and *that*
+    /// structure is what a fuzz run actually found overflowing the stack —
+    /// not here, but the first ordinary recursive walk over it afterwards
+    /// (originally `{:#?}` while investigating a different crash; name
+    /// resolution, type checking and codegen will all walk it the same way
+    /// once they exist). Shares [`Self::enter_recursive`]'s counter and
+    /// sticky give-up flag: one link consumed here counts the same as one
+    /// level of expression nesting elsewhere, so `[$a[0][0]...[0]]` and
+    /// `[[[...]]]` draw on the same bounded budget instead of two separate
+    /// ones that would each individually look safe. `chain_len` tracks how
+    /// many times *this* loop has incremented that counter, purely so it
+    /// can give back exactly that many increments before returning — this
+    /// loop does not recurse, so nothing else will.
     fn parse_postfix(&mut self) -> Expr {
         let mut e = self.parse_primary();
+        let mut chain_len: u32 = 0;
         loop {
+            if self.enter_recursive() {
+                e = Expr {
+                    span: e.span,
+                    kind: ExprKind::Error,
+                };
+                break;
+            }
+            chain_len += 1;
             match self.peek().kind {
                 TokenKind::Arrow | TokenKind::NullsafeArrow => {
                     let nullsafe = matches!(self.peek().kind, TokenKind::NullsafeArrow);
@@ -1056,8 +1275,18 @@ impl<'src, 'd> Parser<'src, 'd> {
                         },
                     };
                 }
-                _ => break,
+                _ => {
+                    // No postfix operator here after all — this iteration's
+                    // increment doesn't correspond to a real link, so give
+                    // it straight back rather than counting it.
+                    self.exit_recursive();
+                    chain_len -= 1;
+                    break;
+                }
             }
+        }
+        for _ in 0..chain_len {
+            self.exit_recursive();
         }
         e
     }
@@ -2189,7 +2418,25 @@ impl<'src, 'd> Parser<'src, 'd> {
         Block { stmts, span }
     }
 
+    /// Statements nest into statements without bound (`{{{{...}}}}`,
+    /// `if(1)if(1)if(1)...;`, ...) purely through the ordinary recursive-
+    /// descent call graph — [`Self::parse_block`]'s own force-progress
+    /// guard only stops a *malformed* body from hanging, it does nothing
+    /// for input that is well-formed but absurdly deep. Needs the same
+    /// depth guard as [`Self::parse_assignment`].
     fn parse_statement(&mut self) -> Stmt {
+        self.guarded(Self::error_stmt_here, Self::parse_statement_inner)
+    }
+
+    fn error_stmt_here(&mut self) -> Stmt {
+        let span = self.peek().span.shrink_to_start();
+        Stmt {
+            span,
+            kind: StmtKind::Empty,
+        }
+    }
+
+    fn parse_statement_inner(&mut self) -> Stmt {
         // --- HTML-mode round trip, spec 00-overview.md § 1 ---------------------
         // `?>`/`<?php`/`<?mwl` can reopen or reclose code mode anywhere a
         // statement is expected, not just at file scope — e.g.
@@ -2834,7 +3081,23 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// Nested destructuring (`[[[[[$a]]]]] = ...`) recurses through
+    /// [`Self::parse_destructure_element`] without bound — needs the same
+    /// guard as [`Self::parse_assignment`].
     fn parse_destructure_target(&mut self) -> DestructureTarget {
+        self.guarded(
+            |p| {
+                let span = p.peek().span.shrink_to_start();
+                DestructureTarget {
+                    elements: Vec::new(),
+                    span,
+                }
+            },
+            Self::parse_destructure_target_inner,
+        )
+    }
+
+    fn parse_destructure_target_inner(&mut self) -> DestructureTarget {
         let open = self.expect(TokenKind::LBracket, "`[`");
         let elements = self.parse_destructure_elements(TokenKind::RBracket);
         let close = self.expect(TokenKind::RBracket, "`]`");
@@ -5355,6 +5618,68 @@ mod tests {
             "runaway recovery: {} statements",
             stmts.len()
         );
+    }
+
+    /// `cargo fuzz run parse` also found deeply nested parens overflowing
+    /// the native call stack outright — not a hang, an immediate crash,
+    /// since unlike the `switch` case above this recursion is entirely
+    /// well-formed at every level (`parse_type_operand`/`parse_low_or`
+    /// legitimately calling back into themselves), so no force-progress
+    /// guard applies. [`Parser::enter_recursive`] bounds it instead. This
+    /// input is two full orders of magnitude past the limit; if the guard
+    /// regresses, this crashes the test process rather than failing it
+    /// cleanly.
+    #[test]
+    fn extremely_deep_nesting_does_not_overflow_the_stack() {
+        for opener in ['(', '['] {
+            let closer = if opener == '(' { ')' } else { ']' };
+            let mut src = String::from("<?mwl $x = ");
+            src.extend(std::iter::repeat_n(opener, 10_000));
+            src.push('1');
+            src.extend(std::iter::repeat_n(closer, 10_000));
+            src.push(';');
+            let mut map = SourceMap::new();
+            let id = map.add("t.mwl", src);
+            let mut diags = Diagnostics::new();
+            let stmts = parse_file(map.file(id), &mut diags);
+            assert!(diags.has_errors());
+            assert!(!stmts.is_empty());
+        }
+    }
+
+    /// A long postfix chain (`$x[0][0][0]...`) builds an equally long
+    /// `Box`-nested `Expr` through a *loop*, not recursion, so it survives
+    /// parsing regardless — but the resulting structure used to grow
+    /// without bound, and a fuzz-run investigation found that overflowing
+    /// the stack in the very first ordinary recursive walk over it
+    /// afterwards (originally `mwl ast`'s pretty-printer). Confirms the
+    /// chain itself gets folded back to a bounded depth: this walks the
+    /// `Index`/`base` links by hand (not `{:#?}`, to keep the test's own
+    /// assertion from being exactly the kind of unbounded recursive walk
+    /// this is guarding against) and checks it stops within a small
+    /// multiple of the guard's limit.
+    #[test]
+    fn a_long_postfix_chain_is_folded_back_to_a_bounded_depth() {
+        let mut src = String::from("<?mwl $x");
+        for i in 0..10_000 {
+            src.push_str(&format!("[{i}]"));
+        }
+        src.push(';');
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(id), &mut diags);
+        assert!(diags.has_errors());
+
+        let StmtKind::Expr(mut e) = stmts[0].kind.clone() else {
+            panic!("expected an expression statement: {:?}", stmts[0]);
+        };
+        let mut depth = 0u32;
+        while let ExprKind::Index { base, .. } = e.kind {
+            e = *base;
+            depth += 1;
+        }
+        assert!(depth < 1000, "chain was not folded back: depth {depth}");
     }
 
     #[test]

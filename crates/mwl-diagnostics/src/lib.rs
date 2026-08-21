@@ -89,6 +89,10 @@ pub mod code {
     /// A parameter list that is malformed — duplicate names, or a required
     /// parameter after an optional one.
     pub const E_BAD_PARAM_LIST: Code = Code::new("E0107");
+    /// Recursive-descent parsing nested past the recursion limit — malformed
+    /// or adversarial input (e.g. thousands of nested `[`), never legitimate
+    /// source. The parser bails out here rather than overflowing its stack.
+    pub const E_TOO_DEEPLY_NESTED: Code = Code::new("E0108");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
