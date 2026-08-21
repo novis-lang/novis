@@ -18,6 +18,19 @@ existing `Core` accessor domains ([ADR 0012](docs/adr/0012-no-superglobals.md)) 
 (`Core\Browser`, undesigned) will need to fit later — don't bake in "exactly six, enumerated" anywhere it
 would need unpicking.
 
+Also since then, [ADR 0026](docs/adr/0026-performance-measurement-methodology.md) landed — tooling/process,
+no language surface, doesn't touch M2. It settles how MWL's *own* performance gets tracked across
+contributor machines and OSes: `benches/abi-probe/tests/perf_guards.rs`'s existing self-relative wall-clock
+ratios stay the CI regression guard, unchanged, on every push/every platform. On top of that, a new
+historical dashboard records the **aggregate callgrind instruction count** (`Ir`) from a fixed workload run
+under `valgrind --tool=callgrind` on a dedicated, non-shared Linux/WSL runner on every merge to `main` —
+chosen because a spike (`benches/abi-probe/examples/callgrind_spike.rs`, three runs) proved it gives a
+bit-for-bit identical count through Cranelift-JIT-compiled code, which wall-clock never can across
+different hardware. `valgrind` is now part of the WSL one-time dev setup in CLAUDE.md, alongside
+`cargo-fuzz`. **Not yet built:** the `docs/perf/history.ndjson` writer, the dedicated-runner CI wiring, and
+the actual workload roster beyond the one spike benchmark — all deferred per the ADR's *Revisiting* section
+to whoever picks up that infra work; it has no milestone number of its own and doesn't block M2/M3.
+
 **M2 — HIR, types, IR — starts now.** Read `CLAUDE.md` first (it routes to the one file you need per
 topic), then run `sh .claude/brief.sh` for the live status slice, then read the plan's M2 paragraph in
 `docs/implementation-plan.md` in full — it's dense and every clause maps to an ADR you'll need open
