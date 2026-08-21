@@ -35,6 +35,7 @@ touching to get that.
 | `clone`, `serialize`/`unserialize`, `__clone`, `__serialize`/`__unserialize`/`__sleep`/`__wakeup`, or how a value crosses the `spawn`/`spawn worker`/`spawn script` boundary | [ADR 0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md). Holds the only copy of the rule that `clone` stays PHP's shallow, same-heap, single-level copy while `serialize()`/`unserialize()` share one recursive graph-copy operation with the isolate boundary; none of the four magic hooks exist, and `unserialize()` accepts only MWL's own closed format. |
 | The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [ADR 0017](docs/adr/0017-hot-reload-without-restart.md). Holds the only copy of the path-pointer-swap mechanism, why it needs no filesystem watcher, and why a request-serving core is never blocked on a recompile. |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
+| `var`, local type inference, why `$x = "foo";` doesn't need its type spelled out | [ADR 0037](docs/adr/0037-var-local-type-inference.md). Holds the only copy of the rule that `var $name = expr;` infers a local's type from its initializer and fixes it forever, exactly as if written by hand — and the one initializer shape it refuses, a bare array literal. |
 | PHP's `(int)$x`/`(string)$x` legacy cast syntax, why it doesn't parse | [ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md). Holds the only copy of the rule that `as` is the sole conversion spelling — the legacy cast keywords are diagnosed at parse time naming the equivalent `as` expression, with no alias kept. |
 | Whether an `if`/`while`/`for`/`?:`/`&&`/`\|\|`/`!` condition needs an explicit `as bool`, PHP truthiness | [ADR 0035](docs/adr/0035-truthy-boolean-context.md). Holds the only copy of the truthy table and the exact six syntax positions it applies to; every other `bool` position (a parameter, property, `==`/`===`) is untouched and still needs `as bool`. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
@@ -110,8 +111,11 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   ([ADR 0006](docs/adr/0006-isolated-script-execution.md)).
 - **Nothing is untyped, and no type ever changes by itself** — every binding declares a type; `mixed` is the
   one unchecked position; `int + uint` is a compile error; overflow throws rather than becoming a `float`
-  ([ADR 0007](docs/adr/0007-explicit-type-system.md)). Type *inference* belongs in `mwl convert`, never in
-  the compiler.
+  ([ADR 0007](docs/adr/0007-explicit-type-system.md)). The one exception is a local: `var $name = expr;`
+  infers and fixes its type from `expr`, sugar over the checker's existing synthesis path rather than a
+  solver — a bare array-literal initializer is the one shape it refuses ([ADR 0037](docs/adr/0037-var-local-type-inference.md)).
+  A `foreach` binding and a destructuring target have no such spelling; inferring those still belongs only
+  in `mwl convert`, never in the compiler.
 - **`string` is guaranteed-valid UTF-8; binary data is the separate `bytes` type** — not yet Accepted, see
   the table above ([ADR 0009](docs/adr/0009-string-and-bytes.md)).
 - **Every function is a method, every constant a class constant** — no free function, no global constant,

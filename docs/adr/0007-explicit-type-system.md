@@ -37,6 +37,9 @@
   to say so. [0035](0035-truthy-boolean-context.md) — names the one place a value's declared type is tested
   without `as`: a condition (`if`/`while`/`for`'s middle clause/`?:`/`&&`/`||`/`!`), judged by PHP's full
   truthy table rather than requiring `bool` already. Every other position § 2 governs is unaffected.
+  [0037](0037-var-local-type-inference.md) — § 1's local-decl row gains a second spelling, `var $name =
+  expr;`, whose type is the initializer's own checked type; resolves the *Alternatives rejected*/
+  *Revisiting* entries this ADR used to carry for exactly that idea.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -103,7 +106,7 @@ Positions PHP already has a type slot for become **mandatory**. Positions PHP ha
 | return type, including `void` / `never` | `: array<User>` | PHP syntax, now mandatory |
 | property, promoted constructor parameter | `public readonly uint $id;` | PHP syntax, now mandatory |
 | class constant | `public const int MAX = 10;` | PHP 8.3 syntax, now mandatory |
-| local variable, at its declaration | `int $n = 0;` | **new slot** |
+| local variable, at its declaration | `int $n = 0;`, or `var $n = 0;` to infer the type from the initializer ([0037](0037-var-local-type-inference.md)) | **new slot** |
 | `foreach` key and value | `foreach ($rows as string $k => array<int> $row)` | **new slot** |
 | destructuring | `[int $a, string $b] = $pair;` | **new slot** |
 | closure / arrow-function parameters and return | `fn(int $n): string => …` | PHP syntax, now mandatory |
@@ -353,11 +356,9 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
   local, a `foreach` binding, or a destructuring target, so no existing PHP file satisfies the declaration
   requirement — and a PHP global constant has no MWL binding site at all to satisfy, since
   [ADR 0011](0011-functions-and-constants-are-class-members.md) requires it to move onto a class first.
-  "Drop your `.php` files in" is gone; migration goes through `mwl convert`,
-  which must now run an inference pass and *write the annotations into the source*. The compensation is real
-  but partial: inference becomes a one-time source rewrite a human reviews and edits, rather than a
-  permanent semantic authority inside the compiler — which is the better place for a heuristic to live. M11
-  gets harder, and becomes mandatory rather than a convenience.
+  "Drop your `.php` files in" is gone; migration goes through `mwl convert`. For a plain local, [0037](0037-var-local-type-inference.md)'s
+  `var` means the converter can emit that instead of running its own inference pass — a `foreach` binding
+  and a destructuring target still have no type-eliding spelling, so those two positions still need one.
 - **Verbosity.** `array<array<int|string>> $rows` at every declaration is a cost against priority 4's
   simplicity of the language surface. A `type` alias is the relief, decided in
   [ADR 0015](0015-no-name-aliasing.md) rather than smuggled in beside this ADR's core decision, and barred
@@ -381,10 +382,6 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 - **The gradual system in the original plan** (declared types checked, locals inferred). Leaves untrusted
   input conversion implicit, leaves the baseline tier generic wherever inference fails, is two type systems
   to keep in agreement, and has no honest answer for what an inferred type means once a value changes type.
-- **Inference for locals only** (`var $x = 5;`, fixed forever at first assignment). The strongest
-  alternative — the binding still has exactly one immutable type — but the requirement is explicit that no
-  position may be undeclared, and the annotation is what makes an array literal checkable against a target
-  rather than inferred. First thing to reconsider if verbosity proves worse in practice than on paper.
 - **No `uint`; carry big unsigned values as `string` or `float`.** PHP's answer — pushes a conversion into
   every call site, and `float` loses precision silently above 2^53.
 - **One arbitrary-precision integer type instead of `int` + `uint`.** Breaks the value layout: integers stop
@@ -416,8 +413,6 @@ Deferred deliberately, each needing its own argument rather than an extension of
   stdlib's parametric array signatures already prove the checker can carry type variables; opening them to
   user code is a language-surface decision, not a checker one.
 - **Read-only or covariant array parameters**, if invariance is what people actually trip over.
-- **Local type inference** (`var $x = 5;`) if the annotation burden measured on real code exceeds what the
-  explicitness buys.
 - **Integer literal suffixes**, if "too large for `int`, and no `uint` expected here" turns out to be a
   frequent diagnostic rather than a rare one.
 

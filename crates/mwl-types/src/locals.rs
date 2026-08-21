@@ -308,12 +308,42 @@ fn check_stmt(
             }
         }
         StmtKind::LocalDecl { ty, name, value } => {
-            let declared_ty = lower_type(ty, ctx, env);
             let name_str = strip_sigil(span_text(env.src, *name)).to_owned();
-            declare_binding(scope, &name_str, declared_ty, *name, true, env);
-            if let Some(value) = value {
-                check_expr(value, Some(declared_ty), live, scope, ctx, env);
-                live.insert(name_str);
+            match ty {
+                Some(ty) => {
+                    let declared_ty = lower_type(ty, ctx, env);
+                    declare_binding(scope, &name_str, declared_ty, *name, true, env);
+                    if let Some(value) = value {
+                        check_expr(value, Some(declared_ty), live, scope, ctx, env);
+                        live.insert(name_str);
+                    }
+                }
+                // ADR 0037: `var` — the parser never produces this without
+                // an initializer. Its type is synthesized the same way an
+                // `echo` argument's is (`check_expr` with no `expected`),
+                // then fixed onto the binding exactly as if it had been
+                // written out by hand.
+                None => {
+                    let value = value
+                        .as_ref()
+                        .expect("parser guarantees `var`'s initializer");
+                    if matches!(value.kind, ExprKind::ArrayLiteral(_)) {
+                        env.diags.report(
+                            Diagnostic::error(
+                                code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE,
+                                "`var` cannot infer an array literal's element type",
+                            )
+                            .with_primary(
+                                value.span,
+                                "no target type to check this literal against",
+                            )
+                            .with_help("write the type explicitly: `array<T> $name = [...];`"),
+                        );
+                    }
+                    let inferred_ty = check_expr(value, None, live, scope, ctx, env);
+                    declare_binding(scope, &name_str, inferred_ty, *name, true, env);
+                    live.insert(name_str);
+                }
             }
         }
         StmtKind::Destructure { target, value } => {

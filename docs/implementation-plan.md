@@ -94,6 +94,22 @@
 > at the time of this paragraph; `object`'s real subtyping and the shape's structural check (ADR 0036
 > §§ 1, 3-4) are now done — see the M2 paragraph below for that work.
 >
+> **A fourth grammar item lands after M1, alongside M2's checker work:** [ADR 0037](adr/0037-var-local-type-inference.md)'s
+> `var $name = expr;` — a local declaration with no written type, inferred from `expr`'s own checked type
+> and then fixed forever, same as a written-out one. `mwl-syntax`'s statement dispatch gains a plain
+> `TokenKind::Keyword(Keyword::Var)` arm (`parse_var_local_decl`, no trial parse needed — `var` never starts
+> anything else at statement position) and `ast::StmtKind::LocalDecl.ty` becomes `Option<Type>`, `None`
+> meaning `var`'s elided spelling; every other consumer of that variant (`casing`, `mwl-hir::requires`,
+> `mwl-hir::members`, `mwl-types::ctor_init`) already matched on `value` alone and needed no change. Unlike
+> ADR 0033/0036's grammar-first landings, the checker side is done in the same pass: `mwl-types::locals`'s
+> `LocalDecl` arm now branches on `ty`, routing `None` through `check_expr`'s existing no-`expected` synthesis
+> path (the same one an `echo` argument already uses) and declaring the result exactly like a written
+> type — declare-once and definite-assignment are unaffected, since by that point there is no distinction
+> left. The one case `var` refuses is a bare array-literal initializer (`var $x = [1, 2];`,
+> `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, `E0414`), since an array literal has nothing to synthesize an element
+> type from without a target — the same reason ADR 0007 § 5 checks array literals against a target rather
+> than inferring one.
+>
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
 > type table; 0010/0014/0015/0022/0027/0028's checker-side rules (0013's own is now done — see below);
@@ -418,15 +434,15 @@ talks h1/h2 upstream → h3 is pure cost.
   per-request arena held to its peak are all deliberate purchases of safety, speed or simplicity. Sizing a
   deployment therefore means sizing for concurrency — tasks × stack, plus concurrent requests × their
   `memory` cap — and deployment docs must say so rather than quote a typical RSS.
-- **Existing PHP does not run unconverted.** PHP has no syntax for the type of a local, a `foreach`
-  binding or a destructuring target ([ADR 0007](adr/0007-explicit-type-system.md)), and every one of its
-  global functions and global constants needs a new home on a class before it type-checks at all
-  ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). So the migration story is
-  `mwl convert` writing annotations and rewriting call sites into the source, not dropping `.php` files
-  into a document root. That moves type inference out of the compiler and into a one-time source rewrite a
-  human reviews — better placed, but it makes M11 mandatory rather than a convenience, and it lowers the
-  imported `.phpt` pass rate structurally rather
-  than through bugs.
+- **Existing PHP does not run unconverted.** PHP has no syntax for the type of a `foreach` binding or a
+  destructuring target ([ADR 0007](adr/0007-explicit-type-system.md)), and every one of its global
+  functions and global constants needs a new home on a class before it type-checks at all
+  ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). A plain local has a type-eliding
+  spelling now — [ADR 0037](adr/0037-var-local-type-inference.md)'s `var` — so `mwl convert` can emit that
+  directly instead of inferring and writing an annotation, but it still has to write annotations and
+  rewrite call sites for everything else, not just drop `.php` files into a document root. M11 stays
+  mandatory rather than a convenience, and the imported `.phpt` pass rate is still structurally lower than
+  a compatibility-first design's, not through bugs.
 - **One new language construct that PHP has no equivalent of.** `spawn script` is a surface a developer
   has to learn and the spec has to define next to `require`, which they will confuse it with. Accepted:
   the requirement it answers — run another file, isolated, without a second process — has no other honest
@@ -1071,12 +1087,15 @@ functions.
 
 ### M11 — PHP transpiler (~10 weeks)
 `mwl convert`: PHP source → AST → rewrite passes → idiomatic `.mwl` output. **This milestone is now on the
-critical path for adoption rather than a convenience**, because PHP has no syntax for a local's type and
-[ADR 0007](adr/0007-explicit-type-system.md) requires one: the converter carries the type-inference engine
-MWL's compiler deliberately does not have, and writes the annotations into the output for a human to review.
-Where inference cannot decide, it emits `mixed` with a `TODO` naming the binding rather than guessing — an
-honest `mixed` runs, and a wrong annotation would not. That inference pass is the reason for the two extra
-weeks over the original estimate.
+critical path for adoption rather than a convenience**, because PHP has no syntax for a `foreach` binding's
+or a destructuring target's type and [ADR 0007](adr/0007-explicit-type-system.md) requires one for both: the
+converter carries the type-inference engine MWL's compiler deliberately does not have for those two
+positions, and writes the annotations into the output for a human to review. A plain local is now
+mechanical instead — [ADR 0037](adr/0037-var-local-type-inference.md)'s `var $name = expr;` lets the
+converter emit the initializer unchanged and let the compiler's own checker fix its type, no inference pass
+needed. Where the remaining inference cannot decide, it emits `mixed` with a `TODO` naming the binding
+rather than guessing — an honest `mixed` runs, and a wrong annotation would not. That inference pass is the
+reason for the two extra weeks over the original estimate.
 
 Mechanical rewrites where possible (`global` → parameter passing, function-scope `static` → a
 `private static` property on the owning class or a parameter where there is no class, `static fn` → the

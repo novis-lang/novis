@@ -2848,6 +2848,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 self.parse_static_local(start)
             }
             TokenKind::Keyword(Keyword::List) => self.parse_destructure_from_list(start),
+            TokenKind::Keyword(Keyword::Var) => self.parse_var_local_decl(start),
             TokenKind::LBracket => self.parse_stmt_maybe_destructure(start),
             TokenKind::AttributeOpen => self.parse_attributed_decl_stmt(start),
             TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class) => {
@@ -3370,7 +3371,40 @@ impl<'src, 'd> Parser<'src, 'd> {
         let span = start.to(self.last_span);
         Stmt {
             span,
-            kind: StmtKind::LocalDecl { ty, name, value },
+            kind: StmtKind::LocalDecl {
+                ty: Some(ty),
+                name,
+                value,
+            },
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // ADR 0037: `var $name = expr;` — the local's type is never written; it
+    // is `value`'s own checked type, fixed forever exactly as if that type
+    // had been spelled out. Unlike the typed spelling above, the initializer
+    // is mandatory here — there is nothing to infer a type from otherwise —
+    // so this is a plain, unambiguous parse with no trial/backtrack needed:
+    // `var` never starts anything else at statement position.
+    // ------------------------------------------------------------------------
+
+    fn parse_var_local_decl(&mut self, start: Span) -> Stmt {
+        self.bump(); // `var`
+        let name = self.expect(TokenKind::Variable, "a variable name");
+        self.expect(
+            TokenKind::Equals,
+            "`=` — `var` infers its type from the initializer, so one is required",
+        );
+        let value = self.parse_expr();
+        self.expect(TokenKind::Semicolon, "`;`");
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::LocalDecl {
+                ty: None,
+                name,
+                value: Some(value),
+            },
         }
     }
 
@@ -4919,7 +4953,10 @@ mod tests {
         let StmtKind::LocalDecl { ty, .. } = s.kind else {
             panic!("expected a local decl: {s:?}");
         };
-        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::TaintedString)));
+        assert!(matches!(
+            ty.unwrap().kind,
+            TypeKind::Atom(TypeAtom::TaintedString)
+        ));
 
         // `foreach` binding.
         let s = parse_stmt_ok("foreach ($rows as tainted string $row) { }");
@@ -5022,7 +5059,10 @@ mod tests {
         let StmtKind::LocalDecl { ty, .. } = s.kind else {
             panic!("expected a local decl: {s:?}");
         };
-        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::SecretString)));
+        assert!(matches!(
+            ty.unwrap().kind,
+            TypeKind::Atom(TypeAtom::SecretString)
+        ));
 
         // `foreach` binding.
         let s = parse_stmt_ok("foreach ($rows as secret string $row) { }");
@@ -5858,7 +5898,7 @@ mod tests {
         let StmtKind::LocalDecl { ty, value, .. } = s.kind else {
             panic!("expected a local decl: {s:?}");
         };
-        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Int)));
+        assert!(matches!(ty.unwrap().kind, TypeKind::Atom(TypeAtom::Int)));
         assert!(value.is_some());
 
         let s = parse_stmt_ok("array<uint> $ids;");
@@ -5866,6 +5906,30 @@ mod tests {
             panic!("expected a local decl: {s:?}");
         };
         assert!(value.is_none());
+    }
+
+    /// ADR 0037: `var $n = 0;` parses to the same `LocalDecl` shape as the
+    /// typed spelling, but with `ty: None` — the checker fills it in from
+    /// `value`'s own type.
+    #[test]
+    fn var_local_declaration_has_no_written_type() {
+        let s = parse_stmt_ok("var $n = 0;");
+        let StmtKind::LocalDecl { ty, value, .. } = s.kind else {
+            panic!("expected a local decl: {s:?}");
+        };
+        assert!(ty.is_none());
+        assert!(value.is_some());
+    }
+
+    /// `var` has nothing to infer a type from without an initializer, so
+    /// (unlike the typed spelling) one is mandatory.
+    #[test]
+    fn var_local_declaration_requires_an_initializer() {
+        let (_, diags) = parse_stmt_with_diags("var $n;");
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_EXPECTED_TOKEN)),
+            "expected E_EXPECTED_TOKEN, got {diags:?}"
+        );
     }
 
     #[test]

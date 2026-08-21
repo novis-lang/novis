@@ -68,9 +68,10 @@
 //!   [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md)'s own *Revisiting* note says these don't
 //!   exist yet, so this isn't a regression, just not built. Only single `use Path\To\Name;` per
 //!   statement is supported.
-//! - **Legacy `var $x;`** (PHP 4's property declarator) is not handled — `Keyword::Var` is lexed but
-//!   nothing in the parser recognizes it; it falls through to a generic parse error. Vanishingly
-//!   rare in modern code.
+//! - **`var` inside a class body** (PHP 4's property declarator) is not handled — only the statement
+//!   position now recognizes `Keyword::Var`, as [ADR 0037](../../../docs/adr/0037-var-local-type-inference.md)'s
+//!   inferred local declaration; the property-declarator spelling still falls through to a generic
+//!   parse error. Vanishingly rare in modern code.
 //! - **A method/const/case name that is itself a reserved keyword spelling** works for methods and
 //!   consts but not for enum cases, which require a plain `Ident` — a case literally named e.g.
 //!   `Static` would misparse.

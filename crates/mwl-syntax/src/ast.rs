@@ -1006,12 +1006,17 @@ pub enum StmtKind {
     /// ADR 0007 § 3.1's typed local declaration:
     /// `type '$' identifier ('=' expr)? ';'`. Exactly one binding per
     /// statement — there is no comma-separated multi-declaration form.
+    ///
+    /// ADR 0037 adds a second spelling, `'var' '$' identifier '=' expr ';'`,
+    /// with no type written at all — [`None`] here means "infer it from
+    /// `value`'s own checked type," never "no type." `value` is mandatory in
+    /// that case; the parser never produces `ty: None, value: None`.
     LocalDecl {
-        /// The declared type.
-        ty: Type,
+        /// The declared type, or [`None`] for `var`'s inferred spelling.
+        ty: Option<Type>,
         /// The declared variable's name, `$`-sigil included.
         name: Span,
-        /// The initializer, if any.
+        /// The initializer, if any (always present when `ty` is [`None`]).
         value: Option<Expr>,
     },
     /// ADR 0007 § 3.3's destructuring statement:

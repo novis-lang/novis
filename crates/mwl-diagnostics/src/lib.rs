@@ -307,6 +307,10 @@ pub mod code {
     /// property is ever anything but definitely initialized; see ADR 0028
     /// § 3.
     pub const E_UNSET_ON_PROPERTY: Code = Code::new("E0413");
+    /// `var $x = [...];` — a bare array literal has no target type to check
+    /// against, the one initializer shape `var` cannot infer from; see
+    /// ADR 0037 § 2.
+    pub const E_VAR_ARRAY_LITERAL_NEEDS_TYPE: Code = Code::new("E0414");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

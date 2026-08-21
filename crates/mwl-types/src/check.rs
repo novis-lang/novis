@@ -237,6 +237,50 @@ mod tests {
         );
     }
 
+    /// ADR 0037: `var $n = 1;` fixes `$n`'s type to `int`, exactly as if it
+    /// had been written out — so a later assignment of a different type is
+    /// the ordinary `E_TYPE_MISMATCH` a typed local would also get.
+    #[test]
+    fn var_infers_the_initializers_type_and_fixes_it() {
+        let diags = check_in_method("var $n = 1;\n$n = \"x\";\n");
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn var_infers_a_class_type_from_new() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    var $x = new Foo();\n    $x->missing;\n  }\n}\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_UNKNOWN_MEMBER)),
+            "$x should be inferred as `Foo`, so `->missing` is unknown: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn redeclaring_a_var_local_is_diagnosed_like_any_other() {
+        let diags = check_in_method("var $n = 1;\nvar $n = 2;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_REDECLARED_LOCAL))
+        );
+    }
+
+    /// ADR 0037 § 2: a bare array literal has no target type to synthesize
+    /// against, so `var` cannot infer one — this is the one initializer
+    /// shape it refuses rather than silently falling back to `array<mixed>`.
+    #[test]
+    fn var_rejects_a_bare_array_literal_initializer() {
+        let diags = check_in_method("var $rows = [1, 2, 3];\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_VAR_ARRAY_LITERAL_NEEDS_TYPE)),
+            "{diags:?}"
+        );
+    }
+
     #[test]
     fn reading_a_variable_assigned_on_only_one_if_branch_is_diagnosed() {
         let diags =

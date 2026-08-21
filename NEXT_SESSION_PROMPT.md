@@ -4,19 +4,33 @@ Continue MWL. M1 (front end) is done. M2 (HIR/types/IR) is in progress — run `
 then read `docs/implementation-plan.md`'s M2 paragraph for exactly what landed and how (this file only
 points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact once").
 
-**Last session closed [ADR 0036](docs/adr/0036-anonymous-object-shapes.md)'s M2 item** (§§ 1, 3-4's
-checker semantics, on top of the M1 grammar landed two sessions ago): `object` carries real subtyping
-(every class or shape type is `<: object`), a new `Ty::Shape` is checked structurally by width subtyping
-plus ordinary field assignability, `ExprKind::ObjectLiteral` is now typed (the exact-fields shape its
-initializers infer), a `type` alias naming a shape resolves for free, and a property access through a
-shape-missing field or plain `object` is silently erased to `mixed` rather than diagnosed — deferred to
-ADR 0014 § 5's runtime-checked-throw fallback, which needs M3/M4's IR/codegen to exist before it can throw
-from anything. All in `crates/mwl-types` (`ty.rs`, `lower.rs`, `expr.rs`); 16 new tests. See
-`docs/implementation-plan.md`'s M2 paragraph for the full account.
+**Last session landed [ADR 0037](docs/adr/0037-var-local-type-inference.md)**, a new decision made and
+built in the same session (not a queued item): `var $name = expr;` — a local declaration with no written
+type, inferred from `expr`'s own checked type and fixed forever, exactly as if written by hand. This
+amends [ADR 0007](docs/adr/0007-explicit-type-system.md) § 1 rather than reopening its core "everything
+declared" decision: it resolves the ADR's own long-deferred "local type inference" *Revisiting* entry, now
+that the feature is wanted in the language itself rather than left to M11's `mwl convert` alone. Both
+halves landed together, grammar and checker:
 
-**Known gap opened, not attempted:** ADR 0028 § 3's `unset()`-on-a-declared-property refusal was not
-extended to a shape-typed receiver's own fields — only an ordinary class property triggers it. Neither ADR
-asks for this; revisit only if real code shows it's actually wanted.
+- `crates/mwl-syntax`: `parse_var_local_decl` (a plain, unambiguous parse — `var` never starts anything
+  else at statement position, so no trial parse), `ast::StmtKind::LocalDecl.ty` is now `Option<Type>`
+  (`None` = `var`).
+- `crates/mwl-types`: `locals.rs`'s `LocalDecl` arm routes `None` through `check_expr`'s existing
+  no-`expected` synthesis path and declares the result like any written type. The one initializer shape
+  refused is a bare array literal (`var $x = [1, 2];`, `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`/`E0414`) — no
+  target to synthesize an element type from, same reasoning as ADR 0007 § 5's array-literal check.
+
+Docs updated in the same session: ADR 0007 (§ 1's table, amendment metadata, its now-resolved
+*Alternatives rejected*/*Revisiting* entries removed rather than left stale), `docs/adr/README.md`'s
+index, `docs/implementation-plan.md` (a new landed-grammar paragraph, plus the M11 paragraph and the
+architecture-tradeoffs list both narrowed to say a plain local no longer needs the converter's inference
+pass — only a `foreach` binding and a destructuring target still do), and CLAUDE.md (`Where to look` row,
+and the "type inference belongs in `mwl convert`" ground rule corrected to name `var` as the one
+exception). Verified: `cargo build`/`test`/`clippy -D warnings`/`fmt --check` all clean; a manual `mwl
+check` run on a fixture confirms both the inference and the array-literal diagnostic end to end.
+
+**The M2 work queue below is unchanged from before this session** — ADR 0037 was an out-of-band addition,
+not a substitute for it:
 
 **Next, in the order that makes sense to attempt — independent, can land in any order or be split across
 sessions:**
@@ -47,5 +61,5 @@ sessions:**
 7. **ADR 0035's runtime side** — no code yet, and none is expected until M3's first backend exists.
 
 M2's *Verify* line (in the plan, right after its paragraph) names the exact corpus this milestone needs.
-ADR 0007, 0013, 0022, 0028, and now 0036's own entries are satisfied; the rest (0010, 0014, 0024, 0027,
-0033's own entries, plus IR snapshot tests) depends on the work above or on `mwl-ir`, unstarted.
+ADR 0007, 0013, 0022, 0028, 0036, and now 0037's own entries are satisfied; the rest (0010, 0014, 0024,
+0027, 0033's own entries, plus IR snapshot tests) depends on the work above or on `mwl-ir`, unstarted.
