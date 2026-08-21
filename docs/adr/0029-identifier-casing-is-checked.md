@@ -8,7 +8,10 @@
   placement, or any other physical formatting — those stay explicitly out of scope, deferred to a possible
   future ADR (see *Revisiting*). Built-in type keywords (`int`, `uint`, `bytes`, …) and language keywords
   (`isset`, `require`, …) are reserved words the grammar already lowercases; this ADR does not add a rule
-  for them, it only notes they already comply.
+  for them, it only notes they already comply. `__construct` — the one magic-method spelling
+  [ADR 0028](0028-closing-the-remaining-magic-methods.md) leaves standing — is the same kind of
+  grammar-fixed reserved name: it is not a name a program chooses, so the method-casing rule below does not
+  apply to it, and the double leading underscore that would otherwise trip § 2 is not a violation.
 - **Amends:** none. No prior ADR states an identifier-casing rule; this is the first. Every existing ADR's
   code examples already happen to follow the convention this one now makes a compiler error — see *Context*.
 - **Relates to:** [0007](0007-explicit-type-system.md) (the type-atom keywords this ADR leaves alone),
@@ -104,6 +107,7 @@ override, and no suppression annotation — the same "one canonical spelling" st
 | Local variable | `camelCase`, one optional leading `_` | `^_?[a-z][A-Za-z0-9]*$` | `$rowCount`, `$_tmp` |
 | Class constant | `SCREAMING_SNAKE_CASE` | `^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$` | `MAX_RETRIES` |
 | Built-in type keyword, language keyword | lowercase | *(reserved word — grammar-fixed, not checked)* | `int`, `uint`, `bytes`, `isset`, `require` |
+| `__construct` | *(reserved word — grammar-fixed, not checked)* | *(reserved word — grammar-fixed, not checked)* | `__construct` |
 
 ### 1. Acronyms are one word, never kept all-caps
 
@@ -124,7 +128,9 @@ banning it outright would fight a habit for no gain — but it stays a strictly 
 otherwise ordinary `camelCase` body, not a second casing style. Rejecting two-or-more leading underscores
 is also a small extra guardrail against a name that merely *looks* like one of PHP's magic-method spellings
 ([ADR 0028](0028-closing-the-remaining-magic-methods.md) already closed the methods themselves; this stops a
-property or variable from visually echoing them).
+property or variable from visually echoing them) — with the one necessary exception that `__construct`
+itself, the single magic-method spelling ADR 0028 leaves standing, is a reserved grammar keyword rather than
+a chosen method name, so this rule does not flag it.
 
 ### 3. There is no suppression mechanism
 
@@ -239,3 +245,5 @@ Verification, in the order it becomes possible:
   interface, trait, enum, enum case, namespace segment, method, property, parameter, local variable and
   class constant, plus one entry for a two-or-more-leading-underscore name and one for an all-caps acronym,
   each asserting the exact diagnostic and suggested rename from *Diagnostics* above.
+- A negative corpus entry: a class declaring `__construct` produces no casing diagnostic at all, confirming
+  the reserved-word exception above is actually wired into the check and not just stated in prose.

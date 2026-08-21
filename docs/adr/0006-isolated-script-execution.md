@@ -124,7 +124,7 @@ variable):
 use Core\Script;
 
 mixed $month = Script::args()['month'];
-return ['rows' => build_report($month)];
+return ['rows' => Reports::build($month)];
 ```
 
 `spawn script` joins `spawn` (a task on this core, same heap) and `spawn worker` (a task on another core,

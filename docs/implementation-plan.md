@@ -488,7 +488,8 @@ whose class does not implement `Stringable` used in string interpolation, concat
 nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. Plus ADR 0029's own
 entries: a mis-cased class, interface, trait, enum, enum case, namespace segment, method, property,
 parameter, local variable and class constant, one file each, plus a two-leading-underscore name and an
-all-caps acronym, each naming the exact diagnostic and suggested rename. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+all-caps acronym, each naming the exact diagnostic and suggested rename; plus a negative entry confirming a
+declared `__construct` produces no casing diagnostic. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.
