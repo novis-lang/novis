@@ -90,8 +90,9 @@
 > (`{x: int} $point;`) doesn't parse — statement-initial `{` already commits to a block before a type-prefix
 > lookahead would ever run; every other declaration slot (parameter, return, property, const, `foreach`
 > binding) supports it fine, and the workaround is the same named-alias spelling the ADR's own example uses.
-> `mwl-types`' `lower_atom` again falls through its existing wildcard arm to `mixed` for `TypeAtom::Shape`;
-> `object`'s real subtyping and the shape's structural check (ADR 0036 §§ 1, 3-4) are unstarted M2 work.
+> `mwl-types`' `lower_atom` again falls through its existing wildcard arm to `mixed` for `TypeAtom::Shape`
+> at the time of this paragraph; `object`'s real subtyping and the shape's structural check (ADR 0036
+> §§ 1, 3-4) are now done — see the M2 paragraph below for that work.
 >
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
@@ -269,8 +270,36 @@
 > expression-statement path ahead of `parse_stmt_maybe_local_decl`'s trial parse whenever they appear in
 > this shape, so the statement reports `E_LEGACY_CAST_UNSUPPORTED` instead of silently declaring a local.
 >
+> This session closed [ADR 0036](adr/0036-anonymous-object-shapes.md)'s M2 item — its M1 grammar (the
+> literal and the shape-type syntax) landed two sessions ago; this is §§ 1, 3-4's checker semantics on top
+> of it. [`ty.rs`](../crates/mwl-types/src/ty.rs) gained `Ty::Shape(Vec<(String, TypeId)>)`, fields sorted
+> by name so two shapes naming the same fields in a different written order intern to the same `TypeId`
+> (the same canonicalization idea `make_union`/`make_intersection` already use, applied to field order);
+> [`lower.rs`](../crates/mwl-types/src/lower.rs)'s `TypeAtom::Shape` arm (previously falling through to
+> `mixed`) now lowers each field's type and builds one. § 1: [`expr::is_assignable`](../crates/mwl-types/src/expr.rs)
+> gained real `object` subtyping — every `Ty::Class` or `Ty::Shape` is now `<: object` — as a new branch
+> ahead of its existing union check. § 3: a `Ty::Shape` target routes through a new `shape_satisfied`,
+> width-subtyping the source (a matching `Ty::Shape`'s own fields, or a `Ty::Class`'s properties via the
+> same `resolve_property` ancestor walk `$obj->prop` already uses) against every field the target names,
+> each checked by this same `is_assignable` rule recursively — no new comparison logic, per the ADR's own
+> framing. `is_assignable`'s signature grew two parameters (`graph`, `signatures`) to reach that ancestor
+> walk; both call sites already had an `Env` to pull them from. `ExprKind::ObjectLiteral` (parsed since
+> M1, never typed before this) now infers to the exact-fields `Ty::Shape` its initializers' own types
+> build, so it flows into a narrower shape or plain `object` target for free through the same width-subtyping
+> rule. A `type` alias naming a shape type resolves exactly like any other alias with no extra code, since
+> alias substitution already runs before an atom is matched. § 4: `expr::check_property_access` gained two
+> branches ahead of its existing class lookup — a field a shape names types cleanly with no diagnostic
+> either way (reading it never throws, per the ADR); a name it doesn't list, or a plain `object` receiver,
+> resolves to `mixed` with **no diagnostic**, deferred to ADR 0014 § 5's runtime-checked-throw fallback
+> this extends — that fallback itself has no code yet, since it needs M4's IR/codegen to actually throw
+> from. 14 new tests in `mwl-types::check`, 2 in `mwl-types::ty`. **Known gap, not attempted this
+> session:** ADR 0028 § 3's `unset()`-on-a-declared-property refusal was not extended to a shape-typed
+> receiver's own fields — only an ordinary class property triggers it; whether a shape field should get
+> the same treatment wasn't asked for by either ADR and is left as an open question if it comes up.
+>
 > **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): every other ADR
-> M2 assigns to it (0010/0014/0024/0027's checker-side rules); exhaustive control-flow
+> M2 assigns to it (0010/0014/0024/0027's checker-side rules, plus ADR 0033 §§ 2-4 now that its M1 grammar
+> has landed); exhaustive control-flow
 > reachability (`switch`/`try` bodies conservatively contribute nothing to definite assignment after
 > them — safe, never accepts an invalid program); references (`&$x`) needing both sides to declare the
 > same type; `parent` as a *type* atom (`parent $x`, distinct from `new parent(...)`, which now

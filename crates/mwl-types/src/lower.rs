@@ -106,6 +106,15 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             env.interner.array(elem)
         }
         TypeAtom::Object => env.interner.object(),
+        TypeAtom::Shape(fields) => {
+            let mut out = Vec::with_capacity(fields.len());
+            for field in fields {
+                let name = span_text(env.src, field.name).to_owned();
+                let field_ty = lower_type_at_depth(&field.ty, depth + 1, ctx, env);
+                out.push((name, field_ty));
+            }
+            env.interner.shape(out)
+        }
         TypeAtom::Mixed => env.interner.mixed(),
         TypeAtom::Void => env.interner.void(),
         TypeAtom::Never => env.interner.never(),

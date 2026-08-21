@@ -69,6 +69,13 @@ pub enum Ty {
     Class(QName),
     /// A resolved enum name (ADR 0010).
     Enum(QName),
+    /// `{name: T, ...}` — ADR 0036 § 3, MWL's one structurally-checked type.
+    /// Fields are sorted by name (see [`TypeInterner::shape`]) so two shapes
+    /// naming the same fields in a different written order intern to the
+    /// same `TypeId`; unlike [`Self::Union`]/[`Self::Intersection`] there is
+    /// no flattening to do, since a shape field's type is never itself
+    /// required to be a shape.
+    Shape(Vec<(String, TypeId)>),
     /// `A|B|...` — flattened, deduplicated, and sorted by member `TypeId`.
     /// Always at least two members; a one-member union collapses to that
     /// member directly (see [`TypeInterner::make_union`]).
@@ -190,6 +197,14 @@ impl TypeInterner {
             Ty::Iterable => "iterable".to_owned(),
             Ty::Callable => "callable".to_owned(),
             Ty::Class(q) | Ty::Enum(q) => q.to_string(),
+            Ty::Shape(fields) => {
+                let inner = fields
+                    .iter()
+                    .map(|(name, ty)| format!("{name}: {}", self.describe(*ty)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{{{inner}}}")
+            }
             Ty::Union(members) => members
                 .iter()
                 .map(|m| self.describe(*m))
@@ -323,6 +338,17 @@ impl TypeInterner {
         self.intern(Ty::Enum(qname))
     }
 
+    /// Interns `{name: T, ...}` — ADR 0036 § 3. Sorts `fields` by name first,
+    /// so `{x: int, y: string}` and `{y: string, x: int}` intern to the same
+    /// `TypeId` regardless of how each was written (same canonicalization
+    /// idea as [`Self::make_union`], applied to field order instead of
+    /// member order).
+    #[must_use]
+    pub fn shape(&mut self, mut fields: Vec<(String, TypeId)>) -> TypeId {
+        fields.sort_by(|a, b| a.0.cmp(&b.0));
+        self.intern(Ty::Shape(fields))
+    }
+
     /// Whether `id` is `null` itself, or a union with `null` as one of its
     /// members — i.e. whether it was written with a leading `?` (or expands
     /// to one through a `type` alias). ADR 0022 § 1: this is the one thing
@@ -386,6 +412,24 @@ mod tests {
         let outer = i.make_union([inner, float]);
         let direct = i.make_union([int, string, float]);
         assert_eq!(outer, direct);
+    }
+
+    #[test]
+    fn a_shape_is_order_insensitive() {
+        let mut i = TypeInterner::new();
+        let int = i.int();
+        let string = i.string();
+        let a = i.shape(vec![("x".to_owned(), int), ("y".to_owned(), string)]);
+        let b = i.shape(vec![("y".to_owned(), string), ("x".to_owned(), int)]);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn describe_renders_a_shape_with_its_fields() {
+        let mut i = TypeInterner::new();
+        let int = i.int();
+        let s = i.shape(vec![("x".to_owned(), int)]);
+        assert_eq!(i.describe(s), "{x: int}");
     }
 
     #[test]

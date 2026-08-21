@@ -44,9 +44,24 @@
 //! local is declared and flow-checked is an open language question beyond
 //! this slice, so their operands are left entirely unchecked rather than
 //! guessed at.
+//!
+//! [`is_assignable`] carries ADR 0036's two amendments to ADR 0007 § 6's
+//! table: every class or shape type is `<: object` (§ 1), and a shape
+//! target is checked structurally by width subtyping plus ordinary field
+//! assignability (§ 3, [`shape_satisfied`]) rather than nominally — MWL's
+//! one deliberate exception to otherwise fully nominal typing.
+//! [`ExprKind::ObjectLiteral`]'s own type is the exact-fields shape its
+//! initializers infer, so it flows into a narrower shape or plain `object`
+//! target for free through that same rule. [`check_property_access`]'s
+//! shape/`object` arms are the M2 half of ADR 0036 § 4: a field a shape
+//! names types cleanly with no diagnostic either way; a name it doesn't
+//! list, or a plain `object` receiver, is silently `mixed` rather than
+//! `E_UNKNOWN_MEMBER` — deferred to ADR 0014 § 5's runtime-checked fallback,
+//! which needs M4's IR/codegen to actually throw from and so has no code
+//! yet.
 
 use mwl_diagnostics::{Diagnostic, Span, code};
-use mwl_hir::QName;
+use mwl_hir::{ClassGraph, QName};
 use mwl_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MemberName, NewTarget,
     StringPart, UnaryOp,
@@ -55,7 +70,7 @@ use rustc_hash::FxHashSet;
 
 use crate::locals::LocalScope;
 use crate::lower::lower_type;
-use crate::signatures::{MethodSig, resolve_method, resolve_property};
+use crate::signatures::{MethodSig, SignatureTable, resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, span_text, strip_sigil};
 
@@ -73,7 +88,7 @@ pub(crate) fn check_expr(
 ) -> TypeId {
     let actual = infer(expr, expected, live, scope, ctx, env);
     if let Some(expected_id) = expected
-        && !is_assignable(actual, expected_id, env.interner)
+        && !is_assignable(actual, expected_id, env.interner, env.graph, env.signatures)
     {
         report_mismatch(expr.span, expected_id, actual, env);
     }
@@ -85,9 +100,19 @@ pub(crate) fn check_expr(
 /// a non-`mixed` target (ADR 0007 § 6: "`mixed` never absorbs implicitly in
 /// the other direction"); otherwise `from` must equal `to`, or `to` must be
 /// a union `from` is (or, if `from` is itself a union, every member is) a
-/// member of.
+/// member of. ADR 0036 § 1 amends this with real `object` subtyping (every
+/// class or shape is `<: object`), and § 3 with a shape target's structural
+/// check (see [`shape_satisfied`]) — the two amendments this ADR makes to
+/// ADR 0007 § 6's table, needing `graph`/`signatures` only to resolve a
+/// class receiver's own property types against a shape target.
 #[must_use]
-pub(crate) fn is_assignable(from: TypeId, to: TypeId, interner: &TypeInterner) -> bool {
+pub(crate) fn is_assignable(
+    from: TypeId,
+    to: TypeId,
+    interner: &TypeInterner,
+    graph: &ClassGraph,
+    signatures: &SignatureTable,
+) -> bool {
     if from == to {
         return true;
     }
@@ -103,7 +128,47 @@ pub(crate) fn is_assignable(from: TypeId, to: TypeId, interner: &TypeInterner) -
             _ => members.contains(&from),
         };
     }
+    if matches!(interner.get(to), Ty::Object)
+        && matches!(interner.get(from), Ty::Class(_) | Ty::Shape(_))
+    {
+        return true;
+    }
+    if let Ty::Shape(to_fields) = interner.get(to) {
+        return shape_satisfied(from, to_fields, interner, graph, signatures);
+    }
     false
+}
+
+/// ADR 0036 § 3's structural check for a shape target: `from` must have at
+/// least every field `to_fields` names, each satisfying the field's declared
+/// type by this same [`is_assignable`] rule (width subtyping — an extra
+/// field on `from` is never a problem). A class receiver's field types come
+/// from [`resolve_property`], the same ancestor walk an ordinary `$obj->prop`
+/// access already uses; any other `from` (a scalar, `object`, a mismatched
+/// shape) never satisfies a shape target.
+fn shape_satisfied(
+    from: TypeId,
+    to_fields: &[(String, TypeId)],
+    interner: &TypeInterner,
+    graph: &ClassGraph,
+    signatures: &SignatureTable,
+) -> bool {
+    match interner.get(from) {
+        Ty::Shape(from_fields) => to_fields.iter().all(|(name, field_ty)| {
+            from_fields
+                .iter()
+                .find(|(n, _)| n == name)
+                .is_some_and(|(_, from_field_ty)| {
+                    is_assignable(*from_field_ty, *field_ty, interner, graph, signatures)
+                })
+        }),
+        Ty::Class(qname) => to_fields.iter().all(|(name, field_ty)| {
+            resolve_property(qname, name, signatures, graph).is_some_and(|from_field_ty| {
+                is_assignable(from_field_ty, *field_ty, interner, graph, signatures)
+            })
+        }),
+        _ => false,
+    }
 }
 
 /// Checks a `return expr;`'s value against the method's declared return
@@ -119,7 +184,7 @@ pub(crate) fn check_return(
     env: &mut Env<'_>,
 ) {
     let actual = infer(expr, Some(return_ty), live, scope, ctx, env);
-    if !is_assignable(actual, return_ty, env.interner) {
+    if !is_assignable(actual, return_ty, env.interner, env.graph, env.signatures) {
         let expected_desc = env.interner.describe(return_ty);
         let actual_desc = env.interner.describe(actual);
         env.diags.report(
@@ -193,6 +258,20 @@ fn infer(
         ExprKind::ParentExpr => env.interner.mixed(),
         ExprKind::ArrayLiteral(items) => {
             check_array_literal(items, expected, live, scope, ctx, env)
+        }
+        // ADR 0036 § 2: each field's type is inferred from its own
+        // initializer (same idea as an `array<T>` literal's element type),
+        // and the literal's precise type is the exact-fields shape those
+        // infer to — `is_assignable`'s width subtyping is what lets it flow
+        // into a narrower shape or plain `object` target on its own.
+        ExprKind::ObjectLiteral(fields) => {
+            let mut out = Vec::with_capacity(fields.len());
+            for field in fields {
+                let name = span_text(env.src, field.name).to_owned();
+                let field_ty = check_expr(&field.value, None, live, scope, ctx, env);
+                out.push((name, field_ty));
+            }
+            env.interner.shape(out)
         }
         ExprKind::Unary { op, expr: inner } => {
             let inner_ty = check_expr(inner, None, live, scope, ctx, env);
@@ -621,28 +700,52 @@ fn check_property_access(
 ) -> TypeId {
     let object_ty = check_expr(object, None, live, scope, ctx, env);
     check_member_name(property, live, scope, ctx, env);
-    match (class_qname_of(object_ty, env.interner), property) {
-        (Some(qname), MemberName::Ident(name_span)) => {
-            let name = span_text(env.src, *name_span).to_owned();
-            match resolve_property(&qname, &name, env.signatures, env.graph) {
-                Some(ty) => {
-                    if is_unset {
-                        report_unset_on_property(object.span.to(*name_span), &qname, &name, env);
-                    }
-                    ty
-                }
-                None => {
-                    // `$this->missing` is already `E_UNDEFINED_PROPERTY`
-                    // from `mwl_hir::members` — every other receiver
-                    // shape has never been checked before this.
-                    if !qname.is_core() && !is_this_receiver(object, env.src) {
-                        report_unknown_member(object.span, &qname, &name, "property", env);
-                    }
-                    env.interner.mixed()
-                }
-            }
+    let MemberName::Ident(name_span) = property else {
+        return env.interner.mixed();
+    };
+    let name = span_text(env.src, *name_span).to_owned();
+
+    // ADR 0036 § 4, extending ADR 0014 § 5's "a dynamically computed property
+    // name is a checked runtime throw, never a fallback" rule to a second
+    // trigger: an *erased receiver type*. A field a shape type names is
+    // proven present at compile time — reading it never throws, so this just
+    // recovers its type, same as any other statically-known access. A name
+    // the shape doesn't list, or a plain `object` receiver, is fully erased;
+    // whether it exists at runtime isn't a question this compile-time
+    // checker can answer either way, so — unlike an ordinary class receiver's
+    // `E_UNKNOWN_MEMBER` below — nothing is diagnosed here. The actual
+    // checked-throw fallback this defers to is M4 work (no IR/codegen exists
+    // yet to throw from); see the crate docs' known gaps.
+    match env.interner.get(object_ty).clone() {
+        Ty::Shape(fields) => {
+            return fields
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map_or_else(|| env.interner.mixed(), |(_, ty)| *ty);
         }
-        _ => env.interner.mixed(),
+        Ty::Object => return env.interner.mixed(),
+        _ => {}
+    }
+
+    match class_qname_of(object_ty, env.interner) {
+        Some(qname) => match resolve_property(&qname, &name, env.signatures, env.graph) {
+            Some(ty) => {
+                if is_unset {
+                    report_unset_on_property(object.span.to(*name_span), &qname, &name, env);
+                }
+                ty
+            }
+            None => {
+                // `$this->missing` is already `E_UNDEFINED_PROPERTY`
+                // from `mwl_hir::members` — every other receiver
+                // shape has never been checked before this.
+                if !qname.is_core() && !is_this_receiver(object, env.src) {
+                    report_unknown_member(object.span, &qname, &name, "property", env);
+                }
+                env.interner.mixed()
+            }
+        },
+        None => env.interner.mixed(),
     }
 }
 

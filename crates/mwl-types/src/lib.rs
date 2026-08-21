@@ -58,16 +58,28 @@
 //! - ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
 //!   symbol", ADR 0014's interplay with a typed receiver, ADR 0024 (tainted
 //!   propagation/laundering), ADR 0027 (`callable` value-shape checking),
-//!   ADR 0028 (`Stringable`, `unset()` refusal). ADR 0022 (definite
-//!   *property* initialization) is now done for the shapes its own M2 corpus
-//!   names — see [`ctor_init`]'s docs for what is deliberately still out of
-//!   scope within that ADR specifically. ADR 0013 (`Comparable`) is now done
-//!   too — see [`expr`]'s `object_comparison_result` for the one thing it
+//!   ADR 0033 §§ 2-4 (`secret` propagation/laundering/sink refusal — its § 1
+//!   grammar landed in M1, but `lower_atom` still maps all four `Secret*`
+//!   atoms straight to `mixed`). ADR 0022 (definite *property*
+//!   initialization) is now done for the shapes its own M2 corpus names —
+//!   see [`ctor_init`]'s docs for what is deliberately still out of scope
+//!   within that ADR specifically. ADR 0013 (`Comparable`) is now done too
+//!   — see [`expr`]'s `object_comparison_result` for the one thing it
 //!   doesn't check: that a class claiming `implements Comparable` actually
 //!   declares a matching `compareTo` at all, since no ADR has asked for
 //!   general interface-method-completeness checking yet (no interface's
 //!   methods are verified against its implementers today, for any
-//!   interface).
+//!   interface). ADR 0028 (`Stringable`, `unset()` refusal) is done too —
+//!   see [`expr::require_stringable`]/[`expr::check_property_access`]. ADR
+//!   0036's checker semantics are now done as well: `object` carries real
+//!   subtyping (every class or shape type is `<: object`), a shape type
+//!   ([`ty::Ty::Shape`]) is checked structurally by width subtyping plus
+//!   ordinary field assignability (see [`expr::is_assignable`]'s own docs),
+//!   and a property access through a shape-missing field or plain `object`
+//!   is silently erased to `mixed` rather than diagnosed — deferred to ADR
+//!   0014 § 5's runtime-checked fallback, which is M4 work (no IR/codegen
+//!   exists yet to throw from) — see [`expr::check_property_access`]'s own
+//!   docs.
 //! - Exhaustive control-flow reachability (e.g. "every path through this
 //!   non-void function returns"); `switch` and `try`/`catch` bodies
 //!   conservatively contribute nothing to definite-assignment after them —
