@@ -465,6 +465,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     | Keyword::Float
                     | Keyword::String
                     | Keyword::Bytes
+                    | Keyword::Tainted
                     | Keyword::Array
                     | Keyword::Object
                     | Keyword::Mixed
@@ -624,6 +625,33 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Float) => atom!(Float),
             TokenKind::Keyword(Keyword::String) => atom!(String),
             TokenKind::Keyword(Keyword::Bytes) => atom!(Bytes),
+            TokenKind::Keyword(Keyword::Tainted) => {
+                self.bump();
+                let inner = self.parse_type_atom();
+                let span = start.to(inner.span);
+                let atom = match inner.kind {
+                    TypeKind::Atom(TypeAtom::String) => TypeAtom::TaintedString,
+                    TypeKind::Atom(TypeAtom::Bytes) => TypeAtom::TaintedBytes,
+                    _ => {
+                        self.diags.report(
+                            Diagnostic::error(
+                                code::E_TAINTED_NON_SCALAR,
+                                "`tainted` only qualifies `string`/`bytes`",
+                            )
+                            .with_primary(span, "not a scalar `tainted` can qualify")
+                            .with_help("write `tainted string` or `tainted bytes` (ADR 0024 § 1)"),
+                        );
+                        return Type {
+                            kind: inner.kind,
+                            span,
+                        };
+                    }
+                };
+                Type {
+                    kind: TypeKind::Atom(atom),
+                    span,
+                }
+            }
             TokenKind::Keyword(Keyword::Object) => atom!(Object),
             TokenKind::Keyword(Keyword::Mixed) => atom!(Mixed),
             TokenKind::Keyword(Keyword::Void) => atom!(Void),
@@ -4555,6 +4583,86 @@ mod tests {
             panic!("expected a conversion: {e:?}");
         };
         assert!(matches!(ty.kind, TypeKind::Intersection(_)));
+    }
+
+    #[test]
+    fn tainted_qualifies_string_and_bytes() {
+        let e = parse_ok("$m as tainted string");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::TaintedString)));
+
+        let e = parse_ok("$m as tainted bytes");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::TaintedBytes)));
+    }
+
+    #[test]
+    fn tainted_qualifier_parses_in_every_declaration_slot() {
+        // Parameter and return type (ADR 0024 § 1).
+        let s = parse_stmt_ok(
+            "class C { \
+             public function f(tainted string $s): tainted bytes { return $s as bytes; } \
+             public tainted string $p; \
+             } \
+             ",
+        );
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        let ClassMemberKind::Method(m) = &class.members[0].kind else {
+            panic!("expected a method: {:?}", class.members[0]);
+        };
+        assert!(matches!(
+            m.params[0].ty.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::TaintedString))
+        ));
+        assert!(matches!(
+            m.return_type.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::TaintedBytes))
+        ));
+        let ClassMemberKind::Property(prop) = &class.members[1].kind else {
+            panic!("expected a property: {:?}", class.members[1]);
+        };
+        assert!(matches!(
+            prop.ty.kind,
+            TypeKind::Atom(TypeAtom::TaintedString)
+        ));
+
+        // Local declaration.
+        let s = parse_stmt_ok("tainted string $q;");
+        let StmtKind::LocalDecl { ty, .. } = s.kind else {
+            panic!("expected a local decl: {s:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::TaintedString)));
+
+        // `foreach` binding.
+        let s = parse_stmt_ok("foreach ($rows as tainted string $row) { }");
+        let StmtKind::Foreach { value, .. } = s.kind else {
+            panic!("expected a foreach: {s:?}");
+        };
+        assert!(matches!(
+            value.ty.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::TaintedString))
+        ));
+    }
+
+    #[test]
+    fn tainted_rejects_a_non_scalar_operand() {
+        // An `as`-conversion type position isn't ambiguous with an expression
+        // the way a bare statement's leading tokens can be, so the diagnostic
+        // isn't swallowed by `parse_stmt_maybe_local_decl`'s trial-parse
+        // fallback (see its comment) the way it would be at statement start.
+        let (_, diags) = parse_with_diags("$m as tainted int");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TAINTED_NON_SCALAR)),
+            "expected E_TAINTED_NON_SCALAR, got {diags:?}"
+        );
     }
 
     #[test]

@@ -93,6 +93,10 @@ pub mod code {
     /// or adversarial input (e.g. thousands of nested `[`), never legitimate
     /// source. The parser bails out here rather than overflowing its stack.
     pub const E_TOO_DEEPLY_NESTED: Code = Code::new("E0108");
+    /// `tainted` applied to anything other than `string`/`bytes` — the
+    /// qualifier's grammar restricts it to those two scalars; see
+    /// ADR 0024 § 1.
+    pub const E_TAINTED_NON_SCALAR: Code = Code::new("E0109");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs

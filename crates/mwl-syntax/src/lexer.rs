@@ -1168,6 +1168,21 @@ mod tests {
     }
 
     #[test]
+    fn tainted_is_a_keyword() {
+        // ADR 0024 § 1: `tainted` needs a new reserved keyword, landing in
+        // M1's grammar alongside `uint`'s own addition above.
+        assert_eq!(
+            kinds_ok("<?mwl tainted string"),
+            vec![
+                OpenTagMwl,
+                Keyword(super::Keyword::Tainted),
+                Keyword(super::Keyword::String),
+                Eof
+            ]
+        );
+    }
+
+    #[test]
     fn spawn_script_with_are_contextual_not_reserved() {
         // These must lex as plain identifiers -- the grammar recognises them
         // by text only at the one position each is meaningful, per

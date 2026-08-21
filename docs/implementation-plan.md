@@ -1,6 +1,6 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-> **Status — 2026-08-20.** Milestone **M1**, front end, in progress. Nothing runs yet; `Hello World`
+> **Status — 2026-08-21.** Milestone **M1**, front end, in progress. Nothing runs yet; `Hello World`
 > is M3.
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
@@ -16,13 +16,18 @@
 > recursive-descent parser are done — types and expressions, every control-flow statement, and
 > declarations (classes/interfaces/traits/enums, their members, attributes, `namespace`/`use`/`type`
 > alias), including the file-level HTML/code-tag round trip (`parse_file`, exercised through
-> `mwl ast`) that the plan's *Verify* step below needs. **What's left is M1's own verification**:
-> `cargo fuzz` finding no panic in a 5 minute run on the lexer and parser, and parsing the full local `php-src` folder for `.php`
-> files without crashing — neither started yet. `crates/mwl-syntax`'s module
-> docs carry the current list of known parser gaps (`goto` labels are the likeliest to surface
-> during the corpus-parse step); check those first rather than debugging blind. PHP's alternative
-> colon syntax (`if (...): ... endif;` etc.) is deliberately out of scope, not a gap — corpus files
-> using it are expected to fail to parse.
+> `mwl ast`) that the plan's *Verify* step below needs. The `tainted` qualifier's grammar addition
+> ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 1, this milestone's paragraph below)
+> has now landed too — `Keyword::Tainted`, the `TaintedString`/`TaintedBytes` atoms, and round-trip
+> tests in every declaration slot (parameter, return, property, local, `foreach` binding), plus the
+> `E_TAINTED_NON_SCALAR` diagnostic for every other atom. **What's left is M1's own verification**:
+> `cargo fuzz` finding no panic in a 5 minute run on the lexer and parser — not started yet. Parsing
+> the full local `php-src` folder for `.php` files without crashing already runs clean via
+> `crates/mwl-syntax/tests/corpus_parse.rs` against the corpus checked out at `<workspace-root>/php-src`.
+> `crates/mwl-syntax`'s module docs carry the current list of known parser gaps (`goto` labels are the
+> likeliest to surface during the corpus-parse step); check those first rather than debugging blind.
+> PHP's alternative colon syntax (`if (...): ... endif;` etc.) is deliberately out of scope, not a gap —
+> corpus files using it are expected to fail to parse.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

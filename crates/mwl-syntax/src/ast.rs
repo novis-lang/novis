@@ -99,6 +99,15 @@ pub enum TypeAtom {
     String,
     /// `bytes` — ADR 0009.
     Bytes,
+    /// `tainted string` — ADR 0024 § 1. A compile-time qualifier on `String`,
+    /// erased before codegen; kept as its own atom (rather than a generic
+    /// wrapper) because the grammar restricts `tainted` to exactly `string`
+    /// and `bytes`, and the parser enforces that restriction before this
+    /// variant is ever produced.
+    TaintedString,
+    /// `tainted bytes` — ADR 0024 § 1, the `Bytes` counterpart of
+    /// [`Self::TaintedString`].
+    TaintedBytes,
     /// `array`, or `array<T>` when a type argument is given.
     Array(Option<Box<Type>>),
     /// `object`
