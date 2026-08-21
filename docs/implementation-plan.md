@@ -121,14 +121,36 @@
 > [`check.rs`](../crates/mwl-types/src/check.rs) is the entry point (`mwl check`'s new CLI wiring
 > calls it), walking every class/interface/trait/enum's methods the same way `mwl-hir`'s
 > [`members.rs`](../crates/mwl-hir/src/members.rs) already does, seeding each body's locals from its
-> lowered parameters and checking `return` against the lowered return type (`E_BAD_RETURN_TYPE`,
-> reused). **Known gaps**, all deliberate and left for a follow-up session (`NEXT_SESSION_PROMPT.md`
-> has the ordering): property/method-call/`new`-beyond-a-bare-name/`match`/ternary expression typing;
-> every other ADR M2 assigns to `mwl-types` (0010/0013/0014/0022/0024/0027/0028's checker-side
-> rules); exhaustive control-flow reachability (`switch`/`try` bodies conservatively contribute
-> nothing to definite assignment after them — safe, never accepts an invalid program); references
-> (`&$x`) needing both sides to declare the same type; `parent` as a type atom. `mwl-ir` hasn't
-> started.
+> lowered parameters — `$this` included, typed as the enclosing class, newly this session — and
+> checking `return` against the lowered return type (`E_BAD_RETURN_TYPE`, reused).
+>
+> This session closed the first item of the prior session's follow-up list: property, method-call,
+> `new`, `match` and ternary expression typing, via a new
+> [`signatures.rs`](../crates/mwl-types/src/signatures.rs) built ahead of any body-checking —
+> [`SignatureTable`](../crates/mwl-types/src/signatures.rs) records every class/interface/trait/enum's
+> own declared property types and method parameter/return types, and `resolve_property`/
+> `resolve_method` walk `extends`/`implements`/trait-use ancestors to find an inherited one, the same
+> shape `mwl-hir`'s own `member_declared` already walks for existence-only checking.
+> [`expr.rs`](../crates/mwl-types/src/expr.rs) now types a property access, an instance method call, a
+> static call/property, `new` (including `new parent(...)`), and `match`/ternary as the union of their
+> arms/branches — diagnostics are split by receiver so nothing is reported twice: a
+> `self`/`static`/`parent`/explicit-class-name static reference keeps its existing `mwl-hir`
+> `E_UNDEFINED_MEMBER`/`E_UNDEFINED_CLASS` diagnostics and only gains a recovered type here, a
+> `$this->prop` access keeps `mwl-hir`'s existing `E_UNDEFINED_PROPERTY`, and every other shape — an
+> instance method call on any receiver including `$this`, and a property access on anything but
+> `$this` — was never checked by `mwl-hir` at all (no static type to check against) and gets a new
+> `E_UNKNOWN_MEMBER` (`E0405`, previously reserved but unused) here. A resolved call signature also
+> gets positional arity (`E_ARITY_MISMATCH`, `E0402`, previously reserved but unused) and
+> per-argument type checking, including a `new Foo(...)`'s arguments against a resolved
+> `constructor`. **Known gaps**, left for a follow-up session (`NEXT_SESSION_PROMPT.md` has the
+> ordering): every other ADR M2 assigns to `mwl-types` (0010/0013/0014/0022/0024/0027/0028's
+> checker-side rules); exhaustive control-flow reachability (`switch`/`try` bodies conservatively
+> contribute nothing to definite assignment after them — safe, never accepts an invalid program);
+> references (`&$x`) needing both sides to declare the same type; `parent` as a *type* atom
+> (`parent $x`, distinct from `new parent(...)`, which now resolves); a class constant's type; a
+> promoted constructor-parameter property; a named/spread call argument's positional checking; a
+> class with no explicit `constructor` is not held to a zero-argument arity check on `new`. `mwl-ir`
+> hasn't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
