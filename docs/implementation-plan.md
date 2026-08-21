@@ -37,11 +37,18 @@
 > module docs carry the current list of known parser gaps (`goto` labels, PHP's alternative colon
 > syntax deliberately out of scope) for whoever next touches the grammar.
 >
+> **M1 gains a second pending grammar item:** [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)
+> § 1 adds `secret` as a qualifier independent of and composable with `tainted` (`secret string`,
+> `secret tainted string`, required in that order) — not yet implemented in `mwl-syntax`, so M1's "done" status
+> above does not yet cover ADR 0033's scope, the same situation `tainted` itself was in before its own grammar
+> addition landed.
+>
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
 > type table; 0010/0014/0015/0022/0027/0028's checker-side rules (0013's own is now done — see below);
 > 0024 §§ 2-3's tainted propagation and
-> laundering). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
+> laundering; 0033 §§ 2-4's secret propagation, checked-conversion laundering, and its `Markup`/`Throwable`-message
+> sink refusals, once ADR 0033's grammar addition lands in M1). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
 > PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
 > symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
 > diagnostics (`E0304`), `use`-import resolution against that table with `Core` targets trusted rather
@@ -728,7 +735,9 @@ interface with a hard error on any undeclared property and no `__call`/`__callSt
 with no `__clone` hook ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), the first `Core` domain classes'
 `static` methods for string/array/math operations
 ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode` —
-the first two showing only real declared properties with no `__debugInfo` hook, `Stringable` replacing
+the first two showing only real declared properties with no `__debugInfo` hook, except a `secret`-qualified
+property's value, which shows a fixed redaction placeholder instead
+([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) — `Stringable` replacing
 `__toString` at every implicit string conversion, no destructors of any kind, and `unset()` refused on a
 declared object property ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)).
 
@@ -762,7 +771,10 @@ backpressure, `parallel_map`, cross-core worker dispatch with deep-copy-or-move,
 (a task tree dies with its parent — no orphans), async-native file I/O, sockets, timers and HTTP client.
 `serialize()`/`unserialize()` share this milestone's deep-copy-or-move graph walk, externalized to MWL's own
 closed byte format ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)); `unserialize()` refuses
-anything not in that format, with no `__serialize`/`__unserialize`/`__sleep`/`__wakeup` hook.
+anything not in that format, with no `__serialize`/`__unserialize`/`__sleep`/`__wakeup` hook. That same graph
+walk — both as `serialize()` and as the `spawn worker`/`spawn script` value-crossing operation below — refuses
+a `secret`-qualified value outright unless it was first passed through `Core\Secret::reveal()`
+([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)).
 
 **Also in this milestone: `spawn script`** ([ADR 0006](adr/0006-isolated-script-execution.md)) — the
 `Isolate` type in `mwl-host` with its own arena, `Core` accessor backing state and config overlay; the
@@ -860,7 +872,11 @@ visibility/hook checks ordinary code does, and a parsed AST is typed, inert data
 execution. Also here: **`Core\Fatal` and `Core\Log`**, plus the operator-configured `.mwl` error-handler
 script and the engine-native logging floor beneath it, per
 [ADR 0020](adr/0020-error-escalation-ladder.md); `Core\Log`'s JSON-Lines writer is the same native
-serialiser the engine floor calls directly, so the two never disagree on log shape.
+serialiser the engine floor calls directly, so the two never disagree on log shape. `mwl check` refuses a
+`secret`-qualified operand at a `Core\Log::write()` call site's `fields` argument despite that parameter's
+open `array<string, mixed>` type, and `Core\Secret::reveal()` plus the password-hashing helpers from this
+milestone's crypto line item above are the two ways a value legitimately loses `secret` before reaching it
+([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)).
 
 **Also in this milestone: author the `mwl:ext@1.0.0` WIT world.** It must be designed from the same
 value-access model as the `Core` domain classes' static methods, so the Tier 0 internal interface and the Tier 1 guest

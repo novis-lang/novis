@@ -6,6 +6,10 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
+- **Amended by:** [0033](0033-secret-qualifier-for-confidential-values.md) — § 6's `Core\Log::write()`
+  keeps its open `fields: array<string, mixed>` parameter, but `mwl check` now inspects that call site's own
+  argument expressions and refuses a statically-`secret` operand, since this parameter's looseness was never
+  designed to need refusing anything until that ADR gave it a reason to.
 - **Relates to:** [0002](0002-error-propagation.md) (this ADR does not touch the checked-return ABI or the
   `OK`/`THROWN`/`FATAL` statuses — it defines what consumes a `FATAL` once it reaches the boundary that ADR
   already says it unwinds to), [0005](0005-config-changeability.md) (new directives and their changeability

@@ -29,6 +29,9 @@
   [0031](0031-callable-is-the-only-closure-type.md) — § 3's `Closure` atom is retired; `callable` is the
   sole surviving spelling for the same value, so § 3's atom list and its opacity sentence both drop
   `Closure`.
+  [0033](0033-secret-qualifier-for-confidential-values.md) — § 2's conversion table row gains a second,
+  independent qualifier axis: a checked conversion also strips `secret` on success, the same shape it already
+  gives `tainted`.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),

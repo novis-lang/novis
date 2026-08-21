@@ -6,6 +6,12 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
+- **Amended by:** [0033](0033-secret-qualifier-for-confidential-values.md) — § 1's `qualified_type` grammar
+  gains a second, independent optional qualifier (`secret`), spelled before `tainted` when both apply; § 2's
+  checked-conversion laundering rule now also strips `secret`; § 5's "never distinguishes tainted from
+  untainted" auto-escape behavior gets one carve-out — a `secret` value reaching a `Markup`-building
+  interpolation position is refused outright rather than auto-escaped, since escaping does not restore
+  confidentiality.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.

@@ -13,6 +13,11 @@
 - **Amended by:** [0030](0030-no-leading-underscores-constructor-spelling.md) — adds the `__construct`
   disposition this ADR's own magic-method table never carried: kept, not closed, but respelled
   `constructor`.
+  [0033](0033-secret-qualifier-for-confidential-values.md) — § 4's "`var_dump()`/`print_r()` always show a
+  class's real declared properties and their real current values" guarantee gets one carve-out: a property
+  whose declared type carries `secret` shows a fixed redaction placeholder instead. This is a built-in,
+  type-keyed rule the dump implementation applies uniformly, not the per-class `DebugRepresentable`-style hook
+  this section already rejected — that distinction still holds.
 - **Relates to:** [0002](0002-error-propagation.md) (why a destructor has no sound place to report a thrown
   status — part of § 2's reasoning below), [0004](0004-memory-for-simplicity.md) (the request heap is
   dropped wholesale rather than walked object-by-object, which a `__destruct` guarantee would undo),
