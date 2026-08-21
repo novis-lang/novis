@@ -10,6 +10,9 @@
 //!   [`parse_file`] is the whole-file entry point (the `mwl-cli` crate's
 //!   `mwl ast` uses it); [`Parser`] and [`parse_expression`] are for callers
 //!   that want less than a whole file.
+//! - [`casing`] — [`check_casing`], the ADR 0029/0030 identifier-casing
+//!   check, run directly on a parsed file's declarations; see its module
+//!   docs for exactly what is and isn't covered.
 //!
 //! ```
 //! use mwl_diagnostics::{Diagnostics, SourceMap};
@@ -53,10 +56,12 @@
 //!   spot-checked.
 
 pub mod ast;
+mod casing;
 mod lexer;
 mod parser;
 mod token;
 
+pub use casing::check_casing;
 pub use lexer::{Lexer, tokenize};
 pub use parser::{Parser, parse_expression, parse_file};
 pub use token::{Keyword, Token, TokenKind};

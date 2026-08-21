@@ -97,6 +97,28 @@ pub mod code {
     /// qualifier's grammar restricts it to those two scalars; see
     /// ADR 0024 § 1.
     pub const E_TAINTED_NON_SCALAR: Code = Code::new("E0109");
+    /// A class/interface/trait/enum/enum-case/namespace-segment name is not
+    /// `PascalCase` — ADR 0029's casing table.
+    pub const E_BAD_TYPE_CASING: Code = Code::new("E0110");
+    /// A method name is not `camelCase` — ADR 0029's casing table. Distinct
+    /// from `E_LEGACY_CONSTRUCTOR_SPELLING`, which covers the one mis-cased
+    /// spelling (`__construct`) that gets a targeted fix instead of this
+    /// generic diagnostic.
+    pub const E_BAD_METHOD_CASING: Code = Code::new("E0111");
+    /// A property, parameter, local variable or closure self-name is not
+    /// `camelCase` — ADR 0029's casing table, tightened by
+    /// [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)
+    /// § 1 to allow no leading underscore at all (ADR 0029's original
+    /// one-underscore allowance for these three categories is revoked).
+    pub const E_BAD_MEMBER_CASING: Code = Code::new("E0112");
+    /// A class constant name is not `SCREAMING_SNAKE_CASE` — ADR 0029's
+    /// casing table.
+    pub const E_BAD_CONST_CASING: Code = Code::new("E0113");
+    /// A method literally named `__construct` —
+    /// [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)
+    /// §§ 2-3: MWL's constructor is spelled `constructor`, an ordinary
+    /// `camelCase` method name needing no exception of its own.
+    pub const E_LEGACY_CONSTRUCTOR_SPELLING: Code = Code::new("E0114");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs

@@ -1,10 +1,11 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-> **Status — 2026-08-21.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, starting.
+> **Status — 2026-08-21.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
 > Nothing runs yet; `Hello World` is M3.
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
-> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below), `crates/mwl-hir`
+> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below — plus, from M2, the
+> ADR 0029/0030 identifier-casing check), `crates/mwl-hir`
 > (name resolution's first slice — see the M2 paragraph below), `crates/mwl-cli` (just the `mwl ast`
 > subcommand so far), the `fuzz/` crate (`lex`/`parse` targets, guarding M1), and
 > [`benches/abi-probe`](../benches/abi-probe/) holding the promoted M0 spikes as permanent guard
@@ -82,7 +83,20 @@
 > is the only receiver checked — a typed local, a chained call result, or an explicit `new Foo()` all need
 > `mwl-types`' static types to know which class's properties apply, and are left for that milestone; see
 > [`members.rs`](../crates/mwl-hir/src/members.rs)'s module docs for this and every other known gap in
-> full. `mwl-types` and `mwl-ir` haven't started.
+> full. Separately, [ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md)'s
+> identifier-casing check is also done, and lives in `crates/mwl-syntax` rather than `mwl-hir` — it needs no
+> name resolution, so it runs directly off the AST [`parse_file`](../crates/mwl-syntax/src/parser.rs) already
+> produces. [`check_casing`](../crates/mwl-syntax/src/casing.rs) walks every class/interface/trait/enum/
+> enum-case/namespace-segment declaration (`PascalCase`, `E0110`), method declaration (`camelCase`, `E0111`,
+> with `__construct` singled out for its own targeted `E0114` naming `constructor` as the fix), property/
+> parameter/local-variable declaration and a closure's optional self-name (`camelCase` with no leading-
+> underscore allowance at all per ADR 0030, `E0112`), and class constant declaration
+> (`SCREAMING_SNAKE_CASE`, `E0113`) — every diagnostic's message names a mechanically-derived suggested
+> rename, split on the identifier's own case/underscore boundaries and re-joined in the target convention,
+> attached as a machine-applicable fix. Only a declaration site is checked, never a reference, and a `type`
+> alias's own name is left unchecked since ADR 0029's scope table doesn't list that category — see
+> [`casing.rs`](../crates/mwl-syntax/src/casing.rs)'s module docs for the full list of what is and isn't
+> walked. `mwl-types` and `mwl-ir` haven't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
