@@ -242,3 +242,4 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 - Once you are done show me the next prompt i need to use for a new session to start right off where we left. Also store this next prompt into a seperate .md file, so i can use it whenever i want. Also update this file with the latest prompt, so we do not keep any content that already was in that file.
 - The docs accumulate rationale bloat as ADRs are added. Periodically (the user does this manually, you never automatically) re-run the pass
   captured in [DOC_CLEANUP_PROMPT.md](DOC_CLEANUP_PROMPT.md) rather than re-deciding its rules from scratch.
+- Everytime we decide to add new features, change feature or remove features, decide and ask what the tradeoffs are in performance, memory, usability, if there are huge tradeoffs, notify the user and ask for agreement before proceeding. If there are only benefits, just go ahead.

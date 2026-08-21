@@ -178,6 +178,9 @@ pub mod code {
     /// interface or enum atom — `use … as …` in disguise; see
     /// ADR 0015 § 6.
     pub const E_TYPE_ALIAS_ALIASES_CLASS: Code = Code::new("E0307");
+    /// Two traits used by the same class/trait declare the same method name,
+    /// and no `insteadof` names a winner; see ADR 0015 § 3.
+    pub const E_TRAIT_METHOD_CONFLICT: Code = Code::new("E0308");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

@@ -37,13 +37,20 @@
 > PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
 > symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
 > diagnostics (`E0304`), `use`-import resolution against that table with `Core` targets trusted rather
-> than checked (`E0306` when unresolved), and ADR 0015 § 6's "no aliasing a single bare class" rule for
-> `type` aliases (`E0307`, newly added). Not yet built: the class hierarchy and trait-flattening graph
-> (the rest of M2 item 1), `Core`-member call/constant resolution (item 2's other half — the
-> `Core`-namespace-reservation half is already enforced by `mwl-syntax`'s parser), substituting a
-> resolved `type` alias into the types that use it (the rest of item 3), `require`'s static resolution
-> (item 4), and the property-access resolution rule (item 5) — `crates/mwl-hir`'s module docs carry the
-> same breakdown. `mwl-types` and `mwl-ir` haven't started.
+> than checked (`E0306` when unresolved), ADR 0015 § 6's "no aliasing a single bare class" rule for
+> `type` aliases (`E0307`), and now the class hierarchy graph (M2 item 1): `extends`/`implements`
+> resolved to real symbols with the same forward-reference and `use`-import support as the symbol
+> table itself, a wrong-kind parent diagnosed (`E0303`, e.g. a class `extends`ing an interface), a
+> circular `extends`/trait-use chain diagnosed (`E0305`), and a trait method-name collision across a
+> class/trait's used traits diagnosed unless `insteadof` names a winner (`E0308`, newly added) — see
+> [`crates/mwl-hir/src/hierarchy.rs`](../crates/mwl-hir/src/hierarchy.rs)'s module docs for the one
+> known gap (nested trait-of-trait composition isn't flattened recursively yet). Not yet built:
+> `Core`-member call/constant resolution (item 2's other half — the `Core`-namespace-reservation half
+> is already enforced by `mwl-syntax`'s parser; the class-graph half can now build on the above),
+> substituting a resolved `type` alias into the types that use it (the rest of item 3), `require`'s
+> static resolution (item 4), and the property-access resolution rule (item 5, which can now build on
+> the class graph too) — `crates/mwl-hir`'s module docs carry the same breakdown. `mwl-types` and
+> `mwl-ir` haven't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

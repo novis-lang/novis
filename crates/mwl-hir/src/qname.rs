@@ -53,6 +53,23 @@ impl QName {
         Self { segments }
     }
 
+    /// Builds a name directly from already-split segments — for a resolver
+    /// that has computed the segments itself (e.g. an import's target with a
+    /// qualified remainder appended) rather than starting from raw source
+    /// text.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `segments` is empty, same as [`Self::parse`].
+    #[must_use]
+    pub fn from_segments(segments: Vec<String>) -> Self {
+        assert!(
+            !segments.is_empty(),
+            "a name must have at least one segment"
+        );
+        Self { segments }
+    }
+
     /// The path's segments, root to leaf.
     #[must_use]
     pub fn segments(&self) -> &[String] {

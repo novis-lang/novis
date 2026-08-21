@@ -32,7 +32,9 @@ pub struct Import {
 
 /// Everything `mwl-hir` resolves out of one or more parsed files, for this
 /// slice of M2: every declared class/interface/trait/enum/type alias under
-/// its fully-qualified name, and every `use` import checked against that set.
+/// its fully-qualified name, every `use` import checked against that set, and
+/// the class hierarchy (`extends`/`implements`/trait-use) resolved to real
+/// symbols.
 ///
 /// Not yet built — see the crate's module docs for the rest of M2's name
 /// resolution this will grow into.
@@ -42,6 +44,9 @@ pub struct Module {
     pub symbols: SymbolTable,
     /// Every `use` import seen, resolved or not.
     pub imports: Vec<Import>,
+    /// Every class/interface/trait's resolved `extends`/`implements`/
+    /// trait-use links.
+    pub graph: crate::hierarchy::ClassGraph,
 }
 
 /// Resolves parsed files' top-level namespace/`use`/declaration structure
@@ -241,11 +246,11 @@ fn check_alias_is_not_a_bare_class(decl: &TypeAliasDecl, diags: &mut Diagnostics
     }
 }
 
-fn name_text<'a>(src: &'a SourceFile, name: &Name) -> &'a str {
+pub(crate) fn name_text<'a>(src: &'a SourceFile, name: &Name) -> &'a str {
     src.span_text(name.span).unwrap_or_default()
 }
 
-fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
+pub(crate) fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
     QName::parse(name_text(src, name)).segments().to_vec()
 }
 
@@ -257,7 +262,12 @@ pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -
     let mut resolver = Resolver::new();
     resolver.collect_declarations(stmts, src, diags);
     resolver.resolve_imports(diags);
-    resolver.into_module()
+    let mut hierarchy = crate::hierarchy::HierarchyResolver::new();
+    hierarchy.collect_links(stmts, src);
+    let graph = hierarchy.resolve(&resolver.module().symbols, diags);
+    let mut module = resolver.into_module();
+    module.graph = graph;
+    module
 }
 
 #[cfg(test)]
