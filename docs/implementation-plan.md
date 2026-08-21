@@ -59,6 +59,13 @@
 > `mixed`-typed condition's dynamic truthiness dispatch) has no code yet — it arrives with M3's first
 > backend, per that ADR's *Verification*.
 >
+> **M1 gains a third pending grammar item:** [ADR 0036](adr/0036-anonymous-object-shapes.md) §§ 2-3 adds the
+> anonymous object-literal expression (`{a: 1, b: 2}`) and an inline structural shape type (`{name: T, ...}`
+> in type position) — not yet implemented in `mwl-syntax`. That ADR's § 2 also documents the two grammar
+> collisions this creates (`fn() => {...}` already means a block body per ADR 0031, and a statement-initial
+> `{` already means a block statement), both resolved by the same parenthesize-to-force-expression fix
+> JavaScript uses for the identical ambiguity.
+>
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
 > type table; 0010/0014/0015/0022/0027/0028's checker-side rules (0013's own is now done — see below);
@@ -672,7 +679,11 @@ against [ADR 0029](adr/0029-identifier-casing-is-checked.md)'s per-category tabl
 [ADR 0030](adr/0030-no-leading-underscores-constructor-spelling.md) to allow no leading underscore on any
 identifier and to spell the constructor `constructor` rather than `__construct` — needs no name
 resolution, so it can land in `mwl-syntax` directly off each declaration's AST node rather than waiting on
-the rest of this milestone's checker.
+the rest of this milestone's checker. `object` gains real subtyping (every named or literal-synthesized
+class type is provably `<: object`), and an inline `{name: T, ...}` shape type is checked structurally by
+width subtyping and ordinary field assignability at each assignment/call/return — MWL's one deliberate,
+tightly scoped exception to otherwise fully nominal typing, extending ADR 0014 § 5's runtime-checked-access
+fallback to an erased receiver type as well as a dynamic name ([ADR 0036](adr/0036-anonymous-object-shapes.md)).
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
 statement and every conditional CFG edge also carries the stable id [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 addresses a coverage/branch probe by — cheap to reserve here, expensive to retrofit once M3 onward has built
