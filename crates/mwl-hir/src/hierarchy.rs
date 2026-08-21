@@ -341,11 +341,12 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
 /// PHP would: a leading `\` is already fully qualified; otherwise the first
 /// segment is checked against `imports`, and failing that the whole
 /// reference is taken as relative to `namespace`.
-pub(crate) fn resolve_ref(
-    text: &str,
-    namespace: &[String],
-    imports: &FxHashMap<String, QName>,
-) -> QName {
+///
+/// Exported (rather than `pub(crate)`) so `mwl-types` can resolve a type
+/// atom's `Name` the same way every resolver in this crate already resolves
+/// an `extends`/`implements`/alias reference, instead of duplicating this
+/// logic.
+pub fn resolve_ref(text: &str, namespace: &[String], imports: &FxHashMap<String, QName>) -> QName {
     if text.starts_with('\\') {
         return QName::parse(text);
     }

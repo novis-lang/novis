@@ -6,8 +6,9 @@
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
 > `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below — plus, from M2, the
 > ADR 0029/0030 identifier-casing check), `crates/mwl-hir`
-> (name resolution's first slice — see the M2 paragraph below), `crates/mwl-cli` (just the `mwl ast`
-> subcommand so far), the `fuzz/` crate (`lex`/`parse` targets, guarding M1), and
+> (name resolution's first slice — see the M2 paragraph below), `crates/mwl-types` (the type
+> checker's first slice — see the same paragraph), `crates/mwl-cli` (the `mwl ast` and, new this
+> slice, `mwl check` subcommands), the `fuzz/` crate (`lex`/`parse` targets, guarding M1), and
 > [`benches/abi-probe`](../benches/abi-probe/) holding the promoted M0 spikes as permanent guard
 > tests. Every other crate in the layout is unwritten, and is created when its milestone starts
 > rather than sitting empty.
@@ -98,7 +99,36 @@
 > unchanged. Only a declaration site is checked, never a reference, and a `type` alias's own name is left
 > unchecked since ADR 0029's scope table doesn't list that category — see
 > [`casing.rs`](../crates/mwl-syntax/src/casing.rs)'s module docs for the full list of what is and isn't
-> walked. `mwl-types` and `mwl-ir` haven't started.
+> walked.
+>
+> `crates/mwl-types` now exists, with its own first, deliberately scoped slice of ADR 0007: an
+> interned type representation ([`Ty`/`TypeId`/`TypeInterner`](../crates/mwl-types/src/ty.rs)) that
+> [`lower_type`](../crates/mwl-types/src/lower.rs) resolves a parsed
+> [`Type`](../crates/mwl-syntax/src/ast.rs) into — `self`/`static` resolved against the enclosing
+> class, a `type` alias substituted via `mwl-hir`'s [`AliasTable`](../crates/mwl-hir/src/aliases.rs)
+> (its first real consumer), and ADR 0007 § 5's depth-32 array-nesting bound enforced
+> (`E_ARRAY_TYPE_TOO_DEEP`, `E0408`, newly added). On top of that,
+> [`locals.rs`](../crates/mwl-types/src/locals.rs) checks every local variable's declare-once rule
+> (`E_REDECLARED_LOCAL`, `E0406`, newly added) and flow-sensitive definite assignment
+> (`E_UNDEFINED_VARIABLE`, reused from `mwl-hir`'s M2 item 1 code, since "read before anything
+> assigned it" is the same fact either way) via a structural walk of the AST rather than a CFG — the
+> milestone has no IR yet. [`expr.rs`](../crates/mwl-types/src/expr.rs) is a minimal bidirectional
+> checker: literals, variable reads, the arithmetic/comparison operator table (ADR 0007 § 4,
+> including `int ⊕ uint` refused as `E_INT_UINT_ARITHMETIC`, `E0407`, newly added), `as`/cast
+> conversions, and array literals checked directly against a target element type rather than
+> inferred-then-compared (ADR 0007 § 5) — every other expression form (a call's return, property
+> access, `match`, ternary, a closure's body) is opaque `mixed` rather than modeled.
+> [`check.rs`](../crates/mwl-types/src/check.rs) is the entry point (`mwl check`'s new CLI wiring
+> calls it), walking every class/interface/trait/enum's methods the same way `mwl-hir`'s
+> [`members.rs`](../crates/mwl-hir/src/members.rs) already does, seeding each body's locals from its
+> lowered parameters and checking `return` against the lowered return type (`E_BAD_RETURN_TYPE`,
+> reused). **Known gaps**, all deliberate and left for a follow-up session (`NEXT_SESSION_PROMPT.md`
+> has the ordering): property/method-call/`new`-beyond-a-bare-name/`match`/ternary expression typing;
+> every other ADR M2 assigns to `mwl-types` (0010/0013/0014/0022/0024/0027/0028's checker-side
+> rules); exhaustive control-flow reachability (`switch`/`try` bodies conservatively contribute
+> nothing to definite assignment after them — safe, never accepts an invalid program); references
+> (`&$x`) needing both sides to declare the same type; `parent` as a type atom. `mwl-ir` hasn't
+> started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

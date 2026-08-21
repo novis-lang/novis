@@ -249,6 +249,14 @@ pub mod code {
     pub const E_INCOMPATIBLE_OVERRIDE: Code = Code::new("E0404");
     /// A property or method access on a type that has no such member.
     pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405");
+    /// A local variable declared a second time while its first declaration
+    /// is still live — ADR 0007 § 1: "there is no shadowing."
+    pub const E_REDECLARED_LOCAL: Code = Code::new("E0406");
+    /// `int ⊕ uint` arithmetic — ADR 0007 § 4: there is no representable
+    /// common type, so one side must be converted explicitly.
+    pub const E_INT_UINT_ARITHMETIC: Code = Code::new("E0407");
+    /// An `array<...>` type nests past ADR 0007 § 5's depth-32 bound.
+    pub const E_ARRAY_TYPE_TOO_DEEP: Code = Code::new("E0408");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

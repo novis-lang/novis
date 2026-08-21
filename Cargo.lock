@@ -1039,7 +1039,9 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "mwl-diagnostics",
+ "mwl-hir",
  "mwl-syntax",
+ "mwl-types",
 ]
 
 [[package]]
@@ -1065,6 +1067,16 @@ version = "0.0.1"
 dependencies = [
  "insta",
  "mwl-diagnostics",
+]
+
+[[package]]
+name = "mwl-types"
+version = "0.0.1"
+dependencies = [
+ "mwl-diagnostics",
+ "mwl-hir",
+ "mwl-syntax",
+ "rustc-hash",
 ]
 
 [[package]]

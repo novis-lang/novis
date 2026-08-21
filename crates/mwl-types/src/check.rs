@@ -1,0 +1,333 @@
+//! Entry point: walks a resolved [`Module`]'s classes and methods, type-
+//! checking each method body against ADR 0007 §§ 1-4 (see the crate docs for
+//! the exact scope of this slice).
+//!
+//! Mirrors [`mwl_hir::members`]'s own walk shape: [`check_stmts`] tracks
+//! namespace/`use` scope the same way (there is no enclosing-class scope to
+//! track at this level — a fresh [`Ctx`] naming the class is built right at
+//! each declaration site instead), recursing into each class/interface/
+//! trait/enum's methods via [`check_members`]. A method with no body
+//! (abstract, or an interface signature) has nothing to check.
+//! [`check_method`] seeds a fresh [`crate::locals::LocalScope`] from the
+//! method's own lowered parameters (already definitely assigned), lowers its
+//! return type once, and hands the body to [`crate::locals::check_block`].
+//!
+//! **Known gap:** a class/interface/trait/enum declared *inside* a method
+//! body is not descended into here at all — only top-level declarations (and
+//! ones nested in a `namespace { ... }` block) are found by [`check_stmts`].
+
+use mwl_diagnostics::{Diagnostics, SourceFile};
+use mwl_hir::{Module, QName};
+use mwl_syntax::ast::{
+    ClassMember, ClassMemberKind, MethodMember, Name, NamespaceDecl, Stmt, StmtKind,
+};
+use rustc_hash::{FxHashMap, FxHashSet};
+
+use crate::locals::{LocalScope, check_block};
+use crate::lower::lower_optional_type;
+use crate::ty::TypeInterner;
+use crate::{Ctx, Env, span_text, strip_sigil};
+
+fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
+    QName::parse(span_text(src, name.span)).segments().to_vec()
+}
+
+/// Type-checks every method body reachable from `stmts`, using the already
+/// name-resolved `module` for symbol/alias lookups. `interner` accumulates
+/// every type this run interns — pass the same one across every file of a
+/// program sharing `module`, the same way `module` itself is built once and
+/// shared.
+pub fn check_program(
+    stmts: &[Stmt],
+    src: &SourceFile,
+    module: &Module,
+    interner: &mut TypeInterner,
+    diags: &mut Diagnostics,
+) {
+    let mut env = Env {
+        symbols: &module.symbols,
+        aliases: &module.aliases,
+        src,
+        interner,
+        diags,
+    };
+    check_stmts(stmts, &[], &FxHashMap::default(), &mut env);
+}
+
+fn check_stmts(
+    stmts: &[Stmt],
+    namespace: &[String],
+    imports: &FxHashMap<String, QName>,
+    env: &mut Env<'_>,
+) {
+    let mut current_ns: Vec<String> = namespace.to_vec();
+    let mut current_imports: FxHashMap<String, QName> = imports.clone();
+
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
+                let new_ns = name
+                    .as_ref()
+                    .map_or_else(Vec::new, |n| qname_segments(env.src, n));
+                match body {
+                    Some(block) => {
+                        check_stmts(&block.stmts, &new_ns, &FxHashMap::default(), env);
+                    }
+                    None => {
+                        current_ns = new_ns;
+                        current_imports.clear();
+                    }
+                }
+            }
+            StmtKind::UseDecl(use_decl) => {
+                let target = QName::parse(span_text(env.src, use_decl.path.span));
+                current_imports.insert(target.short_name().to_owned(), target);
+            }
+            StmtKind::ClassDecl(decl) => {
+                let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                let ctx = Ctx {
+                    namespace: &current_ns,
+                    imports: &current_imports,
+                    current_class: Some(&qname),
+                };
+                check_members(&decl.members, &ctx, env);
+            }
+            StmtKind::InterfaceDecl(decl) => {
+                let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                let ctx = Ctx {
+                    namespace: &current_ns,
+                    imports: &current_imports,
+                    current_class: Some(&qname),
+                };
+                check_members(&decl.members, &ctx, env);
+            }
+            StmtKind::TraitDecl(decl) => {
+                let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                let ctx = Ctx {
+                    namespace: &current_ns,
+                    imports: &current_imports,
+                    current_class: Some(&qname),
+                };
+                check_members(&decl.members, &ctx, env);
+            }
+            StmtKind::EnumDecl(decl) => {
+                let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
+                let ctx = Ctx {
+                    namespace: &current_ns,
+                    imports: &current_imports,
+                    current_class: Some(&qname),
+                };
+                check_members(&decl.members, &ctx, env);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    for member in members {
+        if let ClassMemberKind::Method(m) = &member.kind {
+            check_method(m, ctx, env);
+        }
+    }
+}
+
+fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(body) = &m.body else {
+        return; // abstract method or interface signature — nothing to check
+    };
+
+    let mut scope = LocalScope::new();
+    let mut live: FxHashSet<String> = FxHashSet::default();
+    for param in &m.params {
+        let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
+        let name = strip_sigil(span_text(env.src, param.name)).to_owned();
+        scope.declare_param(name.clone(), ty, param.name);
+        live.insert(name);
+    }
+    let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
+
+    check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
+}
+
+#[cfg(test)]
+mod tests {
+    use mwl_diagnostics::{SourceMap, code};
+    use mwl_hir::resolve_file;
+    use mwl_syntax::parse_file;
+
+    use super::*;
+
+    /// Wraps `body` inside `class T { function m(): void { ... } }` and
+    /// checks it — the common shape for a definite-assignment/expression
+    /// fixture that doesn't need its own class.
+    fn check_in_method(body: &str) -> Diagnostics {
+        check_src(&format!(
+            "<?mwl\nclass T {{\n  function m(): void {{\n{body}\n  }}\n}}\n"
+        ))
+    }
+
+    fn check_src(src: &str) -> Diagnostics {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        let mut interner = TypeInterner::new();
+        check_program(&stmts, map.file(file), &module, &mut interner, &mut diags);
+        diags
+    }
+
+    #[test]
+    fn a_declared_and_assigned_local_reads_fine() {
+        let diags = check_in_method("int $n = 1;\n$n = $n + 1;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn reading_an_undeclared_local_is_diagnosed() {
+        let diags = check_in_method("echo $missing;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE))
+        );
+    }
+
+    #[test]
+    fn redeclaring_a_local_is_diagnosed() {
+        let diags = check_in_method("int $n = 1;\nint $n = 2;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_REDECLARED_LOCAL))
+        );
+    }
+
+    #[test]
+    fn reading_a_variable_assigned_on_only_one_if_branch_is_diagnosed() {
+        let diags =
+            check_in_method("bool $flag = true;\nint $n;\nif ($flag) { $n = 1; }\necho $n;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn reading_a_variable_assigned_on_both_branches_is_fine() {
+        let diags = check_in_method(
+            "bool $flag = true;\nint $n;\nif ($flag) { $n = 1; } else { $n = 2; }\necho $n;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_variable_assigned_before_a_loop_reads_fine_after_it() {
+        let diags = check_in_method("int $n = 0;\nwhile (false) { $n = 1; }\necho $n;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn int_plus_uint_is_diagnosed() {
+        let diags = check_in_method("int $a = 1;\nuint $b = 1;\nint $c = $a + $b;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INT_UINT_ARITHMETIC))
+        );
+    }
+
+    #[test]
+    fn an_integer_literal_assigned_into_a_uint_local_is_fine() {
+        // ADR 0007 § 4: a plain integer literal means `uint` exactly where
+        // that's the expected type — this must not be diagnosed as `int`
+        // vs. `uint` mismatch.
+        let diags = check_in_method("uint $n = 1;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn integer_division_into_a_plain_int_is_diagnosed() {
+        let diags = check_in_method("int $n = 7 / 2;\n");
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn integer_division_into_a_union_target_is_fine() {
+        let diags = check_in_method("int|float $n = 7 / 2;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn assigning_mixed_into_a_typed_local_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function m(mixed $m): void {\n    int $n = $m;\n  }\n}\n",
+        );
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn an_array_literal_element_mismatch_at_depth_one_is_diagnosed() {
+        let diags = check_in_method(r#"array<int> $a = [1, "x"];"#);
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn an_array_literal_element_mismatch_at_depth_two_is_diagnosed() {
+        let diags = check_in_method(r#"array<array<int>> $a = [[1, 2], [1, "x"]];"#);
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn an_array_literal_element_mismatch_at_depth_three_is_diagnosed() {
+        let diags = check_in_method(r#"array<array<array<int>>> $a = [[[1], [1, "x"]]];"#);
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn a_correctly_typed_nested_array_literal_is_fine() {
+        let diags = check_in_method("array<array<int>> $a = [[1, 2], [3]];\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_type_alias_is_substituted_into_a_local_declaration() {
+        let diags = check_src(
+            "<?mwl\ntype Id = uint;\nclass T {\n  function m(): void {\n    Id $x = 1;\n    int $y = $x;\n  }\n}\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "`Id` expands to `uint`, so assigning it into a plain `int` should mismatch: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn self_resolves_inside_a_method_body() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function m(): void {\n    self $x = new self();\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_return_type_mismatch_is_diagnosed() {
+        let diags =
+            check_src("<?mwl\nclass T {\n  function m(): int {\n    return \"x\";\n  }\n}\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_BAD_RETURN_TYPE))
+        );
+    }
+
+    #[test]
+    fn a_matching_return_type_is_fine() {
+        let diags = check_src("<?mwl\nclass T {\n  function m(): int {\n    return 1;\n  }\n}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+}

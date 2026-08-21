@@ -1,6 +1,6 @@
 [package]
-name = "mwl-cli"
-description = "The mwl command-line binary: ast (M1), later run/test (M3+)"
+name = "mwl-types"
+description = "MWL type checker: interned declared types, local definite assignment, the arithmetic result-type table"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,16 +8,11 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
-[[bin]]
-name = "mwl"
-path = "src/main.rs"
-
 [dependencies]
 mwl-diagnostics.workspace = true
 mwl-syntax.workspace = true
 mwl-hir.workspace = true
-mwl-types.workspace = true
-clap.workspace = true
+rustc-hash.workspace = true
 
 [lints]
 workspace = true
