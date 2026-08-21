@@ -4,27 +4,20 @@ Continue MWL. M1 (front end) is done except for one new pending item (see below)
 is in progress — see git history for detail on how earlier items landed; it's not repeated here per
 CLAUDE.md's "state a fact once" rule.
 
-**Last session was docs-only: [ADR 0033](docs/adr/0033-secret-qualifier-for-confidential-values.md)
-was accepted**, adding a `secret` compile-time qualifier for confidential values (passwords, API
-keys) — independent of and composable with ADR 0024's `tainted` (`secret tainted string` is valid;
-`secret` must come first). No code changed. Read the ADR itself for the full design (grammar,
-propagation, sinks, `Core\Secret::reveal()`); the one-paragraph version: erased before codegen like
-`tainted`, but unlike `tainted` it has **no ambient source** (nothing in MWL is host-populated, so a
-value is only ever `secret` where a developer spells it), and it's refused by default at HTML/response
-output (no auto-escape bypass, unlike `tainted`), `Core\Log` (opposite default from `tainted`, which
-wants attacker input logged), debug-dump output (`var_dump`/`print_r` show a redaction placeholder,
-amending ADR 0028 § 4), `Throwable` messages, and `serialize()`/the `spawn worker`/`spawn script`
-boundary (one refusal, both callers, per ADR 0023's unification). Cross-links landed in ADRs 0007,
-0020, 0024, 0028, `docs/adr/README.md`, `CLAUDE.md`'s two tables, and the plan's M1/M2/M4/M5/M8
-paragraphs — nothing else should need touching for the decision itself.
-
-**Two known rough edges the ADR names explicitly, not fixed, just flagged for whoever implements it:**
-checked `as` conversions strip `secret` the same way they strip `tainted`, even though — unlike
-`tainted` — proving a value's shape says nothing about its confidentiality (accepted for grammar
-consistency; see the ADR's *Alternatives rejected*/*Revisiting*); and `Core\Log`'s `fields:
-array<string, mixed>` parameter needs call-site argument inspection to catch a `secret` operand, since
-its declared type is deliberately open and a parameter-type refusal (the mechanism every other
-`tainted` sink uses) doesn't apply there.
+**Last session was a design decision plus its implementation: [ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md)
+and [ADR 0035](docs/adr/0035-truthy-boolean-context.md) were both accepted.** ADR 0034 rejects PHP's
+legacy `(int)$x`-style cast syntax outright — `as` is now the sole conversion spelling, at both
+expression position and (the bug item 3 used to name below) bare-statement position. ADR 0035 records
+the sibling decision that a condition (`if`/`while`/`for`'s middle clause/`?:`/`&&`/`||`/`!`) accepts
+any type, judged by PHP's full truthy table, rather than requiring `bool` already — this needed no
+code change, since `mwl-types`' `check_stmt` already passed no expected type into a condition; the ADR
+just makes that existing behavior deliberate rather than accidental, and a regression test
+(`check.rs`'s `a_non_bool_condition_is_never_a_type_mismatch`) locks it in. Read the ADRs themselves for
+the full design and the alternatives turned down; the one-paragraph version for ADR 0034: `mwl-syntax`'s
+`ExprKind::Cast`/`CastType` are gone entirely, the parser reports `E_LEGACY_CAST_UNSUPPORTED` (`E0225`)
+naming the equivalent `as` expression, and `mwl-types` lost its matching `Cast` type-checking arm and
+`cast_result_type` helper. Cross-links landed in ADR 0007, `docs/adr/README.md`, `CLAUDE.md`'s two
+tables, and the plan's M1 paragraph — nothing else should need touching for the decision itself.
 
 **Deliberately out of scope for this slice — the next thread to pick up, in the order that makes
 sense to attempt them:**
@@ -54,20 +47,13 @@ sense to attempt them:**
      enum — ADR 0010's own item will need to fix that (distinguish via `SymbolTable`'s
      `SymbolKind`, the same check `lower.rs`'s `resolve_name_type` already does for an ordinary
      type position) before enum-specific operations can tell `self` apart from a class.
-3. **A pre-existing parser bug, surfaced but not fixed a couple of sessions ago:** `(string)$x;`
-   written as its own bare statement — no enclosing assignment — mis-parses as a `LocalDecl`
-   redeclaring `$x` with a parenthesized type, rather than as a cast expression-statement (reproduce
-   with `mwl check` on a two-line file: `Foo $a = new Foo(); (string)$a;` reports `$a` already
-   declared). `mwl-syntax`'s statement-vs-declaration lookahead doesn't yet disambiguate a
-   parenthesized legacy-cast prefix (`(string)`, `(int)`, ...) from a parenthesized *type* prefix in
-   statement position. Worth fixing in the same session as item 1 if `mwl-syntax` is already open.
-4. **`switch`/`try` definite-assignment precision, and `parent` as a *type* atom** (`parent $x` —
+3. **`switch`/`try` definite-assignment precision, and `parent` as a *type* atom** (`parent $x` —
    distinct from `new parent(...)`, which resolves since several sessions ago), plus the equivalent
    precision gap `ctor_init.rs` shares with `locals.rs` (both conservatively contribute nothing
    through `switch`/`try`'s body and catches) — all named as known gaps for a while now, all
    safe-but-imprecise today (reject a few extra valid programs rather than ever accepting an invalid
    one), worth revisiting once the higher-value items above are done rather than before.
-5. **Smaller, independent polish items surfaced across the last few sessions, any of which could be
+4. **Smaller, independent polish items surfaced across the last few sessions, any of which could be
    a quick follow-up on its own:** a class constant's type (`Class::CONST` stays `mixed` regardless
    of receiver — there's no const-value type table yet); a promoted constructor-parameter property
    (`function constructor(public int $x) {}`) is recorded as neither a property nor a
@@ -84,9 +70,14 @@ sense to attempt them:**
    checking, which doesn't exist for any interface yet — likely its own small design decision
    before it's worth building, not a quick fix); the same gap now also applies to `Stringable`'s
    `toString` for the identical reason.
+5. **ADR 0035's runtime side has no code yet** — a `mixed`/union-typed condition's dynamic truthiness
+   dispatch (the full table: `"0"` vs `"0.0"`, `-0.0`, `NAN`, empty-vs-non-empty array regardless of
+   element type, an enum case backed by `0` staying truthy) arrives with M3's first backend, per that
+   ADR's *Verification*. Nothing to do here until `mwl-ir`/codegen exist — noted so it isn't
+   rediscovered as a surprise gap later.
 
 M2's *Verify* line (in the plan, right after its paragraph) names the exact corpus this milestone
 needs before it can be called done. The ADR 0007, 0013, 0022 and 0028 corpus entries are now all
 satisfied; the rest of that Verify line (ADR 0010, 0014, 0024, 0027's own corpus entries, plus IR
-snapshot tests, plus ADR 0033's own entries added this session) still depends on the work items
-above, or on `mwl-ir`, which hasn't started.
+snapshot tests, plus ADR 0033's own entries) still depends on the work items above, or on `mwl-ir`,
+which hasn't started.
