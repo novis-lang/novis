@@ -32,7 +32,7 @@
 >
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
-> type table; 0010/0013/0014/0015/0022/0027's checker-side rules; 0024 §§ 2-3's tainted propagation and
+> type table; 0010/0013/0014/0015/0022/0027/0028's checker-side rules; 0024 §§ 2-3's tainted propagation and
 > laundering). `crates/mwl-hir` has name resolution's first slice: namespace/`use` scoping matching
 > PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
 > symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
@@ -458,7 +458,10 @@ diagnostic at any sink requiring the plain type ([ADR 0024](adr/0024-taint-track
 A value typed `callable`/`Closure` is accepted only from first-class callable syntax or a closure/arrow-function
 literal — a string- or array-shaped callable is refused with a diagnostic naming the first-class-callable-syntax
 replacement, and MWL has no `__invoke`, so `$obj(...)` is refused for any non-`Closure` `$obj` regardless of
-what its class declares ([ADR 0027](adr/0027-callable-is-closures-only.md)).
+what its class declares ([ADR 0027](adr/0027-callable-is-closures-only.md)). An object used at an implicit
+string-conversion site is accepted only when its static type provably implements the global `Stringable`
+interface, and `unset()` on a declared object property is refused outright regardless of nullability
+([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)).
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
 statement and every conditional CFG edge also carries the stable id [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 addresses a coverage/branch probe by — cheap to reserve here, expensive to retrofit once M3 onward has built
@@ -476,7 +479,10 @@ result with no extra syntax; `tainted string as Markup` is refused even though a
 ADR 0027's own entries: a bare string, an `"Class::method"` string, and a `[$obj, 'method']` array each
 refused where `callable`/`Closure` is the declared type, naming the first-class-callable-syntax
 replacement; `$obj(...)` refused for a non-`Closure` `$obj` even when its class declares a method literally
-named `__invoke`, naming the class and stating MWL has no `__invoke`. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+named `__invoke`, naming the class and stating MWL has no `__invoke`. Plus ADR 0028's own entries: an object
+whose class does not implement `Stringable` used in string interpolation, concatenation, `echo`, or
+`as string`, naming `Stringable` as the fix; `unset()` on a declared object property refused for both a
+nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.
@@ -521,7 +527,10 @@ interface with a hard error on any undeclared property and no `__call`/`__callSt
 ([ADR 0014](adr/0014-property-observer.md)), `clone` kept as PHP's shallow, same-heap, single-level copy
 with no `__clone` hook ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), the first `Core` domain classes'
 `static` methods for string/array/math operations
-([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode`.
+([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode` —
+the first two showing only real declared properties with no `__debugInfo` hook, `Stringable` replacing
+`__toString` at every implicit string conversion, no destructors of any kind, and `unset()` refused on a
+declared object property ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)).
 
 Also in this milestone: `mwl test` and the `.mwlt` format — deliberately defined as a **superset of
 `.phpt` sections** (`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`,
@@ -538,7 +547,12 @@ divergence and gets its own case. A class implementing `PropertyObserver` runs i
 cannot override the value; a class that does not implement it shows no measurable overhead over plain field
 access ([ADR 0014](adr/0014-property-observer.md)). `clone $x` leaves an object-typed property `===` the
 original's while an array-typed property diverges after either side writes, and a declared `__clone` method
-is never invoked by the language ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)). A
+is never invoked by the language ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)). A class
+implementing `Stringable` is accepted at every implicit string-conversion site and produces the value
+`toString()` returns; no method named `__destruct`, `__debugInfo`, `__set_state`, `__isset` or `__unset` is
+ever invoked by the language even when a refcount legitimately reaches zero mid-request; `unset()` on a
+declared object property is refused regardless of nullability
+([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)). A
 non-trivial CLI program (an argument-parsing file-processing tool) runs correctly; no leaks under
 Valgrind/ASAN.
 

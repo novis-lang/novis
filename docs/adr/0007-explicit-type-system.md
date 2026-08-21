@@ -24,6 +24,8 @@
   [0027](0027-callable-is-closures-only.md) — § 3's `callable` atom stays opaque as to signature exactly as
   written here, but is no longer silent on which *values* satisfy it: a `Closure` only, never PHP's
   string/array callable spellings and never an invokable object — MWL has no `__invoke`.
+  [0028](0028-closing-the-remaining-magic-methods.md) — § 4's conversion table row "anything → `string`"
+  named `__toString`; it now names the declared `Stringable` interface instead.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -152,7 +154,7 @@ never rounds, truncates, or substitutes a default.
 | `int` / `uint` → `float` | exact, or throws above 2^53, where `f64` stops representing every integer |
 | `float` → `int` / `uint` | integral and in range, or throws. Rounding is `floor`/`ceil`/`round`, said out loud |
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
-| anything → `string` | total for scalars; an object needs `__toString`, or it throws |
+| anything → `string` | total for scalars; an object needs `Stringable`, or it throws ([0028](0028-closing-the-remaining-magic-methods.md)) |
 | `array<T>` → `array<U>` | every element must satisfy `U`; O(n), see *5* |
 
 PHP's cast syntax `(int)$x` is accepted as a second spelling of `$x as int`, carrying `as`'s semantics

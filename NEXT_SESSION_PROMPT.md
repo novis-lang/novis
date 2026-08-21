@@ -3,13 +3,21 @@
 Continue MWL. M1 (front end) is done and closed out — see git history if you need the detail; it's
 not repeated here per CLAUDE.md's "state a fact once" rule.
 
-**Last session added no code.** It settled [ADR 0027](docs/adr/0027-callable-is-closures-only.md):
-`callable` accepts only a `Closure` — PHP's string/array callable spellings (`"strlen"`, `"Class::method"`,
-`[$obj, 'method']`) are rejected, since first-class callable syntax (already in the M1 grammar) already
-gives a statically resolvable reference, and **MWL has no `__invoke`** — no object can ever be called with
-`()` syntax, full stop (a first draft of the ADR kept `__invoke`; that was reversed before landing). It's
-referenced from `CLAUDE.md`'s routing table and ground rules, and from the plan's M2 paragraph/Verify line —
-but it's a checker-side rule (`mwl-types`), so it doesn't change what the next code slice below is.
+**Last session added no code.** It settled [ADR 0028](docs/adr/0028-closing-the-remaining-magic-methods.md),
+closing every PHP magic method no earlier ADR had ruled on: `__toString` is replaced by a declared global
+`Stringable` interface (`toString(): string`); **MWL has no destructors of any kind** — no `__destruct`, no
+replacement, cleanup is always an explicit method call; `__isset`/`__unset` need no replacement since
+[ADR 0014](docs/adr/0014-property-observer.md) already closed the fallback they served, but `unset()` on a
+*declared* object property is now a compile-time diagnostic regardless of nullability, since
+[ADR 0022](docs/adr/0022-definite-property-initialization.md) already guarantees no declared property is
+ever anything but initialized; `__debugInfo` and `__set_state` are both rejected with no replacement. The
+ADR also doubles as the single index of every magic method's disposition across the project — a table near
+its top points at [0014](docs/adr/0014-property-observer.md)/[0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)/[0027](docs/adr/0027-callable-is-closures-only.md)
+for the ones already closed, rather than restating them. It's referenced from `CLAUDE.md`'s routing table
+and ground rules, `docs/adr/0007-explicit-type-system.md`'s conversion table (`__toString` → `Stringable`),
+and the plan's M2 (checker-side rules) and M4 (`var_dump`/`print_r` no longer take `__debugInfo`) paragraphs
+and Verify lines — but it's all checker-side (`mwl-types`) and stdlib-shaped, so it doesn't change what the
+next *code* slice below is.
 
 **M2 — HIR, types, IR — in progress.** Read `CLAUDE.md` first (it routes to the one file you need per
 topic), then run `sh .claude/brief.sh` for the live status slice, then read the plan's M2 paragraph in
@@ -68,10 +76,13 @@ tests, `cargo test`/`clippy -D warnings`/`fmt --check` all clean across the whol
 
 `mwl-types` (the type checker) and `mwl-ir` (CFG/SSA lowering) still haven't started — the plan's
 Architecture diagram has them building on top of `mwl-hir`'s resolved names, not in parallel with it.
+When `mwl-types` does start, it inherits two fresh checker-side rules from this session's ADR 0028: refuse
+an object used at an implicit string-conversion site unless its static type provably implements
+`Stringable`, and refuse `unset()` on any declared object property outright.
 
 M2's *Verify* line (in the plan, right after its paragraph) names the exact corpus this milestone needs
-before it can be called done — one file per diagnostic across ADR 0007, ADR 0022, and ADR 0024, IR
-snapshot tests, the `Comparable` refusal cases from ADR 0013. None of that corpus exists yet since it
-depends on `mwl-types`/`mwl-ir`; `mwl-hir`'s own unit tests (in `resolve.rs`, `symbol.rs`, `qname.rs`)
-are the right home for name-resolution-only cases in the meantime — keep adding to them as each new
-piece above lands, rather than retrofitting a separate corpus later.
+before it can be called done — one file per diagnostic across ADR 0007, ADR 0022, ADR 0024 and (as of this
+session) ADR 0028, IR snapshot tests, the `Comparable` refusal cases from ADR 0013. None of that corpus
+exists yet since it depends on `mwl-types`/`mwl-ir`; `mwl-hir`'s own unit tests (in `resolve.rs`,
+`symbol.rs`, `qname.rs`) are the right home for name-resolution-only cases in the meantime — keep adding to
+them as each new piece above lands, rather than retrofitting a separate corpus later.
