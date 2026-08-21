@@ -12,6 +12,9 @@
   crossing an isolate boundary carries no encoding ambiguity with it — the same deep-copy-or-move rule
   applies to both), [0007](0007-explicit-type-system.md) (`string` is already an atom in its grammar; this
   ADR fixes what it *means* and adds `bytes` beside it as a new atom and a new conversion-table row)
+- **Amended by:** [0024](0024-taint-tracking-for-injection-sinks.md) — § 4's scalar payload pulled out of
+  `mixed` may now also be `tainted string`/`tainted bytes`; § 3's conversion between the two preserves the
+  qualifier across either direction and is otherwise unchanged.
 
 > **In short:** PHP has one type for "a piece of text" and "a buffer of bytes," and it never says which one
 > a given `string` is — that ambiguity is why PHP needs a whole parallel function set (`strlen` vs

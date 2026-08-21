@@ -424,8 +424,11 @@ property or the missing path ([ADR 0022](adr/0022-definite-property-initializati
 inference engine and no `Unknown` type** — that is the
 simplification the mandatory declarations buy. Also from that table: `<`/`>`/`<=`/`>=`/`<=>` between two
 objects refused unless both sides are provably the same class implementing `Comparable`
-([ADR 0013](adr/0013-comparable-interface.md)) — there is no property-walk fallback to fall into. Lowering
-to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
+([ADR 0013](adr/0013-comparable-interface.md)) — there is no property-walk fallback to fall into. The same
+checker enforces the `tainted` qualifier on `string`/`bytes` — poisoning through concatenation and
+interpolation, laundering only through a checked `as` conversion or a named `Core` function, and a
+diagnostic at any sink requiring the plain type ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)).
+Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
 statement and every conditional CFG edge also carries the stable id [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 addresses a coverage/branch probe by — cheap to reserve here, expensive to retrofit once M3 onward has built
 on top of the IR without it.
@@ -435,7 +438,11 @@ undeclared local, a re-declared local, a read before definite assignment, `int +
 a `mixed` assigned into a typed binding, an element-type violation at depth 1, 2 and 3, a missing narrowing
 and a present one. Plus ADR 0022's own corpus entries: a constructor with a branch that leaves a
 non-nullable property unassigned, a subclass constructor with a path that skips `parent::__construct(...)`,
-and a class with no constructor and no inline default for a non-nullable property. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+and a class with no constructor and no inline default for a non-nullable property. Plus ADR 0024's own
+entries: a `tainted` value concatenated into a sink requiring the plain type is refused, naming the
+qualifier and the sink; a checked `as uint`/enum conversion on a tainted source produces an unqualified
+result with no extra syntax; `tainted string as Markup` is refused even though a literal succeeds. IR
+snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.
@@ -563,9 +570,11 @@ than as an out-of-memory.
 (the same `Isolate` M5 built, not a second isolation path), the `Core\Request`/`Core\Server` accessor
 classes populated from it (`Core\Request::query()`/`::post()`/`::cookie()`/`::file()`,
 `Core\Server::meta()`/`::header()` — replacing `$_GET`/`$_POST`/`$_SERVER`/`$_COOKIE`/`$_FILES`, see
-[ADR 0012](adr/0012-no-superglobals.md)), multipart and urlencoded body parsing with limits,
-streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured request
-logging, optional TLS via `rustls`.
+[ADR 0012](adr/0012-no-superglobals.md)), returning `tainted string`/`tainted bytes` per
+[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md), multipart and urlencoded body parsing with
+limits, streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured
+request logging, optional TLS via `rustls`. **Not yet named here:** raw/unparsed body access (a JSON
+payload, a webhook body, an arbitrary content-type) — a gap [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)'s *Revisiting* flags for whoever designs `Core\Request`'s full surface at this milestone.
 
 **Also in this milestone: hot-reload of the compiled-unit cache**, which is what makes "no restart to see an
 edit" true of a running server rather than only of `mwl run`. [ADR 0017](adr/0017-hot-reload-without-restart.md)
@@ -590,9 +599,13 @@ storm against one hot, `mtime`-validated file is bounded by `revalidate_freq`, n
 ### M8 — Stdlib and databases (~16 weeks)
 Two-tier regex with the `preg_*` layer; JSON; hashing and crypto (RustCrypto: sha2, blake3, argon2,
 bcrypt, aes-gcm); date/time with PHP-compatible formatting; filesystem and stream abstractions; process
-execution behind the capability gate; sessions; a PDO-like DB API with pure-Rust MySQL/MariaDB, PostgreSQL
-and MS SQL Server drivers plus SQLite (documenting `rusqlite`'s C dependency as an explicit, audited
-exception to the pure-Rust rule). Also here: **`Core\Reflect` and `Core\Ast`**, built-in — not
+execution behind the capability gate — an argv array with no shell in between, per
+[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md); sessions; a PDO-like DB API with pure-Rust
+MySQL/MariaDB, PostgreSQL and MS SQL Server drivers plus SQLite (documenting `rusqlite`'s C dependency as an
+explicit, audited exception to the pure-Rust rule) — its query-text parameter requires the plain,
+unqualified `string` while bound parameters stay tainted-friendly, and `Core\Html::escape`/`Markup` and the
+`Core\Taint`/`Core\Db::quoteIdentifier` laundering functions land here too, all per
+[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md). Also here: **`Core\Reflect` and `Core\Ast`**, built-in — not
 extension-provided — structural reflection and a runtime door onto `mwl-syntax`'s own lexer/parser, per
 [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md); reflective access enforces the same
 visibility/hook checks ordinary code does, and a parsed AST is typed, inert data with no path back into

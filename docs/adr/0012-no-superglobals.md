@@ -25,6 +25,10 @@
   [0011](0011-functions-and-constants-are-class-members.md) — `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` join the illustrative domain-class roster its *Revisiting* section already
   says is incomplete.
+- **Amended by:** [0024](0024-taint-tracking-for-injection-sinks.md) — every method on `Core\Request`,
+  `Core\Server`, `Core\Session`, `Core\Env`, `Core\Cli` and `Core\Script::args()` returns the `tainted` form
+  of whatever it already returned; the mapping table and the method-signature deferral are otherwise
+  unchanged.
 - **Relates to:** [0002](0002-error-propagation.md) (an isolation-boundary violation on `Core\Request`/
   `Core\Session` inside a spawned isolate is a checked throw, propagated like any other error),
   [0004](0004-memory-for-simplicity.md) (dropping `$GLOBALS` and `$_REQUEST` buys simplicity by deleting
