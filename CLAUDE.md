@@ -30,6 +30,7 @@ touching to get that.
 | Weighing memory against safety, speed or simplicity | [ADR 0004](docs/adr/0004-memory-for-simplicity.md) |
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
+| `include`/`require`, loading another file into the current frame | [ADR 0021](docs/adr/0021-single-file-inclusion-construct.md). Holds the only copy of the rule that `require` is the one surviving spelling — `include`, `include_once` and `require_once` are all rejected with a diagnostic naming it. |
 | The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [ADR 0017](docs/adr/0017-hot-reload-without-restart.md). Holds the only copy of the path-pointer-swap mechanism, why it needs no filesystem watcher, and why a request-serving core is never blocked on a recompile. |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
@@ -42,6 +43,7 @@ touching to get that.
 | `class_alias`, `use … as …`, trait-use `as`, or a `type` alias | [ADR 0015](docs/adr/0015-no-name-aliasing.md). Holds the only copy of the rule that nothing gets a second runtime-reachable name — `class_alias` does not exist, import renaming is rejected, and trait composition keeps only `insteadof` — while a `type` alias is kept as a distinct, compile-time-only synonym for a type expression, never for a single bare class. |
 | Code coverage, call tracing, the deterministic per-call profiler, `Core\Debug`, or the `[debug]` `mwl.ini` section | [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md). Holds the only copy of the probe mechanism and why it is safepoint-shaped rather than a second compiled tier; step debugging (`mwl dap`) and the sampling flamegraph profiler stay in [ADR 0016](docs/adr/0016-ide-integration.md) instead. |
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, or any runtime introspection/parsing surface | [ADR 0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md). Holds the only copy of the rule that both are built-in `Core` features, not extensions — reflective access enforces the same visibility/hook checks as ordinary code (no `setAccessible(true)`), and a parsed AST is inert typed data with no path back into execution. |
+| Uncaught exceptions, memory/CPU-limit fatals, internal panics, compile-error reporting, `Core\Fatal`, `Core\Log`, or anything about what gets logged when a handler itself fails | [ADR 0020](docs/adr/0020-error-escalation-ladder.md). Holds the only copy of the four-tier escalation ladder, why a resource-limit report is not a `Throwable`, and why every tier is zero-retry. |
 | The VS Code extension, the PhpStorm plugin, `mwl-lsp`/`mwl-fmt` client wiring, syntax highlighting, or what "IDE integration" does and doesn't cover yet | [ADR 0016](docs/adr/0016-ide-integration.md). Holds the only copy of the rule that language smarts and formatting live exactly once, in `mwl-lsp`/`mwl-fmt`, with a thin client per editor — PhpStorm's LSP-bridge-before-native phasing and the deferred debugger-UI wiring are both decided there, not left to be inferred from M10's task list. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
@@ -127,6 +129,14 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   same visibility/hook checks as ordinary code (no `setAccessible(true)`), and `Core\Ast::parse()` returns
   inert typed data through the compiler's own single parser, never a second grammar or a path back into
   execution ([ADR 0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)).
+- **A fatal error never reaches an ordinary `catch`** — a resource-limit report is not a `Throwable` at the
+  type level; it and every other unhandled failure (uncaught throw, internal panic, compile error) escalates
+  through a zero-retry, reserved-budget handler ladder ending in a hardcoded engine floor, so nothing goes
+  unlogged and no handler can loop trying ([ADR 0020](docs/adr/0020-error-escalation-ladder.md)).
+- **`require` is the only same-frame file-inclusion construct** — `include`, `include_once` and
+  `require_once` are all rejected with a diagnostic naming `require`; it already throws on a missing file
+  and runs every time it is reached, so no second spelling was needed for either axis
+  ([ADR 0021](docs/adr/0021-single-file-inclusion-construct.md)).
 
 ## Commands
 

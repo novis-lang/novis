@@ -535,13 +535,17 @@ semantics, capability enforcement at every syscall-touching stdlib entry point, 
 enforcement, content-addressed artifact cache with integrity verification and a refusal to use a
 world-writable cache directory. Isolates get their governance here: the `script.spawn` capability with
 canonicalise-then-prefix path resolution, `max_script_depth`, per-tree accounting of every `[limits]` value,
-spawn-site sub-caps, and derivation of a child's overlay from its parent's effective config.
+spawn-site sub-caps, and derivation of a child's overlay from its parent's effective config. **Also here:**
+the `fatal_reserve_memory`/`fatal_reserve_time` directives and `Core\Fatal::onLimit` registration
+([ADR 0020](adr/0020-error-escalation-ladder.md)) — the reserved slice a resource-limit `FATAL`'s handler
+runs with is carved out of the request's own budget at the same point these limits are set up.
 
 **Verify:** adversarial suite — a script attempting to widen a capability or set a `System` directive
 fails; `ini_set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
 `[limits.hard]` ceiling returns `false` with the previous value intact, and is invisible to the next request
-on the same core; memory/CPU caps terminate runaway scripts with a catchable error; warm-cache CLI startup
-under 10 ms; a tampered cache artifact is rejected. For isolates: `spawn script` without `script.spawn`
+on the same core; memory/CPU caps terminate runaway scripts as a `FATAL`, reported to `Core\Fatal::onLimit`
+if registered and never to an ordinary `catch` ([ADR 0020](adr/0020-error-escalation-ladder.md)); warm-cache
+CLI startup under 10 ms; a tampered cache artifact is rejected. For isolates: `spawn script` without `script.spawn`
 fails; a path outside the granted roots fails, including one reaching it through `..` or a symlink; a child
 cannot widen a capability its parent narrowed; N concurrent isolates cannot together exceed the tree's
 memory, CPU or output budget; a recursive spawn is stopped by `max_script_depth` and reported as that rather
@@ -585,7 +589,10 @@ exception to the pure-Rust rule). Also here: **`Core\Reflect` and `Core\Ast`**, 
 extension-provided — structural reflection and a runtime door onto `mwl-syntax`'s own lexer/parser, per
 [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md); reflective access enforces the same
 visibility/hook checks ordinary code does, and a parsed AST is typed, inert data with no path back into
-execution.
+execution. Also here: **`Core\Fatal` and `Core\Log`**, plus the operator-configured `.mwl` error-handler
+script and the engine-native logging floor beneath it, per
+[ADR 0020](adr/0020-error-escalation-ladder.md); `Core\Log`'s JSON-Lines writer is the same native
+serialiser the engine floor calls directly, so the two never disagree on log shape.
 
 **Also in this milestone: author the `mwl:ext@1.0.0` WIT world.** It must be designed from the same
 value-access model as the `Core` domain classes' static methods, so the Tier 0 internal interface and the Tier 1 guest
@@ -600,7 +607,11 @@ not part of this milestone.
 including TLS, prepared statements, transactions and large result streaming. `Core\Reflect`/`Core\Ast`
 verified per [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md)'s own M8 verification
 list — a reflective call to a `private` method from outside its class fails like the equivalent ordinary
-call; `Core\Ast::parse()` fuzzed with the same corpus as M1's lexer/parser target.
+call; `Core\Ast::parse()` fuzzed with the same corpus as M1's lexer/parser target. `Core\Fatal`/`Core\Log`
+verified per [ADR 0020](adr/0020-error-escalation-ladder.md)'s own M7/M8 list — `onUncaughtThrow` receives
+the real `Throwable`; the configured handler script runs charged to the engine's own reserve and still
+fires when the reporting request is at its own memory ceiling; application code and the engine floor
+produce schema-identical log records for the same error.
 
 ### M9 — Extension system (~6 weeks)
 `mwl-ext`: `.mwlx` loading (wasm component + `mwl.manifest` custom section), manifest parsing and
