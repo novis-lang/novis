@@ -1,15 +1,19 @@
 //! Identifier casing ([ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md),
-//! tightened by [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)):
+//! tightened by [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md),
+//! narrowed by [ADR 0032](../../../docs/adr/0032-acronym-casing-rule-revoked.md)):
 //! every declared identifier's spelling is checked directly off the AST a
 //! declaration already produces — no name resolution needed, so this lives
 //! in `mwl-syntax` rather than waiting on `mwl-hir`/`mwl-types`.
 //!
-//! ADR 0030 amends ADR 0029 before this module ever shipped: § 2's
-//! one-leading-underscore allowance for properties/parameters/locals and its
-//! `__construct` reserved-word exception are both revoked. What's
-//! implemented here is already the merged, zero-exception rule — every
-//! category uses exactly the pattern in ADR 0029's table with no
-//! leading-underscore carve-out anywhere, and a method literally named
+//! Two amendments landed before this module's first release: ADR 0030
+//! revokes § 2's one-leading-underscore allowance for properties/parameters/
+//! locals and its `__construct` reserved-word exception; ADR 0032 revokes
+//! § 1's "acronyms are one word, never kept all-caps" rule outright, so an
+//! identifier's internal capitalization is never checked, only its first
+//! character. What's implemented here is already the merged rule from both
+//! amendments — every category uses exactly the pattern in ADR 0029's table
+//! (leading-character case, alphanumeric rest) with no leading-underscore
+//! carve-out and no acronym restriction, and a method literally named
 //! `__construct` gets [`mwl_diagnostics::code::E_LEGACY_CONSTRUCTOR_SPELLING`]
 //! (naming `constructor` as the fix) instead of the generic camelCase
 //! diagnostic.
@@ -68,30 +72,21 @@ fn span_text(src: &SourceFile, span: Span) -> &str {
 // Pattern checks — ADR 0029's table, ADR 0030's zero-exception tightening
 // ============================================================================
 
-/// ADR 0029 § 1: an acronym is one word, never kept all-caps. The table's
-/// regex alone doesn't express that — `HTTPClient` matches
-/// `^[A-Z][A-Za-z0-9]*$` just as well as `HttpClient` does — so both
-/// [`is_pascal_case`] and [`is_camel_case`] additionally refuse any run of
-/// two or more consecutive ASCII uppercase letters, which is exactly what a
-/// kept-all-caps acronym looks like.
-fn has_consecutive_uppercase(s: &str) -> bool {
-    s.chars()
-        .zip(s.chars().skip(1))
-        .any(|(a, b)| a.is_ascii_uppercase() && b.is_ascii_uppercase())
-}
-
+/// [ADR 0032](../../../docs/adr/0032-acronym-casing-rule-revoked.md) narrows
+/// this to exactly the table's own pattern: only the first character's case
+/// is checked, and the rest need only be alphanumeric — no run-length or
+/// acronym check of any kind, so `HTTPClient` is accepted on equal footing
+/// with `HttpClient`.
 fn is_pascal_case(s: &str) -> bool {
     let mut chars = s.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
         && chars.all(|c| c.is_ascii_alphanumeric())
-        && !has_consecutive_uppercase(s)
 }
 
 fn is_camel_case(s: &str) -> bool {
     let mut chars = s.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_lowercase())
         && chars.all(|c| c.is_ascii_alphanumeric())
-        && !has_consecutive_uppercase(s)
 }
 
 fn is_screaming_snake_case(s: &str) -> bool {
@@ -752,10 +747,17 @@ mod tests {
     }
 
     #[test]
-    fn an_all_caps_acronym_is_rejected_as_one_word() {
+    fn an_all_caps_acronym_is_accepted() {
+        // ADR 0032 revokes ADR 0029 § 1: only the leading character's case
+        // is checked, so a kept-all-caps acronym is no longer flagged.
         let diags = check("<?mwl\nclass HTTPClient {}\n");
-        assert_eq!(only_code(&diags), code::E_BAD_TYPE_CASING);
-        assert!(diags.iter().next().unwrap().message.contains("HttpClient"));
+        assert!(diags.is_empty(), "{diags:?}");
+    }
+
+    #[test]
+    fn an_all_caps_acronym_in_a_camel_case_name_is_accepted() {
+        let diags = check("<?mwl\nclass Foo { function parseHTTPRequest(): void {} }\n");
+        assert!(diags.is_empty(), "{diags:?}");
     }
 
     #[test]

@@ -83,7 +83,7 @@
 > is the only receiver checked — a typed local, a chained call result, or an explicit `new Foo()` all need
 > `mwl-types`' static types to know which class's properties apply, and are left for that milestone; see
 > [`members.rs`](../crates/mwl-hir/src/members.rs)'s module docs for this and every other known gap in
-> full. Separately, [ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md)'s
+> full. Separately, [ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md)/[0032](adr/0032-acronym-casing-rule-revoked.md)'s
 > identifier-casing check is also done, and lives in `crates/mwl-syntax` rather than `mwl-hir` — it needs no
 > name resolution, so it runs directly off the AST [`parse_file`](../crates/mwl-syntax/src/parser.rs) already
 > produces. [`check_casing`](../crates/mwl-syntax/src/casing.rs) walks every class/interface/trait/enum/
@@ -93,8 +93,10 @@
 > underscore allowance at all per ADR 0030, `E0112`), and class constant declaration
 > (`SCREAMING_SNAKE_CASE`, `E0113`) — every diagnostic's message names a mechanically-derived suggested
 > rename, split on the identifier's own case/underscore boundaries and re-joined in the target convention,
-> attached as a machine-applicable fix. Only a declaration site is checked, never a reference, and a `type`
-> alias's own name is left unchecked since ADR 0029's scope table doesn't list that category — see
+> attached as a machine-applicable fix. Only the leading character's case is checked — ADR 0032 revokes
+> ADR 0029 § 1's "acronyms are one word" rule, so `HTTPClient`/`parseXMLPayload`-style spellings compile
+> unchanged. Only a declaration site is checked, never a reference, and a `type` alias's own name is left
+> unchecked since ADR 0029's scope table doesn't list that category — see
 > [`casing.rs`](../crates/mwl-syntax/src/casing.rs)'s module docs for the full list of what is and isn't
 > walked. `mwl-types` and `mwl-ir` haven't started.
 
@@ -550,12 +552,14 @@ whose class does not implement `Stringable` used in string interpolation, concat
 `as string`, naming `Stringable` as the fix; `unset()` on a declared object property refused for both a
 nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. Plus ADR 0029's own
 entries: a mis-cased class, interface, trait, enum, enum case, namespace segment, method, property,
-parameter, local variable and class constant, one file each, and an all-caps acronym, each naming the exact
-diagnostic and suggested rename. Plus ADR 0030's own entries: a property, a parameter and a local variable
-each starting with `_`, all three refused with the standard camelCase diagnostic (no leading-underscore
-allowance survives); a method named `__construct` refused with the targeted "spelled `constructor`, not
-`__construct`" diagnostic rather than the generic mis-casing one; a class declaring `constructor` produces
-no casing diagnostic and is recognized as satisfying ADR 0022's per-constructor obligation. Plus
+parameter, local variable and class constant, one file each, each naming the exact diagnostic and suggested
+rename — no entry for an all-caps acronym, since [ADR 0032](adr/0032-acronym-casing-rule-revoked.md)
+revokes that rule; `HTTPClient`/`parseXMLPayload`-style spellings compile with no diagnostic at all. Plus
+ADR 0030's own entries: a property, a parameter and a local variable each starting with `_`, all three
+refused with the standard camelCase diagnostic (no leading-underscore allowance survives); a method named
+`__construct` refused with the targeted "spelled `constructor`, not `__construct`" diagnostic rather than
+the generic mis-casing one; a class declaring `constructor` produces no casing diagnostic and is recognized
+as satisfying ADR 0022's per-constructor obligation. Plus
 [ADR 0014](adr/0014-property-observer.md)'s own entry: `$this->missing` for a property not declared on the
 class or any `extends`/`implements`/trait-use ancestor is refused, naming ADR 0014 § 5's "no `__get`/`__set`
 fallback" rule. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR

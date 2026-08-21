@@ -64,6 +64,7 @@ live, so a new row is picked up automatically.
 | [0029](0029-identifier-casing-is-checked.md) | Identifier casing is a hard compiler error — `PascalCase` types, `camelCase` members, `SCREAMING_SNAKE_CASE` constants, no suppression | Accepted |
 | [0030](0030-no-leading-underscores-constructor-spelling.md) | No leading underscores anywhere; the constructor is spelled `constructor`, not `__construct` | Accepted |
 | [0031](0031-callable-is-the-only-closure-type.md) | `fn` is the only closure literal, with no `use` clause; `callable` absorbs `Closure` as the one surviving type name | Accepted |
+| [0032](0032-acronym-casing-rule-revoked.md) | The acronym-as-one-word casing rule is revoked; only an identifier's leading character is checked | Accepted |
 
 ## Decisions taken at project start
 

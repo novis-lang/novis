@@ -18,6 +18,9 @@
   allowance for properties, parameters and locals is revoked outright (no exceptions, including
   `_cache`/`$_unused`); the `__construct` reserved-word exception this file's *Scope* and § 2 state above is
   also revoked, because MWL's constructor is renamed to `constructor` and needs no exception at all.
+  [0032](0032-acronym-casing-rule-revoked.md) — § 1's "acronyms are one word, never kept all-caps" rule is
+  revoked outright; the checker enforces only this file's table (the leading character's case, an
+  alphanumeric rest), so `HTTPClient` is accepted on equal footing with `HttpClient`.
 - **Relates to:** [0007](0007-explicit-type-system.md) (the type-atom keywords this ADR leaves alone),
   [0008](0008-static-and-global.md) (a `static` property is still a property — the same casing rule applies
   regardless of storage class), [0010](0010-enums-are-a-value-type.md) (its own examples already spell enum
