@@ -461,7 +461,10 @@ replacement, and MWL has no `__invoke`, so `$obj(...)` is refused for any non-`C
 what its class declares ([ADR 0027](adr/0027-callable-is-closures-only.md)). An object used at an implicit
 string-conversion site is accepted only when its static type provably implements the global `Stringable`
 interface, and `unset()` on a declared object property is refused outright regardless of nullability
-([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)).
+([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)). Every declared identifier's casing is checked
+against [ADR 0029](adr/0029-identifier-casing-is-checked.md)'s per-category table — needs no name
+resolution, so it can land in `mwl-syntax` directly off each declaration's AST node rather than waiting on
+the rest of this milestone's checker.
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
 statement and every conditional CFG edge also carries the stable id [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 addresses a coverage/branch probe by — cheap to reserve here, expensive to retrofit once M3 onward has built
@@ -482,7 +485,10 @@ replacement; `$obj(...)` refused for a non-`Closure` `$obj` even when its class 
 named `__invoke`, naming the class and stating MWL has no `__invoke`. Plus ADR 0028's own entries: an object
 whose class does not implement `Stringable` used in string interpolation, concatenation, `echo`, or
 `as string`, naming `Stringable` as the fix; `unset()` on a declared object property refused for both a
-nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. Plus ADR 0029's own
+entries: a mis-cased class, interface, trait, enum, enum case, namespace segment, method, property,
+parameter, local variable and class constant, one file each, plus a two-leading-underscore name and an
+all-caps acronym, each naming the exact diagnostic and suggested rename. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.

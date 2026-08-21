@@ -3,21 +3,18 @@
 Continue MWL. M1 (front end) is done and closed out — see git history if you need the detail; it's
 not repeated here per CLAUDE.md's "state a fact once" rule.
 
-**Last session added no code.** It settled [ADR 0028](docs/adr/0028-closing-the-remaining-magic-methods.md),
-closing every PHP magic method no earlier ADR had ruled on: `__toString` is replaced by a declared global
-`Stringable` interface (`toString(): string`); **MWL has no destructors of any kind** — no `__destruct`, no
-replacement, cleanup is always an explicit method call; `__isset`/`__unset` need no replacement since
-[ADR 0014](docs/adr/0014-property-observer.md) already closed the fallback they served, but `unset()` on a
-*declared* object property is now a compile-time diagnostic regardless of nullability, since
-[ADR 0022](docs/adr/0022-definite-property-initialization.md) already guarantees no declared property is
-ever anything but initialized; `__debugInfo` and `__set_state` are both rejected with no replacement. The
-ADR also doubles as the single index of every magic method's disposition across the project — a table near
-its top points at [0014](docs/adr/0014-property-observer.md)/[0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)/[0027](docs/adr/0027-callable-is-closures-only.md)
-for the ones already closed, rather than restating them. It's referenced from `CLAUDE.md`'s routing table
-and ground rules, `docs/adr/0007-explicit-type-system.md`'s conversion table (`__toString` → `Stringable`),
-and the plan's M2 (checker-side rules) and M4 (`var_dump`/`print_r` no longer take `__debugInfo`) paragraphs
-and Verify lines — but it's all checker-side (`mwl-types`) and stdlib-shaped, so it doesn't change what the
-next *code* slice below is.
+**Last session added no code.** It settled [ADR 0029](docs/adr/0029-identifier-casing-is-checked.md),
+MWL's first identifier-casing rule: every user-written identifier's casing is now a **hard compiler
+error, with no suppression mechanism at all** — classes/interfaces/traits/enums/enum-cases/namespace
+segments are `PascalCase`; methods are `camelCase`; properties, parameters and local variables are
+`camelCase` with at most one optional leading underscore (`_cache`, `$_unused`); class constants are
+`SCREAMING_SNAKE_CASE`; an acronym is always spelled as one word (`HttpClient`, never `HTTPClient`).
+The ADR is a formalization more than a new choice — every existing ADR's examples already happened to
+follow this style. It's referenced from `CLAUDE.md`'s routing table and ground rules, and from the
+plan's M2 paragraph and Verify line below — but the check needs no name resolution (every category is
+already a distinct AST node kind as of M1's parser), so it doesn't change what the next *code* slice is:
+it can land in `crates/mwl-syntax` as a self-contained addition whenever convenient, independent of
+`mwl-hir`'s trait-flattening work below.
 
 **M2 — HIR, types, IR — in progress.** Read `CLAUDE.md` first (it routes to the one file you need per
 topic), then run `sh .claude/brief.sh` for the live status slice, then read the plan's M2 paragraph in
@@ -41,8 +38,7 @@ tests, `cargo test`/`clippy -D warnings`/`fmt --check` all clean across the whol
   that appears later in the file) — `Core\...` targets are trusted rather than checked, since
   `mwl-stdlib` doesn't exist yet. Also enforces
   [ADR 0015](docs/adr/0015-no-name-aliasing.md) § 6: a `type` alias that is nothing but one bare
-  class/interface/enum atom is refused under the new `E_TYPE_ALIAS_ALIASES_CLASS` (`E0307`) code, added
-  to `mwl-diagnostics` this session.
+  class/interface/enum atom is refused under the `E_TYPE_ALIAS_ALIASES_CLASS` (`E0307`) code.
 - `Core`-namespace reservation for *declarations* (`namespace Core;` and anything nested under it) was
   already enforced by `mwl-syntax`'s parser back in M1 — `mwl-hir` didn't need to redo it.
 
@@ -56,7 +52,10 @@ tests, `cargo test`/`clippy -D warnings`/`fmt --check` all clean across the whol
    depends on having a real class graph to walk.
 2. Every callable/constant resolving as a class member with no bare-name fallback
    ([ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md)) — needs the class graph
-   from item 1 to know what a class's members even are.
+   from item 1 to know what a class's members even are. This is also where
+   [ADR 0029](docs/adr/0029-identifier-casing-is-checked.md)'s method/constant casing check could live if
+   it isn't already sitting in `mwl-syntax` by the time this item starts — either home is correct, since
+   the check needs no resolution; don't block item 2 on it either way.
 3. Substituting a resolved `type` alias into the types that reference it (the transparency half of
    [ADR 0015](docs/adr/0015-no-name-aliasing.md) § 5 — this session only collected the declarations and
    rejected the bare-class case; the substitution itself, and cycle detection
@@ -74,15 +73,24 @@ tests, `cargo test`/`clippy -D warnings`/`fmt --check` all clean across the whol
    access to anything not declared on the class or an ancestor/trait, no `__get`/`__set` fallback.
    Needs the class graph (item 1) to walk ancestors/traits.
 
+**Also open, self-contained, no dependency on the above:** implement
+[ADR 0029](docs/adr/0029-identifier-casing-is-checked.md)'s casing check in `crates/mwl-syntax` — a
+diagnostic pass over the AST nodes M1 already produces (class/interface/trait/enum/enum-case/namespace-
+segment/method/property/parameter/local/const declarations), no `mwl-hir` involvement needed. Good filler
+work between the numbered items above, or a fine place to start the session if item 1 needs more
+thinking time first.
+
 `mwl-types` (the type checker) and `mwl-ir` (CFG/SSA lowering) still haven't started — the plan's
 Architecture diagram has them building on top of `mwl-hir`'s resolved names, not in parallel with it.
-When `mwl-types` does start, it inherits two fresh checker-side rules from this session's ADR 0028: refuse
-an object used at an implicit string-conversion site unless its static type provably implements
-`Stringable`, and refuse `unset()` on any declared object property outright.
+When `mwl-types` does start, it inherits two fresh checker-side rules from ADR 0028: refuse an object used
+at an implicit string-conversion site unless its static type provably implements `Stringable`, and refuse
+`unset()` on any declared object property outright.
 
 M2's *Verify* line (in the plan, right after its paragraph) names the exact corpus this milestone needs
-before it can be called done — one file per diagnostic across ADR 0007, ADR 0022, ADR 0024 and (as of this
-session) ADR 0028, IR snapshot tests, the `Comparable` refusal cases from ADR 0013. None of that corpus
-exists yet since it depends on `mwl-types`/`mwl-ir`; `mwl-hir`'s own unit tests (in `resolve.rs`,
-`symbol.rs`, `qname.rs`) are the right home for name-resolution-only cases in the meantime — keep adding to
-them as each new piece above lands, rather than retrofitting a separate corpus later.
+before it can be called done — one file per diagnostic across ADR 0007, ADR 0022, ADR 0024, ADR 0027,
+ADR 0028 and (as of this session) ADR 0029, IR snapshot tests, the `Comparable` refusal cases from ADR 0013.
+None of that corpus exists yet since most of it depends on `mwl-types`/`mwl-ir`; `mwl-hir`'s own unit tests
+(in `resolve.rs`, `symbol.rs`, `qname.rs`) are the right home for name-resolution-only cases in the
+meantime — keep adding to them as each new piece above lands, rather than retrofitting a separate corpus
+later. ADR 0029's corpus is the one exception: it can start as soon as its `mwl-syntax` check exists, no
+need to wait for `mwl-types`.
