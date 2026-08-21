@@ -424,7 +424,6 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
         ExprKind::Unary { expr, .. }
         | ExprKind::PreIncDec { expr, .. }
         | ExprKind::PostIncDec { expr, .. }
-        | ExprKind::Cast { expr, .. }
         | ExprKind::Clone(expr)
         | ExprKind::YieldFrom(expr)
         | ExprKind::Print(expr)

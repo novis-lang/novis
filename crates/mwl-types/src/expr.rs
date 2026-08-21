@@ -7,8 +7,10 @@
 //! reports `E_TYPE_MISMATCH` on a mismatch via [`is_assignable`].
 //!
 //! Beyond literals, variable reads, the binary-operator result-type table
-//! (ADR 0007 § 4, including refusing `int ⊕ uint`), `as`/cast conversions
-//! and array literals, a property access, method call, static call/property,
+//! (ADR 0007 § 4, including refusing `int ⊕ uint`), `as` conversions (the
+//! only conversion spelling — ADR 0034 rejects PHP's legacy `(T)expr` cast
+//! syntax outright) and array literals, a property access, method call,
+//! static call/property,
 //! `new` and `match`/ternary are now typed too — see [`class_qname_of`] and
 //! its callers below. A method/static call not statically resolvable to a
 //! known signature (an unresolved receiver, a dynamic member name, a
@@ -46,7 +48,7 @@
 use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_hir::QName;
 use mwl_syntax::ast::{
-    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, CastType, Expr, ExprKind, MemberName, NewTarget,
+    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MemberName, NewTarget,
     StringPart, UnaryOp,
 };
 use rustc_hash::FxHashSet;
@@ -202,13 +204,6 @@ fn infer(
         }
         ExprKind::PreIncDec { expr: inner, .. } | ExprKind::PostIncDec { expr: inner, .. } => {
             check_expr(inner, None, live, scope, ctx, env)
-        }
-        ExprKind::Cast { ty, expr: inner } => {
-            let inner_ty = check_expr(inner, None, live, scope, ctx, env);
-            if *ty == CastType::String {
-                require_stringable(inner_ty, inner.span, env);
-            }
-            cast_result_type(*ty, env)
         }
         ExprKind::Binary { op, lhs, rhs } => {
             let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
@@ -785,21 +780,6 @@ fn check_args_typed(
             sig.params.get(i).copied()
         };
         check_expr(&arg.value, expected, live, scope, ctx, env);
-    }
-}
-
-fn cast_result_type(ty: CastType, env: &mut Env<'_>) -> TypeId {
-    match ty {
-        CastType::Int => env.interner.int(),
-        CastType::Uint => env.interner.uint(),
-        CastType::Float => env.interner.float(),
-        CastType::String => env.interner.string(),
-        CastType::Bool => env.interner.bool_ty(),
-        CastType::Array => {
-            let mixed = env.interner.mixed();
-            env.interner.array(mixed)
-        }
-        CastType::Object => env.interner.object(),
     }
 }
 

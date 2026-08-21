@@ -66,6 +66,8 @@ live, so a new row is picked up automatically.
 | [0031](0031-callable-is-the-only-closure-type.md) | `fn` is the only closure literal, with no `use` clause; `callable` absorbs `Closure` as the one surviving type name | Accepted |
 | [0032](0032-acronym-casing-rule-revoked.md) | The acronym-as-one-word casing rule is revoked; only an identifier's leading character is checked | Accepted |
 | [0033](0033-secret-qualifier-for-confidential-values.md) | `secret` is a second, independent compile-time qualifier alongside `tainted`; a handful of sinks (HTML output, `Core\Log`, debug dumps, exception messages, serialize/isolate-crossing) refuse it by default | Accepted |
+| [0034](0034-legacy-cast-syntax-rejected.md) | PHP's legacy `(T)expr` cast syntax is rejected; `as` is the only conversion spelling | Accepted |
+| [0035](0035-truthy-boolean-context.md) | A condition is judged by PHP's full truthy table; every other `bool` position stays checked | Accepted |
 
 ## Decisions taken at project start
 

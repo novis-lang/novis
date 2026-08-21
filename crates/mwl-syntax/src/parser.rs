@@ -77,11 +77,11 @@ use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, BinaryOp, Block, CallArgs,
-    CastType, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember,
-    DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr,
-    ForeachBinding, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
-    NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, PropertyHookKind,
-    PropertyMember, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
+    CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember, DestructureElement,
+    DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
+    IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name, NamespaceDecl,
+    NewTarget, Param, PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember,
+    SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
     TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type, TypeAliasDecl, TypeAtom,
     TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
 };
@@ -1060,19 +1060,20 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Whether `(` at the current position opens a legacy `(T)expr` cast
     /// rather than a parenthesized expression — decided by a 3-token
-    /// lookahead, since both start identically.
-    fn peek_cast_type(&mut self) -> Option<CastType> {
-        let ty = match self.peek_at(1).kind {
-            TokenKind::Keyword(Keyword::Int) => CastType::Int,
-            TokenKind::Keyword(Keyword::Uint) => CastType::Uint,
-            TokenKind::Keyword(Keyword::Float) => CastType::Float,
-            TokenKind::Keyword(Keyword::String) => CastType::String,
-            TokenKind::Keyword(Keyword::Bool) => CastType::Bool,
-            TokenKind::Keyword(Keyword::Array) => CastType::Array,
-            TokenKind::Keyword(Keyword::Object) => CastType::Object,
+    /// lookahead, since both start identically. The spelling itself, not just
+    /// its shape, is returned so the diagnostic can name it.
+    fn peek_cast_keyword(&mut self) -> Option<&'static str> {
+        let spelling = match self.peek_at(1).kind {
+            TokenKind::Keyword(Keyword::Int) => "int",
+            TokenKind::Keyword(Keyword::Uint) => "uint",
+            TokenKind::Keyword(Keyword::Float) => "float",
+            TokenKind::Keyword(Keyword::String) => "string",
+            TokenKind::Keyword(Keyword::Bool) => "bool",
+            TokenKind::Keyword(Keyword::Array) => "array",
+            TokenKind::Keyword(Keyword::Object) => "object",
             _ => return None,
         };
-        (self.peek_at(2).kind == TokenKind::RParen).then_some(ty)
+        (self.peek_at(2).kind == TokenKind::RParen).then_some(spelling)
     }
 
     /// Self-recursive on its own operand for every prefix form it handles
@@ -1087,19 +1088,26 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     fn parse_unary_inner(&mut self) -> Expr {
         if self.at(TokenKind::LParen)
-            && let Some(ty) = self.peek_cast_type()
+            && let Some(spelling) = self.peek_cast_keyword()
         {
             let start = self.bump().span; // '('
             self.bump(); // the cast keyword
             self.bump(); // ')'
-            let expr = self.parse_unary();
-            let span = start.to(expr.span);
+            let operand = self.parse_unary();
+            let span = start.to(operand.span);
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_LEGACY_CAST_UNSUPPORTED,
+                    format!("`({spelling})expr` is not supported"),
+                )
+                .with_primary(span, "MWL keeps exactly one conversion spelling")
+                .with_help(format!(
+                    "use `expr as {spelling}` — it throws instead of silently truncating"
+                )),
+            );
             return Expr {
                 span,
-                kind: ExprKind::Cast {
-                    ty,
-                    expr: Box::new(expr),
-                },
+                kind: ExprKind::Error,
             };
         }
         macro_rules! prefix {
@@ -2663,6 +2671,19 @@ impl<'src, 'd> Parser<'src, 'd> {
                 && self.peek_at(2).kind == TokenKind::Equals =>
             {
                 self.parse_type_alias_decl(start)
+            }
+            // `(int)$x;` etc. at statement start is also a syntactically
+            // valid (if pointless) redundantly-parenthesized local
+            // declaration with no initializer — `(int)` parses fine as a
+            // one-member parenthesized union, so `parse_stmt_maybe_local_decl`'s
+            // trial parse would otherwise commit to that reading and never
+            // report ADR 0034's diagnostic for this one, statement-start
+            // spelling of the rejected cast. The seven legacy-cast keywords
+            // never legitimately need redundant parens around a bare type,
+            // so this shape is routed to the expression-statement path
+            // instead, unconditionally, ahead of the general trial parse.
+            _ if self.at(TokenKind::LParen) && self.peek_cast_keyword().is_some() => {
+                self.parse_expr_statement(start)
             }
             _ if self.can_start_type() && !self.at_keyword(Keyword::Static) => {
                 self.parse_stmt_maybe_local_decl(start)
@@ -4474,23 +4495,22 @@ mod tests {
     }
 
     #[test]
-    fn not_nests_inside_a_cast_and_other_unary_operators() {
+    fn not_nests_inside_a_rejected_cast_and_other_unary_operators() {
         // `!` sits at a looser precedence tier than a cast or unary op in the
         // grammar ([`Parser::parse_not`]), but a cast/unary op's operand
         // recurses straight into [`Parser::parse_unary`], skipping that
         // tier — so without `parse_unary`'s own `Bang` arm, these would fail
-        // to parse at all rather than nesting the way PHP accepts.
-        let e = parse_ok("(int) !$x");
-        let ExprKind::Cast { expr, .. } = e.kind else {
-            panic!("expected a cast: {e:?}");
-        };
-        assert!(matches!(
-            expr.kind,
-            ExprKind::Unary {
-                op: UnaryOp::Not,
-                ..
-            }
-        ));
+        // to parse at all rather than nesting the way PHP accepts. The
+        // legacy-cast spelling is rejected (ADR 0034), but it must still
+        // consume `!$x` as its operand rather than leaving it dangling.
+        let (e, diags) = parse_with_diags("(int) !$x");
+        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_LEGACY_CAST_UNSUPPORTED)),
+            "expected E_LEGACY_CAST_UNSUPPORTED, got {diags:?}"
+        );
 
         let e = parse_ok("-!$x");
         let ExprKind::Unary {
@@ -4729,16 +4749,49 @@ mod tests {
         );
     }
 
+    /// ADR 0034: `as` is the only conversion spelling — PHP's legacy
+    /// `(T)expr` cast syntax is diagnosed, naming `as` as the replacement,
+    /// the same shape ADR 0021 already gives `include`/`include_once`/
+    /// `require_once` in favor of `require`.
     #[test]
-    fn legacy_cast_carries_as_semantics() {
-        let e = parse_ok("(int)$x");
-        assert!(matches!(
-            e.kind,
-            ExprKind::Cast {
-                ty: CastType::Int,
-                ..
-            }
-        ));
+    fn legacy_cast_is_diagnosed() {
+        for src in [
+            "(int)$x",
+            "(uint)$x",
+            "(float)$x",
+            "(string)$x",
+            "(bool)$x",
+            "(array)$x",
+            "(object)$x",
+        ] {
+            let (e, diags) = parse_with_diags(src);
+            assert!(diags.has_errors(), "expected a diagnostic for {src:?}");
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_LEGACY_CAST_UNSUPPORTED)),
+                "expected E_LEGACY_CAST_UNSUPPORTED for {src:?}, got {diags:?}"
+            );
+            assert!(matches!(e.kind, ExprKind::Error));
+        }
+    }
+
+    /// ADR 0034: at statement start specifically, `(string)$x;` is also a
+    /// syntactically valid (if pointless) local declaration with redundant
+    /// parens around its type and no initializer — `(string)` parses fine as
+    /// a one-member parenthesized union. Without routing this shape past
+    /// `parse_stmt_maybe_local_decl`'s trial parse, it would silently commit
+    /// to that reading and never report the cast diagnostic at all.
+    #[test]
+    fn legacy_cast_is_diagnosed_even_as_a_bare_statement() {
+        let (s, diags) = parse_stmt_with_diags("(string)$x;");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_LEGACY_CAST_UNSUPPORTED)),
+            "expected E_LEGACY_CAST_UNSUPPORTED, got {diags:?}"
+        );
+        assert!(!matches!(s.kind, StmtKind::LocalDecl { .. }));
     }
 
     #[test]

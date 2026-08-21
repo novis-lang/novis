@@ -166,24 +166,6 @@ pub enum IncDecOp {
     Dec,
 }
 
-/// PHP's legacy cast syntax, `(T)expr` — accepted as a second spelling of
-/// `expr as T`, carrying `as`'s checked semantics rather than PHP's lossy ones
-/// (ADR 0007 § 2).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[expect(
-    missing_docs,
-    reason = "each variant is exactly the cast keyword it names"
-)]
-pub enum CastType {
-    Int,
-    Uint,
-    Float,
-    String,
-    Bool,
-    Array,
-    Object,
-}
-
 /// A binary operator, `lhs ⊕ rhs`.
 #[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -565,13 +547,6 @@ pub enum ExprKind {
     PostIncDec {
         /// Which operator.
         op: IncDecOp,
-        /// The operand.
-        expr: Box<Expr>,
-    },
-    /// PHP's legacy `(T)expr` cast syntax.
-    Cast {
-        /// The target type.
-        ty: CastType,
         /// The operand.
         expr: Box<Expr>,
     },

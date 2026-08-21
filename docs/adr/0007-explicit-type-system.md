@@ -32,6 +32,11 @@
   [0033](0033-secret-qualifier-for-confidential-values.md) — § 2's conversion table row gains a second,
   independent qualifier axis: a checked conversion also strips `secret` on success, the same shape it already
   gives `tainted`.
+  [0034](0034-legacy-cast-syntax-rejected.md) — § 2's "PHP's cast syntax `(int)$x` is accepted as a second
+  spelling" paragraph is withdrawn; `as` is the only conversion spelling, and § 7's divergence 4 is restated
+  to say so. [0035](0035-truthy-boolean-context.md) — names the one place a value's declared type is tested
+  without `as`: a condition (`if`/`while`/`for`'s middle clause/`?:`/`&&`/`||`/`!`), judged by PHP's full
+  truthy table rather than requiring `bool` already. Every other position § 2 governs is unaffected.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -144,10 +149,9 @@ never rounds, truncates, or substitutes a default.
 | anything → `string` | total for scalars; an object needs `Stringable`, or it throws ([0028](0028-closing-the-remaining-magic-methods.md)) |
 | `array<T>` → `array<U>` | every element must satisfy `U`; O(n), see *5* |
 
-PHP's cast syntax `(int)$x` is accepted as a second spelling of `$x as int`, carrying `as`'s semantics
-rather than PHP's. Keeping the syntax and changing the behaviour is deliberate: rejecting the spelling would
-break the superset promise for no gain, and reproducing lossy-silent coercion would reintroduce the bug
-class this ADR exists to remove. It is listed in *7* as the divergence it is.
+PHP's cast syntax, `(int)$x`, does not parse — [ADR 0034](0034-legacy-cast-syntax-rejected.md) rejects it
+with a diagnostic naming `$x as int` as the replacement. `as` is the only conversion spelling; there is no
+second one to keep in sync with it.
 
 Implicit conversion happens in exactly one place: **`int` or `uint` widening into a `float` position**,
 which is the one coercion PHP's own `strict_types` permits, and it throws above 2^53 rather than rounding.
@@ -314,7 +318,7 @@ later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 | 1 | array keys are `int` or `string` | always `string`; which subscripts collide is unchanged, but `array_keys()` returns strings |
 | 2 | one integer type | `int` and `uint`; `is_int()` is false for a `uint`, `gettype()` says `"uint"` |
 | 3 | a variable holds anything, always | every binding declared, its type fixed; `settype()` rejected |
-| 4 | `(int)"abc"` is `0` | throws. The same syntax, checked semantics |
+| 4 | `(int)"abc"` is `0` | the syntax itself is rejected ([ADR 0034](0034-legacy-cast-syntax-rejected.md)); `"abc" as int` throws |
 | 5 | `PHP_INT_MAX + 1` becomes a `float` | throws `ArithmeticError` |
 | 6 | `(int)9.9` is `9`; `$a[1.7]` is `$a[1]` | throws; `floor`/`round` say it out loud |
 | 7 | `int` → `float` rounds silently above 2^53 | throws |

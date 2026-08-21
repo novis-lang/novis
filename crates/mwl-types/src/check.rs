@@ -263,6 +263,21 @@ mod tests {
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
+    /// ADR 0035: a condition — `if`/`while`/`for`'s middle clause/`?:`/`&&`/
+    /// `||`/`!` — accepts any type at all, judged by PHP's full truthy table
+    /// at runtime, never `E_TYPE_MISMATCH` for not already being `bool`.
+    /// `bool`-typed positions elsewhere (a parameter, a property, `== `/`===`)
+    /// are unaffected and still need an explicit `as bool` or comparison.
+    #[test]
+    fn a_non_bool_condition_is_never_a_type_mismatch() {
+        let diags = check_in_method(
+            "string $s = \"\";\nint $n = 0;\narray<int> $rows = [];\n\
+             if ($s) {}\nwhile ($n) {}\nfor (; $rows; ) {}\n\
+             bool $ok = $s && $n || !$rows;\necho $ok ? 1 : 2;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
     #[test]
     fn int_plus_uint_is_diagnosed() {
         let diags = check_in_method("int $a = 1;\nuint $b = 1;\nint $c = $a + $b;\n");
@@ -613,19 +628,6 @@ mod tests {
     }
 
     #[test]
-    fn legacy_string_cast_on_a_non_stringable_object_is_diagnosed() {
-        let diags = check_src(
-            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    string $s = (string)$a;\n  }\n}\n",
-        );
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_STRINGABLE_REQUIRED)),
-            "{diags:?}"
-        );
-    }
-
-    #[test]
     fn a_class_implementing_stringable_converts_at_every_site_with_no_diagnostic() {
         let diags = check_src(
             "<?mwl\n\
@@ -640,7 +642,6 @@ mod tests {
              \x20\x20 string $s3 = $a as string;\n\
              \x20\x20 echo $a;\n\
              \x20\x20 print $a;\n\
-             \x20\x20 string $s4 = (string)$a;\n\
              \x20 }\n\
              }\n",
         );

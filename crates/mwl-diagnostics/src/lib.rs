@@ -191,6 +191,9 @@ pub mod code {
     /// `use (&$y)` on a closure literal specifically: by-reference capture
     /// has no replacement syntax — see ADR 0031 § 2.
     pub const E_CLOSURE_USE_BY_REF_UNSUPPORTED: Code = Code::new("E0224");
+    /// PHP's legacy `(T)expr` cast syntax — `as` is the only conversion
+    /// spelling. See ADR 0034 § 1, which amends ADR 0007 § 2.
+    pub const E_LEGACY_CAST_UNSUPPORTED: Code = Code::new("E0225");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

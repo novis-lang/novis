@@ -393,7 +393,6 @@ fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
         ExprKind::Unary { expr: inner, .. }
         | ExprKind::PreIncDec { expr: inner, .. }
         | ExprKind::PostIncDec { expr: inner, .. }
-        | ExprKind::Cast { expr: inner, .. }
         | ExprKind::Conversion { expr: inner, .. } => {
             scan_expr(inner, state, env);
         }

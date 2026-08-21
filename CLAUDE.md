@@ -35,6 +35,8 @@ touching to get that.
 | `clone`, `serialize`/`unserialize`, `__clone`, `__serialize`/`__unserialize`/`__sleep`/`__wakeup`, or how a value crosses the `spawn`/`spawn worker`/`spawn script` boundary | [ADR 0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md). Holds the only copy of the rule that `clone` stays PHP's shallow, same-heap, single-level copy while `serialize()`/`unserialize()` share one recursive graph-copy operation with the isolate boundary; none of the four magic hooks exist, and `unserialize()` accepts only MWL's own closed format. |
 | The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [ADR 0017](docs/adr/0017-hot-reload-without-restart.md). Holds the only copy of the path-pointer-swap mechanism, why it needs no filesystem watcher, and why a request-serving core is never blocked on a recompile. |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
+| PHP's `(int)$x`/`(string)$x` legacy cast syntax, why it doesn't parse | [ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md). Holds the only copy of the rule that `as` is the sole conversion spelling — the legacy cast keywords are diagnosed at parse time naming the equivalent `as` expression, with no alias kept. |
+| Whether an `if`/`while`/`for`/`?:`/`&&`/`\|\|`/`!` condition needs an explicit `as bool`, PHP truthiness | [ADR 0035](docs/adr/0035-truthy-boolean-context.md). Holds the only copy of the truthy table and the exact six syntax positions it applies to; every other `bool` position (a parameter, property, `==`/`===`) is untouched and still needs `as bool`. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
@@ -200,6 +202,13 @@ If you find yourself restating more than a sentence, that detail belongs in the 
 - **No identifier may start with `_`, ever, and the constructor is spelled `constructor`** — not PHP's
   `__construct` — so the casing check has zero exceptions, of any kind, for any category
   ([ADR 0030](docs/adr/0030-no-leading-underscores-constructor-spelling.md)).
+- **`as` is the only conversion spelling** — PHP's legacy `(int)$x`/`(string)$x` cast syntax does not parse
+  at all, diagnosed at parse time naming the equivalent `as` expression, with no alias kept
+  ([ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md)).
+- **A condition is the one place a value is tested without `as`** — `if`/`while`/`for`'s middle clause/`?:`/
+  `&&`/`||`/`!` accept any type and resolve PHP's full truthy table at runtime; every other `bool` position
+  (a parameter, property, `==`/`===`) still needs an explicit `as bool` or comparison
+  ([ADR 0035](docs/adr/0035-truthy-boolean-context.md)).
 
 ## Commands
 

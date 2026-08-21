@@ -43,6 +43,22 @@
 > above does not yet cover ADR 0033's scope, the same situation `tainted` itself was in before its own grammar
 > addition landed.
 >
+> **M1 retires a grammar item instead of adding one:** [ADR 0034](adr/0034-legacy-cast-syntax-rejected.md)
+> rejects PHP's legacy `(int)$x`-style cast syntax outright — `ExprKind::Cast`/`CastType` are gone from
+> `mwl-syntax`'s AST, `parse_unary_inner`'s cast lookahead now reports `E_LEGACY_CAST_UNSUPPORTED` (`E0225`)
+> naming the equivalent `as` expression, and the same shape is caught one level up, at statement-dispatch,
+> for the `(string)$x;`-as-a-bare-statement case that would otherwise silently commit to
+> `parse_stmt_maybe_local_decl`'s trial parse as a redundantly-parenthesized declaration — closing the
+> known parser gap the prior session surfaced under ADR 0028. `mwl-types` lost its matching `Cast`
+> type-checking arm and `cast_result_type` helper; every fixture that exercised the legacy spelling now uses
+> `as`. [ADR 0035](adr/0035-truthy-boolean-context.md) is a sibling, checker-only decision needing no
+> parser change: a condition (`if`/`while`/`for`'s middle clause/`?:`/`&&`/`||`/`!`) accepts any type,
+> judged by PHP's full truthy table rather than requiring `bool` already — `mwl-types`' `check_stmt` already
+> passed no expected type into a condition, so this ADR makes that existing behavior deliberate rather than
+> accidental; `check.rs`'s `a_non_bool_condition_is_never_a_type_mismatch` locks it in. The runtime side (a
+> `mixed`-typed condition's dynamic truthiness dispatch) has no code yet — it arrives with M3's first
+> backend, per that ADR's *Verification*.
+>
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
 > type table; 0010/0014/0015/0022/0027/0028's checker-side rules (0013's own is now done — see below);
@@ -197,8 +213,9 @@
 > M2-relevant sections, reusing `Comparable`'s exact shape end to end. §1: `Stringable` joins
 > `Comparable` in [`QName::is_reserved_global_interface`](../crates/mwl-hir/src/qname.rs), and a new
 > [`expr::require_stringable`](../crates/mwl-types/src/expr.rs) refuses an object at every implicit
-> string-conversion site — string interpolation, concatenation, `echo`, `print`, and both `as string`
-> and the legacy `(string)` cast — unless its static type provably implements it via the same
+> string-conversion site — string interpolation, concatenation, `echo`, `print`, and `as string` (the
+> legacy `(string)` cast this list also covered at the time no longer parses at all —
+> [ADR 0034](adr/0034-legacy-cast-syntax-rejected.md)) — unless its static type provably implements it via the same
 > `mwl_hir::implements_interface` reachability walk ADR 0013 introduced
 > (`E_STRINGABLE_REQUIRED`, `E0412`, newly added; skipped for an unmodeled `Core` class and for any
 > non-`Ty::Class` operand, same scoping as the `Comparable` check). §3: `ExprKind::PropertyAccess`'s
@@ -209,12 +226,14 @@
 > an array element or a local variable passed to `unset()` is untouched, since that section is scoped to
 > object properties only. Both checks were smoke-tested by hand through `mwl check` in addition to the
 > new automated corpus (7 new tests in `mwl-types::check`, one new in `mwl-hir::qname`). **Known gap
-> surfaced, not fixed, this session:** `(string)$x;` written as its own statement (no enclosing
-> assignment) mis-parses as a `LocalDecl` redeclaring `$x` with a parenthesized type, rather than as a
-> cast expression-statement — `mwl-syntax`'s statement-vs-declaration lookahead doesn't yet disambiguate
-> a parenthesized legacy-cast prefix from a parenthesized *type* prefix. Worked around in this session's
-> own tests by always assigning the cast's result; the parser bug itself is unfixed and belongs with
-> whoever next touches statement-start disambiguation.
+> surfaced, not fixed, that session, closed by [ADR 0034](adr/0034-legacy-cast-syntax-rejected.md):**
+> `(string)$x;` written as its own statement (no enclosing assignment) mis-parsed as a `LocalDecl`
+> redeclaring `$x` with a parenthesized type, rather than as a cast expression-statement —
+> `mwl-syntax`'s statement-vs-declaration lookahead didn't disambiguate a parenthesized legacy-cast
+> prefix from a parenthesized *type* prefix. Rather than teach that disambiguation the correct rule, ADR
+> 0034 removed the ambiguity's other side: the legacy cast keywords are now routed straight to the
+> expression-statement path ahead of `parse_stmt_maybe_local_decl`'s trial parse whenever they appear in
+> this shape, so the statement reports `E_LEGACY_CAST_UNSUPPORTED` instead of silently declaring a local.
 >
 > **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): every other ADR
 > M2 assigns to it (0010/0014/0024/0027's checker-side rules); exhaustive control-flow
@@ -979,8 +998,10 @@ weeks over the original estimate.
 Mechanical rewrites where possible (`global` → parameter passing, function-scope `static` → a
 `private static` property on the owning class or a parameter where there is no class, `static fn` → the
 keyword dropped ([ADR 0008](adr/0008-static-and-global.md)), `extract()` → explicit assignment,
-`settype()` → a second binding or an `as` conversion, lossy `(int)` casts flagged where the source relied
-on PHP's silent `0`, simple `$$var` → match on a map, `exec('php script.php …')` job dispatch →
+`settype()` → a second binding or an `as` conversion, every legacy `(int)`/`(string)`/… cast → the
+equivalent `as` expression ([ADR 0034](adr/0034-legacy-cast-syntax-rejected.md)), flagged separately where
+the source relied on PHP's silent `(int)"abc"` → `0` now that the rewritten `as` throws instead, simple
+`$$var` → match on a map, `exec('php script.php …')` job dispatch →
 `spawn script`, which is a real rewrite rather than a `TODO` because the isolation the original bought is
 what the construct provides, a backed enum's case declarations and `->value` reads → an MWL `enum` and
 an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call or reference to a PHP

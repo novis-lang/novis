@@ -604,7 +604,6 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
         ExprKind::Unary { expr, .. }
         | ExprKind::PreIncDec { expr, .. }
         | ExprKind::PostIncDec { expr, .. }
-        | ExprKind::Cast { expr, .. }
         | ExprKind::Clone(expr)
         | ExprKind::YieldFrom(expr)
         | ExprKind::Print(expr)
