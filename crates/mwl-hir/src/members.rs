@@ -39,7 +39,7 @@
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
 use mwl_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, Expr, ExprKind, MemberName, Modifier, NamespaceDecl, Stmt, StmtKind,
+    DestructureTarget, Expr, ExprKind, FnBody, MemberName, Modifier, NamespaceDecl, Stmt, StmtKind,
     StringPart,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -645,21 +645,16 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             }
         }
         ExprKind::New { args, .. } => walk_args(args, src, ctx, env),
-        ExprKind::Closure(closure) => {
-            for param in &closure.params {
+        ExprKind::Fn(fn_expr) => {
+            for param in &fn_expr.params {
                 if let Some(default) = &param.default {
                     e!(default);
                 }
             }
-            walk_block(&closure.body, src, ctx, env);
-        }
-        ExprKind::ArrowFn(arrow) => {
-            for param in &arrow.params {
-                if let Some(default) = &param.default {
-                    e!(default);
-                }
+            match &fn_expr.body {
+                FnBody::Block(block) => walk_block(block, src, ctx, env),
+                FnBody::Expr(body) => e!(body),
             }
-            e!(&arrow.body);
         }
         ExprKind::Match { subject, arms } => {
             e!(subject);

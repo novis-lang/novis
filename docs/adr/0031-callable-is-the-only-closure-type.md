@@ -255,11 +255,12 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 
 Verification, in the order it becomes possible:
 
-- **M1** (parser): `fn($x) => expr`, `fn($x) => { ... }`, and `fn name($x) => ...`/`fn name($x) => { ... }`
-  all parse to one AST shape; `function(...) {...}` and `function(...) use (...) {...}` are rejected with a
-  diagnostic naming `fn`; `use (&$y)`/`use ($y)` on any closure literal is rejected. This is a change to the
-  M1 grammar as already shipped (`ClosureExpr`/`ClosureUse` exist in `mwl-syntax` today) — the parser and its
-  AST need to collapse onto the single `fn`-literal shape before M1 can be called done against this ADR.
+- **M1** (parser) — **done**: `fn($x) => expr`, `fn($x) => { ... }`, and `fn name($x) => ...`/
+  `fn name($x) => { ... }` all parse to one AST shape (`FnExpr`/`FnBody` in
+  [`mwl-syntax/src/ast.rs`](../../crates/mwl-syntax/src/ast.rs)); `function(...) {...}` and
+  `function(...) use (...) {...}` are rejected with a diagnostic naming `fn` (`E0222`); `use (&$y)`/
+  `use ($y)` on a closure literal is rejected with its own diagnostic distinguishing the by-reference case
+  (`E0223`/`E0224`). `ClosureExpr`/`ClosureUse`/`ArrowFnExpr` no longer exist anywhere in the crate.
 - **M2** (checker/resolver): a corpus entry for each rejected spelling in § 6; `callable` accepted everywhere
   the checker currently reads `Closure`, and `Closure` named as a type is refused with the diagnostic naming
   `callable`; a self-named closure resolves its own name only inside its own body and produces a resolver

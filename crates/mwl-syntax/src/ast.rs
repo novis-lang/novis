@@ -397,43 +397,35 @@ pub struct Param {
     pub default: Option<Expr>,
 }
 
-/// One `use (...)` capture in a closure literal.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct ClosureUse {
-    /// Whether captured by reference (`&$x`).
-    pub by_ref: bool,
-    /// The captured variable's name, `$`-sigil included.
-    pub name: Span,
+/// The body of an `fn` closure literal (ADR 0031 § 1): an expression with an
+/// implicit return, or a block requiring an explicit `return`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FnBody {
+    /// `fn(...) => expr`
+    Expr(Box<Expr>),
+    /// `fn(...) => { ... }`
+    Block(Block),
 }
 
-/// `function (...) use (...): T { ... }`, optionally `static`.
+/// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }`, optionally
+/// `static` — the one closure literal ADR 0031 keeps. There is no `use`
+/// clause: every outer variable the body reads is captured automatically, by
+/// value (ADR 0031 § 2). `name` is the optional self-name for recursion
+/// (ADR 0031 § 3), resolvable only inside this closure's own body.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ClosureExpr {
-    /// Whether declared `static` (no `$this` binding).
+pub struct FnExpr {
+    /// Whether declared `static` (no `$this` binding) — rejected with a
+    /// diagnostic per [ADR 0008](../../../docs/adr/0008-static-and-global.md)
+    /// § 4, but still parsed so the caller can build the node and keep going.
     pub is_static: bool,
-    /// Whether the closure returns by reference.
-    pub by_ref: bool,
+    /// The optional self-name, visible only inside `body`.
+    pub name: Option<Span>,
     /// The parameter list.
     pub params: Vec<Param>,
-    /// The `use (...)` capture list.
-    pub uses: Vec<ClosureUse>,
     /// The declared return type, if written.
     pub return_type: Option<Type>,
     /// The closure's body.
-    pub body: Block,
-}
-
-/// `fn (...): T => expr`, optionally `static`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ArrowFnExpr {
-    /// Whether declared `static`.
-    pub is_static: bool,
-    /// The parameter list.
-    pub params: Vec<Param>,
-    /// The declared return type, if written.
-    pub return_type: Option<Type>,
-    /// The single expression the arrow function evaluates to.
-    pub body: Box<Expr>,
+    pub body: FnBody,
 }
 
 /// One arm of a `match` expression.
@@ -703,10 +695,9 @@ pub enum ExprKind {
     },
     /// `clone expr`
     Clone(Box<Expr>),
-    /// `function (...) { ... }`
-    Closure(ClosureExpr),
-    /// `fn (...) => expr`
-    ArrowFn(ArrowFnExpr),
+    /// `fn (...) => expr` or `fn (...) => { ... }` — the one closure literal
+    /// (ADR 0031).
+    Fn(FnExpr),
     /// `match (subject) { ... }`
     Match {
         /// The value being matched.

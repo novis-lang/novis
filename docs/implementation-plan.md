@@ -22,9 +22,14 @@
 > including the file-level HTML/code-tag round trip) — plus the `tainted` qualifier's grammar
 > addition ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 1: `Keyword::Tainted`, the
 > `TaintedString`/`TaintedBytes` atoms, round-trip tests in every declaration slot, and the
-> `E_TAINTED_NON_SCALAR` diagnostic for every other atom). Verification is now complete on every axis
-> the milestone's *Verify* line asks for: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full
-> local `php-src` checkout without crashing, and a 5-minute `cargo fuzz run lex`/`run parse` (WSL,
+> `E_TAINTED_NON_SCALAR` diagnostic for every other atom), and [ADR 0031](adr/0031-callable-is-the-only-closure-type.md)'s
+> closure-literal collapse: `ClosureExpr`/`ClosureUse`/`ArrowFnExpr` are gone from `mwl-syntax`'s AST,
+> replaced by one `FnExpr`/`FnBody` shape covering `fn(...) => expr`, `fn(...) => { ... }` and an
+> optional self-name (`fn factorial(...) => ...`); the old `function(...) {...}` and
+> `function(...) use (...) {...}` spellings are rejected with a diagnostic naming `fn`, and a `use`
+> clause of either capture mode gets its own, more specific diagnostic (`E0222`-`E0224`). Verification is
+> now complete on every axis the milestone's *Verify* line asks for: `crates/mwl-syntax/tests/corpus_parse.rs`
+> parses the full local `php-src` checkout without crashing, and a 5-minute `cargo fuzz run lex`/`run parse` (WSL,
 > nightly, nightly `libfuzzer-sys`) found zero panics on either target — 478,073 lexer executions and
 > 45,861 parser executions, both `DONE` with no crash/artifact directory produced. `crates/mwl-syntax`'s
 > module docs carry the current list of known parser gaps (`goto` labels, PHP's alternative colon

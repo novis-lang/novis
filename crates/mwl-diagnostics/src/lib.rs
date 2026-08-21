@@ -160,6 +160,15 @@ pub mod code {
     /// `include`, `include_once`, or `require_once`: MWL keeps exactly one
     /// same-frame inclusion construct, `require` — see ADR 0021.
     pub const E_INCLUDE_FAMILY_UNSUPPORTED: Code = Code::new("E0221");
+    /// An anonymous `function (...) { ... }` literal, with or without a
+    /// `use` clause: `fn` is the only closure literal — see ADR 0031 § 1.
+    pub const E_FUNCTION_CLOSURE_UNSUPPORTED: Code = Code::new("E0222");
+    /// `use ($y)` on a closure literal: capture is always implicit and by
+    /// value, so there is no clause to write — see ADR 0031 § 2.
+    pub const E_CLOSURE_USE_UNSUPPORTED: Code = Code::new("E0223");
+    /// `use (&$y)` on a closure literal specifically: by-reference capture
+    /// has no replacement syntax — see ADR 0031 § 2.
+    pub const E_CLOSURE_USE_BY_REF_UNSUPPORTED: Code = Code::new("E0224");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

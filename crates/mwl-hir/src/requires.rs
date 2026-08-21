@@ -63,7 +63,8 @@ use std::path::{Path, PathBuf};
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
 use mwl_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, Expr, ExprKind, MemberName, NamespaceDecl, Stmt, StmtKind, StringPart,
+    DestructureTarget, Expr, ExprKind, FnBody, MemberName, NamespaceDecl, Stmt, StmtKind,
+    StringPart,
 };
 use mwl_syntax::parse_file;
 use rustc_hash::FxHashSet;
@@ -489,21 +490,16 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
             }
         }
         ExprKind::New { args, .. } => walk_args(args, src, out),
-        ExprKind::Closure(closure) => {
-            for param in &closure.params {
+        ExprKind::Fn(fn_expr) => {
+            for param in &fn_expr.params {
                 if let Some(default) = &param.default {
                     e!(default);
                 }
             }
-            walk_block(&closure.body, src, out);
-        }
-        ExprKind::ArrowFn(arrow) => {
-            for param in &arrow.params {
-                if let Some(default) = &param.default {
-                    e!(default);
-                }
+            match &fn_expr.body {
+                FnBody::Block(block) => walk_block(block, src, out),
+                FnBody::Expr(body) => e!(body),
             }
-            e!(&arrow.body);
         }
         ExprKind::Match { subject, arms } => {
             e!(subject);

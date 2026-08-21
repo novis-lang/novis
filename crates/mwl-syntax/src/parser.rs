@@ -76,14 +76,14 @@ use std::collections::VecDeque;
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
 use crate::ast::{
-    AnonClassDecl, Arg, ArrayItem, ArrowFnExpr, AssignOp, Attribute, AttributeGroup, BinaryOp,
-    Block, CallArgs, CastType, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ClosureExpr,
-    ClosureUse, ConstMember, DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr,
-    ExprKind, ForeachBinding, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember,
-    Modifier, Name, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody,
-    PropertyHookKind, PropertyMember, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind,
-    StringPart, SwitchCase, TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type,
-    TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
+    AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, BinaryOp, Block, CallArgs,
+    CastType, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember,
+    DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr,
+    ForeachBinding, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
+    NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, PropertyHookKind,
+    PropertyMember, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
+    TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type, TypeAliasDecl, TypeAtom,
+    TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
 };
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind};
@@ -1558,8 +1558,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             }
             TokenKind::Keyword(Keyword::Static) => match self.peek_at(1).kind {
-                TokenKind::Keyword(Keyword::Function) => self.parse_closure(true),
-                TokenKind::Keyword(Keyword::Fn) => self.parse_arrow_fn(true),
+                TokenKind::Keyword(Keyword::Function) => self.parse_rejected_function_closure(true),
+                TokenKind::Keyword(Keyword::Fn) => self.parse_fn_expr(true),
                 _ => {
                     self.bump();
                     Expr {
@@ -1590,8 +1590,8 @@ impl<'src, 'd> Parser<'src, 'd> {
                     kind: ExprKind::Clone(Box::new(e)),
                 }
             }
-            TokenKind::Keyword(Keyword::Function) => self.parse_closure(false),
-            TokenKind::Keyword(Keyword::Fn) => self.parse_arrow_fn(false),
+            TokenKind::Keyword(Keyword::Function) => self.parse_rejected_function_closure(false),
+            TokenKind::Keyword(Keyword::Fn) => self.parse_fn_expr(false),
             TokenKind::Keyword(Keyword::Match) => self.parse_match(),
             TokenKind::Keyword(Keyword::Yield) => self.parse_yield(),
             TokenKind::Keyword(Keyword::Print) => {
@@ -1975,74 +1975,138 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    fn parse_closure(&mut self, is_static: bool) -> Expr {
+    /// `function (...) { ... }` / `function (...) use (...) { ... }`: not a
+    /// spelling MWL keeps at all (ADR 0031 § 1) — `fn` covers both a block
+    /// and an expression body, so there is nothing left for a second
+    /// literal to do. Recovers by parsing the whole shape (params, an
+    /// optional `use` clause, an optional return type, the block) so the
+    /// parser can keep going, then discards it in favor of `ExprKind::Error`.
+    fn parse_rejected_function_closure(&mut self, is_static: bool) -> Expr {
         let start = self.peek().span;
         if is_static {
-            self.report_static_closure_modifier(start);
             self.bump();
         }
-        self.expect(TokenKind::Keyword(Keyword::Function), "`function`");
-        let by_ref = self.eat(TokenKind::Amp).is_some();
-        let params = self.parse_params();
-        let uses = if self.eat_keyword(Keyword::Use).is_some() {
-            self.expect(TokenKind::LParen, "`(`");
-            let mut list = Vec::new();
-            while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
-                let by_ref = self.eat(TokenKind::Amp).is_some();
-                let name = self.expect(TokenKind::Variable, "a captured variable");
-                list.push(ClosureUse { by_ref, name });
-                if self.eat(TokenKind::Comma).is_none() {
-                    break;
-                }
-            }
-            self.expect(TokenKind::RParen, "`)`");
-            list
-        } else {
-            Vec::new()
-        };
-        let return_type = if self.eat(TokenKind::Colon).is_some() {
+        let function_span = self.peek().span;
+        self.bump(); // `function`
+        let _ = self.eat(TokenKind::Amp); // by-ref return — dropped along with this literal
+        let _ = self.parse_params();
+        let use_clause = self.parse_and_discard_closure_use_clause();
+        let _ = if self.eat(TokenKind::Colon).is_some() {
             Some(self.parse_type())
         } else {
             None
         };
         let body = self.parse_block();
         let span = start.to(body.span);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_FUNCTION_CLOSURE_UNSUPPORTED,
+                "anonymous `function` literals are not supported",
+            )
+            .with_primary(function_span, "MWL keeps exactly one closure literal")
+            .with_help(
+                "use `fn(...) => ...` (an expression body) or `fn(...) => { ... }` (a block body)",
+            ),
+        );
+        if let Some(by_ref) = use_clause {
+            self.report_closure_use_clause(span, by_ref);
+        }
         Expr {
             span,
-            kind: ExprKind::Closure(ClosureExpr {
-                is_static,
-                by_ref,
-                params,
-                uses,
-                return_type,
-                body,
-            }),
+            kind: ExprKind::Error,
         }
     }
 
-    fn parse_arrow_fn(&mut self, is_static: bool) -> Expr {
+    /// Parses a `use (...)` capture clause if one is present, purely for
+    /// error recovery — `fn` has no `use` clause of any kind (ADR 0031 § 2).
+    /// Returns `Some(saw_by_ref)` if a clause was present at all.
+    fn parse_and_discard_closure_use_clause(&mut self) -> Option<bool> {
+        self.eat_keyword(Keyword::Use)?;
+        self.expect(TokenKind::LParen, "`(`");
+        let mut saw_by_ref = false;
+        while !self.at(TokenKind::RParen) && !self.at(TokenKind::Eof) {
+            if self.eat(TokenKind::Amp).is_some() {
+                saw_by_ref = true;
+            }
+            let _ = self.expect(TokenKind::Variable, "a captured variable");
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        self.expect(TokenKind::RParen, "`)`");
+        Some(saw_by_ref)
+    }
+
+    /// ADR 0031 § 2/§ 6: a closure has no `use` clause, ever; capture by
+    /// reference specifically has no replacement syntax at all.
+    fn report_closure_use_clause(&mut self, span: Span, by_ref: bool) {
+        if by_ref {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_CLOSURE_USE_BY_REF_UNSUPPORTED,
+                    "capture by reference is not supported",
+                )
+                .with_primary(span, "closures have no `use` clause")
+                .with_help("share the value through an object property instead"),
+            );
+        } else {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_CLOSURE_USE_UNSUPPORTED,
+                    "closures have no `use` clause",
+                )
+                .with_primary(
+                    span,
+                    "every outer variable a closure's body reads is captured automatically, \
+                     by value",
+                ),
+            );
+        }
+    }
+
+    /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }` — the
+    /// one closure literal (ADR 0031 § 1). `name` is an optional self-name
+    /// for recursion (§ 3); a stray `use (...)` clause is still accepted
+    /// for recovery and diagnosed the same way the rejected `function`
+    /// literal is.
+    fn parse_fn_expr(&mut self, is_static: bool) -> Expr {
         let start = self.peek().span;
         if is_static {
             self.report_static_closure_modifier(start);
             self.bump();
         }
         self.expect(TokenKind::Keyword(Keyword::Fn), "`fn`");
+        let name = self.eat(TokenKind::Ident);
         let params = self.parse_params();
+        let use_span = self.peek().span;
+        let use_clause = self.parse_and_discard_closure_use_clause();
+        if let Some(by_ref) = use_clause {
+            self.report_closure_use_clause(use_span, by_ref);
+        }
         let return_type = if self.eat(TokenKind::Colon).is_some() {
             Some(self.parse_type())
         } else {
             None
         };
         self.expect(TokenKind::FatArrow, "`=>`");
-        let body = self.parse_expr();
-        let span = start.to(body.span);
+        let body = if self.at(TokenKind::LBrace) {
+            FnBody::Block(self.parse_block())
+        } else {
+            FnBody::Expr(Box::new(self.parse_expr()))
+        };
+        let end = match &body {
+            FnBody::Expr(e) => e.span,
+            FnBody::Block(b) => b.span,
+        };
+        let span = start.to(end);
         Expr {
             span,
-            kind: ExprKind::ArrowFn(ArrowFnExpr {
+            kind: ExprKind::Fn(FnExpr {
                 is_static,
+                name,
                 params,
                 return_type,
-                body: Box::new(body),
+                body,
             }),
         }
     }
@@ -4689,28 +4753,71 @@ mod tests {
     }
 
     #[test]
-    fn closure_with_use_and_return_type() {
-        let e = parse_ok("function (int $x) use (&$y): int { return $x + $y; }");
-        let ExprKind::Closure(c) = e.kind else {
-            panic!("expected a closure: {e:?}");
-        };
-        assert_eq!(c.params.len(), 1);
-        assert!(c.params[0].ty.is_some());
-        assert_eq!(c.uses.len(), 1);
-        assert!(c.uses[0].by_ref);
-        assert!(c.return_type.is_some());
-        assert_eq!(c.body.stmts.len(), 1);
+    fn function_closure_with_use_by_ref_is_rejected() {
+        // ADR 0031 § 1/§ 2: `function` closures don't exist at all, and a
+        // `use (&$y)` clause gets its own, more specific diagnostic on top.
+        let (e, diags) = parse_with_diags("function (int $x) use (&$y): int { return $x + $y; }");
+        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_CLOSURE_USE_BY_REF_UNSUPPORTED))
+        );
     }
 
     #[test]
-    fn arrow_fn_captures_by_expression() {
+    fn function_closure_with_use_by_value_is_rejected() {
+        let (e, diags) = parse_with_diags("function () use ($y) { return $y; }");
+        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_CLOSURE_USE_UNSUPPORTED))
+        );
+    }
+
+    #[test]
+    fn function_closure_without_use_is_rejected_once() {
+        let (e, diags) = parse_with_diags("function () { return 1; }");
+        assert!(matches!(e.kind, ExprKind::Error));
+        assert_eq!(
+            diags
+                .iter()
+                .filter(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+                .count(),
+            1
+        );
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_CLOSURE_USE_UNSUPPORTED)
+                    || d.code == Some(code::E_CLOSURE_USE_BY_REF_UNSUPPORTED))
+        );
+    }
+
+    #[test]
+    fn fn_expr_captures_by_expression() {
         let e = parse_ok("fn (int $x): int => $x + $y");
-        let ExprKind::ArrowFn(f) = e.kind else {
-            panic!("expected an arrow function: {e:?}");
+        let ExprKind::Fn(f) = e.kind else {
+            panic!("expected an fn expression: {e:?}");
         };
         assert_eq!(f.params.len(), 1);
+        assert!(f.name.is_none());
+        let FnBody::Expr(body) = f.body else {
+            panic!("expected an expression body: {f:?}");
+        };
         assert!(matches!(
-            f.body.kind,
+            body.kind,
             ExprKind::Binary {
                 op: BinaryOp::Add,
                 ..
@@ -4719,11 +4826,32 @@ mod tests {
     }
 
     #[test]
+    fn fn_expr_with_block_body() {
+        let e = parse_ok("fn (int $x): int => { $y = $x + 1; return $y * 2; }");
+        let ExprKind::Fn(f) = e.kind else {
+            panic!("expected an fn expression: {e:?}");
+        };
+        let FnBody::Block(block) = f.body else {
+            panic!("expected a block body: {f:?}");
+        };
+        assert_eq!(block.stmts.len(), 2);
+    }
+
+    #[test]
+    fn fn_expr_self_name_for_recursion() {
+        let e = parse_ok("fn factorial(int $n) => $n <= 1 ? 1 : $n * factorial($n - 1)");
+        let ExprKind::Fn(f) = e.kind else {
+            panic!("expected an fn expression: {e:?}");
+        };
+        assert!(f.name.is_some());
+    }
+
+    #[test]
     fn missing_parameter_type_is_diagnosed() {
         let (e, diags) = parse_with_diags("fn ($x) => $x");
         assert!(diags.has_errors());
-        let ExprKind::ArrowFn(f) = e.kind else {
-            panic!("expected an arrow function: {e:?}");
+        let ExprKind::Fn(f) = e.kind else {
+            panic!("expected an fn expression: {e:?}");
         };
         assert!(f.params[0].ty.is_none());
     }
@@ -4834,10 +4962,7 @@ mod tests {
 
     #[test]
     fn yield_forms() {
-        assert!(matches!(
-            parse_ok("fn () => yield").kind,
-            ExprKind::ArrowFn(_)
-        ));
+        assert!(matches!(parse_ok("fn () => yield").kind, ExprKind::Fn(_)));
 
         let e = parse_ok("yield $x");
         assert!(matches!(
@@ -4891,29 +5016,33 @@ mod tests {
     }
 
     #[test]
-    fn static_closure_modifier_is_diagnosed_but_still_parses() {
+    fn static_function_closure_is_diagnosed_as_a_function_closure() {
+        // `static function () {}` hits the same "not supported, use `fn`"
+        // diagnostic as the unqualified spelling — there is no separate
+        // static-modifier complaint once the literal itself is rejected.
         let (e, diags) = parse_with_diags("static function () { return 1; }");
-        assert!(diags.has_errors());
-        let ExprKind::Closure(c) = e.kind else {
-            panic!("expected a closure: {e:?}");
-        };
-        assert!(c.is_static);
+        assert!(matches!(e.kind, ExprKind::Error));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_FUNCTION_CLOSURE_UNSUPPORTED))
+        );
     }
 
     #[test]
-    fn static_arrow_fn_modifier_is_diagnosed_but_still_parses() {
+    fn static_fn_modifier_is_diagnosed_but_still_parses() {
         let (e, diags) = parse_with_diags("static fn ($x) => $x");
         assert!(diags.has_errors());
-        let ExprKind::ArrowFn(f) = e.kind else {
-            panic!("expected an arrow function: {e:?}");
+        let ExprKind::Fn(f) = e.kind else {
+            panic!("expected an fn expression: {e:?}");
         };
         assert!(f.is_static);
     }
 
     #[test]
-    fn ordinary_closure_is_not_diagnosed() {
-        parse_ok("function () { return 1; }");
+    fn ordinary_fn_expr_is_not_diagnosed() {
         parse_ok("fn (int $x) => $x");
+        parse_ok("fn (int $x) => { return $x; }");
     }
 
     #[test]
@@ -5336,7 +5465,7 @@ mod tests {
         let StmtKind::Expr(e) = s.kind else {
             panic!("expected an expression statement: {s:?}");
         };
-        assert!(matches!(e.kind, ExprKind::ArrowFn(_)));
+        assert!(matches!(e.kind, ExprKind::Fn(_)));
 
         parse_stmt_ok("static::method();");
         parse_stmt_ok("$x = static::$prop;");
@@ -5707,8 +5836,9 @@ mod tests {
         };
         assert_eq!(consts.len(), 1);
 
-        // An anonymous closure statement is unaffected.
-        parse_stmt_ok("function () {};");
+        // An anonymous `fn` closure statement is unaffected — only the
+        // named, top-level `function` declaration above is rejected.
+        parse_stmt_ok("fn () => 1;");
     }
 
     // ========================================================================
