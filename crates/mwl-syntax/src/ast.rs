@@ -127,6 +127,14 @@ pub enum TypeAtom {
     Array(Option<Box<Type>>),
     /// `object`
     Object,
+    /// `{name: T, ...}` — ADR 0036 § 3: an inline structural shape type,
+    /// checked by width subtyping rather than nominal `implements` — MWL's
+    /// one deliberate exception to otherwise fully nominal typing. May be
+    /// empty (`{}`), which carries the same "no field promised" meaning as
+    /// plain [`Self::Object`]; unlike [`ExprKind::ObjectLiteral`], there is
+    /// no expression/block ambiguity in type position forcing a non-empty
+    /// rule here.
+    Shape(Vec<ShapeField>),
     /// `mixed` — the one unchecked position.
     Mixed,
     /// `void` — return-position only.
@@ -150,6 +158,17 @@ pub enum TypeAtom {
     /// A class, interface, enum or `type`-alias name — the checker (not the
     /// parser) decides which kind of atom it resolves to.
     Name(Name),
+}
+
+/// One `name: T` field of a [`TypeAtom::Shape`] — ADR 0036 § 3.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ShapeField {
+    /// The field's name.
+    pub name: Span,
+    /// The field's required type.
+    pub ty: Type,
+    /// The whole field, name and all.
+    pub span: Span,
 }
 
 // ============================================================================
@@ -298,6 +317,19 @@ pub struct ArrayItem {
     /// Whether this element is `&value`.
     pub by_ref: bool,
     /// The whole element, key and all.
+    pub span: Span,
+}
+
+/// One `name: value` field of an [`ExprKind::ObjectLiteral`] — ADR 0036 § 2.
+/// Unlike [`ArrayItem`], there is no shorthand, no spread and no computed
+/// key: every field name is a static identifier, full stop.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObjectLiteralField {
+    /// The field's name.
+    pub name: Span,
+    /// The field's value.
+    pub value: Expr,
+    /// The whole field, name and all.
     pub span: Span,
 }
 
@@ -737,6 +769,14 @@ pub enum ExprKind {
     /// than discarded in favour of the inner expression — only so its span
     /// covers the parentheses; it carries no other meaning.
     Paren(Box<Expr>),
+    /// `{name: value, ...}` — ADR 0036 § 2: an anonymous, methodless object
+    /// literal. May be empty (`{a: 1}`'s fields are the common case, but
+    /// `{}` is not rejected here). The two positions where `{` already means
+    /// a block (a bare statement, an arrow-bodied `fn`'s body) never reach
+    /// this variant for an empty `{}` — the disambiguating lookahead only
+    /// recognizes a *non*-empty literal attempt (`{ident :`), so an empty
+    /// `{}` there stays an empty block, exactly as before this ADR.
+    ObjectLiteral(Vec<ObjectLiteralField>),
     /// A placeholder produced during error recovery. Carries no meaning beyond
     /// "parsing failed here"; a diagnostic was already reported at this span.
     Error,

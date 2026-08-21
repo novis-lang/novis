@@ -49,7 +49,21 @@
 //! yet:
 //!
 //! - **`goto` target labels** (`label:` as its own statement) are unparsed — only `goto ident;`
-//!   itself is handled (and rejected, per ADR 0008 § 5).
+//!   itself is handled (and rejected, per ADR 0008 § 5). Interacts with
+//!   [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 2's own block/object-literal
+//!   disambiguation: a block whose first statement would have been a label (`{ done: ... }`) matches
+//!   the same one-token-past-`{` lookahead an attempted object literal does, so it is now diagnosed
+//!   as "needs parentheses" instead of whatever the (already broken, since labels don't parse) prior
+//!   behavior was — not a regression on real code, since no MWL/PHP program relies on an unparsed
+//!   construct, but worth knowing if label support is ever added.
+//! - **A local variable declaration typed with a bare inline shape type** (`{x: int} $point;`) is not
+//!   parsed — statement-initial `{` already commits to a block ([ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
+//!   § 3), and unlike the object-literal collision that ADR names and this parser resolves, teaching
+//!   a *type*-prefix apart from a block would need lookahead past a matched, possibly-nested `{...}`
+//!   all the way to a following `$name` — not attempted this session. Every other declaration slot
+//!   (parameter, return type, property, class constant, `foreach` binding) supports a bare shape type
+//!   fine; the workaround for a local is the same one the ADR's own example uses: `type Point = {x:
+//!   int}; Point $point;`.
 //! - **Grouped `use`** (`use App\{Foo, Bar};`) and **`use function`/`use const`** are not parsed —
 //!   [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md)'s own *Revisiting* note says these don't
 //!   exist yet, so this isn't a regression, just not built. Only single `use Path\To\Name;` per

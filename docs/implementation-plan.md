@@ -71,12 +71,27 @@
 > `mixed`-typed condition's dynamic truthiness dispatch) has no code yet — it arrives with M3's first
 > backend, per that ADR's *Verification*.
 >
-> **M1 gains a third pending grammar item:** [ADR 0036](adr/0036-anonymous-object-shapes.md) §§ 2-3 adds the
-> anonymous object-literal expression (`{a: 1, b: 2}`) and an inline structural shape type (`{name: T, ...}`
-> in type position) — not yet implemented in `mwl-syntax`. That ADR's § 2 also documents the two grammar
-> collisions this creates (`fn() => {...}` already means a block body per ADR 0031, and a statement-initial
-> `{` already means a block statement), both resolved by the same parenthesize-to-force-expression fix
-> JavaScript uses for the identical ambiguity.
+> **M1's third pending grammar item is now landed:** [ADR 0036](adr/0036-anonymous-object-shapes.md) §§ 2-3's
+> anonymous object-literal expression (`{a: 1, b: 2}`, a new `ExprKind::ObjectLiteral` in `parse_primary`)
+> and inline structural shape type (`{name: T, ...}`, a new `TypeAtom::Shape` wired into `token_starts_type`/
+> `parse_type_atom` so it composes for free with unions, intersections and `array<T>`) are implemented in
+> `mwl-syntax`. No shorthand field (`{x}`, `E_OBJECT_LITERAL_SHORTHAND`, `E0118`) and no computed key
+> (`{[$expr]: 1}`, `E_OBJECT_LITERAL_COMPUTED_KEY`, `E0119`) parse, both newly added diagnostics. The two
+> grammar collisions the ADR names — `fn() => {...}` already meaning a block body per ADR 0031, and a
+> statement-initial `{` already meaning a block statement — are resolved by a one-token-past-`{` lookahead
+> (`{ ident :`) at exactly those two call sites: when it matches, the literal is parsed anyway (so its own
+> shorthand/computed-key diagnostics still fire) but the result is discarded as `ExprKind::Error` behind a
+> new `E_OBJECT_LITERAL_NEEDS_PARENS` (`E0117`) naming the `({...})`/`({...});` fix, the same
+> diagnose-then-`Error`-recover shape the legacy-cast rejection already uses. An empty `{}` never matches
+> that lookahead, so it stays an ordinary empty block at both sites, unchanged from before this ADR.
+> `mwl-syntax::casing` gained one more `check_expr` arm: a literal's field names are ordinary property names
+> per the ADR's § 2, so they get the same camelCase/no-leading-underscore check a class property does.
+> **Known gap, not attempted this session:** a local variable declaration typed with a bare shape type
+> (`{x: int} $point;`) doesn't parse — statement-initial `{` already commits to a block before a type-prefix
+> lookahead would ever run; every other declaration slot (parameter, return, property, const, `foreach`
+> binding) supports it fine, and the workaround is the same named-alias spelling the ADR's own example uses.
+> `mwl-types`' `lower_atom` again falls through its existing wildcard arm to `mixed` for `TypeAtom::Shape`;
+> `object`'s real subtyping and the shape's structural check (ADR 0036 §§ 1, 3-4) are unstarted M2 work.
 >
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
@@ -651,6 +666,15 @@ declaration using the same grammar, parsed but not yet resolved — that is M2's
 qualifier alongside `tainted` — `secret string`, `secret bytes`, and, composed with `tainted`, `secret
 tainted string`/`secret tainted bytes` (only in that order; the reverse is a diagnostic). Same reasoning as
 `tainted`'s own addition above: parsing it is this milestone's job, enforcing it is M2's.
+
+**Added after that, a third time:** [ADR 0036](adr/0036-anonymous-object-shapes.md) §§ 2-3 adds the
+anonymous object-literal expression (`{a: 1, b: 2}`, no shorthand, no computed key) and an inline
+structural shape type (`{name: T, ...}`) usable anywhere a type may appear. Two grammar collisions this
+creates — `fn() => {...}` already meaning a block body (ADR 0031), and a statement-initial `{` already
+meaning a block statement — are resolved the same way JavaScript resolves the identical `() => {...}`
+ambiguity: parenthesize to force the expression reading, diagnosed by name at both call sites when a
+non-empty literal is attempted without the parentheses. Parsing and this disambiguation are this
+milestone's job; `object`'s real subtyping and the shape's structural check are M2's.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing (they will

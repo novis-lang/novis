@@ -706,6 +706,16 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
             }
         }
         ExprKind::Require { path } => check_expr(path, src, diags),
+        ExprKind::ObjectLiteral(fields) => {
+            // ADR 0036 § 2: a literal's field names are ordinary property
+            // names, so ADR 0029's camelCase rule applies unchanged — reuse
+            // the same check an ordinary class property declaration gets,
+            // even though this field carries no `$` sigil to strip.
+            for field in fields {
+                check_member_casing(field.name, src, "field", false, diags);
+                check_expr(&field.value, src, diags);
+            }
+        }
         _ => {}
     }
 }
@@ -867,6 +877,26 @@ mod tests {
         let diags = check("<?mwl\nclass Foo { public int $_cache; }\n");
         assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
         assert!(diags.iter().next().unwrap().message.contains("cache"));
+    }
+
+    #[test]
+    fn a_correctly_cased_object_literal_field_is_clean() {
+        // ADR 0036 § 2: field names are ordinary property names.
+        let diags = check("<?mwl\n$o = {userId: 1};\n");
+        assert!(diags.is_empty(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_mis_cased_object_literal_field_is_diagnosed() {
+        let diags = check("<?mwl\n$o = {user_id: 1};\n");
+        assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
+        assert!(diags.iter().next().unwrap().message.contains("userId"));
+    }
+
+    #[test]
+    fn a_leading_underscore_object_literal_field_is_rejected() {
+        let diags = check("<?mwl\n$o = {_cache: 1};\n");
+        assert_eq!(only_code(&diags), code::E_BAD_MEMBER_CASING);
     }
 
     #[test]

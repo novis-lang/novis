@@ -128,6 +128,18 @@ pub mod code {
     /// compose, but only in the order `secret` before `tainted` — see
     /// ADR 0033 § 1.
     pub const E_SECRET_TAINTED_ORDER: Code = Code::new("E0116");
+    /// A `{name: value, ...}` object literal written where `{` already
+    /// commits to a block — an expression-bodied `fn() => {...}`, or a bare
+    /// statement-initial `{...}` — needs the same parenthesize-to-force-
+    /// expression fix JavaScript uses for the identical ambiguity; see
+    /// ADR 0036 § 2.
+    pub const E_OBJECT_LITERAL_NEEDS_PARENS: Code = Code::new("E0117");
+    /// `{x}` — an object literal has no shorthand; every field is written
+    /// `name: value`. See ADR 0036 § 2.
+    pub const E_OBJECT_LITERAL_SHORTHAND: Code = Code::new("E0118");
+    /// `{[$expr]: value}` — an object literal has no computed/dynamic key;
+    /// every field name is a static identifier. See ADR 0036 § 2.
+    pub const E_OBJECT_LITERAL_COMPUTED_KEY: Code = Code::new("E0119");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs

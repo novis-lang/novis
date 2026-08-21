@@ -80,10 +80,10 @@ use crate::ast::{
     CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember, DestructureElement,
     DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
     IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name, NamespaceDecl,
-    NewTarget, Param, PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember,
-    SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
-    TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type, TypeAliasDecl, TypeAtom,
-    TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
+    NewTarget, ObjectLiteralField, Param, PropertyHook, PropertyHookBody, PropertyHookKind,
+    PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart,
+    SwitchCase, TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type,
+    TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
 };
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind};
@@ -483,6 +483,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | TokenKind::Backslash
                 | TokenKind::Question
                 | TokenKind::LParen
+                | TokenKind::LBrace
         )
     }
 
@@ -710,6 +711,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             }
             TokenKind::Keyword(Keyword::Object) => atom!(Object),
+            TokenKind::LBrace => self.parse_shape_type(),
             TokenKind::Keyword(Keyword::Mixed) => atom!(Mixed),
             TokenKind::Keyword(Keyword::Void) => atom!(Void),
             TokenKind::Keyword(Keyword::Never) => atom!(Never),
@@ -750,6 +752,33 @@ impl<'src, 'd> Parser<'src, 'd> {
                     span,
                 }
             }
+        }
+    }
+
+    /// `{name: T, ...}` in type position — ADR 0036 § 3, MWL's one
+    /// structurally-checked type. No ambiguity to resolve here the way the
+    /// value literal has (see [`Self::parse_object_literal_expr`]): type
+    /// position never dispatches `{` to a block, so an empty `{}` is simply
+    /// an empty shape rather than needing the literal's "at least one field"
+    /// rule.
+    fn parse_shape_type(&mut self) -> Type {
+        let start = self.bump().span; // '{'
+        let mut fields = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let field_start = self.peek().span;
+            let name = self.expect(TokenKind::Ident, "a field name");
+            self.expect(TokenKind::Colon, "`:`");
+            let ty = self.parse_type();
+            let span = field_start.to(ty.span);
+            fields.push(ShapeField { name, ty, span });
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        let close = self.expect(TokenKind::RBrace, "`}`");
+        Type {
+            kind: TypeKind::Atom(TypeAtom::Shape(fields)),
+            span: start.to(close),
         }
     }
 
@@ -1635,6 +1664,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             },
             TokenKind::LBracket => self.parse_array_literal_brackets(),
             TokenKind::Keyword(Keyword::Array) => self.parse_array_literal_legacy(),
+            TokenKind::LBrace => self.parse_object_literal_expr(),
             TokenKind::LParen => {
                 self.bump();
                 let inner = self.parse_expr();
@@ -1788,6 +1818,99 @@ impl<'src, 'd> Parser<'src, 'd> {
             spread: false,
             by_ref: leading_ref,
             span,
+        }
+    }
+
+    // ========================================================================
+    // Object literals (ADR 0036 § 2)
+    // ========================================================================
+
+    /// Whether `{` at the current position looks like the start of an
+    /// object-literal field (`{ ident :`) rather than a genuine block — the
+    /// one-token-past-`{` lookahead the ADR's two "already commits to a
+    /// block" call sites ([`Self::parse_fn_expr`]'s arrow body,
+    /// [`Self::parse_statement_inner`]'s statement-initial `{`) need before
+    /// committing. An empty `{}` never matches, so it stays a block at both
+    /// sites, unchanged from before this ADR.
+    fn at_object_literal_in_block_position(&mut self) -> bool {
+        self.peek_at(1).kind == TokenKind::Ident && self.peek_at(2).kind == TokenKind::Colon
+    }
+
+    /// Parses the `{...}` at a position [`Self::at_object_literal_in_block_position`]
+    /// already confirmed looks like an object literal, reports the
+    /// parenthesize-to-disambiguate diagnostic, and discards the parsed
+    /// value in favour of [`ExprKind::Error`] — the same "diagnose the
+    /// closed, already-identified collision, recover with `Error`" shape
+    /// [`Self::parse_unary_inner`]'s legacy-cast handling already uses,
+    /// rather than smuggling a literal through a position that was
+    /// unambiguously a block a moment ago.
+    fn parse_object_literal_needs_parens(&mut self) -> Expr {
+        let literal = self.parse_object_literal_expr();
+        let span = literal.span;
+        self.diags.report(
+            Diagnostic::error(
+                code::E_OBJECT_LITERAL_NEEDS_PARENS,
+                "an object literal here is ambiguous with a block",
+            )
+            .with_primary(span, "`{` already means a block in this position")
+            .with_help("wrap it in parentheses: `({...})` (ADR 0036 § 2)"),
+        );
+        Expr {
+            span,
+            kind: ExprKind::Error,
+        }
+    }
+
+    /// `{name: value, ...}` as a primary expression — ADR 0036 § 2. No
+    /// shorthand (`{x}`) and no computed key (`{[expr]: value}`); either is
+    /// diagnosed in place and the field is dropped rather than aborting the
+    /// whole literal, so one bad field doesn't hide problems with the rest.
+    fn parse_object_literal_expr(&mut self) -> Expr {
+        let start = self.bump().span; // '{'
+        let mut fields = Vec::new();
+        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            if self.at(TokenKind::LBracket) {
+                let key_start = self.bump().span; // '['
+                let _ = self.parse_expr();
+                let key_end = self.expect(TokenKind::RBracket, "`]`");
+                let key_span = key_start.to(key_end);
+                self.diags.report(
+                    Diagnostic::error(
+                        code::E_OBJECT_LITERAL_COMPUTED_KEY,
+                        "an object literal has no computed key",
+                    )
+                    .with_primary(key_span, "every field name is a static identifier")
+                    .with_help("write the literal field name directly, e.g. `{name: value}`"),
+                );
+                if self.eat(TokenKind::Colon).is_some() {
+                    let _ = self.parse_expr();
+                }
+            } else {
+                let field_start = self.peek().span;
+                let name = self.expect(TokenKind::Ident, "a field name");
+                if self.eat(TokenKind::Colon).is_none() {
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_OBJECT_LITERAL_SHORTHAND,
+                            "an object literal has no shorthand field",
+                        )
+                        .with_primary(name, "write the value explicitly")
+                        .with_help("write `{name: value}` instead of `{name}`"),
+                    );
+                } else {
+                    let value = self.parse_expr();
+                    let span = field_start.to(value.span);
+                    fields.push(ObjectLiteralField { name, value, span });
+                }
+            }
+            if self.eat(TokenKind::Comma).is_none() {
+                break;
+            }
+        }
+        let close = self.expect(TokenKind::RBrace, "`}`");
+        Expr {
+            span: start.to(close),
+            kind: ExprKind::ObjectLiteral(fields),
         }
     }
 
@@ -2155,7 +2278,13 @@ impl<'src, 'd> Parser<'src, 'd> {
         };
         self.expect(TokenKind::FatArrow, "`=>`");
         let body = if self.at(TokenKind::LBrace) {
-            FnBody::Block(self.parse_block())
+            if self.at_object_literal_in_block_position() {
+                // ADR 0036 § 2: `{` here already means a block body — an
+                // object literal needs `fn() => ({...})` instead.
+                FnBody::Expr(Box::new(self.parse_object_literal_needs_parens()))
+            } else {
+                FnBody::Block(self.parse_block())
+            }
         } else {
             FnBody::Expr(Box::new(self.parse_expr()))
         };
@@ -2659,6 +2788,18 @@ impl<'src, 'd> Parser<'src, 'd> {
                 span: start,
                 kind: StmtKind::Empty,
             },
+            TokenKind::LBrace if self.at_object_literal_in_block_position() => {
+                // ADR 0036 § 2: a statement-initial `{` already means a
+                // block — a discarded object-literal statement needs
+                // `({...});` instead.
+                let expr = self.parse_object_literal_needs_parens();
+                self.expect(TokenKind::Semicolon, "`;`");
+                let span = start.to(self.last_span);
+                Stmt {
+                    span,
+                    kind: StmtKind::Expr(expr),
+                }
+            }
             TokenKind::LBrace => {
                 let block = self.parse_block();
                 Stmt {
@@ -4916,6 +5057,202 @@ mod tests {
                 .any(|d| d.code == Some(code::E_SECRET_TAINTED_ORDER)),
             "expected E_SECRET_TAINTED_ORDER, got {diags:?}"
         );
+    }
+
+    #[test]
+    fn object_literal_parses_as_a_primary_expression() {
+        // ADR 0036 § 2.
+        let e = parse_ok("{x: 1, y: 2}");
+        let ExprKind::ObjectLiteral(fields) = e.kind else {
+            panic!("expected an object literal: {e:?}");
+        };
+        assert_eq!(fields.len(), 2);
+        assert!(matches!(fields[0].value.kind, ExprKind::Int(_)));
+        assert!(matches!(fields[1].value.kind, ExprKind::Int(_)));
+
+        // A trailing comma is allowed, same as an array literal.
+        let e = parse_ok("{count: 0,}");
+        let ExprKind::ObjectLiteral(fields) = e.kind else {
+            panic!("expected an object literal: {e:?}");
+        };
+        assert_eq!(fields.len(), 1);
+    }
+
+    #[test]
+    fn object_literal_rejects_shorthand_and_computed_key() {
+        // ADR 0036 § 2: every field is `name: value` — no shorthand, no
+        // computed key.
+        let (_, diags) = parse_with_diags("$o = {x};");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_OBJECT_LITERAL_SHORTHAND)),
+            "expected E_OBJECT_LITERAL_SHORTHAND, got {diags:?}"
+        );
+
+        let (_, diags) = parse_with_diags("$o = {[$k]: 1};");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_OBJECT_LITERAL_COMPUTED_KEY)),
+            "expected E_OBJECT_LITERAL_COMPUTED_KEY, got {diags:?}"
+        );
+    }
+
+    #[test]
+    fn object_literal_needs_parens_in_an_arrow_body() {
+        // ADR 0036 § 2: `fn() => {...}` already means a block body per
+        // ADR 0031 — returning a literal needs `fn() => ({...})` instead.
+        let (_, diags) = parse_with_diags("$f = fn() => {x: 1, y: 2};");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_OBJECT_LITERAL_NEEDS_PARENS)),
+            "expected E_OBJECT_LITERAL_NEEDS_PARENS, got {diags:?}"
+        );
+
+        // Parenthesized, it's an ordinary returned literal with no
+        // diagnostic at all.
+        let (_, diags) = parse_with_diags("$f = fn() => ({x: 1, y: 2});");
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_OBJECT_LITERAL_NEEDS_PARENS)),
+            "did not expect E_OBJECT_LITERAL_NEEDS_PARENS, got {diags:?}"
+        );
+        let e = parse_ok("fn() => ({x: 1, y: 2})");
+        let ExprKind::Fn(f) = e.kind else {
+            panic!("expected a fn expr: {e:?}");
+        };
+        let FnBody::Expr(body) = f.body else {
+            panic!("expected an expr body: {:?}", f.body);
+        };
+        let ExprKind::Paren(inner) = body.kind else {
+            panic!("expected a paren: {body:?}");
+        };
+        assert!(matches!(inner.kind, ExprKind::ObjectLiteral(_)));
+
+        // An ordinary block body is completely unaffected.
+        let e = parse_ok("fn() => { return 1; }");
+        let ExprKind::Fn(f) = e.kind else {
+            panic!("expected a fn expr: {e:?}");
+        };
+        assert!(matches!(f.body, FnBody::Block(_)));
+    }
+
+    #[test]
+    fn object_literal_needs_parens_as_a_bare_statement() {
+        // ADR 0036 § 2: a statement-initial `{` already means a block —
+        // a discarded literal needs `({...});` instead.
+        let (_, diags) = parse_stmt_with_diags("{x: 1, y: 2};");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_OBJECT_LITERAL_NEEDS_PARENS)),
+            "expected E_OBJECT_LITERAL_NEEDS_PARENS, got {diags:?}"
+        );
+
+        let s = parse_stmt_ok("({x: 1, y: 2});");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expr statement: {s:?}");
+        };
+        let ExprKind::Paren(inner) = e.kind else {
+            panic!("expected a paren: {e:?}");
+        };
+        assert!(matches!(inner.kind, ExprKind::ObjectLiteral(_)));
+
+        // An ordinary empty block is completely unaffected — the
+        // disambiguating lookahead only fires for a non-empty literal
+        // attempt.
+        let s = parse_stmt_ok("{}");
+        assert!(matches!(s.kind, StmtKind::Block(_)));
+    }
+
+    #[test]
+    fn shape_type_parses_in_every_declaration_slot() {
+        // ADR 0036 § 3, mirroring `tainted`/`secret`'s own
+        // every-declaration-slot tests.
+        let s = parse_stmt_ok(
+            "class C { \
+             public function f({x: int} $p): {y: int} { return $p; } \
+             public {x: int} $p; \
+             } \
+             ",
+        );
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        let ClassMemberKind::Method(m) = &class.members[0].kind else {
+            panic!("expected a method: {:?}", class.members[0]);
+        };
+        let Some(TypeKind::Atom(TypeAtom::Shape(fields))) =
+            m.params[0].ty.as_ref().map(|t| &t.kind)
+        else {
+            panic!("expected a shape param type: {:?}", m.params[0].ty);
+        };
+        assert_eq!(fields.len(), 1);
+        assert!(matches!(fields[0].ty.kind, TypeKind::Atom(TypeAtom::Int)));
+        assert!(matches!(
+            m.return_type.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::Shape(_)))
+        ));
+        let ClassMemberKind::Property(prop) = &class.members[1].kind else {
+            panic!("expected a property: {:?}", class.members[1]);
+        };
+        assert!(matches!(prop.ty.kind, TypeKind::Atom(TypeAtom::Shape(_))));
+
+        // `foreach` binding.
+        let s = parse_stmt_ok("foreach ($rows as {x: int} $row) { }");
+        let StmtKind::Foreach { value, .. } = s.kind else {
+            panic!("expected a foreach: {s:?}");
+        };
+        assert!(matches!(
+            value.ty.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::Shape(_)))
+        ));
+
+        // Reusable via a `type` alias (ADR 0015), same as the ADR's own
+        // `type Point = {x: int, y: int};` example.
+        let s = parse_stmt_ok("type Point = {x: int, y: int};");
+        let StmtKind::TypeAliasDecl(alias) = s.kind else {
+            panic!("expected a type alias: {s:?}");
+        };
+        assert!(matches!(alias.ty.kind, TypeKind::Atom(TypeAtom::Shape(_))));
+    }
+
+    #[test]
+    fn shape_type_can_be_empty_and_composes_with_array_and_union() {
+        // ADR 0036 § 3: an empty `{}` in type position carries the same
+        // "no field promised" meaning as plain `object` — no ambiguity with
+        // a block exists in type position, unlike expression position.
+        let e = parse_ok("$m as {}");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Shape(f)) if f.is_empty()));
+
+        // Nested inside `array<T>`.
+        let e = parse_ok("$m as array<{x: int}>");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = ty.kind else {
+            panic!("expected an array type: {ty:?}");
+        };
+        assert!(matches!(inner.kind, TypeKind::Atom(TypeAtom::Shape(_))));
+
+        // As one member of a union.
+        let e = parse_ok("$m as {x: int}|null");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        let TypeKind::Union(members) = ty.kind else {
+            panic!("expected a union: {ty:?}");
+        };
+        assert!(matches!(
+            members[0].kind,
+            TypeKind::Atom(TypeAtom::Shape(_))
+        ));
     }
 
     /// ADR 0034: `as` is the only conversion spelling — PHP's legacy
