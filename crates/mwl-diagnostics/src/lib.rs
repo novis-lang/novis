@@ -181,6 +181,12 @@ pub mod code {
     /// Two traits used by the same class/trait declare the same method name,
     /// and no `insteadof` names a winner; see ADR 0015 § 3.
     pub const E_TRAIT_METHOD_CONFLICT: Code = Code::new("E0308");
+    /// A `Class::member` reference (a static call, a class constant, an
+    /// enum case, or a static property) names nothing declared on that class
+    /// or any of its `extends`/`implements`/trait-use ancestors — ADR 0011's
+    /// "every callable and constant is a class member" has no bare-name
+    /// fallback to fall into instead.
+    pub const E_UNDEFINED_MEMBER: Code = Code::new("E0309");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

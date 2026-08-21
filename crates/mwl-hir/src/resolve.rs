@@ -47,6 +47,9 @@ pub struct Module {
     /// Every class/interface/trait's resolved `extends`/`implements`/
     /// trait-use links.
     pub graph: crate::hierarchy::ClassGraph,
+    /// Every class/interface/trait/enum's own directly-declared members
+    /// (M2 item 2 — see [`crate::members`]).
+    pub members: crate::members::MemberTable,
 }
 
 /// Resolves parsed files' top-level namespace/`use`/declaration structure
@@ -267,6 +270,12 @@ pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -
     let graph = hierarchy.resolve(&resolver.module().symbols, diags);
     let mut module = resolver.into_module();
     module.graph = graph;
+
+    let mut members = crate::members::MemberResolver::new();
+    members.collect_members(stmts, src);
+    members.check(stmts, src, &module.symbols, &module.graph, diags);
+    module.members = members.into_table();
+
     module
 }
 

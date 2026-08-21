@@ -33,23 +33,29 @@
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
 > type table; 0010/0013/0014/0015/0022/0027/0028's checker-side rules; 0024 §§ 2-3's tainted propagation and
-> laundering). `crates/mwl-hir` has name resolution's first slice: namespace/`use` scoping matching
+> laundering). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
 > PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
 > symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
 > diagnostics (`E0304`), `use`-import resolution against that table with `Core` targets trusted rather
 > than checked (`E0306` when unresolved), ADR 0015 § 6's "no aliasing a single bare class" rule for
-> `type` aliases (`E0307`), and now the class hierarchy graph (M2 item 1): `extends`/`implements`
+> `type` aliases (`E0307`), the class hierarchy graph (M2 item 1): `extends`/`implements`
 > resolved to real symbols with the same forward-reference and `use`-import support as the symbol
 > table itself, a wrong-kind parent diagnosed (`E0303`, e.g. a class `extends`ing an interface), a
 > circular `extends`/trait-use chain diagnosed (`E0305`), and a trait method-name collision across a
-> class/trait's used traits diagnosed unless `insteadof` names a winner (`E0308`, newly added) — see
+> class/trait's used traits diagnosed unless `insteadof` names a winner (`E0308`) — see
 > [`crates/mwl-hir/src/hierarchy.rs`](../crates/mwl-hir/src/hierarchy.rs)'s module docs for the one
-> known gap (nested trait-of-trait composition isn't flattened recursively yet). Not yet built:
-> `Core`-member call/constant resolution (item 2's other half — the `Core`-namespace-reservation half
-> is already enforced by `mwl-syntax`'s parser; the class-graph half can now build on the above),
-> substituting a resolved `type` alias into the types that use it (the rest of item 3), `require`'s
-> static resolution (item 4), and the property-access resolution rule (item 5, which can now build on
-> the class graph too) — `crates/mwl-hir`'s module docs carry the same breakdown. `mwl-types` and
+> known gap (nested trait-of-trait composition isn't flattened recursively yet) — and now member
+> resolution (M2 item 2): every `self`/`static`/`parent`/explicit-class-name `Class::member` reference
+> (a static call, a class constant, an enum case, a static property) checked against a
+> [`MemberTable`](../crates/mwl-hir/src/members.rs) of each declaration's own members plus every
+> ancestor reached through the class graph, diagnosing an undeclared class side (`E0303`) or an
+> undeclared member (`E0309`, newly added) — see
+> [`crates/mwl-hir/src/members.rs`](../crates/mwl-hir/src/members.rs)'s module docs for its known gaps
+> (a dynamic class side, `new`'s target, and member visibility are not checked; a trait's `self::`
+> can't see members only the composing class supplies). Not yet built: substituting a resolved `type`
+> alias into the types that use it (the rest of item 3), `require`'s static resolution (item 4), and
+> the property-access resolution rule (item 5, which can build on the class graph the same way member
+> resolution just did) — `crates/mwl-hir`'s module docs carry the same breakdown. `mwl-types` and
 > `mwl-ir` haven't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
