@@ -32,7 +32,7 @@
 >
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
-> type table; 0010/0013/0014/0015/0022's checker-side rules; 0024 §§ 2-3's tainted propagation and
+> type table; 0010/0013/0014/0015/0022/0027's checker-side rules; 0024 §§ 2-3's tainted propagation and
 > laundering). `crates/mwl-hir` has name resolution's first slice: namespace/`use` scoping matching
 > PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
 > symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
@@ -455,6 +455,9 @@ objects refused unless both sides are provably the same class implementing `Comp
 checker enforces the `tainted` qualifier on `string`/`bytes` — poisoning through concatenation and
 interpolation, laundering only through a checked `as` conversion or a named `Core` function, and a
 diagnostic at any sink requiring the plain type ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)).
+A value typed `callable`/`Closure` is accepted only from first-class callable syntax, a closure/arrow-function
+literal, or an invokable object — a string or array-shaped callable is refused with a diagnostic naming the
+first-class-callable-syntax replacement ([ADR 0027](adr/0027-callable-is-closures-and-invokables-only.md)).
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
 statement and every conditional CFG edge also carries the stable id [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 addresses a coverage/branch probe by — cheap to reserve here, expensive to retrofit once M3 onward has built
@@ -468,8 +471,11 @@ non-nullable property unassigned, a subclass constructor with a path that skips 
 and a class with no constructor and no inline default for a non-nullable property. Plus ADR 0024's own
 entries: a `tainted` value concatenated into a sink requiring the plain type is refused, naming the
 qualifier and the sink; a checked `as uint`/enum conversion on a tainted source produces an unqualified
-result with no extra syntax; `tainted string as Markup` is refused even though a literal succeeds. IR
-snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+result with no extra syntax; `tainted string as Markup` is refused even though a literal succeeds. Plus
+ADR 0027's own entries: a bare string, an `"Class::method"` string, and a `[$obj, 'method']` array each
+refused where `callable`/`Closure` is the declared type, naming the first-class-callable-syntax
+replacement; `$obj(...)` dispatches when the class declares `__invoke` and is refused, naming the class,
+when it does not. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.

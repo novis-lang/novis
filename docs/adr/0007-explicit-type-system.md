@@ -21,6 +21,9 @@
   to local variables only; that ADR names properties as a second binding kind the same analysis covers.
   [0024](0024-taint-tracking-for-injection-sinks.md) — § 2 gains a `tainted` qualifier axis on the
   `string`/`bytes` rows of the conversion table; every other row is unaffected.
+  [0027](0027-callable-is-closures-and-invokables-only.md) — § 3's `callable` atom stays opaque as to
+  signature exactly as written here, but is no longer silent on which *values* satisfy it: a `Closure` or an
+  invokable object only, never PHP's string/array callable spellings.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
