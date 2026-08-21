@@ -7,17 +7,26 @@
 //! gives a callable/constant no bare-name fallback to fall into instead, so
 //! there is nothing else a `Class::member` reference could mean.
 //!
+//! Also carries M2 item 5, the property-access counterpart: `$this->name`
+//! must name an instance property actually declared on the enclosing class
+//! or reached the same way through [`ClassGraph`], per
+//! [ADR 0014](../../../docs/adr/0014-property-observer.md) § 5's "no
+//! `__get`/`__set` fallback." `$this` is the only property-access receiver
+//! whose class is knowable without a type checker — see the known gaps
+//! below for every other receiver shape.
+//!
 //! [`MemberResolver::collect_members`] walks a file's declarations, same
 //! shape as [`crate::hierarchy::HierarchyResolver::collect_links`], recording
 //! each class/interface/trait/enum's own directly-declared method, constant
-//! (enum cases included) and static-property names into a [`MemberTable`].
-//! [`MemberResolver::check`] then walks the same file's statements a second
-//! time — this time descending into every method body, property default,
-//! constant value and parameter default it finds — looking for a
-//! `self::`/`static::`/`parent::`/explicit-class-name member reference and
-//! checking it against the table, walking ancestors the same way
-//! [`crate::hierarchy::detect_cycles`] does. A dynamic class side
-//! (`$var::method()`, `(expr)::CONST`) is not statically resolvable and is
+//! (enum cases included), instance-property and static-property names into a
+//! [`MemberTable`]. [`MemberResolver::check`] then walks the same file's
+//! statements a second time — this time descending into every method body,
+//! property default, constant value and parameter default it finds —
+//! looking for a `self::`/`static::`/`parent::`/explicit-class-name member
+//! reference or a `$this->name` property access, and checking either against
+//! the table, walking ancestors the same way [`crate::hierarchy::detect_cycles`]
+//! does. A dynamic class side (`$var::method()`, `(expr)::CONST`) or a
+//! non-`$this` property receiver is not statically resolvable and is
 //! silently skipped, same as everywhere else this milestone only reports
 //! what it can be sure of.
 //!
@@ -35,8 +44,17 @@
 //!   callable/constant reference and is left for later.
 //! - A member's visibility (`private`/`protected`) is not checked — only
 //!   whether it is declared anywhere in the chain.
+//! - A property access on any receiver other than `$this` — a typed local, a
+//!   chained call result, `self::factory()`'s return, an explicit
+//!   `new Foo()` — is not checked here at all; it needs `mwl-types`' static
+//!   types to know which class's properties apply, and is left for that
+//!   milestone.
+//! - A property access whose name is not a literal identifier
+//!   (`$obj->$name`, `$obj->{expr}`) is a runtime concern per ADR 0014 § 5,
+//!   not a compile-time one, and is silently skipped here regardless of
+//!   receiver.
 
-use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
+use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use mwl_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
     DestructureTarget, Expr, ExprKind, FnBody, MemberName, Modifier, NamespaceDecl, Stmt, StmtKind,
@@ -60,6 +78,8 @@ pub struct ClassMembers {
     pub consts: FxHashSet<String>,
     /// Static property names, `$` sigil stripped.
     pub static_props: FxHashSet<String>,
+    /// Instance property names, `$` sigil stripped.
+    pub props: FxHashSet<String>,
 }
 
 /// Every declaration's own [`ClassMembers`], keyed by its [`QName`].
@@ -93,6 +113,7 @@ enum MemberKind {
     Method,
     Const,
     StaticProp,
+    Prop,
 }
 
 impl MemberKind {
@@ -101,6 +122,7 @@ impl MemberKind {
             Self::Method => "method",
             Self::Const => "constant",
             Self::StaticProp => "static property",
+            Self::Prop => "property",
         }
     }
 }
@@ -190,11 +212,12 @@ impl MemberResolver {
                         .insert(src.span_text(c.name).unwrap_or_default().to_owned());
                 }
                 ClassMemberKind::Property(p) => {
+                    let text = src.span_text(p.name).unwrap_or_default();
+                    let name = text.strip_prefix('$').unwrap_or(text).to_owned();
                     if p.modifiers.contains(&Modifier::Static) {
-                        let text = src.span_text(p.name).unwrap_or_default();
-                        entry
-                            .static_props
-                            .insert(text.strip_prefix('$').unwrap_or(text).to_owned());
+                        entry.static_props.insert(name);
+                    } else {
+                        entry.props.insert(name);
                     }
                 }
                 ClassMemberKind::UseTrait(_) | ClassMemberKind::Error => {}
@@ -613,6 +636,17 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         } => {
             e!(object);
             walk_member_name(property, src, ctx, env);
+            if let (ExprKind::Variable(var_span), MemberName::Ident(name_span)) =
+                (&object.kind, property)
+                && src.span_text(*var_span) == Some("$this")
+            {
+                check_property_ref(
+                    src.span_text(*name_span).unwrap_or_default(),
+                    object.span,
+                    ctx,
+                    env,
+                );
+            }
         }
         ExprKind::StaticPropertyAccess { class, name } => {
             e!(class);
@@ -766,6 +800,28 @@ fn check_member_ref(
     );
 }
 
+/// Checks `$this->name` against the enclosing class and its
+/// `extends`/`implements`/trait-use ancestors, the same table
+/// [`check_member_ref`] checks a `Class::member` reference against. `$this`
+/// with no enclosing class in scope — top-level script code, outside any
+/// method — has no class to check against and is silently skipped, same as
+/// `self`/`static` used the same way in [`check_member_ref`].
+fn check_property_ref(name: &str, span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(current) = ctx.current_class else {
+        return;
+    };
+    if member_declared(current, name, MemberKind::Prop, env.table, env.graph) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNDEFINED_PROPERTY,
+            format!("`{current}` has no property named `{name}`"),
+        )
+        .with_primary(span, "referenced here"),
+    );
+}
+
 fn member_declared(
     qname: &QName,
     name: &str,
@@ -796,6 +852,7 @@ fn member_declared_rec(
             MemberKind::Method => members.methods.contains(name),
             MemberKind::Const => members.consts.contains(name),
             MemberKind::StaticProp => members.static_props.contains(name),
+            MemberKind::Prop => members.props.contains(name),
         };
         if found {
             return true;
@@ -943,5 +1000,40 @@ mod tests {
                 .iter()
                 .any(|d| d.code == Some(code::E_UNDEFINED_MEMBER))
         );
+    }
+
+    #[test]
+    fn a_this_property_access_resolves() {
+        let diags =
+            check("<?mwl\nclass Foo { public int $count; function a(): void { $this->count; } }\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_this_property_access_resolves_through_an_ancestor() {
+        let diags = check(
+            "<?mwl\n\
+             class Base { public int $count; }\n\
+             class Sub extends Base { function a(): void { $this->count; } }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn an_undeclared_this_property_is_diagnosed() {
+        let diags = check("<?mwl\nclass Foo { function a(): void { $this->missing; } }\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_PROPERTY))
+        );
+    }
+
+    #[test]
+    fn a_non_this_property_access_is_not_checked() {
+        let diags = check(
+            "<?mwl\nclass Foo { function a(): void { $other = new Foo(); $other->missing; } }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
     }
 }

@@ -19,9 +19,10 @@
 //!   method-name collision with no `insteadof` naming a winner.
 //! - [`members`] — [`MemberResolver`]: resolves every `Class::member`
 //!   reference (a static call, a class constant, an enum case, a static
-//!   property) to something actually declared on that class or reached
-//!   through [`ClassGraph`], into a [`MemberTable`]; diagnoses an undeclared
-//!   class side or an undeclared member.
+//!   property) and every `$this->name` property access to something
+//!   actually declared on that class or reached through [`ClassGraph`], into
+//!   a [`MemberTable`]; diagnoses an undeclared class side, an undeclared
+//!   member, or an undeclared property.
 //! - [`aliases`] — [`AliasResolver`]: substitutes every `type` alias's
 //!   expansion — including inside another alias's own expansion — into a
 //!   fully-resolved [`AliasTable`]; diagnoses a cycle.
@@ -31,52 +32,19 @@
 //!   `collect_*`-then-resolve shape every resolver above already supports;
 //!   diagnoses a missing target or a require cycle.
 //!
-//! # What this slice of M2 covers
+//! # Known gaps
 //!
-//! The plan's M2 paragraph lists five name-resolution responsibilities for
-//! `mwl-hir`. This slice covers:
-//!
-//! 1. Namespace and `use` scoping, the declared symbol table, and the class
-//!    hierarchy graph: `extends`/`implements` resolved to real symbols, and
-//!    trait-use conflicts resolved by `insteadof` alone. **Known gap:** a
-//!    trait pulling in another trait's methods is not flattened recursively
-//!    yet — only a trait's own directly-declared methods are checked for a
-//!    collision against traits used alongside it. See [`hierarchy`]'s module
-//!    docs.
-//! 2. Every callable/constant resolves as a class member, with no bare-name
-//!    fallback ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)).
-//!    The `Core`-reservation half is enforced by `mwl-syntax`'s parser at the
-//!    `namespace` declaration site; the member-resolution half — a
-//!    `self`/`static`/`parent`/explicit-class-name `Class::member` reference
-//!    checked against the class it names and every ancestor reached through
-//!    [`ClassGraph`] — is [`members`]'s job. **Known gaps:** a dynamic class
-//!    side, `new`'s target, and member visibility are not checked; see
-//!    [`members`]'s module docs.
-//! 3. `type` alias declarations are collected into the symbol table, ADR
-//!    0015 § 6's bare-class rule is enforced at declaration time
-//!    ([`resolve`]), and every alias's expansion — including through another
-//!    alias, recursively — is substituted into an [`aliases::AliasTable`],
-//!    with a cycle (`type A = B; type B = A;`) diagnosed rather than looped
-//!    ([ADR 0015](../../../docs/adr/0015-no-name-aliasing.md) § 5). **Known
-//!    gap:** the substituted table is not yet consulted from anywhere else —
-//!    there is no property/parameter/return-type walk in `mwl-hir` yet for it
-//!    to feed; that arrives with `mwl-types`.
-//! 4. `require`'s static resolution
-//!    ([ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)):
-//!    [`requires::resolve_program`] merges every literal-path `require`
-//!    target, transitively, into the same `Module` a single-file `resolve_file`
-//!    would have produced had the whole chain been pasted into one file — a
-//!    non-literal path is left for the runtime dynamic fallback, untouched.
-//!    **Known gaps:** only a plain quoted-string literal is recognised (no
-//!    heredoc/nowdoc, no constant-folding through a concatenation); a file
-//!    with no on-disk path has no directory to resolve a relative `require`
-//!    against, so every `require` inside one is also left dynamic. See
-//!    [`requires`]'s module docs.
-//!
-//! Item 5 (the property-access rule) is not started.
-//!
-//! **Known gap:** [`QName`] compares segments case-sensitively; PHP does not.
-//! See its docs.
+//! `mwl-hir` now covers all five name-resolution responsibilities the plan's
+//! M2 paragraph lists for it; each module above documents its own gaps in
+//! full, not repeated here. The sharper edges: [`hierarchy`] doesn't flatten
+//! a trait pulling in another trait's methods recursively; [`members`]
+//! doesn't check a dynamic class side, `new`'s target, member visibility, or
+//! a property access on any receiver but `$this` (that needs `mwl-types`'
+//! static types); [`aliases`]'s [`AliasTable`] has no consumer yet — nothing
+//! in `mwl-hir` walks a property/parameter/return-type position for it to
+//! feed, so that arrives with `mwl-types` too; [`requires`] only recognises a
+//! plain quoted-string literal path. [`QName`] also compares segments
+//! case-sensitively, unlike PHP — see its own docs.
 
 pub mod aliases;
 pub mod hierarchy;

@@ -74,10 +74,15 @@
 > collected exactly once. A non-literal path (a variable, a concatenation, an interpolated string) is left
 > untouched for the dynamic runtime fallback the ADR also names, and a literal `require` inside a file with
 > no on-disk path has no directory to resolve against and is left the same way — see
-> [`requires.rs`](../crates/mwl-hir/src/requires.rs)'s module docs for both known gaps in full. Not yet
-> built: the property-access resolution rule (item 5, which can build on the class graph the same way
-> member resolution already did) — `crates/mwl-hir`'s module docs carry the same breakdown. `mwl-types`
-> and `mwl-ir` haven't started.
+> [`requires.rs`](../crates/mwl-hir/src/requires.rs)'s module docs for both known gaps in full. Item 5 is
+> now done too, completing `mwl-hir`'s five-item M2 name-resolution list: every `$this->name` property
+> access is checked against the same [`MemberTable`](../crates/mwl-hir/src/members.rs)/[`ClassGraph`]
+> pair member resolution (item 2) already built, diagnosing an undeclared property (`E0313`, newly added)
+> per [ADR 0014](adr/0014-property-observer.md) § 5's "no `__get`/`__set` fallback." **Known gap:** `$this`
+> is the only receiver checked — a typed local, a chained call result, or an explicit `new Foo()` all need
+> `mwl-types`' static types to know which class's properties apply, and are left for that milestone; see
+> [`members.rs`](../crates/mwl-hir/src/members.rs)'s module docs for this and every other known gap in
+> full. `mwl-types` and `mwl-ir` haven't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -536,7 +541,10 @@ diagnostic and suggested rename. Plus ADR 0030's own entries: a property, a para
 each starting with `_`, all three refused with the standard camelCase diagnostic (no leading-underscore
 allowance survives); a method named `__construct` refused with the targeted "spelled `constructor`, not
 `__construct`" diagnostic rather than the generic mis-casing one; a class declaring `constructor` produces
-no casing diagnostic and is recognized as satisfying ADR 0022's per-constructor obligation. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+no casing diagnostic and is recognized as satisfying ADR 0022's per-constructor obligation. Plus
+[ADR 0014](adr/0014-property-observer.md)'s own entry: `$this->missing` for a property not declared on the
+class or any `extends`/`implements`/trait-use ancestor is refused, naming ADR 0014 § 5's "no `__get`/`__set`
+fallback" rule. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.

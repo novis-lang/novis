@@ -210,6 +210,11 @@ pub mod code {
     /// diagnostic, the same way `crate::hierarchy`'s `extends`/trait-use
     /// cycle and `crate::aliases`'s `type` alias cycle are both handled.
     pub const E_CIRCULAR_REQUIRE: Code = Code::new("E0312");
+    /// `$this->name` where `name` is not declared on the enclosing class or
+    /// any `extends`/`implements`/trait-use ancestor — ADR 0014 § 5's "no
+    /// `__get`/`__set` fallback" for the one receiver shape resolvable
+    /// without a type checker.
+    pub const E_UNDEFINED_PROPERTY: Code = Code::new("E0313");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.
