@@ -3,6 +3,13 @@
 Continue MWL. M1 (front end) is done and closed out — see git history if you need the detail; it's
 not repeated here per CLAUDE.md's "state a fact once" rule.
 
+**Last session added no code.** It settled [ADR 0027](docs/adr/0027-callable-is-closures-and-invokables-only.md):
+`callable` accepts only a `Closure` or an object declaring `__invoke` — PHP's string/array callable
+spellings (`"strlen"`, `"Class::method"`, `[$obj, 'method']`) are rejected, since first-class callable
+syntax (already in the M1 grammar) already gives a statically resolvable reference. It's referenced from
+`CLAUDE.md`'s routing table and ground rules, and from the plan's M2 paragraph/Verify line — but it's a
+checker-side rule (`mwl-types`), so it doesn't change what the next code slice below is.
+
 **M2 — HIR, types, IR — in progress.** Read `CLAUDE.md` first (it routes to the one file you need per
 topic), then run `sh .claude/brief.sh` for the live status slice, then read the plan's M2 paragraph in
 `docs/implementation-plan.md` in full, then read `crates/mwl-hir/src/lib.rs`'s module docs — both now
