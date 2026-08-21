@@ -363,9 +363,49 @@
 > verification line are corrected to say so; no code changed, since the casing checker already produces
 > the right diagnostic for the right reason.
 >
-> **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): every other ADR
-> M2 assigns to it (0024/0027's checker-side rules, plus ADR 0033 §§ 2-4 now that its M1 grammar
-> has landed); exhaustive control-flow
+> This session closed [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) §§ 2-3 (`tainted`
+> propagation/laundering) and [ADR 0027](adr/0027-callable-is-closures-only.md) (`callable` value-shape
+> checking), the next two items on the prior queue — both entirely inside
+> [`mwl-types::expr`](../crates/mwl-types/src/expr.rs), no grammar changes needed since both ADRs' M1
+> halves had already landed. **ADR 0024:** concatenation and interpolation now poison their result exactly
+> like ADR 0007's `mixed`-arithmetic precedent whenever either operand is `tainted string`/`tainted bytes`
+> (`is_tainted`, a new one-question helper). `ExprKind::Conversion` gained `apply_taint_conversion_rule`:
+> a checked conversion to `uint`/`int`/`float`/`bool`/an enum's backing type launders for free (those
+> targets never carried the qualifier to begin with, so no code was even needed there), while `bytes`/
+> `string` keep it across either direction per ADR 0009 § 3 — including the identity-shaped
+> `tainted string as string`, which this rule deliberately refuses to treat as laundering, since that would
+> be a silent bypass of the whole mechanism. `is_assignable` gained the one new subtyping rule this axis
+> needed: a plain `string`/`bytes` is assignable into its `tainted` counterpart (a trusted value is always a
+> safe over-approximation of "may be tainted," the same one-directional shape `mixed` already has, just
+> pointed the other way), never the reverse — without it, no fixture could even construct a `tainted`-typed
+> local from a literal to exercise the poisoning rules above. `reject_non_literal_markup_conversion` covers
+> ADR 0024 § 5's one M2-scoped rule: `as Core\Html\Markup` accepts only a literal string token, tainted or
+> not, closing "compute the escape-defeating payload at runtime, then cast it" — resolved via the same
+> `qname.to_string() == "Core\\Html\\Markup"` trust `Core`'s own classes already get, since `mwl-stdlib`
+> doesn't exist yet. **ADR 0027:** `report_non_callable_value_if_applicable`, called from `check_expr` ahead
+> of its generic `is_assignable` mismatch, gives a bare string or `[$obj, 'method']`-shaped array literal a
+> targeted diagnostic naming the first-class-callable-syntax replacement wherever `callable` is the expected
+> type (`E_CALLABLE_STRING_UNSUPPORTED`/`E_CALLABLE_ARRAY_UNSUPPORTED`, `E0418`/`E0419`, both newly added);
+> `report_call_on_non_callable` refuses `$obj(...)` whenever `$obj`'s static type resolves to a class
+> (`E_NOT_CALLABLE`, `E0420`, newly added) — MWL has no `__invoke`, so no class ever makes `()` mean anything
+> else, and a class literally named `__invoke` can't even be declared (ADR 0029/0030's casing rule already
+> rejects any leading-underscore method name, so this fixture doesn't need one to demonstrate the rule).
+> **A real gap surfaced and fixed in the same pass, not merely documented:** `$obj->method(...)`/
+> `Foo::bar(...)` (first-class callable syntax, `CallArgs::FirstClassCallable`) was typing as the referenced
+> method's own *return type* rather than `callable` — so `callable $fn = $obj->method(...);` would have
+> mismatched against, say, `int` instead of type-checking, the opposite of what ADR 0027 promises ("already
+> produces exactly the Closure value this decision requires"). The `MethodCall`/`StaticCall`/`Call` arms in
+> `expr::infer` now check for that sentinel first and return `Ty::Callable` unconditionally. 21 new tests in
+> `mwl-types::check` (`E0417`, newly added, for the Markup rule). **Known gap, not attempted this session:**
+> ADR 0024 § 4's sink list (`Core\Db`, `Core\Process`, `Core\Http`, `Core\Fs`) has no code refusing anything
+> yet, since none of those `Core` classes are declared stdlib until M7/M8 — a plain-typed parameter on an
+> ordinary user-declared method already acts as an equivalent sink today, through the same
+> `tainted string`-vs-`string` assignability rule, but the ADR's own named sinks are still to come with the
+> stdlib that defines them; § 5's auto-escape default and `Markup + Markup` composition wait on `Core\Html`
+> actually existing too.
+>
+> **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): ADR 0033 §§ 2-4
+> (`secret` propagation/laundering/sink refusal, now that its M1 grammar has landed); exhaustive control-flow
 > reachability (`switch`/`try` bodies conservatively contribute nothing to definite assignment after
 > them — safe, never accepts an invalid program); references (`&$x`) needing both sides to declare the
 > same type; `parent` as a *type* atom (`parent $x`, distinct from `new parent(...)`, which now

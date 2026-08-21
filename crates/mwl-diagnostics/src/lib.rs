@@ -320,6 +320,23 @@ pub mod code {
     /// explicit `match` naming every case is the replacement. See ADR 0010
     /// § 5.
     pub const E_ENUM_CONVERSION_UNSUPPORTED: Code = Code::new("E0416");
+    /// `as Core\Html\Markup` on anything but a source-literal string — a
+    /// runtime-computed or `tainted` value can never become trusted markup
+    /// this way, closing "compute the escape-defeating payload at runtime,
+    /// then cast it." See ADR 0024 § 5.
+    pub const E_MARKUP_REQUIRES_LITERAL: Code = Code::new("E0417");
+    /// A string passed (or convertible without laundering) where `callable`
+    /// is the declared type — PHP's bare-name/`"Class::method"` callable
+    /// spellings are both rejected in favor of first-class callable syntax.
+    /// See ADR 0027 § 1.
+    pub const E_CALLABLE_STRING_UNSUPPORTED: Code = Code::new("E0418");
+    /// A `[$obj, 'method']`-shaped array passed where `callable` is the
+    /// declared type. See ADR 0027 § 1.
+    pub const E_CALLABLE_ARRAY_UNSUPPORTED: Code = Code::new("E0419");
+    /// `$obj(...)` where `$obj`'s static type is not `callable` — MWL has no
+    /// `__invoke`, so no class ever makes `()` mean anything else. See
+    /// ADR 0027 § 1.
+    pub const E_NOT_CALLABLE: Code = Code::new("E0420");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

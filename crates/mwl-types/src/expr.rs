@@ -28,6 +28,33 @@
 //! *declared* object property is refused outright regardless of nullability
 //! (ADR 0028 § 3, via [`check_unset_target`]/[`check_property_access`]).
 //!
+//! **ADR 0024 §§ 2-3 (`tainted` propagation and laundering)** is implemented
+//! here too: concatenation and interpolation poison their result exactly like
+//! ADR 0007's `mixed`-arithmetic precedent ([`is_tainted`], applied in the
+//! `Binary`/`Interpolated` arms below); [`apply_taint_conversion_rule`] is
+//! `ExprKind::Conversion`'s taint half — a checked conversion to `uint`/
+//! `int`/`float`/`bool`/an enum's backing type launders for free, since none
+//! of those targets carry the qualifier to begin with, while `bytes`/`string`
+//! (including the identity-shaped `tainted string as string`, which would
+//! otherwise be a silent bypass) keep it across either direction, per ADR
+//! 0009 § 3. [`is_assignable`] gains one more amendment for this axis: a
+//! plain `string`/`bytes` is assignable to its `tainted` counterpart (a
+//! trusted value is always a safe over-approximation of "may be tainted,"
+//! the same direction `mixed` never gets), but not the reverse.
+//! [`reject_non_literal_markup_conversion`] is ADR 0024 § 5's one M2-scoped
+//! rule: `as Core\Html\Markup` accepts only a literal string token,
+//! `tainted` or not — the rest of § 5 (auto-escaping, `Markup + Markup`)
+//! waits on `Core\Html` actually existing.
+//!
+//! **ADR 0027 (`callable` is closures only)** also lives here:
+//! [`report_non_callable_value_if_applicable`] gives a bare string or
+//! `[$obj, 'method']`-shaped array literal a targeted diagnostic naming the
+//! first-class-callable-syntax replacement wherever `callable` is the
+//! expected type, ahead of [`is_assignable`]'s generic mismatch (which would
+//! otherwise also fire for the same expression); [`report_call_on_non_callable`]
+//! refuses `$obj(...)` for any `$obj` whose static type is a resolved class —
+//! MWL has no `__invoke`, so no class ever makes `()` mean anything else.
+//!
 //! **Diagnosing a missing member is split by receiver, not duplicated:** a
 //! `self::`/`static::`/`parent::`/explicit-class-name static call, static
 //! property, or class constant is already checked for existence by
@@ -87,12 +114,52 @@ pub(crate) fn check_expr(
     env: &mut Env<'_>,
 ) -> TypeId {
     let actual = infer(expr, expected, live, scope, ctx, env);
-    if let Some(expected_id) = expected
-        && !is_assignable(actual, expected_id, env.interner, env.graph, env.signatures)
-    {
-        report_mismatch(expr.span, expected_id, actual, env);
+    if let Some(expected_id) = expected {
+        let wants_callable = matches!(env.interner.get(expected_id), Ty::Callable);
+        if wants_callable && report_non_callable_value_if_applicable(expr, env) {
+            return actual;
+        }
+        if !is_assignable(actual, expected_id, env.interner, env.graph, env.signatures) {
+            report_mismatch(expr.span, expected_id, actual, env);
+        }
     }
     actual
+}
+
+/// ADR 0027 § 1/§ 3: a bare string or `[$obj, 'method']`-shaped array
+/// literal reaching a `callable`-typed position gets a targeted diagnostic
+/// naming the first-class-callable-syntax replacement, rather than the
+/// generic `E_TYPE_MISMATCH` [`is_assignable`] would otherwise report for
+/// the same expression. Returns whether it reported one, so the caller can
+/// skip its own generic check for this expression.
+fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env<'_>) -> bool {
+    match &expr.kind {
+        ExprKind::Str(_) | ExprKind::Interpolated(_) => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_CALLABLE_STRING_UNSUPPORTED,
+                    "a string is not callable in MWL; take a reference with first-class \
+                     callable syntax instead",
+                )
+                .with_primary(expr.span, "this string")
+                .with_help("e.g. `Class::method(...)` or `$obj->method(...)`"),
+            );
+            true
+        }
+        ExprKind::ArrayLiteral(_) => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_CALLABLE_ARRAY_UNSUPPORTED,
+                    "an array is not callable in MWL; take a reference with first-class \
+                     callable syntax instead",
+                )
+                .with_primary(expr.span, "this array")
+                .with_help("e.g. `$obj->method(...)` instead of `[$obj, 'method']`"),
+            );
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Whether a value of type `from` may be used where `to` is declared —
@@ -135,6 +202,17 @@ pub(crate) fn is_assignable(
     }
     if let Ty::Shape(to_fields) = interner.get(to) {
         return shape_satisfied(from, to_fields, interner, graph, signatures);
+    }
+    // ADR 0024 § 2: a plain `string`/`bytes` is always a safe
+    // over-approximation of "may be tainted" — the same one-directional
+    // widening `mixed` gets, but on this axis instead. The reverse (a
+    // `tainted` value into a plain-typed target) is never assignable; that
+    // is this ADR's whole point.
+    if matches!(
+        (interner.get(from), interner.get(to)),
+        (Ty::String, Ty::TaintedString) | (Ty::Bytes, Ty::TaintedBytes)
+    ) {
+        return true;
     }
     false
 }
@@ -241,13 +319,19 @@ fn infer(
         ExprKind::Float(_) => env.interner.float(),
         ExprKind::Str(_) => env.interner.string(),
         ExprKind::Interpolated(parts) => {
+            let mut tainted = false;
             for part in parts {
                 if let StringPart::Expr(e) = part {
                     let ty = check_expr(e, None, live, scope, ctx, env);
                     require_stringable(ty, e.span, env);
+                    tainted |= is_tainted(ty, env.interner);
                 }
             }
-            env.interner.string()
+            if tainted {
+                env.interner.tainted_string()
+            } else {
+                env.interner.string()
+            }
         }
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span)).to_owned();
@@ -315,7 +399,8 @@ fn infer(
                 require_stringable(inner_ty, inner.span, env);
             }
             reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
-            result
+            reject_non_literal_markup_conversion(inner, result, expr.span, env);
+            apply_taint_conversion_rule(inner_ty, result, env.interner)
         }
         ExprKind::InstanceOf { expr: inner, class } => {
             check_expr(inner, None, live, scope, ctx, env);
@@ -323,8 +408,12 @@ fn infer(
             env.interner.bool_ty()
         }
         ExprKind::Call { callee, args } => {
-            check_expr(callee, None, live, scope, ctx, env);
+            let callee_ty = check_expr(callee, None, live, scope, ctx, env);
             check_args(args, live, scope, ctx, env);
+            if matches!(args, CallArgs::FirstClassCallable) {
+                return env.interner.callable();
+            }
+            report_call_on_non_callable(callee_ty, expr.span, env);
             env.interner.mixed()
         }
         ExprKind::MethodCall {
@@ -350,6 +439,13 @@ fn infer(
                 _ => None,
             };
             check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            // ADR 0027: `$obj->method(...)` (first-class callable syntax)
+            // names a `Closure` value, not the method's return type — the
+            // sentinel `CallArgs::FirstClassCallable` marks exactly this
+            // shape, ahead of the ordinary-call typing below.
+            if matches!(args, CallArgs::FirstClassCallable) {
+                return env.interner.callable();
+            }
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
         ExprKind::StaticCall {
@@ -373,6 +469,11 @@ fn infer(
                 _ => None,
             };
             check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            // See the `MethodCall` arm above: first-class callable syntax
+            // names a `Closure`, not the resolved method's return type.
+            if matches!(args, CallArgs::FirstClassCallable) {
+                return env.interner.callable();
+            }
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
         ExprKind::PropertyAccess {
@@ -816,6 +917,92 @@ fn report_unset_on_property(span: Span, qname: &QName, name: &str, env: &mut Env
     );
 }
 
+/// Whether `ty` is `tainted string` or `tainted bytes` (ADR 0024 § 1) — the
+/// one question every propagation/laundering rule in this module reduces to.
+fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
+    matches!(interner.get(ty), Ty::TaintedString | Ty::TaintedBytes)
+}
+
+/// ADR 0024 § 2: what an `as` conversion's result carries on the taint axis.
+/// A checked conversion that already throws on a malformed shape — `uint`,
+/// `int`, `float`, `bool`, an enum's backing type — removes the qualifier on
+/// success for free, since none of those targets carry it to begin with, so
+/// this only has work to do when `from` was tainted and `to` is `string` or
+/// `bytes`: the qualifier crosses either direction unchanged (ADR 0009 § 3),
+/// including the identity-shaped `tainted string as string`, which is not
+/// itself a shape-proving conversion and must not silently launder — that
+/// would be exactly the bypass this whole mechanism exists to close.
+fn apply_taint_conversion_rule(from: TypeId, to: TypeId, interner: &mut TypeInterner) -> TypeId {
+    if !is_tainted(from, interner) {
+        return to;
+    }
+    match interner.get(to) {
+        Ty::String | Ty::TaintedString => interner.tainted_string(),
+        Ty::Bytes | Ty::TaintedBytes => interner.tainted_bytes(),
+        _ => to,
+    }
+}
+
+/// ADR 0024 § 5: `as Core\Html\Markup` trusts only a source-literal string —
+/// a `tainted` value, or any other runtime-computed one, can never become
+/// trusted markup this way, closing "compute the escape-defeating payload at
+/// runtime, then cast it." Scoped to a conversion whose target actually
+/// resolves to `Core\Html\Markup`; every other target is untouched. The rest
+/// of § 5 (auto-escaping a non-`Markup` interpolation, `Markup + Markup`)
+/// waits on `Core\Html` actually existing as a stdlib class.
+fn reject_non_literal_markup_conversion(inner: &Expr, to: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Class(qname) = env.interner.get(to) else {
+        return;
+    };
+    if qname.to_string() != "Core\\Html\\Markup" {
+        return;
+    }
+    if is_literal_string(inner) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_MARKUP_REQUIRES_LITERAL,
+            "only a source-literal string may be converted `as Markup`; a runtime-computed or \
+             `tainted` value can never become trusted markup this way",
+        )
+        .with_primary(span, "converted here")
+        .with_help("build markup from literal fragments, or escape via a `Core\\Html` helper"),
+    );
+}
+
+/// Whether `expr` is a literal string token, unwrapping any enclosing
+/// parentheses — `("text")` is exactly as trusted as `"text"` for
+/// [`reject_non_literal_markup_conversion`]'s purposes.
+fn is_literal_string(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::Str(_) => true,
+        ExprKind::Paren(inner) => is_literal_string(inner),
+        _ => false,
+    }
+}
+
+/// ADR 0027 § 1: `$obj(...)` is refused whenever `$obj`'s static type
+/// resolves to a class — MWL has no `__invoke`, so no class ever makes `()`
+/// mean anything else, regardless of what methods it declares. A `Ty::Mixed`
+/// callee (nothing statically known) and an already-`Ty::Callable` one are
+/// both left alone.
+fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Class(qname) = env.interner.get(callee_ty).clone() else {
+        return;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NOT_CALLABLE,
+            format!(
+                "`{qname}` is not callable; MWL has no `__invoke` — call a named method \
+                 instead, e.g. `$obj->methodName(...)`"
+            ),
+        )
+        .with_primary(span, "called with `(...)` here"),
+    );
+}
+
 /// ADR 0010 § 5: "`EnumName` → a different `EnumName`, even with the same
 /// underlying type — **rejected**, even via `as`." Two enums sharing an
 /// underlying type are not the same closed set, so this refuses the
@@ -952,7 +1139,16 @@ fn check_args_typed(
 /// implemented yet.
 fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
     match op {
-        BinaryOp::Concat => env.interner.string(),
+        // ADR 0024 § 2: concatenating a tainted operand with an untainted one
+        // poisons the result, the same "poisoned" shape ADR 0007 already uses
+        // for mixed-type arithmetic, applied to this axis instead.
+        BinaryOp::Concat => {
+            if is_tainted(lhs, env.interner) || is_tainted(rhs, env.interner) {
+                env.interner.tainted_string()
+            } else {
+                env.interner.string()
+            }
+        }
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Pow | BinaryOp::Mod => {
             arithmetic_result(lhs, rhs, span, env)
         }
