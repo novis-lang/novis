@@ -142,7 +142,16 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
 
 fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     match ctx.current_class {
-        Some(qname) => env.interner.class(qname.clone()),
+        // ADR 0010: an enum has no methods to declare a `self`/`static` type
+        // atom inside in a well-formed program, but the parser still
+        // recovers a rejected member (`E_ENUM_MEMBER_UNSUPPORTED`) and hands
+        // it to this checker anyway — resolve the same way `resolve_name_type`
+        // below already does for an explicit enum name, rather than always
+        // interning `Ty::Class`.
+        Some(qname) => match env.symbols.get(qname) {
+            Some(sym) if sym.kind == SymbolKind::Enum => env.interner.enum_(qname.clone()),
+            _ => env.interner.class(qname.clone()),
+        },
         None => {
             env.diags.report(
                 Diagnostic::error(

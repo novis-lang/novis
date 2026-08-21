@@ -55,8 +55,7 @@
 //! Deliberately out of scope so far, left for a follow-up (see
 //! `NEXT_SESSION_PROMPT.md` for the ordering):
 //!
-//! - ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
-//!   symbol", ADR 0014's interplay with a typed receiver, ADR 0024 (tainted
+//! - ADR 0014's interplay with a typed receiver, ADR 0024 (tainted
 //!   propagation/laundering), ADR 0027 (`callable` value-shape checking),
 //!   ADR 0033 §§ 2-4 (`secret` propagation/laundering/sink refusal — its § 1
 //!   grammar landed in M1, but `lower_atom` still maps all four `Secret*`
@@ -79,7 +78,19 @@
 //!   is silently erased to `mixed` rather than diagnosed — deferred to ADR
 //!   0014 § 5's runtime-checked fallback, which is M4 work (no IR/codegen
 //!   exists yet to throw from) — see [`expr::check_property_access`]'s own
-//!   docs.
+//!   docs. ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
+//!   symbol" is now done too: `self`/`static`/`$this` inside an enum
+//!   ([`expr::class_of_ctx`], [`lower`]'s `resolve_special`) and a case access
+//!   ([`expr`]'s `ClassConstAccess` arm) all recover [`ty::Ty::Enum`] rather
+//!   than [`ty::Ty::Class`]; an arithmetic or bitwise operator applied
+//!   directly to an enum operand and a conversion from one enum type to a
+//!   *different* one, even via `as`, are both diagnosed per ADR 0010 § 5 —
+//!   see [`expr`]'s `reject_enum_operand`/`reject_enum_to_enum_conversion`.
+//!   `==`/`===` between two different enum types is not yet diagnosed — no
+//!   general equality-operand-compatibility check exists for *any* type pair
+//!   today (not even `int` against `uint`), so singling out enums there
+//!   would be inconsistent; that wants its own pass, not a one-off special
+//!   case.
 //! - Exhaustive control-flow reachability (e.g. "every path through this
 //!   non-void function returns"); `switch` and `try`/`catch` bodies
 //!   conservatively contribute nothing to definite-assignment after them —

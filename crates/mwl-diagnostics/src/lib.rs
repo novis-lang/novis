@@ -311,6 +311,15 @@ pub mod code {
     /// against, the one initializer shape `var` cannot infer from; see
     /// ADR 0037 § 2.
     pub const E_VAR_ARRAY_LITERAL_NEEDS_TYPE: Code = Code::new("E0414");
+    /// An arithmetic or bitwise operator applied directly to an enum-typed
+    /// operand — neither is defined on an enum type; convert to its
+    /// underlying `int`/`uint` with `as` first. See ADR 0010 § 5.
+    pub const E_ENUM_ARITHMETIC_UNSUPPORTED: Code = Code::new("E0415");
+    /// `as` from one enum type to a *different* enum type, even when both
+    /// share the same underlying integer type — rejected outright; an
+    /// explicit `match` naming every case is the replacement. See ADR 0010
+    /// § 5.
+    pub const E_ENUM_CONVERSION_UNSUPPORTED: Code = Code::new("E0416");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

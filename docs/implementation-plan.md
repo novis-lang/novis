@@ -313,8 +313,37 @@
 > receiver's own fields — only an ordinary class property triggers it; whether a shape field should get
 > the same treatment wasn't asked for by either ADR and is left as an open question if it comes up.
 >
+> This session closed [ADR 0010](adr/0010-enums-are-a-value-type.md)'s M2 item: the enum-vs-class atom
+> distinction beyond "resolves to *a* symbol." Two existing spots always interned `Ty::Class` for a
+> resolved name without checking whether that name was actually an enum —
+> [`expr::class_of_ctx`](../crates/mwl-types/src/expr.rs) (`self`/`static`/`$this`'s type) and
+> [`lower::resolve_special`](../crates/mwl-types/src/lower.rs) (the `self`/`static` *type* atom) — both now
+> branch on `mwl_hir::SymbolTable`'s `SymbolKind`, the same check `lower::resolve_name_type` already made
+> for an explicit enum name, and intern `Ty::Enum` when the enclosing declaration is one. In practice an
+> enum has no methods to reach either path from in a well-formed program (ADR 0010 § 3), but
+> `mwl-syntax`'s parser still recovers a rejected method member (`E_ENUM_MEMBER_UNSUPPORTED`) and hands it
+> to this checker anyway, so the fix keeps that recovered body from being typed against the wrong class.
+> More visibly, `expr.rs`'s `ClassConstAccess` arm — previously typing every `Class::CONST`-shaped access as
+> `mixed` unconditionally — now recovers `Ty::Enum` for a case access (`Status::Active`) specifically: an
+> enum's cases live in the same `mwl_hir::members::MemberTable` slot as an ordinary class constant and are
+> already existence-checked there, so this only recovers the *type* on the enum side, same split-by-receiver
+> shape every other static reference in this module already uses; an ordinary class constant's own type
+> stays unmodeled `mixed`, a separate, already-tracked gap. ADR 0010 § 5's "no arithmetic or bitwise
+> operator is defined on an enum type directly" and "converting one enum to a *different* enum, even via
+> `as`, is rejected" are both new diagnostics rather than silent `mixed` fallthrough: a new
+> `expr::reject_enum_operand` (wired into `arithmetic_result`/`division_result`/`bitwise_result`) reports
+> `E_ENUM_ARITHMETIC_UNSUPPORTED` (`E0415`, newly added) whenever either operand is `Ty::Enum`, naming
+> `as int`/`as uint` as the fix; a new `expr::reject_enum_to_enum_conversion` reports
+> `E_ENUM_CONVERSION_UNSUPPORTED` (`E0416`, newly added) when an `as` conversion's source and target are two
+> different `Ty::Enum`s, naming an explicit `match` as the replacement — converting an enum to its own
+> underlying type, or to itself, is untouched. 8 new tests in `mwl-types::check`. **Known gap, not
+> attempted this session:** `==`/`===` between two different enum types is not diagnosed — ADR 0010 § 5
+> asks for it, but no general equality-operand-compatibility check exists for *any* type pair yet (not even
+> `int` against `uint`), so adding an enum-only special case here would be inconsistent with the rest of the
+> table; it wants its own pass once equality gets checked at all.
+>
 > **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): every other ADR
-> M2 assigns to it (0010/0014/0024/0027's checker-side rules, plus ADR 0033 §§ 2-4 now that its M1 grammar
+> M2 assigns to it (0014/0024/0027's checker-side rules, plus ADR 0033 §§ 2-4 now that its M1 grammar
 > has landed); exhaustive control-flow
 > reachability (`switch`/`try` bodies conservatively contribute nothing to definite assignment after
 > them — safe, never accepts an invalid program); references (`&$x`) needing both sides to declare the

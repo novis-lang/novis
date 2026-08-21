@@ -61,7 +61,7 @@
 //! yet.
 
 use mwl_diagnostics::{Diagnostic, Span, code};
-use mwl_hir::{ClassGraph, QName};
+use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MemberName, NewTarget,
     StringPart, UnaryOp,
@@ -314,6 +314,7 @@ fn infer(
             if matches!(env.interner.get(result), Ty::String) {
                 require_stringable(inner_ty, inner.span, env);
             }
+            reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
             result
         }
         ExprKind::InstanceOf { expr: inner, class } => {
@@ -385,7 +386,25 @@ fn infer(
                 .and_then(|qname| resolve_property(&qname, &prop_name, env.signatures, env.graph))
                 .unwrap_or_else(|| env.interner.mixed())
         }
-        ExprKind::ClassConstAccess { class, .. } | ExprKind::ClassNameConst { class } => {
+        // ADR 0010 § 4: `EnumName::CaseName` is the one `Class::CONST`-shaped
+        // access this checker can already type precisely — `mwl_hir::members`
+        // stores a case alongside an ordinary constant in the same
+        // `MemberTable` slot and has already checked it exists, so this only
+        // recovers the case's type as `Ty::Enum`, same split-by-receiver
+        // shape every other static reference in this module uses. An
+        // ordinary class constant's own type is unmodeled (`mixed`) either
+        // way — see the crate docs' known gaps.
+        ExprKind::ClassConstAccess { class, .. } => {
+            check_expr(class, None, live, scope, ctx, env);
+            let enum_qname = resolve_class_expr(class, ctx, env).filter(
+                |qname| matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum),
+            );
+            match enum_qname {
+                Some(qname) => env.interner.enum_(qname),
+                None => env.interner.mixed(),
+            }
+        }
+        ExprKind::ClassNameConst { class } => {
             check_expr(class, None, live, scope, ctx, env);
             env.interner.mixed()
         }
@@ -474,9 +493,19 @@ fn infer(
     }
 }
 
+/// `self`/`static`/`$this`'s type, resolved against the enclosing
+/// declaration. ADR 0010: an enum has no methods to reach this from in a
+/// well-formed program, but the parser still recovers a member it rejected
+/// with `E_ENUM_MEMBER_UNSUPPORTED` (see `mwl-syntax::parser::parse_enum_body`)
+/// and hands it to this checker anyway — so this must resolve the same way
+/// [`crate::lower::lower_type`]'s `self`/`static` atom already does, an
+/// enum-declared `qname` interning to `Ty::Enum` rather than `Ty::Class`.
 pub(crate) fn class_of_ctx(ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     match ctx.current_class {
-        Some(qname) => env.interner.class(qname.clone()),
+        Some(qname) => match env.symbols.get(qname) {
+            Some(sym) if sym.kind == SymbolKind::Enum => env.interner.enum_(qname.clone()),
+            _ => env.interner.class(qname.clone()),
+        },
         None => env.interner.mixed(),
     }
 }
@@ -787,6 +816,35 @@ fn report_unset_on_property(span: Span, qname: &QName, name: &str, env: &mut Env
     );
 }
 
+/// ADR 0010 § 5: "`EnumName` → a different `EnumName`, even with the same
+/// underlying type — **rejected**, even via `as`." Two enums sharing an
+/// underlying type are not the same closed set, so this refuses the
+/// conversion outright rather than letting [`ExprKind::Conversion`]'s
+/// ordinary `lower_type` result stand unchecked; converting the same enum to
+/// itself, or to/from anything that isn't `Ty::Enum` (its underlying type,
+/// `mixed`, a checked-throw source) is untouched.
+fn reject_enum_to_enum_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
+    let (Ty::Enum(from_q), Ty::Enum(to_q)) =
+        (env.interner.get(from).clone(), env.interner.get(to).clone())
+    else {
+        return;
+    };
+    if from_q == to_q {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ENUM_CONVERSION_UNSUPPORTED,
+            format!(
+                "`{from_q}` cannot be converted to `{to_q}`; two different enums are never \
+                 interconvertible, even via `as`"
+            ),
+        )
+        .with_primary(span, "converted here")
+        .with_help("write an explicit `match` naming every case instead"),
+    );
+}
+
 /// ADR 0028 § 1: every implicit string-conversion site — interpolation,
 /// concatenation, `echo`/`print`, `as string`/`(string)` — accepts an object
 /// only when its static type provably implements the reserved global
@@ -983,6 +1041,9 @@ fn report_comparable_diagnostic(span: Span, message: String, env: &mut Env<'_>) 
 }
 
 fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+    if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
+        return mixed;
+    }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
         (Ty::Float, _) | (_, Ty::Float) => env.interner.float(),
         (Ty::Int, Ty::Int) => env.interner.int(),
@@ -995,7 +1056,35 @@ fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) ->
     }
 }
 
+/// ADR 0010 § 5: "No arithmetic or bitwise operator is defined on an enum
+/// type directly" — `Permission::Read | Permission::Write` must be diagnosed
+/// naming `as uint`/`as int` as the fix rather than silently falling through
+/// to [`arithmetic_result`]/[`bitwise_result`]'s existing `_ => mixed` arm,
+/// which would otherwise swallow the mistake with no diagnostic at all.
+/// Returns `Some(mixed)` when either operand is `Ty::Enum` (already
+/// diagnosed), `None` for every other operand pair so the caller's own table
+/// runs unchanged.
+fn reject_enum_operand(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> Option<TypeId> {
+    let lhs_enum = matches!(env.interner.get(lhs), Ty::Enum(_));
+    let rhs_enum = matches!(env.interner.get(rhs), Ty::Enum(_));
+    if !lhs_enum && !rhs_enum {
+        return None;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ENUM_ARITHMETIC_UNSUPPORTED,
+            "no arithmetic or bitwise operator is defined on an enum type directly",
+        )
+        .with_primary(span, "enum operand used here")
+        .with_help("convert to the underlying type first: `... as int`/`... as uint`"),
+    );
+    Some(env.interner.mixed())
+}
+
 fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+    if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
+        return mixed;
+    }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
         (Ty::Float, _) | (_, Ty::Float) => env.interner.float(),
         (Ty::Int, Ty::Int) => {
@@ -1017,6 +1106,9 @@ fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> T
 }
 
 fn bitwise_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+    if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
+        return mixed;
+    }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
         (Ty::Int, Ty::Int) => env.interner.int(),
         (Ty::Uint, Ty::Uint) => env.interner.uint(),
