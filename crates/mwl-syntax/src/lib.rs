@@ -24,15 +24,19 @@
 //! assert_eq!(tokens.last().unwrap().kind, TokenKind::Eof);
 //! ```
 //!
+//! # Deliberately rejected
+//!
+//! - **PHP's alternative colon syntax** (`if (...): ... endif;`, and `while`/`for`/`foreach`/`switch`
+//!   likewise) is out of scope, not just unbuilt: `endif`/`endfor`/`endforeach`/`endswitch`/`endwhile`/
+//!   `enddeclare` are ordinary identifiers, not reserved words, and the parser never looks for a
+//!   `:`-delimited body form. Do not add `Keyword::End*` variants or colon-body parsing back.
+//!
 //! # Known gaps
 //!
 //! The plan's M1 *Verify* step is a corpus-parse of a real PHP install, which is where these are
 //! most likely to bite. None has an ADR-level reason to stay unsupported — they are just not built
 //! yet:
 //!
-//! - **PHP's alternative colon syntax** (`if (...): ... endif;`, and `while`/`for`/`foreach`/`switch`
-//!   likewise) is entirely unimplemented. The `Keyword::End*` variants are lexed but nothing in the
-//!   parser recognizes the `:`-delimited body form.
 //! - **`goto` target labels** (`label:` as its own statement) are unparsed — only `goto ident;`
 //!   itself is handled (and rejected, per ADR 0008 § 5).
 //! - **Grouped `use`** (`use App\{Foo, Bar};`) and **`use function`/`use const`** are not parsed —

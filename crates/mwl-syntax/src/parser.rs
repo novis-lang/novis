@@ -4418,6 +4418,23 @@ mod tests {
     }
 
     #[test]
+    fn alt_colon_syntax_end_words_are_plain_identifiers() {
+        // PHP's alternative colon syntax (`if (...): ... endif;`) is deliberately
+        // out of scope; `endif`/`endfor`/`endforeach`/`endswitch`/`endwhile`/
+        // `enddeclare` must not be reserved words.
+        for name in [
+            "endif",
+            "endfor",
+            "endforeach",
+            "endswitch",
+            "endwhile",
+            "enddeclare",
+        ] {
+            assert!(matches!(parse_ok(name).kind, ExprKind::ConstFetch(_)));
+        }
+    }
+
+    #[test]
     fn yield_forms() {
         assert!(matches!(
             parse_ok("fn () => yield").kind,
