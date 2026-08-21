@@ -3,45 +3,29 @@
 Continue MWL. M1 (front end) is done and closed out — see git history if you need the detail; it's
 not repeated here per CLAUDE.md's "state a fact once" rule.
 
-**Last session added no code beyond one test-string rename.** It revised the identifier-casing rule twice
-in a row:
+**Last session was a documentation cleanup pass, no code.** All 29 ADRs, `docs/adr/README.md`,
+`docs/implementation-plan.md`, and `docs/spec/00-overview.md` were audited for redundancy and staleness:
 
-- [ADR 0029](docs/adr/0029-identifier-casing-is-checked.md) (from the session before) had a gap: no
-  carve-out for `__construct`, so its own casing check would have flagged every constructor. That got
-  patched in directly (a reserved-word exception).
-- This session, the user reversed course on both the underscore allowance and that exception:
-  [ADR 0030](docs/adr/0030-no-leading-underscores-constructor-spelling.md) now **amends** ADR 0029 —
-  leading underscores are rejected outright on every category (no `_cache`/`$_unused`, no exceptions of
-  any kind), and MWL's constructor is spelled `constructor`, not PHP's `__construct`. Because `constructor`
-  is a plain lowercase-first word, it needs no casing exception at all — which is *why* the `__construct`
-  exception could be removed rather than just narrowed. ADR 0029 itself was **not** rewritten (matches this
-  project's established practice, e.g. how [ADR 0022](docs/adr/0022-definite-property-initialization.md)
-  amends [ADR 0007](docs/adr/0007-explicit-type-system.md) without editing 0007's body): it keeps its
-  original text plus a new **Amended by** line pointing at 0030. If you're implementing the casing checker
-  this session, read **both** ADR 0029 and ADR 0030 — 0030 is where the currently-true property/parameter/
-  local pattern and the `__construct`→`constructor` diagnostic actually live.
-- Mechanical fallout from the rename, already done: `docs/adr/0013-comparable-interface.md` and
-  `docs/adr/0022-definite-property-initialization.md`'s examples/prose now say `constructor`/
-  `parent::constructor(...)` instead of `__construct`; `crates/mwl-syntax/src/parser.rs`'s one test using
-  `__construct` as a method name now uses `constructor`; `docs/adr/0028-closing-the-remaining-magic-methods.md`
-  got an **Amended by** note (0030 gives `__construct`/`constructor` the disposition row that ADR's own
-  magic-method index never carried); `CLAUDE.md`'s routing table and ground-rules list, `docs/adr/README.md`'s
-  index, and `docs/implementation-plan.md`'s M2 paragraph/Verify line all got a row/bullet/link for ADR 0030.
-  `cargo test`/`clippy -D warnings`/`fmt --check` all still pass across the whole workspace.
-
-**Process note for next time an ADR gets revised:** this project amends via a *new* ADR with **Amends**/
-**Amended by** cross-links (see `docs/adr/README.md`'s "Adding a decision" § 3) rather than rewriting the
-original's decision text in place — the original stays a historical record, and the new ADR is the current
-source of truth for what it touches. Do that again if a decision changes; don't silently rewrite an already-
-`Accepted` ADR's `## Decision` section, `## Diagnostics`, etc. (Fixing a plain internal bug in an ADR added
-*earlier the same session*, before anything downstream depends on it, is the one case that's fine to edit
-directly — that's what happened with the `__construct` gap fix above, one turn before it got reversed.)
+- Every ADR's `## Context` / `## Investigation` / `## Alternatives rejected` sections were compressed into
+  short bullet lists (docs/adr/README.md already told readers those sections are skippable unless they
+  intend to overturn a decision — the prose length was pure padding). Metadata blocks, `## Decision`, and
+  `## Consequences` are untouched, byte-for-byte, in every file. Net: ~7360 → 6640 lines across `docs/adr/`.
+- Surveyed for ADR merge candidates first, before touching anything. Found none worth acting on: the two
+  most tightly-coupled pairs (0029+0030, 0027+0028) turned out to be this project's amend-don't-rewrite
+  convention working as intended, not fragmentation to fix. **0029's `## Decision` section still states its
+  original, now-partially-superseded rules on purpose** — its `Amended by` metadata line pointing at 0030 is
+  the correct fix, not a bug to reconcile. Don't "helpfully" merge them or rewrite 0029's Decision text.
+- `docs/adr/README.md`, `docs/implementation-plan.md`, and `docs/spec/00-overview.md` were read in full and
+  found already free of the kind of restated/duplicated content this pass targets — no changes made there.
+- Added `DOC_CLEANUP_PROMPT.md` at the repo root: the reusable prompt (scope, merge policy, trim depth,
+  procedure) for re-running this same kind of pass later without re-deciding the rules from scratch. Use it
+  next time the ADR count has grown enough to warrant another look, rather than re-litigating from zero.
 
 **M2 — HIR, types, IR — in progress, unchanged from before.** Read `CLAUDE.md` first (it routes to
 the one file you need per topic), then run `sh .claude/brief.sh` for the live status slice, then read
 the plan's M2 paragraph in `docs/implementation-plan.md` in full, then read `crates/mwl-hir/src/lib.rs`'s
 module docs — both carry the same up-to-date breakdown of what this milestone's `mwl-hir` crate covers
-and what's left.
+and what's left. (The ADRs those docs link to are now shorter to read than before, but say the same thing.)
 
 **What exists now.** `crates/mwl-hir` has name resolution's first slice, committed and tested (22 unit
 tests, `cargo test`/`clippy -D warnings`/`fmt --check` all clean across the whole workspace):
