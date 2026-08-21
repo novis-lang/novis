@@ -49,10 +49,16 @@
 //! caller never has to decide whether to keep going. A missing token is
 //! [`code::E_EXPECTED_TOKEN`] reported at the empty span where it should have
 //! been, without consuming whatever actually follows; a missing expression is
-//! [`code::E_EXPECTED_EXPR`] and an [`ExprKind::Error`] node. The one place
-//! this is not enough on its own is [`Parser::parse_block`]'s statement loop,
-//! which additionally forces a token of progress if a statement consumed none
-//! at all, so a malformed body cannot hang the parser.
+//! [`code::E_EXPECTED_EXPR`] and an [`ExprKind::Error`] node. Because neither
+//! consumes the offending token, that alone is not enough for any loop that
+//! parses a bare sequence of items with no separator to fall back on (a
+//! block's statements, a class body's members, a `switch`'s cases and each
+//! case's own statement list, and similar) — those additionally force a
+//! token of progress if one iteration consumed none at all, mirroring
+//! [`Parser::parse_block`]'s own copy of the guard, so a malformed body
+//! cannot hang the parser or grow its result vector without bound. A
+//! comma-separated list (call arguments, array items, parameters, ...)
+//! never needs this: it already breaks out the moment no comma follows.
 
 use std::collections::VecDeque;
 
@@ -2477,6 +2483,11 @@ impl<'src, 'd> Parser<'src, 'd> {
     // `switch`
     // ------------------------------------------------------------------------
 
+    /// Mirrors [`Self::parse_block`]'s force-progress guard: a `switch` body
+    /// with no well-formed `case`/`default` anywhere (so
+    /// [`Self::parse_switch_case`] cannot even consume a keyword to start
+    /// one) must not hang the parser — a fuzz run found exactly this input
+    /// spinning forever, growing `cases` without bound.
     fn parse_switch(&mut self, start: Span) -> Stmt {
         self.bump();
         self.expect(TokenKind::LParen, "`(`");
@@ -2485,7 +2496,12 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.expect(TokenKind::LBrace, "`{`");
         let mut cases = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
+            let before = self.peek().span;
             cases.push(self.parse_switch_case());
+            if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
+            {
+                self.bump();
+            }
         }
         self.expect(TokenKind::RBrace, "`}`");
         let span = start.to(self.last_span);
@@ -2505,12 +2521,27 @@ impl<'src, 'd> Parser<'src, 'd> {
         };
         self.expect(TokenKind::Colon, "`:`");
         let mut body = Vec::new();
+        // Same guard as above: `parse_statement` can fail to consume
+        // anything on malformed input (that is what `parse_block`'s own
+        // copy of this guard exists for), and this loop has no closing
+        // brace of its own to eventually stop it — only the next
+        // `case`/`default`/`}`/EOF.
         while !matches!(
             self.peek().kind,
             TokenKind::Keyword(Keyword::Case | Keyword::Default) | TokenKind::RBrace
         ) && !self.at(TokenKind::Eof)
         {
+            let before = self.peek().span;
             body.push(self.parse_statement());
+            if self.peek().span == before
+                && !matches!(
+                    self.peek().kind,
+                    TokenKind::Keyword(Keyword::Case | Keyword::Default) | TokenKind::RBrace
+                )
+                && !self.at(TokenKind::Eof)
+            {
+                self.bump();
+            }
         }
         let span = start.to(self.last_span);
         SwitchCase { cond, body, span }
@@ -5285,6 +5316,28 @@ mod tests {
         };
         assert_eq!(map.file(id).span_text(span), Some("hello "));
         assert!(matches!(stmts[1].kind, StmtKind::Echo(_)));
+    }
+
+    /// `cargo fuzz run parse` found this exact byte sequence — minimized to
+    /// a `switch` keyword followed by nothing resembling `case`/`default`/
+    /// `}` — spinning forever and growing `cases`/`body` without bound
+    /// instead of terminating, because neither `parse_switch`'s case loop
+    /// nor a case body's own statement loop had the force-progress guard
+    /// [`Parser::parse_block`]'s copy has (see the module docs' "Error
+    /// recovery" section). If this regresses, the test hangs rather than
+    /// fails cleanly — same as the bug itself did.
+    #[test]
+    fn a_malformed_switch_does_not_hang_or_grow_without_bound() {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", "<?=\n\0\0switch]]\0\0w]]]]\n".to_string());
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(id), &mut diags);
+        assert!(diags.has_errors());
+        assert!(
+            stmts.len() < 1000,
+            "runaway recovery: {} statements",
+            stmts.len()
+        );
     }
 
     #[test]

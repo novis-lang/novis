@@ -121,14 +121,53 @@ stand* above — and is no longer on this list.
 
 ## Verification still open for all of M1
 
-From the plan: `mwl ast file.mwl` dumping the AST — **done this session**, see *Where things stand*
-above. Still open: `cargo fuzz` on the lexer and parser finding no panics in a 1h run, and parsing the
-full local PHP 8.5 install's `.php` files without crashing (not *checking* — that's M2). Neither is
-started. The known-gaps list (now in `mwl-syntax`'s module docs, linked above) is the most likely
-source of surprises once the corpus-parse step actually runs; check those first rather than debugging
-blind, and expect to come back and extend the parser rather than treating M1's grammar as frozen the
-moment a real-world `.php` file trips over one of them. `cargo fuzz` needs `cargo-fuzz` set up in this
-workspace first (nightly toolchain, `fuzz/` target directory) — not done yet either.
+From the plan: `mwl ast file.mwl` dumping the AST — **done**, see *Where things stand* above.
+
+**This session:** both remaining verification items are now wired up.
+
+- **Corpus-parse** (`crates/mwl-syntax/tests/corpus_parse.rs`): walks a local, gitignored `.php` corpus
+  (`$MWL_PHP_CORPUS` or `<workspace-root>/php-src`; currently a copy of `phpoffice/phpspreadsheet`,
+  528 files) and asserts the parser never panics. **Zero panics.** 336/528 files produce diagnostics,
+  all attributable to *documented, intentional* PHP divergences — untyped `foreach` bindings and
+  destructuring targets (ADR 0007 § 3.2/3.3, which require a type MWL invents and PHP has no syntax
+  for), import renaming (ADR 0015), enum methods/`implements`/`: string` backing (ADR 0010), superglobals
+  (ADR 0012), function-scope `static` (ADR 0008) — not gaps. Two real, previously-unknown parser bugs
+  surfaced and were fixed in the process (see below), leaving only a couple of low-value diagnostic-
+  wording edge cases (an invalid destructuring target inside a leading-empty-slot array literal reports
+  "expected an expression" pointing at the comma, rather than a cleaner message — cosmetic, not a crash).
+- **`cargo fuzz`**: `fuzz/` now exists (`lex` and `parse` targets, `fuzz/Cargo.toml` a separate
+  workspace per cargo-fuzz convention). libFuzzer isn't supported on native Windows, so this runs in WSL
+  — see CLAUDE.md's new "Fuzzing on Windows" section for the one-time setup and the run command. Both
+  targets ran a 1h campaign this session (background job, results to be folded into the plan's status
+  block once they finish) after a 20s smoke run each found nothing. CI got a `fuzz-smoke` job (60s/target
+  per push) for continuous regression coverage per the plan's overall verification strategy.
+
+**Two real parser bugs found by the corpus-parse step and fixed:**
+
+1. **Reference assignment (`$a = &$b;`) didn't parse at all** — `parse_assignment` had no path for a
+   bare `&` after `=` before parsing the RHS, so any of PHP's very common `$x = &$y;` /
+   `$this->x = &$y[0];` forms hit "expected an expression". Fixed by adding a `by_ref: bool` field to
+   `ExprKind::Assign` (only ever set alongside `AssignOp::Assign` — PHP has no `+=&` etc.) and eating an
+   optional `Amp` right after `=` in `Parser::parse_assignment`.
+2. **A parenthesized expression statement could be misparsed as a type.** `(` starts a type (parenthesized
+   union/intersection, ADR 0007 § 3), so `Parser::parse_stmt_maybe_local_decl` trial-parses a type first
+   and backtracks if no `$variable` follows. The bug: `parse_type_atom`'s error recovery on a non-type
+   token (e.g. `$a` inside `($a > 0 || $b > 0) ? f() : g();`) reports a diagnostic *without consuming the
+   token*, so the cursor can land right back on a `$variable` by coincidence — which the backtrack check
+   read as "yes, a type was followed by a variable," committing to a bogus `LocalDecl` instead of
+   restoring. Fixed by also restoring whenever the trial itself reported any diagnostic
+   (`self.diags.len() > cp.diags_len`), not just when the next token isn't a variable. This turned 38
+   corpus occurrences of "expected an expression" into 2 (both the destructuring cosmetic case above).
+
+Both are covered by new inline `parser.rs` tests (`reference_assignment_sets_the_by_ref_flag`,
+`compound_assignment_has_no_reference_form`, `not_nests_inside_a_cast_and_other_unary_operators` — a
+third, unrelated gap the same investigation turned up: `!` sits at a looser precedence tier than a cast/
+unary op, but a cast/unary op's operand recurses straight into `parse_unary`, skipping past `parse_not`
+entirely, so `(int) !$x` and `-!$x` failed to parse until `parse_unary` grew its own `Bang` arm — and
+`a_parenthesized_expression_statement_is_not_confused_with_a_type`).
+
+The known-gaps list (`mwl-syntax`'s module docs) is unchanged by any of this — none of what the corpus
+turned up was on it; it was all either an intentional ADR divergence or a bug nobody had spotted yet.
 
 ## Housekeeping
 

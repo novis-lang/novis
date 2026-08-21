@@ -130,6 +130,26 @@ cargo test --release -p mwl-abi-probe                          # cost guards (sk
 cargo test --release -p mwl-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
 
+### Fuzzing on Windows: use WSL
+
+`cargo-fuzz` (the `fuzz/` crate, `cargo +nightly fuzz run lex|parse`) needs libFuzzer, which is not
+supported on native Windows at all — do this in WSL, not PowerShell/Git Bash. From a Windows shell,
+`wsl.exe -- bash -lc "<command>"` runs a command straight in the default WSL distro, which mounts the
+repo at `/mnt/d/swlang` (adjust the drive letter). One-time setup in that distro, first time only:
+
+```sh
+sudo apt-get update && sudo apt-get install -y build-essential clang
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+source "$HOME/.cargo/env"
+rustup toolchain install nightly
+cargo install cargo-fuzz --locked
+```
+
+Then, from `/mnt/d/swlang` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
+`cargo +nightly fuzz run lex -- -max_total_time=3600` (and `parse` likewise) for the 1h M1 verification
+run; CI's `fuzz-smoke` job runs both for 60s on every push as a continuous regression check, same as the
+plan's overall verification strategy calls for.
+
 ## Writing docs here
 
 The docs are optimised for an agent that reads one file and starts working. Keep them that way:

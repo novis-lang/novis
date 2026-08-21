@@ -132,6 +132,33 @@ jobs:
         continue-on-error: true
 
   # ---------------------------------------------------------------------------
+  # libFuzzer isn't supported on Windows, so this only ever runs here (or in
+  # a contributor's WSL/Linux/macOS setup — CLAUDE.md's WSL section covers
+  # first-time setup on Windows). A short bounded run on every push/PR catches
+  # regressions continuously, per the plan's overall verification strategy;
+  # it is not the full 1h M1 corpus/fuzz verification run itself, which is a
+  # one-time gate recorded in docs/implementation-plan.md's status block.
+  # ---------------------------------------------------------------------------
+  fuzz-smoke:
+    name: fuzz smoke / ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [lex, parse]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: fuzz-${{ matrix.target }}
+          workspaces: fuzz -> target
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Fuzz ${{ matrix.target }} for 60s
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=60
+
+  # ---------------------------------------------------------------------------
   # Miri validates the safe subset; the audited unsafe modules get ASAN/TSAN
   # jobs added in M3 and M5, when there is unsafe code to validate.
   # ---------------------------------------------------------------------------
