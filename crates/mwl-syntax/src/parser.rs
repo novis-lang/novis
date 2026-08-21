@@ -660,6 +660,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(target.span, "not a valid assignment target"),
             );
         }
+        // `target = &value` binds by reference; PHP has no `&`-form of a
+        // compound operator (`+=&` is not a thing), so this only applies to
+        // plain `=`.
+        let by_ref = op == AssignOp::Assign && self.eat(TokenKind::Amp).is_some();
         let value = self.parse_assignment();
         let span = target.span.to(value.span);
         Expr {
@@ -668,6 +672,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 op,
                 target: Box::new(target),
                 value: Box::new(value),
+                by_ref,
             },
         }
     }
@@ -889,6 +894,13 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Plus => prefix!(Plus),
             TokenKind::Tilde => prefix!(BitNot),
             TokenKind::At => prefix!(Suppress),
+            // `!` normally binds looser than a cast/unary op ([`Self::parse_not`]
+            // is the tier that reaches it first in the ordinary chain), but a
+            // cast or another unary op recurses straight into this function for
+            // its own operand, skipping past `parse_not` entirely — so without
+            // this arm, `(int) !$x` or `-!$x` would find no expression to parse
+            // at all rather than nesting the way real PHP accepts.
+            TokenKind::Bang => prefix!(Not),
             TokenKind::PlusPlus => {
                 let start = self.bump().span;
                 let expr = self.parse_unary();
@@ -2725,7 +2737,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     fn parse_stmt_maybe_local_decl(&mut self, start: Span) -> Stmt {
         let cp = self.checkpoint();
         let ty = self.parse_type();
-        if !self.at(TokenKind::Variable) {
+        // A malformed type (e.g. a parenthesized *expression* statement like
+        // `($a || $b) ? f() : g();` — `(` also starts a type, so this trial
+        // runs) can still land back on a `$variable` token by coincidence,
+        // since error recovery in `parse_type_atom` doesn't consume the
+        // offending token. Diagnostics reported during the trial are the
+        // reliable signal that it wasn't actually a type, not just "does a
+        // variable happen to follow."
+        if !self.at(TokenKind::Variable) || self.diags.len() > cp.diags_len {
             self.restore(cp);
             return self.parse_expr_statement(start);
         }
@@ -3989,6 +4008,7 @@ mod tests {
             op: AssignOp::Assign,
             target,
             value,
+            ..
         } = e.kind
         else {
             panic!("expected `=`: {e:?}");
@@ -4008,6 +4028,72 @@ mod tests {
         let (e, diags) = parse_with_diags("1 = 2");
         assert!(diags.has_errors());
         assert!(matches!(e.kind, ExprKind::Assign { .. }));
+    }
+
+    #[test]
+    fn reference_assignment_sets_the_by_ref_flag() {
+        let e = parse_ok("$a = &$b");
+        let ExprKind::Assign {
+            op: AssignOp::Assign,
+            by_ref,
+            ..
+        } = e.kind
+        else {
+            panic!("expected `=`: {e:?}");
+        };
+        assert!(by_ref);
+    }
+
+    #[test]
+    fn compound_assignment_has_no_reference_form() {
+        // `+=&` is not PHP syntax; a plain `+=` never sets `by_ref` even
+        // though the RHS could, on its own, start with a legal expression.
+        let e = parse_ok("$a += $b");
+        let ExprKind::Assign {
+            op: AssignOp::AddAssign,
+            by_ref,
+            ..
+        } = e.kind
+        else {
+            panic!("expected `+=`: {e:?}");
+        };
+        assert!(!by_ref);
+    }
+
+    #[test]
+    fn not_nests_inside_a_cast_and_other_unary_operators() {
+        // `!` sits at a looser precedence tier than a cast or unary op in the
+        // grammar ([`Parser::parse_not`]), but a cast/unary op's operand
+        // recurses straight into [`Parser::parse_unary`], skipping that
+        // tier — so without `parse_unary`'s own `Bang` arm, these would fail
+        // to parse at all rather than nesting the way PHP accepts.
+        let e = parse_ok("(int) !$x");
+        let ExprKind::Cast { expr, .. } = e.kind else {
+            panic!("expected a cast: {e:?}");
+        };
+        assert!(matches!(
+            expr.kind,
+            ExprKind::Unary {
+                op: UnaryOp::Not,
+                ..
+            }
+        ));
+
+        let e = parse_ok("-!$x");
+        let ExprKind::Unary {
+            op: UnaryOp::Neg,
+            expr,
+        } = e.kind
+        else {
+            panic!("expected unary `-`: {e:?}");
+        };
+        assert!(matches!(
+            expr.kind,
+            ExprKind::Unary {
+                op: UnaryOp::Not,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -4646,6 +4732,22 @@ mod tests {
             panic!("expected a local decl: {s:?}");
         };
         assert!(value.is_none());
+    }
+
+    #[test]
+    fn a_parenthesized_expression_statement_is_not_confused_with_a_type() {
+        // `(` also starts a type (a parenthesized union/intersection), so a
+        // statement beginning with `(non-type-expr)` trial-parses as a local
+        // decl first. The trial must fail cleanly here: `parse_type_atom`'s
+        // error recovery doesn't consume the offending token, so without
+        // checking whether the trial itself reported anything, the cursor
+        // landing on a `$variable` by coincidence (as it does right after
+        // `$a` here) reads as "yes, a type was followed by a variable."
+        let s = parse_stmt_ok("($a > 0 || $b > 0) ? f($a) : g($a);");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        assert!(matches!(e.kind, ExprKind::Ternary { .. }));
     }
 
     #[test]

@@ -19,6 +19,10 @@ Cargo.lock.bak
 /fuzz/corpus
 /fuzz/artifacts
 
+# Local-only real-world PHP corpus for the M1 corpus-parse test
+# (crates/mwl-syntax/tests/corpus_parse.rs) — never committed.
+/php-src
+
 # Profiling / benchmark output
 /benches/results
 perf.data*

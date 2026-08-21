@@ -606,6 +606,11 @@ pub enum ExprKind {
         target: Box<Expr>,
         /// The value assigned.
         value: Box<Expr>,
+        /// Whether this is `target = &value` — binds `target` as a reference
+        /// to `value` rather than copying it. Only ever set alongside
+        /// `AssignOp::Assign`; PHP has no reference form of a compound
+        /// operator like `+=`.
+        by_ref: bool,
     },
     /// `cond ? then : else`, or the Elvis form `cond ?: else` when `then` is
     /// `None`.
