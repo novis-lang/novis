@@ -19,7 +19,11 @@
   means for a class using one), [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)
   (`Core\Reflect` is the one path that can construct an object without running any constructor, which is
   where the residual runtime case comes from), [ADR 0020](0020-error-escalation-ladder.md) (this throw is
-  explicitly *not* routed through the fatal ladder — it is an ordinary, catchable `Throwable`)
+  explicitly *not* routed through the fatal ladder — it is an ordinary, catchable `Throwable`),
+  [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) (`clone`, `serialize`/`unserialize`, and the
+  isolate boundary are a second family of constructor-bypassing paths; that ADR explains why none of them
+  reopens the residual case fixed here — a copy always starts from an already-initialized source, and
+  `unserialize()` refuses any payload missing a declared property rather than reconstructing one)
 
 > **In short:** PHP's typed properties can exist in a third state, neither assigned nor `null`, and reading
 > one throws — a correct but purely runtime-discovered failure that surfaces far from the missing

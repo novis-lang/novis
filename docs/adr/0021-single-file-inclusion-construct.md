@@ -1,4 +1,4 @@
-# ADR 0020 — `require` is the only same-frame file-inclusion construct
+# ADR 0021 — `require` is the only same-frame file-inclusion construct
 
 - **Status:** Accepted
 - **Date:** 2026-08-21

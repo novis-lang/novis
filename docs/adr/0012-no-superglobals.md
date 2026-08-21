@@ -191,8 +191,9 @@ and `Core\Session::*` **throw** an isolation-boundary error rather than returnin
 isolate is not a new inbound request — it is a child task inside the one that is already being handled — so
 "there is no request here" would be false if these methods quietly returned empty arrays; a child that
 genuinely needs facts from the request that spawned it receives them as ordinary arguments via
-`with(args: […])`, deep-copied like any other value crossing the boundary, exactly as
-[ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy* already requires. `Core\Env` and
+`with(args: […])`, deep-copied like any other value crossing the boundary — the graph-copy operation
+[ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy* and
+[ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) define. `Core\Env` and
 `Core\Cli` are not restricted this way: environment variables and process arguments are process-wide facts
 already governed by the existing capability/config-overlay machinery
 ([ADR 0005](0005-config-changeability.md), [ADR 0006](0006-isolated-script-execution.md)), not per-request

@@ -55,6 +55,7 @@ live, so a new row is picked up automatically.
 | [0020](0020-error-escalation-ladder.md) | Fatal errors escalate through a reserved-budget handler ladder, never through `catch` | Accepted |
 | [0021](0021-single-file-inclusion-construct.md) | `require` is the only same-frame file-inclusion construct; `include`/`include_once`/`require_once` are rejected | Accepted |
 | [0022](0022-definite-property-initialization.md) | Properties are definitely initialized at compile time; no new `undefined` type, no silent defaults | Accepted |
+| [0023](0023-clone-serialize-and-cross-boundary-copy.md) | `clone` stays PHP-shallow; `serialize`/`unserialize` share one graph-copy operation with the isolate boundary; neither is hookable | Accepted |
 
 ## Decisions taken at project start
 
@@ -89,7 +90,9 @@ memory is paid deliberately, under [0004](0004-memory-for-simplicity.md).
 crossing the boundary are deep-copied, or moved when the refcount is 1. Data races are impossible by
 construction rather than by discipline, which is what lets the refcounts stay non-atomic. The copy is
 another instance of [0004](0004-memory-for-simplicity.md). The same rules govern the script-level boundary
-in [0006](0006-isolated-script-execution.md), deliberately: one set of value-crossing rules, not two.
+in [0006](0006-isolated-script-execution.md), deliberately: one set of value-crossing rules, not two — and
+[0023](0023-clone-serialize-and-cross-boundary-copy.md) gives that one rule its formal definition, shared
+with `serialize()`/`unserialize()`.
 
 **Strict shared-nothing requests.** Only compiled code survives a request. The consequence — reconnecting
 to the database every request — is accepted for v1; `mwl-host` reserves an unused `PersistentRegistry` seam

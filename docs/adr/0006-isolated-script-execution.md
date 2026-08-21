@@ -16,7 +16,10 @@
   isolate calling `Core\Request`/`Core\Server`/`Core\Session` throws rather than seeing fresh-and-empty
   state. [0021](0021-single-file-inclusion-construct.md) — every mention below of PHP's same-frame
   inclusion keywords is updated to name `require` alone, since `include`/`include_once`/`require_once` are
-  rejected there; the isolation boundary this ADR defines is unchanged.
+  rejected there; the isolation boundary this ADR defines is unchanged. [0023](0023-clone-serialize-and-cross-boundary-copy.md) —
+  § *Values cross by copy* below is now that ADR's formal graph-copy definition, applied to this boundary;
+  the rules for what crosses and what refuses are unchanged, and `serialize()`/`unserialize()` gain the
+  identical operation as a second, externalized-to-bytes caller.
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable
@@ -105,6 +108,12 @@ $result = await $job;                            // a ScriptResult, never a thro
 if (!$result->ok) { log($result->error->message); }
 ```
 
+`with(…)` is not new syntax: it reuses PHP's existing named-argument call grammar verbatim, the same as any
+other named argument in this language — the *pinned* grammar is [`docs/spec/00-overview.md`](../spec/00-overview.md)'s
+job, not this ADR's. The array literals inside it (`['month' => 7]`) are ordinary array syntax; the two look
+different because a fixed set of known option names and a dynamic map are different things, not because a
+third syntax was invented for either.
+
 and the callee is an ordinary script, receiving its arguments through `Core\Script::args()` and answering
 with a top-level `return` — which is what `require` already means in PHP, so nothing new has to be learned
 beyond the one accessor call ([ADR 0012](0012-no-superglobals.md) fixes that it is a method, not a magic
@@ -143,11 +152,20 @@ Arguments in and the result out are **deep-copied, or moved when the refcount is
 mechanism and identical restrictions as `spawn worker` ([the ADR index](README.md)). This is not a new
 marshalling design, and that is the main reason to state it: two boundaries with different value rules
 would be two sets of rules for developers to learn and two implementations to keep correct.
+[ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) now gives this operation its one formal
+definition — a recursive, cycle-safe graph copy — and gives it a second caller: `serialize()`/`unserialize()`
+run the identical walk, externalized to bytes instead of moved directly between two live arenas. The three
+bullets below are that ADR's rules, restated here because this is the boundary a reader lands on first:
 
 - The copy is a **graph** copy, not a tree copy: shared substructure stays shared and cycles terminate, so
   `$a['self'] = $a` crosses instead of hanging.
 - **Closures, references (`&$x`) and resources cannot cross.** A closure captures a heap and a scope, a
   reference is an alias, and a resource is a host handle; none of the three has a meaning in another heap.
+  **The idiom for a script that needs a live resource inside the child is to pass what identifies it, not the
+  handle itself** — a DSN, a path, a credential reference — as an ordinary `args:` value, and have the child
+  open its own resource from it. This is not a workaround; it is the isolation model's actual point (no
+  ambient authority, no shared handle), the same reason a spawned isolate cannot see the parent's
+  `Core\Request` either.
 - An object whose class the receiving side cannot resolve is **refused with a diagnostic naming the class**,
   not degraded into a stub. PHP's `__PHP_Incomplete_Class` is what silent degradation looks like, and it
   fails later and further from the cause.

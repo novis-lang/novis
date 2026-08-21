@@ -305,22 +305,13 @@ consults the *request's* config snapshot, so a script cannot affect its neighbou
 
 ### In-process isolated script execution
 
-Provisional surface — the spec pins it down in M5:
-
-```php
-$job    = spawn script 'jobs/report.mwl' with(args: ['month' => 7], limits: ['memory' => '256M']);
-$result = await $job;                    // ScriptResult { ok, value, output, error, usage }
-```
-
-with the callee an ordinary script that reads `Core\Script::args()` and answers with a top-level `return`
-([ADR 0012](adr/0012-no-superglobals.md)).
-
-The semantics are decided and stated in full in [ADR 0006](adr/0006-isolated-script-execution.md): what is
-shared (only immutable compiled code), how values cross (the same deep-copy-or-move rules and the same
-implementation as cross-core worker dispatch), how budgets are accounted (at the root of the request tree,
-never per isolate), the `script.spawn` capability and its path resolution, and failure arriving as a value
-rather than as an unwind. The three invariants no optimisation may trade away are listed in
-[CLAUDE.md](../CLAUDE.md).
+The provisional surface, the semantics, and what is/is not shared are decided and stated in full in
+[ADR 0006](adr/0006-isolated-script-execution.md) — including the `spawn script … with(…)` example, how
+values cross (the graph-copy operation [ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md) now
+formally defines, shared with `serialize()`/`unserialize()`), how budgets are accounted (at the root of the
+request tree, never per isolate), the `script.spawn` capability and its path resolution, and failure
+arriving as a value rather than as an unwind. The spec pins the exact grammar down in M5. The three
+invariants no optimisation may trade away are listed in [CLAUDE.md](../CLAUDE.md).
 
 The structural consequence for this plan: `mwl-host` gains **one** `Isolate` type, and an inbound HTTP
 request *is* the root isolate of its tree. The server path (M7) and the `spawn script` path (M5) therefore
@@ -486,7 +477,8 @@ coroutines), `foreach`
 and iterators, references (`&$x`), instance members and static members including late static binding
 (`static::`, `new static()`, `: static`), property hooks feeding the built-in global `PropertyObserver`
 interface with a hard error on any undeclared property and no `__call`/`__callStatic` at all
-([ADR 0014](adr/0014-property-observer.md)), the first `Core` domain classes'
+([ADR 0014](adr/0014-property-observer.md)), `clone` kept as PHP's shallow, same-heap, single-level copy
+with no `__clone` hook ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), the first `Core` domain classes'
 `static` methods for string/array/math operations
 ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode`.
 
@@ -503,13 +495,19 @@ method without naming `$this` is unbound — `bindTo()` on it rebinds nothing, w
 divergence and gets its own case. A class implementing `PropertyObserver` runs its `onPropertyGet`/
 `onPropertySet` after each property's own hook or storage, for hooked and un-hooked properties alike, and
 cannot override the value; a class that does not implement it shows no measurable overhead over plain field
-access ([ADR 0014](adr/0014-property-observer.md)). A non-trivial CLI program (an argument-parsing
-file-processing tool) runs correctly; no leaks under Valgrind/ASAN.
+access ([ADR 0014](adr/0014-property-observer.md)). `clone $x` leaves an object-typed property `===` the
+original's while an array-typed property diverges after either side writes, and a declared `__clone` method
+is never invoked by the language ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)). A
+non-trivial CLI program (an argument-parsing file-processing tool) runs correctly; no leaks under
+Valgrind/ASAN.
 
 ### M5 — Concurrency and script isolates (~5 weeks)
 Per-core runtimes, coroutine scheduler, `spawn` / `await` / `all` / `race` / `timeout`, `Channel` with
 backpressure, `parallel_map`, cross-core worker dispatch with deep-copy-or-move, structured concurrency
 (a task tree dies with its parent — no orphans), async-native file I/O, sockets, timers and HTTP client.
+`serialize()`/`unserialize()` share this milestone's deep-copy-or-move graph walk, externalized to MWL's own
+closed byte format ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)); `unserialize()` refuses
+anything not in that format, with no `__serialize`/`__unserialize`/`__sleep`/`__wakeup` hook.
 
 **Also in this milestone: `spawn script`** ([ADR 0006](adr/0006-isolated-script-execution.md)) — the
 `Isolate` type in `mwl-host` with its own arena, `Core` accessor backing state and config overlay; the
@@ -533,7 +531,10 @@ hanging; a child's uncaught throw, its limit breach and a contained panic inside
 running with `ok = false`; a cancelled parent leaves no orphan and no leaked arena; spawn-to-result for a
 trivial child on a warm cache is single-digit microseconds, committed to `benches/isolation.rs` next to the
 process baseline it replaces, with a guard test alongside
-`an_os_process_costs_orders_of_magnitude_more_than_a_task`.
+`an_os_process_costs_orders_of_magnitude_more_than_a_task`. `serialize()`/`unserialize()` round-trip a cyclic
+value using the same graph-copy fixtures as the isolate-boundary tests; bytes that are not MWL's own format,
+or that name a class whose declared properties no longer match, are refused rather than partially accepted
+([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)).
 
 ### M6 — Config, limits, capabilities, disk cache (~3 weeks)
 Directive registry with changeability classes, boot config parsing, per-request overlay, `ini_set`

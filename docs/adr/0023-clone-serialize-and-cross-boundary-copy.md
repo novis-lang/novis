@@ -1,0 +1,266 @@
+# ADR 0023 — Two copy depths, neither customizable: `clone`, `serialize`, and the isolate boundary
+
+- **Status:** Accepted
+- **Date:** 2026-08-21
+- **Scope:** `clone`, `serialize()`/`unserialize()`, and the deep-copy rule already governing the
+  `spawn`/`spawn worker`/`spawn script` boundary ([ADR 0006](0006-isolated-script-execution.md)); the
+  explicit rejection of `__clone`, `__serialize`, `__unserialize`, `__sleep` and `__wakeup` as customization
+  hooks for any of it.
+- **Amends:** [ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy* — that section's
+  informal description ("a graph copy, not a tree copy") becomes this ADR's formal graph-copy definition;
+  nothing about what crosses, what refuses, or how the budget/capability rules work changes.
+  [ADR 0012](0012-no-superglobals.md) — `Core\Script::args()`'s "deep-copied" now names this ADR's
+  graph-copy operation explicitly, rather than an unnamed mechanism.
+- **Relates to:** [ADR 0004](0004-memory-for-simplicity.md) (what a copy spends — stated per operation
+  below), [ADR 0007](0007-explicit-type-system.md) (declared types make a closure/reference/resource
+  rejection mostly a compile-time error at the copy site, the same story as the isolate boundary),
+  [ADR 0014](0014-property-observer.md) (the precedent this ADR follows: a closed mechanism, not a
+  class-overridable hook), [ADR 0022](0022-definite-property-initialization.md) (why neither copy depth
+  reopens the `Core\Reflect`-only residual-throw case)
+
+> **In short:** MWL keeps two copy depths, not one, because PHP already drew that line and it is a real
+> distinction, not an accident. **`clone`** is PHP's shallow, same-heap, single-level copy: it duplicates an
+> object's own declared storage one level deep, and any object reachable through it — directly or via an
+> array/collection property — keeps pointing at the same shared instance as the original, exactly as PHP's
+> `clone` already behaves. **The graph copy** is a second, stronger operation — recursive, cycle-safe, and
+> heap-crossing — that already existed informally as [ADR 0006](0006-isolated-script-execution.md)'s
+> "values cross by copy" rule; this ADR gives it one formal definition and a second caller:
+> **`serialize()`/`unserialize()`** now share the identical operation with the `spawn`/`spawn worker`/
+> `spawn script` boundary, externalized to bytes instead of moved directly between two live arenas. Neither
+> depth is customizable per class: there is no `__clone`, and no `__serialize`/`__unserialize`/`__sleep`/
+> `__wakeup`. A copy always means what the language says it means, never what a class redefines it to —
+> the same closed-mechanism choice [ADR 0014](0014-property-observer.md) already made for property access.
+> `unserialize()` accepts only bytes MWL's own `serialize()` produced, refusing anything else outright.
+
+## Context
+
+PHP gives objects two independent notions of "copy," and MWL inherits the same fork whether it wants to or
+not, because both real needs the fork answers are still present:
+
+| PHP construct | depth | crosses a heap? | customizable? |
+|---|---|---|---|
+| `clone $x` | shallow — one level of the object's own properties | no, same heap | `__clone()` hook, runs after the shallow copy |
+| `serialize($x)` / `unserialize($s)` | recursive — the whole reachable graph, with cycle references | to bytes and back | `__sleep`/`__wakeup` (old), `__serialize`/`__unserialize` (new) |
+| a value crossing `spawn worker` / `spawn script` | recursive — the whole reachable graph, cycle-safe | yes, arena to arena | none — [ADR 0006](0006-isolated-script-execution.md) already fixed this |
+
+The third row already exists in this project, decided under a different name: "deep-copied, or moved when
+the refcount is 1," in [ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy*. Reading that
+section next to what `serialize()` does in PHP, the two are the same walk — a recursive traversal that
+preserves shared substructure and terminates on a cycle — aimed at two different carriers: a live arena on
+the other side of a `spawn`, or a byte string that might not be read again for months. Defining them twice,
+once per carrier, is exactly the "two sets of rules to learn, two implementations to keep correct" problem
+[ADR 0006](0006-isolated-script-execution.md) itself raised about *not* inventing a second value-crossing
+design for `spawn script` alongside `spawn worker`'s. The same argument reapplies one level up: `serialize`
+should not get a third bespoke definition when it is asking for exactly the operation ADR 0006 already
+built.
+
+`clone` does not fold into that operation, and forcing it to would be a real regression, not a
+simplification. `clone`'s entire PHP-observable behavior is *shallow* — an object holding a reference to a
+large shared cache, a parent, or a registry keeps sharing it after a clone, which is frequently the point
+(cloning a node in a tree should not silently deep-copy the tree's owner). Making `clone` recursive would
+silently change the semantics of every ported PHP class that relies on shallow-copy-by-default, which is a
+correctness break ([ADR 0007](0007-explicit-type-system.md)'s priority 2) purchased for a consistency
+argument that does not actually need it: `clone` and the graph copy already served different purposes in
+PHP, and MWL keeping them different costs nothing new.
+
+**Why no `__clone`/`__serialize`/`__unserialize`/`__sleep`/`__wakeup`.** Every one of these is a class
+reaching in and changing what "make a copy of me" or "turn me into bytes" *means*, evaluated at exactly the
+moment a mechanical, structural operation is running. This is the same shape of problem
+[ADR 0014](0014-property-observer.md) already closed for `__get`/`__set`/`__call`/`__callStatic`: a hookable
+mechanism is a mechanism `mwl check` cannot reason about from the declaration alone, and a copy or a
+deserialize is exactly the place a project would most want that reasoning — it is the operation malicious or
+merely stale data flows through. PHP's own history is the cautionary tale for the `__wakeup`/`__unserialize`
+half specifically: "attacker-controlled bytes drive a call into a method the attacker did not write but can
+still choose to trigger" is a well-known exploitation class (object-injection / property-oriented
+programming via `unserialize()`), and it exists *only* because a hook fires during reconstruction. Refusing
+the hook removes the exploitation class by construction, not by discipline — the strongest form priority 1
+(security) can ask for.
+
+## Decision
+
+### 1. `clone` — kept, PHP-shallow, no hook
+
+`clone $x` produces a new instance of `$x`'s class and copies its declared storage one level deep, using
+exactly PHP's existing rule for what "one level" means:
+
+- A scalar or `array<T>`-typed property is copied by the value semantics it already has
+  ([ADR 0004](0004-memory-for-simplicity.md)'s copy-on-write) — cheap, and indistinguishable from a real
+  copy the moment either side writes.
+- An object-typed property — held directly, or reachable through a cloned array/collection property —
+  **keeps pointing at the same shared instance** as the original. Cloning a node does not clone what it
+  points to.
+- A `resource`-typed property is copied as PHP already copies it: the same underlying handle, now reachable
+  from two objects. `clone` never crosses a heap, so [ADR 0006](0006-isolated-script-execution.md)'s
+  resource-refusal rule does not apply here — nothing is refused, because nothing is asked to leave the
+  arena it is already in.
+- `readonly` properties are written by the copy the same privileged path an ordinary constructor and
+  `Core\Reflect` already use, never through ordinary property assignment — so `clone` is not treated as a
+  second write and does not throw the way re-assigning a `readonly` property from user code would.
+- **No `__clone()` runs.** A class that needs a *duplicated*, not shared, nested collection or owned
+  resource after a copy has no hook to reach for; it exposes an explicit method (`$x->duplicate()`, a
+  project's own name) and calls it instead of overloading `clone`'s meaning. This is a real capability loss
+  relative to PHP, accepted for the same reason [ADR 0014](0014-property-observer.md) accepted it for
+  `__get`/`__set`: explicit beats implicit, and a hookable `clone` is a hookable `clone` whether or not any
+  class currently uses the hook for something sane.
+- `PropertyObserver` does **not** fire during a clone. The copy writes storage directly, the same
+  privileged path property initialization already uses — not the ordinary property-assignment path a
+  declared hook observes.
+
+Nothing here is new syntax: `clone $x` is PHP's existing expression form, kept verbatim, with one PHP
+behaviour subtracted (the hook) and nothing added.
+
+### 2. The graph copy — one operation, two carriers
+
+**Defined once:** a recursive, cycle-safe traversal of a value's reachable structure that produces a result
+sharing no mutable heap state with its source.
+
+- **Graph, not tree.** Shared substructure inside the source stays shared inside the copy (two properties
+  pointing at the same nested object still point at the same *new* shared object on the other side, not two
+  independent copies of it), and a cycle (`$a->self = $a`) terminates instead of recursing forever — the
+  exact guarantee [ADR 0006](0006-isolated-script-execution.md) already stated for values crossing
+  `spawn`/`spawn worker`.
+- **Refuses what has no meaning on the other side.** A `Closure` (captures a heap and a scope), a reference
+  `&$x` (an alias into a specific frame), or a `resource` (a host handle) is refused with a diagnostic
+  naming the offending value and its path in the graph — not degraded into a stub, not silently dropped.
+  [ADR 0007](0007-explicit-type-system.md) already notes this is mostly a **compile-time** rejection at the
+  copy site given declared types; a `mixed`-typed value carrying one of these is where the runtime check in
+  this paragraph is still needed.
+- **Refuses an unresolvable class**, the same rule [ADR 0006](0006-isolated-script-execution.md) already
+  fixed for the isolate boundary: an object whose class the receiving side does not have is a diagnostic
+  naming the class, never a stub.
+- **Never runs a constructor.** The copy is built by direct assignment into the new instance's storage —
+  the same privileged path `Core\Reflect` and ordinary construction already use — which is why this
+  operation does not reopen [ADR 0022](0022-definite-property-initialization.md)'s residual runtime case:
+  see § 4 below.
+- **No hook fires.** No `__serialize`, no `__unserialize`, no `__sleep`, no `__wakeup`. The shape that
+  crosses is exactly the class's own declared properties, every time.
+
+**Two carriers, one operation:**
+
+- **Live, arena-to-arena** — the existing `spawn`/`spawn worker`/`spawn script` boundary
+  ([ADR 0006](0006-isolated-script-execution.md)): the graph copy moves directly from the source arena into
+  the destination arena (or is moved rather than copied when the refcount is 1), with no intervening byte
+  representation. This ADR changes no behavior here — it names the mechanism ADR 0006 already specified.
+- **Externalized, to bytes and back** — `serialize($x): bytes` runs the same graph copy and encodes the
+  result into MWL's own binary format; `unserialize($b: bytes): mixed` decodes it back into a live value by
+  running the identical operation in reverse. The wire format is private to MWL (see § 3) — this is a
+  round-trip pair, not a PHP-wire-format encoder.
+
+### 3. `unserialize()` accepts only MWL's own `serialize()` output
+
+`unserialize()` is not a general-purpose deserializer for foreign or hand-crafted bytes. The accepted format
+is versioned and self-describing enough to be checked before any object is built:
+
+- A payload that does not carry MWL's format marker and version is refused outright — not best-effort
+  parsed, not partially accepted.
+- A payload naming a class the receiving side cannot resolve is refused, naming the class — identical to
+  the graph copy's live-boundary rule in § 2.
+- A payload whose recorded property set does not exactly match the target class's **current** declared
+  properties (one added, removed, or retyped since the data was written) is refused, naming the mismatch —
+  never coerced, never filled with a type default. This is what keeps § 4 true: `unserialize()` cannot hand
+  back a partially-initialized object, because the one case it does not refuse is the one where every
+  declared property has a recorded value.
+- No capability grant is required to call `serialize()`/`unserialize()`. The closed format plus the
+  no-hook rule already remove the two things a new grant would exist to contain — arbitrary code execution
+  during reconstruction, and reading a class that does not exist — and the resource cost of a hostile
+  payload (a huge or deeply nested graph) is already bounded by the same `[limits] memory`/`cpu_time`
+  ([ADR 0005](0005-config-changeability.md)) any other allocation-heavy call is. Revisit only if a use case
+  needs to `unserialize` genuinely foreign data (a different MWL build's format version, or another
+  system's payload entirely) — that is a wire-format compatibility question this ADR deliberately does not
+  answer yet.
+
+PHP's open, cross-version wire format is not kept. A `mwl convert`-ported script that `serialize()`s data
+for external storage (a cache, a queue payload, a session row) gets the same round-trip guarantee it had in
+PHP; a script that depends on reading *another system's* PHP-format bytes needs a human decision, the same
+class of `mwl convert` gap [ADR 0009](0009-string-and-bytes.md) and others already carry.
+
+### 4. Why neither depth reopens ADR 0022's residual case
+
+[ADR 0022](0022-definite-property-initialization.md) reserves exactly one runtime-only "was this property
+ever written" check, scoped to an object built through `Core\Reflect` with no constructor run. Neither copy
+depth needs a second one:
+
+- **`clone`** always starts from a live, already-fully-initialized source object — every ordinary object
+  satisfies ADR 0022's compile-time guarantee before it can be cloned at all, and a `Core\Reflect`-built
+  object already carries ADR 0022's existing residual check independently of cloning. `clone` cannot produce
+  a *less* initialized object than its source.
+- **The graph copy**, live or via `serialize`/`unserialize`, either copies a live already-initialized source
+  (same argument as `clone`) or — for `unserialize` specifically — refuses any payload that does not supply
+  every declared property (§ 3). There is no path through either operation that produces an object with a
+  declared property nobody ever wrote.
+
+No amendment to ADR 0022 is needed; this section exists so a future reader does not go looking for one.
+
+## Consequences
+
+**Positive**
+
+- One recursive graph-copy definition, not three (`serialize`, `spawn worker`, `spawn script`) — matching
+  [ADR 0006](0006-isolated-script-execution.md)'s own reasoning for not inventing a second value-crossing
+  design when one already existed.
+- PHP's `unserialize()` object-injection/gadget-chain exploitation class is closed by construction: no hook
+  ever fires during reconstruction, so there is no method call for attacker-controlled property values to
+  drive.
+- `clone` keeps its PHP-familiar, genuinely useful shallow behaviour — a ported class that relies on
+  clone-then-shared-reference (the common case: cloning a node without cloning what it references) keeps
+  working exactly as before.
+- No new capability grant, no new `mwl.ini` directive — existing memory/CPU limits already bound a hostile
+  `unserialize()` payload's cost.
+
+**Negative**
+
+- **A class cannot customize `clone`, `serialize`, or `unserialize` at all.** A class that owns a resource
+  and wants `clone` to duplicate it, or wants custom versioning logic in its serialized form, has no hook —
+  it needs an explicit method instead. This is a real capability PHP has and MWL does not, accepted for the
+  same reason [ADR 0014](0014-property-observer.md) accepted it for `__get`/`__set`.
+- **`unserialize()` cannot read another system's PHP-format bytes**, or bytes from a differently-versioned
+  MWL build whose class shape has since changed. `mwl convert` gains a real gap here: a script reading
+  externally-produced serialized PHP data needs a human rewrite, not a mechanical one.
+- **Two copy depths remain two things to learn** — the same "confusion risk" [ADR 0006](0006-isolated-script-execution.md)
+  already flagged for `require` vs. `spawn script`; this ADR's diagnostics and docs should say, next to each
+  other, which one `clone` gives and which one `serialize`/the isolate boundary gives.
+
+## Alternatives rejected
+
+- **Make `clone` recursive, unifying it with the graph copy.** Rejected in *Context*: this silently changes
+  the observable behaviour of every ported class relying on PHP's shallow-clone-then-shared-reference
+  pattern, a correctness break bought for a consistency argument the two operations never actually needed to
+  share.
+- **Keep `__clone()` only, since it is the "safer," longer-standing PHP hook.** Rejected for the same reason
+  the newer `__serialize`/`__unserialize` pair is rejected: it is still a class silently redefining what a
+  mechanical operation means at the moment it runs, and keeping one hook while rejecting two others is an
+  arbitrary line to defend later.
+- **Keep PHP's open serialize wire format for `mwl convert` compatibility.** Rejected: the open format's
+  looseness (any well-shaped payload naming any resolvable class) is exactly what makes PHP's `unserialize()`
+  attack surface possible even before a single hook is considered — a class existing and being constructible
+  is already enough to build with attacker-chosen property values. The closed, versioned format removes that
+  independently of the no-hooks decision, at the cost of foreign-format compatibility this ADR accepts.
+- **Require a `data.unserialize` capability grant**, mirroring `script.spawn`. Considered, since both are
+  "reconstruct something from a name the caller does not control." Rejected: `script.spawn` exists because
+  the reconstructed thing is *running code* under the parent's authority; `unserialize()`'s reconstructed
+  thing is inert data, already bounded by memory/CPU limits and by the closed-format/no-hook rules above.
+  Revisit if a future capability model wants "budget consumed" itself to be gate-able independent of what
+  consumes it.
+
+## Revisiting
+
+- **If a use case needs `unserialize()` to read a foreign or cross-version format**, that is a new,
+  separately-argued wire-format feature — not a reason to loosen this ADR's closed-format default.
+- **If a class genuinely needs copy customization** (duplicating an owned resource on `clone`, custom
+  versioning on `serialize`), the answer is an explicit method on that class, not a reopened hook — revisit
+  only if a real pattern shows the explicit-method answer is not enough, not on a single request for
+  parity with PHP.
+
+Verification, in the order it becomes possible:
+
+- **M4** (object model lands, [implementation-plan.md](../implementation-plan.md)): `clone $x` produces a
+  new instance sharing no COW-array buffer identity with `$x` after either side writes, while an
+  object-typed property of the clone remains `===` the original's; no `__clone` method is ever invoked even
+  if one is declared (it is an ordinary, unrelated method by that name); a `readonly` property survives the
+  clone without throwing.
+- **M5** (concurrency and script isolates land): `serialize()`/`unserialize()` round-trip a cyclic value
+  correctly; a `Closure`, a reference, or a `resource` inside the value is refused with a diagnostic naming
+  it, at the same site the isolate-boundary conformance suite already checks
+  ([ADR 0006](0006-isolated-script-execution.md)); bytes that are not MWL's own format, or that name a class
+  whose declared properties no longer match, are refused rather than partially accepted; the isolate-boundary
+  and `serialize()` conformance suites share their graph-copy test fixtures rather than duplicating them.
