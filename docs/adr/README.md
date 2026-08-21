@@ -58,6 +58,7 @@ live, so a new row is picked up automatically.
 | [0023](0023-clone-serialize-and-cross-boundary-copy.md) | `clone` stays PHP-shallow; `serialize`/`unserialize` share one graph-copy operation with the isolate boundary; neither is hookable | Accepted |
 | [0024](0024-taint-tracking-for-injection-sinks.md) | Untrusted input is a distinct type; injection sinks demand laundering | Accepted |
 | [0025](0025-wasm-browser-target.md) | The browser is a second compile target, not a second language | Accepted |
+| [0026](0026-performance-measurement-methodology.md) | Performance history is tracked by callgrind instruction counts; wall-clock stays for CI regression guards | Accepted |
 
 ## Decisions taken at project start
 

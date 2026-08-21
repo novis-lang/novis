@@ -767,8 +767,10 @@ at existing safepoints. Narrower than originally scoped: the declared types of
 [ADR 0007](adr/0007-explicit-type-system.md) mean the baseline tier is already typed, so speculation only
 has to cover `mixed`, unions and dynamic calls.
 
-**Verify:** macro benchmarks show a multiple over the baseline tier and over PHP 8.5 with JIT; no
-correctness regressions in the full conformance suite when the optimising tier is forced on.
+**Verify:** macro benchmarks show a multiple over the baseline tier and over PHP 8.5 with JIT — measured per
+[ADR 0026](adr/0026-performance-measurement-methodology.md)'s same-host PHP-oracle ratio, not a raw
+cross-machine wall-clock claim; no correctness regressions in the full conformance suite when the
+optimising tier is forced on.
 
 ### M13 — Optional FastCGI transport
 Only if a deployment target requires it (shared hosting, IIS, an existing nginx estate). Implements the

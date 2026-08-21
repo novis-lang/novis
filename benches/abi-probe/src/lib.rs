@@ -16,6 +16,7 @@
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
 //! | [`process`] | the cost of the child process that [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) replaces with an in-process isolate |
 //! | `benches/*` | the quoted costs themselves, tracked over time |
+//! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of [ADR 0026](../../../docs/adr/0026-performance-measurement-methodology.md)'s historical performance dashboard — Linux/WSL only, see that ADR |
 //!
 //! # The ABI under test
 //!

@@ -51,6 +51,7 @@ touching to get that.
 | The VS Code extension, the PhpStorm plugin, `mwl-lsp`/`mwl-fmt` client wiring, syntax highlighting, or what "IDE integration" does and doesn't cover yet | [ADR 0016](docs/adr/0016-ide-integration.md). Holds the only copy of the rule that language smarts and formatting live exactly once, in `mwl-lsp`/`mwl-fmt`, with a thin client per editor — PhpStorm's LSP-bridge-before-native phasing and the deferred debugger-UI wiring are both decided there, not left to be inferred from M10's task list. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
+| Cross-machine/OS performance history, callgrind instruction counts, the perf dashboard, or why CI regression guards use wall-clock ratios instead of that history | [ADR 0026](docs/adr/0026-performance-measurement-methodology.md). Holds the only copy of the split between per-PR wall-clock regression guards (unchanged) and the merge-to-`main` callgrind-based historical dashboard, and why each metric was chosen. |
 | What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
 
 Each ADR opens with a metadata block and reaches `## Decision` within ~60 lines. Read those two. The
@@ -159,6 +160,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   `Core` function** — the qualifier is compile-time-only, and the HTML sink additionally auto-escapes any
   non-`Markup` value by default, the one deliberate exception to "nothing happens implicitly"
   ([ADR 0024](docs/adr/0024-taint-tracking-for-injection-sinks.md)).
+- **Cross-machine/OS performance history is tracked by callgrind instruction counts on a dedicated,
+  non-shared Linux/WSL runner, never by comparing raw wall-clock across machines** — per-PR CI regression
+  guards keep using `perf_guards.rs`'s self-relative wall-clock ratios everywhere, unchanged
+  ([ADR 0026](docs/adr/0026-performance-measurement-methodology.md)).
 
 ## Commands
 
@@ -171,15 +176,16 @@ cargo test --release -p mwl-abi-probe                          # cost guards (sk
 cargo test --release -p mwl-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
 
-### Fuzzing on Windows: use WSL
+### Fuzzing and callgrind on Windows: use WSL
 
-`cargo-fuzz` (the `fuzz/` crate, `cargo +nightly fuzz run lex|parse`) needs libFuzzer, which is not
-supported on native Windows at all — do this in WSL, not PowerShell/Git Bash. From a Windows shell,
+`cargo-fuzz` (the `fuzz/` crate, `cargo +nightly fuzz run lex|parse`) needs libFuzzer, and
+`valgrind`/`callgrind` (the historical performance dashboard, [ADR 0026](docs/adr/0026-performance-measurement-methodology.md))
+has no native Windows build at all — do both in WSL, not PowerShell/Git Bash. From a Windows shell,
 `wsl.exe -- bash -lc "<command>"` runs a command straight in the default WSL distro, which mounts the
 repo at `/mnt/d/swlang` (adjust the drive letter). One-time setup in that distro, first time only:
 
 ```sh
-sudo apt-get update && sudo apt-get install -y build-essential clang
+sudo apt-get update && sudo apt-get install -y build-essential clang valgrind
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 source "$HOME/.cargo/env"
 rustup toolchain install nightly
@@ -190,6 +196,11 @@ Then, from `/mnt/d/swlang` (not `fuzz/` itself — cargo-fuzz expects the parent
 `cargo +nightly fuzz run lex -- -max_total_time=3600` (and `parse` likewise) for the 1h M1 verification
 run; CI's `fuzz-smoke` job runs both for 60s on every push as a continuous regression check, same as the
 plan's overall verification strategy calls for.
+
+For the performance dashboard's instruction-count leg: `cargo build --release -p mwl-abi-probe --example
+callgrind_spike`, then `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out
+./target/release/examples/callgrind_spike` — see [ADR 0026](docs/adr/0026-performance-measurement-methodology.md)
+for what the count means and why it's the historical metric instead of wall-clock.
 
 ## Writing docs here
 
