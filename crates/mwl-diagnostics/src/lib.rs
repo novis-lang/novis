@@ -174,6 +174,10 @@ pub mod code {
     pub const E_CIRCULAR_INHERITANCE: Code = Code::new("E0305");
     /// A `use` statement that resolves to nothing.
     pub const E_UNRESOLVED_IMPORT: Code = Code::new("E0306");
+    /// A `type` alias whose expression is nothing but one bare class,
+    /// interface or enum atom — `use … as …` in disguise; see
+    /// ADR 0015 § 6.
+    pub const E_TYPE_ALIAS_ALIASES_CLASS: Code = Code::new("E0307");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

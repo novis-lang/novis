@@ -4,8 +4,9 @@
 > Nothing runs yet; `Hello World` is M3.
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
-> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below), `crates/mwl-cli`
-> (just the `mwl ast` subcommand so far), the `fuzz/` crate (`lex`/`parse` targets, guarding M1), and
+> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below), `crates/mwl-hir`
+> (name resolution's first slice — see the M2 paragraph below), `crates/mwl-cli` (just the `mwl ast`
+> subcommand so far), the `fuzz/` crate (`lex`/`parse` targets, guarding M1), and
 > [`benches/abi-probe`](../benches/abi-probe/) holding the promoted M0 spikes as permanent guard
 > tests. Every other crate in the layout is unwritten, and is created when its milestone starts
 > rather than sitting empty.
@@ -29,10 +30,20 @@
 > module docs carry the current list of known parser gaps (`goto` labels, PHP's alternative colon
 > syntax deliberately out of scope) for whoever next touches the grammar.
 >
-> **M2 — starting.** Name resolution, the type checker, and IR lowering; see this document's M2
+> **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
 > type table; 0010/0013/0014/0015/0022's checker-side rules; 0024 §§ 2-3's tainted propagation and
-> laundering). Not started.
+> laundering). `crates/mwl-hir` has name resolution's first slice: namespace/`use` scoping matching
+> PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
+> symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
+> diagnostics (`E0304`), `use`-import resolution against that table with `Core` targets trusted rather
+> than checked (`E0306` when unresolved), and ADR 0015 § 6's "no aliasing a single bare class" rule for
+> `type` aliases (`E0307`, newly added). Not yet built: the class hierarchy and trait-flattening graph
+> (the rest of M2 item 1), `Core`-member call/constant resolution (item 2's other half — the
+> `Core`-namespace-reservation half is already enforced by `mwl-syntax`'s parser), substituting a
+> resolved `type` alias into the types that use it (the rest of item 3), `require`'s static resolution
+> (item 4), and the property-access resolution rule (item 5) — `crates/mwl-hir`'s module docs carry the
+> same breakdown. `mwl-types` and `mwl-ir` haven't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
