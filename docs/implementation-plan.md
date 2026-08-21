@@ -4,10 +4,10 @@
 > is M3.
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
-> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below), and
-> [`benches/abi-probe`](../benches/abi-probe/) holding the promoted M0 spikes as permanent guard
-> tests. Every other crate in the layout is unwritten, and is created when its milestone starts
-> rather than sitting empty.
+> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below), `crates/mwl-cli`
+> (just the `mwl ast` subcommand so far), and [`benches/abi-probe`](../benches/abi-probe/) holding
+> the promoted M0 spikes as permanent guard tests. Every other crate in the layout is unwritten, and
+> is created when its milestone starts rather than sitting empty.
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
 > + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle.
@@ -15,13 +15,13 @@
 > **M1 progress:** the lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full
 > recursive-descent parser are done — types and expressions, every control-flow statement, and
 > declarations (classes/interfaces/traits/enums, their members, attributes, `namespace`/`use`/`type`
-> alias). **What's left is M1's own verification**, per the *Verify* bullet below: an `mwl ast`
-> command to dump the AST (needs `mwl-cli` scaffolded — not started), `cargo fuzz` finding no panic
-> in a 1h run on the lexer and parser, and parsing the full local PHP 8.5 install's `.php` files
-> without crashing. Two known gaps from the parser work are the likeliest sources of surprises once
-> that corpus-parse step runs: PHP's alternative colon syntax (`if (...): ... endif;` and friends) is
-> entirely unimplemented, and `goto` target labels (`label:`) are unparsed — see `crates/mwl-syntax`'s
-> module docs for the full list of known gaps.
+> alias), including the file-level HTML/code-tag round trip (`parse_file`, exercised through
+> `mwl ast`) that the plan's *Verify* step below needs. **What's left is M1's own verification**:
+> `cargo fuzz` finding no panic in a 1h run on the lexer and parser, and parsing the full local PHP
+> 8.5 install's `.php` files without crashing — neither started yet. `crates/mwl-syntax`'s module
+> docs carry the current list of known parser gaps (alternative colon syntax and `goto` labels are
+> the two likeliest to surface during the corpus-parse step); check those first rather than
+> debugging blind.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

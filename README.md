@@ -62,9 +62,11 @@ measurements backing it are in [docs/adr/](docs/adr/README.md).
 
 ## Repository layout
 
-Two of these exist today. The rest are the shape the workspace grows into; the right-hand column is the
-milestone that creates each one, since a crate is added when its milestone starts rather than sitting
-empty.
+Three of these exist today. The rest are the shape the workspace grows into; the right-hand column is
+the milestone that creates each one, since a crate is added when its milestone starts rather than
+sitting empty. `mwl-cli` is the one exception to "created when its milestone starts": M1's own plan
+names `mwl ast` as its verification tool, so the crate was scaffolded early with just that one
+subcommand — `run`/`test` and the rest of the CLI still arrive at M3.
 
 ```
 crates/
@@ -75,7 +77,7 @@ crates/
   mwl-ir            CFG/SSA IR, safepoints, refcount ops                               M2
   mwl-codegen       Cranelift backend  [audited unsafe]                                M3
   mwl-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3
-  mwl-cli           the `mwl` binary                                                   M3
+  mwl-cli           the `mwl` binary (`ast` only so far)                    exists / M3
   mwl-stdlib        Core domain classes, native builtin static methods                  M4
   mwl-test          .mwlt runner                                                       M4
   mwl-host          Transport trait, unit cache, the Isolate boundary                  M5

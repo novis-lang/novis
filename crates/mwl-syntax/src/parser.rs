@@ -2172,8 +2172,44 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     fn parse_statement(&mut self) -> Stmt {
+        // --- HTML-mode round trip, spec 00-overview.md § 1 ---------------------
+        // `?>`/`<?php`/`<?mwl` can reopen or reclose code mode anywhere a
+        // statement is expected, not just at file scope — e.g.
+        // `if ($x) { ?>html<?php }` is legal, exactly as in PHP. Skip every
+        // bare tag token here; stop at the first token that is either real
+        // inline HTML (one `InlineHtml` statement) or ordinary code. Nothing
+        // here recurses into `self.parse_statement()`, so a tag run can't
+        // loop forever even when the file ends right after `?>`.
+        loop {
+            match self.peek().kind {
+                TokenKind::CloseTag | TokenKind::OpenTagMwl | TokenKind::OpenTagPhp => {
+                    self.bump();
+                }
+                TokenKind::InlineHtml => {
+                    let span = self.bump().span;
+                    return Stmt {
+                        span,
+                        kind: StmtKind::InlineHtml(span),
+                    };
+                }
+                TokenKind::OpenTagEcho => {
+                    let start = self.peek().span;
+                    return self.parse_short_echo_tag(start);
+                }
+                _ => break,
+            }
+        }
+
         let start = self.peek().span;
         match self.peek().kind {
+            // A tag token above can leave us sitting on the enclosing block's
+            // `}` or on EOF (`<?mwl if ($x) { ?><?php }`, or a file that ends
+            // right after `?>`). The caller's own loop (`parse_block`,
+            // `parse_file`) is what notices and stops, not this function.
+            TokenKind::RBrace | TokenKind::Eof => Stmt {
+                span: start,
+                kind: StmtKind::Empty,
+            },
             TokenKind::LBrace => {
                 let block = self.parse_block();
                 Stmt {
@@ -2550,6 +2586,26 @@ impl<'src, 'd> Parser<'src, 'd> {
         Stmt {
             span,
             kind: StmtKind::Echo(exprs),
+        }
+    }
+
+    /// `<?= expr (';')? ?>` — spec § 1: exactly `<?mwl echo expr; ?>`, one
+    /// expression, and unlike every other statement form the `;` is optional
+    /// right before the closing tag. `?>` is left for `parse_statement`'s next
+    /// call to consume, matching how an ordinary `echo` leaves the following
+    /// token for its caller.
+    fn parse_short_echo_tag(&mut self, start: Span) -> Stmt {
+        self.bump();
+        let expr = self.parse_expr();
+        if !self.at(TokenKind::CloseTag) {
+            self.expect(TokenKind::Semicolon, "`;`");
+        } else {
+            self.eat(TokenKind::Semicolon);
+        }
+        let span = start.to(self.last_span);
+        Stmt {
+            span,
+            kind: StmtKind::Echo(vec![expr]),
         }
     }
 
@@ -3785,6 +3841,29 @@ fn collapse_string_parts(span: Span, parts: Vec<StringPart>) -> Expr {
 #[must_use]
 pub fn parse_expression(file: &SourceFile, diags: &mut Diagnostics) -> Expr {
     Parser::new(file, diags).parse_expr()
+}
+
+/// Parses a whole file top to bottom: the `mwl ast`/corpus-parse entry point
+/// M1's plan names, and the one place the file always starts in HTML mode
+/// (spec `00-overview.md` § 1) rather than a test's manually-bumped open tag.
+/// Errors are reported into `diags` rather than stopping the parse — callers
+/// that only care whether it parsed cleanly should check
+/// [`Diagnostics::has_errors`] afterwards.
+#[must_use]
+pub fn parse_file(file: &SourceFile, diags: &mut Diagnostics) -> Vec<Stmt> {
+    let mut parser = Parser::new(file, diags);
+    let mut stmts = Vec::new();
+    while !parser.at(TokenKind::Eof) {
+        let before = parser.peek().span;
+        stmts.push(parser.parse_statement());
+        // Mirrors `parse_block`'s guard: if a statement consumed nothing (a
+        // production bailed out on an error), force progress so a malformed
+        // file can't hang the parser in an infinite loop.
+        if parser.peek().span == before && !parser.at(TokenKind::Eof) {
+            parser.bump();
+        }
+    }
+    stmts
 }
 
 #[cfg(test)]
@@ -5066,5 +5145,88 @@ mod tests {
 
         // An anonymous closure statement is unaffected.
         parse_stmt_ok("function () {};");
+    }
+
+    // ========================================================================
+    // `parse_file`: the whole-file HTML/code round trip
+    // ========================================================================
+
+    fn parse_file_ok(src: &str) -> Vec<Stmt> {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", src.to_string());
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(id), &mut diags);
+        assert!(
+            !diags.has_errors(),
+            "unexpected diagnostics for {src:?}: {diags:?}"
+        );
+        stmts
+    }
+
+    #[test]
+    fn a_pure_code_file_has_no_inline_html() {
+        let stmts = parse_file_ok("<?mwl echo 1;");
+        assert_eq!(stmts.len(), 1);
+        assert!(matches!(stmts[0].kind, StmtKind::Echo(_)));
+    }
+
+    #[test]
+    fn leading_html_before_the_open_tag_is_kept_verbatim() {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", "hello <?mwl echo 1;");
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(id), &mut diags);
+        assert!(!diags.has_errors());
+
+        let StmtKind::InlineHtml(span) = stmts[0].kind else {
+            panic!("expected leading inline HTML: {:?}", stmts[0]);
+        };
+        assert_eq!(map.file(id).span_text(span), Some("hello "));
+        assert!(matches!(stmts[1].kind, StmtKind::Echo(_)));
+    }
+
+    #[test]
+    fn a_file_that_never_opens_a_tag_is_all_inline_html() {
+        let stmts = parse_file_ok("just some text, no code at all");
+        assert_eq!(stmts.len(), 1);
+        assert!(matches!(stmts[0].kind, StmtKind::InlineHtml(_)));
+    }
+
+    #[test]
+    fn closing_and_reopening_a_tag_mid_block_is_legal() {
+        // `if ($x) { ?>html<?php }` — PHP allows leaving code mode inside a
+        // block; the `}` that closes the `if` is itself back in code mode.
+        let stmts = parse_file_ok("<?mwl if ($x) { ?>html<?php } ?>tail");
+        let StmtKind::If { then, .. } = &stmts[0].kind else {
+            panic!("expected an if: {:?}", stmts[0]);
+        };
+        let StmtKind::Block(block) = &then.kind else {
+            panic!("expected a block body: {then:?}");
+        };
+        assert!(
+            block
+                .stmts
+                .iter()
+                .any(|s| matches!(s.kind, StmtKind::InlineHtml(_))),
+            "expected inline HTML inside the block: {block:?}"
+        );
+        let StmtKind::InlineHtml(_) = stmts.last().unwrap().kind else {
+            panic!("expected trailing inline HTML: {:?}", stmts.last());
+        };
+    }
+
+    #[test]
+    fn short_echo_tag_is_sugar_for_echo() {
+        let stmts = parse_file_ok("<?= $name ?>");
+        let StmtKind::Echo(exprs) = &stmts[0].kind else {
+            panic!("expected an echo: {:?}", stmts[0]);
+        };
+        assert_eq!(exprs.len(), 1);
+    }
+
+    #[test]
+    fn short_echo_tag_semicolon_before_close_tag_is_optional_but_allowed() {
+        parse_file_ok("<?= $name ?>");
+        parse_file_ok("<?= $name; ?>");
     }
 }
