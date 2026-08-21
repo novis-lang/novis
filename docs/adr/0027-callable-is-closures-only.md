@@ -10,6 +10,10 @@
   stated rule for *which values* satisfy it, only that calling through one is dynamic. This ADR gives it
   that rule without touching the "opaque, no `callable(int): string` signature" part, which stays deferred
   exactly as that ADR already has it.
+- **Amended by:** [0031](0031-callable-is-the-only-closure-type.md) — retires `Closure` as a type name.
+  Every value this ADR calls "a `Closure`" is unaffected in substance; it is typed `callable` everywhere
+  from here on, since after this decision the two names had identical membership. `Closure::fromCallable`
+  is dropped there too, for the same reason. Read every occurrence of `Closure` below as `callable`.
 - **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (every callable is a declared
   method — this ADR is what makes a *value* referencing one of those methods safe to pass around),
   [0012](0012-no-superglobals.md) and [0015](0015-no-name-aliasing.md) (the precedent for closing an

@@ -21,6 +21,9 @@
   [0012](0012-no-superglobals.md) — § 2's *superglobal* row is dropped entirely; host-populated request,
   session and CLI state is ordinary class-static state on a `Core` class, populated by the host instead of a
   user initialiser, so it needs no row of its own.
+  [0031](0031-callable-is-the-only-closure-type.md) — § 4's `bindTo()`/`Closure::bind()` are the same
+  operations, renamed onto `callable`; the `use`-clause capture this section's prose assumed still existed
+  is itself retired there, but the `$this`-binding rule below is otherwise unaffected.
 
 > **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
 > methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —
@@ -143,14 +146,15 @@ That is an observable divergence, and it is the only one this ADR introduces:
 
 | # | PHP | MWL |
 |---|---|---|
-| 1 | a closure created inside a method always binds `$this`, used or not | it binds `$this` only if the body uses it; one that does not is unbound, and `bindTo()` / `Closure::bind()` on it returns an equivalent closure rather than rebinding anything |
+| 1 | a closure created inside a method always binds `$this`, used or not | it binds `$this` only if the body uses it; one that does not is unbound, and `bindTo()`/`bind()` on it returns an equivalent closure rather than rebinding anything |
 
 The practical effect is the one `static` existed to produce — a closure that does not mention `$this` cannot
 extend the enclosing object's lifetime — obtained without a keyword. The cost is that a program which builds
 a `$this`-free closure inside a method and then `bindTo()`s it to a *different* object gets a closure that
 ignores the binding. That pattern is rare, it is precisely what `static fn` was used to forbid, and
 `mwl convert` can see it: a `bindTo` whose target closure never names `$this` is reportable at convert time
-rather than surprising at run time.
+rather than surprising at run time. (The closure literal itself is `fn`, and `bindTo`/`bind` are `callable`
+operations rather than a `Closure` class's methods — [ADR 0031](0031-callable-is-the-only-closure-type.md).)
 
 ### 5. Diagnostics
 

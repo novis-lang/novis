@@ -39,7 +39,8 @@ touching to get that.
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md). Holds the only copy of the rule that every callable and every constant is a class member, and the `Core` domain-class shape built-ins are organised into. |
-| `callable`, `Closure`, first-class callable syntax (`Foo::bar(...)`), taking a reference to a method/function, `__invoke` | [ADR 0027](docs/adr/0027-callable-is-closures-only.md). Holds the only copy of the rule that `callable` accepts a `Closure` and nothing else — PHP's string/array callable spellings are rejected, since first-class callable syntax already gives a statically resolvable reference, and `__invoke`/calling an object with `()` does not exist at all. |
+| `callable`, first-class callable syntax (`Foo::bar(...)`), taking a reference to a method/function, `__invoke` | [ADR 0027](docs/adr/0027-callable-is-closures-only.md). Holds the only copy of the rule that `callable` accepts exactly one kind of value and nothing else — PHP's string/array callable spellings are rejected, since first-class callable syntax already gives a statically resolvable reference, and `__invoke`/calling an object with `()` does not exist at all. |
+| Anonymous functions/closures, `fn`, arrow functions, closure capture, `use (...)`, `Closure` vs `callable`, recursive closures | [ADR 0031](docs/adr/0031-callable-is-the-only-closure-type.md). Holds the only copy of the rule that `fn` (with or without a body) is the sole closure literal, closures have no `use` clause at all, and `callable` is the sole surviving type name — `Closure` does not exist as a separate spelling. |
 | `__toString`/`Stringable`, `__destruct`/destructors, `__isset`/`__unset`, `unset()` on an object property, `__debugInfo`, `var_dump`/`print_r` customization, `__set_state`, `__autoload`, or "what happened to PHP magic method X" generally | [ADR 0028](docs/adr/0028-closing-the-remaining-magic-methods.md). Holds the only copy of the disposition of every remaining PHP magic method — a table indexing the ones already closed elsewhere (0014, 0023, 0027) plus the full reasoning for the ones it closes itself: `Stringable` replaces `__toString`, MWL has no destructors of any kind, `unset()` on a declared object property is always a diagnostic, and `__debugInfo`/`__set_state` are rejected with no replacement. |
 | Naming conventions, `PascalCase`/`camelCase`/`SCREAMING_SNAKE_CASE`, identifier casing, acronym spelling in names | [ADR 0029](docs/adr/0029-identifier-casing-is-checked.md). Holds the only copy of the per-category casing table, the acronym-as-one-word rule, and why the check is a hard compiler error with no suppression mechanism — not a lint. |
 | Leading underscores in identifiers, whether `__construct`/`constructor` is a casing exception | [ADR 0030](docs/adr/0030-no-leading-underscores-constructor-spelling.md). Holds the only copy of the rule that no identifier — including properties, parameters and locals — may ever start with `_`, and that MWL's constructor is spelled `constructor`, not PHP's `__construct`, which is why ADR 0029 needs no exception for it at all. |
@@ -168,10 +169,15 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   non-shared Linux/WSL runner, never by comparing raw wall-clock across machines** — per-PR CI regression
   guards keep using `perf_guards.rs`'s self-relative wall-clock ratios everywhere, unchanged
   ([ADR 0026](docs/adr/0026-performance-measurement-methodology.md)).
-- **`callable` means a `Closure`, never PHP's string/array callable spellings, and MWL has no `__invoke`** —
-  no object can ever be called with `()` syntax; taking a reference to a method or function is always
-  first-class callable syntax (`Foo::bar(...)`/`$obj->method(...)`), which already produces a statically
-  resolvable `Closure` ([ADR 0027](docs/adr/0027-callable-is-closures-only.md)).
+- **`callable` is satisfied by exactly one shape of value, never PHP's string/array callable spellings, and
+  MWL has no `__invoke`** — no object can ever be called with `()` syntax; taking a reference to a method or
+  function is always first-class callable syntax (`Foo::bar(...)`/`$obj->method(...)`), which already
+  produces that one statically resolvable value ([ADR 0027](docs/adr/0027-callable-is-closures-only.md)).
+- **`fn` is the only closure literal (with or without a body), closures have no `use` clause of any kind, and
+  `callable` is the only surviving type name** — `Closure` does not exist as a separate spelling; a closure
+  that must call itself carries an optional self-name visible only inside its own body, and sharing mutable
+  state between two independent closures is an ordinary object in user code, not a language feature
+  ([ADR 0031](docs/adr/0031-callable-is-the-only-closure-type.md)).
 - **`Stringable` replaces `__toString`; MWL has no destructors, `__debugInfo`, or `__set_state` at all, and
   `unset()` on a declared object property is always a diagnostic** — closing every PHP magic method no
   earlier ADR addressed, in one place, including why a destructor has no sound spot to report a throw and

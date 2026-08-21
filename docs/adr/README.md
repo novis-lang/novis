@@ -63,6 +63,7 @@ live, so a new row is picked up automatically.
 | [0028](0028-closing-the-remaining-magic-methods.md) | `Stringable` replaces `__toString`; no `__destruct`, `__debugInfo`, or `__set_state`; `unset()` is refused on an object property | Accepted |
 | [0029](0029-identifier-casing-is-checked.md) | Identifier casing is a hard compiler error — `PascalCase` types, `camelCase` members, `SCREAMING_SNAKE_CASE` constants, no suppression | Accepted |
 | [0030](0030-no-leading-underscores-constructor-spelling.md) | No leading underscores anywhere; the constructor is spelled `constructor`, not `__construct` | Accepted |
+| [0031](0031-callable-is-the-only-closure-type.md) | `fn` is the only closure literal, with no `use` clause; `callable` absorbs `Closure` as the one surviving type name | Accepted |
 
 ## Decisions taken at project start
 

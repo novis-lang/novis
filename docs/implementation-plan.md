@@ -427,12 +427,16 @@ PHP 8.5 tokens. Recursive-descent parser covering the pragmatic-superset grammar
 traits, enums (cases and an optional backing type only — no methods, no `implements`, see
 [ADR 0010](adr/0010-enums-are-a-value-type.md)), methods (a `function` declaration is only ever a class
 member, static or instance — see [ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
-attributes, `match`, closures and arrow functions, generators, named arguments, spread, nullsafe,
+attributes, `match`, `fn` closures — with or without a block body, and with an optional self-name for
+recursion, but no anonymous `function(...) {...}` literal and no `use` clause at all
+([ADR 0031](adr/0031-callable-is-the-only-closure-type.md)) — generators, named arguments, spread, nullsafe,
 `readonly`, promoted constructor parameters, first-class callable syntax, property hooks (their pipeline
 relative to the new `PropertyObserver` interface is [ADR 0014](adr/0014-property-observer.md)), asymmetric
 visibility. Rejects, with a diagnostic naming the replacement, every construct an earlier ADR closes:
 `eval`/`$$var`/`goto`/`global`/`extract`/`settype`/function-scope `static`/`static fn`
-([ADR 0008](adr/0008-static-and-global.md)), enum methods/`implements`/`string` backing
+([ADR 0008](adr/0008-static-and-global.md)), anonymous `function(...) {...}`/`function(...) use (...) {...}`
+and any `use` capture clause ([ADR 0031](adr/0031-callable-is-the-only-closure-type.md)), enum
+methods/`implements`/`string` backing
 ([ADR 0010](adr/0010-enums-are-a-value-type.md)), a `function` or `const` outside a class body and a
 `namespace` or class named `Core` ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
 every superglobal spelling ([ADR 0012](adr/0012-no-superglobals.md)), and `use … as …` or trait-use `as`
@@ -484,10 +488,11 @@ objects refused unless both sides are provably the same class implementing `Comp
 checker enforces the `tainted` qualifier on `string`/`bytes` — poisoning through concatenation and
 interpolation, laundering only through a checked `as` conversion or a named `Core` function, and a
 diagnostic at any sink requiring the plain type ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)).
-A value typed `callable`/`Closure` is accepted only from first-class callable syntax or a closure/arrow-function
-literal — a string- or array-shaped callable is refused with a diagnostic naming the first-class-callable-syntax
-replacement, and MWL has no `__invoke`, so `$obj(...)` is refused for any non-`Closure` `$obj` regardless of
-what its class declares ([ADR 0027](adr/0027-callable-is-closures-only.md)). An object used at an implicit
+A value typed `callable` is accepted only from first-class callable syntax or an `fn` closure literal — a
+string- or array-shaped callable is refused with a diagnostic naming the first-class-callable-syntax
+replacement, and MWL has no `__invoke`, so `$obj(...)` is refused for any non-`callable` `$obj` regardless of
+what its class declares ([ADR 0027](adr/0027-callable-is-closures-only.md); `callable` is the sole surviving
+type name for this value, per [ADR 0031](adr/0031-callable-is-the-only-closure-type.md)). An object used at an implicit
 string-conversion site is accepted only when its static type provably implements the global `Stringable`
 interface, and `unset()` on a declared object property is refused outright regardless of nullability
 ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)). Every declared identifier's casing is checked
@@ -511,9 +516,12 @@ entries: a `tainted` value concatenated into a sink requiring the plain type is 
 qualifier and the sink; a checked `as uint`/enum conversion on a tainted source produces an unqualified
 result with no extra syntax; `tainted string as Markup` is refused even though a literal succeeds. Plus
 ADR 0027's own entries: a bare string, an `"Class::method"` string, and a `[$obj, 'method']` array each
-refused where `callable`/`Closure` is the declared type, naming the first-class-callable-syntax
-replacement; `$obj(...)` refused for a non-`Closure` `$obj` even when its class declares a method literally
-named `__invoke`, naming the class and stating MWL has no `__invoke`. Plus ADR 0028's own entries: an object
+refused where `callable` is the declared type, naming the first-class-callable-syntax
+replacement; `$obj(...)` refused for a non-`callable` `$obj` even when its class declares a method literally
+named `__invoke`, naming the class and stating MWL has no `__invoke`. Plus ADR 0031's own entries: an
+anonymous `function(...) {...}` literal and a `use (...)` capture clause of either kind are both refused,
+naming `fn` as the replacement; `Closure` named as a type is refused, naming `callable`; a self-named `fn`
+literal resolves its own name only inside its own body. Plus ADR 0028's own entries: an object
 whose class does not implement `Stringable` used in string interpolation, concatenation, `echo`, or
 `as string`, naming `Stringable` as the fix; `unset()` on a declared object property refused for both a
 nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. Plus ADR 0029's own

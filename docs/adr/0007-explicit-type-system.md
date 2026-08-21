@@ -26,6 +26,9 @@
   string/array callable spellings and never an invokable object — MWL has no `__invoke`.
   [0028](0028-closing-the-remaining-magic-methods.md) — § 4's conversion table row "anything → `string`"
   named `__toString`; it now names the declared `Stringable` interface instead.
+  [0031](0031-callable-is-the-only-closure-type.md) — § 3's `Closure` atom is retired; `callable` is the
+  sole surviving spelling for the same value, so § 3's atom list and its opacity sentence both drop
+  `Closure`.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -38,7 +41,7 @@
 > return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
 > where the source says so: a new binding, or the checked conversion operator (provisional spelling
 > `expr as T`), which throws rather than silently losing information. The types are
-> `null bool int uint float string array<T> <class> Closure resource`, plus unions (`int|string`),
+> `null bool int uint float string array<T> <class> callable resource`, plus unions (`int|string`),
 > intersections, and `mixed` — the one position that is not checked at all. `int` is signed `i64`;
 > **`uint` is new and unsigned**, so the full 64-bit range is representable; `float` is always `f64`.
 > Arrays keep PHP's ordered hash exactly, with two changes: **every key is a string**, and the element
@@ -175,7 +178,7 @@ production, only a checker that resolves the identifier to one kind of atom or t
 `self`/`static`/`parent` are already contextual here. What an enum atom means, and how it differs from a
 class one, is [0010](0010-enums-are-a-value-type.md)'s decision, not this one's.
 
-`Closure`, `callable`, `Generator` and container classes are **opaque** in v1 — there is no
+`callable`, `Generator` and container classes are **opaque** in v1 — there is no
 `callable(int): string` and no `Generator<T>`. Calling through one is a dynamic call with runtime-checked
 arguments, at `mixed`'s cost. Deferred, not rejected; see *Revisiting*.
 
