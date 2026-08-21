@@ -41,6 +41,7 @@ touching to get that.
 | Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [ADR 0014](docs/adr/0014-property-observer.md). Holds the only copy of the rule that a property access runs its own hook first and a declared `PropertyObserver` second; accessing an undeclared property is always a hard error, and `__call`/`__callStatic` are not implemented at all. |
 | `class_alias`, `use … as …`, trait-use `as`, or a `type` alias | [ADR 0015](docs/adr/0015-no-name-aliasing.md). Holds the only copy of the rule that nothing gets a second runtime-reachable name — `class_alias` does not exist, import renaming is rejected, and trait composition keeps only `insteadof` — while a `type` alias is kept as a distinct, compile-time-only synonym for a type expression, never for a single bare class. |
 | Code coverage, call tracing, the deterministic per-call profiler, `Core\Debug`, or the `[debug]` `mwl.ini` section | [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md). Holds the only copy of the probe mechanism and why it is safepoint-shaped rather than a second compiled tier; step debugging (`mwl dap`) and the sampling flamegraph profiler stay in [ADR 0016](docs/adr/0016-ide-integration.md) instead. |
+| `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, or any runtime introspection/parsing surface | [ADR 0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md). Holds the only copy of the rule that both are built-in `Core` features, not extensions — reflective access enforces the same visibility/hook checks as ordinary code (no `setAccessible(true)`), and a parsed AST is inert typed data with no path back into execution. |
 | The VS Code extension, the PhpStorm plugin, `mwl-lsp`/`mwl-fmt` client wiring, syntax highlighting, or what "IDE integration" does and doesn't cover yet | [ADR 0016](docs/adr/0016-ide-integration.md). Holds the only copy of the rule that language smarts and formatting live exactly once, in `mwl-lsp`/`mwl-fmt`, with a thin client per editor — PhpStorm's LSP-bridge-before-native phasing and the deferred debugger-UI wiring are both decided there, not left to be inferred from M10's task list. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
@@ -122,6 +123,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.
+- **Reflection and AST parsing are built into `Core`, not left to extensions** — `Core\Reflect` enforces the
+  same visibility/hook checks as ordinary code (no `setAccessible(true)`), and `Core\Ast::parse()` returns
+  inert typed data through the compiler's own single parser, never a second grammar or a path back into
+  execution ([ADR 0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)).
 
 ## Commands
 

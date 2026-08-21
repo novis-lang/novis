@@ -581,7 +581,11 @@ Two-tier regex with the `preg_*` layer; JSON; hashing and crypto (RustCrypto: sh
 bcrypt, aes-gcm); date/time with PHP-compatible formatting; filesystem and stream abstractions; process
 execution behind the capability gate; sessions; a PDO-like DB API with pure-Rust MySQL/MariaDB, PostgreSQL
 and MS SQL Server drivers plus SQLite (documenting `rusqlite`'s C dependency as an explicit, audited
-exception to the pure-Rust rule).
+exception to the pure-Rust rule). Also here: **`Core\Reflect` and `Core\Ast`**, built-in — not
+extension-provided — structural reflection and a runtime door onto `mwl-syntax`'s own lexer/parser, per
+[ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md); reflective access enforces the same
+visibility/hook checks ordinary code does, and a parsed AST is typed, inert data with no path back into
+execution.
 
 **Also in this milestone: author the `mwl:ext@1.0.0` WIT world.** It must be designed from the same
 value-access model as the `Core` domain classes' static methods, so the Tier 0 internal interface and the Tier 1 guest
@@ -593,7 +597,10 @@ conversion. Type variables stay available only to declarations the compiler owns
 not part of this milestone.
 
 **Verify:** per-subsystem conformance suites; DB drivers tested against real servers in CI containers,
-including TLS, prepared statements, transactions and large result streaming.
+including TLS, prepared statements, transactions and large result streaming. `Core\Reflect`/`Core\Ast`
+verified per [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md)'s own M8 verification
+list — a reflective call to a `private` method from outside its class fails like the equivalent ordinary
+call; `Core\Ast::parse()` fuzzed with the same corpus as M1's lexer/parser target.
 
 ### M9 — Extension system (~6 weeks)
 `mwl-ext`: `.mwlx` loading (wasm component + `mwl.manifest` custom section), manifest parsing and
