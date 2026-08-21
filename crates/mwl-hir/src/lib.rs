@@ -25,6 +25,11 @@
 //! - [`aliases`] — [`AliasResolver`]: substitutes every `type` alias's
 //!   expansion — including inside another alias's own expansion — into a
 //!   fully-resolved [`AliasTable`]; diagnoses a cycle.
+//! - [`requires`] — [`resolve_program`]: walks the `require` graph reachable
+//!   from one entry file, merging every statically-resolvable target's
+//!   declarations into one [`Module`] via the same multi-file
+//!   `collect_*`-then-resolve shape every resolver above already supports;
+//!   diagnoses a missing target or a require cycle.
 //!
 //! # What this slice of M2 covers
 //!
@@ -56,9 +61,19 @@
 //!    gap:** the substituted table is not yet consulted from anywhere else —
 //!    there is no property/parameter/return-type walk in `mwl-hir` yet for it
 //!    to feed; that arrives with `mwl-types`.
+//! 4. `require`'s static resolution
+//!    ([ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)):
+//!    [`requires::resolve_program`] merges every literal-path `require`
+//!    target, transitively, into the same `Module` a single-file `resolve_file`
+//!    would have produced had the whole chain been pasted into one file — a
+//!    non-literal path is left for the runtime dynamic fallback, untouched.
+//!    **Known gaps:** only a plain quoted-string literal is recognised (no
+//!    heredoc/nowdoc, no constant-folding through a concatenation); a file
+//!    with no on-disk path has no directory to resolve a relative `require`
+//!    against, so every `require` inside one is also left dynamic. See
+//!    [`requires`]'s module docs.
 //!
-//! Items 4 (`require`'s static resolution) and 5 (the property-access rule)
-//! are not started.
+//! Item 5 (the property-access rule) is not started.
 //!
 //! **Known gap:** [`QName`] compares segments case-sensitively; PHP does not.
 //! See its docs.
@@ -67,6 +82,7 @@ pub mod aliases;
 pub mod hierarchy;
 pub mod members;
 pub mod qname;
+pub mod requires;
 pub mod resolve;
 pub mod symbol;
 
@@ -74,5 +90,6 @@ pub use aliases::{AliasResolver, AliasTable};
 pub use hierarchy::{ClassGraph, ClassLinks, HierarchyResolver};
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
+pub use requires::resolve_program;
 pub use resolve::{Import, Module, Resolver, resolve_file};
 pub use symbol::{Symbol, SymbolKind, SymbolTable};

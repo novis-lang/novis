@@ -213,7 +213,7 @@ cargo install cargo-fuzz --locked
 ```
 
 Then, from `/mnt/d/swlang` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
-`cargo +nightly fuzz run lex -- -max_total_time=3600` (and `parse` likewise) for the 1h M1 verification
+`cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise) for the 5 minute M1 verification
 run; CI's `fuzz-smoke` job runs both for 60s on every push as a continuous regression check, same as the
 plan's overall verification strategy calls for.
 

@@ -191,6 +191,16 @@ pub mod code {
     /// itself — `type A = B; type B = A;` or any longer cycle; see
     /// ADR 0015 § 5.
     pub const E_TYPE_ALIAS_CYCLE: Code = Code::new("E0310");
+    /// A `require` whose path is a literal, resolved statically per
+    /// ADR 0021, but does not name a file that can be loaded as source (it
+    /// does not exist, or is not valid UTF-8).
+    pub const E_REQUIRE_TARGET_NOT_FOUND: Code = Code::new("E0311");
+    /// A `require` chain whose statically-resolved literal paths lead back
+    /// to a file already being resolved — `require`'s own semantics (same
+    /// frame, runs every time reached) give this no other resolution than a
+    /// diagnostic, the same way `crate::hierarchy`'s `extends`/trait-use
+    /// cycle and `crate::aliases`'s `type` alias cycle are both handled.
+    pub const E_CIRCULAR_REQUIRE: Code = Code::new("E0312");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

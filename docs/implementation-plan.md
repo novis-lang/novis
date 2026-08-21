@@ -57,10 +57,22 @@
 > [`AliasTable`](../crates/mwl-hir/src/aliases.rs), with a cycle (`type A = B; type B = A;`) diagnosed
 > (`E0310`, newly added) rather than looped, matching ADR 0015 § 5's "resolved eagerly, and a cycle is a
 > diagnostic." **Known gap:** the table has no consumer yet — there is no property/parameter/return-type
-> walk anywhere in `mwl-hir` for it to feed; that arrives with `mwl-types`. Not yet built: `require`'s
-> static resolution (item 4), and the property-access resolution rule (item 5, which can build on the
-> class graph the same way member resolution just did) — `crates/mwl-hir`'s module docs carry the same
-> breakdown. `mwl-types` and `mwl-ir` haven't started.
+> walk anywhere in `mwl-hir` for it to feed; that arrives with `mwl-types`. Item 4 is now done too:
+> [`requires::resolve_program`](../crates/mwl-hir/src/requires.rs) walks the `require` graph reachable
+> from one entry file, resolving every literal-string `require` path relative to its requiring file's own
+> directory and merging the target's declarations into the same symbol table/class graph/member table/
+> alias table a single pasted-together file would have produced — exactly what
+> [ADR 0021](adr/0021-single-file-inclusion-construct.md)'s "no isolation" semantics require. A missing or
+> unloadable literal target is `E_REQUIRE_TARGET_NOT_FOUND` (`E0311`, newly added); a require chain
+> leading back to a file already being resolved is `E_CIRCULAR_REQUIRE` (`E0312`, newly added) rather than
+> unbounded recursion; a file reachable by more than one path (a diamond, not a cycle) is loaded and
+> collected exactly once. A non-literal path (a variable, a concatenation, an interpolated string) is left
+> untouched for the dynamic runtime fallback the ADR also names, and a literal `require` inside a file with
+> no on-disk path has no directory to resolve against and is left the same way — see
+> [`requires.rs`](../crates/mwl-hir/src/requires.rs)'s module docs for both known gaps in full. Not yet
+> built: the property-access resolution rule (item 5, which can build on the class graph the same way
+> member resolution already did) — `crates/mwl-hir`'s module docs carry the same breakdown. `mwl-types`
+> and `mwl-ir` haven't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
