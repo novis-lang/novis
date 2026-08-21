@@ -202,3 +202,4 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 
 ## Keep work small, commit your work
 - Always commit your work, when a step is done, you dont need to verify the history before, just commit everything that has changed
+- Once you are done show me the next prompt i need to use for a new session to start right off where we left. Also store this next prompt into a seperate .md file, so i can use it whenever i want. Also update this file with the latest prompt, so we do not keep any content that already was in that file.
