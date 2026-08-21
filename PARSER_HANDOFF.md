@@ -137,10 +137,26 @@ From the plan: `mwl ast file.mwl` dumping the AST — **done**, see *Where thing
   "expected an expression" pointing at the comma, rather than a cleaner message — cosmetic, not a crash).
 - **`cargo fuzz`**: `fuzz/` now exists (`lex` and `parse` targets, `fuzz/Cargo.toml` a separate
   workspace per cargo-fuzz convention). libFuzzer isn't supported on native Windows, so this runs in WSL
-  — see CLAUDE.md's new "Fuzzing on Windows" section for the one-time setup and the run command. Both
-  targets ran a 1h campaign this session (background job, results to be folded into the plan's status
-  block once they finish) after a 20s smoke run each found nothing. CI got a `fuzz-smoke` job (60s/target
-  per push) for continuous regression coverage per the plan's overall verification strategy.
+  — see CLAUDE.md's new "Fuzzing on Windows" section for the one-time setup and the run command. CI got
+  a `fuzz-smoke` job (60s/target per push) for continuous regression coverage per the plan's overall
+  verification strategy. The 1h `parse` campaign found a real bug within minutes (see below); after the
+  fix, both `lex` and `parse` ran their full 1h campaigns clean — no crashes, no OOMs (fill in the exact
+  run count/coverage here if you re-verify; the important fact is the M1 gate is now met).
+
+**A third real bug, found by `cargo fuzz run parse` itself (not the corpus-parse test):** `switch`'s case
+loop (`Parser::parse_switch`) and each case's own statement loop (inside `Parser::parse_switch_case`)
+had no force-progress guard — the same class of bug `parse_block`/`parse_class_body`/etc. already guard
+against, just missed here. Malformed input with a `switch` keyword but nothing resembling
+`case`/`default`/`}` anywhere after it (e.g. `<?=\n\0\0switch]]\0\0w]]]]\n`, fuzzer-minimized) span the
+parser into an unbounded loop, growing `cases`/`body` forever — confirmed via Windows Task Manager going
+from ~2.8 GB to ~5.6 GB working set in 3 seconds before being killed. This is a real DoS vector against
+anything that parses untrusted-ish `.mwl`/`.php` text (the LSP, `mwl fmt`, this very fuzz harness), which
+is exactly what priority 1 in CLAUDE.md (security) says not to trade away. Fixed by adding the same
+force-progress guard to both loops; regression test is
+`a_malformed_switch_does_not_hang_or_grow_without_bound` in `parser.rs` (uses the literal fuzzer-found
+bytes — if this guard regresses, the test hangs rather than failing cleanly, same as the bug itself did).
+The module docs' "Error recovery" section now explains the guard's actual scope (every no-separator
+sequence loop, not just `parse_block` as it previously — wrongly — claimed).
 
 **Two real parser bugs found by the corpus-parse step and fixed:**
 
