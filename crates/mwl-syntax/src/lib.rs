@@ -33,6 +33,14 @@
 //!   likewise) is out of scope, not just unbuilt: `endif`/`endfor`/`endforeach`/`endswitch`/`endwhile`/
 //!   `enddeclare` are ordinary identifiers, not reserved words, and the parser never looks for a
 //!   `:`-delimited body form. Do not add `Keyword::End*` variants or colon-body parsing back.
+//! - **PHP 8.5's pipe operator** (`$x |> strlen(...)`) does not parse and never has — `|>` is not a
+//!   token, and there is no plan to add one. It is pure call-chain sugar (`$x |> f(...) |> g(...)` is
+//!   just `g(f($x))`), so it adds no expressiveness a nested call or a local variable doesn't already
+//!   give, while costing a new operator with its own precedence tier and a special-cased RHS shape
+//!   (reusing the `...` first-class-callable placeholder from ADR 0027). It also undercuts its own
+//!   usual justification here: ADR 0011 makes every function a method, so idiomatic MWL code already
+//!   reaches for `->` chaining instead of PHP's global-function nesting, which is the pain `|>` exists
+//!   to solve in vanilla PHP. Do not add a `Pipe`/`|>` token or an `ExprKind::Pipe` node.
 //!
 //! # Known gaps
 //!
