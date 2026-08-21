@@ -581,7 +581,7 @@ fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
 /// Whether `object` is exactly the `$this` variable — the one receiver shape
 /// `mwl_hir::members` already diagnoses a missing property on, so
 /// [`infer`]'s `PropertyAccess` arm must not diagnose it a second time.
-fn is_this_receiver(object: &Expr, src: &mwl_diagnostics::SourceFile) -> bool {
+pub(crate) fn is_this_receiver(object: &Expr, src: &mwl_diagnostics::SourceFile) -> bool {
     matches!(&object.kind, ExprKind::Variable(span) if span_text(src, *span) == "$this")
 }
 

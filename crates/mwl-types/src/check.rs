@@ -11,6 +11,11 @@
 //! [`check_method`] seeds a fresh [`crate::locals::LocalScope`] from the
 //! method's own lowered parameters (already definitely assigned), lowers its
 //! return type once, and hands the body to [`crate::locals::check_block`].
+//! Right after a `ClassDecl`'s members are checked this way,
+//! [`crate::ctor_init::check_class_init`] runs its own, separate
+//! constructor-only pass over the same declaration for ADR 0022 § 2 —
+//! interfaces/traits/enums never get that call, since only a class is ever
+//! instantiated through a constructor.
 //!
 //! **Known gap:** a class/interface/trait/enum declared *inside* a method
 //! body is not descended into here at all — only top-level declarations (and
@@ -23,6 +28,7 @@ use mwl_syntax::ast::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::ctor_init::check_class_init;
 use crate::expr::class_of_ctx;
 use crate::locals::{LocalScope, check_block};
 use crate::lower::lower_optional_type;
@@ -104,6 +110,7 @@ fn check_stmts(
                     current_class: Some(&qname),
                 };
                 check_members(&decl.members, &ctx, env);
+                check_class_init(decl, &qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
@@ -357,8 +364,12 @@ mod tests {
 
     #[test]
     fn a_this_property_access_has_its_declared_type() {
+        // The property has an inline default, so ADR 0022's own check
+        // (`crate::ctor_init`) has nothing to say about a missing
+        // constructor here — this fixture is only exercising property-type
+        // recovery.
         let diags = check_src(
-            "<?mwl\nclass T {\n  public int $count;\n  function m(): void {\n    int $n = $this->count;\n  }\n}\n",
+            "<?mwl\nclass T {\n  public int $count = 0;\n  function m(): void {\n    int $n = $this->count;\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -391,8 +402,9 @@ mod tests {
 
     #[test]
     fn a_property_access_on_a_new_expression_resolves() {
+        // Inline default again, for the same reason as the fixture above.
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n}\nclass T {\n  function m(): void {\n    int $n = (new Foo())->count;\n  }\n}\n",
+            "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(): void {\n    int $n = (new Foo())->count;\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }

@@ -1,0 +1,536 @@
+//! ADR 0022 § 2 — definite property initialization: every constructor a
+//! class declares must assign, on every path out of it, every property the
+//! class declares itself or pulls in through a used trait
+//! ([`crate::signatures::own_required_properties`]), and — when the class
+//! `extends` another — call `parent::constructor(...)` on every path too,
+//! discharging the inherited properties without re-deriving what the
+//! parent's own constructor already assigns (the parent was checked against
+//! this same rule when it was compiled, exactly as an ordinary call's callee
+//! is trusted rather than re-verified at every call site — ADR 0022 § 2,
+//! second bullet). A class with no constructor of its own and an
+//! unassigned required property is refused at the property's own
+//! declaration instead, since there is no constructor body to attach the
+//! diagnostic to (ADR 0022 § 2, third bullet).
+//!
+//! This is a second, narrower flow-analysis pass over a constructor's body,
+//! separate from [`crate::locals`]'s: it never checks an expression's
+//! *type* (`crate::check::check_method` already walks every method body,
+//! constructors included, for that), only whether `$this->prop = ...`
+//! (plain `=`, never a compound operator — mirroring
+//! `crate::expr::check_assign`'s own "only `=` counts" rule for locals)
+//! and `parent::constructor(...)` are reached on every path. [`walk_stmt`]
+//! threads one [`InitState`] through the same control-flow shape
+//! [`crate::locals::check_block`] does — `if`/`else` join by intersecting,
+//! `switch`/`try`'s body and catches conservatively contributing nothing
+//! (only `finally` and a `do`-`while` body, which always run, do) — see that
+//! module's own docs for why those particular gaps are safe: they can only
+//! make this checker reject a valid program, never accept an invalid one.
+//! Rather than computing a whole-body "definitely assigned" set once and
+//! diagnosing at the end the way [`crate::locals`] does for a local read,
+//! [`finish`] runs at every point a path can leave the constructor (an
+//! explicit `return`, and — if some path never returns — the implicit one
+//! at the end of the body), since ADR 0022 § 2 is stated per-return, not
+//! per-body.
+//!
+//! **Known gaps**, deliberately out of scope for this slice:
+//! - A property backed by a `set` hook is exempted from
+//!   [`crate::signatures::ClassSignature::required_properties`] entirely,
+//!   rather than checked against whether the hook actually commits a value —
+//!   this module has no model of a hook's body at all.
+//! - A promoted constructor-parameter property (`function constructor(public
+//!   int $x) {}`) is not recorded as a property anywhere yet
+//!   (`mwl_hir::members`'s and `crate::signatures`'s own pre-existing gap),
+//!   so it neither needs nor gets a definite-assignment check here — this
+//!   mirrors, rather than fixes, that gap.
+//! - [`scan_expr`] only descends into a handful of common composite
+//!   expression forms (assignment, calls, binary/unary/cast/ternary,
+//!   `instanceof`, array literals). A `$this->prop = ...` or
+//!   `parent::constructor(...)` buried inside a closure body, a `match` arm,
+//!   or another form this module doesn't descend into produces a spurious
+//!   diagnostic rather than being missed silently — safe by the same
+//!   "reject, never wrongly accept" standard as every other known gap here.
+//! - A class with no explicit `constructor` is not itself checked against
+//!   the `parent::constructor(...)` obligation — it has no constructor body
+//!   of its own for such a call to go in; PHP inherits the parent
+//!   constructor unchanged in that case, and this slice does not model that
+//!   inheritance.
+
+use mwl_diagnostics::{Diagnostic, Span, code};
+use mwl_hir::QName;
+use mwl_syntax::ast::{
+    AssignOp, CallArgs, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
+};
+use rustc_hash::FxHashSet;
+
+use crate::expr::is_this_receiver;
+use crate::signatures::own_required_properties;
+use crate::{Env, span_text, strip_sigil};
+
+/// The `$this->prop = ...`/`parent::constructor(...)` obligations one class
+/// declaration's constructor is checked against, bundled so [`walk_stmt`]
+/// and [`scan_expr`] thread one argument instead of several.
+struct CtorObligations<'a> {
+    qname: &'a QName,
+    required: &'a [(String, Span)],
+    ctor_name: Span,
+    needs_parent_call: bool,
+}
+
+/// Per-path state while walking a constructor body: which required
+/// properties have definitely been assigned so far, and whether
+/// `parent::constructor(...)` has definitely been called so far.
+#[derive(Clone, Default)]
+struct InitState {
+    assigned: FxHashSet<String>,
+    parent_called: bool,
+}
+
+impl InitState {
+    /// The state true of a path only when it was true on *both* of two
+    /// branches that join back together — the same intersection
+    /// [`crate::locals::check_block`]'s `if`/`else` handling uses for `live`.
+    fn merge(a: Self, b: Self) -> Self {
+        Self {
+            assigned: a.assigned.intersection(&b.assigned).cloned().collect(),
+            parent_called: a.parent_called && b.parent_called,
+        }
+    }
+}
+
+/// Checks one class declaration against ADR 0022 § 2. Interfaces, traits and
+/// enums are never called here — only [`crate::check::check_stmts`]'s
+/// `ClassDecl` arm calls this, since only a class is ever instantiated
+/// through a constructor.
+pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
+    let required = own_required_properties(qname, env.signatures, env.graph);
+
+    let ctor = decl.members.iter().find_map(|m| match &m.kind {
+        ClassMemberKind::Method(method) if span_text(env.src, method.name) == "constructor" => {
+            Some(method)
+        }
+        _ => None,
+    });
+
+    let Some(ctor) = ctor else {
+        // No constructor at all: a required property has no path to get
+        // assigned along, so it is refused right at its own declaration
+        // (ADR 0022 § 2, third bullet).
+        for (name, span) in &required {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_UNINITIALIZED_PROPERTY,
+                    format!(
+                        "`${name}` has no default value, and `{qname}` declares no constructor \
+                         to assign it"
+                    ),
+                )
+                .with_primary(*span, "never assigned")
+                .with_help("give it a default value, or add a `constructor` that assigns it"),
+            );
+        }
+        return;
+    };
+
+    let Some(body) = &ctor.body else {
+        return; // an abstract constructor has no body to walk
+    };
+
+    let obligations = CtorObligations {
+        qname,
+        required: &required,
+        ctor_name: ctor.name,
+        needs_parent_call: decl.extends.is_some(),
+    };
+    let mut state = InitState::default();
+    let terminates = walk_stmts(&body.stmts, &mut state, &obligations, env);
+    if !terminates {
+        // Fell off the end of the body without an explicit `return` — the
+        // implicit return ADR 0022 § 2 also covers.
+        finish(&state, &obligations, env);
+    }
+}
+
+/// Reports whatever `state` still leaves unsatisfied at one point a
+/// constructor can return from.
+fn finish(state: &InitState, obligations: &CtorObligations<'_>, env: &mut Env<'_>) {
+    for (name, span) in obligations.required {
+        if !state.assigned.contains(name) {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_UNINITIALIZED_PROPERTY,
+                    format!("`${name}` is not assigned on every path out of the constructor"),
+                )
+                .with_primary(*span, "declared here")
+                .with_secondary(
+                    obligations.ctor_name,
+                    "not assigned along every path out of this constructor",
+                ),
+            );
+        }
+    }
+    if obligations.needs_parent_call && !state.parent_called {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_MISSING_PARENT_CONSTRUCTOR_CALL,
+                format!(
+                    "`{}` extends another class, but a path through its constructor never \
+                     calls `parent::constructor(...)`",
+                    obligations.qname
+                ),
+            )
+            .with_primary(obligations.ctor_name, "missing call on some path"),
+        );
+    }
+}
+
+/// Walks `stmts` in sequence, updating `state` in place. Returns `true` when
+/// every path through `stmts` definitely ends in a `return` or `throw` —
+/// [`check_class_init`] uses that to know whether the body's fall-through
+/// end still needs its own [`finish`] call.
+fn walk_stmts(
+    stmts: &[Stmt],
+    state: &mut InitState,
+    obligations: &CtorObligations<'_>,
+    env: &mut Env<'_>,
+) -> bool {
+    for stmt in stmts {
+        if walk_stmt(stmt, state, obligations, env) {
+            return true;
+        }
+    }
+    false
+}
+
+fn walk_stmt(
+    stmt: &Stmt,
+    state: &mut InitState,
+    obligations: &CtorObligations<'_>,
+    env: &mut Env<'_>,
+) -> bool {
+    match &stmt.kind {
+        StmtKind::Return(_) => {
+            finish(state, obligations, env);
+            true
+        }
+        StmtKind::Expr(e) => {
+            if matches!(&e.kind, ExprKind::Throw(_)) {
+                // A throwing path never returns the constructed object, so
+                // ADR 0022 § 2 has nothing to check on it.
+                return true;
+            }
+            scan_expr(e, state, env);
+            false
+        }
+        StmtKind::Block(b) => walk_stmts(&b.stmts, state, obligations, env),
+        StmtKind::If { cond, then, else_ } => {
+            scan_expr(cond, state, env);
+            let mut then_state = state.clone();
+            let then_terminates = walk_stmt(then, &mut then_state, obligations, env);
+            if let Some(else_stmt) = else_ {
+                let mut else_state = state.clone();
+                let else_terminates = walk_stmt(else_stmt, &mut else_state, obligations, env);
+                match (then_terminates, else_terminates) {
+                    (true, true) => return true,
+                    (true, false) => *state = else_state,
+                    (false, true) => *state = then_state,
+                    (false, false) => *state = InitState::merge(then_state, else_state),
+                }
+            }
+            // No `else`: only the pre-existing `state` carries forward,
+            // exactly like `crate::locals::check_block`'s own `If` arm.
+            false
+        }
+        StmtKind::While { cond, body } => {
+            scan_expr(cond, state, env);
+            let mut body_state = state.clone();
+            walk_stmt(body, &mut body_state, obligations, env);
+            // The body may run zero times, so nothing it assigns carries
+            // forward — same conservative treatment as every loop here.
+            false
+        }
+        StmtKind::DoWhile { body, cond } => {
+            // The body runs at least once, so its assignments do carry
+            // forward — mirrors `crate::locals`'s own `DoWhile` arm.
+            if walk_stmt(body, state, obligations, env) {
+                return true;
+            }
+            scan_expr(cond, state, env);
+            false
+        }
+        StmtKind::For {
+            init,
+            cond,
+            step,
+            body,
+        } => {
+            for e in init {
+                scan_expr(e, state, env);
+            }
+            for e in cond {
+                scan_expr(e, state, env);
+            }
+            let mut body_state = state.clone();
+            walk_stmt(body, &mut body_state, obligations, env);
+            for e in step {
+                scan_expr(e, &mut body_state, env);
+            }
+            false
+        }
+        StmtKind::Foreach { subject, body, .. } => {
+            scan_expr(subject, state, env);
+            let mut body_state = state.clone();
+            walk_stmt(body, &mut body_state, obligations, env);
+            false
+        }
+        StmtKind::Switch { subject, cases } => {
+            scan_expr(subject, state, env);
+            // Conservatively contributes nothing to the state after the
+            // switch — same known gap as `crate::locals`'s own `Switch` arm.
+            for case in cases {
+                let mut case_state = state.clone();
+                if let Some(c) = &case.cond {
+                    scan_expr(c, &mut case_state, env);
+                }
+                walk_stmts(&case.body, &mut case_state, obligations, env);
+            }
+            false
+        }
+        StmtKind::Try {
+            body,
+            catches,
+            finally,
+        } => {
+            let mut body_state = state.clone();
+            walk_stmts(&body.stmts, &mut body_state, obligations, env);
+            for catch in catches {
+                let mut catch_state = state.clone();
+                walk_stmts(&catch.body.stmts, &mut catch_state, obligations, env);
+            }
+            // `body`/`catches` conservatively contribute nothing; `finally`
+            // always runs, so it updates `state` directly.
+            if let Some(finally) = finally {
+                walk_stmts(&finally.stmts, state, obligations, env);
+            }
+            false
+        }
+        StmtKind::Echo(xs) | StmtKind::Unset(xs) => {
+            for x in xs {
+                scan_expr(x, state, env);
+            }
+            false
+        }
+        StmtKind::LocalDecl {
+            value: Some(value), ..
+        } => {
+            scan_expr(value, state, env);
+            false
+        }
+        StmtKind::Destructure { value, .. } => {
+            scan_expr(value, state, env);
+            false
+        }
+        _ => false,
+    }
+}
+
+/// Looks for a `$this->prop = ...` assignment or a `parent::constructor(...)`
+/// call anywhere `e` directly nests one of a handful of common composite
+/// forms — see the module docs' known gaps for what this does not descend
+/// into.
+fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
+    match &e.kind {
+        ExprKind::Assign {
+            op, target, value, ..
+        } => {
+            scan_expr(value, state, env);
+            scan_expr(target, state, env);
+            if *op == AssignOp::Assign
+                && let ExprKind::PropertyAccess {
+                    object,
+                    property: MemberName::Ident(name_span),
+                    ..
+                } = &target.kind
+                && is_this_receiver(object, env.src)
+            {
+                state
+                    .assigned
+                    .insert(strip_sigil(span_text(env.src, *name_span)).to_owned());
+            }
+        }
+        ExprKind::StaticCall {
+            class,
+            method,
+            args,
+        } => {
+            scan_call_args(args, state, env);
+            scan_expr(class, state, env);
+            if matches!(class.kind, ExprKind::ParentExpr)
+                && let MemberName::Ident(name_span) = method
+                && span_text(env.src, *name_span) == "constructor"
+            {
+                state.parent_called = true;
+            }
+        }
+        ExprKind::MethodCall { object, args, .. } => {
+            scan_expr(object, state, env);
+            scan_call_args(args, state, env);
+        }
+        ExprKind::Call { callee, args } => {
+            scan_expr(callee, state, env);
+            scan_call_args(args, state, env);
+        }
+        ExprKind::Binary { lhs, rhs, .. } => {
+            scan_expr(lhs, state, env);
+            scan_expr(rhs, state, env);
+        }
+        ExprKind::Ternary { cond, then, else_ } => {
+            scan_expr(cond, state, env);
+            if let Some(then) = then {
+                scan_expr(then, state, env);
+            }
+            scan_expr(else_, state, env);
+        }
+        ExprKind::Unary { expr: inner, .. }
+        | ExprKind::PreIncDec { expr: inner, .. }
+        | ExprKind::PostIncDec { expr: inner, .. }
+        | ExprKind::Cast { expr: inner, .. }
+        | ExprKind::Conversion { expr: inner, .. } => {
+            scan_expr(inner, state, env);
+        }
+        ExprKind::InstanceOf { expr: inner, class } => {
+            scan_expr(inner, state, env);
+            scan_expr(class, state, env);
+        }
+        ExprKind::ArrayLiteral(items) => {
+            for item in items {
+                if let Some(key) = &item.key {
+                    scan_expr(key, state, env);
+                }
+                scan_expr(&item.value, state, env);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn scan_call_args(args: &CallArgs, state: &mut InitState, env: &Env<'_>) {
+    if let CallArgs::List(list) = args {
+        for arg in list {
+            scan_expr(&arg.value, state, env);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mwl_diagnostics::{Diagnostics, SourceMap, code};
+    use mwl_hir::resolve_file;
+    use mwl_syntax::parse_file;
+
+    use crate::ty::TypeInterner;
+
+    fn check_src(src: &str) -> Diagnostics {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        let mut interner = TypeInterner::new();
+        crate::check_program(&stmts, map.file(file), &module, &mut interner, &mut diags);
+        diags
+    }
+
+    #[test]
+    fn a_class_with_no_constructor_and_no_default_is_diagnosed() {
+        let diags = check_src("<?mwl\nclass Foo {\n  public int $count;\n}\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_class_with_no_constructor_but_an_inline_default_is_fine() {
+        let diags = check_src("<?mwl\nclass Foo {\n  public int $count = 0;\n}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_class_with_no_constructor_but_a_nullable_property_is_fine() {
+        let diags = check_src("<?mwl\nclass Foo {\n  public ?int $count;\n}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_constructor_assigning_every_property_is_fine() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(int $c) {\n    $this->count = $c;\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_constructor_leaving_a_property_unassigned_on_one_branch_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(bool $flag) {\n    if ($flag) {\n      $this->count = 1;\n    }\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_constructor_assigning_on_both_if_branches_is_fine() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(bool $flag) {\n    if ($flag) {\n      $this->count = 1;\n    } else {\n      $this->count = 2;\n    }\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_subclass_constructor_skipping_parent_constructor_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Base {\n  public int $id;\n  function constructor(int $id) {\n    $this->id = $id;\n  }\n}\nclass Sub extends Base {\n  function constructor() {\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_MISSING_PARENT_CONSTRUCTOR_CALL)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_subclass_constructor_calling_parent_constructor_is_fine() {
+        let diags = check_src(
+            "<?mwl\nclass Base {\n  public int $id;\n  function constructor(int $id) {\n    $this->id = $id;\n  }\n}\nclass Sub extends Base {\n  function constructor(int $id) {\n    parent::constructor($id);\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_trait_contributed_property_must_be_assigned_too() {
+        let diags = check_src(
+            "<?mwl\ntrait HasCount {\n  public int $count;\n}\nclass Foo {\n  use HasCount;\n  function constructor() {\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_hooked_property_is_exempt_from_the_check() {
+        let diags = check_src("<?mwl\nclass Foo {\n  public int $count { get => 1; }\n}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+}

@@ -28,7 +28,7 @@
 //!   `Class::CONST` stays `mixed` regardless of receiver, same as before
 //!   this module existed.
 
-use mwl_diagnostics::{Diagnostics, SourceFile};
+use mwl_diagnostics::{Diagnostics, SourceFile, Span};
 use mwl_hir::{AliasTable, ClassGraph, QName, SymbolTable};
 use mwl_syntax::ast::{ClassMember, ClassMemberKind, NamespaceDecl, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -64,6 +64,13 @@ pub struct ClassSignature {
     pub properties: FxHashMap<String, TypeId>,
     /// Method signatures, keyed by method name.
     pub methods: FxHashMap<String, MethodSig>,
+    /// This declaration's own properties that ADR 0022 § 2 requires a
+    /// constructor to definitely assign: non-nullable (`TypeInterner::is_nullable`
+    /// is false), no inline default, and no hook block. A hooked property is
+    /// exempted here entirely rather than modeled — see
+    /// `crate::ctor_init`'s module docs for why. Name, declaration span, in
+    /// declaration order.
+    pub required_properties: Vec<(String, Span)>,
 }
 
 /// Every declaration's own [`ClassSignature`], keyed by its [`QName`].
@@ -213,10 +220,14 @@ fn collect_members(
             ClassMemberKind::Property(p) => {
                 let ty = lower_type(&p.ty, ctx, env);
                 let text = span_text(env.src, p.name);
-                table
-                    .entry(qname.clone())
-                    .properties
-                    .insert(strip_sigil(text).to_owned(), ty);
+                let name = strip_sigil(text).to_owned();
+                let required =
+                    p.default.is_none() && p.hooks.is_none() && !env.interner.is_nullable(ty);
+                let sig = table.entry(qname.clone());
+                sig.properties.insert(name.clone(), ty);
+                if required {
+                    sig.required_properties.push((name, p.name));
+                }
             }
             ClassMemberKind::Method(m) => {
                 let params: Vec<TypeId> = m
@@ -318,6 +329,61 @@ fn resolve_method_rec(
         .chain(links.implements.iter())
         .chain(links.traits.iter())
         .find_map(|parent| resolve_method_rec(parent, name, table, graph, seen))
+}
+
+/// Every property `qname`'s own constructor must definitely assign per
+/// ADR 0022 § 2: `qname`'s own [`ClassSignature::required_properties`],
+/// plus every used trait's own (recursively, through nested trait-use — the
+/// same flattening [`resolve_property`]/[`resolve_method`] walk, but
+/// restricted to `traits` alone). Deliberately excludes `extends`/
+/// `implements`: an inherited property is discharged by calling
+/// `parent::constructor(...)`, not by assigning it a second time — see
+/// `crate::ctor_init`. A name already collected from `qname` itself (or an
+/// earlier trait) is not collected again from a later trait, since it is the
+/// same storage location either way.
+#[must_use]
+pub fn own_required_properties(
+    qname: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Vec<(String, Span)> {
+    let mut seen_classes = FxHashSet::default();
+    let mut seen_names = FxHashSet::default();
+    let mut out = Vec::new();
+    collect_own_required(
+        qname,
+        table,
+        graph,
+        &mut seen_classes,
+        &mut seen_names,
+        &mut out,
+    );
+    out
+}
+
+fn collect_own_required(
+    qname: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+    seen_classes: &mut FxHashSet<QName>,
+    seen_names: &mut FxHashSet<String>,
+    out: &mut Vec<(String, Span)>,
+) {
+    if !seen_classes.insert(qname.clone()) {
+        return;
+    }
+    if let Some(sig) = table.get(qname) {
+        for (name, span) in &sig.required_properties {
+            if seen_names.insert(name.clone()) {
+                out.push((name.clone(), *span));
+            }
+        }
+    }
+    if let Some(links) = graph.get(qname) {
+        for trait_q in &links.traits {
+            collect_own_required(trait_q, table, graph, seen_classes, seen_names, out);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -257,6 +257,15 @@ pub mod code {
     pub const E_INT_UINT_ARITHMETIC: Code = Code::new("E0407");
     /// An `array<...>` type nests past ADR 0007 § 5's depth-32 bound.
     pub const E_ARRAY_TYPE_TOO_DEEP: Code = Code::new("E0408");
+    /// A non-nullable, no-default property a class declares (itself, or
+    /// through a used trait) is not definitely assigned on some path out of
+    /// its constructor — or the class has no constructor at all to assign
+    /// it; see ADR 0022 § 2.
+    pub const E_UNINITIALIZED_PROPERTY: Code = Code::new("E0409");
+    /// A subclass constructor has a path that never calls
+    /// `parent::constructor(...)`, so the properties it inherits are never
+    /// discharged on that path; see ADR 0022 § 2.
+    pub const E_MISSING_PARENT_CONSTRUCTOR_CALL: Code = Code::new("E0410");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

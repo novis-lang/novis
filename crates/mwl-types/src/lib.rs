@@ -41,6 +41,13 @@
 //!   [`locals::LocalScope`] from its lowered parameters (`$this` included,
 //!   typed as the enclosing class) and checking every `return` against the
 //!   lowered return type.
+//! - [`ctor_init`] — [`ctor_init::check_class_init`]: ADR 0022 § 2's
+//!   definite-property-initialization check, a second flow-analysis pass
+//!   over each class's own constructor (or, absent one, over its required
+//!   properties' own declarations directly) — extending [`locals`]'s
+//!   definite-assignment idea to a second binding kind, as that ADR's own
+//!   framing asks for, rather than reusing `locals`'s code directly (the two
+//!   passes track different per-path state and don't share a walker).
 //!
 //! # Known gaps
 //!
@@ -49,10 +56,11 @@
 //!
 //! - ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
 //!   symbol", ADR 0013 (`Comparable`), ADR 0014's interplay with a typed
-//!   receiver, ADR 0022 (definite *property* initialization — this slice's
-//!   flow analysis covers only local variables), ADR 0024 (tainted
-//!   propagation/laundering), ADR 0027 (`callable` value-shape checking),
-//!   ADR 0028 (`Stringable`, `unset()` refusal).
+//!   receiver, ADR 0024 (tainted propagation/laundering), ADR 0027
+//!   (`callable` value-shape checking), ADR 0028 (`Stringable`, `unset()`
+//!   refusal). ADR 0022 (definite *property* initialization) is now done for
+//!   the shapes its own M2 corpus names — see [`ctor_init`]'s docs for what
+//!   is deliberately still out of scope within that ADR specifically.
 //! - Exhaustive control-flow reachability (e.g. "every path through this
 //!   non-void function returns"); `switch` and `try`/`catch` bodies
 //!   conservatively contribute nothing to definite-assignment after them —
@@ -68,6 +76,7 @@
 //!   arity check on `new` — see [`expr`]'s `New` handling.
 
 pub mod check;
+pub mod ctor_init;
 pub mod expr;
 pub mod locals;
 pub mod lower;

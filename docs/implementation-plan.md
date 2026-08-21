@@ -124,14 +124,14 @@
 > lowered parameters — `$this` included, typed as the enclosing class, newly this session — and
 > checking `return` against the lowered return type (`E_BAD_RETURN_TYPE`, reused).
 >
-> This session closed the first item of the prior session's follow-up list: property, method-call,
-> `new`, `match` and ternary expression typing, via a new
+> The prior session closed the first item of its own predecessor's follow-up list: property,
+> method-call, `new`, `match` and ternary expression typing, via a new
 > [`signatures.rs`](../crates/mwl-types/src/signatures.rs) built ahead of any body-checking —
 > [`SignatureTable`](../crates/mwl-types/src/signatures.rs) records every class/interface/trait/enum's
 > own declared property types and method parameter/return types, and `resolve_property`/
 > `resolve_method` walk `extends`/`implements`/trait-use ancestors to find an inherited one, the same
 > shape `mwl-hir`'s own `member_declared` already walks for existence-only checking.
-> [`expr.rs`](../crates/mwl-types/src/expr.rs) now types a property access, an instance method call, a
+> [`expr.rs`](../crates/mwl-types/src/expr.rs) types a property access, an instance method call, a
 > static call/property, `new` (including `new parent(...)`), and `match`/ternary as the union of their
 > arms/branches — diagnostics are split by receiver so nothing is reported twice: a
 > `self`/`static`/`parent`/explicit-class-name static reference keeps its existing `mwl-hir`
@@ -141,16 +141,42 @@
 > `$this` — was never checked by `mwl-hir` at all (no static type to check against) and gets a new
 > `E_UNKNOWN_MEMBER` (`E0405`, previously reserved but unused) here. A resolved call signature also
 > gets positional arity (`E_ARITY_MISMATCH`, `E0402`, previously reserved but unused) and
-> per-argument type checking, including a `new Foo(...)`'s arguments against a resolved
-> `constructor`. **Known gaps**, left for a follow-up session (`NEXT_SESSION_PROMPT.md` has the
-> ordering): every other ADR M2 assigns to `mwl-types` (0010/0013/0014/0022/0024/0027/0028's
-> checker-side rules); exhaustive control-flow reachability (`switch`/`try` bodies conservatively
-> contribute nothing to definite assignment after them — safe, never accepts an invalid program);
-> references (`&$x`) needing both sides to declare the same type; `parent` as a *type* atom
-> (`parent $x`, distinct from `new parent(...)`, which now resolves); a class constant's type; a
-> promoted constructor-parameter property; a named/spread call argument's positional checking; a
-> class with no explicit `constructor` is not held to a zero-argument arity check on `new`. `mwl-ir`
-> hasn't started.
+> per-argument type checking, including a `new Foo(...)`'s arguments against a resolved `constructor`.
+>
+> This session closed the next item in that list: [ADR 0022](adr/0022-definite-property-initialization.md)
+> § 2's definite-property-initialization check, in a new
+> [`ctor_init.rs`](../crates/mwl-types/src/ctor_init.rs) — a second, narrower flow-analysis pass over
+> each class's own constructor, run right after `check.rs` checks that class's method bodies.
+> [`signatures.rs`](../crates/mwl-types/src/signatures.rs) gained `required_properties` (a class's own
+> non-nullable, no-default, non-hooked properties) and `own_required_properties` (that set, plus every
+> used trait's own, recursively — trait flattening, but restricted to `traits` alone rather than the
+> full `extends`/`implements`/trait-use ancestor walk `resolve_property`/`resolve_method` do, since an
+> *inherited* property is discharged by calling `parent::constructor(...)`, not by assigning it a
+> second time). `ctor_init.rs` walks a constructor's body with the same control-flow shape
+> `locals.rs`'s own definite-assignment pass uses (`if`/`else` join by intersecting, `switch`/`try`'s
+> body and catches conservatively contributing nothing, only `finally`/a `do`-`while` body — which
+> always run — updating the tracked state), checking at every `return` (and the implicit one at the
+> body's end, if some path never explicitly returns) that every required property has been assigned
+> via a plain `$this->prop = ...` and, when the class `extends` another, that
+> `parent::constructor(...)` has been called on that path. A class with no constructor at all and a
+> required property is refused right at that property's own declaration instead
+> (`E_UNINITIALIZED_PROPERTY`, `E0409`, newly added, for both shapes); a subclass constructor with a
+> path that never calls `parent::constructor(...)` is `E_MISSING_PARENT_CONSTRUCTOR_CALL` (`E0410`,
+> newly added). **Known gaps**, left for a follow-up session (`NEXT_SESSION_PROMPT.md` has the
+> ordering): every other ADR M2 assigns to `mwl-types` (0010/0013/0014/0024/0027/0028's checker-side
+> rules); within ADR 0022 itself, a property backed by a `set` hook is exempted from the check
+> entirely rather than verified against the hook's own body, and `ctor_init.rs`'s expression scan only
+> descends into a handful of common composite forms, so a `$this->prop = ...`/
+> `parent::constructor(...)` buried inside a closure body or a `match` arm produces a spurious
+> diagnostic rather than being missed silently — see that module's own docs for the full list;
+> exhaustive control-flow reachability (`switch`/`try` bodies conservatively contribute nothing to
+> definite assignment after them — safe, never accepts an invalid program); references (`&$x`) needing
+> both sides to declare the same type; `parent` as a *type* atom (`parent $x`, distinct from `new
+> parent(...)`, which now resolves); a class constant's type; a promoted constructor-parameter property
+> (tracked as neither a property nor a definite-assignment obligation, mirroring a pre-existing
+> `mwl_hir::members`/`signatures.rs` gap); a named/spread call argument's positional checking; a class
+> with no explicit `constructor` is not held to a zero-argument arity check on `new`, nor to the
+> `parent::constructor(...)` obligation. `mwl-ir` hasn't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
