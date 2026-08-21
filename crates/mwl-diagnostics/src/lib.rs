@@ -337,6 +337,16 @@ pub mod code {
     /// `__invoke`, so no class ever makes `()` mean anything else. See
     /// ADR 0027 § 1.
     pub const E_NOT_CALLABLE: Code = Code::new("E0420");
+    /// A `secret`-qualified value reaching a `Core\Html\Markup`-building
+    /// conversion — refused even though the equivalent `tainted`-only value
+    /// would (once `Core\Html` exists) be auto-escaped instead: escaping
+    /// neutralizes injection risk, not confidentiality. See ADR 0033 § 4.
+    pub const E_SECRET_MARKUP_UNSUPPORTED: Code = Code::new("E0421");
+    /// A `secret`-qualified value passed as a `Throwable`-shaped class's
+    /// constructor message argument — closing the common leak of a
+    /// credential ending up in a stack trace or an error page. See ADR 0033
+    /// § 4.
+    pub const E_SECRET_THROWABLE_MESSAGE: Code = Code::new("E0422");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

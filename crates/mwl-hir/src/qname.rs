@@ -112,6 +112,24 @@ impl QName {
     pub fn is_reserved_global_interface(&self) -> bool {
         self.segments.len() == 1 && matches!(self.segments[0].as_str(), "Comparable" | "Stringable")
     }
+
+    /// Whether this name is one of the three global exception classes
+    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 0
+    /// already fixed as "stay global, PHP-shaped classes" — `Throwable`,
+    /// `Exception`, `Error` — trusted to exist without a source declaration
+    /// the same way [`Self::is_core`] trusts `Core`, since `mwl-stdlib`
+    /// doesn't declare them either. Kept separate from
+    /// [`Self::is_reserved_global_interface`]: these three are ordinary
+    /// classes reached via `extends`/`new`, not interfaces reached via
+    /// `implements`.
+    #[must_use]
+    pub fn is_reserved_global_class(&self) -> bool {
+        self.segments.len() == 1
+            && matches!(
+                self.segments[0].as_str(),
+                "Throwable" | "Exception" | "Error"
+            )
+    }
 }
 
 impl fmt::Display for QName {
@@ -167,5 +185,14 @@ mod tests {
         assert!(QName::parse("Stringable").is_reserved_global_interface());
         assert!(!QName::parse("PropertyObserver").is_reserved_global_interface());
         assert!(!QName::parse("App\\Comparable").is_reserved_global_interface());
+    }
+
+    #[test]
+    fn is_reserved_global_class_recognizes_throwable_exception_and_error() {
+        assert!(QName::parse("Throwable").is_reserved_global_class());
+        assert!(QName::parse("Exception").is_reserved_global_class());
+        assert!(QName::parse("Error").is_reserved_global_class());
+        assert!(!QName::parse("Comparable").is_reserved_global_class());
+        assert!(!QName::parse("App\\Exception").is_reserved_global_class());
     }
 }

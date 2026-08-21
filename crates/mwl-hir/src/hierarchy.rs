@@ -17,7 +17,10 @@
 //! before this leaves M2 if nested trait composition needs the same check.
 //! A target under `Core` ([`QName::is_core`]) is trusted to exist, same as a
 //! `use` import — `mwl-stdlib` doesn't exist yet, so its members can't be
-//! checked either.
+//! checked either. `Throwable`/`Exception`/`Error`
+//! ([`QName::is_reserved_global_class`]) get the identical trust for
+//! `extends`, since [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! § 0 already fixed them as global, undeclared classes.
 
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use mwl_syntax::ast::{
@@ -381,7 +384,7 @@ fn resolve_supertype(
     diags: &mut Diagnostics,
 ) -> Option<QName> {
     let qname = resolve_ref(&raw.text, &pending.namespace, &pending.imports);
-    if qname.is_core() || qname.is_reserved_global_interface() {
+    if qname.is_core() || qname.is_reserved_global_interface() || qname.is_reserved_global_class() {
         return Some(qname);
     }
     match symbols.get(&qname) {
@@ -706,6 +709,20 @@ mod tests {
         assert!(implements_interface(
             &QName::parse("Box"),
             &QName::parse("Comparable"),
+            &graph
+        ));
+    }
+
+    #[test]
+    fn a_class_extending_the_reserved_global_exception_resolves_with_no_declaration() {
+        // ADR 0020 § 0: `Exception` is a global, PHP-shaped class with no
+        // `mwl-hir` declaration of its own — trusted the same way `Core`'s
+        // own classes are.
+        let (graph, diags) = resolve("<?mwl\nclass MyError extends Exception {}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(implements_interface(
+            &QName::parse("MyError"),
+            &QName::parse("Exception"),
             &graph
         ));
     }

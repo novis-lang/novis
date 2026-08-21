@@ -28,23 +28,40 @@
 //! *declared* object property is refused outright regardless of nullability
 //! (ADR 0028 § 3, via [`check_unset_target`]/[`check_property_access`]).
 //!
-//! **ADR 0024 §§ 2-3 (`tainted` propagation and laundering)** is implemented
-//! here too: concatenation and interpolation poison their result exactly like
-//! ADR 0007's `mixed`-arithmetic precedent ([`is_tainted`], applied in the
-//! `Binary`/`Interpolated` arms below); [`apply_taint_conversion_rule`] is
-//! `ExprKind::Conversion`'s taint half — a checked conversion to `uint`/
-//! `int`/`float`/`bool`/an enum's backing type launders for free, since none
-//! of those targets carry the qualifier to begin with, while `bytes`/`string`
-//! (including the identity-shaped `tainted string as string`, which would
-//! otherwise be a silent bypass) keep it across either direction, per ADR
-//! 0009 § 3. [`is_assignable`] gains one more amendment for this axis: a
-//! plain `string`/`bytes` is assignable to its `tainted` counterpart (a
-//! trusted value is always a safe over-approximation of "may be tainted,"
-//! the same direction `mixed` never gets), but not the reverse.
-//! [`reject_non_literal_markup_conversion`] is ADR 0024 § 5's one M2-scoped
-//! rule: `as Core\Html\Markup` accepts only a literal string token,
-//! `tainted` or not — the rest of § 5 (auto-escaping, `Markup + Markup`)
-//! waits on `Core\Html` actually existing.
+//! **ADR 0024 §§ 2-3 (`tainted` propagation and laundering) and ADR 0033
+//! §§ 2-4 (`secret`, the same shape on an independent axis)** are implemented
+//! together here, since the two qualifiers share one representation
+//! ([`Ty::TaintedString`]/[`Ty::SecretString`]/[`Ty::SecretTaintedString`]/
+//! etc. — one atom per combination) and one set of helpers
+//! ([`is_tainted`]/[`is_secret`]/[`qualifiable_base`]/[`qualified_scalar`]):
+//! concatenation and interpolation poison their result on each axis
+//! independently, exactly like ADR 0007's `mixed`-arithmetic precedent,
+//! applied in the `Binary`/`Interpolated` arms below;
+//! [`apply_qualifier_conversion_rule`] is `ExprKind::Conversion`'s qualifier
+//! half — a checked conversion to `uint`/`int`/`float`/`bool`/an enum's
+//! backing type launders both qualifiers for free, since none of those
+//! targets carry either to begin with (a known, ADR-accepted gap for
+//! `secret`: unlike `tainted`, "shape-proof implies safe" doesn't actually
+//! transfer, see ADR 0033 § 2's own *Alternatives rejected*), while
+//! `bytes`/`string` (including the identity-shaped `tainted string as
+//! string`/`secret string as string`, which would otherwise be a silent
+//! bypass) keep both qualifiers across either direction, per ADR 0009 § 3.
+//! [`is_assignable`] gains one more amendment, generalized over both axes: a
+//! same-base value widens freely on either bit (a trusted, non-secret value
+//! is always a safe over-approximation of "may be tainted"/"may be secret,"
+//! the same direction `mixed` never gets) but never narrows through ordinary
+//! assignment. [`reject_non_literal_markup_conversion`] is ADR 0024 § 5's one
+//! M2-scoped rule: `as Core\Html\Markup` accepts only a literal string
+//! token, `tainted` or not — the rest of § 5 (auto-escaping, `Markup +
+//! Markup`) waits on `Core\Html` actually existing.
+//! [`reject_secret_markup_conversion`] is ADR 0033 § 4's sibling, giving a
+//! `secret` operand there its own specific diagnostic ahead of the generic
+//! one (escaping doesn't restore confidentiality, so `secret` gets no
+//! auto-escape carve-out even once one exists for `tainted`), and
+//! [`reject_secret_throwable_message`] is its other M2-reachable sink: a
+//! `Throwable`-shaped class's constructor message argument — see
+//! [`is_throwable_shaped`] for how that's decided without a declared
+//! `Throwable`/`Exception`/`Error` stdlib to check against.
 //!
 //! **ADR 0027 (`callable` is closures only)** also lives here:
 //! [`report_non_callable_value_if_applicable`] gives a bare string or
@@ -171,7 +188,10 @@ fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env<'_>) -> bo
 /// class or shape is `<: object`), and § 3 with a shape target's structural
 /// check (see [`shape_satisfied`]) — the two amendments this ADR makes to
 /// ADR 0007 § 6's table, needing `graph`/`signatures` only to resolve a
-/// class receiver's own property types against a shape target.
+/// class receiver's own property types against a shape target. ADR 0024 § 2
+/// and ADR 0033 § 2 add one more: a same-base `string`/`bytes` value widens
+/// freely on its `tainted`/`secret` axes (see the qualifier check just above
+/// [`shape_satisfied`]'s call), never narrows.
 #[must_use]
 pub(crate) fn is_assignable(
     from: TypeId,
@@ -203,16 +223,22 @@ pub(crate) fn is_assignable(
     if let Ty::Shape(to_fields) = interner.get(to) {
         return shape_satisfied(from, to_fields, interner, graph, signatures);
     }
-    // ADR 0024 § 2: a plain `string`/`bytes` is always a safe
-    // over-approximation of "may be tainted" — the same one-directional
-    // widening `mixed` gets, but on this axis instead. The reverse (a
-    // `tainted` value into a plain-typed target) is never assignable; that
-    // is this ADR's whole point.
-    if matches!(
-        (interner.get(from), interner.get(to)),
-        (Ty::String, Ty::TaintedString) | (Ty::Bytes, Ty::TaintedBytes)
+    // ADR 0024 § 2 / ADR 0033 § 2: `tainted` and `secret` are two independent
+    // bits on the same `string`/`bytes` base, and each may only ever widen
+    // through ordinary assignment — a plain value is always a safe
+    // over-approximation of "may be tainted"/"may be secret," but never the
+    // reverse. `from` is assignable to a same-base `to` exactly when every
+    // qualifier bit `from` carries, `to` carries too (a strict superset is
+    // fine; a missing bit is this whole mechanism's point).
+    if let (Some(from_is_bytes), Some(to_is_bytes)) = (
+        qualifiable_base(from, interner),
+        qualifiable_base(to, interner),
     ) {
-        return true;
+        let tainted_ok = !is_tainted(from, interner) || is_tainted(to, interner);
+        let secret_ok = !is_secret(from, interner) || is_secret(to, interner);
+        if from_is_bytes == to_is_bytes && tainted_ok && secret_ok {
+            return true;
+        }
     }
     false
 }
@@ -320,18 +346,16 @@ fn infer(
         ExprKind::Str(_) => env.interner.string(),
         ExprKind::Interpolated(parts) => {
             let mut tainted = false;
+            let mut secret = false;
             for part in parts {
                 if let StringPart::Expr(e) = part {
                     let ty = check_expr(e, None, live, scope, ctx, env);
                     require_stringable(ty, e.span, env);
                     tainted |= is_tainted(ty, env.interner);
+                    secret |= is_secret(ty, env.interner);
                 }
             }
-            if tainted {
-                env.interner.tainted_string()
-            } else {
-                env.interner.string()
-            }
+            qualified_scalar(false, tainted, secret, env.interner)
         }
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span)).to_owned();
@@ -399,8 +423,9 @@ fn infer(
                 require_stringable(inner_ty, inner.span, env);
             }
             reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
+            reject_secret_markup_conversion(inner_ty, result, expr.span, env);
             reject_non_literal_markup_conversion(inner, result, expr.span, env);
-            apply_taint_conversion_rule(inner_ty, result, env.interner)
+            apply_qualifier_conversion_rule(inner_ty, result, env.interner)
         }
         ExprKind::InstanceOf { expr: inner, class } => {
             check_expr(inner, None, live, scope, ctx, env);
@@ -431,7 +456,7 @@ fn infer(
                 (Some(qname), MemberName::Ident(name_span)) => {
                     let name = span_text(env.src, *name_span).to_owned();
                     let found = resolve_method(&qname, &name, env.signatures, env.graph);
-                    if found.is_none() && !qname.is_core() {
+                    if found.is_none() && !qname.is_core() && !qname.is_reserved_global_class() {
                         report_unknown_member(object.span, &qname, &name, "method", env);
                     }
                     found
@@ -521,12 +546,17 @@ fn infer(
         }
         ExprKind::New { target, args } => {
             let target_ty = check_new_target(target, live, scope, ctx, env);
+            let target_qname = class_qname_of(target_ty, env.interner);
             // A class with no explicit `constructor` accepts a bare `new
             // Foo()` in PHP; not diagnosing an arity mismatch against zero
             // parameters here is deliberate — see the crate docs' known gaps.
-            let sig = class_qname_of(target_ty, env.interner)
+            let sig = target_qname
+                .clone()
                 .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
-            check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            let arg_types = check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            if let Some(qname) = &target_qname {
+                reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
+            }
             target_ty
         }
         ExprKind::Clone(inner) => check_expr(inner, None, live, scope, ctx, env),
@@ -718,7 +748,10 @@ fn check_new_target(
         NewTarget::Name(name) => {
             let text = span_text(env.src, name.span);
             let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
-            if env.symbols.get(&qname).is_some() || qname.is_core() {
+            if env.symbols.get(&qname).is_some()
+                || qname.is_core()
+                || qname.is_reserved_global_class()
+            {
                 env.interner.class(qname)
             } else {
                 env.interner.mixed()
@@ -869,7 +902,10 @@ fn check_property_access(
                 // `$this->missing` is already `E_UNDEFINED_PROPERTY`
                 // from `mwl_hir::members` — every other receiver
                 // shape has never been checked before this.
-                if !qname.is_core() && !is_this_receiver(object, env.src) {
+                if !qname.is_core()
+                    && !qname.is_reserved_global_class()
+                    && !is_this_receiver(object, env.src)
+                {
                     report_unknown_member(object.span, &qname, &name, "property", env);
                 }
                 env.interner.mixed()
@@ -917,30 +953,128 @@ fn report_unset_on_property(span: Span, qname: &QName, name: &str, env: &mut Env
     );
 }
 
-/// Whether `ty` is `tainted string` or `tainted bytes` (ADR 0024 § 1) — the
-/// one question every propagation/laundering rule in this module reduces to.
+/// Whether `ty` carries ADR 0024 § 1's `tainted` qualifier — on its own
+/// (`tainted string`/`tainted bytes`) or composed with `secret`
+/// (`secret tainted string`/`secret tainted bytes`, ADR 0033 § 1). The one
+/// question every taint propagation/laundering rule in this module reduces
+/// to.
 fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
-    matches!(interner.get(ty), Ty::TaintedString | Ty::TaintedBytes)
+    matches!(
+        interner.get(ty),
+        Ty::TaintedString | Ty::TaintedBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes
+    )
 }
 
-/// ADR 0024 § 2: what an `as` conversion's result carries on the taint axis.
-/// A checked conversion that already throws on a malformed shape — `uint`,
-/// `int`, `float`, `bool`, an enum's backing type — removes the qualifier on
-/// success for free, since none of those targets carry it to begin with, so
-/// this only has work to do when `from` was tainted and `to` is `string` or
-/// `bytes`: the qualifier crosses either direction unchanged (ADR 0009 § 3),
-/// including the identity-shaped `tainted string as string`, which is not
-/// itself a shape-proving conversion and must not silently launder — that
-/// would be exactly the bypass this whole mechanism exists to close.
-fn apply_taint_conversion_rule(from: TypeId, to: TypeId, interner: &mut TypeInterner) -> TypeId {
-    if !is_tainted(from, interner) {
+/// Whether `ty` carries ADR 0033 § 1's `secret` qualifier — on its own or
+/// composed with `tainted`. The `secret`-axis counterpart of [`is_tainted`];
+/// the two are independent bits, so a caller checking one never implies
+/// anything about the other.
+fn is_secret(ty: TypeId, interner: &TypeInterner) -> bool {
+    matches!(
+        interner.get(ty),
+        Ty::SecretString | Ty::SecretBytes | Ty::SecretTaintedString | Ty::SecretTaintedBytes
+    )
+}
+
+/// Whether `ty` is one of the eight `string`/`bytes`-shaped atoms `tainted`/
+/// `secret` apply to — every combination of the two qualifier bits over the
+/// same base. Returns `Some(true)` for a `bytes`-based atom, `Some(false)`
+/// for a `string`-based one, `None` for anything else (a scalar this axis
+/// pair never touches, a class, `mixed`, ...).
+fn qualifiable_base(ty: TypeId, interner: &TypeInterner) -> Option<bool> {
+    match interner.get(ty) {
+        Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString => Some(false),
+        Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => Some(true),
+        _ => None,
+    }
+}
+
+/// Interns whichever of the eight `string`/`bytes`-shaped atoms `is_bytes`/
+/// `tainted`/`secret` name — the one place that maps the two independent
+/// qualifier bits back onto [`Ty`]'s one-atom-per-combination representation.
+fn qualified_scalar(
+    is_bytes: bool,
+    tainted: bool,
+    secret: bool,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    match (is_bytes, tainted, secret) {
+        (false, false, false) => interner.string(),
+        (false, true, false) => interner.tainted_string(),
+        (false, false, true) => interner.secret_string(),
+        (false, true, true) => interner.secret_tainted_string(),
+        (true, false, false) => interner.bytes(),
+        (true, true, false) => interner.tainted_bytes(),
+        (true, false, true) => interner.secret_bytes(),
+        (true, true, true) => interner.secret_tainted_bytes(),
+    }
+}
+
+/// ADR 0024 § 2 / ADR 0033 § 2: what an `as` conversion's result carries on
+/// the `tainted`/`secret` axes. A checked conversion that already throws on
+/// a malformed shape — `uint`, `int`, `float`, `bool`, an enum's backing
+/// type — removes both qualifiers on success for free, since none of those
+/// targets carry either to begin with (ADR 0033 § 2's known, accepted gap:
+/// this strips `secret` too, even though "shape-proof implies safety" only
+/// ever justified it for `tainted`). Otherwise `to` is itself one of the
+/// eight `string`/`bytes` atoms, and `from`'s qualifiers cross into it
+/// unconditionally — including the identity-shaped `tainted string as
+/// string`/`secret string as string`, which are not themselves
+/// shape-proving conversions and must not silently launder; that would be
+/// exactly the bypass this whole mechanism exists to close.
+fn apply_qualifier_conversion_rule(
+    from: TypeId,
+    to: TypeId,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    let from_tainted = is_tainted(from, interner);
+    let from_secret = is_secret(from, interner);
+    if !from_tainted && !from_secret {
         return to;
     }
-    match interner.get(to) {
-        Ty::String | Ty::TaintedString => interner.tainted_string(),
-        Ty::Bytes | Ty::TaintedBytes => interner.tainted_bytes(),
-        _ => to,
+    let Some(to_is_bytes) = qualifiable_base(to, interner) else {
+        return to;
+    };
+    let to_tainted = from_tainted || is_tainted(to, interner);
+    let to_secret = from_secret || is_secret(to, interner);
+    qualified_scalar(to_is_bytes, to_tainted, to_secret, interner)
+}
+
+/// ADR 0033 § 4: a `secret`-qualified value converted `as Core\Html\Markup`
+/// is refused with a diagnostic naming the qualifier specifically, ahead of
+/// [`reject_non_literal_markup_conversion`]'s generic "must be a literal"
+/// one — escaping (this ADR's whole reason for diverging from `tainted`'s
+/// auto-escape default) neutralizes injection risk, not exposure, so it is
+/// the wrong tool here regardless of how the value was produced. In
+/// practice a `secret` value is never a literal token to begin with (nothing
+/// grants `secret` ambiently — ADR 0033 § 1 — so it only ever reaches this
+/// point through a declared binding), meaning the generic literal check
+/// alone would already refuse it; this exists to give that refusal its own,
+/// more specific reason. Scoped to a conversion whose target actually
+/// resolves to `Core\Html\Markup`, same as its sibling; the inline
+/// `<?= expr ?>`/templating-helper interpolation position ADR 0033 § 4 also
+/// names waits on `Core\Html` actually existing (see the crate docs' known
+/// gaps).
+fn reject_secret_markup_conversion(inner_ty: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Class(qname) = env.interner.get(to) else {
+        return;
+    };
+    if qname.to_string() != "Core\\Html\\Markup" {
+        return;
     }
+    if !is_secret(inner_ty, env.interner) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_MARKUP_UNSUPPORTED,
+            "a `secret`-qualified value cannot be converted `as Markup`; escaping neutralizes \
+             injection risk, not confidentiality, so it is refused outright rather than \
+             auto-escaped",
+        )
+        .with_primary(span, "converted here")
+        .with_help("reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`"),
+    );
 }
 
 /// ADR 0024 § 5: `as Core\Html\Markup` trusts only a source-literal string —
@@ -1082,7 +1216,10 @@ fn report_unknown_member(span: Span, qname: &QName, name: &str, kind: &str, env:
 /// "just walk nested expressions, `mixed` throughout" behaviour when no
 /// signature resolved, and also when any argument is named or spread — PHP's
 /// named/variadic call resolution isn't a straight positional mapping, and
-/// modeling that is out of scope for this slice.
+/// modeling that is out of scope for this slice. Returns each positional
+/// argument's own checked type, in call order — [`ExprKind::New`]'s arm reads
+/// the first one back to feed [`reject_secret_throwable_message`] without a
+/// second, diagnostic-duplicating pass over the same expression.
 fn check_args_typed(
     args: &CallArgs,
     sig: Option<&MethodSig>,
@@ -1091,21 +1228,21 @@ fn check_args_typed(
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) {
+) -> Vec<TypeId> {
     let CallArgs::List(list) = args else {
-        return;
+        return Vec::new();
     };
     let Some(sig) = sig else {
-        for Arg { value, .. } in list {
-            check_expr(value, None, live, scope, ctx, env);
-        }
-        return;
+        return list
+            .iter()
+            .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
+            .collect();
     };
     if list.iter().any(|a| a.name.is_some() || a.spread) {
-        for Arg { value, .. } in list {
-            check_expr(value, None, live, scope, ctx, env);
-        }
-        return;
+        return list
+            .iter()
+            .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
+            .collect();
     }
     if !sig.variadic && list.len() != sig.params.len() {
         env.diags.report(
@@ -1121,14 +1258,68 @@ fn check_args_typed(
         );
     }
     let last_param_index = sig.params.len().saturating_sub(1);
+    let mut arg_types = Vec::with_capacity(list.len());
     for (i, arg) in list.iter().enumerate() {
         let expected = if sig.variadic && i >= last_param_index {
             sig.params.last().copied()
         } else {
             sig.params.get(i).copied()
         };
-        check_expr(&arg.value, expected, live, scope, ctx, env);
+        arg_types.push(check_expr(&arg.value, expected, live, scope, ctx, env));
     }
+    arg_types
+}
+
+/// Whether `qname` names one of ADR 0020 § 0's three global exception
+/// classes — `Throwable`, `Exception`, `Error` — directly, or reaches one by
+/// walking its `extends` chain, the same reachability question
+/// [`mwl_hir::implements_interface`] already answers for `Comparable`/
+/// `Stringable`. `mwl_hir::QName::is_reserved_global_class` is what lets
+/// `new Exception(...)`/a `class MyError extends Exception {}` resolve to a
+/// real `Ty::Class` at all in the absence of a declared stdlib for them; this
+/// reuses that trust to answer "is this the sink ADR 0033 § 4 names."
+fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
+    const GLOBAL_THROWABLE_NAMES: [&str; 3] = ["Throwable", "Exception", "Error"];
+    GLOBAL_THROWABLE_NAMES.iter().any(|name| {
+        let target = QName::parse(name);
+        *qname == target || mwl_hir::implements_interface(qname, &target, graph)
+    })
+}
+
+/// ADR 0033 § 4: a `Throwable`-shaped class's constructor message argument
+/// (its first positional argument) refuses a `secret`-qualified value —
+/// closing the common real-world leak of a credential ending up in a stack
+/// trace or an error page, the same "sink requires the plain type" shape ADR
+/// 0024 § 4 already gives `Core\Db`'s query text. `first_arg_ty` is the
+/// already-checked type [`check_args_typed`] computed for that argument, so
+/// this never re-walks (and re-diagnoses) the expression itself. `Throwable`/
+/// `Exception`/`Error` have no declared stdlib member table yet, so this is
+/// scoped to the constructor call shape alone — "anywhere a message is later
+/// composed" (e.g. through a setter) is not modeled this slice.
+fn reject_secret_throwable_message(
+    qname: &QName,
+    first_arg_ty: Option<TypeId>,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    if !is_throwable_shaped(qname, env.graph) {
+        return;
+    }
+    let Some(ty) = first_arg_ty else {
+        return;
+    };
+    if !is_secret(ty, env.interner) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_THROWABLE_MESSAGE,
+            "a `secret`-qualified value cannot be passed as a `Throwable` message; it would \
+             surface in a stack trace or an error page",
+        )
+        .with_primary(span, "secret value used as the message here")
+        .with_help("reveal it explicitly first with `Core\\Secret::reveal(..., \"reason\")`"),
+    );
 }
 
 /// The binary-operator result-type table, ADR 0007 § 4, amended by ADR 0013
@@ -1139,15 +1330,14 @@ fn check_args_typed(
 /// implemented yet.
 fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
     match op {
-        // ADR 0024 § 2: concatenating a tainted operand with an untainted one
-        // poisons the result, the same "poisoned" shape ADR 0007 already uses
-        // for mixed-type arithmetic, applied to this axis instead.
+        // ADR 0024 § 2 / ADR 0033 § 2: concatenating a qualified operand with
+        // an unqualified one poisons the result on that axis, the same
+        // "poisoned" shape ADR 0007 already uses for mixed-type arithmetic —
+        // `tainted` and `secret` poison independently of each other.
         BinaryOp::Concat => {
-            if is_tainted(lhs, env.interner) || is_tainted(rhs, env.interner) {
-                env.interner.tainted_string()
-            } else {
-                env.interner.string()
-            }
+            let tainted = is_tainted(lhs, env.interner) || is_tainted(rhs, env.interner);
+            let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
+            qualified_scalar(false, tainted, secret, env.interner)
         }
         BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Pow | BinaryOp::Mod => {
             arithmetic_result(lhs, rhs, span, env)

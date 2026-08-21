@@ -44,6 +44,17 @@ pub enum Ty {
     TaintedString,
     /// `tainted bytes` — ADR 0024 § 1.
     TaintedBytes,
+    /// `secret string` — ADR 0033 § 1. Independent of `tainted`: a value can
+    /// carry either qualifier, both, or neither.
+    SecretString,
+    /// `secret bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// [`Self::SecretString`].
+    SecretBytes,
+    /// `secret tainted string` — ADR 0033 § 1: both qualifiers composed.
+    SecretTaintedString,
+    /// `secret tainted bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// [`Self::SecretTaintedString`].
+    SecretTaintedBytes,
     /// `array<T>`. A bare `array` is `Array` of the interned `Mixed` id —
     /// ADR 0007 § 3: "`array` with no argument is exactly `array<mixed>`."
     Array(TypeId),
@@ -187,6 +198,10 @@ impl TypeInterner {
             Ty::Bytes => "bytes".to_owned(),
             Ty::TaintedString => "tainted string".to_owned(),
             Ty::TaintedBytes => "tainted bytes".to_owned(),
+            Ty::SecretString => "secret string".to_owned(),
+            Ty::SecretBytes => "secret bytes".to_owned(),
+            Ty::SecretTaintedString => "secret tainted string".to_owned(),
+            Ty::SecretTaintedBytes => "secret tainted bytes".to_owned(),
             Ty::Array(elem) => format!("array<{}>", self.describe(*elem)),
             Ty::Object => "object".to_owned(),
             Ty::Mixed => "mixed".to_owned(),
@@ -270,6 +285,30 @@ impl TypeInterner {
     #[must_use]
     pub fn tainted_bytes(&mut self) -> TypeId {
         self.intern(Ty::TaintedBytes)
+    }
+
+    /// The interned `secret string` singleton.
+    #[must_use]
+    pub fn secret_string(&mut self) -> TypeId {
+        self.intern(Ty::SecretString)
+    }
+
+    /// The interned `secret bytes` singleton.
+    #[must_use]
+    pub fn secret_bytes(&mut self) -> TypeId {
+        self.intern(Ty::SecretBytes)
+    }
+
+    /// The interned `secret tainted string` singleton.
+    #[must_use]
+    pub fn secret_tainted_string(&mut self) -> TypeId {
+        self.intern(Ty::SecretTaintedString)
+    }
+
+    /// The interned `secret tainted bytes` singleton.
+    #[must_use]
+    pub fn secret_tainted_bytes(&mut self) -> TypeId {
+        self.intern(Ty::SecretTaintedBytes)
     }
 
     /// The interned `object` singleton.

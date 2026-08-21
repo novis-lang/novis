@@ -404,16 +404,48 @@
 > stdlib that defines them; § 5's auto-escape default and `Markup + Markup` composition wait on `Core\Html`
 > actually existing too.
 >
-> **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): ADR 0033 §§ 2-4
-> (`secret` propagation/laundering/sink refusal, now that its M1 grammar has landed); exhaustive control-flow
-> reachability (`switch`/`try` bodies conservatively contribute nothing to definite assignment after
-> them — safe, never accepts an invalid program); references (`&$x`) needing both sides to declare the
-> same type; `parent` as a *type* atom (`parent $x`, distinct from `new parent(...)`, which now
-> resolves); a class constant's type; a promoted constructor-parameter property (tracked as neither a
-> property nor a definite-assignment obligation, mirroring a pre-existing `mwl_hir::members`/
-> `signatures.rs` gap); a named/spread call argument's positional checking; a class with no explicit
-> `constructor` is not held to a zero-argument arity check on `new`, nor to the
-> `parent::constructor(...)` obligation. `mwl-ir` hasn't started.
+> This session closed [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md) §§ 2-4 (`secret`
+> propagation, checked-conversion laundering, and its two M2-reachable sink refusals), the next item on the
+> prior queue — reusing ADR 0024's just-added `tainted` machinery rather than duplicating it, since the two
+> qualifiers are independent bits over the same `string`/`bytes` base.
+> [`ty::Ty`](../crates/mwl-types/src/ty.rs) gained four more atoms (`SecretString`/`SecretBytes`/
+> `SecretTaintedString`/`SecretTaintedBytes`), `lower_atom` now maps `mwl-syntax`'s matching `TypeAtom`
+> variants onto them instead of falling through to `mixed`, and [`expr.rs`](../crates/mwl-types/src/expr.rs)
+> gained a small shared vocabulary — `is_secret` (`is_tainted`'s new sibling, both now also recognizing the
+> two `SecretTainted*` atoms), `qualifiable_base`/`qualified_scalar` (mapping the two independent qualifier
+> bits onto the one atom-per-combination representation and back) — that concatenation/interpolation,
+> `is_assignable`'s widening rule, and `ExprKind::Conversion`'s laundering rule (renamed
+> `apply_qualifier_conversion_rule`) all route through, so both qualifiers poison/widen/launder identically
+> and independently with no separate code path per axis. `secret` follows `tainted`'s exact laundering shape
+> including its one deliberately accepted inconsistency: a checked `as uint`/`int`/`float`/`bool`/enum-
+> backing-type conversion strips `secret` too, even though (per the ADR's own *Alternatives rejected*)
+> "shape-proof implies safe" never actually justified that for confidentiality the way it does for taint.
+> Two sinks, both reachable without any stdlib: `reject_secret_markup_conversion` gives a `secret` operand
+> converted `as Core\Html\Markup` its own diagnostic (`E_SECRET_MARKUP_UNSUPPORTED`, `E0421`) ahead of the
+> existing literal-required one, naming *why* — escaping doesn't restore confidentiality, so `secret` gets
+> no auto-escape carve-out even once one exists for `tainted`. `reject_secret_throwable_message` refuses a
+> `secret` value as a `Throwable`-shaped class's constructor message (`E_SECRET_THROWABLE_MESSAGE`, `E0422`)
+> — reachable this early only because a new [`mwl_hir::QName::is_reserved_global_class`] trusts `Throwable`/
+> `Exception`/`Error` to exist without a source declaration, mirroring `is_reserved_global_interface`'s
+> existing treatment of `Comparable`/`Stringable`, and wired into the three places that needed to trust it
+> (`hierarchy::resolve_supertype` for `extends`, `check_new_target`/`resolve_name_type` for `new`/a typed
+> declaration) plus the two `E_UNKNOWN_MEMBER` guards that already exempt an unmodeled `Core` class, so a
+> method call or property access on one of these three stays silently `mixed` rather than newly erroring.
+> `check_args_typed` now returns each argument's own checked type so the `New` arm can read the first one
+> back for this sink without a second, diagnostic-duplicating pass over the same expression. 12 new tests in
+> `mwl-types::check`, one in `mwl-hir::qname`, one in `mwl-hir::hierarchy`, one in `mwl-types::lower`.
+> `cargo build`/`test`/`clippy -D warnings`/`fmt --check` all clean.
+>
+> **Known gaps left across `mwl-types`**: exhaustive control-flow reachability (`switch`/`try` bodies
+> conservatively contribute nothing to definite assignment after them — safe, never accepts an invalid
+> program); references (`&$x`) needing both sides to declare the same type; `parent` as a *type* atom
+> (`parent $x`, distinct from `new parent(...)`, which now resolves); a class constant's type; a promoted
+> constructor-parameter property (tracked as neither a property nor a definite-assignment obligation,
+> mirroring a pre-existing `mwl_hir::members`/`signatures.rs` gap); a named/spread call argument's positional
+> checking; a class with no explicit `constructor` is not held to a zero-argument arity check on `new`, nor
+> to the `parent::constructor(...)` obligation. ADR 0033's own remaining sinks (`Core\Log`'s call-site
+> inspection, `var_dump`/`print_r`'s redaction, `serialize()`/the `spawn worker` boundary) wait on M8/M4/M5
+> respectively, per that ADR's own *Verification*. `mwl-ir` hasn't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

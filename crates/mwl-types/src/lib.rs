@@ -55,27 +55,43 @@
 //! Deliberately out of scope so far, left for a follow-up (see
 //! `NEXT_SESSION_PROMPT.md` for the ordering):
 //!
-//! - ADR 0033 §§ 2-4 (`secret` propagation/laundering/sink refusal — its § 1
-//!   grammar landed in M1, but `lower_atom` still maps all four `Secret*`
-//!   atoms straight to `mixed`). ADR 0024 (tainted propagation/laundering)
-//!   and ADR 0027 (`callable` value-shape checking) are now done — see
-//!   [`expr`]'s own module docs for both: concatenation/interpolation poison
-//!   their result, a checked `as uint`/`int`/`float`/`bool`/enum-backing-type
-//!   conversion launders for free, `bytes`/`string` preserve the qualifier
-//!   across either direction (including the identity-shaped `as string`,
-//!   which must not silently launder), and `as Core\Html\Markup` accepts only
-//!   a literal string token; a bare string or `[$obj, 'method']` array where
-//!   `callable` is expected gets a targeted diagnostic, `$obj(...)` is
-//!   refused for any resolved-class `$obj`, and first-class callable syntax
-//!   (`$obj->method(...)`, `Foo::bar(...)`) now types as `callable` rather
-//!   than the referenced method's own return type. **Known gaps within these
-//!   two ADRs:** the sink list in ADR 0024 § 4 (`Core\Db`, `Core\Process`,
-//!   `Core\Http`, `Core\Fs`) has no code to refuse anything at yet, since none
-//!   of those `Core` classes are declared stdlib until M7/M8 — a plain-typed
-//!   parameter on a user-declared method already acts as an equivalent sink
-//!   today, via the ordinary `tainted string` vs `string` assignability
-//!   rule; § 5's auto-escape default and `Markup + Markup` composition wait on
-//!   `Core\Html` actually existing. ADR 0014's "a property
+//! - ADR 0024 (`tainted` propagation/laundering), ADR 0027 (`callable`
+//!   value-shape checking) and ADR 0033 §§ 2-4 (`secret`, the same shape on
+//!   an independent axis — its § 1 grammar landed in M1) are all now done —
+//!   see [`expr`]'s own module docs for the first two, and for how the first
+//!   two's machinery is shared with `secret` rather than duplicated:
+//!   concatenation/interpolation poison their result on each axis
+//!   independently, a checked `as uint`/`int`/`float`/`bool`/enum-backing-type
+//!   conversion launders both qualifiers for free (a known, ADR-accepted gap
+//!   for `secret` specifically — see ADR 0033 § 2), `bytes`/`string` preserve
+//!   both qualifiers across either direction (including the identity-shaped
+//!   `as string`, which must not silently launder either one), and `as
+//!   Core\Html\Markup` accepts only a literal string token and separately
+//!   refuses a `secret` operand with its own diagnostic (escaping doesn't
+//!   restore confidentiality); a `secret` value passed as a `Throwable`-
+//!   shaped class's constructor message is refused too, via a new
+//!   [`mwl_hir::QName::is_reserved_global_class`] that trusts `Throwable`/
+//!   `Exception`/`Error` to exist without a source declaration, the same way
+//!   `Core`'s own classes already are. A bare string or `[$obj, 'method']`
+//!   array where `callable` is expected gets a targeted diagnostic,
+//!   `$obj(...)` is refused for any resolved-class `$obj`, and first-class
+//!   callable syntax (`$obj->method(...)`, `Foo::bar(...)`) now types as
+//!   `callable` rather than the referenced method's own return type. **Known
+//!   gaps within these three ADRs:** the sink list in ADR 0024 § 4
+//!   (`Core\Db`, `Core\Process`, `Core\Http`, `Core\Fs`) has no code to
+//!   refuse anything at yet, since none of those `Core` classes are declared
+//!   stdlib until M7/M8 — a plain-typed parameter on a user-declared method
+//!   already acts as an equivalent sink today, via the ordinary `tainted
+//!   string` vs `string` assignability rule; § 5's auto-escape default and
+//!   `Markup + Markup` composition wait on `Core\Html` actually existing.
+//!   ADR 0033's own remaining sinks — `Core\Log`'s call-site inspection (M8)
+//!   and `var_dump`/`print_r`'s redaction (M4) — are deferred by that ADR's
+//!   own *Verification* section, as is `serialize()`/the `spawn worker`
+//!   boundary refusal (M5). `Throwable`/`Exception`/`Error` have no declared
+//!   member table, so a method call or property access on one is silently
+//!   `mixed` rather than diagnosed, the same treatment an unmodeled `Core`
+//!   class already gets — see [`expr::is_throwable_shaped`]'s own docs.
+//!   ADR 0014's "a property
 //!   access on any receiver other than `$this` is checked" half turned out to
 //!   already be done: [`expr::check_property_access`] reports
 //!   `E_UNKNOWN_MEMBER` for exactly that shape (see its own module docs) —

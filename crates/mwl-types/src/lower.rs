@@ -13,7 +13,9 @@
 //! [`mwl_hir::SymbolTable`] to decide between a class-shaped atom (a class,
 //! interface or trait — the type grammar does not distinguish them) and an
 //! enum. A name that resolves to neither, and is not trusted as a `Core`
-//! reference, is `E_UNDEFINED_CLASS`.
+//! reference or one of `Throwable`/`Exception`/`Error`
+//! ([`mwl_hir::QName::is_reserved_global_class`] — ADR 0020 § 0's global,
+//! undeclared exception classes), is `E_UNDEFINED_CLASS`.
 //!
 //! `array<...>` nesting is bounded at depth 32 (ADR 0007 § 5) — past that,
 //! lowering stops and reports `E_ARRAY_TYPE_TOO_DEEP` rather than recursing
@@ -98,6 +100,10 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::Bytes => env.interner.bytes(),
         TypeAtom::TaintedString => env.interner.tainted_string(),
         TypeAtom::TaintedBytes => env.interner.tainted_bytes(),
+        TypeAtom::SecretString => env.interner.secret_string(),
+        TypeAtom::SecretBytes => env.interner.secret_bytes(),
+        TypeAtom::SecretTaintedString => env.interner.secret_tainted_string(),
+        TypeAtom::SecretTaintedBytes => env.interner.secret_tainted_bytes(),
         TypeAtom::Array(inner) => {
             let elem = match inner {
                 Some(t) => lower_type_at_depth(t, depth + 1, ctx, env),
@@ -177,7 +183,7 @@ fn resolve_name_type(name: &Name, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) 
     match env.symbols.get(&qname) {
         Some(sym) if sym.kind == SymbolKind::Enum => env.interner.enum_(qname),
         Some(_) => env.interner.class(qname),
-        None if qname.is_core() => env.interner.class(qname),
+        None if qname.is_core() || qname.is_reserved_global_class() => env.interner.class(qname),
         None => {
             env.diags.report(
                 Diagnostic::error(
@@ -272,6 +278,18 @@ mod tests {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
         assert!(matches!(interner.get(*elem), Ty::Class(q) if q.to_string() == "Foo"));
+    }
+
+    #[test]
+    fn a_reserved_global_exception_class_resolves_with_no_declaration() {
+        // ADR 0020 § 0: `Exception` never needs a source declaration —
+        // trusted the same way a `Core\*` name is.
+        let (id, interner, diags) = lower_alias("<?mwl\ntype Probe = array<Exception>;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        let Ty::Array(elem) = interner.get(id) else {
+            panic!("expected array<...>, got {:?}", interner.get(id));
+        };
+        assert!(matches!(interner.get(*elem), Ty::Class(q) if q.to_string() == "Exception"));
     }
 
     #[test]
