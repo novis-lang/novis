@@ -5410,7 +5410,7 @@ mod tests {
             "class Account extends Base implements Comparable, Countable { \
              public readonly uint $id; \
              public const int MAX = 10; \
-             public function __construct(public readonly string $name) {} \
+             public function constructor(public readonly string $name) {} \
              }",
         );
         let StmtKind::ClassDecl(class) = s.kind else {

@@ -75,7 +75,7 @@ other, positive if `$this` orders after — the same convention `strcmp` and [AD
 
 ```php
 final class Money implements Comparable {
-    public function __construct(private readonly int $cents) {}
+    public function constructor(private readonly int $cents) {}
 
     public function compareTo(self $other): int {
         return $this->cents <=> $other->cents;   // int <=> int, already defined by ADR 0007 § 4

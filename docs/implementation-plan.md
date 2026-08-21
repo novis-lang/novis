@@ -462,7 +462,9 @@ what its class declares ([ADR 0027](adr/0027-callable-is-closures-only.md)). An 
 string-conversion site is accepted only when its static type provably implements the global `Stringable`
 interface, and `unset()` on a declared object property is refused outright regardless of nullability
 ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)). Every declared identifier's casing is checked
-against [ADR 0029](adr/0029-identifier-casing-is-checked.md)'s per-category table — needs no name
+against [ADR 0029](adr/0029-identifier-casing-is-checked.md)'s per-category table, tightened by
+[ADR 0030](adr/0030-no-leading-underscores-constructor-spelling.md) to allow no leading underscore on any
+identifier and to spell the constructor `constructor` rather than `__construct` — needs no name
 resolution, so it can land in `mwl-syntax` directly off each declaration's AST node rather than waiting on
 the rest of this milestone's checker.
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
@@ -474,7 +476,7 @@ on top of the IR without it.
 undeclared local, a re-declared local, a read before definite assignment, `int + uint`, `int $n = 7 / 2;`,
 a `mixed` assigned into a typed binding, an element-type violation at depth 1, 2 and 3, a missing narrowing
 and a present one. Plus ADR 0022's own corpus entries: a constructor with a branch that leaves a
-non-nullable property unassigned, a subclass constructor with a path that skips `parent::__construct(...)`,
+non-nullable property unassigned, a subclass constructor with a path that skips `parent::constructor(...)`,
 and a class with no constructor and no inline default for a non-nullable property. Plus ADR 0024's own
 entries: a `tainted` value concatenated into a sink requiring the plain type is refused, naming the
 qualifier and the sink; a checked `as uint`/enum conversion on a tainted source produces an unqualified
@@ -487,9 +489,12 @@ whose class does not implement `Stringable` used in string interpolation, concat
 `as string`, naming `Stringable` as the fix; `unset()` on a declared object property refused for both a
 nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. Plus ADR 0029's own
 entries: a mis-cased class, interface, trait, enum, enum case, namespace segment, method, property,
-parameter, local variable and class constant, one file each, plus a two-leading-underscore name and an
-all-caps acronym, each naming the exact diagnostic and suggested rename; plus a negative entry confirming a
-declared `__construct` produces no casing diagnostic. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
+parameter, local variable and class constant, one file each, and an all-caps acronym, each naming the exact
+diagnostic and suggested rename. Plus ADR 0030's own entries: a property, a parameter and a local variable
+each starting with `_`, all three refused with the standard camelCase diagnostic (no leading-underscore
+allowance survives); a method named `__construct` refused with the targeted "spelled `constructor`, not
+`__construct`" diagnostic rather than the generic mis-casing one; a class declaring `constructor` produces
+no casing diagnostic and is recognized as satisfying ADR 0022's per-constructor obligation. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
 no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
 refused when the class does not implement `Comparable`, refused across two different classes even when
 both do.

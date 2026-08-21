@@ -10,6 +10,9 @@
   said "an object needs `__toString`, or it throws"; it now names `Stringable` instead. Also
   [implementation-plan.md](../implementation-plan.md) M4 — the `var_dump`/`print_r`/`json_encode` line item
   gains this ADR's citation for what those two no longer do.
+- **Amended by:** [0030](0030-no-leading-underscores-constructor-spelling.md) — adds the `__construct`
+  disposition this ADR's own magic-method table never carried: kept, not closed, but respelled
+  `constructor`.
 - **Relates to:** [0002](0002-error-propagation.md) (why a destructor has no sound place to report a thrown
   status — part of § 2's reasoning below), [0004](0004-memory-for-simplicity.md) (the request heap is
   dropped wholesale rather than walked object-by-object, which a `__destruct` guarantee would undo),

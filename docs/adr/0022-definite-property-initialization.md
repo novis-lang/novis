@@ -87,7 +87,7 @@ reached its initialiser is a compile error rather than PHP's 'undefined variable
 That sentence was written with only locals in view. A property is a second, structurally similar binding
 kind — declared once, its type fixed, read on some paths before others — and the same analysis applies
 with one addition: a constructor's paths are the paths being checked, not a function body's, and calling
-`parent::__construct(...)` is what discharges the obligation for inherited properties, mirroring how
+`parent::constructor(...)` is what discharges the obligation for inherited properties, mirroring how
 Java/Kotlin treat a mandatory `super()` call.
 
 ## Decision
@@ -117,7 +117,7 @@ given):
   passes. A promoted parameter (`public int $x` in the parameter list) satisfies its own obligation by
   construction — binding the parameter *is* the assignment. An inline default (`public int $x = 0;`)
   satisfies it before the constructor body runs at all.
-- A subclass constructor discharges the properties **it inherits** by calling `parent::__construct(...)` on
+- A subclass constructor discharges the properties **it inherits** by calling `parent::constructor(...)` on
   every path. The analysis trusts that call rather than re-deriving it: the parent class's own constructors
   were already checked against this same rule when the parent was compiled, exactly as a function call's
   callee is trusted rather than re-verified at every call site elsewhere in the checker.
@@ -236,7 +236,7 @@ Verification, in the order it becomes possible:
 - **M2**: the checker refuses a constructor path that can return without every own-declared, non-nullable
   property assigned, joining the diagnostic corpus ADR 0007's own M2 entry already builds — a missing
   assignment on one branch of an `if`/`else`, a subclass constructor with a path that never calls
-  `parent::__construct(...)`, a class with no constructor and a non-nullable property with no default. A
+  `parent::constructor(...)`, a class with no constructor and a non-nullable property with no default. A
   promoted parameter and an inline default both compile with no diagnostic.
 - **M4**: reading a property on a `Core\Reflect`-constructed instance that was never written throws the
   checked error described in *3*; writing first and then reading succeeds normally; a class implementing

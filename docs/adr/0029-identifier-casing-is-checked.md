@@ -14,6 +14,10 @@
   apply to it, and the double leading underscore that would otherwise trip § 2 is not a violation.
 - **Amends:** none. No prior ADR states an identifier-casing rule; this is the first. Every existing ADR's
   code examples already happen to follow the convention this one now makes a compiler error — see *Context*.
+- **Amended by:** [0030](0030-no-leading-underscores-constructor-spelling.md) — § 2's leading-underscore
+  allowance for properties, parameters and locals is revoked outright (no exceptions, including
+  `_cache`/`$_unused`); the `__construct` reserved-word exception this file's *Scope* and § 2 state above is
+  also revoked, because MWL's constructor is renamed to `constructor` and needs no exception at all.
 - **Relates to:** [0007](0007-explicit-type-system.md) (the type-atom keywords this ADR leaves alone),
   [0008](0008-static-and-global.md) (a `static` property is still a property — the same casing rule applies
   regardless of storage class), [0010](0010-enums-are-a-value-type.md) (its own examples already spell enum
