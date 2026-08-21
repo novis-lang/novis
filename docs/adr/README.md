@@ -50,6 +50,7 @@ live, so a new row is picked up automatically.
 | [0015](0015-no-name-aliasing.md) | No `class_alias`, import `as`, or trait-use `as`; `type` aliases are the disciplined exception | Accepted |
 | [0016](0016-ide-integration.md) | IDE integration is a thin per-editor client over one language server; PhpStorm goes LSP-bridge before native | Accepted |
 | [0017](0017-hot-reload-without-restart.md) | The compiled-unit cache revalidates lazily and swaps a per-path pointer; no filesystem watcher, no restart | Accepted |
+| [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) | Coverage, tracing and profiling are safepoint-shaped probes, not a second compiled tier | Accepted |
 
 ## Decisions taken at project start
 

@@ -430,7 +430,10 @@ and interned type descriptors. There is **no inference engine and no `Unknown` t
 simplification the mandatory declarations buy. Also from that table: `<`/`>`/`<=`/`>=`/`<=>` between two
 objects refused unless both sides are provably the same class implementing `Comparable`
 ([ADR 0013](adr/0013-comparable-interface.md)) — there is no property-walk fallback to fall into. Lowering
-to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls.
+to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
+statement and every conditional CFG edge also carries the stable id [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+addresses a coverage/branch probe by — cheap to reserve here, expensive to retrofit once M3 onward has built
+on top of the IR without it.
 
 **Verify:** `mwl check` on a curated corpus where every diagnostic named in ADR 0007 is its own file — an
 undeclared local, a re-declared local, a read before definite assignment, `int + uint`, `int $n = 7 / 2;`,
@@ -444,8 +447,10 @@ both do.
 The checked-return calling convention from [ADR 0002](adr/0002-error-propagation.md), which is normative
 for the signature, the `catch_unwind` helper wrapper and the status check emitted after every call. There
 is no platform unwind-table registration to do — that is the point of that ADR. Plus the runtime helper
-table, `echo`, string concat, arithmetic, comparison, control flow, function calls, safepoint polls and
-W^X page management.
+table, `echo`, string concat, arithmetic, comparison, control flow, function calls, safepoint polls, the
+debug-flags probe checks at every statement boundary and call site, and W^X page management
+([ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) — same cost class as the
+safepoint poll, landing with it rather than after it).
 
 Because [ADR 0007](adr/0007-explicit-type-system.md) makes operand types known by construction, the
 baseline tier emits a native instruction wherever the static type is a single scalar and falls back to the
@@ -616,7 +621,12 @@ measured.
 its own); `mwl lsp` over `tower-lsp` reusing the front end with incremental reparse (completion,
 go-to-definition, hover types, diagnostics, rename); `mwl dap` using safepoints for breakpoints plus
 deopt-to-debug in codegen; a sampling profiler emitting flamegraphs; `mwl pkg` with lockfile, semver
-resolution and a registry.
+resolution and a registry. Also here: `Core\Debug`, the `[debug]` `mwl.ini` section and
+`debug.trace`/`debug.profile` capabilities, and the Clover/lcov/Callgrind exporters wired to `mwl test
+--coverage=…` and `mwl run --profile=…` — the developer-facing coverage/tracing/profiling feature whose
+probe mechanism landed with M3
+([ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), a deterministic per-call
+profiler distinct from the sampling one above).
 
 **Also in this milestone: the two editor clients**, per [ADR 0016](adr/0016-ide-integration.md) — a
 language server alone does not give either editor tight integration, so this is real, scoped work rather
