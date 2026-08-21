@@ -22,6 +22,9 @@
 //!   property) to something actually declared on that class or reached
 //!   through [`ClassGraph`], into a [`MemberTable`]; diagnoses an undeclared
 //!   class side or an undeclared member.
+//! - [`aliases`] — [`AliasResolver`]: substitutes every `type` alias's
+//!   expansion — including inside another alias's own expansion — into a
+//!   fully-resolved [`AliasTable`]; diagnoses a cycle.
 //!
 //! # What this slice of M2 covers
 //!
@@ -44,11 +47,15 @@
 //!    [`ClassGraph`] — is [`members`]'s job. **Known gaps:** a dynamic class
 //!    side, `new`'s target, and member visibility are not checked; see
 //!    [`members`]'s module docs.
-//! 3. `type` alias declarations are collected into the symbol table, and
-//!    [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md) § 6's rule
-//!    (an alias may not be a single bare class/interface/enum atom) is
-//!    enforced. Substituting an alias's expansion into the types that use it
-//!    — the rest of § 5 — is not built yet.
+//! 3. `type` alias declarations are collected into the symbol table, ADR
+//!    0015 § 6's bare-class rule is enforced at declaration time
+//!    ([`resolve`]), and every alias's expansion — including through another
+//!    alias, recursively — is substituted into an [`aliases::AliasTable`],
+//!    with a cycle (`type A = B; type B = A;`) diagnosed rather than looped
+//!    ([ADR 0015](../../../docs/adr/0015-no-name-aliasing.md) § 5). **Known
+//!    gap:** the substituted table is not yet consulted from anywhere else —
+//!    there is no property/parameter/return-type walk in `mwl-hir` yet for it
+//!    to feed; that arrives with `mwl-types`.
 //!
 //! Items 4 (`require`'s static resolution) and 5 (the property-access rule)
 //! are not started.
@@ -56,12 +63,14 @@
 //! **Known gap:** [`QName`] compares segments case-sensitively; PHP does not.
 //! See its docs.
 
+pub mod aliases;
 pub mod hierarchy;
 pub mod members;
 pub mod qname;
 pub mod resolve;
 pub mod symbol;
 
+pub use aliases::{AliasResolver, AliasTable};
 pub use hierarchy::{ClassGraph, ClassLinks, HierarchyResolver};
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;

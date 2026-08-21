@@ -187,6 +187,10 @@ pub mod code {
     /// "every callable and constant is a class member" has no bare-name
     /// fallback to fall into instead.
     pub const E_UNDEFINED_MEMBER: Code = Code::new("E0309");
+    /// A `type` alias whose expansion, followed far enough, refers back to
+    /// itself — `type A = B; type B = A;` or any longer cycle; see
+    /// ADR 0015 § 5.
+    pub const E_TYPE_ALIAS_CYCLE: Code = Code::new("E0310");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

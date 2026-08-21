@@ -50,6 +50,9 @@ pub struct Module {
     /// Every class/interface/trait/enum's own directly-declared members
     /// (M2 item 2 — see [`crate::members`]).
     pub members: crate::members::MemberTable,
+    /// Every `type` alias's fully-substituted expansion (M2 item 3 — see
+    /// [`crate::aliases`]).
+    pub aliases: crate::aliases::AliasTable,
 }
 
 /// Resolves parsed files' top-level namespace/`use`/declaration structure
@@ -275,6 +278,10 @@ pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -
     members.collect_members(stmts, src);
     members.check(stmts, src, &module.symbols, &module.graph, diags);
     module.members = members.into_table();
+
+    let mut aliases = crate::aliases::AliasResolver::new();
+    aliases.collect_aliases(stmts, src);
+    module.aliases = aliases.resolve(diags);
 
     module
 }

@@ -52,11 +52,15 @@
 > undeclared member (`E0309`, newly added) — see
 > [`crates/mwl-hir/src/members.rs`](../crates/mwl-hir/src/members.rs)'s module docs for its known gaps
 > (a dynamic class side, `new`'s target, and member visibility are not checked; a trait's `self::`
-> can't see members only the composing class supplies). Not yet built: substituting a resolved `type`
-> alias into the types that use it (the rest of item 3), `require`'s static resolution (item 4), and
-> the property-access resolution rule (item 5, which can build on the class graph the same way member
-> resolution just did) — `crates/mwl-hir`'s module docs carry the same breakdown. `mwl-types` and
-> `mwl-ir` haven't started.
+> can't see members only the composing class supplies). Item 3 is now fully done: every `type` alias's
+> expansion — including through another alias, recursively — is substituted into an
+> [`AliasTable`](../crates/mwl-hir/src/aliases.rs), with a cycle (`type A = B; type B = A;`) diagnosed
+> (`E0310`, newly added) rather than looped, matching ADR 0015 § 5's "resolved eagerly, and a cycle is a
+> diagnostic." **Known gap:** the table has no consumer yet — there is no property/parameter/return-type
+> walk anywhere in `mwl-hir` for it to feed; that arrives with `mwl-types`. Not yet built: `require`'s
+> static resolution (item 4), and the property-access resolution rule (item 5, which can build on the
+> class graph the same way member resolution just did) — `crates/mwl-hir`'s module docs carry the same
+> breakdown. `mwl-types` and `mwl-ir` haven't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
