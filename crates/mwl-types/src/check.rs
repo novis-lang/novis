@@ -23,8 +23,10 @@ use mwl_syntax::ast::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::expr::class_of_ctx;
 use crate::locals::{LocalScope, check_block};
 use crate::lower::lower_optional_type;
+use crate::signatures::build_signatures;
 use crate::ty::TypeInterner;
 use crate::{Ctx, Env, span_text, strip_sigil};
 
@@ -44,9 +46,20 @@ pub fn check_program(
     interner: &mut TypeInterner,
     diags: &mut Diagnostics,
 ) {
+    let signatures = build_signatures(
+        stmts,
+        &module.symbols,
+        &module.aliases,
+        &module.graph,
+        src,
+        interner,
+        diags,
+    );
     let mut env = Env {
         symbols: &module.symbols,
         aliases: &module.aliases,
+        graph: &module.graph,
+        signatures: &signatures,
         src,
         interner,
         diags,
@@ -139,6 +152,17 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 
     let mut scope = LocalScope::new();
     let mut live: FxHashSet<String> = FxHashSet::default();
+    if ctx.current_class.is_some() {
+        // Seeded here rather than as an ordinary parameter: `$this` has no
+        // `Param` node of its own to read a span from, and property/method
+        // access on it (`crate::expr`) needs its type to be `self`'s class
+        // the same way an explicit `new Foo()` result is. Not gated on a
+        // `static` modifier — a static method's own body referencing `$this`
+        // is a distinct, unrelated diagnostic this slice doesn't add.
+        let this_ty = class_of_ctx(ctx, env);
+        scope.declare_param("this".to_owned(), this_ty, m.name);
+        live.insert("this".to_owned());
+    }
     for param in &m.params {
         let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
@@ -329,5 +353,125 @@ mod tests {
     fn a_matching_return_type_is_fine() {
         let diags = check_src("<?mwl\nclass T {\n  function m(): int {\n    return 1;\n  }\n}\n");
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_this_property_access_has_its_declared_type() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  public int $count;\n  function m(): void {\n    int $n = $this->count;\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_this_property_type_mismatch_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  public int $count;\n  function m(): void {\n    string $n = $this->count;\n  }\n}\n",
+        );
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn a_this_method_call_returns_its_declared_type() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function a(): int { return 1; }\n  function b(): void {\n    int $n = $this->a();\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn an_undeclared_this_method_call_is_diagnosed() {
+        let diags =
+            check_src("<?mwl\nclass T {\n  function m(): void {\n    $this->missing();\n  }\n}\n");
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_UNKNOWN_MEMBER)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_property_access_on_a_new_expression_resolves() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n}\nclass T {\n  function m(): void {\n    int $n = (new Foo())->count;\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn an_undeclared_property_on_a_typed_local_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $x = new Foo();\n    $x->missing;\n  }\n}\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_UNKNOWN_MEMBER)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn an_arity_mismatch_on_a_method_call_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function a(int $x): void {}\n  function b(): void {\n    $this->a();\n  }\n}\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_ARITY_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn an_argument_type_mismatch_on_a_method_call_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function a(int $x): void {}\n  function b(): void {\n    $this->a(\"s\");\n  }\n}\n",
+        );
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn a_constructor_argument_is_type_checked() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  function constructor(int $x) {}\n}\nclass T {\n  function m(): void {\n    new Foo(\"s\");\n  }\n}\n",
+        );
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn a_static_call_return_type_is_recovered() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  static function make(): int { return 1; }\n  function m(): void {\n    int $n = self::make();\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn new_parent_resolves_to_the_parent_class() {
+        let diags = check_src(
+            "<?mwl\nclass Base {}\nclass Sub extends Base {\n  function m(): void {\n    Base $x = new parent();\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_match_expressions_type_is_the_union_of_its_arms() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $n = match (1) { 1 => 2, default => 3 };\n  }\n}\n",
+        );
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+    }
+
+    #[test]
+    fn a_ternary_expressions_type_is_the_union_of_its_branches() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function m(): void {\n    int|string $n = true ? 1 : \"s\";\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_ternary_expressions_type_mismatch_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass T {\n  function m(): void {\n    int $n = true ? 1 : \"s\";\n  }\n}\n",
+        );
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
     }
 }

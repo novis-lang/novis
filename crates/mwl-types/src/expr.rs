@@ -6,14 +6,28 @@
 //! else infers its type bottom-up and, when an expected type was given,
 //! reports `E_TYPE_MISMATCH` on a mismatch via [`is_assignable`].
 //!
-//! Only a handful of expression forms are actually modeled: literals,
-//! variable reads, the binary-operator result-type table (ADR 0007 § 4,
-//! including refusing `int ⊕ uint`), `as`/cast conversions, array literals,
-//! `new` with a bare class-name/`self`/`static` target, and `$arr[$i]`
-//! indexing when `$arr`'s own type is known. Every other form — a method/
-//! function call's return, property access, `match`, ternary, a closure's
-//! body — is walked only for nested variable reads and reported as `mixed`;
-//! see the crate docs' known gaps for why each is deferred.
+//! Beyond literals, variable reads, the binary-operator result-type table
+//! (ADR 0007 § 4, including refusing `int ⊕ uint`), `as`/cast conversions
+//! and array literals, a property access, method call, static call/property,
+//! `new` and `match`/ternary are now typed too — see [`class_qname_of`] and
+//! its callers below. A method/static call not statically resolvable to a
+//! known signature (an unresolved receiver, a dynamic member name, a
+//! `Core`-namespaced target with no modeled stdlib signature) still falls
+//! back to `mixed` with no diagnostic, same as everywhere else this checker
+//! only reports what it can be sure of. A closure's body is the one
+//! remaining form walked only for nested variable reads and reported as
+//! `mixed`; see the crate docs' known gaps for why.
+//!
+//! **Diagnosing a missing member is split by receiver, not duplicated:** a
+//! `self::`/`static::`/`parent::`/explicit-class-name static call, static
+//! property, or class constant is already checked for existence by
+//! `mwl_hir::members`, so this module only recovers its *type* there and adds
+//! no second diagnostic. A `$this->prop` property access is the same story
+//! (`mwl_hir::members` already reports `E_UNDEFINED_PROPERTY` for it). Every
+//! other receiver shape — an instance method call regardless of receiver, and
+//! a property access on anything but `$this` — has never been checked by
+//! `mwl_hir` at all (it has no static type to check against), so this module
+//! reports `E_UNKNOWN_MEMBER` for those directly.
 //!
 //! `isset(...)`/`empty(...)` are a deliberate exception: PHP tolerates an
 //! unset operand there by design, and whether that still holds once every
@@ -22,6 +36,7 @@
 //! guessed at.
 
 use mwl_diagnostics::{Diagnostic, Span, code};
+use mwl_hir::QName;
 use mwl_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, CastType, Expr, ExprKind, MemberName, NewTarget,
     StringPart, UnaryOp,
@@ -30,6 +45,7 @@ use rustc_hash::FxHashSet;
 
 use crate::locals::LocalScope;
 use crate::lower::lower_type;
+use crate::signatures::{MethodSig, resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, span_text, strip_sigil};
 
@@ -191,12 +207,16 @@ fn infer(
             op, target, value, ..
         } => check_assign(*op, target, value, live, scope, ctx, env),
         ExprKind::Ternary { cond, then, else_ } => {
-            check_expr(cond, None, live, scope, ctx, env);
-            if let Some(then) = then {
-                check_expr(then, None, live, scope, ctx, env);
-            }
-            check_expr(else_, None, live, scope, ctx, env);
-            env.interner.mixed()
+            let cond_ty = check_expr(cond, None, live, scope, ctx, env);
+            // `$a ?: $b` (`then` omitted) evaluates to `$a` itself on the
+            // truthy path — its type joins the union the same way an
+            // explicit `then` branch would.
+            let then_ty = match then {
+                Some(then) => check_expr(then, None, live, scope, ctx, env),
+                None => cond_ty,
+            };
+            let else_ty = check_expr(else_, None, live, scope, ctx, env);
+            env.interner.make_union([then_ty, else_ty])
         }
         ExprKind::Conversion { expr: inner, ty } => {
             check_expr(inner, None, live, scope, ctx, env);
@@ -218,10 +238,24 @@ fn infer(
             args,
             ..
         } => {
-            check_expr(object, None, live, scope, ctx, env);
+            let object_ty = check_expr(object, None, live, scope, ctx, env);
             check_member_name(method, live, scope, ctx, env);
-            check_args(args, live, scope, ctx, env);
-            env.interner.mixed()
+            // Unlike a static call, `mwl_hir::members` never checks an
+            // instance method call's existence for any receiver — including
+            // `$this` — so this is the first and only place it's diagnosed.
+            let sig = match (class_qname_of(object_ty, env.interner), method) {
+                (Some(qname), MemberName::Ident(name_span)) => {
+                    let name = span_text(env.src, *name_span).to_owned();
+                    let found = resolve_method(&qname, &name, env.signatures, env.graph);
+                    if found.is_none() && !qname.is_core() {
+                        report_unknown_member(object.span, &qname, &name, "method", env);
+                    }
+                    found
+                }
+                _ => None,
+            };
+            check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
         ExprKind::StaticCall {
             class,
@@ -230,19 +264,53 @@ fn infer(
         } => {
             check_expr(class, None, live, scope, ctx, env);
             check_member_name(method, live, scope, ctx, env);
-            check_args(args, live, scope, ctx, env);
-            env.interner.mixed()
+            // `mwl_hir::members` already checks this reference's existence
+            // (`self::`/`static::`/`parent::`/an explicit class name) — this
+            // only recovers the call's *type* when a signature resolves, and
+            // adds no second diagnostic when it doesn't.
+            let sig = match method {
+                MemberName::Ident(name_span) => {
+                    resolve_class_expr(class, ctx, env).and_then(|qname| {
+                        let name = span_text(env.src, *name_span).to_owned();
+                        resolve_method(&qname, &name, env.signatures, env.graph)
+                    })
+                }
+                _ => None,
+            };
+            check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
         ExprKind::PropertyAccess {
             object, property, ..
         } => {
-            check_expr(object, None, live, scope, ctx, env);
+            let object_ty = check_expr(object, None, live, scope, ctx, env);
             check_member_name(property, live, scope, ctx, env);
-            env.interner.mixed()
+            match (class_qname_of(object_ty, env.interner), property) {
+                (Some(qname), MemberName::Ident(name_span)) => {
+                    let name = span_text(env.src, *name_span).to_owned();
+                    match resolve_property(&qname, &name, env.signatures, env.graph) {
+                        Some(ty) => ty,
+                        None => {
+                            // `$this->missing` is already `E_UNDEFINED_PROPERTY`
+                            // from `mwl_hir::members` — every other receiver
+                            // shape has never been checked before this.
+                            if !qname.is_core() && !is_this_receiver(object, env.src) {
+                                report_unknown_member(object.span, &qname, &name, "property", env);
+                            }
+                            env.interner.mixed()
+                        }
+                    }
+                }
+                _ => env.interner.mixed(),
+            }
         }
-        ExprKind::StaticPropertyAccess { class, .. } => {
+        ExprKind::StaticPropertyAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
-            env.interner.mixed()
+            let text = span_text(env.src, *name);
+            let prop_name = strip_sigil(text).to_owned();
+            resolve_class_expr(class, ctx, env)
+                .and_then(|qname| resolve_property(&qname, &prop_name, env.signatures, env.graph))
+                .unwrap_or_else(|| env.interner.mixed())
         }
         ExprKind::ClassConstAccess { class, .. } | ExprKind::ClassNameConst { class } => {
             check_expr(class, None, live, scope, ctx, env);
@@ -259,22 +327,33 @@ fn infer(
             }
         }
         ExprKind::New { target, args } => {
-            check_args(args, live, scope, ctx, env);
-            check_new_target(target, live, scope, ctx, env)
+            let target_ty = check_new_target(target, live, scope, ctx, env);
+            // A class with no explicit `constructor` accepts a bare `new
+            // Foo()` in PHP; not diagnosing an arity mismatch against zero
+            // parameters here is deliberate — see the crate docs' known gaps.
+            let sig = class_qname_of(target_ty, env.interner)
+                .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
+            check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            target_ty
         }
         ExprKind::Clone(inner) => check_expr(inner, None, live, scope, ctx, env),
         ExprKind::Fn(_) => env.interner.callable(),
         ExprKind::Match { subject, arms } => {
             check_expr(subject, None, live, scope, ctx, env);
+            let mut arm_types = Vec::with_capacity(arms.len());
             for arm in arms {
                 if let Some(conds) = &arm.conditions {
                     for c in conds {
                         check_expr(c, None, live, scope, ctx, env);
                     }
                 }
-                check_expr(&arm.body, None, live, scope, ctx, env);
+                arm_types.push(check_expr(&arm.body, None, live, scope, ctx, env));
             }
-            env.interner.mixed()
+            if arm_types.is_empty() {
+                env.interner.mixed()
+            } else {
+                env.interner.make_union(arm_types)
+            }
         }
         ExprKind::Yield { key, value } => {
             if let Some(k) = key {
@@ -321,7 +400,7 @@ fn infer(
     }
 }
 
-fn class_of_ctx(ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+pub(crate) fn class_of_ctx(ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     match ctx.current_class {
         Some(qname) => env.interner.class(qname.clone()),
         None => env.interner.mixed(),
@@ -442,7 +521,17 @@ fn check_new_target(
             }
         }
         NewTarget::SelfTy | NewTarget::StaticTy => class_of_ctx(ctx, env),
-        NewTarget::ParentTy => env.interner.mixed(),
+        NewTarget::ParentTy => {
+            let parent = ctx
+                .current_class
+                .and_then(|c| env.graph.get(c))
+                .and_then(|links| links.extends.first())
+                .cloned();
+            match parent {
+                Some(parent) => env.interner.class(parent),
+                None => env.interner.mixed(),
+            }
+        }
         NewTarget::Expr(e) => {
             check_expr(e, None, live, scope, ctx, env);
             env.interner.mixed()
@@ -476,6 +565,116 @@ fn check_args(
     };
     for Arg { value, .. } in list {
         check_expr(value, None, live, scope, ctx, env);
+    }
+}
+
+/// The class or enum a resolved type names, if it names one at all — the
+/// receiver-type question every member-access/call arm below needs answered
+/// before it can look anything up in a [`crate::signatures::SignatureTable`].
+fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
+    match interner.get(ty) {
+        Ty::Class(q) | Ty::Enum(q) => Some(q.clone()),
+        _ => None,
+    }
+}
+
+/// Whether `object` is exactly the `$this` variable — the one receiver shape
+/// `mwl_hir::members` already diagnoses a missing property on, so
+/// [`infer`]'s `PropertyAccess` arm must not diagnose it a second time.
+fn is_this_receiver(object: &Expr, src: &mwl_diagnostics::SourceFile) -> bool {
+    matches!(&object.kind, ExprKind::Variable(span) if span_text(src, *span) == "$this")
+}
+
+/// Resolves a `Class::…`-side expression to the class it names, the same way
+/// `mwl_hir::members::check_member_ref` does for existence checking:
+/// `self`/`static` against the enclosing class, `parent` against its first
+/// `extends` link, an explicit name via the same unqualified/qualified/
+/// fully-qualified lookup every resolver in this codebase shares. A dynamic
+/// class side (a variable, a parenthesized expression, ...) has no statically
+/// knowable class and resolves to `None` — callers fall back to `mixed` with
+/// no diagnostic, matching `mwl_hir::members`'s own silent skip for the same
+/// shape.
+fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<QName> {
+    match &class_expr.kind {
+        ExprKind::SelfExpr | ExprKind::StaticExpr => ctx.current_class.cloned(),
+        ExprKind::ParentExpr => {
+            let current = ctx.current_class?;
+            env.graph.get(current)?.extends.first().cloned()
+        }
+        ExprKind::ConstFetch(name) => {
+            let text = span_text(env.src, name.span);
+            Some(mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports))
+        }
+        _ => None,
+    }
+}
+
+/// Reports `E_UNKNOWN_MEMBER` for a property/method access this module
+/// resolved a receiver class for, but found nothing declared under `name` on
+/// it or any ancestor.
+fn report_unknown_member(span: Span, qname: &QName, name: &str, kind: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{qname}` has no {kind} named `{name}`"),
+        )
+        .with_primary(span, "referenced here"),
+    );
+}
+
+/// Checks a call's arguments against a resolved [`MethodSig`], when one was
+/// found: reports `E_ARITY_MISMATCH` for a wrong non-variadic argument count,
+/// then checks each positional argument against its parameter's type the
+/// same way an ordinary assignment is checked. Falls back to the old
+/// "just walk nested expressions, `mixed` throughout" behaviour when no
+/// signature resolved, and also when any argument is named or spread — PHP's
+/// named/variadic call resolution isn't a straight positional mapping, and
+/// modeling that is out of scope for this slice.
+fn check_args_typed(
+    args: &CallArgs,
+    sig: Option<&MethodSig>,
+    call_span: Span,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    let Some(sig) = sig else {
+        for Arg { value, .. } in list {
+            check_expr(value, None, live, scope, ctx, env);
+        }
+        return;
+    };
+    if list.iter().any(|a| a.name.is_some() || a.spread) {
+        for Arg { value, .. } in list {
+            check_expr(value, None, live, scope, ctx, env);
+        }
+        return;
+    }
+    if !sig.variadic && list.len() != sig.params.len() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ARITY_MISMATCH,
+                format!(
+                    "expected {} argument(s), found {}",
+                    sig.params.len(),
+                    list.len()
+                ),
+            )
+            .with_primary(call_span, "called here"),
+        );
+    }
+    let last_param_index = sig.params.len().saturating_sub(1);
+    for (i, arg) in list.iter().enumerate() {
+        let expected = if sig.variadic && i >= last_param_index {
+            sig.params.last().copied()
+        } else {
+            sig.params.get(i).copied()
+        };
+        check_expr(&arg.value, expected, live, scope, ctx, env);
     }
 }
 

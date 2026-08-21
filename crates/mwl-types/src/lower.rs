@@ -215,9 +215,12 @@ mod tests {
             imports: &empty_imports,
             current_class: None,
         };
+        let signatures = crate::signatures::SignatureTable::new();
         let mut env = Env {
             symbols: &module.symbols,
             aliases: &module.aliases,
+            graph: &module.graph,
+            signatures: &signatures,
             src: map.file(file),
             interner: &mut interner,
             diags: &mut diags,
