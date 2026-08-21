@@ -22,12 +22,15 @@ target convention) attached as a `with_fix` machine-applicable edit:
   separate "allowed" case to implement, only the already-merged zero-exception rule.
 - Class constant names: `SCREAMING_SNAKE_CASE` (`E0113`).
 
-One non-obvious piece: ADR 0029's own regex table (`^[A-Z][A-Za-z0-9]*$` etc.) does not by itself
-forbid a kept-all-caps acronym like `HTTPClient` — that pattern matches it fine. § 1's "acronyms
-are one word, never kept all-caps" rule needed an extra check beyond the table: both
-`is_pascal_case` and `is_camel_case` additionally reject any run of two-or-more consecutive ASCII
-uppercase letters. This is documented inline on `has_consecutive_uppercase` in `casing.rs` since
-it isn't spelled out as its own regex anywhere in the ADR.
+**One correction already landed within this same session, worth knowing about so it isn't
+re-litigated:** the first cut of `is_pascal_case`/`is_camel_case` added an extra check beyond ADR
+0029's own regex table — rejecting any run of two-or-more consecutive uppercase letters, to
+enforce § 1's "acronyms are one word, never kept all-caps" rule (which the bare table doesn't
+express on its own: `HTTPClient` matches `^[A-Z][A-Za-z0-9]*$` exactly as well as `HttpClient`
+does). The user asked for that relaxed back out — `HTTPClient`/`parseXMLPayload`-style spellings
+should compile unchanged — so [ADR 0032](docs/adr/0032-acronym-casing-rule-revoked.md) now revokes
+ADR 0029 § 1 outright, and `is_pascal_case`/`is_camel_case` check only the leading character's case
+plus an alphanumeric rest, nothing more. Don't reintroduce the consecutive-uppercase check.
 
 Only a *declaration* site is checked, never a reference (`Class::method`, `$obj->prop`, a
 `use Trait;` name, an `extends`/`implements` target) — each of those names something declared
@@ -37,10 +40,11 @@ documented in `casing.rs`'s module docs: a `type` alias's own name is not checke
 and anything that already gets its own "this construct is rejected" diagnostic elsewhere
 (`TopLevelFunction`/`TopLevelConst`, a function-scope `static` local, a non-`case` member inside
 an `enum` body) is left uninspected here too, same as those constructs' own AST doc comments
-already argue. 35 new unit tests in `casing.rs` cover one correctly-cased and one mis-cased
-fixture per category, the acronym rule, the leading-underscore rejection, the `__construct`/
-`constructor` pair, and that nested declarations (a class inside a function body, an anonymous
-class's members, a property hook's parameter) are still walked. Full workspace `cargo test`,
+already argue. 36 unit tests in `casing.rs` cover one correctly-cased and one mis-cased fixture
+per category, that an all-caps acronym is accepted (both in a `PascalCase` and a `camelCase` name,
+per ADR 0032), the leading-underscore rejection, the `__construct`/`constructor` pair, and that
+nested declarations (a class inside a function body, an anonymous class's members, a property
+hook's parameter) are still walked. Full workspace `cargo test`,
 `cargo clippy --all-targets -- -D warnings`, and `cargo fmt --check` are all green — read
 `CLAUDE.md` first, then run `sh .claude/brief.sh` for the live status slice.
 
@@ -73,7 +77,7 @@ and definite-assignment, since everything else in the list depends on having a t
 against) rather than attempting all of it in one session.
 
 M2's *Verify* line (in the plan, right after its paragraph) names the exact corpus this milestone
-needs before it can be called done. ADR 0029/0030's corpus entries are now satisfied by
+needs before it can be called done. ADR 0029/0030/0032's corpus entries are now satisfied by
 `casing.rs`'s own unit tests (this session's work) — that's the one corpus item that didn't need
 to wait on `mwl-types`. Everything else in that Verify line (ADR 0007, 0013, 0022, 0024, 0027,
 0028 corpus files, plus IR snapshot tests) still depends on `mwl-types`/`mwl-ir`, neither of which
