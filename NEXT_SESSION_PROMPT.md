@@ -7,6 +7,17 @@ via WSL per CLAUDE.md's "Fuzzing on Windows: use WSL" section) found zero panics
 `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src` checkout without crashing.
 `cargo test`, `cargo clippy --all-targets -- -D warnings`, and `cargo fmt --check` are all clean.
 
+Since then, [ADR 0025](docs/adr/0025-wasm-browser-target.md) landed — a design-only decision, no code:
+an optional future `wasm32` browser target (M14, contingent, same status as M13's FastCGI transport) is a
+second codegen backend behind the same IR, not a language change. It doesn't move M2's start line, but
+two things below now have a target-shaped edge to keep in mind while implementing them: `require`'s
+static-resolution-with-dynamic-fallback (item 4 below) should keep "does this path resolve statically"
+structurally separate from "fall back to a dynamic lookup," since the browser target forbids the fallback
+outright rather than merely deprioritising it; and whatever shape `mwl-hir`/`mwl-types` gives the six
+existing `Core` accessor domains ([ADR 0012](docs/adr/0012-no-superglobals.md)) is the shape a seventh
+(`Core\Browser`, undesigned) will need to fit later — don't bake in "exactly six, enumerated" anywhere it
+would need unpicking.
+
 **M2 — HIR, types, IR — starts now.** Read `CLAUDE.md` first (it routes to the one file you need per
 topic), then run `sh .claude/brief.sh` for the live status slice, then read the plan's M2 paragraph in
 `docs/implementation-plan.md` in full — it's dense and every clause maps to an ADR you'll need open

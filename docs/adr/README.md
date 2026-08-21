@@ -57,6 +57,7 @@ live, so a new row is picked up automatically.
 | [0022](0022-definite-property-initialization.md) | Properties are definitely initialized at compile time; no new `undefined` type, no silent defaults | Accepted |
 | [0023](0023-clone-serialize-and-cross-boundary-copy.md) | `clone` stays PHP-shallow; `serialize`/`unserialize` share one graph-copy operation with the isolate boundary; neither is hookable | Accepted |
 | [0024](0024-taint-tracking-for-injection-sinks.md) | Untrusted input is a distinct type; injection sinks demand laundering | Accepted |
+| [0025](0025-wasm-browser-target.md) | The browser is a second compile target, not a second language | Accepted |
 
 ## Decisions taken at project start
 

@@ -47,6 +47,7 @@ touching to get that.
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, or any runtime introspection/parsing surface | [ADR 0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md). Holds the only copy of the rule that both are built-in `Core` features, not extensions — reflective access enforces the same visibility/hook checks as ordinary code (no `setAccessible(true)`), and a parsed AST is inert typed data with no path back into execution. |
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, compile-error reporting, `Core\Fatal`, `Core\Log`, or anything about what gets logged when a handler itself fails | [ADR 0020](docs/adr/0020-error-escalation-ladder.md). Holds the only copy of the four-tier escalation ladder, why a resource-limit report is not a `Throwable`, and why every tier is zero-retry. |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`/`bytes`, `Core\Html\Markup`, or why a `Core\Request` value can't reach a sink unescaped | [ADR 0024](docs/adr/0024-taint-tracking-for-injection-sinks.md). Holds the only copy of the `tainted` qualifier, how it propagates and is laundered, the sinks that refuse it, and the HTML auto-escape default. |
+| A wasm32 browser target, running MWL client-side in a tab, `Core\Browser`, or why `spawn`/coroutine suspension/`.mwlx` extensions don't reach that target | [ADR 0025](docs/adr/0025-wasm-browser-target.md). Holds the only copy of the per-target capability matrix and why the language itself doesn't grow a browser-specific dialect. |
 | The VS Code extension, the PhpStorm plugin, `mwl-lsp`/`mwl-fmt` client wiring, syntax highlighting, or what "IDE integration" does and doesn't cover yet | [ADR 0016](docs/adr/0016-ide-integration.md). Holds the only copy of the rule that language smarts and formatting live exactly once, in `mwl-lsp`/`mwl-fmt`, with a thin client per editor — PhpStorm's LSP-bridge-before-native phasing and the deferred debugger-UI wiring are both decided there, not left to be inferred from M10's task list. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
@@ -148,6 +149,11 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   operation with the `spawn`/`spawn worker`/`spawn script` boundary** — neither depth has a customization
   hook (no `__clone`, `__serialize`, `__unserialize`, `__sleep`, `__wakeup`), and `unserialize()` accepts
   only bytes MWL's own `serialize()` produced ([ADR 0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)).
+- **A wasm32 browser target is a second codegen backend behind the same IR, not a second language** —
+  `spawn worker`/`spawn script`, coroutine-based suspension, and `.mwlx` extensions are unavailable there
+  (a diagnostic, never a silent downgrade), and a seventh `Core` accessor domain covers DOM/window state;
+  every other language and stdlib feature is unchanged across targets
+  ([ADR 0025](docs/adr/0025-wasm-browser-target.md)).
 - **Untrusted input carries a `tainted` qualifier that a handful of `Core` sinks (HTML output, SQL text,
   process arguments, HTTP headers, filesystem paths) refuse until it is laundered by a narrow, sink-named
   `Core` function** — the qualifier is compile-time-only, and the HTML sink additionally auto-escapes any

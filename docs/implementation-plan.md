@@ -775,6 +775,22 @@ Only if a deployment target requires it (shared hosting, IIS, an existing nginx 
 same `Transport` trait as `mwl-http`, with a fuzzed record parser and `SCRIPT_FILENAME` handling that
 resolves within a configured root — closing the historical vulnerability class by construction.
 
+### M14 — Optional wasm32 browser target
+Only if an embedding wants MWL running client-side in a browser tab, per
+[ADR 0025](adr/0025-wasm-browser-target.md). A second codegen backend consuming the same M2 IR —
+instruction selection to wasm32 opcodes via a pure-Rust emitter, not Cranelift, which has no wasm32
+output. `spawn worker`/`spawn script`, coroutine-based suspension, and `.mwlx` extension loading are all
+unavailable in this target (a diagnostic naming the ADR, never a silent no-op); every other language and
+stdlib feature is unchanged. Adds `Core\Browser` as a seventh [ADR 0012](adr/0012-no-superglobals.md)
+accessor domain (method table undesigned until this milestone starts), and requires `require` to resolve
+every path at build time — no dynamic fallback, since there is no filesystem at runtime.
+
+**Verify:** a `.mwl` file using none of the three excluded features compiles to a `.wasm` module and runs
+identically to the native target's output on the same input, in a headless-browser test harness; a `.mwl`
+file using `spawn`, suspension-requiring `Core` I/O, or a `.mwlx` extension for this target produces the
+ADR-named diagnostic rather than a miscompile or a silent downgrade; `benches/abi-probe` gains a
+browser-target guard for whatever cost claim this milestone's spike validates.
+
 ---
 
 ## Overall verification strategy
