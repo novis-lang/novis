@@ -19,12 +19,11 @@
 
 ## Context
 
-MWL needs to be extensible the way PHP is: a large built-in standard library, plus the ability to add
-**precompiled** extensions without rebuilding the runtime. Three requirements, in tension:
+MWL needs to be extensible like PHP — a large built-in standard library plus precompiled extensions added
+without rebuilding the runtime — under three requirements, in tension:
 
-1. **Easy to develop for.** PHP's extension API effectively requires C, manual refcount management, and
-   intimate knowledge of the engine. That is why the extension ecosystem is small relative to the userland
-   one.
+1. **Easy to develop for.** PHP's C-only, manual-refcount extension API is why its extension ecosystem is
+   small relative to userland.
 2. **As secure and performant as built-in features.**
 3. **Cross-platform precompiled artifacts**, where technically possible.
 
@@ -32,34 +31,18 @@ Requirements 2 and 3 are what decide this, and they point the same way.
 
 ## Options considered
 
-**Native shared libraries (`.dll`/`.so`/`.dylib`) via `dlopen` — the PHP, Python and Node model.**
-Native speed and direct heap access, and it is the obvious thing to copy. Rejected, decisively:
-
-- It destroys memory safety, which is the central product claim. An extension runs in the process address
-  space with no sandbox; a single out-of-bounds write corrupts arbitrary memory, including another
-  request's.
-- It destroys request isolation. MWL serves every request from one process, so an extension segfault
-  takes down every in-flight request. In PHP's process-per-request model this is bad; here it is
-  catastrophic.
-- It bypasses the capability system entirely. Native code calls `open()` and `connect()` directly, so
-  every grant in the root-owned `mwl.ini` becomes advisory rather than enforced.
-- It cannot deliver requirement 3. Binaries need building per OS × architecture, and because Rust has no
-  stable ABI, an extension would additionally have to match the host's compiler version and allocator or
-  invoke undefined behaviour.
-- The empirical case is PHP's own extension CVE history.
-
-**Rust dylibs with a versioned stable ABI (`abi_stable`).** Better ergonomics for Rust authors, but
-identical on every point above: no sandbox, no capability enforcement, per-platform binaries. Same
-rejection.
-
-**Out-of-process extensions over IPC.** Excellent isolation, but a round trip costs microseconds, which is
-two to three orders of magnitude worse than the alternatives for anything fine-grained.
-
-**Extensions written in MWL itself.** Perfectly safe and portable, and MWL will have this — it is what
-`mwl pkg` distributes. But it cannot wrap an existing C or Rust library, which is the main reason
-extensions exist. Complementary, not a substitute.
-
-**WebAssembly components.** Chosen. See below.
+- **Native shared libraries (`.dll`/`.so`/`.dylib`) via `dlopen`** — the PHP/Python/Node model. Rejected:
+  destroys memory safety (no sandbox, one bad write corrupts arbitrary memory) and request isolation (one
+  segfault takes down every in-flight request in MWL's single process); bypasses the capability system
+  since native code calls `open()`/`connect()` directly; cannot deliver requirement 3 since Rust has no
+  stable ABI; and PHP's own extension CVE history is the empirical case against it.
+- **Rust dylibs with a versioned stable ABI (`abi_stable`).** Better ergonomics for Rust authors, but no
+  sandbox, no capability enforcement, per-platform binaries — same rejection.
+- **Out-of-process extensions over IPC.** Excellent isolation, but a round trip costs microseconds — two to
+  three orders of magnitude worse than the alternatives for fine-grained work.
+- **Extensions written in MWL itself.** Safe and portable (this is what `mwl pkg` distributes), but cannot
+  wrap an existing C or Rust library — the main reason extensions exist. Complementary, not a substitute.
+- **WebAssembly components.** Chosen — see *Decision* below.
 
 ## Decision
 

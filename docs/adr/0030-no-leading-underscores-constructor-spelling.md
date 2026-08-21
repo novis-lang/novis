@@ -27,19 +27,15 @@
 
 ## Context
 
-ADR 0029 shipped with a leading-underscore allowance for properties/parameters/locals (`_cache`,
-`$_unused`) and, spotted as a gap the same day, a reserved-word exception for `__construct` so the one
-surviving magic-method spelling wouldn't trip the casing check it was never meant to catch. On reflection,
-that exception is exactly the shape ADR 0029's own *Alternatives rejected* section already argued against
-generalizing: a carve-out for one specific name. The cleaner fix is removing the reason the exception
-exists, not narrowing its wording — so MWL's constructor gets an ordinary name instead, and the exception
-disappears entirely rather than persisting in a smaller form.
-
-With that wrinkle gone, the leading-underscore allowance no longer has anything defending it either: it
-existed to keep a PHP habit (`_privateField`, `_unused` parameters) from being a pointless breaking change,
-but PHP source converts to that habit's MWL equivalent by dropping one character — mechanical, not a
-judgment call — so the allowance was buying comfort ADR 0029's own zero-suppression stance elsewhere
-already declined to buy for anything else.
+- ADR 0029 shipped with a leading-underscore allowance for properties/parameters/locals (`_cache`,
+  `$_unused`) plus a same-day `__construct` reserved-word exception, so the one surviving magic-method
+  spelling wouldn't trip the check.
+- That exception was itself the single-name carve-out ADR 0029's own *Alternatives rejected* already argued
+  against generalizing — the cleaner fix is removing the reason the exception exists (rename the
+  constructor), not narrowing its wording.
+- With that gone, the leading-underscore allowance loses its own justification too: it existed only to
+  avoid a pointless breaking change for a PHP habit (`_privateField`) that converts mechanically (drop one
+  character) — comfort ADR 0029's zero-suppression stance already declined to buy elsewhere.
 
 ## Decision
 

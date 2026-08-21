@@ -56,41 +56,24 @@
 
 ## Context
 
-PHP treats "a script is handed data from outside" as a set of magic variables rather than a set of
-declarations. They are not parameters, not imports, not anything a reader can trace to a source — they are
-simply *there*, populated by the SAPI before the script's first line runs, mutable like any other variable,
-and readable from any scope without a `global` (the one carve-out PHP gives its own magic that it does not
-give a programmer's).
-
-Two things make this worse than ordinary global mutable state:
-
-**`$GLOBALS` is a second, more dangerous door onto the same problem `global` opens.**
-[ADR 0008](0008-static-and-global.md) already rejected `global $x;` — a script that rebinds a local name onto
-the top-level variable table is exactly the "reachable from anywhere, declared nowhere in particular"
-surface priority 4 argues against. `$GLOBALS['x']` is the same rebinding with no keyword and no declaration
-at all: any function, at any depth, can read or overwrite any top-level variable in the entire program by
-name, including ones it has never been told exist. Closing `global` and leaving `$GLOBALS` standing would
-have been closing the door and leaving the window open.
-
-**The request-input superglobals are untrusted data delivered with no declared boundary.**
-[ADR 0007](0007-explicit-type-system.md) § 6 already treats `$_GET`/`$_POST`/`$_SERVER` as the canonical
-example of "input genuinely is untyped, and pretending otherwise is a lie" — but it still let that untyped
-input arrive as a bare, ambiently-populated variable rather than through anything resembling a declared
-entry point. A reviewer can grep for a `Core\Str::` call and know exactly which built-in a line depends on,
-per [ADR 0011](0011-functions-and-constants-are-class-members.md) — but nothing stopped the same line from
-reading `$_GET['id']` with no equivalent traceability, because a superglobal was never a name that had to be
-imported or declared to be reachable.
-
-**`$_SESSION` and `$_ENV` add ambient *mutable* and *host-configuration* state to the same ungoverned
-surface**, and `$_REQUEST` adds a third failure mode: it merges `$_GET`, `$_POST` and `$_COOKIE` in an order
-controlled by a `php.ini` directive (`request_order`), so the same key can silently mean a query parameter on
-one server and a cookie on another, with nothing at the read site to say which. This is the shape of bug
-[ADR 0007](0007-explicit-type-system.md) exists to make impossible for scalars; `$_REQUEST` reintroduces it
-one level up, for *which source a value came from*.
-
-None of this is a new argument, in the sense that this project has made it before: [ADR 0008](0008-static-and-global.md)'s storage table was declared exhaustive, and a bare, ambiently-populated
-variable simply does not fit any row in it. This ADR is that argument, applied to the one place PHP's magic
-variables were still standing.
+- PHP treats "a script is handed data from outside" as magic variables, not declarations: superglobals
+  are simply *there*, populated by the SAPI, mutable, and readable from any scope without a `global` —
+  the one carve-out PHP gives its own magic that it denies a programmer's.
+- **`$GLOBALS` is a second, worse door onto the problem `global` already opens**
+  ([ADR 0008](0008-static-and-global.md)): any function at any depth can read or overwrite any top-level
+  variable by name, with no keyword and no declaration at all.
+- **The request-input superglobals deliver untrusted data with no declared boundary.**
+  [ADR 0007](0007-explicit-type-system.md) § 6 already treats `$_GET`/`$_POST`/`$_SERVER` as untyped
+  input, but that input still arrived as a bare, ambiently-populated variable rather than through
+  anything resembling a declared, traceable entry point (contrast a grep-able `Core\Str::` call,
+  [ADR 0011](0011-functions-and-constants-are-class-members.md)).
+- **`$_SESSION`/`$_ENV` add ambient mutable/host-configuration state**, and `$_REQUEST` adds a third
+  failure mode: it merges `$_GET`/`$_POST`/`$_COOKIE` in a `php.ini`-configurable order, so the same key
+  can silently mean a different source on different servers — the same "which source" ambiguity
+  [ADR 0007](0007-explicit-type-system.md) already closes for scalar type.
+- Not a new argument: [ADR 0008](0008-static-and-global.md)'s storage table is exhaustive, and a bare
+  ambiently-populated variable does not fit any row in it. This ADR applies that argument to the one
+  place PHP's magic variables were still standing.
 
 ## Decision
 
@@ -266,26 +249,18 @@ precedent:
 ## Alternatives rejected
 
 - **Keep the superglobals as read-only, host-populated variables**, dropping only `$GLOBALS`. Rejected: a
-  bare variable that is merely *read-only* still has no declared import, no traceable dependency at the call
-  site, and still does not fit [ADR 0008](0008-static-and-global.md)'s exhaustive storage table without
-  adding a row back specifically for it — which is the "second table for one keyword" mistake that ADR
-  already spent effort avoiding for `static`.
+  read-only bare variable still has no declared import or traceable dependency, and still does not fit
+  [ADR 0008](0008-static-and-global.md)'s exhaustive storage table without a row added back for it.
 - **A single `Core\Http` class for everything request-and-server-shaped.** Rejected per
-  [ADR 0011](0011-functions-and-constants-are-class-members.md)'s own *Alternatives rejected*: one class for
-  every unrelated concern is a global namespace with extra syntax, and PHP already splits "facts about the
-  server" from "input the client sent."
-- **Keep `$_REQUEST` as a merged accessor with a fixed, documented order.** Rejected: it still hides the
-  source at the read site, which is the actual problem — a fixed order is a smaller footgun than a
-  configurable one, not a fix.
-- **Auto-start sessions on first `Core\Session` access**, matching PHP's `session.auto_start`. Rejected: an
-  implicit side effect (setting a cookie, touching a store) triggered by a read is exactly the kind of
-  action-at-a-distance this whole ADR removes elsewhere; `session.auto_start` is also off by default in
-  stock PHP for the same reason.
-- **Let `Core\Request`/`Core\Server` return empty values inside a spawned isolate**, matching PHP's own
-  CLI behaviour where `$_GET` is simply an empty array. Rejected in *7*: "empty" and "you cannot see this"
-  are different facts, and collapsing them is the same silent-wrong-answer failure mode
-  [ADR 0007](0007-explicit-type-system.md) exists to close for values — applied here to a boundary instead
-  of a conversion.
+  [ADR 0011](0011-functions-and-constants-are-class-members.md): one class for every unrelated concern is
+  a global namespace with extra syntax.
+- **Keep `$_REQUEST` as a merged accessor with a fixed, documented order.** Rejected: still hides the
+  source at the read site, which is the actual problem — a fixed order is a smaller footgun, not a fix.
+- **Auto-start sessions on first `Core\Session` access**, matching `session.auto_start`. Rejected: an
+  implicit side effect triggered by a read is exactly the action-at-a-distance this ADR removes elsewhere.
+- **Let `Core\Request`/`Core\Server` return empty values inside a spawned isolate**, matching PHP's CLI
+  behaviour. Rejected in *7*: "empty" and "you cannot see this" are different facts, and collapsing them
+  is the silent-wrong-answer failure mode [ADR 0007](0007-explicit-type-system.md) exists to close.
 
 ## Revisiting
 

@@ -44,44 +44,22 @@
 
 ## Context
 
-PHP gives a class three separate, disconnected ways to intercept access to its own state and behaviour:
-
-- **Property hooks (8.4)** — `get`/`set` blocks declared directly on one property. Explicit, scoped to that
-  property, visible in the class body exactly where the property is declared. Already in MWL's parser scope
-  for [M1](../implementation-plan.md), and this ADR does not redesign them — PHP 8.4's syntax and
-  per-property semantics are kept as they are, out of this document's scope.
-- **`__get($name)`/`__set($name, $value)`** — ambient magic methods that fire *only* when a property access
-  names something that does not exist, or is not visible from the caller's scope. A class cannot opt into
-  them for a property it already declares; they exist purely to paper over accessing what is not there.
-  Nothing declares that a class has this behaviour — a reader sees `$obj->missing` and has to already know
-  `__get` exists on the class, and that PHP will silently reach for it, to know what happens.
-- **`__call($name, $args)`/`__callStatic($name, $args)`** — the same ambient shape applied to method calls
-  instead of properties: fires only when the named method does not exist, again purely because a method with
-  that exact reserved name happens to be present.
-
-These three do not compose. There is no way in PHP to say "run one function for every property this class
-has, defined or not, in addition to whatever per-property hook exists" — `__get`/`__set` only ever see
-*undefined* access, so a class with real declared properties and real hooks gets no single place to add a
-cross-cutting concern (an audit log, a dirty-tracking flag, a serialization boundary) that applies uniformly
-across all of them. That gap is the actual feature request behind this ADR: not PHP's `__get`/`__set`
-specifically, but a single declared hook that fires for every property access on a class, layered on top of
-whatever hooks the properties already have.
-
-The ambient trigger — "a method with this exact reserved name changes runtime behaviour by being present" —
-is precisely the shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
-[ADR 0012](0012-no-superglobals.md) and [ADR 0013](0013-comparable-interface.md) have already closed
-elsewhere in this project, for the same reason each time: nothing about the class declaration tells a
-reader the behaviour exists. [ADR 0013](0013-comparable-interface.md) already replaced one instance of it
-(PHP's property-walk `<`/`>`) with a declared global interface, `Comparable`. This ADR applies the identical
-treatment to `__get`/`__set`, and closes `__call`/`__callStatic` outright rather than finding a replacement
-for them, per the requirement driving this decision: dynamic method dispatch by an unresolvable name is not
-a feature MWL carries forward in any form, declared or ambient.
-
-Closing "access an undeclared property" as a hard error is also not new territory — it is what
-[ADR 0007](0007-explicit-type-system.md) already does for every other binding kind (an undeclared local, a
-read before definite assignment). A dynamically-created property that exists only because something was
-once assigned to it is exactly the kind of untyped, undeclared surface that ADR rules out everywhere else;
-carrying it forward just for property writes would be the one place PHP's type-optional past survived.
+- PHP has three disconnected ways to intercept property/method access: property hooks (kept — explicit,
+  per-property, already in [M1](../implementation-plan.md)'s parser scope), `__get`/`__set` (ambient, fires
+  only on undefined/inaccessible property access), and `__call`/`__callStatic` (same ambient shape for
+  methods).
+- The gap driving this ADR: PHP has no way to run one cross-cutting hook (audit log, dirty tracking,
+  serialization boundary) for *every* declared property, hooked or not — `__get`/`__set` only ever see
+  undefined access, so real declared properties with real hooks get no shared observation point.
+- The ambient "a method existing by this exact name changes runtime behaviour" shape is the same one
+  [ADR 0011](0011-functions-and-constants-are-class-members.md), [ADR 0012](0012-no-superglobals.md) and
+  [ADR 0013](0013-comparable-interface.md) already closed elsewhere, for the same reason each time: nothing
+  in the declaration signals the behaviour exists. [ADR 0013](0013-comparable-interface.md)'s replacement of
+  PHP's property-walk `<`/`>` with a declared `Comparable` interface is the direct precedent this ADR follows
+  for `__get`/`__set`; `__call`/`__callStatic` get no replacement at all, since dynamic dispatch by an
+  unresolvable name is rejected outright, not just PHP's particular spelling of it.
+- Making undeclared-property access a hard error extends [ADR 0007](0007-explicit-type-system.md)'s existing
+  rule for undeclared locals and read-before-definite-assignment to property access — not new territory.
 
 ## Decision
 
@@ -234,30 +212,18 @@ in the class body, resolved and type-checked like any other call.
 
 ## Alternatives rejected
 
-- **Ambient name-based `__get`/`__set`**, recognized purely because a method with that name exists, matching
-  PHP exactly. Rejected for the reason argued in full in *Context*: it is the same "behaviour triggered by a
-  name being present, not a declaration" shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
-  [ADR 0012](0012-no-superglobals.md) and [ADR 0013](0013-comparable-interface.md) already closed, for the
-  same reason each time — a reader cannot see the behaviour exists from the class declaration alone.
-- **A property's own hook as a fallback, with `PropertyObserver` only running for properties that declare
-  none.** This would make the two mechanisms mutually exclusive per property rather than always chained.
-  Rejected because it defeats the actual use case motivating this ADR — a cross-cutting concern (audit
-  logging, dirty tracking) that needs to see *every* property uniformly, including ones that already have a
-  hook for unrelated reasons (validation, computed values). A fallback model would force that logic to be
-  duplicated into every hook instead of declared once.
-- **Letting `PropertyObserver` override the value** — a non-`void` return from `onPropertyGet` replacing what
-  the caller sees, or `onPropertySet` replacing what gets stored. Rejected: with a property hook already
-  authoritative over the same value, a second authority able to override it creates an ordering question with
-  no non-arbitrary answer — does the hook's output win, or the observer's, and does that answer change if a
-  future hook is added to a property that previously had none? Keeping `PropertyObserver` strictly
-  observational (`void`, *3*) removes the question entirely: exactly one thing ever decides a property's
-  value, its own hook or plain storage, and the observer only ever reports on that decision.
-- **A language-level diagnostic on declaring `__call`/`__callStatic`**, warning that the method will never be
-  invoked implicitly. Rejected as a permanent compiler feature: it would be a one-off lint for two specific
-  names with no general principle behind it, when the actual moment this matters — converting PHP source
-  that relied on dynamic dispatch — already has a home with full context in `mwl convert` ([M11](../implementation-plan.md)),
-  which can say precisely what the original code did and why it has no mechanical destination, rather than a
-  bare compiler note with none of that context.
+- **Ambient name-based `__get`/`__set`**, matching PHP exactly. Rejected: same "behaviour triggered by a name
+  being present, not a declaration" shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
+  [ADR 0012](0012-no-superglobals.md) and [ADR 0013](0013-comparable-interface.md) already closed.
+- **A property's own hook as a fallback**, with `PropertyObserver` only running for hookless properties.
+  Rejected: defeats the cross-cutting use case motivating this ADR, forcing that logic to be duplicated into
+  every hook instead of declared once.
+- **Letting `PropertyObserver` override the value.** Rejected: a second authority able to override a
+  hook-decided value creates an ordering question with no non-arbitrary answer; keeping it strictly
+  observational (`void`) removes the question entirely.
+- **A language-level diagnostic on declaring `__call`/`__callStatic`.** Rejected as a permanent compiler
+  feature — a one-off lint with no general principle behind it, when `mwl convert` ([M11](../implementation-plan.md))
+  already has the full context to explain why the conversion has no mechanical destination.
 - **Threading the pre-write value into `onPropertySet` alongside the committed one**, so an observer can
   compare old and new. Deferred rather than rejected — see *Revisiting*.
 

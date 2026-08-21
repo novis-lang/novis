@@ -32,31 +32,18 @@
 
 ## Context
 
-[ADR 0002](0002-error-propagation.md) fixed the ABI: `OK`/`THROWN`/`FATAL`, with `FATAL` explicitly
-"cannot be caught by MWL code" and unwinding straight to the request boundary. That decision is tested
-(`benches/abi-probe`) and is not reopened here — but it also never said what happens *at* the boundary,
-beyond [ADR 0006](0006-isolated-script-execution.md)'s narrow answer for a *spawned child* isolate
-(`ScriptResult->error`, read by the parent that spawned it). It says nothing about:
-
-- the **root** isolate of a request tree, which has no parent to read a `ScriptResult` — who sees a `FATAL`
-  there, if anyone?
-- an ordinary `THROWN` exception nobody ever `catch`es — PHP's uncaught-exception handler
-  (`set_exception_handler`) has no equivalent yet;
-- a file that fails to **compile** — the entry file has no running frame to `catch` into at all, while a
-  file pulled in mid-execution (`include`, `spawn script`) does;
-- an **internal runtime panic** — a bug in MWL's own Rust code, `FATAL`'s other cause alongside a resource
-  limit, and a materially different kind of failure: the runtime's own state may not be trustworthy, where a
-  resource-limit breach means the *script's* state is untrustworthy and the runtime's is fine;
-- and, cutting across all of the above: **what happens when the thing meant to report a failure fails
-  itself.** A logging call that allocates under the exact out-of-memory condition it is trying to report is
-  the textbook version of this problem, and it is the one the requirement behind this ADR named explicitly:
-  nothing may end up unlogged, and nothing may be allowed to loop trying.
-
-The requirement driving this ADR: every error category gets a defined path to a log line, user code gets as
-much of a chance to handle each category as it can safely be given, and no handler — user-written or
-engine-native — ever gets a second attempt at the same failure. A second attempt is how "catch this and try
-to log it" becomes "catch this, fail again, catch that, fail again," which is the loop the requirement
-explicitly rules out.
+- [ADR 0002](0002-error-propagation.md) fixed `OK`/`THROWN`/`FATAL` and that `FATAL` unwinds to the request
+  boundary — tested and not reopened here — but never said what consumes it *at* that boundary, beyond
+  [ADR 0006](0006-isolated-script-execution.md)'s narrow answer for a spawned child (`ScriptResult->error`).
+- Left open: the **root** isolate has no parent to read a `ScriptResult`; an uncaught `THROWN` has no
+  equivalent of PHP's `set_exception_handler`; the **entry file** failing to **compile** has no running
+  frame to `catch` into (unlike a mid-execution `include`/`spawn script` failure); an **internal runtime
+  panic** is materially different from a resource limit — the runtime's own state, not just the script's, is
+  untrustworthy; and, cutting across all of these, **what happens when the reporter itself fails** (a
+  logging call that allocates under the exact OOM it is reporting).
+- Requirement driving the ADR: every error category reaches a log line, user code gets as much safe chance
+  to react as possible, and no handler ever gets a second attempt at the same failure — a second attempt is
+  how "catch and log" becomes an infinite loop.
 
 ## Decision
 
@@ -230,28 +217,23 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 
 ## Alternatives rejected
 
-- **Let an ordinary `catch (Throwable)` intercept a `FATAL` anywhere in the call stack.** Requires reopening
-  [ADR 0002](0002-error-propagation.md)'s tested status model and re-measuring `abi-probe`'s costs, and moves
-  the catch-loop risk this ADR exists to close from one boundary to every stack depth.
-- **Bounded-N retries** on a failing handler, closer to PHP's shutdown-function feel. Rejected: it adds a
-  knob to size, more paths to test, and a way to still stall if `N` is set too high, for a case (the handler
-  meant to report a failure also failing) that should already be rare by tier 3.
-- **One handler API for both resource-limit and internal-panic `FATAL`s.** Rejected per § 5: it would run
-  user code again on top of runtime state the runtime itself does not trust, which is the riskier direction,
-  not the safer one.
-- **Treat every compile failure as boundary-only**, including mid-execution ones. Rejected per § 7: it
-  diverges from PHP's catchable `ParseError`, breaking the framework pattern of catching a bad template or
-  plugin's parse failure gracefully instead of failing the whole request.
-- **`logfmt` as the shared record format.** Rejected per § 6: correct escaping of an arbitrary message or a
-  multi-line stack trace is a bigger correctness burden to place on tier 4's one, unretried attempt than
-  JSON's mechanical escaping.
-- **A purely engine-native last-resort logger, with no operator-configurable script tier at all.** Rejected:
-  it would force every deployment's error routing/formatting decision onto a second, host-side configuration
-  surface, when the language already has everything needed to express it — which is exactly why tier 3 was
-  added.
-- **Give the tier-3 handler its own budget drawn from the request tree it is reporting on** — the "obvious"
-  application of [ADR 0006](0006-isolated-script-execution.md)'s existing rule. Rejected: a request already
-  at its ceiling has nothing left to give it, which would make the feature unreachable exactly when it is
+- **Let an ordinary `catch (Throwable)` intercept a `FATAL` anywhere in the call stack.** Rejected: reopens
+  [ADR 0002](0002-error-propagation.md)'s tested status model and spreads the catch-loop risk from one
+  boundary to every stack depth.
+- **Bounded-N retries** on a failing handler. Rejected: adds a knob to size and still risks stalling if `N`
+  is too high, for a case that should already be rare by tier 3.
+- **One handler API for both resource-limit and internal-panic `FATAL`s.** Rejected: would rerun user code
+  atop runtime state the runtime itself does not trust.
+- **Treat every compile failure as boundary-only**, including mid-execution ones. Rejected: diverges from
+  PHP's catchable `ParseError`, breaking the pattern of catching a bad template/plugin parse failure
+  gracefully instead of failing the whole request.
+- **`logfmt` as the shared record format.** Rejected: correct escaping of an arbitrary message or multi-line
+  stack trace is a bigger burden on tier 4's one unretried attempt than JSON's mechanical escaping.
+- **A purely engine-native logger, no operator-configurable script tier.** Rejected: forces every
+  deployment's error routing/formatting decision onto a second, host-side configuration surface instead of
+  the language already available.
+- **Give the tier-3 handler its own budget drawn from the request tree it is reporting on.** Rejected: a
+  request already at its ceiling has nothing left to give, making the feature unreachable exactly when it is
   needed most.
 
 ## Revisiting

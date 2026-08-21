@@ -42,57 +42,33 @@
 
 ## Context
 
-PHP enforces almost nothing about identifier spelling — only which *characters* are legal, not which
-*case* they appear in. The result, visible in `php-src` itself, is a language whose own standard library
-mixes `snake_case` functions (`array_map`), `camelCase` methods (`DateTime::createFromFormat`), and
-inconsistently-cased class names, with nothing in the toolchain that would ever tell a contributor they'd
-drifted from whatever convention a given file happened to pick. Userland PHP inherits the same freedom, and
-in practice a mid-size codebase ends up with several conventions competing depending on who wrote which
-file.
-
-MWL already made the callable/constant surface uniform — [ADR 0011](0011-functions-and-constants-are-class-members.md)
-put every function and constant on a class, closing off the free-function/global-constant split PHP still
-has. That decision already implies most of this one exists somewhere to answer: now that "every callable is
-a method," what casing does a method name take? Now that "every constant is a class constant," what casing
-does *that* take? This ADR is the answer PHP never had to give, because MWL closed off the shapes (free
-function, global constant) that let PHP dodge the question.
-
-It is also, at this point, a *formalization* rather than a new choice in practice: every accepted ADR
-already writes its own examples in one consistent style — `HttpClient`-shaped class names would fit
-`Comparable`, `PropertyObserver`, `Stringable`; enum cases are already written `Active`/`Banned`
-([0010](0010-enums-are-a-value-type.md)); class constants are already written `MAX`/`DEFAULT_STATUS`
-([0007](0007-explicit-type-system.md) § 4, [0010](0010-enums-are-a-value-type.md) § 1); namespaces are
-already written `Core\Str`, `Core\Html\Markup`. Nobody sat down and decided this — it just happened, because
-one person wrote all of the docs. The moment a second contributor (or a converted PHP project) writes code,
-that accident stops holding on its own.
+- PHP enforces only legal *characters*, never *case* — `php-src` itself mixes `snake_case` functions
+  (`array_map`), `camelCase` methods (`DateTime::createFromFormat`), and inconsistently-cased class names,
+  with no tooling to catch drift; userland PHP inherits the same freedom.
+- [ADR 0011](0011-functions-and-constants-are-class-members.md) (every function/constant is a class member)
+  already implied this question needed an answer: PHP could dodge "what casing does a method/constant take"
+  by having free functions and global constants; MWL closed off that dodge.
+- A formalization more than a new choice: every accepted ADR's examples already followed one consistent
+  style by accident of single authorship (`PascalCase` classes, `Active`/`Banned` enum cases
+  ([0010](0010-enums-are-a-value-type.md)), `MAX`/`DEFAULT_STATUS` constants, `Core\Str`-style namespaces) —
+  an accident that stops holding the moment a second contributor or a converted PHP project writes code.
 
 ## Investigation — how other languages handle this
 
-No mainstream language enforces full multi-word identifier casing as a hard compiler error the way this ADR
-proposes. The closest precedents, and why each stops short:
-
-- **Go** enforces exactly one casing fact at compile time: whether the *first letter* is upper- or
-  lower-case, because that single bit **is** semantics — it's the exported/unexported visibility flag, not
-  a style preference. `gofmt`-level formatting (braces, whitespace) is enforced by tooling and CI
-  convention across the ecosystem, never by the compiler.
-- **Haskell, Elm and OCaml** also make first-letter case a hard grammar rule, but for a different reason:
-  uppercase-first names a constructor/type/module, lowercase-first names a value, and the parser needs that
-  distinction to read the grammar at all. Neither checks anything about the *rest* of the identifier.
-- **Rust** is the only mainstream language that checks whole-identifier casing (`non_camel_case_types`,
-  `non_snake_case`, `non_upper_case_globals`) the way this ADR wants — and deliberately stops at a
-  default-on **warning**, individually suppressible with `#[allow(...)]` per item, specifically because FFI
-  bindings, macro-generated code and serialization field names legitimately need to violate it.
-- **Java and C#** leave this entirely to tooling outside the compiler — Checkstyle, Roslyn analyzers plus
-  `.editorconfig` — never a build-breaking failure by default.
-- **Python** (PEP 8) is pure convention with zero tooling enforcement anywhere in the reference toolchain.
-
-So this decision has no direct precedent at the "hard error, zero exceptions" end of the spectrum. It is,
-however, a natural extension of a pattern MWL already applies elsewhere: [ADR 0011](0011-functions-and-constants-are-class-members.md),
-[0015](0015-no-name-aliasing.md), [0021](0021-single-file-inclusion-construct.md) and
-[0027](0027-callable-is-closures-only.md) each closed off a PHP dynamism by picking exactly one accepted
-spelling and rejecting the rest outright, rather than warning and letting the alternative linger. Rust's
-warning-with-escape-hatch model is the road not taken here, by deliberate choice (see *Alternatives
-rejected*).
+- **Go**: checks only first-letter case, because that bit *is* semantics (exported/unexported) — formatting
+  otherwise stays tooling-only (`gofmt`).
+- **Haskell/Elm/OCaml**: also first-letter-only, for parser disambiguation (constructor/type vs value), not
+  style.
+- **Rust**: the only mainstream language checking whole-identifier casing — but as a default-on **warning**,
+  suppressible per item (`#[allow(...)]`), because FFI/macro/serialization names legitimately need to
+  violate it.
+- **Java/C#**: tooling-only (Checkstyle, Roslyn + `.editorconfig`), never compiler-enforced.
+- **Python** (PEP 8): pure convention, zero enforcement.
+- No mainstream precedent for "hard error, zero exceptions" — but it extends a pattern MWL already applies:
+  [0011](0011-functions-and-constants-are-class-members.md), [0015](0015-no-name-aliasing.md),
+  [0021](0021-single-file-inclusion-construct.md) and [0027](0027-callable-is-closures-only.md) each pick one
+  accepted spelling and reject the rest outright rather than warn. Rust's warning-with-escape-hatch model is
+  the road not taken (see *Alternatives rejected*).
 
 ## Decision
 
@@ -197,32 +173,23 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 
 ## Alternatives rejected
 
-- **Warn instead of hard-error (Rust's model).** Rejected: a warning can be, and in practice will be,
-  ignored indefinitely, which defeats the actual goal — a codebase where every contributor is *compiler-
-  forced* into one style, not merely nudged. It would also be the only lint-severity check in a language
-  where every other closed-off PHP dynamism in this project is a hard diagnostic
-  ([0011](0011-functions-and-constants-are-class-members.md), [0015](0015-no-name-aliasing.md),
-  [0021](0021-single-file-inclusion-construct.md), [0027](0027-callable-is-closures-only.md)).
-- **A suppression attribute/pragma for generated or interop code.** Rejected: this would be MWL's first
-  compiler-level suppression mechanism of any kind. Introducing one to except *this* check is a bigger
-  precedent than the naming rule itself, and every future ADR would then have to say whether it, too, gets
-  an escape hatch. Kept as the one alternative worth revisiting if a concrete boundary case forces the
-  question (see *Revisiting*).
-- **Check only the first letter's case (Haskell/Elm-style), not the whole identifier.** Rejected: that rule
-  exists in those languages to disambiguate a constructor from a value at parse time — a problem MWL doesn't
-  have, since declaration keywords (`class`, `function`, `const`, …) already say what a name is. This ADR's
-  actual goal is full stylistic consistency across a codebase, which the first-letter-only rule doesn't
-  deliver.
-- **Keep acronyms all-caps** (`HTTPClient`, `XMLParser`). Rejected: needs a maintained acronym dictionary to
-  check at all, and still reads badly the moment two acronyms are adjacent (`HTTPXMLParser`). Treating every
-  acronym as an ordinary word is unambiguous and needs no dictionary.
-- **An `I`-prefix for interfaces** (`IComparable`, `IStringable`). Rejected: would rename the interfaces
-  already spelled in accepted ADRs ([0013](0013-comparable-interface.md), [0028](0028-closing-the-remaining-magic-methods.md)),
-  and introduces a role-marker convention MWL uses nowhere else in its naming.
-- **`lowercase` namespace segments** (`core\str`). Rejected: would rename every `Core\...` reference across
-  every accepted ADR that already spells it `PascalCase`.
-- **Extending this ADR to whitespace/indentation rules.** Explicitly out of scope per this decision's own
-  framing — deferred to a possible future ADR, not decided here (see *Revisiting*).
+- **Warn instead of hard-error (Rust's model).** A warning will, in practice, be ignored indefinitely,
+  defeating the goal of being compiler-forced rather than nudged — and would be the only lint-severity check
+  among this project's otherwise-hard PHP-dynamism diagnostics ([0011](0011-functions-and-constants-are-class-members.md),
+  [0015](0015-no-name-aliasing.md), [0021](0021-single-file-inclusion-construct.md), [0027](0027-callable-is-closures-only.md)).
+- **A suppression attribute/pragma for generated/interop code.** Would be MWL's first compiler-level
+  suppression mechanism of any kind — a bigger precedent than the rule itself. Worth revisiting only if a
+  concrete boundary forces the question (see *Revisiting*).
+- **First-letter-only casing (Haskell/Elm-style).** That rule disambiguates constructor from value at parse
+  time — a problem MWL doesn't have, since declaration keywords already say what a name is; doesn't deliver
+  this ADR's full-consistency goal.
+- **Keep acronyms all-caps** (`HTTPClient`). Needs a maintained dictionary and still breaks on adjacent
+  acronyms (`HTTPXMLParser`); one-word treatment is unambiguous with no dictionary.
+- **An `I`-prefix for interfaces** (`IComparable`). Would rename interfaces already spelled in accepted ADRs
+  ([0013](0013-comparable-interface.md), [0028](0028-closing-the-remaining-magic-methods.md)) and introduces
+  a role-marker convention used nowhere else.
+- **`lowercase` namespace segments** (`core\str`). Would rename every `Core\...` reference already accepted.
+- **Extending to whitespace/indentation rules.** Out of scope by this ADR's own framing (see *Revisiting*).
 
 ## Revisiting
 

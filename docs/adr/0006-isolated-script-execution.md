@@ -32,58 +32,27 @@
 
 ## Context
 
-A script frequently needs to run *another* script and not be affected by it: a queue worker executing a
-job, a report generator running a plugin, a build step running a migration, a CLI tool running the
-user's own extension file, a request rendering a widget written by someone else. What "not be affected by
-it" means in practice is concrete: the callee must not see or clobber the caller's globals, class statics,
-open handles or output; a fatal error, an infinite loop or a memory blow-up in the callee must not take the
-caller with it; and the callee must not be able to reach anything the caller could not.
-
-PHP has exactly one construct that provides this, and it is not a language construct at all: spawn another
-`php` process and talk to it over pipes. Everything PHP offers *inside* the process shares state by design.
-
-| PHP construct | what it isolates |
-|---|---|
-| `include` / `require` | nothing — same symbol table, same globals, same heap, same statics |
-| `eval` | nothing, plus no static analysis and an arbitrary-source attack surface |
-| a `Fiber` or a generator | nothing — cooperative scheduling inside one heap |
-| `exec('php job.php')` | everything, at the price of an OS process |
-
-The price of that last row, measured on this machine (`x86_64-pc-windows-msvc`, committed as a probe so it
-is tracked rather than remembered):
-
-| | cost |
-|---|---|
-| Cheapest possible do-nothing process (`cmd /d /c exit`), spawn to reap | **5.95 ms** |
-| PHP 8.5.8 booting and exiting (`php -r 'exit;'`) — the real cost of the PHP idiom | **35.9 ms** |
-| A bare MWL task: coroutine created, run, dropped | **4.29 µs** |
-| A fresh wasm instance plus one call, pooled ([0003](0003-extension-system.md)) | 7.57 µs |
-
-So PHP's only isolation primitive costs roughly **8000× a task** on this platform, before the child has
-parsed a single line, reconnected to the database, or rebuilt its autoloader. `CreateProcess` is dearer
-than `fork`+`exec`, so a Linux figure would be smaller — but not by three orders of magnitude, and the
-interpreter boot that dominates the 35.9 ms is platform-independent.
-
-The cost is not the whole objection. A child process is also *worse at the isolation it is being used for*:
-
-- **It inherits ambient authority.** Environment, working directory, inherited handles and the full rights
-  of the OS user come with it. Every `open_basedir`, every capability grant, every limit the parent was
-  operating under stops applying at the process boundary. In MWL's terms, `mwl.ini` would become advisory
-  for exactly the code a script chose to run — which is the failure mode
-  [ADR 0003](0003-extension-system.md) rejected `dlopen` for, arriving through a different door.
-- **It cannot be governed.** The parent can kill it, and that is all. There is no CPU accounting shared
-  with the parent's budget, no cooperative cancellation, no attribution of the child's memory to the
-  request that caused it.
-- **It re-enters through the front door.** Every framework that does this ends up passing arguments as
-  serialised strings on a command line or through a temp file, which is its own injection surface.
-
-MWL already has every part needed to do better, built for requests: a per-request arena with a hard cap,
-fresh request/session state behind the `Core` accessor classes ([ADR 0012](0012-no-superglobals.md)), a
-copy-on-write config overlay, a coroutine tree, safepoint-driven limits, and a
-process-wide immutable compiled-unit cache. An HTTP request is precisely "run this `.mwl` file, isolated,
-under these limits, and give me its output". The requirement in this ADR asks for the same thing from
-inside the language, and the honest observation is that MWL would otherwise be shipping that machinery and
-denying script authors access to it.
+- A script often needs to run another script without being affected by it (a queue worker running a job, a
+  report generator running a plugin, a CLI tool running a user's extension file) — concretely: the callee
+  must not see or clobber the caller's globals/statics/handles/output, a fatal or infinite loop in the
+  callee must not take the caller down with it, and the callee must reach nothing the caller could not.
+- PHP's only construct that provides this is not a language construct at all: spawn another `php` process
+  over pipes. Every in-process PHP construct (`include`/`require`, `eval`, a `Fiber`/generator) isolates
+  nothing — same symbol table, same heap, same statics.
+- Measured on this machine: a bare MWL task (coroutine created, run, dropped) costs 4.29 µs; PHP 8.5.8
+  booting and exiting costs 35.9 ms — **roughly 8000× a task**, before the child has parsed a line,
+  reconnected to a database, or rebuilt an autoloader. `CreateProcess` is dearer than `fork`+`exec`, so a
+  Linux figure would be smaller, but not by three orders of magnitude.
+- A child process is also worse at the isolation it's used for: it **inherits ambient authority** (env,
+  cwd, handles, OS-user rights all cross the boundary — every `mwl.ini` grant becomes advisory for the
+  spawned code, the same failure mode [ADR 0003](0003-extension-system.md) rejected `dlopen` for); it
+  **cannot be governed** (the parent can only kill it — no shared CPU accounting, no cooperative
+  cancellation, no memory attribution); and it **re-enters through the front door** (arguments serialised
+  onto a command line or temp file, its own injection surface).
+- MWL already has the machinery needed to do better, built for requests: a per-request arena with a hard
+  cap, fresh request/session state ([ADR 0012](0012-no-superglobals.md)), a copy-on-write config overlay, a
+  coroutine tree, safepoint-driven limits, and a process-wide compiled-unit cache. This ADR asks for the
+  same machinery from inside the language, rather than shipping it and denying script authors access to it.
 
 ## Decision
 
@@ -294,31 +263,24 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
 
 ## Alternatives rejected
 
-- **Spawn an `mwl` subprocess** — PHP's answer, and MWL would inherit the whole objection above: 6–36 ms,
-  ambient authority, capabilities unenforceable, no shared code cache, argument passing through a command
-  line. It remains *possible* behind the `process.exec` capability for the cases that genuinely want a
-  separate OS process; it is not the answer to this requirement.
-- **`eval` of a source string.** Rejected when the pragmatic superset was defined, and this requirement does
-  not reopen it: the requirement is explicitly file-only. A file has a stable identity, so it has a
-  content-addressed cache key, a source map, a `mwl check` that can analyse it before it runs, and an
-  auditable place on disk that an operator granted. A string has none of these, and its attack surface is
-  whatever concatenated it.
-- **`require` with a fresh symbol table** — i.e. isolation by scope only. It shares the heap, which means it
-  shares refcounts, statics, output, resources and a fatal error. It would satisfy the letter of "runs
-  another file" and none of the requirement.
-- **A thread with a shared heap.** Non-atomic refcounts are the reason the thread-per-core model exists; a
-  second thread on one heap invalidates that everywhere, to save a copy at one boundary.
-- **Run the child inside a wasm sandbox**, reusing [0003](0003-extension-system.md). It would cost a second
-  compilation of code we already compile natively, lose the shared unit cache, and buy a memory-safety
-  guarantee that MWL code has by construction. Wasm is for foreign code; MWL code gets the arena boundary.
-- **Isolation by HTTP loopback to our own server.** A real deployment pattern, and it works — but it needs a
-  listener, an authentication story and a serialisation format to do inside one process what an arena
-  boundary does for microseconds.
-- **Giving each isolate its own independent budget** (rather than a share of the root's). This was the
-  tempting simplification, and it is a hole in isolation, not a trade-off: memory would stop being
-  attributable to a request and the process worst case would become unbounded in the number of isolates a
-  script chooses to create. [0004](0004-memory-for-simplicity.md)'s *bounded, not merely modest* clause
-  forbids it.
+- **Spawn an `mwl` subprocess** — PHP's answer; inherits the whole cost/ambient-authority objection above.
+  Remains possible behind the `process.exec` capability for cases that genuinely want a separate OS
+  process; not the answer to this requirement.
+- **`eval` of a source string.** Rejected already for the pragmatic superset — a file has a stable identity
+  (cache key, source map, `mwl check`-ability, an auditable granted path); a string has none of these.
+- **`require` with a fresh symbol table** — isolation by scope only. Shares the heap, so it shares
+  refcounts, statics, output, resources and a fatal error; satisfies the letter of "runs another file" and
+  none of the requirement.
+- **A thread with a shared heap.** Invalidates the non-atomic-refcount premise of the thread-per-core model
+  to save one copy at a boundary.
+- **Run the child inside a wasm sandbox** ([0003](0003-extension-system.md)). Costs a second compilation of
+  code already compiled natively, loses the shared unit cache, and buys a memory-safety guarantee MWL code
+  already has by construction.
+- **Isolation by HTTP loopback to our own server.** Works, but needs a listener, an authentication story
+  and a serialisation format to do what an arena boundary does in microseconds.
+- **An independent budget per isolate** rather than a share of the root's. A hole in isolation, not a
+  trade-off: memory would stop being attributable to a request, forbidden by
+  [0004](0004-memory-for-simplicity.md)'s *bounded, not merely modest* clause.
 
 ## Revisiting
 

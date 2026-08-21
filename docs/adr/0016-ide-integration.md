@@ -30,32 +30,18 @@
 
 ## Context
 
-M10 already commits to `mwl fmt`, `mwl lsp` over `tower-lsp`, and `mwl dap`, and its verify line says "VS
-Code and PhpStorm both drive the LSP" — phrased as if pointing an editor at a language server is the whole
-job. It is not, in either editor, and the two editors fail in different ways if that is all that ships:
-
-**VS Code.** The editor has no built-in concept of MWL at all until something registers one. Even with
-`mwl-lsp` fully working, VS Code will not know `.mwl` is a language, will not know what binary to spawn or
-how to restart it, and will render a freshly opened file with zero syntax colour until the server has
-finished its first parse — which on a cold cache is exactly the moment a first impression is formed. None of
-that is an LSP concern; all of it is client-extension plumbing that has no LSP-server substitute.
-
-**PhpStorm.** IntelliJ Platform IDEs resolve, highlight, and refactor code through PSI (Program Structure
-Interface) trees built by a language's own lexer/parser plugin — that is how PhpStorm's bundled PHP support
-works, and it is not generic-LSP-shaped. JetBrains has since added LSP client support to the platform (and
-the community ships LSP4IJ for IDEs without it built in), which lets a plugin drive an external language
-server for the same core LSP feature set VS Code gets — completion, hover, diagnostics, rename, formatting.
-What it does *not* give, compared to PhpStorm's native PHP experience, is PSI-level refactoring, structural
-search/replace, and the deepest debugger UI integration. Building that instead means a genuine second
-front end: a Kotlin plugin with its own lexer, parser, and PSI tree mirroring `mwl-syntax`'s grammar — a
-standalone sub-project on the order of the PHP plugin itself, not an M10 line item.
-
-**The decision this ADR resolves.** Given that gap, three questions had no answer on record: how deep the
-PhpStorm integration goes (LSP-bridge vs. native PSI plugin), whether debugger UI wiring is part of "IDE
-integration done" for v1, and where the two client packages live in the repository. All three are answered
-below, deliberately in the same phased spirit as [ADR 0003](0003-extension-system.md)'s wasm-before-native
-extension tiers: ship the portable, lower-cost answer, name the deeper one as a real option, and only build
-it if the phased answer's limits actually bite.
+- M10 already commits to `mwl fmt`, `mwl lsp` (`tower-lsp`), and `mwl dap`; its verify line "VS Code and
+  PhpStorm both drive the LSP" undersold the real per-editor client work needed.
+- VS Code: LSP alone gives no `.mwl` language registration and no syntax colour before the server's first
+  parse — pure client-extension plumbing with no LSP-server substitute.
+- PhpStorm: JetBrains IDEs resolve/highlight/refactor through PSI trees, not LSP-native. JetBrains' LSP
+  client support (or community LSP4IJ) gets the same core LSP feature set as VS Code, but not PSI-level
+  refactoring, structural search/replace, or deep debugger UI — closing that gap means a genuine second
+  front end (a Kotlin plugin with its own lexer/parser/PSI mirroring `mwl-syntax`'s grammar), a sub-project on
+  the scale of the PHP plugin itself.
+- Three open questions this ADR resolves: how deep PhpStorm integration goes (LSP-bridge vs. native PSI),
+  whether debugger UI wiring counts toward v1 "done," and where the client packages live — resolved in the
+  same phased spirit as [ADR 0003](0003-extension-system.md)'s wasm-before-native tiers.
 
 ## Decision
 
@@ -174,27 +160,19 @@ workspace `Cargo.toml` governs, alongside (not inside) `crates/`.
 
 ## Alternatives rejected
 
-- **Full native PhpStorm plugin from the start** (own PSI/lexer/parser). Rejected for now: it is a
-  multi-month, ongoing-maintenance sub-project on the scale of a second front end, undertaken before any
-  PhpStorm user has touched the language — the same "don't build the expensive tier before the cheap one
-  proves insufficient" reasoning [ADR 0003](0003-extension-system.md) already used for wasm-before-native
-  extensions. Kept on the table, not closed — see *Revisiting*.
-- **LSP-bridge only, permanently, with no native option ever revisited.** Rejected: it forecloses a
-  legitimate future decision for no reason — if MWL gains real PhpStorm adoption, the refactoring/debugger
-  gap in *Consequences, Negative* becomes a real cost worth paying down, and this ADR should not be the
-  reason that conversation never happens.
-- **A second, PhpStorm-native formatter implementation**, to get Code Style settings and format-on-paste
-  parity with PhpStorm's PHP support. Rejected under *Decision § 1*: two formatting implementations will
-  drift the first time either one's rules change without the other noticing, which is a worse outcome than
-  a PhpStorm user occasionally reaching for "Reformat Code" and getting MWL's one canonical style with no
-  local knobs.
-- **Wire debug-adapter editor UI into the same M10 pass as the language client work.** Considered, and
-  rejected for this ADR specifically because the user requirement this ADR answers scoped it out explicitly
-  — treated as a tracked fast-follow instead of bundled in, per *Decision § 4*.
-- **VS Code only, treat PhpStorm as out of scope.** Rejected outright — the requirement this ADR answers
-  names PhpStorm explicitly, and a PHP-migration-target language skipping PHP developers' other major editor
-  would undercut the adoption story [docs/implementation-plan.md](../implementation-plan.md) already argues
-  for `mwl convert`.
+- **Full native PhpStorm plugin from the start** (own PSI/lexer/parser). Rejected for now: a multi-month
+  sub-project undertaken before any PhpStorm user has touched the language, same reasoning
+  [ADR 0003](0003-extension-system.md) used for wasm-before-native extensions — kept on the table, see
+  *Revisiting*.
+- **LSP-bridge only, permanently, no native option ever revisited.** Rejected: forecloses a legitimate future
+  decision if real PhpStorm adoption makes the refactoring/debugger gap worth paying down.
+- **A second, PhpStorm-native formatter implementation.** Rejected under *Decision § 1*: two implementations
+  will drift the first time either one's rules change without the other noticing.
+- **Wire debug-adapter editor UI into the same M10 pass as the language client work.** Rejected: the
+  requirement this ADR answers scoped it out explicitly — tracked as a fast-follow instead, per *Decision §
+  4*.
+- **VS Code only, treat PhpStorm as out of scope.** Rejected: the requirement names PhpStorm explicitly, and
+  skipping it would undercut the `mwl convert` adoption story.
 
 ## Revisiting
 

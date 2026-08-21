@@ -31,38 +31,22 @@
 
 ## Context
 
-PHP's `callable` pseudo-type is satisfied by five different shapes: a `Closure`, an invokable object (one
-declaring `__invoke`), a bare string naming a global function, an `"Class::method"` string, and a
-two-element array (`[$obj, 'method']` or `[ClassName::class, 'method']`). The three name-resolved-by-string
-shapes are resolved by *name*, at the call site, against whatever happens to be declared at that point in
-the program — the same shape of problem [ADR 0012](0012-no-superglobals.md) closed for superglobals and
-[ADR 0015](0015-no-name-aliasing.md) closed for renaming: a name reachable through a string rather than
-through a declared reference, unresolvable by a reader, a checker, or an IDE without re-implementing PHP's
-own runtime lookup rules.
-
-This is precisely the gap a request to "let me store a reference to a method the way `::class` lets me
-reference a class" is pointing at: `"Class::method"` looks like it should be as resolvable as `Class::class`
-is, but it is a plain string until something calls it, so nothing statically connects it to the method it
-names. PHP 8.1 already solved the *authoring* half of this with first-class callable syntax
-(`Foo::bar(...)`) — a real expression, not a string, that the parser resolves the same way an ordinary call
-is resolved, and that already parses in MWL as of M1 ([implementation-plan.md M1](../implementation-plan.md)).
-What was still open is whether the *type* `callable` continues to also accept the three string/array
-spellings that syntax was invented to replace — keeping them would mean the same resolvability gap survives
-sitting right next to its own fix.
-
-**Why `__invoke` is closed too, not carried over as the fifth shape.** An earlier draft of this decision
-kept PHP's invokable-object convention, reasoning that `__invoke` is a normal declared method so calling
-`$obj(...)` is no different from an ordinary method call. That reasoning has it backward: the whole point of
-`$obj(...)` is that the call site names *no method at all* — a reader sees `()` applied to a value and has
-to already know, from the class declaration, that it happens to define `__invoke` before they know what
-runs. That is exactly the "a call site doesn't show which method executes" problem
-[ADR 0014](0014-property-observer.md) already closed for `__call`/`__callStatic`; `__invoke` is the same
-shape of hidden dispatch at the object level rather than the missing-member level. It is also a second
-operator-overloading mechanism where MWL has deliberately kept only one, narrow one:
-[ADR 0013](0013-comparable-interface.md) lets a class opt into `< > <= >= <=>` only through the
-`Comparable` interface, with no general operator-overload facility. Letting any class opt into `()` through
-`__invoke` would open exactly the general mechanism that ADR declined to build, for the ordering operators,
-and this ADR declines to build now for the call operator.
+- PHP's `callable` pseudo-type accepts five shapes: `Closure`, an invokable object (`__invoke`), a bare
+  function-name string, an `"Class::method"` string, and a `[$obj, 'method']` array.
+- The three string/array shapes resolve by name at the call site against whatever happens to be declared —
+  the same problem [ADR 0012](0012-no-superglobals.md) closed for superglobals and
+  [ADR 0015](0015-no-name-aliasing.md) closed for renaming: unresolvable by a reader, checker, or IDE
+  without re-implementing PHP's own lookup rules.
+- PHP 8.1's first-class callable syntax (`Foo::bar(...)`) already solves the authoring half — a real,
+  statically resolvable expression — and already parses in MWL as of M1
+  ([implementation-plan.md M1](../implementation-plan.md)); the open question was only whether `callable`
+  should still also accept the string/array spellings that syntax was invented to replace.
+- `__invoke` closed too, not kept as a fifth shape: an earlier draft kept it, reasoning it's just a normal
+  declared method — but that's backward, since `$obj(...)` names *no method at all* at the call site, the
+  same hidden-dispatch problem [ADR 0014](0014-property-observer.md) already closed for
+  `__call`/`__callStatic`. It would also reopen a second operator-overload mechanism where
+  [ADR 0013](0013-comparable-interface.md) deliberately kept only one narrow one (`Comparable` for
+  ordering).
 
 ## Decision
 
@@ -156,27 +140,20 @@ names for one capability, for no semantic gain.
 
 ## Alternatives rejected
 
-- **Keep all five PHP shapes, including the three string/array spellings and invokable objects.** Rejected
-  in *Context*: it keeps exactly the unresolvable-by-construction path this decision exists to close,
-  sitting unused right next to first-class callable syntax, which already replaces it.
-- **Keep `__invoke` as the sole exception, rejecting only the string/array spellings.** This was this
-  decision's first draft. Rejected on reconsideration, per *Context*: `__invoke` is the same "call site
-  doesn't show what runs" problem [ADR 0014](0014-property-observer.md) already closed for
-  `__call`/`__callStatic`, and it reopens a second operator-overload mechanism where
-  [ADR 0013](0013-comparable-interface.md) deliberately kept only one, narrow one for ordering.
-- **Introduce a dedicated `MethodRef`/`FunctionRef` type distinct from `Closure`.** Rejected: `Closure` is
-  already the type first-class callable syntax produces per [ADR 0007](0007-explicit-type-system.md) § 3;
-  a second type for the same value would need its own conversion rules to and from `Closure` for no
-  behavioural gain, the redundant-surface pattern [ADR 0015](0015-no-name-aliasing.md) already argues
-  against.
-- **Reuse `::class` to also produce a callable reference** (e.g. `Class::method::class`). Rejected: `::class`
-  is a class-name-to-string operator in PHP, with no notion of a member; overloading it to also mean
-  "take a callable reference" would make one token spell two unrelated operations depending on what follows
-  it, which is worse for a reader than the two names first-class callable syntax and `::class` already are.
-- **Decide typed closure signatures (`Closure(int): string`) as part of this ADR**, since it touches the same
-  atom. Rejected: [ADR 0007](0007-explicit-type-system.md) § 3 already scoped that as its own deferred
-  decision needing the same type-variables-in-user-code argument as user-defined generics; this ADR only
-  narrows *which values* satisfy `callable`/`Closure`, not what the checker can see through one.
+- **Keep all five PHP shapes.** Keeps the unresolvable-by-construction path this ADR exists to close, unused
+  right next to the syntax that already replaces it.
+- **Keep `__invoke` as the sole exception, reject only string/array spellings.** This decision's first
+  draft; reconsidered per *Context* — same hidden-dispatch problem [ADR 0014](0014-property-observer.md)
+  closed, and reopens a second operator-overload mechanism [ADR 0013](0013-comparable-interface.md)
+  deliberately declined to generalize.
+- **A dedicated `MethodRef`/`FunctionRef` type distinct from `Closure`.** `Closure` is already the type
+  first-class callable syntax produces ([ADR 0007](0007-explicit-type-system.md) § 3); a second type buys no
+  behavior, just the redundant-surface pattern [ADR 0015](0015-no-name-aliasing.md) argues against.
+- **Reuse `::class` for a callable reference** (`Class::method::class`). `::class` is a class-to-string
+  operator with no notion of a member; overloading it would make one token mean two unrelated things.
+- **Decide typed closure signatures (`Closure(int): string`) here too.** Already scoped as its own deferred
+  question in [ADR 0007](0007-explicit-type-system.md) § 3; this ADR only narrows which *values* satisfy
+  `callable`, not what the checker can see through one.
 
 ## Revisiting
 

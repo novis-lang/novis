@@ -42,53 +42,23 @@
 
 ## Context
 
-PHP 7.4 gave properties types, and typed properties introduced a state PHP had never had before: declared,
-but not yet given a value, distinct from `null`. Reading one throws `Error: Typed property ... must not be
-accessed before initialization` — correct, but discovered only when the read happens, which can be far from
-the constructor that forgot to set it, and in code the reader does not control (a parent method calling an
-overridden getter before the subclass constructor finishes, for instance).
-
-The user raised reusing JavaScript's `undefined` for this: every property defaults to it, it behaves like a
-falsy `null`-alike, and `!$x` is true for it exactly as for `null` or `false`. That works in JavaScript
-because JavaScript has no declared property types to violate — `undefined` is not a hole in a type system
-that does not exist. MWL's does exist, and ADR 0007 built it specifically to make "this binding's declared
-type quietly does not describe what it holds" the bug class the language refuses to reproduce:
-
-> `(int)$_GET['id']` where `id=abc` → `0` — a wrong answer delivered far from its cause, and `0` is
-> frequently a valid row id.
-
-A universal `undefined` reintroduces that exact shape one level up: `public uint $id;` would no longer
-guarantee a `uint` on every read, because the compiler would have to admit `uint|undefined` is what the
-storage can actually hold. [CLAUDE.md](../../CLAUDE.md)'s ground rules already state "nothing is untyped,
-and no type ever changes by itself" as a project-wide invariant, not a per-ADR one; an ambient value every
-property acquires without the source saying so is also exactly the shape of PHP magic this project has
-closed everywhere it has come up so far — undeclared properties and `__get`/`__set`
-([ADR 0014](0014-property-observer.md)), superglobals ([ADR 0012](0012-no-superglobals.md)), ambient
-`__call`/`__callStatic` (also [ADR 0014](0014-property-observer.md)).
-
-What other statically-typed languages with a real notion of "not yet initialized" do instead is more
-useful precedent than PHP or JavaScript here:
-
-- **Rust and Swift** require every field definitely assigned by the end of every constructor path, checked
-  at compile time. There is no runtime-observable uninitialized state at all in ordinary code.
-- **Kotlin** takes the same compile-time rule as the default, with an explicit opt-out: a property marked
-  `lateinit` may be read before it is set, and doing so throws a specific, named exception
-  (`UninitializedPropertyAccessException`) — never a silent value. The keyword is the point: a reader sees
-  from the declaration itself that this property's initialization is deferred.
-- **C# and Java** give every field a per-type silent default (`0`, `false`, `null`) when no initializer
-  runs. This is the closest analogue to old PHP's "everything is `null`" and to the C#/Java default-value
-  model the *Alternatives rejected* section below argues against for the same reason ADR 0007 already
-  rejects silent coercion: a plausible-looking wrong value is worse than a loud one, because it is much
-  harder to notice.
-
-MWL already has the mechanism this needs, just not yet extended to this binding kind: ADR 0007 §1 commits
-to "definite assignment is checked" for local variables — "reading a binding on a path that may not have
-reached its initialiser is a compile error rather than PHP's 'undefined variable' warning and a `null`."
-That sentence was written with only locals in view. A property is a second, structurally similar binding
-kind — declared once, its type fixed, read on some paths before others — and the same analysis applies
-with one addition: a constructor's paths are the paths being checked, not a function body's, and calling
-`parent::constructor(...)` is what discharges the obligation for inherited properties, mirroring how
-Java/Kotlin treat a mandatory `super()` call.
+- PHP 7.4 typed properties introduced a state distinct from `null` — declared but unassigned. Reading one
+  throws, but only when discovered at the read, often far from the constructor that forgot to set it.
+- The user proposed reusing JavaScript's `undefined`. Rejected: JavaScript has no declared property types to
+  violate, while MWL's typed properties are exactly the guarantee [ADR 0007](0007-explicit-type-system.md)
+  built to prevent "a declared type silently holds something else" (its own `(int)$_GET['id']` → `0`
+  example); a universal `undefined` would reintroduce that failure one binding kind later, and is the same
+  ambient-magic shape already closed for undeclared properties/`__get`/`__set`
+  ([ADR 0014](0014-property-observer.md)) and superglobals ([ADR 0012](0012-no-superglobals.md)).
+- Precedent from other statically-typed languages: **Rust/Swift** require definite assignment at compile
+  time with no runtime-observable uninitialized state; **Kotlin**'s opt-in `lateinit` throws a specific
+  exception on early read rather than a silent value; **C#/Java** give every field a silent per-type default
+  — rejected here for the same reason ADR 0007 rejects silent coercion (a plausible wrong value is worse
+  than a loud one).
+- MWL already has the needed mechanism: ADR 0007 §1 commits to definite-assignment checking for local
+  variables. A property is a second, structurally similar binding kind, extended here with
+  `parent::constructor(...)` as what discharges inherited properties — mirroring Java/Kotlin's mandatory
+  `super()`.
 
 ## Decision
 
@@ -192,27 +162,20 @@ additional bytes per property**.
 
 ## Alternatives rejected
 
-- **A new `undefined` type or value**, the user's original framing, modeled on JavaScript. Rejected because
-  JavaScript's `undefined` is safe only in the absence of a declared-type guarantee to violate; MWL has
-  exactly that guarantee, and a value every property can silently hold regardless of its declared type is
-  the ADR 0007 failure shape recurring one binding kind later. It is also an ambient default no declaration
-  in the source signals, the same shape ADR 0012's and ADR 0014's ambient mechanisms were already rejected
-  for.
-- **Per-type silent defaults** (C#/Java: `0`, `false`, `null` for anything not explicitly initialized).
-  Rejected for the same reason ADR 0007 rejects silent coercion in general: a plausible-looking wrong value
-  (an `int` quietly `0`, an `array` quietly empty) is a worse failure than a loud one, because "forgot to
-  initialize" now looks identical to "legitimately zero" at every downstream use.
-- **PHP's status quo — a runtime-only throw, with no compile-time check at all.** This is exactly the
-  "cumbersome to handle in userland code" friction the user opened this decision to get away from; keeping
-  it would forgo both the priority-2 (correctness caught at its cause) and priority-4 (fewer moving parts —
-  one analysis, not "an analysis for locals and a runtime check for properties that never talks to it")
-  gains available for free once ADR 0007's mechanism already exists.
-- **An opt-in `lateinit`-style modifier** (Kotlin), letting a specific property declare "I am deliberately
-  set after construction, not during it," with the same checked-throw-on-early-read behavior as *3* but
-  reachable from ordinary code, not only reflection. Not rejected outright — deferred; see *Revisiting*. The
-  decision made here (compile-time-only, no opt-out) is deliberately the smaller commitment: adding a
-  keyword later, once a real construction pattern needs it, costs nothing extra to defer, while removing
-  one already shipped would be a breaking change to every class that had used it.
+- **A new `undefined` type or value**, modeled on JavaScript. Rejected: JavaScript's `undefined` is safe
+  only absent a declared-type guarantee to violate; MWL has exactly that guarantee, so this recurs ADR
+  0007's failure shape one binding kind later, and is the same ambient-default shape ADR 0012/0014 already
+  rejected.
+- **Per-type silent defaults** (C#/Java). Rejected for the same reason ADR 0007 rejects silent coercion: a
+  plausible-looking wrong value is worse than a loud one, since "forgot to initialize" would look identical
+  to "legitimately zero."
+- **PHP's status quo — runtime-only throw, no compile-time check.** Rejected: forgoes both correctness
+  caught at its cause and the "one analysis, not two" simplicity gain available for free once ADR 0007's
+  mechanism already exists.
+- **An opt-in `lateinit`-style modifier** (Kotlin), reachable from ordinary code rather than only reflection.
+  Not rejected outright — deferred (see *Revisiting*): the compile-time-only, no-opt-out decision made here
+  is the smaller commitment, since adding a keyword later costs nothing extra while removing one already
+  shipped would be breaking.
 
 ## Revisiting
 

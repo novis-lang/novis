@@ -31,29 +31,19 @@
 
 ## Context
 
-PHP's `string` (`zend_string`) has always carried an explicit length beside its bytes, so it was
-binary-safe from early on — no truncation at an embedded NUL, unlike a C `char*`. That was a real feature.
-What it never gained is any notion of *encoding*. A `string` is a byte buffer; whether those bytes are
-Latin-1, UTF-8, a JPEG, or a hash digest is something the programmer must remember and every function must
-be told, because the type does not say. When the web moved to Unicode, PHP's answer was `mbstring` — a
-second, optional function set (`mb_strlen`, `mb_substr`, `mb_strpos`, …) that only works correctly if the
-encoding it assumes matches the bytes actually in the buffer, a fact tracked nowhere the type checker (such
-as it is) can see. `strlen("café")` and `mb_strlen("café")` disagree, and nothing about the variable `$s`
-tells you which answer the rest of the program expects.
-
-This is not laziness so much as an artifact of when the decision was made: C had no vocabulary for
-"encoded text" versus "bytes" in 1995, and neither did most of the software PHP was competing with. The
-mistake was never revisiting it once Unicode text became the overwhelming common case on the web, and
-instead leaving text-awareness as an opt-in extension layered on top of a type that still means "bytes."
-
-For MWL this is not just a naming annoyance. [0007](0007-explicit-type-system.md) already treats "a
-conversion of untrusted data should be a place in the source that can be reviewed" as a security argument
-(priority 1), for exactly the same reason PHP's numeric coercions are a bug class. Silently treating an
-attacker-controlled byte buffer as text — assuming an encoding nobody asserted — is the same shape of bug:
-a length check computed on the wrong unit, a truncation that splits a multi-byte sequence, a comparison
-that is exact in bytes but not in the characters a downstream system will decode. A type that forces the
-question to be asked once, at a conversion site, is strictly better than a convention every function must
-remember on its own.
+- PHP's `string` (`zend_string`) is binary-safe (an explicit length beside its bytes, no truncation at an
+  embedded NUL) but carries no notion of *encoding* — whether the bytes are Latin-1, UTF-8, a JPEG, or a
+  hash digest is something every function must be told, because the type does not say.
+- PHP's answer to Unicode was `mbstring`: a second, optional function set (`mb_strlen`, `mb_substr`, …)
+  that only works correctly if the encoding it assumes matches the buffer's actual bytes, a fact tracked
+  nowhere the type checker can see — `strlen("café")` and `mb_strlen("café")` disagree, with nothing
+  about the variable `$s` saying which answer is expected.
+- An artifact of timing, not laziness: C had no "encoded text" vs. "bytes" vocabulary in 1995, and the
+  gap was never closed once Unicode became the web's overwhelming common case.
+- For MWL this is a security question, not just a naming one: [0007](0007-explicit-type-system.md)
+  already treats an untrusted-data conversion as a reviewable source-level event (priority 1); silently
+  treating an attacker-controlled byte buffer as text — an unasserted encoding — is the same shape of bug
+  (a length check on the wrong unit, a truncation splitting a multi-byte sequence).
 
 ## Decision
 
@@ -167,25 +157,19 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 
 ## Alternatives rejected
 
-- **Codepoint count as the default** (Python 3, Java's effective behaviour). Rejected on the same grounds
-  the user raised in review: it is a real improvement over bytes, but it still answers "how many Unicode
-  scalar values" rather than "how many characters a person sees" — a flag emoji or an accented letter built
-  from combining marks would not count as one. It satisfies neither the intuitive mental model fully nor
-  PHP's byte-cost model, and is not the fallback named in *Decision § 2*.
+- **Codepoint count as the default** (Python 3, Java's effective behaviour). Rejected: it still answers
+  "how many Unicode scalar values" rather than "how many characters a person sees" — a flag emoji or a
+  combining-mark letter would not count as one — and is not the fallback named in *Decision § 2*.
 - **`bytes` as `array<uint>`.** Rejected in *Decision § 1*: 8 bytes of tagged-value overhead per byte of
   data, plus a per-write element-type check for a type whose whole point is "no per-element structure."
 - **`bytes` as a stdlib class rather than a primitive.** Rejected in *Decision § 1*: drags in object
-  identity and refcount machinery a flat buffer does not need, and breaks the buffer-level symmetry with
-  `string` that lets both types share one COW implementation.
-- **One `string` type with a runtime "is this valid UTF-8" flag, instead of two static types.** This is
-  PHP's `mbstring` problem again in a milder form: the same binding could hold text-meaningful or
-  not-yet-validated data depending on a runtime flag rather than its static type, so a function still cannot
-  tell from the signature alone which one it is holding. It is exactly the ambiguity
-  [0007](0007-explicit-type-system.md) already rejected for numeric values under "a variable holds anything,
-  always."
+  identity/refcount machinery a flat buffer does not need, and breaks the COW symmetry with `string`.
+- **One `string` type with a runtime "is this valid UTF-8" flag, instead of two static types.** Rejected:
+  reintroduces PHP's `mbstring` ambiguity in a milder form — a function still cannot tell from the
+  signature alone which kind of data it is holding.
 - **Computing the grapheme count eagerly at every construction site, rather than lazily and cached.**
-  Strictly dominated by lazy-and-cached: it pays the O(n) segmentation cost even for a string whose length
-  is never asked for, which the lazy version does not.
+  Strictly dominated by lazy-and-cached: it pays the O(n) segmentation cost even when the length is never
+  asked for.
 
 ## Revisiting
 

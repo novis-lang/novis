@@ -40,31 +40,19 @@
 
 ## Context
 
-The other two deployment targets — the built-in HTTP server and the CLI — differ in *what host context they
-expose*, not in the language they run: a request has `Core\Request`; a CLI invocation has `Core\Script::args()`;
-neither superglobal ever existed to begin with ([0012](0012-no-superglobals.md)). A browser tab is a third
-context, further from the other two than they are from each other: there is no inbound request to serve, no
-process to invoke with arguments, and — critically — no OS thread/process substrate to build `spawn` or a
-JIT's W^X executable pages on top of. The question this ADR answers is whether "MWL runs in a browser" can be
-satisfied the same way the CLI and server targets already are (one language, a target-specific `Core`
-surface) or whether it forces quirks into the parser, checker, or IR that the other two targets would then
-have to carry too.
-
-It does not, provided the target's job is scoped correctly: producing a `.wasm` artifact ahead of time that
-the browser's own engine instantiates and runs, not running MWL's native JIT *inside* a wasm sandbox. The
-latter is impossible by construction — a wasm module cannot mark its own memory executable or emit new
-callable machine code at runtime beyond wasm's own `instantiate`/`compile` primitives, which is the same
-sandboxing property [0003](0003-extension-system.md) already relies on to keep `.mwlx` guests memory-safe.
-Treating "run in the browser" as "compile *to* wasm" rather than "run the JIT *as* wasm" is what keeps this
-an additive target instead of a redesign.
-
-Three runtime mechanisms this project already committed to don't survive that scoping unchanged, and each is
-addressed below: stackful coroutines are implemented with native stack-switching
-(`corosensei`, an audited-unsafe dependency — see [docs/adr/README.md](README.md)'s "Stackful coroutines for
-suspension" paragraph), which has no `wasm32` equivalent short of a whole-module Asyncify transform or a
-still-unshipped browser proposal; the isolate model ([0006](0006-isolated-script-execution.md)) assumes an
-OS thread/process substrate a browser tab doesn't have; and the extension host
-([0003](0003-extension-system.md)) is Wasmtime running the Component Model, which no browser ships.
+- The other two deployment targets (server, CLI) differ only in *host context*, not language — a browser
+  tab is a third context, further removed than those two are from each other: no inbound request, no
+  process/argv, and no OS thread/process substrate to build `spawn` or a JIT's W^X pages on.
+- This fits the existing model provided the target is scoped as producing a `.wasm` artifact ahead of time
+  for the browser's own engine to instantiate — not running MWL's native JIT *inside* a wasm sandbox, which
+  is impossible by construction (a wasm module can't mark its own memory executable or emit new callable
+  code beyond wasm's own `instantiate`/`compile`, the same sandboxing property
+  [0003](0003-extension-system.md) already relies on).
+- Three already-committed runtime mechanisms don't survive that scoping unchanged, each addressed in
+  *Decision* below: stackful coroutines (native stack-switching via `corosensei`, no `wasm32` equivalent
+  short of Asyncify or an unshipped proposal); the isolate model
+  ([0006](0006-isolated-script-execution.md), assumes an OS thread/process substrate); the extension host
+  ([0003](0003-extension-system.md), Wasmtime running the Component Model, which no browser ships).
 
 ## Decision
 
@@ -176,28 +164,21 @@ language underneath it.
 ## Alternatives rejected
 
 - **Compile the native JIT itself to wasm and run it inside the browser, JIT-ing MWL source at page load.**
-  Rejected: it requires mmap'ing executable pages from inside a wasm sandbox, which no browser permits — a
-  wasm module cannot mark its own memory executable or emit new callable code at runtime beyond wasm's own
-  `instantiate`/`compile` primitives. That is not a quirk to route around; it is the sandboxing browsers
-  rely on, and defeating it would contradict [0003](0003-extension-system.md)'s own reasoning for why native
-  code gets no ambient authority. AOT-compiling MWL source to a `.wasm` artifact ahead of time is the only
-  shape that respects the boundary.
+  Rejected: requires mmap'ing executable pages from inside a wasm sandbox, which no browser permits, and
+  would contradict [0003](0003-extension-system.md)'s own reasoning for why native code gets no ambient
+  authority. AOT-compiling to a `.wasm` artifact ahead of time is the only shape that respects the boundary.
 - **Emulate coroutines with Asyncify to keep one execution model across every target.** Rejected for v1:
   Asyncify instruments every function reachable from a suspend point, not only the ones that suspend — a
-  whole-module cost paid by code that never spawns or yields, exactly the kind of blanket spend
-  [0004](0004-memory-for-simplicity.md) asks to be paid deliberately rather than by default. Revisit if a
-  real workload needs transparent suspension in-browser badly enough to argue for it explicitly (see
-  *Revisiting*).
-- **Give the browser target its own weaker isolation primitive instead of dropping `spawn` outright** — e.g.
-  a `spawn` that silently degrades to a same-thread call in-browser. Rejected: a construct whose isolation
-  guarantee quietly disappears on one target is worse than one that is simply refused there.
-  [0006](0006-isolated-script-execution.md)'s whole argument is that isolation must not be optional by
-  platform; a diagnostic is honest, a silent downgrade is not.
+  whole-module cost paid by code that never spawns or yields, exactly the blanket spend
+  [0004](0004-memory-for-simplicity.md) asks to be paid deliberately rather than by default.
+- **Give the browser target its own weaker isolation primitive instead of dropping `spawn` outright** (e.g.
+  silently degrading to a same-thread call). Rejected: a construct whose isolation guarantee quietly
+  disappears on one target is worse than one simply refused there — isolation must not be optional by
+  platform.
 - **Model the browser context as `Core\Request` or `Core\Cli` with browser-specific methods bolted on.**
-  Rejected: `Core\Request` is an HTTP request, and overloading it invites exactly the "is this call legal in
-  this context" ambiguity [0012](0012-no-superglobals.md) already closed by giving the CLI its own
-  `Core\Cli` rather than folding `argv` into `Core\Server`. A distinct domain keeps the same
-  one-context-per-class rule.
+  Rejected: invites the same "is this call legal in this context" ambiguity
+  [0012](0012-no-superglobals.md) already closed by giving the CLI its own `Core\Cli` rather than folding
+  `argv` into `Core\Server`.
 
 ## Revisiting
 

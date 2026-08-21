@@ -40,33 +40,20 @@
 
 ## Context
 
-MWL is meant to be a language where a name is always reachable from exactly one declared place. ADR 0008
-already did this for *state* — `global` is gone, a function-scope `static` is gone, and the storage-class
-table in that ADR's § 2 is meant to be read as exhaustive. It never did it for *behaviour*: nothing in the
-plan so far stopped a `.mwl` file from declaring `function totalOrders(): int { ... }` at file scope, the
-same way PHP does, and the stdlib was still implicitly assumed to be a flat set of global functions —
-`strlen`, `array_map`, `json_encode` — exactly as PHP has them.
-
-That is the gap this ADR closes, on an explicit requirement rather than one derived purely from the
-priority order: **MWL is OOP-only. A function lives inside a class, static or instance, with no exception —
-not for user code, and not for the built-ins.** The priorities still argue for it once stated:
-
-**Simplicity (priority 4).** ADR 0008's storage-class table is exhaustive for *where state may live*
-precisely because every row names a class-relative home. A free function is the same shape of ungoverned
-surface for *behaviour* that `global` was for state: reachable from anywhere, declared nowhere in particular.
-Closing it is the same move ADR 0008 already made, applied to the other half of "what a name can refer to."
-
-**Security (priority 1), in a narrow but real way.** PHP has exactly one namespace for its ~1000 global
-functions and constants, shared with every extension and every project's own top-level declarations. A
-function that shadows a built-in name is a fatal redeclaration error, discovered at whichever request
-happens to load both files first — a load-order bug, not a compile-time one. Once every built-in lives under
-a reserved `Core` namespace, that collision becomes a namespace check at the declaration site, the same way
-any other name collision already is.
-
-**What this ADR does not argue.** It does not re-derive whether OOP-only is a good idea — that is the
-requirement, taken as given, the same way [ADR 0010](0010-enums-are-a-value-type.md) took "follow C#'s enum,
-not PHP's" as given. This ADR's job is the mechanics and the consequences: what gets rejected, what replaces
-it, and where the built-ins go.
+- ADR 0008 already closed ungoverned *state* (`global`, function-scope `static` are gone, its § 2 table
+  is exhaustive), but never closed ungoverned *behaviour*: nothing stopped a top-level
+  `function totalOrders(): int { ... }`, and the stdlib was still implicitly a flat set of global
+  functions (`strlen`, `array_map`, …) as in PHP.
+- The requirement is explicit, not merely priority-derived: **MWL is OOP-only** — a function is always a
+  method, with no exception for built-ins.
+- **Simplicity (priority 4):** a free function is the same "reachable from anywhere, declared nowhere in
+  particular" shape `global` was for state — closing it is the same move ADR 0008 made, for behaviour.
+- **Security (priority 1):** PHP shares one namespace for ~1000 global functions/constants with every
+  extension and project; a name collision is a load-order fatal error. A reserved `Core` namespace turns
+  that into an ordinary compile-time declaration-site check.
+- This ADR does not re-argue whether OOP-only is correct — that is taken as given, the same way
+  [ADR 0010](0010-enums-are-a-value-type.md) took "follow C#'s enum" as given — only the mechanics and
+  where the built-ins go.
 
 ## Decision
 
@@ -200,20 +187,15 @@ tenth.
 ## Alternatives rejected
 
 - **One flat `Core` class holding every built-in as a static method.** Rejected per the domain-class
-  requirement: a single class with hundreds of unrelated static methods is a global namespace with extra
-  syntax around it, working against the OOP-only motivation as much as free functions did.
-- **Auto-importing `Core`, so a bare `Str::len()` or even a bare `len()` resolves without a `use`.**
-  Rejected: it reintroduces exactly the "reachable from anywhere with no declared import" property this ADR
-  removes for callables generally, and a reader would need the whole `Core` roster memorised to tell a
-  `Core` call from a name that does not resolve at all.
-- **Leave global constants out of scope, matching only the functions half of the requirement.**
-  Considered, and rejected in *3*: it leaves exactly one row in [ADR 0008](0008-static-and-global.md) § 2 as
-  the sole remaining free-floating name, with no argument left for why it alone should keep that status once
-  functions do not.
-- **A single per-file generated class as the *only* rewrite `mwl convert` offers**, with no
-  `--check`-mode flag. Rejected: [ADR 0008](0008-static-and-global.md)'s function-static rewrite already
-  established that a rewrite changing the shape of surrounding code needs a human look, and this one is no
-  narrower.
+  requirement: hundreds of unrelated static methods on one class is a global namespace with extra syntax.
+- **Auto-importing `Core`**, so a bare `Str::len()` or `len()` resolves without a `use`. Rejected:
+  reintroduces "reachable from anywhere with no declared import" for callables generally.
+- **Leave global constants out of scope, matching only the functions half.** Rejected in *3*: leaves one
+  row in [ADR 0008](0008-static-and-global.md) § 2 as the sole remaining free-floating name, with no
+  argument left for why it alone keeps that status.
+- **A single per-file generated class as the only `mwl convert` rewrite, with no manual-review flag.**
+  Rejected: [ADR 0008](0008-static-and-global.md)'s function-static rewrite already established that a
+  rewrite changing surrounding code's shape needs a human look.
 
 ## Revisiting
 

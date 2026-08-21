@@ -23,46 +23,25 @@
 
 ## Context
 
-PHP ships four keywords for the same operation — splice a file into the calling frame — differing on two
-independent axes:
-
-| axis | `include` | `require` |
-|---|---|---|
-| missing/broken file | emits a warning, expression evaluates to `false`, execution continues | throws a fatal error |
-| repeat guard | none — `_once` suffix adds it | none — `_once` suffix adds it |
-
-Four spellings for two axes that could each vary independently is exactly the kind of surface [ADR
-0015](0015-no-name-aliasing.md) and [ADR 0011](0011-functions-and-constants-are-class-members.md) already
-argue against elsewhere in this language: more than one name for a reader to hold in their head for a
-single underlying behaviour, bought for no semantic gain. Nothing about MWL's own design forces keeping
-all four — this is a place where the pragmatic-superset promise (accept PHP syntax that isn't actively
-misleading) and the simplicity priority (§ 4 of [CLAUDE.md](../../CLAUDE.md)) point the same way: collapse
-to one.
-
-**Why "warn and continue" cannot be the kept behaviour.** Every other ambient-continuation path in PHP this
-project has looked at so far has been closed, not kept: an undeclared property is a hard error, not a
-fallback ([ADR 0014](0014-property-observer.md)); a superglobal has no host-populated fallback at all
-([ADR 0012](0012-no-superglobals.md)); comparing two objects with no `Comparable` implementation is a
-diagnostic, not a property walk ([ADR 0013](0013-comparable-interface.md)). `include`'s failure mode —
-swallow the error, hand back `false`, let the script keep running with whatever that implies for code that
-assumed the file loaded — is the same shape of problem: a silent degrade that priority 1 (security) and
-priority 2 (correctness) both weigh against, and priority 5 (memory) never gets a vote in. `require`'s
-failure mode — throw — is already how every other MWL failure surfaces
-([ADR 0002](0002-error-propagation.md)), so keeping it is not a new decision, only not un-deciding the one
-already made everywhere else.
-
-**Why the `_once` axis does not need to survive either.** PHP's `_once` guard exists to protect against a
-file — almost always one declaring a class or function — being spliced into the same frame twice, which
-would otherwise be a redeclaration fatal. In MWL, declarations are named class members resolved by
-namespace ([ADR 0011](0011-functions-and-constants-are-class-members.md)), and M2's per-path compiled-unit
-resolution ([ADR 0017](0017-hot-reload-without-restart.md) names the same per-path cache mechanism) is the
-thing that will make a class reachable by name, not by however many times its declaring file happened to be
-spliced in by a caller. The redeclaration problem `_once` guards against is a symptom of PHP's
-textual-inclusion-as-module-system, which MWL is not adopting for declarations; a `require` used for what
-it is actually still needed for — procedural code, a template partial rendered from a loop — must run every
-time control reaches it, which is what plain `require` (no suffix) already does. Baking "run once" into the
-kept construct's default would silently break exactly that loop case, and there is no default that serves
-both without a suffix — so the suffix goes, not the default.
+- PHP ships four keywords for one operation (splice a file into the calling frame) across two independent
+  axes: missing/broken file (`include` warns and evaluates to `false`; `require` throws) and repeat guard
+  (`_once` suffix or not). Four spellings for two independently-varying axes is the same "more than one name
+  for one behaviour" surface [ADR 0015](0015-no-name-aliasing.md) and
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) already argue against; nothing forces keeping
+  all four, so this collapses to one.
+- **Why "warn and continue" cannot survive**: every other PHP ambient-continuation path this project has
+  found has been closed, not kept — an undeclared property throws ([ADR 0014](0014-property-observer.md)), a
+  superglobal has no fallback ([ADR 0012](0012-no-superglobals.md)), comparing objects with no `Comparable`
+  is a diagnostic ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure is already how
+  every other MWL failure surfaces ([ADR 0002](0002-error-propagation.md)), so keeping it is not a new
+  decision.
+- **Why the `_once` axis doesn't need to survive**: declarations resolve by namespace
+  ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and by the per-path compiled-unit cache
+  ([ADR 0017](0017-hot-reload-without-restart.md)), not by how many times a file was spliced in — the
+  redeclaration problem `_once` guards against is a symptom of PHP's textual-inclusion-as-module-system,
+  which MWL doesn't adopt for declarations. A `require` used for what it's still needed for (a template
+  partial rendered from a loop) must run every time, which is what plain `require` already does — baking in
+  an automatic once-guard would silently break that case, so the suffix goes, not the default.
 
 ## Decision
 
@@ -141,22 +120,17 @@ of naming the replacement directly:
 
 ## Alternatives rejected
 
-- **Keep `include`, dropped its `_once` suffix only.** Rejected in *Context*: `include`'s defining
-  difference from `require` is the warn-and-continue failure mode, which is the one thing this ADR most
-  wants gone. Keeping `include`'s name would also mislead every PHP-familiar reader into expecting exactly
-  that behaviour from the one keyword that survives.
-- **Keep both `require` and `require_once`, drop only the `include` family.** Considered, since it needs
-  the smallest diagnostic surface. Rejected: it still leaves two names for one behaviour on the repeat-guard
-  axis, and *Context* already gives the reason a repeat guard does not belong at this layer once
-  declarations resolve by namespace rather than by however many times their file was spliced in.
-- **Invent a new, shorter keyword** (e.g. `load`) instead of reusing `require`. Rejected: `require`'s
-  meaning in PHP is already exactly the kept behaviour, so there is no mismatch a new spelling would be
-  fixing, and a real `.php` corpus file already spelling `require` correctly would otherwise need
-  rewriting for no behavioural reason — the opposite of what the pragmatic-superset promise is for.
-- **Bake in an automatic once-guard as `require`'s only mode** (dedup by resolved path, silently). Rejected:
-  it would silently break the template-partial-in-a-loop case, replacing one silent PHP behaviour
-  (`include`'s warn-and-continue) with a different silent one dropped into the one construct meant to have
-  none.
+- **Keep `include`, drop only its `_once` suffix.** Rejected: `include`'s defining difference from
+  `require` is the warn-and-continue failure mode, the one thing most wanted gone, and keeping its name
+  would mislead PHP-familiar readers into expecting that behaviour.
+- **Keep both `require` and `require_once`, drop only the `include` family.** Rejected: still leaves two
+  names for one behaviour on the repeat-guard axis, which doesn't belong at this layer once declarations
+  resolve by namespace.
+- **Invent a new, shorter keyword** (e.g. `load`). Rejected: `require`'s PHP meaning is already exactly the
+  kept behaviour, so a real `.php` corpus file spelling `require` would need rewriting for no behavioural
+  reason.
+- **Bake in an automatic once-guard as `require`'s only mode.** Rejected: would silently break the
+  template-partial-in-a-loop case, replacing one silent PHP behaviour with a different one.
 
 ## Revisiting
 

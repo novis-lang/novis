@@ -48,52 +48,33 @@
 
 ## Context
 
-PHP's type system is lazy in two distinct ways, and only one of them is a feature.
+PHP's type system is lazy in two ways. The feature is **unions** — a value that's legitimately "an `int` or
+a `string`" is common in real code — which MWL keeps. The liability is **mutability of a binding's type**:
+a PHP variable holds anything, and the language converts silently to make each operation succeed, so
+failures surface as wrong answers far from their cause — `(int)$_GET['id']` on `abc` silently becomes `0`
+(often a valid row id); `PHP_INT_MAX + 1` silently becomes a precision-losing `float`; `settype()` makes
+every later assumption about a variable stale; `$a[8]` vs `$a["8"]` vs `$a["08"]` splits silently across two
+key domains.
 
-The feature is *unions*: a value that is legitimately "an `int` or a `string`" is common in real code, and
-PHP 8 can say so. MWL keeps that.
+This is worse for MWL than for PHP on three priorities:
 
-The liability is *mutability of a binding's type*. In PHP a variable is a slot that will hold anything, and
-the language converts silently to make each operation succeed. The failure mode is never a type error; it
-is a wrong answer, delivered far from its cause:
+- **Security (priority 1).** Every value entering a request is untrusted, and PHP's coercions are exactly
+  what turn "not a number" into "zero" — `(int)$_GET['id'] → 0` is the shape of a long line of
+  authorisation and IDOR bugs. A conversion of untrusted data should be a reviewable place in the source
+  that fails loudly.
+- **Latency (priority 3).** The baseline tier lowers every operation to a runtime helper that inspects tags
+  and dispatches; a statically known type is what lets the backend emit a native instruction instead.
+  Mandatory declaration makes types known by construction everywhere, rather than only where inference
+  happened to succeed.
+- **Simplicity (priority 4).** Gradual typing means two type systems that must agree, a soundness story for
+  the boundary, `Unknown` propagating through the IR, and a disagreement rule. Mandatory declaration deletes
+  all of it — `mwl-types` becomes a checker, not a solver.
 
-| PHP | result | what it should have been |
-|---|---|---|
-| `(int)$_GET['id']` where `id=abc` | `0` | a refusal — and `0` is frequently a valid row id |
-| `(int)$_GET['id']` where `id=9999999999999999999` | `PHP_INT_MAX` | a refusal |
-| `PHP_INT_MAX + 1` | a `float`, precision gone | a refusal, or a wider type |
-| `settype($x, 'array')` | `$x` is now an array; every later assumption about it is stale | a new binding |
-| `$total = "12 apples" + 3` | `15` before 8.0, `TypeError` after — the fix took a major version | — |
-| `$a[8]` vs `$a["8"]` vs `$a["08"]` | the first two are one slot, the third is another | one rule, stated once |
-
-Three things make this worse for MWL than it is for PHP.
-
-**Security (priority 1).** Every value entering a request — query string, form body, header, JSON body,
-`Core\Script::args()` from a [spawned isolate](0006-isolated-script-execution.md), a database column — is
-untrusted. PHP's coercions are precisely what turn "this input is not a number" into "this input is zero",
-and `(int)$_GET['id'] → 0` is the shape of a long line of authorisation and IDOR bugs. A conversion of
-untrusted data should be a *place in the source* that can be reviewed, and it should fail loudly.
-
-**Latency (priority 3).** The baseline tier lowers every operation to a call into a runtime helper that
-inspects its operands' tags and dispatches. A statically known type is the *only* thing that lets the
-backend emit an `iadd` instead. Under gradual typing the interesting types are known in the code that was
-already fast and unknown everywhere else; under mandatory declaration they are known by construction, so
-the baseline tier starts out at a speed the original plan deferred to M12.
-
-**Simplicity (priority 4).** A gradual system is two type systems that must agree: a declared one and an
-inferred one, plus a soundness story for the boundary between them, plus `Unknown` propagating through the
-IR, plus a rule for what happens when inference and declaration disagree. Requiring the declaration deletes
-all of it. There is no solver, no `Unknown`, and no second system — `mwl-types` becomes a checker.
-
-### The 64-bit gap
-
-PHP's only integer is a signed `i64`, and the values web software actually handles routinely need the other
-half of the range: MySQL `BIGINT UNSIGNED` keys, snowflake-style 64-bit ids, hash words (xxhash64, the
-BLAKE3 output words), nanosecond timestamps, and file offsets and sizes above 8 EiB — plus every `u32`/`u64`
-in a WIT world ([0003](0003-extension-system.md)). PHP's answers are to carry such values as strings, to
-lose precision through `float`, or to reach for GMP; all three push the problem into every call site that
-touches the value. A distinct `uint` costs nothing in the value layout — the tagged value already carries a
-`u64` payload — and it makes the boundary conversions exact.
+**The 64-bit gap:** PHP's only integer is a signed `i64`, but web software routinely needs the other half of
+the range — `BIGINT UNSIGNED` keys, snowflake ids, hash words, nanosecond timestamps, and every `u32`/`u64`
+in a WIT world ([0003](0003-extension-system.md)). PHP carries such values as strings, loses precision
+through `float`, or reaches for GMP, pushing the problem into every call site that touches the value. A
+distinct `uint` costs nothing in the value layout, since the tagged value already carries a `u64` payload.
 
 ## Decision
 
@@ -387,48 +368,35 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 
 ## Alternatives rejected
 
-- **The gradual system in the original plan** — declared types checked, locals inferred. Rejected on all
-  three counts in *Context*: it leaves the untrusted-input conversion implicit, it leaves the baseline tier
-  generic exactly where inference fails, and it is two type systems to keep in agreement. It also has to
-  answer "what does an inferred type mean when the value changes type later", and the honest answer is a
-  union nobody wrote down.
-- **Inference for locals only** (`var $x = 5;`, the type fixed forever at first assignment). The strongest
-  alternative — it is not "untyped", the binding still has exactly one immutable type, and it removes most
-  of the verbosity. Rejected because the requirement is explicit that no position may be undeclared, and
-  because the annotation is what makes an array literal checkable against a target instead of inferred (*5*),
-  which is load-bearing. It is the first thing to reconsider if verbosity proves worse in practice than it
-  looks on paper.
-- **No `uint`; carry big unsigned values as `string` or `float`.** PHP's answer. It pushes a conversion into
-  every call site that touches the value, and `float` loses precision above 2^53 silently — the exact
-  failure this ADR removes elsewhere.
-- **One arbitrary-precision integer type instead of `int` + `uint`.** Correct by construction, and it breaks
-  the value layout: integers stop fitting the tagged value's `u64`, so every arithmetic operation becomes a
-  possible allocation on the hot path. Priority 3 forbids it, and priority 2 does too — PHP's `int` is an
-  `i64`, and programs observe `PHP_INT_MAX`.
-- **Signed/unsigned mixed arithmetic with a promotion rule.** Every language that has one is quoted as a
-  cautionary tale. There is no representable common type of `int` and `uint`, so any rule is a silent choice
-  about which range to sacrifice.
-- **Keeping integer array keys alongside string ones.** It is PHP's behaviour, and it is two key domains
-  with a juggling rule between them — the `$a[8]` / `$a["8"]` / `$a["08"]` row in *Context*. One domain costs
-  a listed divergence in what `array_keys()` returns, and removes the rule entirely.
-- **A two-parameter `array<K, V>`.** Follows naturally from typed elements, and is pointless once keys are
-  always strings: `K` would have exactly one inhabitant.
-- **Covariant arrays** (`array<int>` accepted where `array<int|string>` is wanted). Sound, because PHP's
-  value semantics make the assignment a copy — but the copy is O(n) and the restamp cannot share a
-  copy-on-write buffer, so the ergonomic win is bought by hiding a linear cost inside an innocuous-looking
-  assignment. Priority 3 says put it in the source instead.
-- **Preserving PHP's lossy casts under their own syntax**, with `as` alongside for the checked version. Two
-  conversion operators differing only in whether they tell you the truth; the lossy one would win by being
-  shorter to type.
-- **Overflow promoting to `float`, as PHP does.** It changes a binding's runtime type behind its
-  declaration, which is the one thing this ADR forbids, and it converts an arithmetic bug into a precision
-  bug that surfaces somewhere else.
-- **Making `mixed` checked at its boundaries** — that is, no true escape hatch. Then there is no way to
-  express "this is untyped input" honestly, and `json_decode`, `Core\Request` and every dynamic-shape
-  library would need a lie in their signatures.
-- **Defaulting an omitted return type to `mixed`** instead of requiring the annotation. That is a second
-  untyped position beside the one `mixed` is deliberately for, reached by silence rather than by writing
-  `mixed` — exactly the accident *1* closes for every other binding site.
+- **The gradual system in the original plan** (declared types checked, locals inferred). Leaves untrusted
+  input conversion implicit, leaves the baseline tier generic wherever inference fails, is two type systems
+  to keep in agreement, and has no honest answer for what an inferred type means once a value changes type.
+- **Inference for locals only** (`var $x = 5;`, fixed forever at first assignment). The strongest
+  alternative — the binding still has exactly one immutable type — but the requirement is explicit that no
+  position may be undeclared, and the annotation is what makes an array literal checkable against a target
+  rather than inferred. First thing to reconsider if verbosity proves worse in practice than on paper.
+- **No `uint`; carry big unsigned values as `string` or `float`.** PHP's answer — pushes a conversion into
+  every call site, and `float` loses precision silently above 2^53.
+- **One arbitrary-precision integer type instead of `int` + `uint`.** Breaks the value layout: integers stop
+  fitting the tagged value's `u64`, making arithmetic a possible hot-path allocation; also diverges from
+  PHP's `i64` semantics and `PHP_INT_MAX`.
+- **Signed/unsigned mixed arithmetic with a promotion rule.** There is no representable common type of
+  `int` and `uint`, so any rule silently sacrifices a range.
+- **Keeping integer array keys alongside string ones.** PHP's behaviour, and it is two key domains with a
+  juggling rule between them (`$a[8]`/`$a["8"]`/`$a["08"]`); one domain removes the rule entirely.
+- **A two-parameter `array<K, V>`.** Pointless once keys are always strings — `K` would have exactly one
+  inhabitant.
+- **Covariant arrays** (`array<int>` accepted where `array<int|string>` is wanted). Sound, but the copy is
+  O(n) and the restamp cannot share a copy-on-write buffer, hiding a linear cost inside an
+  innocuous-looking assignment.
+- **Preserving PHP's lossy casts under their own syntax, with `as` alongside.** Two conversion operators
+  differing only in honesty; the lossy one wins by being shorter to type.
+- **Overflow promoting to `float`, as PHP does.** Changes a binding's runtime type behind its declaration,
+  turning an arithmetic bug into a precision bug elsewhere.
+- **Making `mixed` checked at its boundaries** (no true escape hatch). Then there is no way to express
+  "this is untyped input" honestly, and `json_decode`/`Core\Request` would need a lie in their signatures.
+- **Defaulting an omitted return type to `mixed`.** A second untyped position reached by silence rather
+  than by writing `mixed` — the exact accident *1* closes for every other binding site.
 
 ## Revisiting
 

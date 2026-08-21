@@ -26,72 +26,34 @@
 
 ## Context
 
-PHP developers reach for Xdebug for four things: step debugging, code coverage (which lines a test suite
-actually exercised, feeding CI coverage gates), call tracing (what was called, with what arguments, how
-long it took), and profiling (a call-graph with self/inclusive time, usually viewed in KCachegrind or
-Webgrind). Step debugging is already decided — [ADR 0016](0016-ide-integration.md) commits `mwl dap` to
-using safepoints for breakpoints, with editor UI wiring deferred but the adapter itself in M10 — and the
-project-start section of [the ADR index](README.md) already names "debugger breakpoints" as one of five
-jobs the safepoint poll does. Coverage, tracing and profiling are not yet decided, and they are exactly the
-kind of decision [CLAUDE.md](../../CLAUDE.md) wants settled before codegen exists: retrofitting instrumentation
-points onto ten milestones' worth of already-written statement lowering is the same shape of expensive
-mistake the safepoint paragraph already warns about for a different mechanism.
-
-The requirement asks for more than porting Xdebug's feature list: **"the whole language should be very
-convenient for developers to use and to debug, so entry barrier is as low as possible."** That constrains
-the design as much as the mechanism does — an MWL-native format nobody's tooling reads would satisfy the
-letter and fail the point.
-
-Two things make this harder than it looks given what MWL has already decided:
-
-1. **The baseline tier is not an interpreter loop.** M3's plan already commits to typed scalar operations
-   lowering to native Cranelift instructions, falling back to a helper call only for `mixed`, unions and
-   dynamic calls (`docs/implementation-plan.md`, M3). So "hook the helper call every operation already goes
-   through" — the obvious move for an Xdebug-style design, since PHP's own tracing/coverage hooks live in
-   `zend_execute`'s per-opcode dispatch — is not available. There is no single dispatch point every statement
-   passes through; there is Cranelift-generated native code with different shapes depending on the operand
-   types.
-2. **Coverage and tracing must be start/stoppable inside one request's execution**, not just once at request
-   start. `xdebug_start_code_coverage()` / `xdebug_stop_code_coverage()` bracketing individual test cases
-   inside one long-running PHPUnit process is the dominant real-world usage pattern, and the requirement's
-   "low barrier to entry" goal means MWL should support the same pattern, not a coarser "coverage is a
-   request-level on/off switch set before the request begins" version of it.
+- Xdebug covers four things: step debugging (already decided — [ADR 0016](0016-ide-integration.md) commits
+  `mwl dap` to safepoints for breakpoints), code coverage, call tracing, and profiling — the latter three
+  undecided until this ADR, and exactly the kind of decision [CLAUDE.md](../../CLAUDE.md) wants settled
+  before codegen exists rather than retrofitted onto ten milestones of statement lowering.
+- Requirement: "the whole language should be very convenient for developers to use and to debug, so entry
+  barrier is as low as possible" — an MWL-native format nobody's tooling reads would fail that goal even if
+  it ported the feature list.
+- Two things make this harder than it looks: (1) M3's baseline tier lowers typed scalar operations to native
+  Cranelift instructions with no single dispatch point to hook, unlike PHP's `zend_execute`-based tracing
+  hooks; (2) coverage/tracing must be start/stoppable *mid-request* (PHPUnit-style bracketing via
+  `xdebug_start_code_coverage()`/`xdebug_stop_code_coverage()`), not just a request-start on/off switch.
 
 ## Investigation
 
-**Why not a second, instrumented compiled tier, selected per request** (the design this ADR's author
-initially reached for, extending [ADR 0017](0017-hot-reload-without-restart.md)'s content-addressed cache
-with a `tier` dimension so a debugged request resolves `UnitKey { path, content_hash, tier: Instrumented }`
-instead of `Optimized`). This looked attractive — zero cost on the untouched tier, reuses the existing
-single-flight/write-once cache machinery, no new subsystem. It fails on point 2 above: by the time a
-request's code has been resolved and is running, its compiled tier is fixed. A test harness calling
-`Core\Debug::startCoverage()` mid-request would need the *already-running* frames to have been running the
-instrumented tier all along — which means either compiling every unit twice from the start of every request
-regardless of whether coverage is ever requested (paying the cost priority 3 exists to avoid, for the common
-case that never asks), or accepting that coverage silently only covers code entered *after* the start call,
-which is a correctness gap Xdebug does not have and PHPUnit's own usage pattern would immediately expose.
-Two compiled tiers is a design for "on or off for the whole request, decided in advance" — that is not this
-requirement.
-
-**Why the safepoint shape instead.** A safepoint is already exactly the primitive this needs: a cheap poll
-— load a flag, branch — inserted at fixed points by codegen, present unconditionally, doing real work only
-when the flag says to. It was chosen for CPU limits and cancellation for the identical reason it fits here:
-those, too, must be enabled for a request already in flight (a client can disconnect mid-request), and the
-project already accepted the "always emit the check, gate the work" cost for that mechanism rather than
-inventing a "cancellable" and "non-cancellable" compiled tier. Reusing the shape rather than the safepoint
-*mechanism itself* — a new set of probe sites, not overloading the loop-back-edge/function-entry poll — is
-necessary because coverage and branch counting need finer granularity than safepoints intentionally have:
-a safepoint per statement would defeat the reason safepoints are sparse (loop back-edges and function entry
-only) in the first place.
-
-**Why Clover/lcov/Callgrind rather than an MWL-native format.** The requirement's low-barrier-to-entry goal
-is best served by *not* asking a developer to learn a new format or write a new importer. Clover XML is
-what PHPUnit already emits and what every CI coverage dashboard already parses; lcov is the format
-everything outside the PHP ecosystem expects; Callgrind's format is what KCachegrind, QCachegrind and
-Webgrind already visualise, unmodified. A trace log has no equivalent ecosystem-standard third-party
-consumer — Xdebug's own trace format is mostly read by Xdebug's own tooling — so MWL's trace output is
-newline-delimited JSON, one object per call, and stays open to gaining an Xdebug-compatible mode later if
-migration tooling wants one; that option is named, not silently foreclosed (see *Revisiting*).
+- **A second, instrumented compiled tier selected per request** (extending [ADR 0017](0017-hot-reload-without-restart.md)'s
+  cache key with a `tier` dimension). Rejected: a request's compiled tier is fixed once resolved, so
+  mid-request `startCoverage()` would need already-running frames to have been instrumented from the start —
+  either paying the cost on every request regardless of whether coverage is ever asked for, or leaving a
+  correctness gap PHPUnit's own usage pattern would immediately expose.
+- **Safepoint-shaped probes instead.** The safepoint poll is already accepted for CPU limits and cancellation
+  for the identical reason — both must activate for a request already in flight. This needs its own, new
+  probe sites rather than overloading the existing loop-back-edge/function-entry poll, since coverage/branch
+  counting need finer granularity than safepoints are deliberately sparse enough to give.
+- **Clover/lcov/Callgrind output, not an MWL-native format.** Clover is what PHPUnit/CI dashboards already
+  read, lcov is the non-PHP-ecosystem standard, Callgrind's format is what KCachegrind/Webgrind already
+  visualise unmodified — serving the low-barrier-to-entry goal directly. Trace output stays MWL-native
+  newline-delimited JSON because no third-party tooling beyond Xdebug's own widely reads Xdebug's trace
+  format either.
 
 ## Decision
 
@@ -259,24 +221,19 @@ a trace, and the two mechanisms are independent bits, not tiers of the same thin
 
 ## Alternatives rejected
 
-- **A second, instrumented compiled tier selected per request**, extending [ADR 0017](0017-hot-reload-without-restart.md)'s
-  cache key with a `tier` dimension. See *Investigation* — fails the mid-request start/stop requirement,
-  which is the pattern that matters most for the "low barrier to entry" goal.
-- **Hooking the baseline tier's helper-call dispatch**, the PHP/Xdebug-shaped design. Not available: M3
-  already commits typed scalar operations to native Cranelift instructions with no common dispatch point,
-  so there is no single call site every statement passes through to hook.
-- **An MWL-native coverage/profile format with a converter tool.** Rejected for the same reason the trace
-  format's gap is accepted rather than closed the same way: coverage and profiling *do* have a dominant
-  ecosystem-standard consumer (CI dashboards, KCachegrind/Webgrind) that a converter step would sit in front
-  of for every single use, which is exactly the friction "low barrier to entry" argues against paying.
-- **Making `[debug] mode` a plain `Runtime` directive**, settable to any value by any request up to
-  `[limits.hard]`-style ceiling. Rejected on the same reasoning [ADR 0017](0017-hot-reload-without-restart.md)
-  gives for `opcache.validate`: whether a request's internals are observable to itself is not a question a
-  request should answer for itself in a shared production process.
-- **Merging a spawned isolate's coverage/trace data live into its parent's.** Would require mutable state
-  crossing the arena boundary, which is the exact thing [ADR 0006](0006-isolated-script-execution.md)'s
-  isolation exists to prevent; returning it as data on the `ScriptResult`, which a caller may then merge in
-  ordinary code, costs nothing structurally new.
+- **A second, instrumented compiled tier selected per request.** See *Investigation* — fails the mid-request
+  start/stop requirement.
+- **Hooking the baseline tier's helper-call dispatch** (the PHP/Xdebug-shaped design). Not available: M3
+  commits typed scalar operations to native Cranelift instructions with no common dispatch point to hook.
+- **An MWL-native coverage/profile format with a converter tool.** Rejected: coverage/profiling already have
+  a dominant ecosystem-standard consumer (CI dashboards, KCachegrind/Webgrind); a converter step would add
+  friction "low barrier to entry" argues against.
+- **Making `[debug] mode` a plain `Runtime` directive.** Rejected on the same reasoning
+  [ADR 0017](0017-hot-reload-without-restart.md) gives for `opcache.validate`: observability of a request's
+  own internals isn't a request-local decision.
+- **Merging a spawned isolate's coverage/trace data live into its parent's.** Rejected: requires mutable
+  state crossing the arena boundary that [ADR 0006](0006-isolated-script-execution.md)'s isolation exists to
+  prevent; returning it as `ScriptResult` data costs nothing structurally new.
 
 ## Revisiting
 

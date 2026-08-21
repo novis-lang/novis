@@ -34,47 +34,26 @@
 
 ## Context
 
-PHP gives objects two independent notions of "copy," and MWL inherits the same fork whether it wants to or
-not, because both real needs the fork answers are still present:
-
-| PHP construct | depth | crosses a heap? | customizable? |
-|---|---|---|---|
-| `clone $x` | shallow — one level of the object's own properties | no, same heap | `__clone()` hook, runs after the shallow copy |
-| `serialize($x)` / `unserialize($s)` | recursive — the whole reachable graph, with cycle references | to bytes and back | `__sleep`/`__wakeup` (old), `__serialize`/`__unserialize` (new) |
-| a value crossing `spawn worker` / `spawn script` | recursive — the whole reachable graph, cycle-safe | yes, arena to arena | none — [ADR 0006](0006-isolated-script-execution.md) already fixed this |
-
-The third row already exists in this project, decided under a different name: "deep-copied, or moved when
-the refcount is 1," in [ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy*. Reading that
-section next to what `serialize()` does in PHP, the two are the same walk — a recursive traversal that
-preserves shared substructure and terminates on a cycle — aimed at two different carriers: a live arena on
-the other side of a `spawn`, or a byte string that might not be read again for months. Defining them twice,
-once per carrier, is exactly the "two sets of rules to learn, two implementations to keep correct" problem
-[ADR 0006](0006-isolated-script-execution.md) itself raised about *not* inventing a second value-crossing
-design for `spawn script` alongside `spawn worker`'s. The same argument reapplies one level up: `serialize`
-should not get a third bespoke definition when it is asking for exactly the operation ADR 0006 already
-built.
-
-`clone` does not fold into that operation, and forcing it to would be a real regression, not a
-simplification. `clone`'s entire PHP-observable behavior is *shallow* — an object holding a reference to a
-large shared cache, a parent, or a registry keeps sharing it after a clone, which is frequently the point
-(cloning a node in a tree should not silently deep-copy the tree's owner). Making `clone` recursive would
-silently change the semantics of every ported PHP class that relies on shallow-copy-by-default, which is a
-correctness break ([ADR 0007](0007-explicit-type-system.md)'s priority 2) purchased for a consistency
-argument that does not actually need it: `clone` and the graph copy already served different purposes in
-PHP, and MWL keeping them different costs nothing new.
-
-**Why no `__clone`/`__serialize`/`__unserialize`/`__sleep`/`__wakeup`.** Every one of these is a class
-reaching in and changing what "make a copy of me" or "turn me into bytes" *means*, evaluated at exactly the
-moment a mechanical, structural operation is running. This is the same shape of problem
-[ADR 0014](0014-property-observer.md) already closed for `__get`/`__set`/`__call`/`__callStatic`: a hookable
-mechanism is a mechanism `mwl check` cannot reason about from the declaration alone, and a copy or a
-deserialize is exactly the place a project would most want that reasoning — it is the operation malicious or
-merely stale data flows through. PHP's own history is the cautionary tale for the `__wakeup`/`__unserialize`
-half specifically: "attacker-controlled bytes drive a call into a method the attacker did not write but can
-still choose to trigger" is a well-known exploitation class (object-injection / property-oriented
-programming via `unserialize()`), and it exists *only* because a hook fires during reconstruction. Refusing
-the hook removes the exploitation class by construction, not by discipline — the strongest form priority 1
-(security) can ask for.
+- PHP gives objects two independent notions of "copy," and MWL inherits both real needs: `clone` is
+  shallow, same-heap, with an `__clone()` hook; `serialize`/`unserialize` is recursive over the whole
+  reachable graph (cycle-safe) to bytes and back, with `__sleep`/`__wakeup`/`__serialize`/`__unserialize`
+  hooks; a value crossing `spawn worker`/`spawn script` is the same recursive, cycle-safe graph copy,
+  arena-to-arena, with no hook at all — already fixed by [ADR 0006](0006-isolated-script-execution.md).
+- The `spawn` row already exists under a different name ("deep-copied, or moved when refcount is 1" — ADR
+  0006 § *Values cross by copy*). It is the same walk as `serialize()` — recursive, shared-substructure-
+  preserving, cycle-terminating — aimed at a different carrier (a live arena vs. bytes); defining it twice
+  would repeat the "two implementations to keep correct" problem ADR 0006 itself warned against when it
+  declined a second value-crossing design for `spawn script`.
+- `clone` does **not** fold into that operation: PHP's shallow-clone is often the point (cloning a tree node
+  shouldn't deep-copy what it references), and forcing it deep would silently break every ported PHP class
+  relying on shallow-copy-by-default — a correctness regression for a consistency argument that doesn't
+  actually need it.
+- **Why no `__clone`/`__serialize`/`__unserialize`/`__sleep`/`__wakeup`**: the same shape
+  [ADR 0014](0014-property-observer.md) already closed for `__get`/`__set`/`__call`/`__callStatic` — a
+  hookable mechanism `mwl check` can't reason about, at exactly the operation (copy/deserialize) a project
+  most wants to reason about. PHP's own history is the cautionary tale for the unserialize half
+  specifically: object-injection/property-oriented-programming gadget chains exist only because a hook fires
+  during reconstruction; refusing the hook removes the exploitation class by construction.
 
 ## Decision
 
@@ -222,25 +201,19 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
 
 ## Alternatives rejected
 
-- **Make `clone` recursive, unifying it with the graph copy.** Rejected in *Context*: this silently changes
-  the observable behaviour of every ported class relying on PHP's shallow-clone-then-shared-reference
-  pattern, a correctness break bought for a consistency argument the two operations never actually needed to
-  share.
-- **Keep `__clone()` only, since it is the "safer," longer-standing PHP hook.** Rejected for the same reason
-  the newer `__serialize`/`__unserialize` pair is rejected: it is still a class silently redefining what a
-  mechanical operation means at the moment it runs, and keeping one hook while rejecting two others is an
-  arbitrary line to defend later.
+- **Make `clone` recursive, unifying it with the graph copy.** Rejected: silently changes the observable
+  behaviour of every ported class relying on PHP's shallow-clone-then-shared-reference pattern, for a
+  consistency argument the two operations never needed to share.
+- **Keep `__clone()` only, as the "safer," longer-standing PHP hook.** Rejected for the same reason as
+  `__serialize`/`__unserialize`: still a class silently redefining a mechanical operation, and keeping one
+  hook while rejecting two others is an arbitrary line to defend later.
 - **Keep PHP's open serialize wire format for `mwl convert` compatibility.** Rejected: the open format's
-  looseness (any well-shaped payload naming any resolvable class) is exactly what makes PHP's `unserialize()`
-  attack surface possible even before a single hook is considered — a class existing and being constructible
-  is already enough to build with attacker-chosen property values. The closed, versioned format removes that
-  independently of the no-hooks decision, at the cost of foreign-format compatibility this ADR accepts.
-- **Require a `data.unserialize` capability grant**, mirroring `script.spawn`. Considered, since both are
-  "reconstruct something from a name the caller does not control." Rejected: `script.spawn` exists because
-  the reconstructed thing is *running code* under the parent's authority; `unserialize()`'s reconstructed
-  thing is inert data, already bounded by memory/CPU limits and by the closed-format/no-hook rules above.
-  Revisit if a future capability model wants "budget consumed" itself to be gate-able independent of what
-  consumes it.
+  looseness (any well-shaped payload naming any resolvable class) is exactly what makes PHP's
+  `unserialize()` attack surface possible even before a hook is considered; the closed, versioned format
+  removes that independently of the no-hooks decision, at the cost of foreign-format compatibility.
+- **Require a `data.unserialize` capability grant**, mirroring `script.spawn`. Rejected: `script.spawn`
+  exists because the reconstructed thing is *running code*; `unserialize()`'s reconstructed thing is inert
+  data, already bounded by memory/CPU limits and the closed-format/no-hook rules above.
 
 ## Revisiting
 

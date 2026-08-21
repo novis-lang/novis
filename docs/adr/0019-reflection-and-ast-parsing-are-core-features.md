@@ -29,39 +29,21 @@
 
 ## Context
 
-Two gaps, one requirement. PHP's story for "look at your own program" is split and asymmetric:
-
-- **Reflection** is native, mature, and every framework built on this project's target migration path
-  (dependency-injection containers, ORMs, attribute-driven routers, test doubles) depends on it. It was
-  never in question that MWL needs an equivalent.
-- **AST/source parsing** is not native at all. PHP's own parser is buried inside the engine with no
-  language-level door to it; `token_get_all()` exposes tokens, not a tree, and anyone who actually wants a
-  tree reaches for a third-party library shipping a second, independently-maintained grammar that can and
-  does drift from the engine's own parsing rules at the edges. A metaprogramming tool built on the wrong
-  grammar is a correctness bug waiting for the one construct the two implementations disagree on.
-
-The explicit requirement this ADR records: **MWL closes both gaps as core-language features**, not as a
-"reflection ships, AST parsing is somebody's future extension" split. The priorities argue for treating them
-identically once stated:
-
-**Correctness of language semantics (priority 2).** A second, hand-maintained AST grammar is exactly the
-drift risk PHP's ecosystem lives with. MWL already has one parser — `mwl-syntax`, the same code `mwl ast`
-and the compiler's own front end use ([the plan, M1](../implementation-plan.md)) — so `Core\Ast` is a runtime
-door onto that *existing* implementation, not a second one to keep in sync. There is exactly one grammar in
-this project, reachable from two call sites (the `mwl` binary and a running program), the same "one
-implementation, not two" shape [ADR 0015](0015-no-name-aliasing.md) and
-[ADR 0017](0017-hot-reload-without-restart.md) already chose for their own problems.
-
-**Simplicity of the language surface (priority 4).** Every domain a migrated PHP codebase needs is meant to
-have exactly one obvious `Core` home ([ADR 0011](0011-functions-and-constants-are-class-members.md)). Leaving
-AST parsing out of `Core` would send every framework author back to "install a userland parser," reproducing
-the exact ecosystem fragmentation this project's `Core`-namespace decision exists to avoid for every other
-domain PHP itself ships natively.
-
-**Security (priority 1) is the one priority this decision could spend if left unexamined**, in two distinct
-ways the *Decision* below closes: PHP's reflection can bypass visibility outright
-(`ReflectionMethod::setAccessible(true)`), and a runtime-reachable parser is new attacker-reachable surface a
-compile-time-only parser never was. Both are addressed below rather than inherited by default.
+- Two gaps: reflection is native and mature in PHP (every DI container, ORM, attribute-driven router, test
+  double already depends on it); AST/source parsing is not — `token_get_all()` gives tokens, not a tree, and
+  a real tree needs a third-party grammar (`nikic/php-parser`, or the PECL-only `ast` extension) that can
+  drift from the engine's own parsing rules.
+- Requirement: MWL closes both gaps as core-language features, not "reflection ships, AST parsing is
+  somebody's extension."
+- Correctness (priority 2): `Core\Ast` wraps `mwl-syntax`'s existing single parser rather than adding a
+  second grammar to keep in sync — the same "one implementation, not two" shape
+  [ADR 0015](0015-no-name-aliasing.md)/[ADR 0017](0017-hot-reload-without-restart.md) already chose.
+- Simplicity (priority 4): every domain is meant to have one obvious `Core` home
+  ([ADR 0011](0011-functions-and-constants-are-class-members.md)); leaving AST parsing out would send every
+  framework author back to a userland parser, reproducing PHP's own fragmentation.
+- Security (priority 1) is what this decision could spend if left unexamined: PHP's reflection bypasses
+  visibility via `setAccessible(true)`, and a runtime-reachable parser is new attacker-reachable surface — both
+  closed in *Decision* rather than inherited by default.
 
 ## Decision
 
@@ -161,20 +143,15 @@ as `Core\Json::decode()` on one.
 ## Alternatives rejected
 
 - **Ship reflection, defer AST parsing to a userland or extension-provided library**, matching PHP's own
-  split. Rejected in *Context*: this is precisely the asymmetry that produces grammar drift in PHP's
-  ecosystem, and MWL already has the one-true-parser `Core\Ast` needs at zero marginal implementation cost.
-- **PHP-equivalent `setAccessible(true)`.** Rejected per § 2: a structural bypass of every visibility and
-  hook check in the language is a cost priority 1 does not get to spend for reflection's convenience,
-  especially once [ADR 0014](0014-property-observer.md) already gives properties a hook a bypass would skip
-  silently.
-- **Return the AST as `array<mixed>`** (PHP's `ast` extension's own shape, and `token_get_all()`'s). Rejected
-  per § 3: it is the exact `mixed`-shaped shortcut [ADR 0007](0007-explicit-type-system.md) exists to close
-  everywhere else, reintroduced at the one place a typed tree costs nothing extra to design correctly the
-  first time.
-- **A `Core\Ast::eval()`-style convenience that compiles and runs a parsed tree in one step.** Never seriously
-  considered: it is `eval` with extra ceremony, and [ADR 0006](0006-isolated-script-execution.md) already
-  rejects `eval` for reasons — no stable identity, no cache key, no capability-grantable path — that apply
-  unchanged to a tree instead of a string.
+  split. Rejected: precisely the asymmetry that produces grammar drift in PHP's ecosystem, at zero marginal
+  cost to avoid via `Core\Ast`.
+- **PHP-equivalent `setAccessible(true)`.** Rejected per § 2: a structural visibility bypass is a cost
+  priority 1 doesn't get to spend for convenience, especially given the [ADR 0014](0014-property-observer.md)
+  hook it would skip silently.
+- **Return the AST as `array<mixed>`** (PHP's `ast` extension/`token_get_all()` shape). Rejected per § 3: the
+  exact `mixed`-shaped shortcut [ADR 0007](0007-explicit-type-system.md) closes everywhere else.
+- **A `Core\Ast::eval()`-style convenience.** Never seriously considered: `eval` with extra ceremony, already
+  rejected by [ADR 0006](0006-isolated-script-execution.md) for reasons that apply unchanged to a tree.
 
 ## Revisiting
 

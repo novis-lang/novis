@@ -24,77 +24,33 @@
 
 ## Context
 
-M7 requires that editing a `.mwl` file on disk be visible to the next request without restarting the
-process — and, in the same breath, that every request stay exactly as isolated as it would be behind a
-fresh subprocess ([0006](0006-isolated-script-execution.md)): a compile in flight for one file must not
-stall a request that never touches it, an old request must not be yanked out from under a version of the
-code it started running against, and nothing about noticing a file changed may reintroduce the shared
-mutable state the whole architecture exists to avoid.
-
-The plan already has half of this decided, in the *Compiled-unit cache* sketch:
-
-```rust
-enum CompileState {
-    Compiling(broadcast::Receiver<Result<Arc<CompiledUnit>, Arc<Diagnostics>>>),
-    Ready(Arc<CompiledUnit>),
-    Failed(Arc<Diagnostics>),
-}
-// DashMap<UnitKey { path, content_hash }, CompileState>
-```
-
-That key is the detail worth noticing: it is `{path, content_hash}`, not `{path}`. Two versions of the same
-file are two different map entries, never the same entry overwritten. That makes every `Ready` entry
-**write-once** — a property this ADR relies on rather than one it has to add. What is missing is the piece
-that turns "content-addressed cache" into "hot-reloadable cache": something that maps a *path* to whichever
-`content_hash` is current right now, and a rule for updating that mapping safely while readers are using it
-concurrently, from multiple cores, without ever taking a lock a request-serving core would have to wait on.
+- M7 requires that editing a `.mwl` file be visible to the next request with no restart, while every request
+  stays exactly as isolated as behind a fresh subprocess ([0006](0006-isolated-script-execution.md)): a
+  compile in flight must not stall unrelated requests, a running request must not be yanked out from under
+  the code it started against, and nothing may reintroduce shared mutable state.
+- The plan's existing *Compiled-unit cache* sketch already keys `CompileState` by `UnitKey { path,
+  content_hash }`, not `{path}` — two versions of a file are two different map entries, so every `Ready`
+  entry is **write-once**, a property this ADR relies on rather than adds.
+- Missing piece: something that maps a *path* to whichever `content_hash` is current, updated safely across
+  concurrently reading cores without a lock a request-serving core would wait on.
 
 ## Investigation
 
-**Why not a filesystem watcher (`inotify`/`ReadDirectoryChangesW`/`FSEvents`/`kqueue`).** It looks like the
-obvious answer and was the first one considered. Rejected:
-
-- It is four platform-specific APIs to keep correct instead of one, on a project already carrying three
-  platforms in CI.
-- Watch descriptors are a finite OS resource; a web root with thousands of files is exactly the shape that
-  exhausts `inotify`'s default limits, which turns a hot-reload feature into a startup failure on some
-  hosts and not others.
-- It silently degrades on network filesystems (NFS, SMB — an ordinary shared-hosting or container-volume
-  deployment), where change events are unreliable or absent. A mechanism whose correctness depends on the
-  filesystem underneath is not one this project can make a security or availability claim about.
-- It does not remove the need for a stat/hash check anyway — a watcher can still miss the replace-via-rename
-  window common to editors and deploy tools — so it would be additional machinery layered *on top of* the
-  lazy check below, never a replacement for it. Additional machinery that does not remove a requirement is
-  not paying for itself.
-- It is a background subsystem whose activity is not attributable to any request, which is the opposite of
-  [0004](0004-memory-for-simplicity.md)'s accounting requirement.
-
-**Why lazy, stat-gated revalidation instead.** The plan's existing staleness rule — `stat (mtime+size) →
-BLAKE3 content hash → atomic swap`, governed by `opcache.validate = never|mtime|hash` — is PHP's own
-`opcache.validate_timestamps` model, which every operator deploying a PHP-shaped runtime already
-understands. It costs nothing when nothing changed (one `stat`, compared against the cached mtime+size), it
-needs no new subsystem, and its cost is paid on the request that happens to touch the file, which is exactly
-where [0004](0004-memory-for-simplicity.md) wants it accounted. `mtime` is a cheap pre-filter; `hash` is the
-authoritative fallback for the filesystems (containers, some network mounts) where mtimes lie. Neither
-signal is trusted alone for the actual cache key — only the content hash is, which is what makes the whole
-scheme safe rather than merely fast.
-
-**Why a rate cap on the stat check.** A `stat` per request is cheap once; it is not free at the request
-volumes M7 is verified against (10k+ concurrent). The same directive family gets a companion,
-`opcache.revalidate_freq` (seconds, default matching PHP's), so a hot path hitting one file re-validates at
-most once per interval regardless of request rate — the same amortisation PHP already made operators
-comfortable with, not a new number to learn.
-
-**Why the pointer swap is small and separately locked, not a rebuild of the whole map.** A design that
-gives every path revalidation a single global version counter, compared against on every request, was
-considered and rejected: it would serialise unrelated files' updates against each other's readers for no
-reason, and it reintroduces exactly the kind of shared mutable checkpoint the thread-per-core model exists
-to avoid. Keying the swap per path, and using the content hash itself as the compare-and-swap token, needs
-no separate generation counter: "publish this new hash only if the path still names the hash I started
-from" is answered by one lookup-and-compare inside the map shard's existing lock — the same lock DashMap
-already takes for a cold insert. A slower compile of an *older* edit that finishes after a faster compile of
-a *newer* one simply loses that compare and is discarded; nothing was lost, because the newer content was
-already correctly published.
+- **Filesystem watcher** (`inotify`/`ReadDirectoryChangesW`/`FSEvents`/`kqueue`) — rejected: four
+  platform-specific APIs to maintain, watch descriptors are a finite OS resource a large web root can exhaust,
+  it degrades silently on network filesystems (NFS/SMB), it still can't remove the need for a stat/hash check
+  (misses replace-via-rename), and it's an unattributable background subsystem
+  ([0004](0004-memory-for-simplicity.md)'s accounting rule).
+- **Lazy, stat-gated revalidation instead** — reuses PHP's own `opcache.validate_timestamps` model (`stat`
+  mtime+size → BLAKE3 hash → atomic swap): costs nothing when nothing changed, needs no new subsystem, and
+  its cost lands on the request that touches the file, as [0004](0004-memory-for-simplicity.md) wants.
+  `mtime` is a cheap pre-filter; only the content hash is trusted as the actual cache key.
+- **A rate cap** (`opcache.revalidate_freq`, matching PHP's own knob) bounds `stat` overhead at the request
+  volumes M7 targets (10k+ concurrent).
+- **Per-path pointer swap, not a global version counter** — a global counter would serialise unrelated files'
+  updates against each other's readers and reintroduce shared mutable state; using the content hash itself as
+  the compare-and-swap token needs no separate counter and reuses DashMap's existing per-shard lock. A slower
+  compile of an older edit simply loses the compare and is discarded.
 
 ## Decision
 
@@ -199,25 +155,19 @@ request-local decision.
 
 ## Alternatives rejected
 
-- **A filesystem watcher pushing invalidation.** See *Investigation* — platform-divergent, resource-bounded
-  in a way that scales badly with a large web root, unreliable on network filesystems, and additive to the
-  lazy check rather than a replacement for it.
-- **Restart (or a supervisor that respawns) the process on any change.** This is the requirement's explicit
-  exclusion, and it is also strictly worse than what it would replace: every in-flight request is dropped,
-  not merely the ones touching the changed file, which fails the isolation requirement this ADR is answering
-  at the same time it fails the no-restart one.
+- **A filesystem watcher pushing invalidation.** See *Investigation* — platform-divergent, resource-bounded,
+  unreliable on network filesystems, and additive to the lazy check rather than a replacement for it.
+- **Restart (or a respawning supervisor) on any change.** The requirement's explicit exclusion, and strictly
+  worse anyway: drops every in-flight request, not just ones touching the changed file.
 - **A global generation counter compared on every request.** Serialises unrelated files against one another
-  for no benefit over a per-path compare-and-swap, and reintroduces a piece of shared, request-path-visible
-  mutable state the architecture otherwise avoids.
-- **Mutating a `Ready` entry's `Arc<CompiledUnit>` in place** (e.g. `Arc<Mutex<CompiledUnit>>` or an
-  `ArcSwap` inside the entry) instead of adding the path-level indirection. Rejected because it means the
-  content-addressed key no longer identifies immutable content — the entire reason `Ready` entries can be
-  read without synchronisation in the first place — for a saving of one small map that this ADR's other
-  guarantees are not worth spending.
-- **Trusting `mtime` alone**, without a content hash. Already excluded by the existing `hash` validation
-  mode; restated here because it is the natural first instinct and it fails on exactly the filesystems
-  (containers, some network mounts, coarse clocks) an operator is least likely to notice failing on until an
-  edit silently does not take effect.
+  for no benefit over a per-path compare-and-swap, and reintroduces shared, request-path-visible mutable
+  state.
+- **Mutating a `Ready` entry's `Arc<CompiledUnit>` in place** instead of adding the path-level indirection.
+  Rejected: breaks the content-addressed key's immutable-content guarantee, the entire reason `Ready` entries
+  can be read without synchronisation.
+- **Trusting `mtime` alone**, without a content hash. Already excluded by the `hash` validation mode; fails
+  on exactly the filesystems (containers, some network mounts, coarse clocks) least likely to be noticed
+  failing until an edit silently doesn't take effect.
 
 ## Revisiting
 

@@ -61,16 +61,16 @@ PHP declares seventeen-ish magic methods; four of the ADR-worthy ones are alread
 | `__set_state` | rejected outright, no replacement | **this ADR, § 5** |
 | `__autoload` | moot — removed by PHP itself, and by static resolution | **this ADR, § 6** |
 
-Every closed row above shares one argument, made in full in [0011](0011-functions-and-constants-are-class-members.md),
-[0012](0012-no-superglobals.md), [0013](0013-comparable-interface.md) and repeated at
-[0014](0014-property-observer.md)'s and [0027](0027-callable-is-closures-only.md)'s own Context sections:
-a behaviour that exists because a method happens to carry one specific reserved name is invisible from the
-class declaration, unreadable by a checker or an IDE without re-implementing PHP's own dispatch rules, and
-frequently the exact shape of PHP's worst security history (`__wakeup`/`__unserialize`'s object-injection
-class, closed in [0023](0023-clone-serialize-and-cross-boundary-copy.md)). This ADR applies the identical
-reasoning to the five remaining cases and adds one piece of reasoning specific to each that the general
-argument alone does not cover — most notably for `__destruct`, which fails for a second, independent reason
-below.
+- Every closed row above shares one argument, made in full in
+  [0011](0011-functions-and-constants-are-class-members.md), [0012](0012-no-superglobals.md),
+  [0013](0013-comparable-interface.md) and repeated at [0014](0014-property-observer.md)'s and
+  [0027](0027-callable-is-closures-only.md)'s own Context sections: a behavior triggered by a reserved
+  method name is invisible from the class declaration, unreadable by a checker or IDE without
+  reimplementing PHP's dispatch rules, and often the exact shape of PHP's worst security history
+  (`__wakeup`/`__unserialize` object injection, closed in
+  [0023](0023-clone-serialize-and-cross-boundary-copy.md)).
+- This ADR applies that reasoning to the five remaining cases, plus one reason specific to each — most
+  notably `__destruct`, which fails for a second, independent reason (§ 2).
 
 ## Decision
 
@@ -236,33 +236,23 @@ consequence of the static-resolution architecture already being built, not a new
 
 ## Alternatives rejected
 
-- **A declared `Disposable`/`Closeable` interface with an explicit `dispose()`, invoked automatically at
-  some deterministic point (end of a `using`-style block, or scope exit).** Considered as a middle ground
-  for § 2 — deterministic and declared, unlike PHP's destructor, so it would not repeat either of that
-  section's two arguments. Rejected for now, not because it is unsound, but because it is a new language
-  construct (scope-exit-triggered calls do not exist anywhere else in MWL) being justified by a magic method
-  this ADR is otherwise simply deleting; see *Revisiting*.
-- **Keep `__destruct`, but forbid it from throwing and skip it for objects still live at request-heap
-  teardown.** Rejected: this is PHP's actual behaviour today in slightly stricter clothing, and still
-  requires walking every live object whose refcount legitimately reaches zero mid-request to fire the hook —
-  the per-object cost [0004](0004-memory-for-simplicity.md)'s wholesale drop was chosen specifically to
-  avoid paying on every request, not only leaking ones.
-- **Keep ambient `__isset`/`__unset` for parity even though `__get`/`__set` are gone.** Rejected: they exist
-  in PHP purely to serve `__get`/`__set`'s fallback case, which [0014](0014-property-observer.md) already
-  closed — keeping the pair would be ceremony with nothing left to intercept.
-- **Allow `unset()` to reset a non-nullable property to some type default**, rather than refusing it
-  outright. Rejected outright, not deferred: [0022](0022-definite-property-initialization.md) already
-  rejected per-type silent defaults for exactly this reason, and this ADR does not get to reopen that
-  argument narrowly for `unset()`.
-- **A declared `DebugRepresentable`-style interface for customizing `var_dump()`.** Rejected: unlike
-  `Stringable`/`Comparable`, there is no existing safe default this closes off — PHP's own `var_dump` with
-  no `__debugInfo` already shows real properties, so this would be adding a customization surface rather
-  than replacing an unsafe ambient one, with no motivating problem in front of it.
-- **Keep PHP's open `var_export()`/`__set_state` format for `mwl convert` compatibility.** Rejected for the
-  same reason [0023](0023-clone-serialize-and-cross-boundary-copy.md) rejected keeping PHP's open serialize
-  wire format: generated-PHP-as-a-data-format is exactly the kind of "well-shaped payload constructs
-  arbitrary objects" surface that ADR closed, and reopening it here for a rarer, less-used PHP feature buys
-  nothing new.
+- **A declared `Disposable`/`Closeable` interface with automatic invocation at scope exit.** A deterministic
+  middle ground for § 2, but scope-exit-triggered calls don't exist anywhere else in MWL — a new construct
+  to justify a magic method this ADR is otherwise just deleting; see *Revisiting*.
+- **Keep `__destruct`, forbid throwing, skip it at request-heap teardown.** PHP's behavior in stricter
+  clothing — still requires walking every live object whose refcount reaches zero mid-request, the exact
+  per-object cost [0004](0004-memory-for-simplicity.md)'s wholesale drop avoids paying.
+- **Keep ambient `__isset`/`__unset` for parity.** They exist only to serve `__get`/`__set`'s fallback,
+  already closed by [0014](0014-property-observer.md) — nothing left to intercept.
+- **Let `unset()` reset a non-nullable property to a type default.** [0022](0022-definite-property-initialization.md)
+  already rejected per-type silent defaults for exactly this reason.
+- **A `DebugRepresentable`-style interface for `var_dump()`.** Unlike `Stringable`/`Comparable`, there's no
+  unsafe default to close off — PHP's own dump with no `__debugInfo` is already safe, so this would add a
+  customization surface with no motivating problem.
+- **Keep PHP's open `var_export()`/`__set_state` format for `mwl convert`.** Same reason
+  [0023](0023-clone-serialize-and-cross-boundary-copy.md) rejected PHP's open serialize format:
+  generated-code-as-data-format is the "well-shaped payload constructs arbitrary objects" surface that ADR
+  already closed.
 
 ## Revisiting
 

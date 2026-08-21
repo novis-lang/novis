@@ -32,47 +32,25 @@
 
 ## Context
 
-PHP gives a name three separate ways to acquire a second, locally valid spelling:
-
-| mechanism | what it does |
-|---|---|
-| `class_alias('Original\Name', 'Alias')` | registers a second global class name at runtime, interchangeable with the first everywhere `instanceof`, `new`, and autoloading look |
-| `use Original\Name as Alias;` | within one file, rebinds a short name the importer picked to a class/interface/trait/enum declared elsewhere |
-| `use TraitA, TraitB { TraitA::foo as bar; }` / `{ TraitA::foo as protected; }` | within one class, gives a trait's method a second name, or the same name under different visibility |
-
-Every one of these is the same shape of problem this project has already closed twice: [ADR
-0008](0008-static-and-global.md) made state reachable from exactly one declared class-relative home, and
-[ADR 0011](0011-functions-and-constants-are-class-members.md) did the same for behaviour. A name is supposed
-to have one declared owner a reader can find by looking at the declaration. Aliasing breaks that
-symmetrically: instead of "no declared home," it gives a *second* declared home for the same thing, so a
-reader who has found one spelling still cannot be sure it is the only one in play.
-
-**Simplicity (priority 4).** Two different tokens that mean the same class is pure surface, with no
-behaviour it buys. A reviewer reading `Baz::method()` in one file and `Name::method()` in another must
-already know both resolve to the same class before either line means anything — the alias is a second fact
-to hold in the reader's head for zero semantic gain.
-
-**Security (priority 1), narrowly but really.** `class_alias()` is exactly the tool PHP autoloading exploits
-and feature-flag frameworks reach for to swap which implementation a name resolves to *after the fact* —
-the whole point is that code written against `Alias` cannot tell, by reading it, which class actually runs.
-That is the identical problem [ADR 0014](0014-property-observer.md) closed for property access (no
-`__get` fallback) and [ADR 0011](0011-functions-and-constants-are-class-members.md) closed for calls (no
-bare-name resolution): a name's target should be exactly what its own declaration says, not a runtime-mutable
-indirection layer sitting in front of it.
-
-**What this ADR does not throw out.** A reference (`&$x`) binding two *variable names* to one storage slot
-is untouched — [ADR 0007](0007-explicit-type-system.md) § 1 already requires both sides to declare the same
-type, and that is a different concept (two local names for one value slot, scoped to a function) from what
-this ADR closes (a second global name for one declared class, function, constant, or trait method, visible
-across files). Nothing here touches variables at all.
-
-**The one place a name genuinely needs a second, shorter spelling.** [ADR 0007](0007-explicit-type-system.md)
-already flagged its own cost: `array<array<int|string>> $rows` at every declaration site is real verbosity,
-and its *Negative* section named a `type` alias as "the obvious relief" without deciding it. That request
-has not gone away just because PHP's aliasing is rejected — it is answered here, deliberately kept separate
-from the rejection above, because a synonym for a *type expression*, erased before a single byte of code
-runs, is not the same thing as a second name for a *runtime-reachable declaration*. The rest of this ADR
-draws that line precisely enough that it cannot be used to smuggle the rejected kind back in.
+- PHP gives a name three ways to acquire a second spelling: `class_alias()` (a second global class name,
+  interchangeable everywhere `instanceof`/`new`/autoloading look), `use X as Y;` (rebinds an import's short
+  name), and trait-use `as` (renames a trait method, or changes its visibility). Each duplicates a declared
+  name the same way [ADR 0008](0008-static-and-global.md) and
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) already closed for state and for behaviour —
+  a reader who has found one spelling still cannot be sure it is the only one in play.
+- Simplicity (priority 4): two tokens meaning the same class is pure surface a reader must hold in their head
+  for zero semantic gain.
+- Security (priority 1): `class_alias()` is exactly the tool PHP autoloading exploits and feature-flag
+  frameworks use to swap which implementation a name resolves to *after the fact* — the same problem
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) and
+  [ADR 0014](0014-property-observer.md) already closed for calls and property access.
+- Not affected: a reference (`&$x`) binding two *variable names* to one storage slot is a different concept
+  (function-scoped, same-type per [ADR 0007](0007-explicit-type-system.md) § 1), not a second global name for
+  a declaration.
+- The one genuine need: [ADR 0007](0007-explicit-type-system.md)'s own *Negative* section already flagged
+  `array<array<int|string>> $rows`-style verbosity and named a `type` alias as unresolved relief — answered
+  here, kept narrow enough (a synonym for a *type expression*, erased before codegen) that it cannot smuggle
+  the rejected kind of aliasing back in.
 
 ## Decision
 
@@ -267,28 +245,20 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 ## Alternatives rejected
 
-- **Keep `class_alias()` for a narrow, blessed use** (e.g. deprecation shims, gradual class renames during a
-  migration). Rejected: a "blessed" runtime aliasing mechanism is still the exact indirection *Context*
-  argues against, and a migration that wants to rename a class can do so as an ordinary `mwl convert` rewrite
-  across call sites instead of leaving both names live at runtime.
-- **Keep import `as` for genuine short-name collisions between two unrelated libraries.** The single real
-  case this ADR's rejection costs something for. Rejected anyway, because the alternative (the
-  fully-qualified name at the call site) is strictly more explicit for strictly more typing, and because a
-  narrow "aliasing is fine, just only for collisions" carve-out is exactly the kind of exception that is hard
-  to keep narrow once it exists.
-- **Keep the visibility-only trait `as` form**, since it introduces no new *name* and so is arguably not
-  "aliasing" at all. Considered directly, and rejected: keeping half the `as` clause still leaves trait
-  composition with two disambiguation mechanisms (`insteadof` and `as`) instead of one, and the replacement —
-  overriding the method and calling `TraitName::method()` inside it — is ordinary OOP a reader already has to
-  know, not new surface.
-- **Let a `type` alias name a single bare class, as a readability shorthand for a long FQN.** Rejected in
-  *Decision § 6*: `use LongVendor\Namespace\ClassName;` (importing under the real short name) already solves
-  the long-FQN problem without introducing a second name, which is the entire point of *Decision § 2*.
-  Allowing it back in through `type` would be the same aliasing wearing different syntax.
-- **A nominal ("newtype") form of `type` alias**, distinct from the aliased representation and requiring an
-  explicit conversion between them. A different, legitimate feature — but a different decision, with its own
-  cost/benefit around where the checked-conversion boundary should sit; not what was asked for here, and not
-  smuggled in under this ADR's name.
+- **Keep `class_alias()` for a narrow, blessed use** (deprecation shims, gradual renames). Rejected: still
+  the exact runtime indirection *Context* argues against — an `mwl convert` rewrite across call sites gets
+  the same migration result without leaving both names live.
+- **Keep import `as` for genuine short-name collisions between two unrelated libraries.** Rejected anyway:
+  the fully-qualified name is strictly more explicit for strictly more typing, and a "collisions only"
+  carve-out rarely stays narrow.
+- **Keep the visibility-only trait `as` form.** Rejected: still leaves trait composition with two
+  disambiguation mechanisms instead of one; the replacement (override + explicit `TraitName::method()` call)
+  is ordinary OOP a reader already knows.
+- **Let a `type` alias name a single bare class**, as FQN shorthand. Rejected in *Decision § 6*: `use` under
+  the real short name already solves the long-FQN problem; this would be the same aliasing in different
+  syntax.
+- **A nominal ("newtype") form of `type` alias**, requiring explicit conversion. A different, legitimate
+  feature with its own cost/benefit — not what was asked for here.
 
 ## Revisiting
 

@@ -15,35 +15,21 @@
 
 ## Context
 
-The project-start decision on configuration said that a script "may narrow a limit but never widen one",
-and put every limit and every capability in a `RuntimeTighten` class to enforce that. It read as a pure win
-for priority 1: nothing a request does can enlarge its own budget.
-
-It is not a pure win, because it breaks priority 2 — PHP-compatible observable behaviour — for one of the
-most common constructs in the PHP corpus:
-
-```php
-ini_set('memory_limit', '1G');   // php.ini says 128M
-set_time_limit(0);
-```
-
-That pair opens the import script, the report generator, the migration command and the image-resize
-endpoint of essentially every framework and CMS in existence. In PHP it succeeds: `memory_limit` and
-`max_execution_time` are `PHP_INI_ALL`, and `PHP_INI_ALL` means *any* value, wider or narrower. PHP has
-exactly one directive that is changeable-but-narrowing-only — `open_basedir` — and it is special-cased in
-the engine precisely because it is the exception.
-
-Under tighten-only, that code does not fail loudly at conversion time. It fails at runtime, in production,
-at the point where PHP succeeded, and it fails as an out-of-memory or timeout error whose stated cause
-(`memory limit exceeded`) is exactly what the script had already tried to fix. Converted code that stops
-working for a reason the source language allowed is a semantics bug, and priority 2 outranks priority 4.
-
-The underlying reason tighten-only looked free is that it conflated two different questions into one
-number: *what a script gets without asking*, and *what the host is willing to lose to one request*. A
-single directive cannot answer both. With one number the operator has to choose between a low value — so
-the ordinary request is safely bounded — and a high one — so the legitimate import job can run. Every
-deployment that hit that choice resolved it the same way: raise the global limit for everyone, which is
-strictly worse for priority 1 than what is proposed here.
+- The project-start decision put every limit and capability in a single `RuntimeTighten` class ("a script
+  may narrow a limit but never widen one") — a clean win for priority 1, but it breaks priority 2 for one
+  of the most common idioms in the PHP corpus:
+  ```php
+  ini_set('memory_limit', '1G');   // php.ini says 128M
+  set_time_limit(0);
+  ```
+  In PHP this succeeds — `memory_limit` and `max_execution_time` are `PHP_INI_ALL`, changeable to any
+  value; `open_basedir` is PHP's one narrowing-only exception, special-cased precisely because it is the
+  exception.
+- Under tighten-only, converted code doesn't fail loudly at conversion time — it fails at runtime, in
+  production, as an out-of-memory or timeout error whose cause is exactly what the script was trying to fix.
+- The root problem: one directive conflated two questions — what a script gets without asking, and what the
+  host is willing to lose to one request. Every deployment that hit the resulting choice resolved it by
+  raising the global limit for everyone, which is worse for priority 1 than the fix below.
 
 ## Decision
 

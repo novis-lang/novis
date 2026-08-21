@@ -36,30 +36,17 @@
 
 ## Context
 
-PHP spells five unrelated things with one keyword. Three are about a class; two are about storage:
-
-| PHP spelling | what it means | kind |
-|---|---|---|
-| `public static function f()`, `public static int $n` | the member belongs to the class, not the instance | class |
-| `static::f()`, `new static()` | resolve against the *called* class, not the defining one | class |
-| `function f(): static` | the return type is the called class | class |
-| `static int $calls = 0;` inside a function | one slot per function, initialised at most once, surviving the call | storage |
-| `static function () {}`, `static fn() => …` | this closure does not capture `$this` | storage |
-
-`global $x;` is a sixth thing again: it rebinds a local name onto the script's top-level variable table for
-the duration of a call.
-
-The three class meanings are unavoidable. Late static binding is not a legacy corner — it is how every
-fluent builder, ActiveRecord-style model and static factory in the PHP ecosystem is written, and a
-`new static()` that silently behaved like `new self()` would return the wrong class rather than fail to
-compile. Rejecting it would not make PHP code unconvertible; it would make it convert *wrongly*, which is
-worse.
-
-The two storage meanings are a different question, and `global` is a settled one — it was already on the
-rejected list before this ADR, and [0006](0006-isolated-script-execution.md) already assumes a function
-cannot reach outside its own frame for mutable state. What this ADR does is finish the job: name the storage
-classes MWL actually has, and stop treating the leftovers as a syntax gap to be filled with a type
-annotation.
+- PHP spells five unrelated things with `static` — three about a class (static members, late static
+  binding via `static::`/`new static()`, the `static` return type) and two about storage (the
+  function-scope static variable, the static-closure modifier) — plus a sixth with `global`, which
+  rebinds a local name onto the script's top-level variable table for the duration of a call.
+- The three class meanings are unavoidable: late static binding is how every fluent builder,
+  ActiveRecord-style model and static factory in the PHP ecosystem is written, and a `new static()`
+  compiled as `new self()` would silently return the wrong class rather than fail to compile.
+- `global` was already a settled rejection before this ADR, and
+  [0006](0006-isolated-script-execution.md) already assumes a function cannot reach outside its own
+  frame for mutable state. This ADR's job is the two storage meanings: name the storage classes MWL
+  actually has instead of leaving them as a syntax gap to be filled with a type annotation.
 
 ## Decision
 
@@ -206,32 +193,20 @@ only says "not supported" is a bug in this decision, not a faithful implementati
 
 ## Alternatives rejected
 
-**Keep the function static and give it a type slot.** What ADR 0007 originally assumed. Rejected on the
-definite-assignment argument in § 3: it is not that the construct is hard to type, it is that typing it does
-not make it checkable, and the carve-out lands in the one analysis that pays for the mandatory annotations.
-
-**Keep it, but run the initialiser at isolate start rather than on first call.** This removes the run-once
-flag and the definite-assignment hole in one move — the slot is simply initialised before any code runs.
-Rejected because it changes PHP's semantics silently rather than loudly: an initialiser with a side effect,
-or one that reads request state through a `Core` accessor ([ADR 0012](0012-no-superglobals.md)), would run
-at a different time and in a different order, and the construct
-would look like PHP's while behaving differently. A rejection with a named replacement is honest; a lookalike
-is not. It also keeps the second storage table, which is most of the cost.
-
-**Reject late static binding too, for one meaning of the keyword.** Tempting for simplicity, and rejected on
-priority 2. `new static()` compiled as `new self()` returns the wrong class, and there is no annotation a
-converter could add to preserve the original behaviour — the information lives at the call site, not in the
-definition. Simplicity is priority 4; it does not buy a semantic break of that size. One keyword carrying
-two roles is a smaller cost than the ecosystem not converting, and the roles are unambiguous by position.
-
-**Allow `global` for read-only access.** Rejected: a readable script-global still makes a function's inputs
-invisible in its signature, and the resolver still cannot tell which top-level variable a name refers to
-without whole-script analysis. A `const` already covers everything a read-only global legitimately wanted,
-with a type and a compile-time value.
-
-**A `#[Memoize]` attribute as the sanctioned replacement for the memoisation use.** Deferred, not rejected —
-a plausible later convenience, but it is a caching feature with its own questions (key derivation, lifetime,
-size bound, interaction with limits), and it should not be smuggled in as part of a decision about a keyword.
+- **Keep the function static and give it a type slot** (what ADR 0007 originally assumed). Rejected on
+  the definite-assignment argument in § 3: the carve-out would land in the one analysis that pays for
+  the mandatory annotations.
+- **Run the initialiser at isolate start rather than on first call.** Rejected: changes PHP's semantics
+  silently rather than loudly (a side-effecting initialiser would run at a different time), and still
+  keeps the second storage table.
+- **Reject late static binding too, for one meaning of the keyword.** Rejected on priority 2 —
+  `new static()` compiled as `new self()` returns the wrong class, with no annotation a converter could
+  add to preserve the original behaviour.
+- **Allow `global` for read-only access.** Rejected: still hides a function's inputs from its signature;
+  a `const` already covers everything a read-only global legitimately wanted.
+- **A `#[Memoize]` attribute as the sanctioned replacement for the memoisation use.** Deferred, not
+  rejected — a separate caching feature with its own questions (key derivation, lifetime, size bound),
+  not to be smuggled into a decision about a keyword.
 
 ## Revisiting
 

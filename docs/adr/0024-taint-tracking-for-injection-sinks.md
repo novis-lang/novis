@@ -43,41 +43,24 @@
 
 ## Context
 
-[ADR 0012](0012-no-superglobals.md) closed every ambient PHP superglobal to a `static` method call on one
-of five reserved classes. That ADR's argument was traceability — "a reviewer sees exactly which `Core`
-class, and therefore which trust boundary, a line depends on" — but the type system stops at the call site.
-Once `Core\Request::query('id')` returns a plain `string`, nothing distinguishes it from a literal written
-in the source two lines above. Concatenating the two into a SQL string or an HTML fragment is invisible to
-`mwl check` — the exact gap that makes XSS and SQL injection the two userland failure modes the project set
-out to close, per the brainstorming that opened this decision.
-
-Three prior attempts at this general idea are worth naming, because MWL's answer differs from each for a
-reason specific to this codebase:
-
-- **Perl's taint mode** flags data at runtime and checks it at each dangerous call. It works, but it is a
-  runtime tag on every scalar, checked on every use — exactly the representation and per-operation cost
-  [ADR 0004](0004-memory-for-simplicity.md) argues against paying for when a free alternative exists, and it
-  buys nothing MWL's ahead-of-time type checker cannot prove instead.
-- **Google's safe-html-types / Error Prone `@CompileTimeConstant`** bolt static analysis onto Java from
-  outside the compiler, as an optional, skippable build step. [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already made this project's stance on that shape of choice explicit for reflection and AST
-  parsing: a security-relevant analysis that lives outside the compiler is optional by construction. The
-  same reasoning applies here.
-- **Go's `html/template`** solves the HTML half by parsing the template and auto-escaping by context — real
-  and effective, but it is a property of one template engine, not of the language's type system, so it says
-  nothing about SQL, shell commands, or file paths. MWL folds the same auto-escaping idea into § 5 below, but
-  as one instance of a general type-system mechanism rather than the whole answer.
-
-**Why the source list is a rule, not a fixed enumeration.** A value read back from anything that persists
-across requests carries exactly the same risk as one read live from the request: if a request handler ever
-stored attacker-influenced content (directly, or via a bug that assumed something was safe when it wasn't),
-reading it back and rendering it is second-order/stored injection — the same vulnerability class, one hop
-later, and arguably more dangerous because the developer reading it back has usually forgotten it can be
-attacker-shaped at all. `Core\Session` already exists among ADR 0012's five classes; `Core\Db` result rows
-and `Core\Cache` reads will exist by M8/M9 and are not designed yet. Rather than re-litigating taint sources
-in a new ADR each time one of those lands, this ADR fixes the standing rule — *taint enters wherever a
-script receives data it did not just compute: a live request, a persisted store, another process, or the
-environment* — and leaves each concrete class's exact return types to whichever milestone designs it, the
-same deferral [ADR 0012](0012-no-superglobals.md) already used for method signatures.
+- [ADR 0012](0012-no-superglobals.md) closed every ambient superglobal to a `static` method on one of five
+  reserved classes, for traceability — but the type system stops at the call site: nothing distinguishes
+  `Core\Request::query('id')`'s return from a source literal, so concatenating it into SQL/HTML is invisible
+  to `mwl check` — the exact gap enabling XSS and SQL injection.
+- Three prior attempts, each rejected for a reason specific to this codebase: **Perl's taint mode** —
+  runtime tag checked on every use, exactly the representation/per-op cost
+  [ADR 0004](0004-memory-for-simplicity.md) argues against when a free compile-time alternative exists;
+  **Google's safe-html-types/Error Prone** — static analysis bolted on outside the compiler as an optional,
+  skippable step, the same "optional is not a real guarantee" stance
+  [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already took for reflection/AST parsing;
+  **Go's `html/template`** — real and effective, but scoped to one template engine's HTML case, saying
+  nothing about SQL/shell/paths (its auto-escaping idea is folded into § 5 as one instance of a general
+  mechanism, not the whole answer).
+- Taint sources are a standing **rule**, not a fixed list: anything a script receives that it didn't just
+  compute (a live request, a persisted store, another process, the environment) carries the same risk,
+  including second-order/stored injection — future sources (`Core\Db` rows, `Core\Cache` reads at M8/M9)
+  inherit the rule rather than needing a new ADR each time, the same deferral
+  [ADR 0012](0012-no-superglobals.md) already used for method signatures.
 
 ## Decision
 
@@ -233,24 +216,19 @@ holding the "no magic" line for its own sake.
 
 ## Alternatives rejected
 
-- **Runtime-only taint tracking (Perl's model).** Rejected in *Context*: throws away the one advantage a
-  static type checker gives over a dynamic tag, and pays a representation and per-operation cost
+- **Runtime-only taint tracking (Perl's model).** Rejected: throws away the advantage a static type checker
+  gives over a dynamic tag, paying a representation/per-op cost
   [ADR 0004](0004-memory-for-simplicity.md) argues against when the compile-time version is free.
-- **A bolt-on static-analysis pass outside `mwl check`**, mirroring Error Prone. Rejected in *Context* on
-  the same grounds [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already used for
-  reflection: an optional, skippable analysis is not the same guarantee as a compiler that refuses to emit
-  code, and this project has already decided that split once.
-- **Require an explicit escape call at every HTML interpolation site, no auto-escape default.** This is the
-  option § 5 argues past: rejected because CLAUDE.md's own priority ordering puts security above simplicity,
-  and "the compiler escapes for you unless you opt out with a literal" is strictly safer than "a human
-  remembers, every time" — the single most common real-world XSS root cause is exactly the omitted call this
-  removes structurally.
-- **Require `Core\Db`'s query-text parameter to be a compile-time literal, not merely untainted** (mirroring
-  the stricter option considered for `Markup`). Rejected for now: it would block legitimate dynamic query
-  assembly (pagination, a sort column chosen from an allowlist) that already has to go through an
-  identifier-quoting helper regardless — a strictly stronger guarantee purchased for a real ergonomics loss
-  that the untainted-only rule does not need to pay. Revisit per *Revisiting* if practice shows the weaker
-  rule insufficient.
+- **A bolt-on static-analysis pass outside `mwl check`**, mirroring Error Prone. Rejected on the same
+  grounds [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already used for reflection: an
+  optional, skippable analysis is not the same guarantee as a compiler that refuses to emit code.
+- **Require an explicit escape call at every HTML interpolation site, no auto-escape default.** Rejected:
+  CLAUDE.md's priority ordering puts security above simplicity, and "the compiler escapes for you unless you
+  opt out with a literal" is strictly safer than "a human remembers, every time."
+- **Require `Core\Db`'s query-text parameter to be a compile-time literal, not merely untainted.** Rejected
+  for now: would block legitimate dynamic query assembly (pagination, an allowlisted sort column) for a
+  stronger guarantee the untainted-only rule doesn't need to pay for. Revisit per *Revisiting* if practice
+  shows the weaker rule insufficient.
 
 ## Revisiting
 

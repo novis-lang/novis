@@ -40,82 +40,41 @@
 
 ## Context
 
-A chatbot brainstorm suggested three options for exact, deterministic, cross-machine/OS performance
-comparison: (1) simulated-instruction counting — either an interpreter's own opcode-dispatch counter, or an
-external emulator like Valgrind/callgrind; (2) hardware "instructions retired" via the CPU's PMU
-(`perf stat -e instructions:u` and equivalents); (3) a fixed external reference workload, measured
-wall-clock alongside the real benchmark, to normalize out clock-speed differences. None of the three were
-evaluated against what MWL has already decided:
-
-- **Option 1's interpreter half does not apply.** "Cranelift JIT as the only execution tier, no
-  interpreter" is a project-start decision ([README.md](README.md) § *Decisions taken at project start*).
-  There is no opcode-dispatch loop to instrument — every MWL function becomes native code, so only the
-  emulator half (Valgrind/callgrind) is a candidate at all.
-- **Option 2 is architecture-locked and multi-tool.** `perf` (Linux), ETW (Windows) and Instruments (macOS)
-  are three different tools with three different overhead/precision profiles, and none of them make an
-  x86_64 count comparable to an arm64 one. It answers "cross-machine, same architecture," not "cross-machine
-  and OS" as asked.
-- **Option 3, taken literally (an unrelated SHA-256/matmul baseline), is already bettered by a pattern this
-  project uses today.** `benches/abi-probe/tests/perf_guards.rs` normalizes out per-machine constant
-  overhead by taking **ratios and slopes within the same run** — a 2-frame vs 18-frame call chain, a thrown
-  vs a returned call, an OS process vs an in-process task — rather than comparing against an unrelated
-  reference binary. The file's own comments already reason about this explicitly (`an_os_process_...`:
-  "`CreateProcess` is dearer than `fork`+`exec`, so a Linux runner will report a smaller ratio; the 20x guard
-  is set low enough to hold everywhere"). This is the right tool for **regression guards** and needs no
-  change.
-
-What none of the above gives is a **historical trend line that is meaningfully comparable across an
-arbitrary set of contributor machines and CI runners over months of commits** — the goal actually asked
-for. A wall-clock number from one laptop says nothing next to one from a cloud CI runner two years later on
-different hardware; a ratio-based guard test answers "did this commit regress *relative to itself*," not
-"is MWL, in an absolute and comparable sense, getting faster." That gap is what this ADR closes, without
-touching the regression-guard mechanism that already works.
+- Three options considered for exact, deterministic, cross-machine/OS performance comparison: (1)
+  simulated-instruction counting (an interpreter's opcode counter, or an external emulator like
+  Valgrind/callgrind), (2) hardware "instructions retired" via the CPU's PMU (`perf`/ETW/Instruments), (3) a
+  fixed external reference workload measured by wall-clock to normalize out clock-speed differences.
+- Option 1's interpreter half doesn't apply: Cranelift JIT is the only execution tier
+  ([README.md](README.md) § *Decisions taken at project start*), so only the emulator half
+  (Valgrind/callgrind) is a candidate.
+- Option 2 rejected: architecture-locked and multi-tool (`perf`/ETW/Instruments each differ), gives
+  "cross-machine, same architecture" at best, not the "cross-machine and OS" comparability needed.
+- Option 3 taken literally is already bettered by `benches/abi-probe/tests/perf_guards.rs`'s existing
+  pattern — ratios/slopes **within the same run** (2-frame vs 18-frame chain, thrown vs returned, process vs
+  task) rather than an unrelated reference binary; that file already reasons through why this normalizes
+  per-machine overhead, and needs no change.
+- The gap none of the three close: a historical trend line comparable across an arbitrary set of contributor
+  machines and CI runners over months of commits — a ratio-based guard answers "did this commit regress
+  *relative to itself*," not "is MWL getting faster in an absolute, comparable sense." That gap is this
+  ADR's actual scope.
 
 ## Investigation
 
-**Does callgrind even work against Cranelift's runtime-generated code?** Nothing in this project's stack has
-run under Valgrind before — every existing guard test measures wall-clock directly. Per
-[README.md](README.md)'s own rule ("architecture assumptions are tested, not remembered"), this was spiked
-before being written down as policy, the same way ADR 0002's unwind-table premise was spiked before being
-assumed.
-
-`benches/abi-probe/examples/callgrind_spike.rs` reuses the exact `Probe::compile_chain`/`call` machinery
-`perf_guards.rs` already exercises — an 8-frame Cranelift-JIT-compiled call chain, called 10,000 times — and
-was run three separate times under `valgrind --tool=callgrind` in WSL:
-
-```text
-==2388== Collected : 5417505
-==2403== Collected : 5417505
-==2408== Collected : 5417505
-```
-
-Bit-identical across all three runs. This confirms callgrind's instruction emulation handles Cranelift's
-runtime-mapped executable pages correctly (it does not simply skip or approximate unmapped-at-startup code)
-and that the count is genuinely deterministic — not merely "close," the way a wall-clock figure would be
-even in the best case.
-
-**A real limitation surfaced too.** `callgrind_annotate` cannot resolve symbols *inside* JIT-compiled
-frames — Cranelift registers no debug info callgrind can read, so each JIT-emitted function shows as an
-anonymous `???:0x000000000403f000`-style line rather than a name, while ahead-of-time-compiled Rust code
-(the `probe_double` helper) resolves normally:
-
-```text
-260,000 ( 4.80%)  benches/abi-probe/src/lib.rs:mwl_abi_probe::probe_double [...]
-210,000 ( 3.88%)  ???:0x000000000403f000 [???]
-200,000 ( 3.69%)  ???:0x000000000403f059 [???]
-```
-
-`PROGRAM TOTALS` — the number this ADR's dashboard actually records — is unaffected by this: it is a raw
-count of every instruction retired, symbolized or not. Per-function drill-down *inside compiled MWL code*
-is not available this way without a JIT symbol-registration shim, which is out of scope: a historical trend
-line needs the aggregate, not a call graph, and diagnosing *where* a regression lives already has a
-different tool (wall-clock sampling profilers, or `perf`/ETW/Instruments locally on whichever platform
-reproduces it).
-
-**Platform reality confirmed, not assumed.** Valgrind has no native Windows build. Building and running the
-spike required the same WSL leg [CLAUDE.md](../../CLAUDE.md) already documents for `cargo-fuzz`, plus one
-new one-time package (`valgrind` itself, via `apt-get`) that setup did not previously need. This is now
-folded into that same setup section — see *Decision* § 5.
+- Spiked before being written down as policy, per [README.md](README.md)'s "architecture assumptions are
+  tested, not remembered" rule (the same discipline ADR 0002's unwind-table premise followed) — nothing in
+  the stack had run under Valgrind before.
+- `benches/abi-probe/examples/callgrind_spike.rs` (an 8-frame Cranelift-JIT call chain, 10,000 iterations)
+  run three times under `valgrind --tool=callgrind` in WSL produced the bit-identical count `5417505` each
+  time — confirms callgrind correctly emulates Cranelift's runtime-mapped pages and that the count is
+  genuinely deterministic, not merely close the way wall-clock would be.
+- Limitation found: `callgrind_annotate` can't resolve symbols *inside* JIT frames (Cranelift registers no
+  debug info) — they show as anonymous addresses, while ahead-of-time Rust code resolves normally.
+  `PROGRAM TOTALS` (the number actually recorded) is unaffected — it's a raw retired-instruction count,
+  symbolized or not; per-function drill-down inside JIT code would need a symbol-registration shim, out of
+  scope since the dashboard needs an aggregate trend, not a call graph.
+- Confirmed, not assumed: Valgrind has no native Windows build — needs the same WSL leg
+  [CLAUDE.md](../../CLAUDE.md) already documents for `cargo-fuzz`, plus one new package (`valgrind`) — see
+  *Decision* § 5.
 
 ## Decision
 
@@ -206,22 +165,17 @@ ADRs already defer a `Core` class's exact method roster to whichever milestone b
 
 ## Alternatives rejected
 
-- **VM opcode/dispatch-loop counters.** Inapplicable outright — no interpreter tier exists, by a
-  project-start decision this ADR does not revisit.
-- **Hardware PMU instructions-retired (`perf`/ETW/Instruments).** Rejected per this ADR's own scoping:
-  architecture-locked (an x86_64 and an arm64 runner would disagree even for identical semantics), and a
-  different tool with different overhead per OS, which delivers "cross-machine, same architecture," not the
-  "cross-machine and OS" the goal actually asked for. Callgrind's emulated instruction stream sidesteps both
-  problems at once.
+- **VM opcode/dispatch-loop counters.** Inapplicable — no interpreter tier exists.
+- **Hardware PMU instructions-retired (`perf`/ETW/Instruments).** Architecture-locked and a different tool
+  per OS; delivers "cross-machine, same architecture," not the cross-OS comparability needed. Callgrind's
+  emulated instruction stream sidesteps both.
 - **A fixed external reference workload (SHA-256/matmul loop), wall-clock ratio on every machine.**
-  Rejected: the ratio-based ideas already used in `perf_guards.rs` — differencing within the same run
-  instead of against an unrelated program — already achieve normalization more simply for regression-guard
-  purposes, and now that *Investigation* confirms callgrind works at all, its aggregate count is strictly
-  more precise for the historical-trend purpose, with no extra reference binary to build and maintain.
-- **Callgrind as the CI gate on every PR, every platform.** Rejected: Valgrind's own emulation overhead
-  (commonly one to two orders of magnitude) would slow every PR's CI run substantially, and its Linux-only
-  availability would silently skip two of the project's three CI platforms. Confined to a merge-to-`main`,
-  dedicated-runner leg instead, which pays that cost once per merge rather than once per push.
+  `perf_guards.rs`'s existing same-run ratio/slope approach already normalizes more simply for regression
+  guards; callgrind's aggregate count is strictly more precise for the historical-trend purpose, with no
+  extra reference binary to maintain.
+- **Callgrind as the CI gate on every PR, every platform.** Valgrind's emulation overhead (one to two orders
+  of magnitude) would slow every PR's CI, and Linux-only availability would skip two of three CI platforms —
+  confined to a merge-to-`main`, dedicated-runner leg instead.
 
 ## Revisiting
 

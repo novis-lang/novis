@@ -12,37 +12,22 @@
 
 ## Context
 
-MWL exists to execute two kinds of code securely and fast: web requests inside a long-lived server
-process, and command-line programs. Both run on server-class or developer-class machines, where RAM is the
-cheapest resource to add and the easiest to size for in advance. Neither workload is an embedded one.
+MWL executes web requests and CLI programs on server- or developer-class machines, where RAM is cheap and
+easy to size for in advance — not an embedded target. What is actually scarce:
 
-What is actually scarce is everything else:
-
-- **The security surface.** One process serves every request, so a sandbox escape or a cross-request leak
-  is not a bug in one request — it is a bug in all of them.
-- **Latency on the request path.** A request budget is measured in milliseconds, and everything MWL does
+- **The security surface** — one process serves every request, so a sandbox escape or cross-request leak
+  is a bug in all of them, not one.
+- **Latency on the request path** — a request budget is measured in milliseconds, and everything MWL does
   per call, per value and per allocation is spent out of it.
-- **Human attention.** How much of the language a developer must hold in their head to write correct code,
-  and how much of the implementation a maintainer must hold to change it safely. Every invariant that is
-  enforced by discipline rather than by construction is drawn from this account.
+- **Human attention** — how much of the language and implementation a developer/maintainer must hold in
+  their head; every invariant enforced by discipline rather than by construction draws from this account.
 
-RAM can be bought. An invariant that every future contributor has to remember cannot, and the places where
-MWL is most likely to be wrong — the unsafe modules, the codegen call sites, the sandbox boundary — are
-exactly the places where a memory-saving trick would have to live.
-
-This needs recording because the project has already made the same trade at least six times, each argued
-on a different axis and none of them naming the rule: the 64 KiB stack per task, taken to avoid `async`
-colouring; the 16-byte value, taken because PHP needs the full `i64` range; the deep copy across worker
-boundaries, taken so refcounts can stay non-atomic; copy-on-write arrays, taken for PHP value semantics;
-the request heap dropped wholesale, taken so cycle leaks cannot accumulate; a fresh wasm instance per
-request, taken so extension state cannot leak. The same instinct governs a decision that costs CPU rather
-than memory — the baseline tier lowering every operation to a runtime-helper call because that is quick to
-get correct.
-
-Left unstated, each of those stays individually re-arguable, and the argument is unfair in a predictable
-direction: a reviewer looking at one line can always show that the smaller-memory option is cheaper *there*,
-because what it costs is diffuse and lands in a different file. Naming the ordering puts the burden of proof
-where it belongs.
+RAM can be bought; an invariant every future contributor has to remember cannot, and the places MWL is most
+likely to be wrong — unsafe modules, codegen call sites, the sandbox boundary — are exactly where a
+memory-saving trick would have to live. The project has already made this trade at least six times (see
+*Where this already applies* below), each argued separately on a different axis, which lets a reviewer show
+the smaller-memory option cheaper in isolation because its cost is diffuse and lands in a different file.
+Naming the ordering once puts the burden of proof where it belongs.
 
 ## Decision
 

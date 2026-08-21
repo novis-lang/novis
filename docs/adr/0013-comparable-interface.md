@@ -29,26 +29,18 @@
 
 ## Context
 
-PHP's rule for `<`/`>`/`<=`/`>=` between two objects: if they are instances of the same class, compare each
-declared property in turn — recursing into nested arrays and objects — and use the first property where
-they differ; if the classes differ, or the properties are exhausted with no difference, the result is
-whatever PHP's general comparison rules say for the leftover case. Nothing about this is declared anywhere
-in the comparing class. It is not a method, not an interface, not an opt-in — it is simply what `<` *does*
-to two objects, the same way `$_SERVER` was simply *there* before [ADR 0012](0012-no-superglobals.md). A
-class author cannot see, from reading the class, that its instances are orderable at all, let alone by
-which rule; a reviewer sees `$invoiceA < $invoiceB` and has to already know PHP's fallback exists to know
-what it does. That is precisely the shape [ADR 0008](0008-static-and-global.md),
-[0011](0011-functions-and-constants-are-class-members.md) and [0012](0012-no-superglobals.md) already
-closed for other PHP features that work "by a name being present" rather than by a declaration — this ADR
-continues that line into object comparison.
-
-It is also not a *safe* ambient default. The property walk is unbounded in the size of the object graph it
-recurses into — two objects holding attacker-influenced nested structures (a request-derived DTO, for
-instance) can be compared with a cost invisible at the `<` call site, and the ordering it produces is
-whatever the property declaration order happens to be, not anything the class author chose. Closing it is
-a small instance of priority 1 (security), argued in full generality in
-[ADR 0004](0004-memory-for-simplicity.md); the larger motivation is priority 2 and priority 4 — an object
-comparison should mean what its class says it means, and the class should say it exactly once.
+- PHP's `<`/`>`/`<=`/`>=` between two same-class objects walks declared properties in order, recursing
+  into nested arrays/objects, and uses the first difference — undeclared anywhere in the comparing class,
+  simply what `<` *does*, the same way `$_SERVER` was simply *there* before
+  [ADR 0012](0012-no-superglobals.md). A reviewer seeing `$invoiceA < $invoiceB` must already know PHP's
+  fallback exists to know what it does — the same "works by a name being present" shape
+  [ADR 0008](0008-static-and-global.md), [0011](0011-functions-and-constants-are-class-members.md) and
+  [0012](0012-no-superglobals.md) already closed elsewhere.
+- It is also not a *safe* ambient default: the walk is unbounded in the size of the object graph it
+  recurses into, so two objects holding attacker-influenced nested structures can be compared at a cost
+  invisible at the call site, producing an ordering the class author never chose — a small instance of
+  priority 1, argued generally in [ADR 0004](0004-memory-for-simplicity.md), alongside priorities 2 and 4:
+  an object comparison should mean exactly what its class says, once.
 
 ## Decision
 
@@ -165,25 +157,19 @@ also means `==`, was considered and rejected; see *Alternatives rejected*.
 
 ## Alternatives rejected
 
-- **Per-operator magic methods** (`__lessThan`, `__greaterThan`, `__lessThanOrEqual`, …). Rejected: splits
-  one logical decision — "how do two of these order?" — into up to five methods that a class could
-  implement inconsistently (`$a < $b` true but `$b > $a` false), where a single sign-returning method
-  cannot disagree with itself. The same "one operator, one API" principle
-  [ADR 0007](0007-explicit-type-system.md), [ADR 0010](0010-enums-are-a-value-type.md) and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already lean on elsewhere.
-- **Keep PHP's property-walk fallback for classes that do not implement `Comparable`.** Rejected for the
-  reason *Context* argues in full: it is exactly the ambient, undeclared behaviour this project has closed
-  everywhere else it has been found, and it is not even a safe default — its cost is unbounded in the size
-  of the object graph.
-- **Fold equality into the same interface** (`compareTo` returning `0` also means `==`). Rejected: it would
-  force every class that wants a custom order to also redefine equality, and vice versa, when the two are
-  frequently independent — PHP's existing structural equality is often exactly right for a value object even
-  when a bespoke order is also wanted. Keeping them as separate concerns (*5*) means a class picks up
-  exactly the machinery its problem needs.
-- **A generic `Comparable<T>` allowing a declared non-`self` target type**, matching how a handful of other
-  languages let a type be ordered against a related-but-different type. Deferred, not rejected — MWL has no
-  general user-facing generic type beyond `array<T>` ([ADR 0007](0007-explicit-type-system.md) § 5) to build
-  it from yet; see *Revisiting*.
+- **Per-operator magic methods** (`__lessThan`, `__greaterThan`, …). Rejected: splits one logical decision
+  into up to five methods a class could implement inconsistently (`$a < $b` true but `$b > $a` false),
+  the "one operator, one API" principle [ADR 0007](0007-explicit-type-system.md),
+  [ADR 0010](0010-enums-are-a-value-type.md) and
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) already lean on.
+- **Keep PHP's property-walk fallback for classes that do not implement `Comparable`.** Rejected per
+  *Context*: ambient, undeclared behaviour, and not even a safe default — unbounded cost in the object
+  graph's size.
+- **Fold equality into the same interface** (`compareTo` returning `0` also means `==`). Rejected: would
+  force every class wanting a custom order to also redefine equality, when the two are frequently
+  independent.
+- **A generic `Comparable<T>` allowing a declared non-`self` target type.** Deferred, not rejected — MWL
+  has no general user-facing generic type beyond `array<T>` to build it from yet; see *Revisiting*.
 
 ## Revisiting
 
