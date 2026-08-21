@@ -39,7 +39,8 @@
 >
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
-> type table; 0010/0013/0014/0015/0022/0027/0028's checker-side rules; 0024 §§ 2-3's tainted propagation and
+> type table; 0010/0014/0015/0022/0027/0028's checker-side rules (0013's own is now done — see below);
+> 0024 §§ 2-3's tainted propagation and
 > laundering). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
 > PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
 > symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
@@ -121,29 +122,24 @@
 > [`check.rs`](../crates/mwl-types/src/check.rs) is the entry point (`mwl check`'s new CLI wiring
 > calls it), walking every class/interface/trait/enum's methods the same way `mwl-hir`'s
 > [`members.rs`](../crates/mwl-hir/src/members.rs) already does, seeding each body's locals from its
-> lowered parameters — `$this` included, typed as the enclosing class, newly this session — and
-> checking `return` against the lowered return type (`E_BAD_RETURN_TYPE`, reused).
+> lowered parameters — `$this` included, typed as the enclosing class — and checking `return` against
+> the lowered return type (`E_BAD_RETURN_TYPE`, reused). A [`signatures.rs`](../crates/mwl-types/src/signatures.rs)
+> module, built ahead of any body-checking, records every class/interface/trait/enum's own declared
+> property types and method parameter/return types; `resolve_property`/`resolve_method` walk
+> `extends`/`implements`/trait-use ancestors to find an inherited one, the same shape `mwl-hir`'s own
+> `member_declared` already walks for existence-only checking. [`expr.rs`](../crates/mwl-types/src/expr.rs)
+> types a property access, an instance method call, a static call/property, `new` (including `new
+> parent(...)`), and `match`/ternary as the union of their arms/branches — diagnostics are split by
+> receiver so nothing is reported twice: a `self`/`static`/`parent`/explicit-class-name static
+> reference keeps its existing `mwl-hir` `E_UNDEFINED_MEMBER`/`E_UNDEFINED_CLASS` diagnostics and only
+> gains a recovered type here, a `$this->prop` access keeps `mwl-hir`'s existing `E_UNDEFINED_PROPERTY`,
+> and every other shape — an instance method call on any receiver including `$this`, and a property
+> access on anything but `$this` — was never checked by `mwl-hir` at all (no static type to check
+> against) and gets `E_UNKNOWN_MEMBER` (`E0405`). A resolved call signature also gets positional arity
+> (`E_ARITY_MISMATCH`, `E0402`) and per-argument type checking, including a `new Foo(...)`'s arguments
+> against a resolved `constructor`.
 >
-> The prior session closed the first item of its own predecessor's follow-up list: property,
-> method-call, `new`, `match` and ternary expression typing, via a new
-> [`signatures.rs`](../crates/mwl-types/src/signatures.rs) built ahead of any body-checking —
-> [`SignatureTable`](../crates/mwl-types/src/signatures.rs) records every class/interface/trait/enum's
-> own declared property types and method parameter/return types, and `resolve_property`/
-> `resolve_method` walk `extends`/`implements`/trait-use ancestors to find an inherited one, the same
-> shape `mwl-hir`'s own `member_declared` already walks for existence-only checking.
-> [`expr.rs`](../crates/mwl-types/src/expr.rs) types a property access, an instance method call, a
-> static call/property, `new` (including `new parent(...)`), and `match`/ternary as the union of their
-> arms/branches — diagnostics are split by receiver so nothing is reported twice: a
-> `self`/`static`/`parent`/explicit-class-name static reference keeps its existing `mwl-hir`
-> `E_UNDEFINED_MEMBER`/`E_UNDEFINED_CLASS` diagnostics and only gains a recovered type here, a
-> `$this->prop` access keeps `mwl-hir`'s existing `E_UNDEFINED_PROPERTY`, and every other shape — an
-> instance method call on any receiver including `$this`, and a property access on anything but
-> `$this` — was never checked by `mwl-hir` at all (no static type to check against) and gets a new
-> `E_UNKNOWN_MEMBER` (`E0405`, previously reserved but unused) here. A resolved call signature also
-> gets positional arity (`E_ARITY_MISMATCH`, `E0402`, previously reserved but unused) and
-> per-argument type checking, including a `new Foo(...)`'s arguments against a resolved `constructor`.
->
-> This session closed the next item in that list: [ADR 0022](adr/0022-definite-property-initialization.md)
+> The prior session closed the next item in the M2 follow-up list: [ADR 0022](adr/0022-definite-property-initialization.md)
 > § 2's definite-property-initialization check, in a new
 > [`ctor_init.rs`](../crates/mwl-types/src/ctor_init.rs) — a second, narrower flow-analysis pass over
 > each class's own constructor, run right after `check.rs` checks that class's method bodies.
@@ -162,20 +158,43 @@
 > required property is refused right at that property's own declaration instead
 > (`E_UNINITIALIZED_PROPERTY`, `E0409`, newly added, for both shapes); a subclass constructor with a
 > path that never calls `parent::constructor(...)` is `E_MISSING_PARENT_CONSTRUCTOR_CALL` (`E0410`,
-> newly added). **Known gaps**, left for a follow-up session (`NEXT_SESSION_PROMPT.md` has the
-> ordering): every other ADR M2 assigns to `mwl-types` (0010/0013/0014/0024/0027/0028's checker-side
-> rules); within ADR 0022 itself, a property backed by a `set` hook is exempted from the check
-> entirely rather than verified against the hook's own body, and `ctor_init.rs`'s expression scan only
-> descends into a handful of common composite forms, so a `$this->prop = ...`/
+> newly added). Left, at the time, for a follow-up: a property backed by a `set` hook is exempted from
+> the check entirely rather than verified against the hook's own body, and `ctor_init.rs`'s expression
+> scan only descends into a handful of common composite forms, so a `$this->prop = ...`/
 > `parent::constructor(...)` buried inside a closure body or a `match` arm produces a spurious
-> diagnostic rather than being missed silently — see that module's own docs for the full list;
-> exhaustive control-flow reachability (`switch`/`try` bodies conservatively contribute nothing to
-> definite assignment after them — safe, never accepts an invalid program); references (`&$x`) needing
-> both sides to declare the same type; `parent` as a *type* atom (`parent $x`, distinct from `new
-> parent(...)`, which now resolves); a class constant's type; a promoted constructor-parameter property
-> (tracked as neither a property nor a definite-assignment obligation, mirroring a pre-existing
-> `mwl_hir::members`/`signatures.rs` gap); a named/spread call argument's positional checking; a class
-> with no explicit `constructor` is not held to a zero-argument arity check on `new`, nor to the
+> diagnostic rather than being missed silently — see that module's own docs for the full list.
+>
+> This session closed the next item: [ADR 0013](adr/0013-comparable-interface.md)'s `Comparable`
+> interface, entirely inside `mwl-hir`/`mwl-types` — no new syntax, since `interface`/`implements` were
+> already parseable. [`QName::is_reserved_global_interface`](../crates/mwl-hir/src/qname.rs) marks
+> `Comparable` (by bare name, not under `Core`) as trusted to exist without a source declaration, the
+> same way [`QName::is_core`] already trusts `Core\*` — [`hierarchy::resolve_supertype`](../crates/mwl-hir/src/hierarchy.rs)
+> now checks it alongside `is_core()`, so `class Money implements Comparable {}` resolves with no
+> interface declaration anywhere. A new [`hierarchy::implements_interface`](../crates/mwl-hir/src/hierarchy.rs)
+> walks every `extends`/`implements`/trait-use ancestor (the same shape `signatures::resolve_method`
+> already walks) asking a plain reachability question — "is `target` anywhere in this chain" — rather
+> than resolving a member, so it works unchanged whether `target` is an ordinary declared interface or
+> a reserved one with no `ClassGraph` entry of its own. [`expr.rs`](../crates/mwl-types/src/expr.rs)'s
+> `binary_result` now routes `< <= > >= <=>` through a new `object_comparison_result` whenever *both*
+> operands are `Ty::Class` (an enum operand, or a `mixed`/scalar one, is untouched — this only amends
+> ADR 0007 § 4's table with the object-operand row ADR 0013 § 6 adds): two different classes, or a
+> class not provably implementing `Comparable`, is `E_COMPARISON_REQUIRES_COMPARABLE` (`E0411`, newly
+> added); the same class provably implementing it types as `bool` (`int` for `<=>`), matching *Decision
+> § 6*'s table. **Known gap:** this only checks *that* the class implements `Comparable`, never that it
+> actually declares a matching `compareTo` — no ADR has asked for general interface-method-completeness
+> checking yet (no interface's methods are verified against any implementer today, for any interface),
+> so a class claiming `implements Comparable` with no `compareTo` at all still type-checks; running
+> `compareTo` and diagnosing that gap both wait for a later milestone/ADR.
+>
+> **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): every other ADR
+> M2 assigns to it (0010/0014/0024/0027/0028's checker-side rules); exhaustive control-flow
+> reachability (`switch`/`try` bodies conservatively contribute nothing to definite assignment after
+> them — safe, never accepts an invalid program); references (`&$x`) needing both sides to declare the
+> same type; `parent` as a *type* atom (`parent $x`, distinct from `new parent(...)`, which now
+> resolves); a class constant's type; a promoted constructor-parameter property (tracked as neither a
+> property nor a definite-assignment obligation, mirroring a pre-existing `mwl_hir::members`/
+> `signatures.rs` gap); a named/spread call argument's positional checking; a class with no explicit
+> `constructor` is not held to a zero-argument arity check on `new`, nor to the
 > `parent::constructor(...)` obligation. `mwl-ir` hasn't started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,

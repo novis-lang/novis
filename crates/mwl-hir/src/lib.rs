@@ -55,7 +55,7 @@ pub mod resolve;
 pub mod symbol;
 
 pub use aliases::{AliasResolver, AliasTable};
-pub use hierarchy::{ClassGraph, ClassLinks, HierarchyResolver, resolve_ref};
+pub use hierarchy::{ClassGraph, ClassLinks, HierarchyResolver, implements_interface, resolve_ref};
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
 pub use requires::resolve_program;

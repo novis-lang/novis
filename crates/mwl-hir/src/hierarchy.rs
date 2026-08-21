@@ -381,7 +381,7 @@ fn resolve_supertype(
     diags: &mut Diagnostics,
 ) -> Option<QName> {
     let qname = resolve_ref(&raw.text, &pending.namespace, &pending.imports);
-    if qname.is_core() {
+    if qname.is_core() || qname.is_reserved_global_interface() {
         return Some(qname);
     }
     match symbols.get(&qname) {
@@ -473,6 +473,40 @@ fn check_trait_conflicts(
             );
         }
     }
+}
+
+/// Whether `qname` is provably known to implement `target` — walking every
+/// `extends`/`implements`/trait-use ancestor, the same shape
+/// [`crate::members::member_declared`] and every `mwl-types` signature
+/// lookup already walk, generalised here to a plain reachability question
+/// rather than a member lookup. `target` itself need not have a
+/// [`ClassGraph`] entry — a reserved global interface like ADR 0013's
+/// `Comparable` never does, since equality against it is checked before ever
+/// calling [`ClassGraph::get`] on it.
+#[must_use]
+pub fn implements_interface(qname: &QName, target: &QName, graph: &ClassGraph) -> bool {
+    let mut seen = FxHashSet::default();
+    implements_interface_rec(qname, target, graph, &mut seen)
+}
+
+fn implements_interface_rec(
+    qname: &QName,
+    target: &QName,
+    graph: &ClassGraph,
+    seen: &mut FxHashSet<QName>,
+) -> bool {
+    if !seen.insert(qname.clone()) {
+        return false;
+    }
+    let Some(links) = graph.get(qname) else {
+        return false;
+    };
+    links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .chain(links.traits.iter())
+        .any(|parent| parent == target || implements_interface_rec(parent, target, graph, seen))
 }
 
 /// Walks every `extends`/trait-use edge looking for a cycle, reporting
@@ -630,6 +664,61 @@ mod tests {
                 .iter()
                 .any(|d| d.code == Some(code::E_TRAIT_METHOD_CONFLICT))
         );
+    }
+
+    #[test]
+    fn implementing_the_reserved_comparable_interface_needs_no_declaration() {
+        let (graph, diags) = resolve("<?mwl\nclass Money implements Comparable {}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        let links = graph.get(&QName::parse("Money")).unwrap();
+        assert_eq!(links.implements, vec![QName::parse("Comparable")]);
+    }
+
+    #[test]
+    fn implements_interface_finds_a_directly_implemented_interface() {
+        let (graph, diags) = resolve("<?mwl\nclass Money implements Comparable {}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(implements_interface(
+            &QName::parse("Money"),
+            &QName::parse("Comparable"),
+            &graph
+        ));
+    }
+
+    #[test]
+    fn implements_interface_walks_up_a_superclass() {
+        let (graph, diags) =
+            resolve("<?mwl\nclass Money implements Comparable {}\nclass Cents extends Money {}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(implements_interface(
+            &QName::parse("Cents"),
+            &QName::parse("Comparable"),
+            &graph
+        ));
+    }
+
+    #[test]
+    fn implements_interface_walks_an_interface_extends_chain() {
+        let (graph, diags) = resolve(
+            "<?mwl\ninterface Shape extends Comparable {}\nclass Box implements Shape {}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(implements_interface(
+            &QName::parse("Box"),
+            &QName::parse("Comparable"),
+            &graph
+        ));
+    }
+
+    #[test]
+    fn implements_interface_is_false_when_unrelated() {
+        let (graph, diags) = resolve("<?mwl\nclass Plain {}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(!implements_interface(
+            &QName::parse("Plain"),
+            &QName::parse("Comparable"),
+            &graph
+        ));
     }
 
     #[test]

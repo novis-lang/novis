@@ -99,6 +99,18 @@ impl QName {
             .first()
             .is_some_and(|s| s.eq_ignore_ascii_case("Core"))
     }
+
+    /// Whether this name is one of the handful of global, reserved
+    /// interfaces the compiler itself knows about — `Comparable`
+    /// ([ADR 0013](../../../docs/adr/0013-comparable-interface.md)) so far —
+    /// the same "trusted to exist, never declared in source" treatment
+    /// [`Self::is_core`] gives `Core`, extended one bare name at a time as
+    /// each such ADR lands (`Stringable`/`PropertyObserver` are named in ADR
+    /// 0028/0014 the same way, but neither is implemented yet).
+    #[must_use]
+    pub fn is_reserved_global_interface(&self) -> bool {
+        self.segments.len() == 1 && self.segments[0] == "Comparable"
+    }
 }
 
 impl fmt::Display for QName {

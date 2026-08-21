@@ -266,6 +266,12 @@ pub mod code {
     /// `parent::constructor(...)`, so the properties it inherits are never
     /// discharged on that path; see ADR 0022 § 2.
     pub const E_MISSING_PARENT_CONSTRUCTOR_CALL: Code = Code::new("E0410");
+    /// `<`/`>`/`<=`/`>=`/`<=>` between two objects whose static types are not
+    /// both provably the same class implementing the reserved global
+    /// `Comparable` interface — either one side doesn't implement it, or the
+    /// two sides are different classes even though both do; see ADR 0013
+    /// §§ 3-4. PHP's implicit property-walk fallback has no MWL equivalent.
+    pub const E_COMPARISON_REQUIRES_COMPARABLE: Code = Code::new("E0411");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

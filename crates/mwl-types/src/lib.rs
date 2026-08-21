@@ -27,14 +27,15 @@
 //!   local-variable declare-once checking and flow-sensitive definite
 //!   assignment.
 //! - [`expr`] — [`expr::check_expr`]: a bidirectional expression checker —
-//!   literals, variable reads, the binary-operator result-type table,
-//!   `as`/cast conversions, array literals checked against a target element
-//!   type, and (using [`signatures`]) property access, method calls, static
-//!   calls/properties, `new` (including argument checking against a
-//!   resolved `constructor`), and `match`/ternary as the union of their
-//!   branches' types. See [`expr`]'s own docs for exactly which receiver
-//!   shapes resolve and which diagnostics belong to this crate versus
-//!   `mwl_hir::members`.
+//!   literals, variable reads, the binary-operator result-type table
+//!   (including ADR 0013's `Comparable` amendment for `< <= > >= <=>`
+//!   between two objects), `as`/cast conversions, array literals checked
+//!   against a target element type, and (using [`signatures`]) property
+//!   access, method calls, static calls/properties, `new` (including
+//!   argument checking against a resolved `constructor`), and
+//!   `match`/ternary as the union of their branches' types. See [`expr`]'s
+//!   own docs for exactly which receiver shapes resolve and which
+//!   diagnostics belong to this crate versus `mwl_hir::members`.
 //! - [`check`] — [`check::check_program`]: the entry point, walking a
 //!   resolved [`mwl_hir::Module`]'s classes and methods the same way
 //!   [`mwl_hir::members`] already does, seeding each method body's
@@ -55,12 +56,18 @@
 //! `NEXT_SESSION_PROMPT.md` for the ordering):
 //!
 //! - ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
-//!   symbol", ADR 0013 (`Comparable`), ADR 0014's interplay with a typed
-//!   receiver, ADR 0024 (tainted propagation/laundering), ADR 0027
-//!   (`callable` value-shape checking), ADR 0028 (`Stringable`, `unset()`
-//!   refusal). ADR 0022 (definite *property* initialization) is now done for
-//!   the shapes its own M2 corpus names — see [`ctor_init`]'s docs for what
-//!   is deliberately still out of scope within that ADR specifically.
+//!   symbol", ADR 0014's interplay with a typed receiver, ADR 0024 (tainted
+//!   propagation/laundering), ADR 0027 (`callable` value-shape checking),
+//!   ADR 0028 (`Stringable`, `unset()` refusal). ADR 0022 (definite
+//!   *property* initialization) is now done for the shapes its own M2 corpus
+//!   names — see [`ctor_init`]'s docs for what is deliberately still out of
+//!   scope within that ADR specifically. ADR 0013 (`Comparable`) is now done
+//!   too — see [`expr`]'s `object_comparison_result` for the one thing it
+//!   doesn't check: that a class claiming `implements Comparable` actually
+//!   declares a matching `compareTo` at all, since no ADR has asked for
+//!   general interface-method-completeness checking yet (no interface's
+//!   methods are verified against its implementers today, for any
+//!   interface).
 //! - Exhaustive control-flow reachability (e.g. "every path through this
 //!   non-void function returns"); `switch` and `try`/`catch` bodies
 //!   conservatively contribute nothing to definite-assignment after them —

@@ -693,11 +693,12 @@ fn cast_result_type(ty: CastType, env: &mut Env<'_>) -> TypeId {
     }
 }
 
-/// The binary-operator result-type table, ADR 0007 § 4. Only `int`/`uint`/
-/// `float` operands are modeled this slice — anything else (a class,
-/// `mixed`, an unresolved call result) falls back to `mixed` rather than
-/// diagnosing, since neither `Comparable` (ADR 0013) nor a general operator-
-/// overload rule is implemented yet.
+/// The binary-operator result-type table, ADR 0007 § 4, amended by ADR 0013
+/// § 6 for `< <= > >= <=>` when both operands are objects. Beyond that one
+/// amendment, only `int`/`uint`/`float` operands are modeled this slice —
+/// anything else (`mixed`, an unresolved call result) falls back to `mixed`
+/// rather than diagnosing, since no general operator-overload rule is
+/// implemented yet.
 fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
     match op {
         BinaryOp::Concat => env.interner.string(),
@@ -708,15 +709,17 @@ fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut E
         BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr => {
             bitwise_result(lhs, rhs, span, env)
         }
-        BinaryOp::Cmp => env.interner.int(),
+        BinaryOp::Cmp => {
+            object_comparison_result(op, lhs, rhs, span, env).unwrap_or_else(|| env.interner.int())
+        }
+        BinaryOp::Lt | BinaryOp::LtEq | BinaryOp::Gt | BinaryOp::GtEq => {
+            object_comparison_result(op, lhs, rhs, span, env)
+                .unwrap_or_else(|| env.interner.bool_ty())
+        }
         BinaryOp::Eq
         | BinaryOp::NotEq
         | BinaryOp::Identical
         | BinaryOp::NotIdentical
-        | BinaryOp::Lt
-        | BinaryOp::LtEq
-        | BinaryOp::Gt
-        | BinaryOp::GtEq
         | BinaryOp::And
         | BinaryOp::Or
         | BinaryOp::LowAnd
@@ -725,6 +728,65 @@ fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut E
         BinaryOp::Coalesce => env.interner.make_union([lhs, rhs]),
         _ => env.interner.mixed(),
     }
+}
+
+/// ADR 0013 §§ 2-4: `< <= > >= <=>` lower to a `compareTo` call when both
+/// operands are objects, so ordering them requires both sides to be the same
+/// class and that class to (transitively) implement the reserved global
+/// `Comparable` interface — returns `None` when either operand isn't a class
+/// at all, leaving [`binary_result`]'s ordinary scalar/`mixed` fallback in
+/// place untouched, since this ADR only amends ADR 0007 § 4's table with a
+/// new object-operand row rather than replacing it. An enum operand
+/// (`Ty::Enum`) is deliberately not treated as an object here either — ADR
+/// 0010's own item (still unimplemented) is what would say whether an enum
+/// can ever be `Comparable`.
+fn object_comparison_result(
+    op: BinaryOp,
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let (Ty::Class(lhs_q), Ty::Class(rhs_q)) =
+        (env.interner.get(lhs).clone(), env.interner.get(rhs).clone())
+    else {
+        return None;
+    };
+    if lhs_q != rhs_q {
+        report_comparable_diagnostic(
+            span,
+            format!(
+                "`{lhs_q}` and `{rhs_q}` are different classes; `<`/`<=`/`>`/`>=`/`<=>` never \
+                 compare across classes, even when both implement `Comparable`"
+            ),
+            env,
+        );
+        return Some(env.interner.mixed());
+    }
+    let comparable = QName::parse("Comparable");
+    if !mwl_hir::implements_interface(&lhs_q, &comparable, env.graph) {
+        report_comparable_diagnostic(
+            span,
+            format!(
+                "`{lhs_q}` does not implement `Comparable`; ordering two objects with \
+                 `<`/`<=`/`>`/`>=`/`<=>` requires it"
+            ),
+            env,
+        );
+        return Some(env.interner.mixed());
+    }
+    Some(match op {
+        BinaryOp::Cmp => env.interner.int(),
+        _ => env.interner.bool_ty(),
+    })
+}
+
+fn report_comparable_diagnostic(span: Span, message: String, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(code::E_COMPARISON_REQUIRES_COMPARABLE, message)
+            .with_primary(span, "compared here")
+            .with_help("implement `Comparable`'s `compareTo(self $other): int` on the class"),
+    );
 }
 
 fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
