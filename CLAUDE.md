@@ -143,3 +143,7 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   contested; otherwise a paragraph in *Decisions taken at project start* in
   [docs/adr/README.md](docs/adr/README.md).
 - Crates for later milestones are created when their milestone starts, not left sitting empty.
+
+
+## Keep work small, commit your work
+- Always commit your work, when a step is done, you dont need to verify the history before, just commit everything that has changed
