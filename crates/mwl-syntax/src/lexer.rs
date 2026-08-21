@@ -1183,6 +1183,21 @@ mod tests {
     }
 
     #[test]
+    fn secret_is_a_keyword() {
+        // ADR 0033 § 1: `secret` needs its own new reserved keyword,
+        // independent of `tainted`'s.
+        assert_eq!(
+            kinds_ok("<?mwl secret string"),
+            vec![
+                OpenTagMwl,
+                Keyword(super::Keyword::Secret),
+                Keyword(super::Keyword::String),
+                Eof
+            ]
+        );
+    }
+
+    #[test]
     fn spawn_script_with_are_contextual_not_reserved() {
         // These must lex as plain identifiers -- the grammar recognises them
         // by text only at the one position each is meaningful, per

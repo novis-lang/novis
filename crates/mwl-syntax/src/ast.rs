@@ -108,6 +108,21 @@ pub enum TypeAtom {
     /// `tainted bytes` — ADR 0024 § 1, the `Bytes` counterpart of
     /// [`Self::TaintedString`].
     TaintedBytes,
+    /// `secret string` — ADR 0033 § 1. A second compile-time qualifier,
+    /// independent of `tainted`: same "own atom, not a generic wrapper"
+    /// shape as [`Self::TaintedString`], for the same reason (the grammar
+    /// restricts `secret` to exactly `string`/`bytes`).
+    SecretString,
+    /// `secret bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// [`Self::SecretString`].
+    SecretBytes,
+    /// `secret tainted string` — ADR 0033 § 1: both qualifiers composed.
+    /// `secret` must be spelled first; `tainted secret string` is a
+    /// diagnostic, not a second valid spelling of this atom.
+    SecretTaintedString,
+    /// `secret tainted bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// [`Self::SecretTaintedString`].
+    SecretTaintedBytes,
     /// `array`, or `array<T>` when a type argument is given.
     Array(Option<Box<Type>>),
     /// `object`

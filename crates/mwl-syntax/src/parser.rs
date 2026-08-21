@@ -466,6 +466,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     | Keyword::String
                     | Keyword::Bytes
                     | Keyword::Tainted
+                    | Keyword::Secret
                     | Keyword::Array
                     | Keyword::Object
                     | Keyword::Mixed
@@ -632,6 +633,33 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let atom = match inner.kind {
                     TypeKind::Atom(TypeAtom::String) => TypeAtom::TaintedString,
                     TypeKind::Atom(TypeAtom::Bytes) => TypeAtom::TaintedBytes,
+                    TypeKind::Atom(
+                        TypeAtom::SecretString
+                        | TypeAtom::SecretBytes
+                        | TypeAtom::SecretTaintedString
+                        | TypeAtom::SecretTaintedBytes,
+                    ) => {
+                        // ADR 0033 § 1: `secret` and `tainted` compose, but
+                        // only `secret` first — `inner` already built a
+                        // `Secret*` atom, meaning the source spelled `secret`
+                        // before this `tainted`, i.e. wrote the rejected
+                        // order (`tainted secret string`).
+                        self.diags.report(
+                            Diagnostic::error(
+                                code::E_SECRET_TAINTED_ORDER,
+                                "`secret` must come before `tainted`",
+                            )
+                            .with_primary(span, "wrong qualifier order")
+                            .with_help(
+                                "write `secret tainted string`/`secret tainted bytes` \
+                                 (ADR 0033 § 1)",
+                            ),
+                        );
+                        return Type {
+                            kind: inner.kind,
+                            span,
+                        };
+                    }
                     _ => {
                         self.diags.report(
                             Diagnostic::error(
@@ -640,6 +668,35 @@ impl<'src, 'd> Parser<'src, 'd> {
                             )
                             .with_primary(span, "not a scalar `tainted` can qualify")
                             .with_help("write `tainted string` or `tainted bytes` (ADR 0024 § 1)"),
+                        );
+                        return Type {
+                            kind: inner.kind,
+                            span,
+                        };
+                    }
+                };
+                Type {
+                    kind: TypeKind::Atom(atom),
+                    span,
+                }
+            }
+            TokenKind::Keyword(Keyword::Secret) => {
+                self.bump();
+                let inner = self.parse_type_atom();
+                let span = start.to(inner.span);
+                let atom = match inner.kind {
+                    TypeKind::Atom(TypeAtom::String) => TypeAtom::SecretString,
+                    TypeKind::Atom(TypeAtom::Bytes) => TypeAtom::SecretBytes,
+                    TypeKind::Atom(TypeAtom::TaintedString) => TypeAtom::SecretTaintedString,
+                    TypeKind::Atom(TypeAtom::TaintedBytes) => TypeAtom::SecretTaintedBytes,
+                    _ => {
+                        self.diags.report(
+                            Diagnostic::error(
+                                code::E_SECRET_NON_SCALAR,
+                                "`secret` only qualifies `string`/`bytes`",
+                            )
+                            .with_primary(span, "not a scalar `secret` can qualify")
+                            .with_help("write `secret string` or `secret bytes` (ADR 0033 § 1)"),
                         );
                         return Type {
                             kind: inner.kind,
@@ -4746,6 +4803,118 @@ mod tests {
                 .iter()
                 .any(|d| d.code == Some(code::E_TAINTED_NON_SCALAR)),
             "expected E_TAINTED_NON_SCALAR, got {diags:?}"
+        );
+    }
+
+    #[test]
+    fn secret_qualifies_string_and_bytes_independently_of_tainted() {
+        // ADR 0033 § 1: `secret` and `tainted` are independent bits — a value
+        // can be `secret string`/`secret bytes` alone, or composed with
+        // `tainted` (only in that order).
+        let e = parse_ok("$m as secret string");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::SecretString)));
+
+        let e = parse_ok("$m as secret bytes");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::SecretBytes)));
+
+        let e = parse_ok("$m as secret tainted string");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(
+            ty.kind,
+            TypeKind::Atom(TypeAtom::SecretTaintedString)
+        ));
+
+        let e = parse_ok("$m as secret tainted bytes");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(
+            ty.kind,
+            TypeKind::Atom(TypeAtom::SecretTaintedBytes)
+        ));
+    }
+
+    #[test]
+    fn secret_qualifier_parses_in_every_declaration_slot() {
+        // Mirrors `tainted_qualifier_parses_in_every_declaration_slot` —
+        // parameter, return type, property, local declaration, `foreach`
+        // binding (ADR 0033 § 1).
+        let s = parse_stmt_ok(
+            "class C { \
+             public function f(secret string $s): secret bytes { return $s as bytes; } \
+             public secret string $p; \
+             } \
+             ",
+        );
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        let ClassMemberKind::Method(m) = &class.members[0].kind else {
+            panic!("expected a method: {:?}", class.members[0]);
+        };
+        assert!(matches!(
+            m.params[0].ty.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::SecretString))
+        ));
+        assert!(matches!(
+            m.return_type.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::SecretBytes))
+        ));
+        let ClassMemberKind::Property(prop) = &class.members[1].kind else {
+            panic!("expected a property: {:?}", class.members[1]);
+        };
+        assert!(matches!(
+            prop.ty.kind,
+            TypeKind::Atom(TypeAtom::SecretString)
+        ));
+
+        // Local declaration.
+        let s = parse_stmt_ok("secret string $q;");
+        let StmtKind::LocalDecl { ty, .. } = s.kind else {
+            panic!("expected a local decl: {s:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::SecretString)));
+
+        // `foreach` binding.
+        let s = parse_stmt_ok("foreach ($rows as secret string $row) { }");
+        let StmtKind::Foreach { value, .. } = s.kind else {
+            panic!("expected a foreach: {s:?}");
+        };
+        assert!(matches!(
+            value.ty.as_ref().map(|t| &t.kind),
+            Some(TypeKind::Atom(TypeAtom::SecretString))
+        ));
+    }
+
+    #[test]
+    fn secret_rejects_a_non_scalar_operand() {
+        let (_, diags) = parse_with_diags("$m as secret int");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_SECRET_NON_SCALAR)),
+            "expected E_SECRET_NON_SCALAR, got {diags:?}"
+        );
+    }
+
+    #[test]
+    fn tainted_secret_wrong_order_is_diagnosed() {
+        // ADR 0033 § 1: `secret` must be spelled before `tainted` — the
+        // reverse order is a diagnostic, not a second valid spelling.
+        let (_, diags) = parse_with_diags("$m as tainted secret string");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_SECRET_TAINTED_ORDER)),
+            "expected E_SECRET_TAINTED_ORDER, got {diags:?}"
         );
     }
 

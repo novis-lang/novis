@@ -119,6 +119,15 @@ pub mod code {
     /// §§ 2-3: MWL's constructor is spelled `constructor`, an ordinary
     /// `camelCase` method name needing no exception of its own.
     pub const E_LEGACY_CONSTRUCTOR_SPELLING: Code = Code::new("E0114");
+    /// `secret` applied to anything other than `string`/`bytes` — the
+    /// qualifier's grammar restricts it to those two scalars, the same
+    /// restriction `E_TAINTED_NON_SCALAR` enforces for `tainted`; see
+    /// ADR 0033 § 1.
+    pub const E_SECRET_NON_SCALAR: Code = Code::new("E0115");
+    /// `tainted secret string`/`tainted secret bytes`: `secret` and `tainted`
+    /// compose, but only in the order `secret` before `tainted` — see
+    /// ADR 0033 § 1.
+    pub const E_SECRET_TAINTED_ORDER: Code = Code::new("E0116");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs

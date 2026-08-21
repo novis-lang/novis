@@ -37,11 +37,23 @@
 > module docs carry the current list of known parser gaps (`goto` labels, PHP's alternative colon
 > syntax deliberately out of scope) for whoever next touches the grammar.
 >
-> **M1 gains a second pending grammar item:** [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)
-> § 1 adds `secret` as a qualifier independent of and composable with `tainted` (`secret string`,
-> `secret tainted string`, required in that order) — not yet implemented in `mwl-syntax`, so M1's "done" status
-> above does not yet cover ADR 0033's scope, the same situation `tainted` itself was in before its own grammar
-> addition landed.
+> **M1's second pending grammar item is now landed:** [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)
+> § 1's `secret` qualifier — independent of and composable with `tainted` — is implemented in `mwl-syntax`
+> the same way `tainted` itself was: a new `Keyword::Secret`, and `SecretString`/`SecretBytes`/
+> `SecretTaintedString`/`SecretTaintedBytes` atoms alongside the existing `TaintedString`/`TaintedBytes` pair.
+> `parse_type_atom`'s `Secret` arm recurses into `parse_type_atom` for its operand exactly as the `Tainted`
+> arm already did, so `secret tainted string` composes for free — the recursive `tainted` call lands on the
+> already-built `SecretString`/`SecretBytes` atom and wraps it into `SecretTaintedString`/`SecretTaintedBytes`.
+> The wrong order (`tainted secret string`) is caught by teaching the `Tainted` arm to recognize an
+> already-`Secret*` inner atom and report `E_SECRET_TAINTED_ORDER` (`E0116`, newly added) naming the required
+> `secret`-before-`tainted` spelling, rather than falling through to the generic `E_TAINTED_NON_SCALAR`; a
+> `secret`-qualified non-scalar (`secret int`) gets its own `E_SECRET_NON_SCALAR` (`E0115`, newly added),
+> mirroring `E_TAINTED_NON_SCALAR` exactly. Round-trip tests cover every declaration slot `tainted`'s own
+> tests already cover (parameter, return type, property, local declaration, `foreach` binding), plus the
+> `secret tainted`/`tainted secret` order pair, in both `mwl-syntax`'s lexer and parser test modules.
+> `mwl-types`' `lower_atom` match already had a wildcard arm (`TypeAtom` is `#[non_exhaustive]`), so the four
+> new atoms fall through to `mixed` there for now — modeling `secret`'s actual propagation/laundering/sink
+> rules (ADR 0033 §§ 2-4) is unstarted, tracked as an M2 follow-up alongside `tainted`'s own §§ 2-3.
 >
 > **M1 retires a grammar item instead of adding one:** [ADR 0034](adr/0034-legacy-cast-syntax-rejected.md)
 > rejects PHP's legacy `(int)$x`-style cast syntax outright — `ExprKind::Cast`/`CastType` are gone from
@@ -71,7 +83,7 @@
 > type table; 0010/0014/0015/0022/0027/0028's checker-side rules (0013's own is now done — see below);
 > 0024 §§ 2-3's tainted propagation and
 > laundering; 0033 §§ 2-4's secret propagation, checked-conversion laundering, and its `Markup`/`Throwable`-message
-> sink refusals, once ADR 0033's grammar addition lands in M1). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
+> sink refusals, now that ADR 0033's grammar addition has landed in M1). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
 > PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
 > symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
 > diagnostics (`E0304`), `use`-import resolution against that table with `Core` targets trusted rather
@@ -634,6 +646,12 @@ complete — a real, if small, addition discovered after the parser was first re
 new here: `type Name = TypeExpr;` ([ADR 0015](adr/0015-no-name-aliasing.md)), a file/namespace-scope
 declaration using the same grammar, parsed but not yet resolved — that is M2's job.
 
+**Added after that, a second time:** the `secret` qualifier on `string`/`bytes`
+([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) is a second, independent reserved-keyword
+qualifier alongside `tainted` — `secret string`, `secret bytes`, and, composed with `tainted`, `secret
+tainted string`/`secret tainted bytes` (only in that order; the reverse is a diagnostic). Same reasoning as
+`tainted`'s own addition above: parsing it is this milestone's job, enforcing it is M2's.
+
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing (they will
 not *check* — see M2 — but they must parse). A snapshot pins the one grammar wrinkle in ADR 0007: `as` in a
@@ -698,8 +716,9 @@ and a class with no constructor and no inline default for a non-nullable propert
 entries: a `tainted` value concatenated into a sink requiring the plain type is refused, naming the
 qualifier and the sink; a checked `as uint`/enum conversion on a tainted source produces an unqualified
 result with no extra syntax; `tainted string as Markup` is refused even though a literal succeeds. Plus
-[ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)'s own entries (once its § 1 grammar addition
-lands): a `secret` value poisons through concatenation/interpolation independently of `tainted`; a checked
+[ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)'s own entries (its § 1 grammar addition has
+landed; these wait on §§ 2-4's checker-side propagation, still unstarted): a `secret` value poisons through
+concatenation/interpolation independently of `tainted`; a checked
 `as uint`/enum conversion on a secret source strips `secret` (and `tainted`, if present) with no diagnostic;
 a `secret` value reaching a `Markup`-building interpolation position is refused even though the equivalent
 `tainted`-only value is auto-escaped; a `secret` value passed as a `Throwable` message argument is refused;
