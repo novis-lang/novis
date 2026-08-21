@@ -307,6 +307,77 @@ mod tests {
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
+    /// `locals::check_stmt`'s `Switch` arm: every case ends in a `break`, and
+    /// a `default` covers "no case matched" — so `$n` reads fine after it.
+    #[test]
+    fn a_switch_with_default_and_a_break_in_every_case_assigns_definitely() {
+        let diags = check_in_method(
+            "int $n;\nswitch (1) {\ncase 1:\n  $n = 1;\n  break;\ndefault:\n  $n = 2;\n  break;\n}\necho $n;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// Same shape but with no `default` arm: "no case matched" is a real
+    /// path that leaves `$n` unassigned, so the read is still diagnosed.
+    #[test]
+    fn a_switch_with_no_default_never_assigns_definitely() {
+        let diags =
+            check_in_method("int $n;\nswitch (1) {\ncase 1:\n  $n = 1;\n  break;\n}\necho $n;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A case that falls through with no `break` contributes nothing on its
+    /// own, but the case it falls into still counts — so this still assigns
+    /// definitely on every path (direct jump to either `case`, or fallthrough
+    /// from `case 1` into `case 2`).
+    #[test]
+    fn a_switch_case_falling_through_into_an_assigning_case_still_assigns_definitely() {
+        let diags = check_in_method(
+            "int $n;\nswitch (1) {\ncase 1:\n  $n = 1;\ncase 2:\n  $n = 2;\n  break;\ndefault:\n  $n = 3;\n  break;\n}\necho $n;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `locals::check_stmt`'s `Try` arm: `body` completing and `catch`
+    /// completing both assign `$n`, so it reads fine afterward.
+    #[test]
+    fn a_try_and_its_catch_both_assigning_reads_fine_after() {
+        let diags = check_in_method(
+            "int $n;\ntry {\n  $n = 1;\n} catch (Exception $e) {\n  $n = 2;\n}\necho $n;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The `catch` doesn't assign `$n`, so it isn't definite on every path —
+    /// unlike the fully-conservative old behavior, this now depends on
+    /// what's actually inside `catch`, not just that a `try` was involved.
+    #[test]
+    fn a_try_whose_catch_does_not_assign_is_still_diagnosed() {
+        let diags =
+            check_in_method("int $n;\ntry {\n  $n = 1;\n} catch (Exception $e) {\n}\necho $n;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
+            "{diags:?}"
+        );
+    }
+
+    /// `finally` always runs, so its assignment carries forward even though
+    /// neither `body` nor any `catch` touches `$n` at all.
+    #[test]
+    fn a_trys_finally_assignment_reads_fine_after_it() {
+        let diags = check_in_method(
+            "int $n;\ntry {\n  echo \"ok\";\n} finally {\n  $n = 1;\n}\necho $n;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
     /// ADR 0035: a condition — `if`/`while`/`for`'s middle clause/`?:`/`&&`/
     /// `||`/`!` — accepts any type at all, judged by PHP's full truthy table
     /// at runtime, never `E_TYPE_MISMATCH` for not already being `bool`.
@@ -520,6 +591,31 @@ mod tests {
             "<?mwl\nclass Base {}\nclass Sub extends Base {\n  function m(): void {\n    Base $x = new parent();\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `parent` as a *type* atom (a parameter here) — distinct from `new
+    /// parent(...)`, which the previous test already covers — resolves
+    /// against the same `extends` link.
+    #[test]
+    fn a_parent_typed_parameter_resolves_to_the_parent_class() {
+        let diags = check_src(
+            "<?mwl\nclass Base {}\nclass Sub extends Base {\n  function m(parent $x): void {\n    Base $y = $x;\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// A class with no `extends` has no parent for the `parent` type atom to
+    /// name — diagnosed rather than silently `mixed`, unlike `new
+    /// parent(...)`'s deliberate silent fallback for the same shape.
+    #[test]
+    fn a_parent_type_atom_with_no_extends_is_diagnosed() {
+        let diags = check_src("<?mwl\nclass Base {\n  function m(parent $x): void {\n  }\n}\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_NO_PARENT_CLASS)),
+            "{diags:?}"
+        );
     }
 
     #[test]

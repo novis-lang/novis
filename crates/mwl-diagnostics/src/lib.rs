@@ -347,6 +347,10 @@ pub mod code {
     /// credential ending up in a stack trace or an error page. See ADR 0033
     /// § 4.
     pub const E_SECRET_THROWABLE_MESSAGE: Code = Code::new("E0422");
+    /// The `parent` type atom (`parent $x`, a parameter/property/return
+    /// position — distinct from `new parent(...)`, which silently falls back
+    /// to `mixed` for the same shape) used in a class with no `extends`.
+    pub const E_NO_PARENT_CLASS: Code = Code::new("E0423");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

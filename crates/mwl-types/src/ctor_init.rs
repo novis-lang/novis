@@ -20,11 +20,11 @@
 //! `crate::expr::check_assign`'s own "only `=` counts" rule for locals)
 //! and `parent::constructor(...)` are reached on every path. [`walk_stmt`]
 //! threads one [`InitState`] through the same control-flow shape
-//! [`crate::locals::check_block`] does — `if`/`else` join by intersecting,
-//! `switch`/`try`'s body and catches conservatively contributing nothing
-//! (only `finally` and a `do`-`while` body, which always run, do) — see that
-//! module's own docs for why those particular gaps are safe: they can only
-//! make this checker reject a valid program, never accept an invalid one.
+//! [`crate::locals::check_block`] does — `if`/`else`, `switch` and `try`/
+//! `catch` all join by intersecting every branch that can finish normally
+//! (a `do`-`while` body, which always runs, needs no join at all) — see that
+//! module's own docs for the reasoning, which carries over unchanged with
+//! [`InitState`] standing in for `live`.
 //! Rather than computing a whole-body "definitely assigned" set once and
 //! diagnosing at the end the way [`crate::locals`] does for a local read,
 //! [`finish`] runs at every point a path can leave the constructor (an
@@ -284,14 +284,33 @@ fn walk_stmt(
         }
         StmtKind::Switch { subject, cases } => {
             scan_expr(subject, state, env);
-            // Conservatively contributes nothing to the state after the
-            // switch — same known gap as `crate::locals`'s own `Switch` arm.
-            for case in cases {
+            // Same join as `crate::locals`'s own `Switch` arm: a case
+            // contributes only when it definitely exits after the switch —
+            // ending in a bare `break`/`continue`, or being the last case and
+            // falling off the end — excluding one that always
+            // returns/throws instead, and joining in the pre-switch `state`
+            // too when there's no `default` (see that module's docs for why).
+            let last_index = cases.len().saturating_sub(1);
+            let mut candidates: Vec<InitState> = Vec::new();
+            for (i, case) in cases.iter().enumerate() {
                 let mut case_state = state.clone();
                 if let Some(c) = &case.cond {
                     scan_expr(c, &mut case_state, env);
                 }
-                walk_stmts(&case.body, &mut case_state, obligations, env);
+                let terminates = walk_stmts(&case.body, &mut case_state, obligations, env);
+                if terminates {
+                    continue;
+                }
+                let exits = case.body.last();
+                if exits.is_some_and(crate::locals::ends_in_break_or_continue) || i == last_index {
+                    candidates.push(case_state);
+                }
+            }
+            if cases.iter().all(|c| c.cond.is_some()) {
+                candidates.push(state.clone());
+            }
+            if let Some(merged) = candidates.into_iter().reduce(InitState::merge) {
+                *state = merged;
             }
             false
         }
@@ -300,16 +319,38 @@ fn walk_stmt(
             catches,
             finally,
         } => {
+            // Same join as `crate::locals`'s own `Try` arm: `body`/each
+            // `catch` start fresh from the pre-`try` `state` (an exception
+            // can interrupt `body` before any of its own assignments run),
+            // and each contributes to the post-`try` state only when it
+            // finishes normally rather than always returning/throwing.
+            let mut candidates: Vec<InitState> = Vec::new();
             let mut body_state = state.clone();
-            walk_stmts(&body.stmts, &mut body_state, obligations, env);
+            if !walk_stmts(&body.stmts, &mut body_state, obligations, env) {
+                candidates.push(body_state);
+            }
             for catch in catches {
                 let mut catch_state = state.clone();
-                walk_stmts(&catch.body.stmts, &mut catch_state, obligations, env);
+                if !walk_stmts(&catch.body.stmts, &mut catch_state, obligations, env) {
+                    candidates.push(catch_state);
+                }
             }
-            // `body`/`catches` conservatively contribute nothing; `finally`
-            // always runs, so it updates `state` directly.
+            let merged = candidates.into_iter().reduce(InitState::merge);
+            // `finally` always runs, so it applies on top of whichever
+            // candidate above actually happened — union it in rather than
+            // discarding the candidates' join.
             if let Some(finally) = finally {
-                walk_stmts(&finally.stmts, state, obligations, env);
+                let mut finally_state = state.clone();
+                walk_stmts(&finally.stmts, &mut finally_state, obligations, env);
+                *state = match merged {
+                    Some(m) => InitState {
+                        assigned: m.assigned.union(&finally_state.assigned).cloned().collect(),
+                        parent_called: m.parent_called || finally_state.parent_called,
+                    },
+                    None => finally_state,
+                };
+            } else if let Some(m) = merged {
+                *state = m;
             }
             false
         }
@@ -531,5 +572,56 @@ mod tests {
     fn a_hooked_property_is_exempt_from_the_check() {
         let diags = check_src("<?mwl\nclass Foo {\n  public int $count { get => 1; }\n}\n");
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `walk_stmt`'s `Switch` arm: every case ends in a `break`, and a
+    /// `default` covers "no case matched" — so `$count` is assigned on every
+    /// path out of the constructor.
+    #[test]
+    fn a_switch_with_default_and_a_break_in_every_case_satisfies_the_property() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    switch ($x) {\n      case 1:\n        $this->count = 1;\n        break;\n      default:\n        $this->count = 2;\n        break;\n    }\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// Same shape but with no `default` arm: "no case matched" leaves
+    /// `$count` unassigned on that path, so it's still diagnosed.
+    #[test]
+    fn a_switch_with_no_default_does_not_satisfy_the_property() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    switch ($x) {\n      case 1:\n        $this->count = 1;\n        break;\n    }\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    /// `walk_stmt`'s `Try` arm: `body` completing and `catch` completing
+    /// both assign `$count`, so it's satisfied on every path.
+    #[test]
+    fn a_try_and_its_catch_both_assigning_satisfies_the_property() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (Exception $e) {\n      $this->count = 2;\n    }\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The `catch` doesn't assign `$count`, so it's not satisfied on every
+    /// path — the join now depends on what's actually inside `catch`.
+    #[test]
+    fn a_try_whose_catch_does_not_assign_does_not_satisfy_the_property() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (Exception $e) {\n    }\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
     }
 }

@@ -26,13 +26,15 @@
 //! explicitly forbids for a reference and, by the same reasoning, for a
 //! plain local too.
 //!
-//! **Known gaps**, beyond the ones `crate` docs already name: `switch` and
-//! `try`/`catch` bodies conservatively contribute nothing to definite
-//! assignment after them (documented at each site below) — safe, since it
-//! can only reject a valid program, never accept an invalid one; a nested
-//! class/interface/trait/enum declaration inside a function body is not
-//! descended into at all (its own methods go unchecked, same as a closure's
-//! body — see `crate::expr`'s docs for the latter).
+//! **Known gaps**, beyond the ones `crate` docs already name: a `switch`
+//! case that silently falls through to the next one (no explicit `break`/
+//! `continue`, and not the last case) contributes nothing to what is live
+//! *within* the case it falls into — each case is still checked starting
+//! fresh from what was live before the whole `switch`, same as a `case`
+//! reached by a direct jump would see (documented at the `Switch` arm below);
+//! a nested class/interface/trait/enum declaration inside a function body is
+//! not descended into at all (its own methods go unchecked, same as a
+//! closure's body — see `crate::expr`'s docs for the latter).
 
 use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
@@ -130,6 +132,20 @@ fn terminates(stmt: &Stmt) -> bool {
             else_: Some(else_),
             ..
         } => terminates(then) && terminates(else_),
+        _ => false,
+    }
+}
+
+/// Whether `stmt` — drilling into a trailing block exactly like
+/// [`terminates`] does — is a bare `break`/`continue`. Used by the `Switch`
+/// arm below to tell "this case explicitly exits the switch here" (safe to
+/// export its live set to after the switch) from "this case silently falls
+/// through to the next one" (must not be treated as an exit). Also used by
+/// [`crate::ctor_init`], which needs the same distinction.
+pub(crate) fn ends_in_break_or_continue(stmt: &Stmt) -> bool {
+    match &stmt.kind {
+        StmtKind::Break(_) | StmtKind::Continue(_) => true,
+        StmtKind::Block(b) => b.stmts.last().is_some_and(ends_in_break_or_continue),
         _ => false,
     }
 }
@@ -244,15 +260,47 @@ fn check_stmt(
         }
         StmtKind::Switch { subject, cases } => {
             check_expr(subject, None, live, scope, ctx, env);
-            // Conservatively contributes nothing to definite assignment
-            // after the switch — see the module docs' known gaps.
-            for case in cases {
+            // Every case starts fresh from the pre-switch `live` — see the
+            // module docs' known gaps on why fallthrough isn't modeled for
+            // *within*-case reads. What *is* modeled precisely: a case
+            // contributes to what's live after the switch only when it
+            // definitely exits there — via a trailing `break`/`continue`, by
+            // being the last case and falling off the end, or (excluded from
+            // the join, exactly like `if`/`else`'s terminating branch) never
+            // reaching after the switch at all because it always
+            // returns/throws. A case that silently falls through to the next
+            // one (no trailing exit, and not the last case) contributes
+            // nothing, since its actual exit point is wherever the case it
+            // falls into eventually exits. With no `default` arm, "no case
+            // matched" is itself a possible path, so the pre-switch `live`
+            // joins the other candidates too.
+            let last_index = cases.len().saturating_sub(1);
+            let mut candidates: Vec<FxHashSet<String>> = Vec::new();
+            for (i, case) in cases.iter().enumerate() {
                 let mut case_live = live.clone();
                 if let Some(c) = &case.cond {
                     check_expr(c, None, &mut case_live, scope, ctx, env);
                 }
                 check_block(&case.body, &mut case_live, scope, return_ty, ctx, env);
+                let exits = case.body.last();
+                if exits.is_some_and(terminates) {
+                    continue;
+                }
+                if exits.is_some_and(ends_in_break_or_continue) || i == last_index {
+                    candidates.push(case_live);
+                }
             }
+            if cases.iter().all(|c| c.cond.is_some()) {
+                candidates.push(live.clone());
+            }
+            if let Some(merged) = candidates
+                .into_iter()
+                .reduce(|a, b| a.intersection(&b).cloned().collect())
+            {
+                *live = merged;
+            }
+            // No candidates at all: every case terminates, so nothing after
+            // the switch is reachable — `live` stays as-is, unused.
         }
         StmtKind::Break(Some(e)) | StmtKind::Continue(Some(e)) => {
             check_expr(e, None, live, scope, ctx, env);
@@ -263,8 +311,23 @@ fn check_stmt(
             catches,
             finally,
         } => {
+            // `body` and each `catch` start fresh from the pre-`try` `live`
+            // (an exception can interrupt `body` before any of its own
+            // assignments run, so a `catch` can never assume more than that;
+            // `finally` is checked the same way below, for the same reason —
+            // it can also be entered by an exception thrown on `body`'s very
+            // first statement). What each contributes to what's live *after*
+            // the whole construct is the ordinary `if`/`else`-style join
+            // across every way it can finish normally: `body` completing
+            // with no exception, or any `catch` completing — each excluded
+            // from the join when it always returns/throws instead, exactly
+            // like a terminating `if`/`else` branch.
+            let mut candidates: Vec<FxHashSet<String>> = Vec::new();
             let mut body_live = live.clone();
             check_block(&body.stmts, &mut body_live, scope, return_ty, ctx, env);
+            if !body.stmts.last().is_some_and(terminates) {
+                candidates.push(body_live);
+            }
             for catch in catches {
                 let mut catch_live = live.clone();
                 if let Some(var) = catch.var {
@@ -281,8 +344,16 @@ fn check_stmt(
                     ctx,
                     env,
                 );
+                if !catch.body.stmts.last().is_some_and(terminates) {
+                    candidates.push(catch_live);
+                }
             }
-            // `finally` always runs, so its assignments carry forward.
+            let merged = candidates
+                .into_iter()
+                .reduce(|a, b| a.intersection(&b).cloned().collect());
+            // `finally` always runs, so its assignments carry forward
+            // regardless of which candidate above actually happened — union
+            // them in rather than discarding the candidates' join.
             if let Some(finally) = finally {
                 let mut finally_live = live.clone();
                 check_block(
@@ -293,8 +364,16 @@ fn check_stmt(
                     ctx,
                     env,
                 );
-                *live = finally_live;
+                *live = match merged {
+                    Some(m) => m.union(&finally_live).cloned().collect(),
+                    None => finally_live,
+                };
+            } else if let Some(m) = merged {
+                *live = m;
             }
+            // No `finally` and no candidates: `body` and every `catch`
+            // terminate, so nothing after the `try` is reachable — `live`
+            // stays as-is, unused.
         }
         StmtKind::Echo(xs) => {
             for x in xs {

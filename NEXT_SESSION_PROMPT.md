@@ -4,55 +4,43 @@ Continue MWL. M1 (front end) is done. M2 (HIR/types/IR) is in progress — run `
 then read `docs/implementation-plan.md`'s M2 paragraph for exactly what landed and how (this file only
 points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact once").
 
-**Last session closed [ADR 0033](docs/adr/0033-secret-qualifier-for-confidential-values.md) §§ 2-4
-(`secret` propagation, checked-conversion laundering, and its two M2-reachable sink refusals) — the next
-item on the prior queue, entirely inside `mwl-types` (plus one small, deliberately narrow `mwl-hir`
-addition the Throwable sink needed):**
+**Last session closed the M2 queue's item 1 — `switch`/`try` definite-assignment precision, and `parent` as
+a type atom — both entirely inside `mwl-types` (plus one new diagnostic code in `mwl-diagnostics`):**
 
-- `secret` reuses `tainted`'s exact machinery rather than duplicating it: `ty::Ty` gained four atoms
-  (`SecretString`/`SecretBytes`/`SecretTaintedString`/`SecretTaintedBytes`), `lower_atom` now maps
-  `mwl-syntax`'s matching atoms onto them, and `expr.rs` grew a shared vocabulary (`is_secret` alongside
-  `is_tainted`, `qualifiable_base`/`qualified_scalar` to move between the two independent qualifier bits and
-  the one atom-per-combination representation) that concatenation/interpolation, `is_assignable`'s widening
-  rule, and `ExprKind::Conversion`'s laundering rule (renamed `apply_qualifier_conversion_rule`) all route
-  through — both qualifiers poison/widen/launder identically and independently, no separate code path per
-  axis. `secret` follows `tainted`'s laundering shape exactly, including the one deliberately accepted
-  inconsistency ADR 0033 § 2 names: a checked `as uint`/`int`/`float`/`bool`/enum-backing-type conversion
-  strips `secret` too, even though "shape-proof implies safe" never actually justified that for
-  confidentiality.
-- Two sinks, both reachable without any stdlib existing yet: a `secret` operand converted `as
-  Core\Html\Markup` gets its own diagnostic (`E_SECRET_MARKUP_UNSUPPORTED`, `E0421`) ahead of the existing
-  literal-required one, naming *why* (escaping doesn't restore confidentiality); a `secret` value passed as
-  a `Throwable`-shaped class's constructor message is refused (`E_SECRET_THROWABLE_MESSAGE`, `E0422`).
-  **The Throwable sink needed one small enabling change, not just a check:** `Throwable`/`Exception`/`Error`
-  had no code trusting them to exist at all (no declared stdlib), so `new Exception(...)` used to resolve to
-  `mixed` and nothing was checkable. A new `mwl_hir::QName::is_reserved_global_class` (mirroring
-  `is_reserved_global_interface`'s existing treatment of `Comparable`/`Stringable`) trusts those three bare
-  names the same way `Core`'s own classes are trusted — wired into `hierarchy::resolve_supertype` (so
-  `class MyError extends Exception {}` resolves), `mwl-types`' `check_new_target`/`resolve_name_type`, and
-  the two `E_UNKNOWN_MEMBER` guards that already exempt an unmodeled `Core` class (so `$e->getMessage()`
-  stays silently `mixed` rather than newly erroring, since no member table exists for these three either).
-- `check_args_typed` now returns each argument's own checked type (previously discarded) so the `New` arm can
-  read the first one back for the Throwable-message check without a second, diagnostic-duplicating pass over
-  the same expression.
-- 12 new tests in `mwl-types::check`, one in `mwl-hir::qname`, one in `mwl-hir::hierarchy`, one in
-  `mwl-types::lower`. `cargo build`/`test`/`clippy -D warnings`/`fmt --check` all clean.
-- **Known gaps, not attempted this session, all deferred by ADR 0033's own *Verification* section to a
-  later milestone rather than left unnoticed:** `Core\Log`'s call-site inspection (M8 — the sink is a `mixed`
-  parameter by design, so this needs argument-expression inspection at the call site, not a parameter-type
-  refusal); `var_dump`/`print_r`'s redaction placeholder for a `secret`-typed property (M4, once those
-  exist); `serialize()`/the `spawn worker`/`spawn script` boundary's refusal (M5, once that boundary exists).
+- `locals.rs`'s and `ctor_init.rs`'s `Switch`/`Try` arms no longer conservatively contribute nothing to what's
+  live/assigned afterward. Both now join every branch that can actually finish normally, mirroring the
+  existing `if`/`else` join: a `switch` case contributes only when it definitely exits there (a trailing
+  `break`/`continue`, or being the last case and falling off the end), excluding one that always
+  returns/throws; a `try`'s `body`/each `catch` each start fresh from the pre-`try` state (an exception can
+  interrupt `body` before any of its own assignments run, so a `catch` can never assume more) and each
+  contributes only when it finishes normally; `finally` — checked from that same pre-`try` state, for the
+  same reason — has its own assignments *unioned* into the joined result afterward rather than discarding it,
+  since `finally` runs on top of whichever candidate path actually happened. A new shared predicate,
+  `locals::ends_in_break_or_continue` (`pub(crate)`, reused from `ctor_init.rs`), tells "this case explicitly
+  exits the switch here" from "this case silently falls through to the next one" — the latter still
+  contributes nothing, since carrying a fallen-through case's own live set into the next case isn't modeled
+  (documented remaining simplification, safe: it can only cause a spurious diagnostic, never a missed one).
+  10 new tests across `check.rs` (end-to-end, via `check_program`) and `ctor_init.rs`.
+- `parent` as a type atom (`parent $x` in a parameter/property/return position) now resolves against
+  `Ctx::current_class`'s first `extends` link via `env.graph`, the same hop `expr::resolve_class_expr`'s
+  `ParentExpr` arm and `check_new_target`'s `NewTarget::ParentTy` arm already use for the expression side —
+  `lower.rs`'s `resolve_parent`. Unlike those two (which silently fall back to `mixed` for an unresolvable
+  `parent`, matching the rest of `resolve_class_expr`'s "no statically knowable class → silent `mixed`"
+  convention), a *type* position gets a diagnostic instead, the same way an out-of-class `self`/`static`
+  already does: a new code, `E_NO_PARENT_CLASS` (`E0423`), for a class with no `extends` at all; the existing
+  `E_UNDEFINED_CLASS` "used outside any class" path for no enclosing class (mirrors `self`/`static`, currently
+  unreachable through `check.rs`'s pipeline the same way theirs is, since top-level functions aren't
+  descended into yet — not a new gap, just inherited). 2 new tests in `check.rs`.
+- `cargo build`/`test`/`clippy --all-targets -D warnings`/`fmt --check` all clean across the whole workspace;
+  `mwl-types` alone now has 143 passing tests (was 131 before this session).
 
-**The M2 work queue below is renumbered from before this session — the old item 1 (ADR 0033) is done and
-removed; everything else is unchanged, just shifted up:**
+**The M2 work queue below is renumbered from before this session — the old item 1 is done and removed;
+items 2 and 3 shift up to 1 and 2:**
 
 **Next, in the order that makes sense to attempt — independent, can land in any order or be split across
 sessions:**
 
-1. **`switch`/`try` definite-assignment precision** (both bodies conservatively contribute nothing today —
-   safe, just imprecise) and **`parent` as a *type* atom** (`parent $x`, distinct from the already-working
-   `new parent(...)`) — long-standing, low-value-until-now gaps.
-2. **Smaller independent polish**, any one a quick follow-up: a class constant's type (`Class::CONST` is
+1. **Smaller independent polish**, any one a quick follow-up: a class constant's type (`Class::CONST` is
    always `mixed`, including a *non-enum* class — enum case access was fixed several sessions ago); a
    promoted constructor-parameter property (tracked as neither a property nor a definite-assignment
    obligation — mirrors a `mwl_hir::members` gap, likely fix both together); a named/spread call argument
@@ -63,7 +51,7 @@ sessions:**
    interface-method-completeness checking, which doesn't exist yet — likely its own small design decision
    first); `==`/`===` between two different enum types (wants a general equality-operand-compatibility
    pass, not an enum-only special case).
-3. **ADR 0035's runtime side** — no code yet, and none is expected until M3's first backend exists.
+2. **ADR 0035's runtime side** — no code yet, and none is expected until M3's first backend exists.
 
 Also worth a quick pass sometime, low priority: re-check the rest of the docs tree for the same
 "`__foo` compiles as an ordinary method" phrasing pattern a previous session found stale in ADR 0014 § 6

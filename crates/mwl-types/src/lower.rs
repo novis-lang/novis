@@ -2,9 +2,13 @@
 //! grammar, made concrete).
 //!
 //! A `self`/`static` atom resolves against [`Ctx::current_class`]; `parent`
-//! is not resolved at all in this slice (see the crate docs' known gaps) and
-//! always produces `mixed` plus a diagnostic, since resolving it needs a
-//! [`mwl_hir::ClassGraph`] hop this slice's [`Ctx`] does not carry. A `Name`
+//! resolves the same way `crate::expr::resolve_class_expr`'s `ParentExpr` arm
+//! and `check_new_target`'s `NewTarget::ParentTy` arm do — [`Ctx::current_class`]'s
+//! first `extends` link via [`Env::graph`] — except a `parent` that can't
+//! resolve (no enclosing class, or a class with no `extends`) is a
+//! diagnostic here rather than those two's silent `mixed` fallback, since a
+//! *type* position naming an unresolvable class is a real authoring mistake
+//! the same way an out-of-class `self`/`static` already is. A `Name`
 //! atom resolves via [`mwl_hir::resolve_ref`] — the same
 //! unqualified/qualified/fully-qualified resolution every `mwl-hir` resolver
 //! already shares — then checks [`mwl_hir::AliasTable`] first (an alias is
@@ -130,17 +134,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::Callable => env.interner.callable(),
         TypeAtom::SelfTy => resolve_special(span, "self", ctx, env),
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
-        TypeAtom::Parent => {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_UNDEFINED_CLASS,
-                    "`parent` is not resolved by this checker slice yet — it needs the class \
-                     hierarchy graph",
-                )
-                .with_primary(span, "`parent` type"),
-            );
-            env.interner.mixed()
-        }
+        TypeAtom::Parent => resolve_parent(span, ctx, env),
         TypeAtom::Name(name) => resolve_name_type(name, depth, ctx, env),
         _ => env.interner.mixed(),
     }
@@ -165,6 +159,41 @@ fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) 
                     format!("`{keyword}` used outside any class"),
                 )
                 .with_primary(span, "no enclosing class"),
+            );
+            env.interner.mixed()
+        }
+    }
+}
+
+/// Resolves the `parent` type atom against [`Ctx::current_class`]'s first
+/// `extends` link — the same hop `crate::expr::resolve_class_expr` uses for
+/// `parent::` on the expression side, and `check_new_target`'s
+/// `NewTarget::ParentTy` arm uses for `new parent(...)`. Unlike those two,
+/// which fall back to `mixed` with no diagnostic for a `parent` that can't
+/// resolve, this is a *type* position (a parameter, property or return type)
+/// where naming an unresolvable class the same way `self`/`static` do outside
+/// a class is a real authoring mistake worth its own diagnostic.
+fn resolve_parent(span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+    let Some(current) = ctx.current_class else {
+        env.diags.report(
+            Diagnostic::error(code::E_UNDEFINED_CLASS, "`parent` used outside any class")
+                .with_primary(span, "no enclosing class"),
+        );
+        return env.interner.mixed();
+    };
+    match env
+        .graph
+        .get(current)
+        .and_then(|links| links.extends.first())
+    {
+        Some(parent) => env.interner.class(parent.clone()),
+        None => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_NO_PARENT_CLASS,
+                    format!("`{current}` has no parent class to refer to as `parent`"),
+                )
+                .with_primary(span, "`parent` type"),
             );
             env.interner.mixed()
         }
