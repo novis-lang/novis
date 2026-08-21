@@ -668,7 +668,13 @@ and a class with no constructor and no inline default for a non-nullable propert
 entries: a `tainted` value concatenated into a sink requiring the plain type is refused, naming the
 qualifier and the sink; a checked `as uint`/enum conversion on a tainted source produces an unqualified
 result with no extra syntax; `tainted string as Markup` is refused even though a literal succeeds. Plus
-ADR 0027's own entries: a bare string, an `"Class::method"` string, and a `[$obj, 'method']` array each
+[ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)'s own entries (once its § 1 grammar addition
+lands): a `secret` value poisons through concatenation/interpolation independently of `tainted`; a checked
+`as uint`/enum conversion on a secret source strips `secret` (and `tainted`, if present) with no diagnostic;
+a `secret` value reaching a `Markup`-building interpolation position is refused even though the equivalent
+`tainted`-only value is auto-escaped; a `secret` value passed as a `Throwable` message argument is refused;
+`tainted secret string` (wrong qualifier order) is refused naming the required `secret`-before-`tainted`
+spelling. Plus ADR 0027's own entries: a bare string, an `"Class::method"` string, and a `[$obj, 'method']` array each
 refused where `callable` is the declared type, naming the first-class-callable-syntax
 replacement; `$obj(...)` refused for a non-`callable` `$obj` even when its class declares a method literally
 named `__invoke`, naming the class and stating MWL has no `__invoke`. Plus ADR 0031's own entries: an
