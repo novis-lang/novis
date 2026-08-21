@@ -1,33 +1,38 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-> **Status — 2026-08-21.** Milestone **M1**, front end, in progress. Nothing runs yet; `Hello World`
-> is M3.
+> **Status — 2026-08-21.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, starting.
+> Nothing runs yet; `Hello World` is M3.
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
 > `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below), `crates/mwl-cli`
-> (just the `mwl ast` subcommand so far), and [`benches/abi-probe`](../benches/abi-probe/) holding
-> the promoted M0 spikes as permanent guard tests. Every other crate in the layout is unwritten, and
-> is created when its milestone starts rather than sitting empty.
+> (just the `mwl ast` subcommand so far), the `fuzz/` crate (`lex`/`parse` targets, guarding M1), and
+> [`benches/abi-probe`](../benches/abi-probe/) holding the promoted M0 spikes as permanent guard
+> tests. Every other crate in the layout is unwritten, and is created when its milestone starts
+> rather than sitting empty.
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
-> + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle.
+> + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle, `cargo-fuzz`
+> 0.13.2 under a WSL nightly toolchain (native Windows has no libFuzzer support; see CLAUDE.md's
+> "Fuzzing on Windows: use WSL").
 >
-> **M1 progress:** the lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full
-> recursive-descent parser are done — types and expressions, every control-flow statement, and
-> declarations (classes/interfaces/traits/enums, their members, attributes, `namespace`/`use`/`type`
-> alias), including the file-level HTML/code-tag round trip (`parse_file`, exercised through
-> `mwl ast`) that the plan's *Verify* step below needs. The `tainted` qualifier's grammar addition
-> ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 1, this milestone's paragraph below)
-> has now landed too — `Keyword::Tainted`, the `TaintedString`/`TaintedBytes` atoms, and round-trip
-> tests in every declaration slot (parameter, return, property, local, `foreach` binding), plus the
-> `E_TAINTED_NON_SCALAR` diagnostic for every other atom. **What's left is M1's own verification**:
-> `cargo fuzz` finding no panic in a 5 minute run on the lexer and parser — not started yet. Parsing
-> the full local `php-src` folder for `.php` files without crashing already runs clean via
-> `crates/mwl-syntax/tests/corpus_parse.rs` against the corpus checked out at `<workspace-root>/php-src`.
-> `crates/mwl-syntax`'s module docs carry the current list of known parser gaps (`goto` labels are the
-> likeliest to surface during the corpus-parse step); check those first rather than debugging blind.
-> PHP's alternative colon syntax (`if (...): ... endif;` etc.) is deliberately out of scope, not a gap —
-> corpus files using it are expected to fail to parse.
+> **M1 — done.** The lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full
+> recursive-descent parser — types and expressions, every control-flow statement, and declarations
+> (classes/interfaces/traits/enums, their members, attributes, `namespace`/`use`/`type` alias,
+> including the file-level HTML/code-tag round trip) — plus the `tainted` qualifier's grammar
+> addition ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 1: `Keyword::Tainted`, the
+> `TaintedString`/`TaintedBytes` atoms, round-trip tests in every declaration slot, and the
+> `E_TAINTED_NON_SCALAR` diagnostic for every other atom). Verification is now complete on every axis
+> the milestone's *Verify* line asks for: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full
+> local `php-src` checkout without crashing, and a 5-minute `cargo fuzz run lex`/`run parse` (WSL,
+> nightly, nightly `libfuzzer-sys`) found zero panics on either target — 478,073 lexer executions and
+> 45,861 parser executions, both `DONE` with no crash/artifact directory produced. `crates/mwl-syntax`'s
+> module docs carry the current list of known parser gaps (`goto` labels, PHP's alternative colon
+> syntax deliberately out of scope) for whoever next touches the grammar.
+>
+> **M2 — starting.** Name resolution, the type checker, and IR lowering; see this document's M2
+> paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
+> type table; 0010/0013/0014/0015/0022's checker-side rules; 0024 §§ 2-3's tainted propagation and
+> laundering). Not started.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
