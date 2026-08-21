@@ -39,7 +39,7 @@ touching to get that.
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
 | Free functions, global constants, the `Core` namespace, where a built-in lives | [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md). Holds the only copy of the rule that every callable and every constant is a class member, and the `Core` domain-class shape built-ins are organised into. |
-| `callable`, `Closure`, first-class callable syntax (`Foo::bar(...)`), taking a reference to a method/function, `__invoke` | [ADR 0027](docs/adr/0027-callable-is-closures-and-invokables-only.md). Holds the only copy of the rule that `callable` accepts a `Closure` or an invokable object and nothing else — PHP's string/array callable spellings are rejected, since first-class callable syntax already gives a statically resolvable reference. |
+| `callable`, `Closure`, first-class callable syntax (`Foo::bar(...)`), taking a reference to a method/function, `__invoke` | [ADR 0027](docs/adr/0027-callable-is-closures-only.md). Holds the only copy of the rule that `callable` accepts a `Closure` and nothing else — PHP's string/array callable spellings are rejected, since first-class callable syntax already gives a statically resolvable reference, and `__invoke`/calling an object with `()` does not exist at all. |
 | `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$_REQUEST`, `$argv`, or anything else PHP populates ambiently | [ADR 0012](docs/adr/0012-no-superglobals.md). Holds the only copy of the rule that no variable is ever host-populated — each becomes a `Core\Server`/`Core\Request`/`Core\Session`/`Core\Env`/`Core\Cli`/`Core\Script` call, and `$GLOBALS`/`$_REQUEST` have no replacement at all. |
 | Comparing two objects with `<`/`>`/`<=`/`>=`/`<=>`, operator overloading, `Comparable`, `compareTo` | [ADR 0013](docs/adr/0013-comparable-interface.md). Holds the only copy of the rule that ordering two objects requires implementing `Comparable`; PHP's ambient property-walk fallback is rejected outright, and there is no cross-class overload. |
 | Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [ADR 0014](docs/adr/0014-property-observer.md). Holds the only copy of the rule that a property access runs its own hook first and a declared `PropertyObserver` second; accessing an undeclared property is always a hard error, and `__call`/`__callStatic` are not implemented at all. |
@@ -165,10 +165,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   non-shared Linux/WSL runner, never by comparing raw wall-clock across machines** — per-PR CI regression
   guards keep using `perf_guards.rs`'s self-relative wall-clock ratios everywhere, unchanged
   ([ADR 0026](docs/adr/0026-performance-measurement-methodology.md)).
-- **`callable` means a `Closure` or an invokable object, never PHP's string/array callable spellings** —
-  taking a reference to a method or function is always first-class callable syntax
-  (`Foo::bar(...)`/`$obj->method(...)`), which already produces a statically resolvable `Closure`
-  ([ADR 0027](docs/adr/0027-callable-is-closures-and-invokables-only.md)).
+- **`callable` means a `Closure`, never PHP's string/array callable spellings, and MWL has no `__invoke`** —
+  no object can ever be called with `()` syntax; taking a reference to a method or function is always
+  first-class callable syntax (`Foo::bar(...)`/`$obj->method(...)`), which already produces a statically
+  resolvable `Closure` ([ADR 0027](docs/adr/0027-callable-is-closures-only.md)).
 
 ## Commands
 

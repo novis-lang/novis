@@ -59,7 +59,7 @@ live, so a new row is picked up automatically.
 | [0024](0024-taint-tracking-for-injection-sinks.md) | Untrusted input is a distinct type; injection sinks demand laundering | Accepted |
 | [0025](0025-wasm-browser-target.md) | The browser is a second compile target, not a second language | Accepted |
 | [0026](0026-performance-measurement-methodology.md) | Performance history is tracked by callgrind instruction counts; wall-clock stays for CI regression guards | Accepted |
-| [0027](0027-callable-is-closures-and-invokables-only.md) | `callable` means a `Closure` or an invokable object; PHP's string/array callable spellings are rejected | Accepted |
+| [0027](0027-callable-is-closures-only.md) | `callable` means a `Closure`; PHP's string/array callable spellings and `__invoke` are both rejected | Accepted |
 
 ## Decisions taken at project start
 
