@@ -546,4 +546,123 @@ mod tests {
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
+
+    #[test]
+    fn concatenating_a_non_stringable_object_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    string $s = \"\" . $a;\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRINGABLE_REQUIRED)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn interpolating_a_non_stringable_object_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    string $s = \"value: $a\";\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRINGABLE_REQUIRED)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn echoing_a_non_stringable_object_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    echo $a;\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRINGABLE_REQUIRED)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn printing_a_non_stringable_object_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    print $a;\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRINGABLE_REQUIRED)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn as_string_on_a_non_stringable_object_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    $a as string;\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRINGABLE_REQUIRED)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn legacy_string_cast_on_a_non_stringable_object_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    string $s = (string)$a;\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRINGABLE_REQUIRED)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_class_implementing_stringable_converts_at_every_site_with_no_diagnostic() {
+        let diags = check_src(
+            "<?mwl\n\
+             class Name implements Stringable {\n\
+             \x20 function toString(): string { return \"x\"; }\n\
+             }\n\
+             class T {\n\
+             \x20 function m(): void {\n\
+             \x20\x20 Name $a = new Name();\n\
+             \x20\x20 string $s1 = \"\" . $a;\n\
+             \x20\x20 string $s2 = \"value: $a\";\n\
+             \x20\x20 string $s3 = $a as string;\n\
+             \x20\x20 echo $a;\n\
+             \x20\x20 print $a;\n\
+             \x20\x20 string $s4 = (string)$a;\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn unset_on_a_declared_property_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Foo { public int $x; function constructor() { $this->x = 1; } }\nclass T {\n  function m(): void {\n    Foo $a = new Foo();\n    unset($a->x);\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNSET_ON_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn unset_on_a_local_variable_is_unaffected() {
+        let diags = check_in_method("mixed $x = 1;\nunset($x);");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
 }

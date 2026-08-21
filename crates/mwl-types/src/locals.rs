@@ -38,7 +38,7 @@ use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::expr::{check_expr, check_return};
+use crate::expr::{check_expr, check_return, check_unset_target, require_stringable};
 use crate::lower::{lower_optional_type, lower_type};
 use crate::ty::TypeId;
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -296,9 +296,15 @@ fn check_stmt(
                 *live = finally_live;
             }
         }
-        StmtKind::Echo(xs) | StmtKind::Unset(xs) => {
+        StmtKind::Echo(xs) => {
             for x in xs {
-                check_expr(x, None, live, scope, ctx, env);
+                let ty = check_expr(x, None, live, scope, ctx, env);
+                require_stringable(ty, x.span, env);
+            }
+        }
+        StmtKind::Unset(xs) => {
+            for x in xs {
+                check_unset_target(x, live, scope, ctx, env);
             }
         }
         StmtKind::LocalDecl { ty, name, value } => {

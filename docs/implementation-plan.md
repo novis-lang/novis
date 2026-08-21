@@ -164,7 +164,7 @@
 > `parent::constructor(...)` buried inside a closure body or a `match` arm produces a spurious
 > diagnostic rather than being missed silently — see that module's own docs for the full list.
 >
-> This session closed the next item: [ADR 0013](adr/0013-comparable-interface.md)'s `Comparable`
+> The session before last closed the next item: [ADR 0013](adr/0013-comparable-interface.md)'s `Comparable`
 > interface, entirely inside `mwl-hir`/`mwl-types` — no new syntax, since `interface`/`implements` were
 > already parseable. [`QName::is_reserved_global_interface`](../crates/mwl-hir/src/qname.rs) marks
 > `Comparable` (by bare name, not under `Core`) as trusted to exist without a source declaration, the
@@ -186,8 +186,31 @@
 > so a class claiming `implements Comparable` with no `compareTo` at all still type-checks; running
 > `compareTo` and diagnosing that gap both wait for a later milestone/ADR.
 >
+> The prior session closed [ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)'s two
+> M2-relevant sections, reusing `Comparable`'s exact shape end to end. §1: `Stringable` joins
+> `Comparable` in [`QName::is_reserved_global_interface`](../crates/mwl-hir/src/qname.rs), and a new
+> [`expr::require_stringable`](../crates/mwl-types/src/expr.rs) refuses an object at every implicit
+> string-conversion site — string interpolation, concatenation, `echo`, `print`, and both `as string`
+> and the legacy `(string)` cast — unless its static type provably implements it via the same
+> `mwl_hir::implements_interface` reachability walk ADR 0013 introduced
+> (`E_STRINGABLE_REQUIRED`, `E0412`, newly added; skipped for an unmodeled `Core` class and for any
+> non-`Ty::Class` operand, same scoping as the `Comparable` check). §3: `ExprKind::PropertyAccess`'s
+> checking logic was factored out into a shared `expr::check_property_access(..., is_unset: bool, ...)`
+> so `unset()`'s operand (`locals.rs`'s new `StmtKind::Unset` arm, via `expr::check_unset_target`) can
+> run the identical receiver/member resolution and, when it lands on an actually-*declared* property,
+> refuse it outright (`E_UNSET_ON_PROPERTY`, `E0413`, newly added) rather than typing it and moving on —
+> an array element or a local variable passed to `unset()` is untouched, since that section is scoped to
+> object properties only. Both checks were smoke-tested by hand through `mwl check` in addition to the
+> new automated corpus (7 new tests in `mwl-types::check`, one new in `mwl-hir::qname`). **Known gap
+> surfaced, not fixed, this session:** `(string)$x;` written as its own statement (no enclosing
+> assignment) mis-parses as a `LocalDecl` redeclaring `$x` with a parenthesized type, rather than as a
+> cast expression-statement — `mwl-syntax`'s statement-vs-declaration lookahead doesn't yet disambiguate
+> a parenthesized legacy-cast prefix from a parenthesized *type* prefix. Worked around in this session's
+> own tests by always assigning the cast's result; the parser bug itself is unfixed and belongs with
+> whoever next touches statement-start disambiguation.
+>
 > **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): every other ADR
-> M2 assigns to it (0010/0014/0024/0027/0028's checker-side rules); exhaustive control-flow
+> M2 assigns to it (0010/0014/0024/0027's checker-side rules); exhaustive control-flow
 > reachability (`switch`/`try` bodies conservatively contribute nothing to definite assignment after
 > them — safe, never accepts an invalid program); references (`&$x`) needing both sides to declare the
 > same type; `parent` as a *type* atom (`parent $x`, distinct from `new parent(...)`, which now

@@ -102,14 +102,15 @@ impl QName {
 
     /// Whether this name is one of the handful of global, reserved
     /// interfaces the compiler itself knows about — `Comparable`
-    /// ([ADR 0013](../../../docs/adr/0013-comparable-interface.md)) so far —
-    /// the same "trusted to exist, never declared in source" treatment
-    /// [`Self::is_core`] gives `Core`, extended one bare name at a time as
-    /// each such ADR lands (`Stringable`/`PropertyObserver` are named in ADR
-    /// 0028/0014 the same way, but neither is implemented yet).
+    /// ([ADR 0013](../../../docs/adr/0013-comparable-interface.md)) and
+    /// `Stringable` ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+    /// § 1) so far — the same "trusted to exist, never declared in source"
+    /// treatment [`Self::is_core`] gives `Core`, extended one bare name at a
+    /// time as each such ADR lands (`PropertyObserver` is named in ADR 0014
+    /// the same way, but not implemented yet).
     #[must_use]
     pub fn is_reserved_global_interface(&self) -> bool {
-        self.segments.len() == 1 && self.segments[0] == "Comparable"
+        self.segments.len() == 1 && matches!(self.segments[0].as_str(), "Comparable" | "Stringable")
     }
 }
 
@@ -158,5 +159,13 @@ mod tests {
         assert!(QName::parse("Core\\Str").is_core());
         assert!(QName::parse("core\\Str").is_core());
         assert!(!QName::parse("App\\Core").is_core());
+    }
+
+    #[test]
+    fn is_reserved_global_interface_recognizes_comparable_and_stringable() {
+        assert!(QName::parse("Comparable").is_reserved_global_interface());
+        assert!(QName::parse("Stringable").is_reserved_global_interface());
+        assert!(!QName::parse("PropertyObserver").is_reserved_global_interface());
+        assert!(!QName::parse("App\\Comparable").is_reserved_global_interface());
     }
 }

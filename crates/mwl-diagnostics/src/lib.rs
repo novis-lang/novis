@@ -272,6 +272,17 @@ pub mod code {
     /// two sides are different classes even though both do; see ADR 0013
     /// §§ 3-4. PHP's implicit property-walk fallback has no MWL equivalent.
     pub const E_COMPARISON_REQUIRES_COMPARABLE: Code = Code::new("E0411");
+    /// An object used at an implicit string-conversion site (interpolation,
+    /// concatenation, `echo`/`print`, `as string`/`(string)`) whose static
+    /// type does not provably implement the reserved global `Stringable`
+    /// interface; see ADR 0028 § 1. PHP's own fallback here is already a
+    /// fatal error, so nothing permissive is being removed.
+    pub const E_STRINGABLE_REQUIRED: Code = Code::new("E0412");
+    /// `unset()` on a declared object property, regardless of nullability —
+    /// refused outright because ADR 0022 already guarantees no declared
+    /// property is ever anything but definitely initialized; see ADR 0028
+    /// § 3.
+    pub const E_UNSET_ON_PROPERTY: Code = Code::new("E0413");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

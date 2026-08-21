@@ -18,6 +18,14 @@
 //! remaining form walked only for nested variable reads and reported as
 //! `mixed`; see the crate docs' known gaps for why.
 //!
+//! ADR 0013's `Comparable` check for the five ordering operators has a
+//! sibling now: [`require_stringable`] refuses an object at every implicit
+//! string-conversion site (interpolation, concatenation, `echo`/`print`,
+//! `as string`/`(string)`) unless it provably implements the reserved
+//! global `Stringable` interface (ADR 0028 § 1), and `unset()` on any
+//! *declared* object property is refused outright regardless of nullability
+//! (ADR 0028 § 3, via [`check_unset_target`]/[`check_property_access`]).
+//!
 //! **Diagnosing a missing member is split by receiver, not duplicated:** a
 //! `self::`/`static::`/`parent::`/explicit-class-name static call, static
 //! property, or class constant is already checked for existence by
@@ -168,7 +176,8 @@ fn infer(
         ExprKind::Interpolated(parts) => {
             for part in parts {
                 if let StringPart::Expr(e) = part {
-                    check_expr(e, None, live, scope, ctx, env);
+                    let ty = check_expr(e, None, live, scope, ctx, env);
+                    require_stringable(ty, e.span, env);
                 }
             }
             env.interner.string()
@@ -195,12 +204,19 @@ fn infer(
             check_expr(inner, None, live, scope, ctx, env)
         }
         ExprKind::Cast { ty, expr: inner } => {
-            check_expr(inner, None, live, scope, ctx, env);
+            let inner_ty = check_expr(inner, None, live, scope, ctx, env);
+            if *ty == CastType::String {
+                require_stringable(inner_ty, inner.span, env);
+            }
             cast_result_type(*ty, env)
         }
         ExprKind::Binary { op, lhs, rhs } => {
             let lhs_ty = check_expr(lhs, None, live, scope, ctx, env);
             let rhs_ty = check_expr(rhs, None, live, scope, ctx, env);
+            if *op == BinaryOp::Concat {
+                require_stringable(lhs_ty, lhs.span, env);
+                require_stringable(rhs_ty, rhs.span, env);
+            }
             binary_result(*op, lhs_ty, rhs_ty, expr.span, env)
         }
         ExprKind::Assign {
@@ -219,8 +235,12 @@ fn infer(
             env.interner.make_union([then_ty, else_ty])
         }
         ExprKind::Conversion { expr: inner, ty } => {
-            check_expr(inner, None, live, scope, ctx, env);
-            lower_type(ty, ctx, env)
+            let inner_ty = check_expr(inner, None, live, scope, ctx, env);
+            let result = lower_type(ty, ctx, env);
+            if matches!(env.interner.get(result), Ty::String) {
+                require_stringable(inner_ty, inner.span, env);
+            }
+            result
         }
         ExprKind::InstanceOf { expr: inner, class } => {
             check_expr(inner, None, live, scope, ctx, env);
@@ -282,28 +302,7 @@ fn infer(
         }
         ExprKind::PropertyAccess {
             object, property, ..
-        } => {
-            let object_ty = check_expr(object, None, live, scope, ctx, env);
-            check_member_name(property, live, scope, ctx, env);
-            match (class_qname_of(object_ty, env.interner), property) {
-                (Some(qname), MemberName::Ident(name_span)) => {
-                    let name = span_text(env.src, *name_span).to_owned();
-                    match resolve_property(&qname, &name, env.signatures, env.graph) {
-                        Some(ty) => ty,
-                        None => {
-                            // `$this->missing` is already `E_UNDEFINED_PROPERTY`
-                            // from `mwl_hir::members` — every other receiver
-                            // shape has never been checked before this.
-                            if !qname.is_core() && !is_this_receiver(object, env.src) {
-                                report_unknown_member(object.span, &qname, &name, "property", env);
-                            }
-                            env.interner.mixed()
-                        }
-                    }
-                }
-                _ => env.interner.mixed(),
-            }
-        }
+        } => check_property_access(object, property, false, live, scope, ctx, env),
         ExprKind::StaticPropertyAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
             let text = span_text(env.src, *name);
@@ -369,7 +368,8 @@ fn infer(
             env.interner.mixed()
         }
         ExprKind::Print(inner) => {
-            check_expr(inner, None, live, scope, ctx, env);
+            let ty = check_expr(inner, None, live, scope, ctx, env);
+            require_stringable(ty, inner.span, env);
             env.interner.int()
         }
         ExprKind::Throw(inner) => {
@@ -606,6 +606,116 @@ fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option
             Some(mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports))
         }
         _ => None,
+    }
+}
+
+/// Shared body for a property access, whether it appears as an ordinary
+/// expression (`$obj->prop`, `is_unset` false) or as `unset()`'s operand
+/// (`is_unset` true) — the receiver/member resolution is identical either
+/// way; only what happens once a *declared* property is found differs (ADR
+/// 0028 § 3: `unset()` on one is refused outright, per ADR 0022's guarantee
+/// that a declared property can never become uninitialized again).
+fn check_property_access(
+    object: &Expr,
+    property: &MemberName,
+    is_unset: bool,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let object_ty = check_expr(object, None, live, scope, ctx, env);
+    check_member_name(property, live, scope, ctx, env);
+    match (class_qname_of(object_ty, env.interner), property) {
+        (Some(qname), MemberName::Ident(name_span)) => {
+            let name = span_text(env.src, *name_span).to_owned();
+            match resolve_property(&qname, &name, env.signatures, env.graph) {
+                Some(ty) => {
+                    if is_unset {
+                        report_unset_on_property(object.span.to(*name_span), &qname, &name, env);
+                    }
+                    ty
+                }
+                None => {
+                    // `$this->missing` is already `E_UNDEFINED_PROPERTY`
+                    // from `mwl_hir::members` — every other receiver
+                    // shape has never been checked before this.
+                    if !qname.is_core() && !is_this_receiver(object, env.src) {
+                        report_unknown_member(object.span, &qname, &name, "property", env);
+                    }
+                    env.interner.mixed()
+                }
+            }
+        }
+        _ => env.interner.mixed(),
+    }
+}
+
+/// `unset()`'s operand: refuses a declared object property (ADR 0028 § 3)
+/// via [`check_property_access`], and otherwise checks the operand exactly
+/// like any other expression — an array element or a local variable is
+/// untouched, since that section is scoped to object properties only.
+pub(crate) fn check_unset_target(
+    expr: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if let ExprKind::PropertyAccess {
+        object, property, ..
+    } = &expr.kind
+    {
+        check_property_access(object, property, true, live, scope, ctx, env);
+    } else {
+        check_expr(expr, None, live, scope, ctx, env);
+    }
+}
+
+fn report_unset_on_property(span: Span, qname: &QName, name: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNSET_ON_PROPERTY,
+            format!(
+                "`unset()` on `{qname}::${name}` is refused; a declared property can never \
+                 become uninitialized again"
+            ),
+        )
+        .with_primary(span, "unset here")
+        .with_help(
+            "ADR 0022 already guarantees this property is always definitely initialized; \
+             assign `null` instead if it is nullable",
+        ),
+    );
+}
+
+/// ADR 0028 § 1: every implicit string-conversion site — interpolation,
+/// concatenation, `echo`/`print`, `as string`/`(string)` — accepts an object
+/// only when its static type provably implements the reserved global
+/// `Stringable` interface. Returns without diagnosing for any non-`Ty::Class`
+/// operand (including `Ty::Enum`, `mixed`, and a scalar) and for an
+/// unmodeled `Core` class, the same scoping [`object_comparison_result`] and
+/// [`check_property_access`] already use.
+pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let Ty::Class(qname) = env.interner.get(ty).clone() else {
+        return;
+    };
+    if qname.is_core() {
+        return;
+    }
+    let stringable = QName::parse("Stringable");
+    if !mwl_hir::implements_interface(&qname, &stringable, env.graph) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_STRINGABLE_REQUIRED,
+                format!(
+                    "`{qname}` cannot be converted to `string` here; it does not implement \
+                     `Stringable`"
+                ),
+            )
+            .with_primary(span, "converted to `string` here")
+            .with_help("implement `Stringable`'s `toString(): string` on the class"),
+        );
     }
 }
 
