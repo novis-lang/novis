@@ -14,7 +14,9 @@
   one — there is no function-scope `static` to reset)
 - **Amended by:** [0012](0012-no-superglobals.md) — `$_ARGS` becomes `Core\Script::args()`, and a spawned
   isolate calling `Core\Request`/`Core\Server`/`Core\Session` throws rather than seeing fresh-and-empty
-  state.
+  state. [0021](0021-single-file-inclusion-construct.md) — every mention below of PHP's same-frame
+  inclusion keywords is updated to name `require` alone, since `include`/`include_once`/`require_once` are
+  rejected there; the isolation boundary this ADR defines is unchanged.
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable
@@ -104,7 +106,7 @@ if (!$result->ok) { log($result->error->message); }
 ```
 
 and the callee is an ordinary script, receiving its arguments through `Core\Script::args()` and answering
-with a top-level `return` — which is what `include` already means in PHP, so nothing new has to be learned
+with a top-level `return` — which is what `require` already means in PHP, so nothing new has to be learned
 beyond the one accessor call ([ADR 0012](0012-no-superglobals.md) fixes that it is a method, not a magic
 variable):
 
@@ -262,7 +264,7 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
 - **The boundary rules must be learned**: what cannot cross, and that a child's throw is not the parent's.
   Mitigated by their being *the same* rules as `spawn worker`, and by refusals being diagnostics at the
   boundary rather than surprises later.
-- **A confusion risk with `include`.** Two constructs run a file and they isolate opposite amounts. The
+- **A confusion risk with `require`.** Two constructs run a file and they isolate opposite amounts. The
   spec must define them next to each other, and the diagnostic for "undefined variable that the parent had"
   should name the isolate boundary as the reason.
 - **The isolate is not a sandbox for hostile code beyond what the request boundary already provides.** It is
@@ -283,7 +285,7 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
   content-addressed cache key, a source map, a `mwl check` that can analyse it before it runs, and an
   auditable place on disk that an operator granted. A string has none of these, and its attack surface is
   whatever concatenated it.
-- **`include` with a fresh symbol table** — i.e. isolation by scope only. It shares the heap, which means it
+- **`require` with a fresh symbol table** — i.e. isolation by scope only. It shares the heap, which means it
   shares refcounts, statics, output, resources and a fatal error. It would satisfy the letter of "runs
   another file" and none of the requirement.
 - **A thread with a shared heap.** Non-atomic refcounts are the reason the thread-per-core model exists; a

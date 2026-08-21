@@ -79,8 +79,8 @@ use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, ArrowFnExpr, AssignOp, Attribute, AttributeGroup, BinaryOp,
     Block, CallArgs, CastType, CatchClause, ClassDecl, ClassMember, ClassMemberKind, ClosureExpr,
     ClosureUse, ConstMember, DestructureElement, DestructureTarget, EnumCase, EnumDecl, Expr,
-    ExprKind, ForeachBinding, IncDecOp, IncludeKind, InterfaceDecl, MatchArm, MemberName,
-    MethodMember, Modifier, Name, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody,
+    ExprKind, ForeachBinding, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember,
+    Modifier, Name, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody,
     PropertyHookKind, PropertyMember, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind,
     StringPart, SwitchCase, TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type,
     TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
@@ -1590,14 +1590,10 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Eval) => self.parse_eval(),
             TokenKind::Keyword(Keyword::Extract) => self.parse_extract(),
             TokenKind::Keyword(Keyword::Settype) => self.parse_settype(),
-            TokenKind::Keyword(Keyword::Include) => self.parse_include(IncludeKind::Include),
-            TokenKind::Keyword(Keyword::IncludeOnce) => {
-                self.parse_include(IncludeKind::IncludeOnce)
-            }
-            TokenKind::Keyword(Keyword::Require) => self.parse_include(IncludeKind::Require),
-            TokenKind::Keyword(Keyword::RequireOnce) => {
-                self.parse_include(IncludeKind::RequireOnce)
-            }
+            TokenKind::Keyword(Keyword::Require) => self.parse_require(),
+            TokenKind::Keyword(
+                kw @ (Keyword::Include | Keyword::IncludeOnce | Keyword::RequireOnce),
+            ) => self.parse_rejected_include_family(kw),
             TokenKind::Ident
                 if self.at_contextual("spawn") && self.peek_at(1).kind == TokenKind::Ident =>
             {
@@ -2209,22 +2205,53 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `include`/`include_once`/`require`/`require_once` — an expression,
-    /// not a statement, per
+    /// `require` — the sole surviving same-frame inclusion keyword
+    /// ([ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)):
+    /// an expression, not a statement, per
     /// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md):
     /// same frame, same globals, same statics as the caller. Precedence
     /// mirrors `print`/`throw` above: it consumes a full expression, not
     /// just a primary.
-    fn parse_include(&mut self, kind: IncludeKind) -> Expr {
+    fn parse_require(&mut self) -> Expr {
         let start = self.bump().span;
         let path = self.parse_expr();
         let span = start.to(path.span);
         Expr {
             span,
-            kind: ExprKind::Include {
-                kind,
+            kind: ExprKind::Require {
                 path: Box::new(path),
             },
+        }
+    }
+
+    /// `include`/`include_once`/`require_once` — parsed the same shape as
+    /// `require` so the diagnostic can cover the whole construct, then
+    /// discarded: [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+    /// keeps exactly one same-frame inclusion keyword.
+    fn parse_rejected_include_family(&mut self, kw: Keyword) -> Expr {
+        let start = self.bump().span;
+        let _ = self.parse_expr();
+        let span = start.to(self.last_span);
+        let spelling = match kw {
+            Keyword::Include => "include",
+            Keyword::IncludeOnce => "include_once",
+            Keyword::RequireOnce => "require_once",
+            _ => unreachable!("only dispatched for the include/require family"),
+        };
+        self.diags.report(
+            Diagnostic::error(
+                code::E_INCLUDE_FAMILY_UNSUPPORTED,
+                format!("`{spelling}` is not supported"),
+            )
+            .with_primary(span, "MWL keeps exactly one same-frame inclusion construct")
+            .with_help(
+                "use `require` — it already throws on a missing file and runs every time it is \
+                 reached",
+            ),
+        );
+        Expr {
+            span,
+            kind: ExprKind::Error,
         }
     }
 
@@ -5228,25 +5255,41 @@ mod tests {
     }
 
     #[test]
-    fn include_and_require_are_expressions() {
-        let s = parse_stmt_ok("$x = include 'a.mwl';");
+    fn require_is_an_expression() {
+        let s = parse_stmt_ok("$x = require 'a.mwl';");
         let StmtKind::Expr(e) = s.kind else {
             panic!("expected an expression statement: {s:?}");
         };
         let ExprKind::Assign { value, .. } = e.kind else {
             panic!("expected an assignment: {e:?}");
         };
-        assert!(matches!(
-            value.kind,
-            ExprKind::Include {
-                kind: IncludeKind::Include,
-                ..
-            }
-        ));
+        assert!(matches!(value.kind, ExprKind::Require { .. }));
 
-        parse_stmt_ok("require_once 'b.mwl';");
-        parse_stmt_ok("include_once 'c.mwl';");
         parse_stmt_ok("require 'd.mwl';");
+    }
+
+    /// ADR 0021: `require` is the only same-frame inclusion keyword kept —
+    /// `include`, `include_once` and `require_once` are all diagnosed.
+    #[test]
+    fn include_family_is_diagnosed() {
+        for src in [
+            "include 'a.mwl';",
+            "include_once 'c.mwl';",
+            "require_once 'b.mwl';",
+        ] {
+            let (s, diags) = parse_stmt_with_diags(src);
+            assert!(diags.has_errors(), "expected a diagnostic for {src:?}");
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_INCLUDE_FAMILY_UNSUPPORTED)),
+                "expected E_INCLUDE_FAMILY_UNSUPPORTED for {src:?}, got {diags:?}"
+            );
+            let StmtKind::Expr(e) = s.kind else {
+                panic!("expected an expression statement: {s:?}");
+            };
+            assert!(matches!(e.kind, ExprKind::Error));
+        }
     }
 
     // ========================================================================

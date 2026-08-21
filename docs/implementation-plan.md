@@ -143,7 +143,7 @@ talks h1/h2 upstream → h3 is pure cost.
   imported `.phpt` pass rate structurally rather
   than through bugs.
 - **One new language construct that PHP has no equivalent of.** `spawn script` is a surface a developer
-  has to learn and the spec has to define next to `include`, which they will confuse it with. Accepted:
+  has to learn and the spec has to define next to `require`, which they will confuse it with. Accepted:
   the requirement it answers — run another file, isolated, without a second process — has no other honest
   answer, and it reuses the request boundary and the worker value rules rather than adding either
   ([ADR 0006](adr/0006-isolated-script-execution.md)).
@@ -412,7 +412,8 @@ not *check* — see M2 — but they must parse). A snapshot pins the one grammar
 ### M2 — HIR, types, IR (~4 weeks)
 Name resolution, namespaces and `use`, class hierarchy with trait flattening (conflicts resolved by
 `insteadof` alone — there is no rename or visibility-change path, see
-[ADR 0015](adr/0015-no-name-aliasing.md)), statically resolved `require`/`include` with a dynamic fallback.
+[ADR 0015](adr/0015-no-name-aliasing.md)), statically resolved `require` ([ADR 0021](adr/0021-single-file-inclusion-construct.md)) with a dynamic
+fallback.
 Every callable and constant resolves as a class member — there
 is no bare-name fallback in the resolver at all — and a declaration reusing the reserved `Core` namespace is
 a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). A `class`,

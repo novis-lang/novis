@@ -4,7 +4,7 @@
 //!
 //! Types ([`Type`]/[`TypeKind`]/[`TypeAtom`], ADR 0007 § 3) and expressions
 //! ([`Expr`]/[`ExprKind`], every construct M1's plan names — `match`, closures
-//! and arrow functions, `spawn script`, `include`/`require`, named arguments,
+//! and arrow functions, `spawn script`, `require`, named arguments,
 //! spread, nullsafe, first-class callable syntax, the `as` conversion
 //! operator). [`Block`]/[`Stmt`]/[`StmtKind`] now also cover every
 //! control-flow statement (`if`, `while`, `do`/`while`, `for`, `foreach`'s
@@ -472,21 +472,6 @@ pub struct AnonClassDecl {
     pub members: Vec<ClassMember>,
 }
 
-/// Which of PHP's four same-frame code-inclusion keywords an
-/// [`ExprKind::Include`] spells
-/// ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)). All
-/// four share one AST shape — only `require`'s missing-file behaviour
-/// (throwing instead of warning) and the `_once` guard differ, and neither is
-/// a parse-time concern.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[expect(missing_docs, reason = "each variant is exactly its keyword spelling")]
-pub enum IncludeKind {
-    Include,
-    IncludeOnce,
-    Require,
-    RequireOnce,
-}
-
 /// The key of one `spawn script … with(…)` option
 /// ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -747,13 +732,14 @@ pub enum ExprKind {
         /// The `with(...)` options, if a `with` clause was given.
         options: Vec<SpawnOption>,
     },
-    /// `include`/`include_once`/`require`/`require_once` — an expression,
-    /// not a statement, per
+    /// `require` — an expression, not a statement, per
     /// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md):
-    /// `$x = include 'a.php';` is legal.
-    Include {
-        /// Which of the four keywords this is.
-        kind: IncludeKind,
+    /// `$x = require 'a.mwl';` is legal.
+    /// [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+    /// is why this is the only same-frame inclusion keyword left — `include`,
+    /// `include_once` and `require_once` are rejected at parse time instead
+    /// of reaching the AST at all.
+    Require {
         /// The path expression.
         path: Box<Expr>,
     },

@@ -4,7 +4,7 @@
   it does not restate any ADR's semantics, and where this document and an ADR ever disagree on wording, the
   ADR owns the semantics and this document owns the syntax (see [CLAUDE.md](../../CLAUDE.md), "every fact
   has exactly one home").
-- **Scope:** file modes and inline HTML; `include`/`require` next to `eval` and `spawn script`, since the
+- **Scope:** file modes and inline HTML; `require` next to `eval` and `spawn script`, since the
   plan names confusing the last two as the predictable mistake; the concrete grammar for every declaration
   slot [ADR 0007](../adr/0007-explicit-type-system.md) requires (typed locals, `foreach` bindings,
   destructuring, `type` aliases) and the final spelling of the conversion operator; the closed list of
@@ -16,8 +16,8 @@
   language on its own.
 
 > **In short:** a `.mwl` file opens code mode with `<?mwl`, `<?php` (accepted, same grammar), or the short
-> echo tag `<?=`; everything else is inline HTML emitted verbatim, exactly like PHP. `include`/`require`
-> share everything with the calling frame and `spawn script` shares nothing but compiled code — the two are
+> echo tag `<?=`; everything else is inline HTML emitted verbatim, exactly like PHP. `require` shares
+> everything with the calling frame and `spawn script` shares nothing but compiled code — the two are
 > defined next to each other below so the difference cannot be missed the way
 > [ADR 0006](../adr/0006-isolated-script-execution.md) predicts it will be. Every declaration slot ADR 0007
 > requires gets exactly one syntax: the type comes first, the same position PHP already uses for a parameter
@@ -52,22 +52,23 @@ in one of two modes, exactly as PHP is:
 There is no dual short-open-tag ambiguity to resolve (PHP's long-deprecated bare `<?`): MWL never had it, so
 there is nothing to accept or reject.
 
-## 2. Running another file: `include`/`require`, `eval`, and `spawn script`
+## 2. Running another file: `require`, `eval`, and `spawn script`
 
-Three PHP-shaped ways to bring in code, and they isolate three different amounts. Defined here side by side
-because [ADR 0006](../adr/0006-isolated-script-execution.md) names exactly this confusion as the mistake
-worth heading off:
+Two PHP-shaped ways to bring in code plus one MWL-only addition, and they isolate three different amounts.
+Defined here side by side because [ADR 0006](../adr/0006-isolated-script-execution.md) names exactly this
+confusion as the mistake worth heading off. [ADR 0021](../adr/0021-single-file-inclusion-construct.md)
+collapses PHP's four same-frame inclusion keywords to this one: `include`, `include_once`, and
+`require_once` all parse (so the diagnostic can name the replacement) and are then rejected.
 
 | construct | isolation | resolution | status |
 |---|---|---|---|
-| `include 'path.mwl';` / `include_once` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics |
-| `require 'path.mwl';` / `require_once` | none, same as `include` | same as `include` | kept — the only difference from `include` is a missing file throwing rather than warning, exactly as in PHP |
+| `require 'path.mwl';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
 | `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name (see [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected*) |
 | `spawn script 'path.mwl' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6) | new construct, grammar fixed below |
 
-The rule of thumb the diagnostics should teach: **`include` runs code in this frame; `spawn script` runs a
-file as if it were its own request.** A "why can't the included/spawned code see my variable" question
-should get a different answer depending on which of the two produced it — `include` never hides a variable
+The rule of thumb the diagnostics should teach: **`require` runs code in this frame; `spawn script` runs a
+file as if it were its own request.** A "why can't the required/spawned code see my variable" question
+should get a different answer depending on which of the two produced it — `require` never hides a variable
 declared before it (there is nothing to hide), while a variable invisible inside a `spawn script` child is
 expected and the diagnostic at the child's use site should name the isolate boundary as the reason, not
 report a plain undefined-variable error.

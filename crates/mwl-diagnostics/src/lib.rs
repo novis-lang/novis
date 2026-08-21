@@ -153,6 +153,9 @@ pub mod code {
     /// body: an enum declares only cases and an optional backing type — see
     /// ADR 0010 § 3.
     pub const E_ENUM_MEMBER_UNSUPPORTED: Code = Code::new("E0220");
+    /// `include`, `include_once`, or `require_once`: MWL keeps exactly one
+    /// same-frame inclusion construct, `require` — see ADR 0021.
+    pub const E_INCLUDE_FAMILY_UNSUPPORTED: Code = Code::new("E0221");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
