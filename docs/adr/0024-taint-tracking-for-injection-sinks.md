@@ -90,6 +90,25 @@ the value's header, no refcount change, no cost on the hot path. This is securit
 [ADR 0004](0004-memory-for-simplicity.md)'s ordering, the same way a `readonly` property costs nothing once
 compiled.
 
+```
+scalar_type   := 'string' | 'bytes'
+qualified_type := 'tainted'? scalar_type | <every other atom in ADR 0007 § 3, unqualified>
+```
+
+**This is new grammar, not only a new type-checker fact.** [ADR 0007](0007-explicit-type-system.md) requires
+every binding — parameter, return, property, local, `foreach` binding — to carry an explicit spelled type,
+with no inference. A function that receives a tainted value and needs to pass it on (a validation helper, a
+logging wrapper, anything short of laundering on the very next line) has nowhere to put that fact unless
+`tainted` can be written in an ordinary declaration, the same way `uint` can. Without it, either taint
+silently disappears at the first function-call boundary — reopening exactly the hole this ADR exists to
+close, since `Core\Db::query(buildQuery(Core\Request::query('id')))` would then type-check if `buildQuery`'s
+plain-`string` parameter quietly accepted a tainted argument — or every request-handling function is forced
+to launder on its very first line, a far more restrictive design than the one this ADR actually specifies in
+§ 2. `tainted` must therefore be usable in ordinary, user-authored declarations, not only in `Core`'s own
+signatures — which means it needs a new reserved keyword in the lexer and a new production in the parser's
+type grammar, landing in `mwl-syntax` alongside `uint`'s own grammar addition, not deferred to M2's type
+checker the way § 2's semantic rules are. See *Consequences* and the plan's M1 paragraph.
+
 Every method on `Core\Request`, `Core\Server` (header values and any other client-influenced field —
 `REQUEST_METHOD` from a fixed enum-shaped set is not attacker-shaped the same way and is not required to be
 tainted), `Core\Session`, `Core\Env`, `Core\Cli`, and `Core\Script::args()` returns the tainted form of
@@ -195,9 +214,13 @@ holding the "no magic" line for its own sake.
 
 **Negative**
 
-- A genuinely new type-checker feature: M2's type checker must implement the qualifier axis, its poisoning
-  propagation, and the checked-conversion laundering rule before M7's `Core\Request` can return anything
-  meaningful — a real sequencing dependency, not just an API addition.
+- **A genuinely new type-checker feature, and — because § 1 requires `tainted` to be a spellable qualifier,
+  not just an internal fact — a small addition to M1's grammar after that milestone's parser was already
+  reported feature-complete.** `mwl-syntax` needs one new reserved keyword and one new production before M1's
+  own verification (the fuzz run and the PHP-corpus parse) can be called done against ADR 0024's full scope,
+  and M2's type checker then needs the qualifier axis, its poisoning propagation, and the checked-conversion
+  laundering rule before M7's `Core\Request` can return anything meaningful. Caught before M1's verification
+  pass ran, so it costs an addition, not a rework of anything already fuzzed or corpus-tested.
 - **False positives are the accepted failure direction.** A value the developer knows is safe (config data
   the app itself wrote to its own session) can still be marked tainted once it round-trips through a
   persisted store this ADR treats conservatively; `Core\Taint::assertTrusted` exists for exactly this, at
@@ -251,6 +274,10 @@ holding the "no magic" line for its own sake.
 
 Verification, in the order it becomes possible:
 
+- **M1**: `mwl ast` parses `tainted string`/`tainted bytes` in every declaration slot ADR 0007 already
+  requires a spelled type for — parameter, return, property, local, `foreach` binding — and the qualifier
+  round-trips through an AST snapshot test the same way `uint` already does; folded into M1's existing fuzz
+  run and PHP-corpus parse rather than a separate pass.
 - **M2**: the `mwl check` corpus [ADR 0007](0007-explicit-type-system.md) already builds gains its own
   entries — concatenating a `tainted` value into a sink that requires the plain type is a diagnostic naming
   the qualifier and the sink; a checked `as uint`/`as` an enum's backing type on a tainted source produces

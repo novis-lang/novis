@@ -17,8 +17,8 @@
 > declarations (classes/interfaces/traits/enums, their members, attributes, `namespace`/`use`/`type`
 > alias), including the file-level HTML/code-tag round trip (`parse_file`, exercised through
 > `mwl ast`) that the plan's *Verify* step below needs. **What's left is M1's own verification**:
-> `cargo fuzz` finding no panic in a 1h run on the lexer and parser, and parsing the full local PHP
-> 8.5 install's `.php` files without crashing — neither started yet. `crates/mwl-syntax`'s module
+> `cargo fuzz` finding no panic in a 5 minute run on the lexer and parser, and parsing the full local `php-src` folder for `.php`
+> files without crashing — neither started yet. `crates/mwl-syntax`'s module
 > docs carry the current list of known parser gaps (`goto` labels are the likeliest to surface
 > during the corpus-parse step); check those first rather than debugging blind. PHP's alternative
 > colon syntax (`if (...): ... endif;` etc.) is deliberately out of scope, not a gap — corpus files
@@ -391,12 +391,18 @@ the LSP.
 
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
 is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the
-declaration slots PHP has no syntax for — typed locals, `foreach` bindings and destructuring targets. Also
+declaration slots PHP has no syntax for — typed locals, `foreach` bindings and destructuring targets.
+**Added after this milestone's grammar work first landed:** the `tainted` qualifier on `string`/`bytes`
+([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)) is new reserved-keyword grammar too — `tainted`
+prefixing either scalar atom, everywhere a type may appear (parameter, return, property, local,
+`foreach` binding). It belongs here for the same reason `uint` does: *enforcing* it is M2's job, but
+*parsing* it is this milestone's, so it needs to land before M1's own verification below counts as
+complete — a real, if small, addition discovered after the parser was first reported done. Also
 new here: `type Name = TypeExpr;` ([ADR 0015](adr/0015-no-name-aliasing.md)), a file/namespace-scope
 declaration using the same grammar, parsed but not yet resolved — that is M2's job.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
-finds no panic in a 1h run; parse the full local PHP 8.5 install's `.php` files without crashing (they will
+finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing (they will
 not *check* — see M2 — but they must parse). A snapshot pins the one grammar wrinkle in ADR 0007: `as` in a
 `foreach` header belongs to `foreach`, so a conversion of the subject needs parentheses.
 
