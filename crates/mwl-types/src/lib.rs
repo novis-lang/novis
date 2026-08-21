@@ -55,11 +55,15 @@
 //! Deliberately out of scope so far, left for a follow-up (see
 //! `NEXT_SESSION_PROMPT.md` for the ordering):
 //!
-//! - ADR 0014's interplay with a typed receiver, ADR 0024 (tainted
-//!   propagation/laundering), ADR 0027 (`callable` value-shape checking),
-//!   ADR 0033 §§ 2-4 (`secret` propagation/laundering/sink refusal — its § 1
-//!   grammar landed in M1, but `lower_atom` still maps all four `Secret*`
-//!   atoms straight to `mixed`). ADR 0022 (definite *property*
+//! - ADR 0024 (tainted propagation/laundering), ADR 0027 (`callable`
+//!   value-shape checking), ADR 0033 §§ 2-4 (`secret` propagation/laundering/
+//!   sink refusal — its § 1 grammar landed in M1, but `lower_atom` still maps
+//!   all four `Secret*` atoms straight to `mixed`). ADR 0014's "a property
+//!   access on any receiver other than `$this` is checked" half turned out to
+//!   already be done: [`expr::check_property_access`] reports
+//!   `E_UNKNOWN_MEMBER` for exactly that shape (see its own module docs) —
+//!   `mwl_hir::members`'s and this module's known-gap notes were just stale
+//!   about it. ADR 0022 (definite *property*
 //!   initialization) is now done for the shapes its own M2 corpus names —
 //!   see [`ctor_init`]'s docs for what is deliberately still out of scope
 //!   within that ADR specifically. ADR 0013 (`Comparable`) is now done too

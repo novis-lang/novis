@@ -166,16 +166,21 @@ user code running at all.
 
 ### 6. `__call`/`__callStatic` — not recognized by name, no replacement offered
 
-A method literally named `__call` or `__callStatic` is an ordinary method: it compiles, it can be called
-directly by that name like any other, and the runtime never invokes it implicitly for an unresolved call.
-Calling a method that does not exist on a class is already a compile-time diagnostic under
+Neither name can even be declared: [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule
+requires a lowercase-first `camelCase` name with no leading-underscore allowance of any kind — unlike the
+allowance properties/parameters/locals had until [ADR 0030](0030-no-leading-underscores-constructor-spelling.md)
+revoked it, methods never had one to begin with — so `__call`/`__callStatic` are rejected by the casing
+checker before any call-resolution logic runs, the same generic diagnostic any other double-underscore
+method name gets. That is a stronger version of this section's intent, not a different one: calling a
+method that does not exist on a class is already a compile-time diagnostic under
 [ADR 0011](0011-functions-and-constants-are-class-members.md)'s exhaustive resolution — the same shape *5*
-gives properties — so there is no runtime moment left for dynamic dispatch to intercept. Unlike `__get`/
-`__set`, this ADR does not offer a declared-interface replacement for `__call`/`__callStatic`: the
-requirement behind this decision rejects the concept of dispatching to a name the class did not declare, not
-merely PHP's particular spelling of it. A program that wants "handle a family of unknown calls" writes an
-ordinary method taking an explicit name and argument list, or a `match`/lookup table keyed by name — visible
-in the class body, resolved and type-checked like any other call.
+gives properties — so there was never a runtime moment left for dynamic dispatch to intercept; now the name
+itself cannot be written down, either. Unlike `__get`/`__set`, this ADR does not offer a declared-interface
+replacement for `__call`/`__callStatic`: the requirement behind this decision rejects the concept of
+dispatching to a name the class did not declare, not merely PHP's particular spelling of it. A program that
+wants "handle a family of unknown calls" writes an ordinary method taking an explicit name and argument
+list, or a `match`/lookup table keyed by name — visible in the class body, resolved and type-checked like
+any other call.
 
 ## Consequences
 
@@ -248,9 +253,12 @@ Verification, in the order it becomes possible:
   parses with the grammar M1 already gives interfaces — nothing new here, since this ADR adds no new syntax
   beyond an ordinary interface declaration.
 - **M2**: the checker refuses a property access naming anything not declared on the class (or an ancestor or
-  trait) with a diagnostic, for every literal-identifier access — joining the diagnostic corpus
+  trait) with a diagnostic, for every literal-identifier access, on every receiver — `mwl_hir::members` for
+  `$this` (`E_UNDEFINED_PROPERTY`), `mwl-types::expr::check_property_access` for every other statically
+  resolvable receiver (`E_UNKNOWN_MEMBER`) — joining the diagnostic corpus
   [ADR 0007](0007-explicit-type-system.md)'s own M2 entry already builds; a method named `__call` or
-  `__callStatic` type-checks as an ordinary method with no special resolution path.
+  `__callStatic` never reaches any resolution logic at all, since `mwl-syntax`'s casing check
+  ([ADR 0029](0029-identifier-casing-is-checked.md)) already refuses the name itself.
 - **M4**: a class implementing `PropertyObserver` runs its property's own hook (or storage) first and
   `onPropertyGet`/`onPropertySet` second, for both hooked and un-hooked properties, including a throwing
   observer method propagating correctly through [ADR 0002](0002-error-propagation.md)'s checked-return path;

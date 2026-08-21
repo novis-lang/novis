@@ -112,7 +112,7 @@
 >
 > **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
 > paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
-> type table; 0010/0014/0015/0022/0027/0028's checker-side rules (0013's own is now done — see below);
+> type table; 0010/0015/0022/0027/0028's checker-side rules (0013's and 0014's own are now done — see below);
 > 0024 §§ 2-3's tainted propagation and
 > laundering; 0033 §§ 2-4's secret propagation, checked-conversion laundering, and its `Markup`/`Throwable`-message
 > sink refusals, now that ADR 0033's grammar addition has landed in M1). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
@@ -342,8 +342,29 @@
 > `int` against `uint`), so adding an enum-only special case here would be inconsistent with the rest of the
 > table; it wants its own pass once equality gets checked at all.
 >
+> This session closed [ADR 0014](adr/0014-property-observer.md)'s remaining M2 item — but found no new
+> logic was needed, only a stale doc correction. The item on the prior queue was "a property access on
+> any receiver other than `$this`," left by `mwl_hir::members`'s own module docs as an open gap needing
+> `mwl-types`' static types. `mwl-types::expr::check_property_access` had already closed it in an earlier
+> session, while adding `E_UNKNOWN_MEMBER` for the "every other receiver shape" case generally (see its
+> own module docs) — the fixture `an_undeclared_property_on_a_typed_local_is_diagnosed` in
+> `mwl-types::check` already exercises exactly this shape (`Foo $x = new Foo(); $x->missing;`). Both
+> `mwl_hir::members`'s and `mwl-types`' own known-gap notes were simply never updated to say so. Fixed in
+> [`members.rs`](../crates/mwl-hir/src/members.rs) and [`lib.rs`](../crates/mwl-types/src/lib.rs)'s module
+> docs, and here. **A second, separate staleness surfaced while re-reading ADR 0014 § 6 to check this:**
+> that section's claim that "a method literally named `__call`/`__callStatic` is an ordinary method: it
+> compiles" is no longer true and, on inspection, never became true — [ADR 0029](adr/0029-identifier-casing-is-checked.md)'s
+> method-casing rule never carried a leading-underscore allowance the way properties/parameters/locals did
+> (that allowance, and the `__construct`-only exception, is what [ADR 0030](adr/0030-no-leading-underscores-constructor-spelling.md)
+> later revoked), so `check_method_name` in `mwl-syntax::casing` has always rejected `__call` with
+> `E_BAD_METHOD_CASING` before any resolution logic runs. The *outcome* ADR 0014 § 6 wants — no ambient
+> `__call`/`__callStatic` dispatch — still holds, more strongly than described: the name cannot be
+> declared at all, not merely "declared but never specially dispatched." ADR 0014 § 6 and its M2
+> verification line are corrected to say so; no code changed, since the casing checker already produces
+> the right diagnostic for the right reason.
+>
 > **Known gaps left across `mwl-types`** (`NEXT_SESSION_PROMPT.md` has the ordering): every other ADR
-> M2 assigns to it (0014/0024/0027's checker-side rules, plus ADR 0033 §§ 2-4 now that its M1 grammar
+> M2 assigns to it (0024/0027's checker-side rules, plus ADR 0033 §§ 2-4 now that its M1 grammar
 > has landed); exhaustive control-flow
 > reachability (`switch`/`try` bodies conservatively contribute nothing to definite assignment after
 > them — safe, never accepts an invalid program); references (`&$x`) needing both sides to declare the

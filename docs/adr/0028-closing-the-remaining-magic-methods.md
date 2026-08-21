@@ -115,10 +115,14 @@ trigger is gone would misdescribe what is actually happening at the declaration 
 
 ### 2. `__destruct` — rejected outright, no replacement of any kind
 
-**MWL has no destructors.** A method named `__destruct` compiles as an ordinary method the runtime never
-invokes implicitly, exactly the treatment [0014](0014-property-observer.md) gives a method named `__call`.
-There is no refcount-triggered cleanup hook, no scope-exit hook, nothing. Two independent arguments, either
-one sufficient on its own:
+**MWL has no destructors.** A method named `__destruct` cannot even be declared:
+[ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule has never allowed a leading
+underscore, so the casing checker refuses the name outright before anything about destructors comes into
+play — the same fate [ADR 0014](0014-property-observer.md) § 6 gives `__call` (that section was itself
+corrected to say so; earlier drafts of both described the name as "compiling as an ordinary method the
+runtime never invokes," which stopped being accurate once the casing checker existed to reject it first).
+Either way there is no refcount-triggered cleanup hook, no scope-exit hook, nothing. Two independent
+arguments for why destructors themselves have no place here, either one sufficient on its own:
 
 - **No sound place to report a throw.** [0002](0002-error-propagation.md) is normative: every call returns
   a checked status, and nothing unwinds through a JIT frame. An explicit call site has an obvious place to
@@ -189,9 +193,10 @@ models, and this ADR does not ask [0019](0019-reflection-and-ast-parsing-are-cor
 [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s closed `serialize()`/`unserialize()` round trip,
 which gives the same "get an object's data out, get an equivalent object back" capability without emitting
 PHP source that has to be `eval`'d or compiled to reconstruct it — a category of trust problem
-[0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed for exactly this reason. A class
-declaring `__set_state` compiles as an ordinary method the runtime never invokes implicitly, same as every
-other rejected magic method in this document.
+[0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed for exactly this reason. A class declaring `__set_state` never reaches the question of whether the runtime would invoke it: the name
+itself is refused by [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule before any
+resolution logic runs, same as every other double-underscore magic method this document and
+[ADR 0014](0014-property-observer.md) § 6 cover.
 
 ### 6. `__autoload` — moot, closing note only
 
@@ -272,15 +277,17 @@ Verification, in the order it becomes possible:
 - **M2**: the checker refuses string interpolation, concatenation, `echo`, and `as string` on an object
   whose static type does not provably implement `Stringable`, naming `Stringable` as the fix — joining the
   diagnostic corpus [0007](0007-explicit-type-system.md)'s own M2 entry already builds. A method literally
-  named `__destruct`, `__isset`, `__unset`, `__debugInfo`, or `__set_state` type-checks as an ordinary method
-  with no special resolution path. `unset($obj->prop)` is refused for every declared property with a
+  named `__destruct`, `__isset`, `__unset`, `__debugInfo`, or `__set_state` never reaches any special
+  resolution path in the first place: [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule
+  refuses the leading-underscore name itself, the same diagnostic any other double-underscore method name
+  gets. `unset($obj->prop)` is refused for every declared property with a
   diagnostic naming [0022](0022-definite-property-initialization.md)'s guarantee as the reason.
 - **M4**: a class implementing `Stringable` is accepted at every implicit-conversion site in § 1 and
-  produces the value `toString()` returns; no method named `__destruct` is ever invoked by the language
-  even when refcounts legitimately reach zero mid-request; `isset($obj->prop)` matches `$obj->prop !== null`
-  for a nullable property and is always `true` for a non-nullable one; `var_dump`/`print_r` show every
-  declared property and its live value with no observable effect from a declared `__debugInfo`/`__set_state`
-  method.
+  produces the value `toString()` returns; no method named `__destruct` could compile in the first place,
+  so none is ever invoked when refcounts legitimately reach zero mid-request; `isset($obj->prop)` matches
+  `$obj->prop !== null` for a nullable property and is always `true` for a non-nullable one; `var_dump`/
+  `print_r` show every declared property and its live value, with no `__debugInfo`/`__set_state` method
+  able to exist to affect that.
 - **M11**: the converter mechanically rewrites `__toString` to `Stringable`/`toString()` and
   `unset($obj->nullableProp)` to `$obj->nullableProp = null;`; it flags PHP source using `__destruct` or
   `__set_state` as a `TODO` needing a human decision, per *Consequences*' negative list.

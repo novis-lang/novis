@@ -46,9 +46,12 @@
 //!   whether it is declared anywhere in the chain.
 //! - A property access on any receiver other than `$this` — a typed local, a
 //!   chained call result, `self::factory()`'s return, an explicit
-//!   `new Foo()` — is not checked here at all; it needs `mwl-types`' static
-//!   types to know which class's properties apply, and is left for that
-//!   milestone.
+//!   `new Foo()` — is never checked *here*, since this module has no static
+//!   type to check it against. That is not left open: `mwl-types`'
+//!   `expr::check_property_access` closes it once a static type exists,
+//!   reporting `E_UNKNOWN_MEMBER` for the same shape of miss this module
+//!   reports `E_UNDEFINED_PROPERTY` for on `$this` — split across crates by
+//!   which one has the type to check against, not skipped by either.
 //! - A property access whose name is not a literal identifier
 //!   (`$obj->$name`, `$obj->{expr}`) is a runtime concern per ADR 0014 § 5,
 //!   not a compile-time one, and is silently skipped here regardless of
