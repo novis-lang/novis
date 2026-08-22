@@ -5,86 +5,95 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session landed ADR 0035's truthy-conversion partial slice in `mwl-ir` — the seventeenth slice.** An
-`if`/`while` condition no longer needs to be statically `bool`:
+**Last session landed `Ty::Mixed` — the eighteenth slice, and the first slice to widen `mwl-ir`'s own IR
+type lattice rather than what it lowers.** ADR 0007 § 3's `mixed` now has an opaque IR representation:
 
-- Five new `ir::Helper` variants (`IntTruthy`/`UintTruthy`/`FloatTruthy`/`StrTruthy`/`ArrayTruthy`) reuse
-  the existing `InstKind::HelperCall` shape the `.`-concatenation helpers already established. A new
-  `lower::Lowering::lower_truthy_cond` converts a `bool` condition straight through, a scalar
-  (`int`/`uint`/`float`/`string`) or `Ty::Array` condition through the matching helper, and a `Ty::Object`
-  condition (a class instance or enum case) to a fresh `const.bool true` with **no** helper call at all —
-  ADR 0035 § 4 makes either always truthy, so there's nothing to inspect at runtime.
-- `lower_if`/`lower_while` both now call `lower_truthy_cond` instead of asserting the condition is already
-  `bool`. A refcounted condition (`Ty::Str`/`Ty::Array`) that isn't `is_aliasing_read` — a fresh
-  call/`new`/literal result whose only use is the truthy test — is released right after the helper reads
-  it, the same precedent `concat_operand`'s own caller already set for `.` concatenation; verified with a
-  dedicated snapshot test (`a_fresh_array_condition_is_released_after_the_truthy_check`) showing the
-  `release` lands right after the `helper.array_truthy` call and before the branch.
-- Deliberately still out of scope, and unreachable today: `null` (no nullable-type IR representation
-  exists yet) and `mixed`/a union (same `Ty::Mixed` gap named below). `&&`/`||`/`!` and the ternary/elvis
-  condition — ADR 0035's other four truthy positions — are untouched: this crate doesn't lower any of the
-  three yet at all, so only `if`/`while`'s own condition changed this slice.
+- `Ty::Mixed`, a new `#[non_exhaustive] Ty` variant, bare and opaque like `Ty::Object`/`Ty::Array`.
+  `lower_decl_type` gained a `TypeAtom::Mixed => Ty::Mixed` arm and `lower_checked_ty` a
+  `CheckedTy::Mixed => Ty::Mixed` one, mirroring exactly how both already erase a class/enum name to
+  `Ty::Object` — no new `Lowering` insertion point was needed at all, since `bind_local`,
+  `lower_call_args`, `release_all_locals` and `StmtKind::Return`'s own arm all key off
+  `Ty::is_refcounted`/`is_aliasing_read` rather than naming a concrete `Ty` variant directly.
+- `Ty::is_refcounted` deliberately does **not** include `Ty::Mixed`: a `mixed` value's actual runtime
+  shape might be refcounted (a `string`, an array, an object) or not (a scalar), and nothing decides that
+  runtime type tag yet — so there's no way to know *whether* a retain/release is even needed today, only
+  that skipping one doesn't break the round-trip this slice promises.
+- Scoped deliberately narrow, per the standing "narrow slice first" discipline: enough representation for
+  a `mixed`-typed local, parameter, return value or call argument to exist and round-trip. Nothing that
+  needs to know a `mixed` value's *actual* runtime type — arithmetic, `.` concatenation, ADR 0035's truthy
+  table, array-element access through a `mixed`-erased base — was wired up; all four still panic naming the
+  gap, now reachable (a `mixed`-typed value can exist as input) rather than theoretical. A dedicated test
+  (`a_mixed_condition_still_panics_naming_the_gap`) pins that a `mixed`-typed `if` condition reaches
+  `lower_truthy_cond` and panics there rather than being unreachable input.
+- The real design question the milestone text poses — **how a `mixed` value's runtime type tag is
+  represented**, needed before any code can branch on what a `mixed` value actually holds — is still open.
+  It's the single remaining unblock for arithmetic's `mixed` fallback, ADR 0035's `null`/`mixed` truthy
+  case, and the mixed-erased-array-base gap, but is real design work, not a mechanical follow-on, so it was
+  deliberately left rather than guessed at in the same session that added the representation.
 
-Five new snapshot tests cover an `int` condition, a `string` `while` condition, an `array<int>` condition
-(aliasing — no extra release), a fresh array-returning-call condition (release verified), and an
-always-truthy object condition. `mwl-ir` is now at 77 tests (was 72); `mwl-types` is unchanged at 217 (its
-own ADR 0035 checker-side fixture already existed). Built, tested, clippy- and fmt-clean, committed.
-`docs/implementation-plan.md`'s M2 paragraph and `crates/mwl-ir/src/lib.rs`'s module docs (both the
-seventeenth-slice paragraph and the known-gaps list) were updated in place — including fixing a stale
-contradiction in the plan's "deliberately out of scope" list left over from an earlier session (it still
-described the array-literal explicit `key =>` element as unsupported, which had actually landed two
-sessions ago).
+Four new snapshot tests cover a `mixed` parameter round-tripping through `return`, an explicitly
+`mixed`-typed local, `var $y = $x;` inferring `mixed` from a `mixed` initializer, and a `mixed` local
+crossing a call-argument boundary; a fifth (`should_panic`) test pins the still-open truthy-conversion gap.
+`mwl-ir` is now at 82 tests (was 77); `mwl-types` is unchanged at 217 (no checker-side change — `mixed`
+already parsed and checked before this session). Built, tested, clippy- and fmt-clean, committed in two
+commits (code+tests+`mwl-ir` module docs, then the plan's M2 paragraph). Two stale claims left over from
+the truthy-conversion session (both said no `Ty::Mixed` IR representation existed yet) were fixed in place
+rather than left to contradict the new paragraph.
 
-**With that, `mwl-ir`'s known-gap list (its own module docs in `lib.rs`) is down to:**
+**With that, `mwl-ir`'s known-gap list (its own module docs in `lib.rs`) stands at:**
 
 1. ~~Control flow (`if`/`while`).~~ **Done.**
 2. ~~Safepoints.~~ **Done** (reserved shape only). Revisit once M3's codegen exists.
 3. ~~`new`/a static call, an instance method call, a compile-time-known property access, and array-element
    access through a known `int`/`uint`/`string` key.~~ **Done.** What's left of this shape:
    - **`$a[]`/`$a[] = expr;` (PHP's append syntax).** Needs a "next available integer key" counter this
-     crate has no representation for yet.
-   - **Array-element access through a `mixed`-erased base.** Still blocked on the same "no `Ty::Mixed`
-     representation" gap as item 5 below — not independently actionable.
-4. **Non-scalar *data* values and refcount operations** — two pieces remain:
+     crate has no representation for yet. Fully self-contained — doesn't touch `mixed` at all.
+   - **Array-element access through a `mixed`-erased base.** `Ty::Mixed` now gives this a representation to
+     fall back *to*, but wiring the fallback in still needs the runtime type-tag design question (item 5
+     below) settled first — not independently actionable yet.
+4. **Non-scalar *data* values and refcount operations** — two pieces remain, both independent of `mixed`:
    - **A `...spread` or `&value` array-literal element.** Still unsupported, still panics naming whichever
      is used. Each needs its own design: spread needs array-merge semantics, `&value` needs a
      reference-value representation this crate has none of anywhere yet.
    - **`Ty::Object` refcounting.** Still zero retain/release operations for an object reference — no
-     allocation/field-layout story exists yet for `Ty::Object` to attach retain/release to. Leave this for
-     whenever an actual object layout/allocation design lands (expected around M3's codegen, not before).
+     allocation/field-layout story exists yet. Leave this for whenever an actual object layout/allocation
+     design lands (expected around M3's codegen, not before).
    - **Qualified string/bytes types (`tainted`, `secret`, and their combination).** Still panics; likely
      wants to wait for ADR 0024 §4/0033's stdlib-dependent sinks anyway (M7/M8).
-5. **Runtime-helper calls are landed** for `.`'s scalar-to-`string` conversion, an `int`/`uint`
-   array-subscript's/array-literal-key's normalization, and now ADR 0035's truthy conversion for a scalar
-   or `Ty::Array` `if`/`while` condition. What remains:
-   - **A `mixed`/union operand** — needs a `Ty::Mixed`-shaped IR representation first; none exists yet.
-     Adding one is its own small design question (how a `mixed` value's runtime type tag is represented)
-     before any helper call — arithmetic's `mixed` fallback, ADR 0035's `null`/`mixed` truthy case, and
-     item 3's "mixed-erased array base" gap above are all blocked on this same representation landing.
-     **You are authorized to design this yourself and proceed if you pick this up — no need to stop and
-     ask** (standing user direction, carried over from the previous session).
-   - The `.`-concatenation `Stringable`-object-operand gap is *not* primarily a `HelperCall` gap: it needs
-     `.` to synthesize a resolved `toString()` call — see the "runtime-helper calls" session's
-     design-choices writeup in `mwl-ir`'s module docs before picking this up, a small but genuine decision.
+5. **`Ty::Mixed` now exists** (the eighteenth slice, above), but nothing dispatches on a `mixed` value's
+   *actual* runtime type yet. What remains, all blocked on the same open design question:
+   - **A runtime type-tag representation for `mixed`.** This is the real remaining design work — how a
+     `mixed` value's actual runtime type (int? string? array? object?) is discoverable at runtime. Once
+     picked, it unblocks all three of: arithmetic's `mixed` fallback (a `BinOp`/`UnOp` operand that erased
+     to `mixed`), ADR 0035's `null`/`mixed` truthy case (a `mixed`-typed `if`/`while` condition — see
+     `lower_truthy_cond`'s own doc comment), and item 3's mixed-erased-array-base gap above.
+     **You are authorized to design this yourself and proceed if you pick this up** — no need to stop and
+     ask (standing user direction, carried over from two sessions ago). Consider scoping the *first* slice
+     to just one consumer (e.g. only the truthy case, or only one arithmetic operator) rather than wiring
+     all three at once.
+   - The `.`-concatenation `Stringable`-object-operand gap is *not* primarily a `HelperCall` gap and is
+     unrelated to `mixed`: it needs `.` to synthesize a resolved `toString()` call — see the "runtime-
+     helper calls" session's design-choices writeup in `mwl-ir`'s module docs before picking this up.
 6. **Virtual dispatch** — skip this one (per standing user direction, deferred until M3 starts) unless it
    turns out to be the only item left, in which case stop and report that instead of attempting it.
 7. ~~`var` locals, multi-base integer-literal cooking, integer-literal magnitude range-checking.~~ **Done.**
 8. ~~String-literal cooking completeness.~~ **Done.**
 
-**Recommended pick for next session:** `Ty::Mixed`'s IR representation (item 5's first bullet) — you're
-pre-authorized to design and proceed on this one, and it's the single biggest unblock left: it's what item
-3's "mixed-erased array base" gap, ADR 0035's `null`/`mixed` truthy case, and ordinary arithmetic's `mixed`
-fallback are all separately waiting on. Consider scoping the *first* slice narrowly (e.g. just enough
-representation to let a `mixed`-typed local/parameter/return value exist and round-trip, before wiring any
-new `Helper` variant to dispatch on it) rather than trying to close every blocked gap in one session — the
-same "narrow slice first" discipline every prior `mwl-ir` session in this file has used.
+**Recommended pick for next session:** the `&&`/`||`/`!`/ternary-elvis truthy positions (ADR 0035's other
+four truthy positions, beyond `if`/`while`) — currently *none* of the four are lowered by this crate at all,
+not even for a plain `bool` operand. This is fully self-contained (no design decision needed — it's a
+mechanical reuse of `lower_truthy_cond`'s existing `bool`/scalar/`Ty::Array`/`Ty::Object` table at three new
+syntax positions, the same way `if`/`while` reused it) and doesn't touch `mixed` at all, unlike almost
+everything else left on this list. It also closes out ADR 0035's checker-side-already-passing truthy story
+to "every position lowers except `null`/`mixed`," a clean, nameable stopping point.
 
-If `Ty::Mixed` doesn't fit in one session either, other standing options, roughly in order of how
-self-contained they are:
-- The `&&`/`||`/`!`/ternary-elvis truthy positions (ADR 0035's other four) — currently *none* of the four
-  are lowered by this crate at all (not even for a plain `bool` operand), so landing them is a genuinely
-  separate slice from this session's `if`/`while` work, not a trivial follow-on.
-- `$a[]`/`$a[] = expr;` append syntax (needs the "next available integer key" counter design).
+Other self-contained options, roughly in order of size:
+- `$a[]`/`$a[] = expr;` append syntax (needs the "next available integer key" counter design — item 3
+  above). Bigger than the truthy positions, but still doesn't touch `mixed`.
+- The `mixed` runtime type-tag representation (item 5 above) — the single biggest unblock left on this
+  list, but real, non-mechanical design work rather than a narrow mechanical slice. Pick this up instead of
+  the truthy positions if you'd rather tackle the bigger design question head-on; you're pre-authorized to
+  design and proceed.
 
 Once control flow, calls, and property/array access all lower, M2's own *Verify* bullet ("IR snapshot
 tests; no program in the corpus produces an `Unknown` type") is worth revisiting for a real corpus-driven
@@ -96,24 +105,15 @@ exempted from ADR 0022's constructor check entirely rather than verified against
 identical question now also applies to whether a `lateinit` + hooked property should discharge on the
 hook's first commit (ADR 0038's own *Revisiting* names this, deferred to `docs/spec/`).
 
+**Note on concurrent work:** a separate session landed ADR 0043 (traits removed, replaced by interface
+default/private methods + `implements X by $field;` delegation) in parallel with this session's `mwl-ir`
+work — its own code follow-up (grammar/`mwl-hir` changes) is tracked in its own
+`NEXT_SESSION_PROMPT_ADR0043.md`, deliberately kept separate from this file to avoid the two sessions
+racing on the same doc. Check whether that follow-up has landed before assuming `mwl-hir`'s trait-flattening
+code still matches ADR 0043's predecessor.
+
 **Housekeeping note:** `python .claude/brief.py`'s "WHERE THE PLAN STANDS" section has been hitting its
-4000-byte budget and truncating for at least two sessions now (the M2 paragraph in
-`docs/implementation-plan.md` keeps growing as more `mwl-ir` slices land). This is the user's manual
-`DOC_CLEANUP_PROMPT.md` trim pass to run, not something to fix automatically — flagging again since it's
-still true after this session's edits.
-
-**Separately, whenever M3 finishes and M4 is underway:** keep [ADR 0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md)
-in mind as M4 approaches its own "usable CLI language" exit criterion — M4B (minimal `mwl-lsp` +
-`editors/vscode`, plus `mwl-syntax`'s new resilient-parse mode) starts right after, per the plan.
-
-**Separately, whenever M5 (concurrency and script isolates) is underway:** give each of the three
-spawn-construct runtime routines its `spawn`-kind trace hook, and whenever the mark-sweep cycle collector's
-run routine is built, give it its `gc`-kind hook too — both per [ADR 0041](docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md),
-both instrumentation-only inside those already-rare routines, no change to the safepoint poll itself.
-
-**Separately, whenever M6 (config, limits, capabilities, disk cache) is underway:** build exactly what
-[ADR 0042](docs/adr/0042-on-disk-artifact-cache-format.md) specifies for the on-disk artifact cache — do not
-re-derive the file format or eviction policy from scratch. Its own *Revisiting* section leaves two things
-genuinely open for whoever implements it: the exact default values for `opcache.file_cache_max_size` and the
-GC-probability/divisor pair, and how many ancestor directories the ownership/permission check walks above
-the cache directory itself.
+4000-byte budget and truncating for at least three sessions now (the M2 paragraph in
+`docs/implementation-plan.md` is the largest single contributor) — this is exactly the signal
+`DOC_CLEANUP_PROMPT.md` describes as "overdue for a trim pass." The user runs that pass manually; flagging
+it again here since it's now a recurring truncation, not a one-off.
