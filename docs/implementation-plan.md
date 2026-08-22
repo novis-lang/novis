@@ -36,8 +36,10 @@
 > definite-property-init), 0024 §§2-3 (`tainted` propagation/laundering), 0027 (`callable` value-shape
 > checks), 0028 (`Stringable`, `unset()` refusal), 0029/0030/0032 (casing — lives in `mwl-syntax`), 0033
 > §§2-4 (`secret` propagation/laundering/sinks), 0036 §§1,3-4 (`object` subtyping, shape structural
-> checks). Remaining for this milestone: ADR 0011/0024 §4/0033's stdlib-dependent sinks (wait on
-> `Core` classes that don't exist until M7/M8), and `mwl-ir` itself. Per-crate known gaps (what a
+> checks), 0037 (`var` local type inference), 0038 (`lateinit` placement checks, ADR 0022 § 2 exemption,
+> § 3's intraprocedural read-before-write check). Remaining for this milestone: ADR 0011/0024 §4/0033's
+> stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and `mwl-ir` itself.
+> Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
 > `mwl-hir::{hierarchy,members,requires}` and `mwl-types::{expr,ctor_init,lib}` — read those directly
 > rather than expecting a summary here; they're more current than a paragraph in this file could stay.
