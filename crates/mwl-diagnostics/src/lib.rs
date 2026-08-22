@@ -231,6 +231,9 @@ pub mod code {
     /// The `<?php` open tag: MWL keeps exactly one code-mode open tag,
     /// `<?mwl` (plus the short-echo `<?=`). See ADR 0049 § 2.
     pub const E_PHP_OPEN_TAG_UNSUPPORTED: Code = Code::new("E0229");
+    /// `list(...)` as a destructuring target: MWL keeps exactly one
+    /// destructuring spelling, `[...]`. See ADR 0050.
+    pub const E_LIST_DESTRUCTURING_UNSUPPORTED: Code = Code::new("E0230");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

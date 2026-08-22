@@ -3488,9 +3488,13 @@ impl<'src, 'd> Parser<'src, 'd> {
     // ADR 0007 § 3.3: destructuring statement
     // ------------------------------------------------------------------------
 
-    /// `list(...)` never means anything but a destructuring target — unlike
-    /// `[...]`, it collides with no expression grammar — so no backtracking
-    /// is needed here.
+    /// `list(...)` is rejected in favour of `[...]` — ADR 0050. It is still
+    /// parsed in full (it never means anything but a destructuring target,
+    /// so unlike `[...]` it collides with no expression grammar and needs no
+    /// backtracking) purely so the diagnostic can span the whole construct
+    /// and recovery can consume through the `;`, exactly the shape ADR 0049
+    /// gave `die`. The parsed target is then discarded: a rejected construct
+    /// never reaches the AST as a live node.
     fn parse_destructure_from_list(&mut self, start: Span) -> Stmt {
         let open = self.bump().span; // 'list'
         self.expect(TokenKind::LParen, "`(`");
@@ -3500,7 +3504,24 @@ impl<'src, 'd> Parser<'src, 'd> {
             elements,
             span: open.to(close),
         };
-        self.finish_destructure_stmt(start, target)
+        let stmt = self.finish_destructure_stmt(start, target);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_LIST_DESTRUCTURING_UNSUPPORTED,
+                "`list(...)` is not supported",
+            )
+            .with_primary(
+                stmt.span,
+                "use `[...]` instead — it is the only destructuring spelling MWL keeps",
+            )
+            .with_help(
+                "the element grammar is identical: `list(int $a, string $b) = $pair;`                  becomes `[int $a, string $b] = $pair;`",
+            ),
+        );
+        Stmt {
+            span: stmt.span,
+            kind: StmtKind::Error,
+        }
     }
 
     /// `[...]` at statement start is ambiguous with a plain array-literal
@@ -6089,17 +6110,40 @@ mod tests {
         assert!(key.is_some());
     }
 
+    /// ADR 0050: `list(...)` is diagnosed naming `[...]`, and never reaches
+    /// the AST as a live `StmtKind::Destructure` the way it used to.
     #[test]
-    fn list_is_a_second_spelling_of_bracket_destructuring() {
-        let s = parse_stmt_ok("list(int $a, string $b) = $pair;");
-        assert!(matches!(s.kind, StmtKind::Destructure { .. }));
-    }
+    fn list_is_diagnosed_naming_bracket_destructuring() {
+        for src in [
+            "list(int $a, string $b) = $pair;",
+            "list(, int $second) = $triple;",
+            "list('id' => uint $id) = $row;",
+        ] {
+            let (s, diags) = parse_stmt_with_diags(src);
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_LIST_DESTRUCTURING_UNSUPPORTED)),
+                "expected E_LIST_DESTRUCTURING_UNSUPPORTED for {src:?}, got {diags:?}"
+            );
+            assert!(
+                matches!(s.kind, StmtKind::Error),
+                "expected a rejected statement for {src:?}, got {s:?}"
+            );
+        }
 
-    #[test]
-    fn list_elements_still_require_a_type_like_brackets_do() {
-        // Unlike plain PHP, neither spelling has an untyped form.
-        let (_, diags) = parse_stmt_with_diags("list($a, $b) = $pair;");
-        assert!(diags.has_errors());
+        // The `[...]` spelling of each of the same shapes is unaffected.
+        for src in [
+            "[int $a, string $b] = $pair;",
+            "[, int $second] = $triple;",
+            "['id' => uint $id] = $row;",
+        ] {
+            let s = parse_stmt_ok(src);
+            assert!(
+                matches!(s.kind, StmtKind::Destructure { .. }),
+                "expected a destructure for {src:?}, got {s:?}"
+            );
+        }
     }
 
     #[test]

@@ -46,6 +46,7 @@ the row below for whatever you're touching to get that.
 | Whether an `if`/`while`/`for`/`?:`/`&&`/`\|\|`/`!` condition needs an explicit `as bool`, PHP truthiness | [ADR 0035](docs/adr/0035-truthy-boolean-context.md). Holds the only copy of the truthy table and the exact six syntax positions it applies to; every other `bool` position (a parameter, property, `==`/`===`) is untouched and still needs `as bool`. |
 | PHP's `and`/`or`/`xor` keyword operators, why they don't parse, "why does PHP have two ways to write AND/OR" | [ADR 0045](docs/adr/0045-and-or-xor-keyword-operators-rejected.md). Holds the only copy of the rule that `&&`/`\|\|` are the sole logical connectives — `and`/`or` are diagnosed naming that replacement, `xor` is diagnosed with no one-token replacement at all. |
 | `<?php` as an open tag, PHP's `die` keyword, "why does MWL keep only one exit keyword"/"only one open tag" | [ADR 0049](docs/adr/0049-single-open-tag-and-single-exit-keyword.md). Holds the only copy of the rule that `<?mwl` is the sole code-mode open tag and `exit` is the sole process-termination keyword — `<?php` and `die` are each diagnosed at parse time naming the survivor, since neither ever differed in behavior from the spelling kept. |
+| `list($a, $b) = $pair;`, PHP's `list()` destructuring spelling, "why doesn't `list` parse" | [ADR 0050](docs/adr/0050-list-destructuring-spelling-rejected.md). Holds the only copy of the rule that `[...]` is the sole destructuring spelling — `list(...)` is parsed in full so the diagnostic can span it, then discarded as `StmtKind::Error`; the element grammar the two shared is unchanged. |
 | Restricting a parameter/property to one of a fixed set of values (PhpStorm's `#[ExpectedValues]`), `"a"\|"b"\|"c"` literal types, a subset of a class's constants, or a subset of an enum's cases (`Mode::A\|Mode::B`) | [ADR 0047](docs/adr/0047-literal-and-enum-case-types.md). Holds the only copy of the rule that a `string`/`int` literal and a named enum case are each their own type, unioned to declare a closed set; a class constant folds to its own literal type in that position, but an enum case never folds to its backing value — and why the wildcard/glob spelling (`Foo::TYPE_*`) was rejected outright rather than deferred. |
 | `#[Attribute]`-style metadata, PHP doc-comment-as-config, annotations, `Core\Attributes`, why there's no attribute base class to declare | [ADR 0046](docs/adr/0046-attributes-shape-literal-metadata.md). Holds the only copy of the `#[Name(...)]`/`#[{...}]` shape-literal attribute syntax, the compile-time-constant-only payload rule, and the `Core\Attributes::get<T>`/`::all<T>` structural retrieval API — deliberately not part of `Core\Reflect`. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
@@ -78,7 +79,8 @@ the row below for whatever you're touching to get that.
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | Cross-machine/OS performance history, callgrind instruction counts, the perf dashboard, or why CI regression guards use wall-clock ratios instead of that history | [ADR 0026](docs/adr/0026-performance-measurement-methodology.md). Holds the only copy of the split between per-PR wall-clock regression guards (unchanged) and the merge-to-`main` callgrind-based historical dashboard, and why each metric was chosen. |
-| What the language should *do* | nothing yet — `docs/spec/` is unwritten. Say so rather than inferring semantics. |
+| Concrete *spelling* an ADR left open — file modes and `<?=`, the declaration-slot grammar (typed locals, `foreach` bindings, destructuring), `as` as the final conversion operator, why there is no `bytes` literal | [docs/spec/00-overview.md](docs/spec/00-overview.md). The ADR owns the semantics, this file owns the syntax; where they disagree the ADR wins. |
+| What the language should *do* beyond that one file | unwritten. `docs/spec/` holds `00-overview.md` and nothing else — say so rather than inferring semantics. |
 
 Each ADR opens with a metadata block and reaches `## Decision` within ~60 lines. Read those two. The
 `## Context`, `## Investigation` and `## Alternatives rejected` sections are for when you intend to
@@ -285,6 +287,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   and `die` are each diagnosed at parse time naming the survivor; the lexer still recognizes both purely so
   the diagnostic can point at the fix, and neither reaches the AST as anything but a rejected construct
   ([ADR 0049](docs/adr/0049-single-open-tag-and-single-exit-keyword.md)).
+- **`[...]` is the only destructuring spelling** — `list(...)` is diagnosed at parse time naming it, parsed
+  through to its `;` only so the diagnostic can span the real statement, then discarded rather than reaching
+  the AST; the per-leaf element grammar is identical either way, so nothing downstream ever saw the
+  difference ([ADR 0050](docs/adr/0050-list-destructuring-spelling-rejected.md)).
 
 ## Commands
 

@@ -50,9 +50,13 @@ missing or unparseable target, and executing every time control reaches it. `inc
 ### 1. Why `require`, not a new keyword
 
 PHP's plain `require` already means exactly this — throw, no repeat guard, same frame — so no new keyword
-was invented. This is the same reasoning that keeps `<?php` as a second spelling of `<?mwl` and `list(...)`
-alongside `[...]` destructuring: reuse a PHP spelling verbatim when its existing meaning is exactly the one
-MWL wants, and spend the "pragmatic superset" budget on that instead of on novelty. The three rejected
+was invented: reuse a PHP spelling verbatim when its existing meaning is exactly the one MWL wants, and
+spend the "pragmatic superset" budget on that instead of on novelty. Note the narrowness of that argument —
+it justifies keeping a spelling whose *meaning* MWL wants, never a second spelling of a meaning already
+covered. The two examples this section originally cited alongside `require` have both since been withdrawn
+on exactly that distinction ([ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) for `<?php`,
+[ADR 0050](0050-list-destructuring-spelling-rejected.md) for `list(...)`); `require` is unaffected, because
+no other keyword spells what it means. The three rejected
 spellings are not rejected for being PHP-shaped; they are rejected because each names a behaviour (warn-and-
 continue, or an implicit repeat guard) this project has already decided against having anywhere in the
 language.

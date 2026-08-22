@@ -170,10 +170,10 @@ destructure-stmt    := destructure-target '=' expr ';'
 [[int $x, int $y], string $label] = $point;                  // nested destructuring, typed at every leaf
 ```
 
-`list($a, $b) = $expr;` is accepted as a second spelling of `[$a, $b] = $expr` — kept for the same
-pragmatic-superset reason `<?php` is kept as a second spelling of `<?mwl` — but every element inside it is
-typed exactly as inside `[...]`; there is no untyped form of either spelling. Every leaf names its type
-where it is bound, at any nesting depth, mirroring how `array<array<uint>>` nests in the type grammar itself.
+`list($a, $b) = $expr;` does not parse: `[...]` is the only destructuring spelling, and `list(...)` is
+diagnosed at parse time naming it ([ADR 0050](../adr/0050-list-destructuring-spelling-rejected.md)). Every
+leaf names its type where it is bound, at any nesting depth, mirroring how `array<array<uint>>` nests in the
+type grammar itself; there is no untyped form.
 
 ### 3.4 The conversion operator: `as`, finally
 
