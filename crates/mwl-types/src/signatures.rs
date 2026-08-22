@@ -29,7 +29,7 @@
 //!   this module existed.
 
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_hir::{AliasTable, ClassGraph, QName, SymbolTable};
+use mwl_hir::{AliasTable, ClassGraph, QName, SymbolKind, SymbolTable};
 use mwl_syntax::ast::{
     ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind,
 };
@@ -54,6 +54,15 @@ pub struct MethodSig {
     pub variadic: bool,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
+    /// Whether this is a `private` interface method (ADR 0043 § 3) —
+    /// declared with the `private` modifier inside an `interface`, not a
+    /// `class`. General class-level method visibility is not modeled at all
+    /// yet (see `mwl_hir::members`'s own known gaps); this field exists only
+    /// so [`crate::expr`] can enforce the one visibility rule ADR 0043 § 3
+    /// actually requires — a private interface method is not part of that
+    /// interface's contract, so it is never reachable outside that
+    /// interface's own method bodies, not even from an implementing class.
+    pub interface_private: bool,
 }
 
 /// One class/interface/enum's own directly-declared property types and
@@ -219,6 +228,13 @@ fn collect_members(
     table: &mut SignatureTable,
     env: &mut Env<'_>,
 ) {
+    // Needed only to decide `MethodSig::interface_private` below — a
+    // `private` method modifier means something (ADR 0043 § 3) exactly when
+    // the enclosing declaration is an `interface`, not a `class`/`enum`.
+    let is_interface = env
+        .symbols
+        .get(qname)
+        .is_some_and(|sym| sym.kind == SymbolKind::Interface);
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
@@ -265,6 +281,7 @@ fn collect_members(
                     .collect();
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
+                let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
                 let name = span_text(env.src, m.name).to_owned();
                 table.entry(qname.clone()).methods.insert(
                     name,
@@ -272,6 +289,7 @@ fn collect_members(
                         params,
                         variadic,
                         return_ty,
+                        interface_private,
                     },
                 );
             }
@@ -361,16 +379,19 @@ fn resolve_property_rec(
 }
 
 /// Looks `name` up as a method on `qname`, falling back to walking ancestors
-/// the same way [`resolve_property`] does. Returns a clone since a
-/// [`MethodSig`] is cheap and the ancestor it was found on is not otherwise
-/// tracked by the caller.
+/// the same way [`resolve_property`] does. Returns the [`QName`] that actually
+/// declares it alongside a clone of its signature — the owner is needed by
+/// [`crate::expr`] to enforce ADR 0043 § 3's private-interface-method
+/// visibility rule (private is only visible from inside its own declaring
+/// interface, never through whatever class or subinterface the lookup
+/// started from), not just to type-check the call.
 #[must_use]
 pub fn resolve_method(
     qname: &QName,
     name: &str,
     table: &SignatureTable,
     graph: &ClassGraph,
-) -> Option<MethodSig> {
+) -> Option<(QName, MethodSig)> {
     let mut seen = FxHashSet::default();
     resolve_method_rec(qname, name, table, graph, &mut seen)
 }
@@ -381,14 +402,14 @@ fn resolve_method_rec(
     table: &SignatureTable,
     graph: &ClassGraph,
     seen: &mut FxHashSet<QName>,
-) -> Option<MethodSig> {
+) -> Option<(QName, MethodSig)> {
     if !seen.insert(qname.clone()) {
         return None;
     }
     if let Some(sig) = table.get(qname)
         && let Some(found) = sig.methods.get(name)
     {
-        return Some(found.clone());
+        return Some((qname.clone(), found.clone()));
     }
     let links = graph.get(qname)?;
     links
@@ -507,8 +528,9 @@ mod tests {
         let (table, module, interner, _diags) = build(
             "<?mwl\nclass Base { function hello(): int { return 1; } }\nclass Sub extends Base {}\n",
         );
-        let sig = resolve_method(&QName::parse("Sub"), "hello", &table, &module.graph)
+        let (owner, sig) = resolve_method(&QName::parse("Sub"), "hello", &table, &module.graph)
             .expect("inherited method resolves");
+        assert_eq!(owner, QName::parse("Base"));
         assert_eq!(interner.describe(sig.return_ty), "int");
     }
 

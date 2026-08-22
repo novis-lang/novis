@@ -40,10 +40,13 @@
 > checks), 0037 (`var` local type inference), 0038 (`lateinit` placement checks, ADR 0022 § 2 exemption,
 > § 3's intraprocedural read-before-write check). ADR 0043's `mwl-syntax` slice has also landed: `trait`/
 > class-body `use`/`insteadof` are gone, rejected via `E_TRAIT_NOT_SUPPORTED`; `implements ... by $field`
-> parses. Remaining for this milestone: ADR 0011/0024 §4/0033's stdlib-dependent sinks (wait on `Core`
-> classes that don't exist until M7/M8), ADR 0043's `mwl-hir` default/private-method and `by`-delegation
-> resolution (its stale trait-flattening code is already removed, not yet replaced), 0047's literal/enum-
-> case types and their checked-conversion rules (docs only so far — see
+> parses; and its default-method inheritance/overriding plus private-method visibility have now landed too
+> (`E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE` reachable with a fixture) — see
+> [ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s own M2 *Verification*
+> bullet for exactly what that covers. Remaining for this milestone: ADR 0011/0024 §4/0033's
+> stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), ADR 0043's `by`-delegation
+> type-matching/forwarding synthesis and its `E_INTERFACE_MEMBER_CONFLICT`/`E_DELEGATE_TYPE_MISMATCH`
+> diagnostics, 0047's literal/enum-case types and their checked-conversion rules (docs only so far — see
 > [ADR 0047](adr/0047-literal-and-enum-case-types.md)), and finishing `mwl-ir`.
 >
 > `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, **`new`/a static call**, **an
@@ -892,6 +895,12 @@ the `fatal_reserve_memory`/`fatal_reserve_time` directives and `Core\Fatal::onLi
 ([ADR 0020](adr/0020-error-escalation-ladder.md)) — the reserved slice a resource-limit `FATAL`'s handler
 runs with is carved out of the request's own budget at the same point these limits are set up.
 
+**Also here: `mwl build --compile`**, a CLI-only "one portable executable" bundler — appends an entry file's
+statically-resolved `require` graph to the host `mwl` binary as plain source, read back through this same
+artifact cache with no new mechanism. Scope, the source-not-precompiled-artifacts trade, and why bundling a
+web-serving deployment is explicitly out of scope are all in
+[ADR 0048](adr/0048-portable-single-file-executables.md), the only copy of the reasoning.
+
 **Verify:** adversarial suite — a script attempting to widen a capability or set a `System` directive
 fails; `ini_set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
 `[limits.hard]` ceiling returns `false` with the previous value intact, and is invisible to the next request
@@ -901,7 +910,8 @@ CLI startup under 10 ms; a tampered cache artifact is rejected. For isolates: `s
 fails; a path outside the granted roots fails, including one reaching it through `..` or a symlink; a child
 cannot widen a capability its parent narrowed; N concurrent isolates cannot together exceed the tree's
 memory, CPU or output budget; a recursive spawn is stopped by `max_script_depth` and reported as that rather
-than as an out-of-memory.
+than as an out-of-memory. For the bundler: a bundled executable runs identically to `mwl run` against the
+same source, on all three platforms, per ADR 0048's own verification list.
 
 ### M7 — Built-in HTTP server (~4 weeks)
 `mwl serve`: hyper h1 + h2c, per-core accept and dispatch, request → the root isolate of a request tree

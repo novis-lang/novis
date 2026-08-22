@@ -423,6 +423,12 @@ pub mod code {
     /// fine — an `int`/`uint` key normalizes to its own decimal string, which
     /// needs no `as` and is not a value conversion.
     pub const E_ARRAY_KEY_INVALID_TYPE: Code = Code::new("E0434");
+    /// A `private` interface method (ADR 0043 § 3) called from anywhere other
+    /// than its own declaring interface's method bodies — it is an internal
+    /// helper, never part of the interface's contract, so an implementing
+    /// class (or any other interface) cannot see it at all, not even via
+    /// `InterfaceName::method()`.
+    pub const E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE: Code = Code::new("E0435");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

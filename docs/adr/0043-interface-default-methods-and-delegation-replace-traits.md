@@ -360,16 +360,34 @@ Verification, in the order it becomes possible:
   every `StmtKind::TraitDecl`/`ClassMemberKind::UseTrait` match arm) was removed alongside the AST nodes,
   since the workspace has to build — but no *new* default/private-method or `by`-delegation resolution was
   added; that is still M2's job below.
-- **M2 (follow-up — not yet implemented):** `crates/mwl-hir`'s trait-specific code (§ *Consequences,
+- **M2 (follow-up — partially implemented):** `crates/mwl-hir`'s trait-specific code (§ *Consequences,
   Negative* names every file) is already removed, done as part of the M1 slice above rather than held back
-  for this one — the workspace has to build once the AST nodes are gone. What is still outstanding here:
-  name resolution actually resolves default methods, private-method visibility, and `by`-delegation
-  type-matching; `E_INTERFACE_MEMBER_CONFLICT`,
-  `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`, and `E_DELEGATE_TYPE_MISMATCH` are all reachable with a fixture
-  each; `$this` inside an interface's own method body resolves only against that interface's (and its
-  `extends` ancestors') own declared members; a `by`-target field's definite-assignment obligation is
-  ordinary [ADR 0022](0022-definite-property-initialization.md)/[ADR 0038](0038-lateinit-property-modifier.md),
-  no special case.
+  for this one — the workspace has to build once the AST nodes are gone. **Landed in a later session:**
+  default-method inheritance and overriding fell out of `mwl-types::signatures::resolve_method`'s existing
+  `extends`/`implements` ancestor walk with no new code needed (it already checks a class's own signature
+  table — an override — before ever walking to an implemented interface's default), confirmed rather than
+  merely assumed via a fixture (`a_default_interface_method_is_inherited_and_callable`,
+  `a_class_can_override_a_default_interface_method` in `crates/mwl-types/src/check.rs`); "`$this` inside an
+  interface's own method body resolves only against that interface's own declared members" likewise already
+  followed from `check_method` typing `$this` as `class_of_ctx(ctx, ...)` — the *interface's* `QName` when
+  checking an `InterfaceDecl`'s own body, never the implementing class's — locked in by
+  `this_inside_a_default_method_body_does_not_see_the_implementing_class`. Private-method visibility is now
+  enforced: `resolve_method` returns the declaring `QName` alongside the signature (not just the signature),
+  `MethodSig` gained an `interface_private` bit (set when a `private`-modified method is declared inside an
+  `interface`, via a small owner-kind lookup in `signatures::collect_members`), and
+  `crate::expr::check_interface_private_visibility` reports `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE` at both
+  the `MethodCall` and `StaticCall` sites whenever the resolved owner differs from the checking context's own
+  class — covering both `$this->helper()` from an implementing class and the qualified
+  `InterfaceName::helper()` form (§ 5's grammar) reaching in from outside. Four new fixtures in
+  `crates/mwl-types/src/check.rs` cover: visible from the declaring interface's own other default method,
+  refused via `$this->` from an implementing class, and refused via the qualified call form. **Still
+  outstanding:** `by`-delegation type-matching and forwarding-method synthesis, and the
+  `E_INTERFACE_MEMBER_CONFLICT` diagnostic for a method reachable from more than one default/delegated source
+  with no class override (today `resolve_method`'s ancestor walk silently returns whichever `implements`
+  entry it reaches first, with no collision check at all) — `E_DELEGATE_TYPE_MISMATCH` is unreachable until
+  the former lands. A `by`-target field's definite-assignment obligation is expected to be ordinary
+  [ADR 0022](0022-definite-property-initialization.md)/[ADR 0038](0038-lateinit-property-modifier.md), no
+  special case, once delegation itself exists.
 - **M11:** `mwl convert` performs § 6.1's and § 6.2's mechanical rewrites (the latter flagged for review),
   § 6.3's `insteadof`-equivalent override synthesis, and emits the `TODO` diagnostics § 6.4/§ 6.5 describe for
   the two shapes with no mechanical destination.

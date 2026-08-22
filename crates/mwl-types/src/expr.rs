@@ -713,7 +713,10 @@ fn infer(
                     if found.is_none() && !qname.is_core() && !qname.is_reserved_global_class() {
                         report_unknown_member(object.span, &qname, &name, "method", env);
                     }
-                    found.map(|sig| (qname, name, sig))
+                    if let Some((owner, sig)) = &found {
+                        check_interface_private_visibility(owner, &name, sig, *name_span, ctx, env);
+                    }
+                    found.map(|(_, sig)| (qname, name, sig))
                 }
                 _ => None,
             };
@@ -752,8 +755,14 @@ fn infer(
                 MemberName::Ident(name_span) => {
                     resolve_class_expr(class, ctx, env).and_then(|qname| {
                         let name = span_text(env.src, *name_span).to_owned();
-                        resolve_method(&qname, &name, env.signatures, env.graph)
-                            .map(|sig| (qname, name, sig))
+                        resolve_method(&qname, &name, env.signatures, env.graph).map(
+                            |(owner, sig)| {
+                                check_interface_private_visibility(
+                                    &owner, &name, &sig, *name_span, ctx, env,
+                                );
+                                (qname, name, sig)
+                            },
+                        )
                     })
                 }
                 _ => None,
@@ -842,9 +851,9 @@ fn infer(
             // A class with no explicit `constructor` accepts a bare `new
             // Foo()` in PHP; not diagnosing an arity mismatch against zero
             // parameters here is deliberate — see the crate docs' known gaps.
-            let sig = target_qname
-                .clone()
-                .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
+            let sig = target_qname.clone().and_then(|qname| {
+                resolve_method(&qname, "constructor", env.signatures, env.graph).map(|(_, sig)| sig)
+            });
             let arg_types = check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
             if let Some(qname) = &target_qname {
                 reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
@@ -1554,6 +1563,37 @@ fn report_unknown_member(span: Span, qname: &QName, name: &str, kind: &str, env:
             format!("`{qname}` has no {kind} named `{name}`"),
         )
         .with_primary(span, "referenced here"),
+    );
+}
+
+/// ADR 0043 § 3: a `private` interface method is an internal helper, never
+/// part of that interface's contract — visible only from inside its own
+/// declaring interface's method bodies (a default or another private
+/// method), never through an implementing class, a subinterface, or any
+/// other interface. `owner` is the [`QName`] [`resolve_method`] found `sig`
+/// declared on, which may differ from the receiver's own static type when
+/// the method was inherited — exactly the case this check cares about.
+fn check_interface_private_visibility(
+    owner: &QName,
+    name: &str,
+    sig: &MethodSig,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if !sig.interface_private || ctx.current_class == Some(owner) {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE,
+            format!("`{owner}`'s private method `{name}` is not visible here"),
+        )
+        .with_primary(span, "not part of the interface's contract")
+        .with_help(format!(
+            "`{name}` is an internal helper of `{owner}` — call it only from `{owner}`'s own \
+             method bodies"
+        )),
     );
 }
 
