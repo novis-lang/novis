@@ -64,7 +64,13 @@
 > literal, previously) had nothing that would ever release it; `concat_operand` now reports whether its
 > result aliases a durable slot, and `Concat`'s caller releases it right after when it doesn't, the same
 > "release a fresh value once its one and only use is done" precedent a bare call/`new` statement already
-> set. `mwl-ir` is now at 42 tests. `crates/mwl-ir/src/ids.rs`
+> set. `bytes` then landed as a mechanical repeat of `string`'s own shape, exactly as flagged two sessions
+> running: `Ty::Bytes` is a second refcounted representation, needing no new `Lowering` insertion point at
+> all since every retain/release site already keys off `Ty::is_refcounted`/`is_aliasing_read` rather than
+> naming `Ty::Str` directly — only `lower_decl_type`/`lower_checked_ty` gained a `Bytes` arm each.
+> `mwl-syntax`'s grammar has no `bytes` literal syntax at all, so every `bytes` value lowered today
+> originates as a parameter or a property read rather than a fresh literal. `mwl-ir` is now at 47 tests.
+> `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
@@ -103,8 +109,9 @@
 > "refcount elision" as separate, later work, so emitting unconditionally now and optimizing later —
 > rather than a harder move analysis up front — matches CLAUDE.md's priority ordering
 > (correctness/simplicity before memory/latency). `lower_checked_ty` gives the plain, unqualified
-> `CheckedTy::String` a `Ty::Str` arm, so a resolved call's/`new`'s `string` parameter, a call's `string`
-> return type, and a compile-time-known `string`-typed property read or write both lower too — the aliasing
+> `CheckedTy::String`/`CheckedTy::Bytes` a `Ty::Str`/`Ty::Bytes` arm each, so a resolved call's/`new`'s
+> `string`/`bytes` parameter, a call's `string`/`bytes` return type, and a compile-time-known
+> `string`/`bytes`-typed property read or write all lower too — the aliasing
 > judgment generalized into a shared `is_aliasing_read` helper (a bare variable read or a property read,
 > either of which borrows storage some other binding still owns) that gates a call argument (retained by
 > the caller before the call, released by the callee at its own exit — the same local declare/drop
@@ -142,9 +149,10 @@
 > no way to synthesize from a bare operand — see `mwl-ir`'s own module docs for why that's more than a new
 > IR shape) and interpolated/heredoc/nowdoc string literals (only a plain
 > single/double-quoted literal with no interpolation cooks today, and only the common escapes — a numeric
-> escape passes through uncooked), a `tainted`/`secret`-qualified string or bytes variant, and
-> `bytes`/`array<T>` (no representation exists yet at all; `Ty::Object` also still has no refcount
-> operations of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
+> escape passes through uncooked), any of the eight `tainted`/`secret`-qualified string/bytes variants
+> (`string`/`bytes` themselves are landed, unqualified only), and `array<T>` (no representation exists yet
+> at all — needs its own element-layout decision first; `Ty::Object` also still has no refcount operations
+> of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
