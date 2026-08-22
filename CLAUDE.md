@@ -38,6 +38,7 @@ the row below for whatever you're touching to get that.
 | `clone`, `serialize`/`unserialize`, `__clone`, `__serialize`/`__unserialize`/`__sleep`/`__wakeup`, or how a value crosses the `spawn`/`spawn worker`/`spawn script` boundary | [ADR 0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md). Holds the only copy of the rule that `clone` stays PHP's shallow, same-heap, single-level copy while `serialize()`/`unserialize()` share one recursive graph-copy operation with the isolate boundary; none of the four magic hooks exist, and `unserialize()` accepts only MWL's own closed format. |
 | The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [ADR 0017](docs/adr/0017-hot-reload-without-restart.md). Holds the only copy of the path-pointer-swap mechanism, why it needs no filesystem watcher, and why a request-serving core is never blocked on a recompile. |
 | The on-disk compiled-artifact cache — its file layout, header format, why a bad/tampered/wrong-target file is a cache miss rather than a crash, or its eviction policy | [ADR 0042](docs/adr/0042-on-disk-artifact-cache-format.md). Holds the only copy of the content-addressed file-per-unit layout, the mmap-verify-then-mprotect read path, the atomic-rename write path, why a payload checksum defends against corruption but never against a hostile cache directory, and the probabilistic eviction sweep. |
+| A portable single-file executable, `mwl build --compile`, bundling a CLI app's source into one runnable file, "rebundling" | [ADR 0048](docs/adr/0048-portable-single-file-executables.md). Holds the only copy of the append-to-host-binary payload format, why it ships source rather than precompiled artifacts, the reused ADR 0025 static-`require`-graph rule, and why bundling a web-serving deployment is explicitly out of scope. |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
 | `var`, local type inference, why `$x = "foo";` doesn't need its type spelled out | [ADR 0037](docs/adr/0037-var-local-type-inference.md). Holds the only copy of the rule that `var $name = expr;` infers a local's type from its initializer and fixes it forever, exactly as if written by hand — and the one initializer shape it refuses, a bare array literal. |
 | `lateinit`, deferring a property's first assignment past the constructor, DI/setter injection, "why can't this non-nullable property just be set later" | [ADR 0038](docs/adr/0038-lateinit-property-modifier.md). Holds the only copy of the rule that `lateinit` is restricted to non-nullable class/interface-typed properties, throws on read-before-write by reusing ADR 0022's existing mechanism, and is refused on `?T`, a promoted parameter, or alongside `readonly`. |
@@ -275,6 +276,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   must be a compile-time constant, and retrieval is the narrow `Core\Attributes::get<T>`/`::all<T>` accessor,
   resolved structurally at compile time — not `Core\Reflect`'s general-purpose walk
   ([ADR 0046](docs/adr/0046-attributes-shape-literal-metadata.md)).
+- **A portable single-file executable ships source, appended to the host binary, never precompiled
+  artifacts** — `mwl build --compile` reuses the existing artifact cache and ADR 0025's static-`require`-graph
+  rule unchanged, is CLI-only, and does not extend to bundling a web-serving deployment
+  ([ADR 0048](docs/adr/0048-portable-single-file-executables.md)).
 
 ## Commands
 
