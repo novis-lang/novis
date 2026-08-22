@@ -1,77 +1,84 @@
 # Next session prompt
 
-Continue MWL. M1 (front end) is done. M2 (HIR/types/IR) is in progress — run `python .claude/brief.py` first,
-then read `docs/implementation-plan.md`'s M2 paragraph for exactly what landed and how (this file only
-points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact once").
+Continue MWL. M1 (front end) is done. M2 (HIR/types/IR) is close to done — run `python .claude/brief.py`
+first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what landed and how (this file
+only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
+once").
 
-**Last session closed ADR 0038 (`lateinit`) end to end for M2's scope**, mirroring ADR 0022 § 2's own
-landing shape:
+**Last session stood up the `mwl-ir` crate and lowered its first slice** — M2's last named deliverable,
+"lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls, with
+a stable per-statement/per-edge id" (the milestone text already committed to "CFG/**SSA**", so that part
+was a mechanical follow-through, not a fresh decision):
 
-- **Grammar** (`mwl-syntax`): a new `Keyword::Lateinit` and `Modifier::Lateinit`, parsed in
-  `parse_modifiers` alongside `readonly`. Lexer/parser round-trip tests added.
-- **Diagnostics** (`mwl-diagnostics`): five new `E04xx` codes, `E0424`-`E0428` —
-  `E_LATEINIT_NOT_OBJECT_TYPE`, `E_LATEINIT_NULLABLE`, `E_LATEINIT_PROMOTED_PARAM`,
-  `E_LATEINIT_READONLY_CONFLICT`, `E_LATEINIT_READ_BEFORE_WRITE_LOCAL`.
-- **§ 1 placement checks** (`mwl-types::signatures`): `collect_members`'s `Property` arm validates a
-  `lateinit` property's type (refusing a scalar/enum, refusing `?T`) and its `readonly` combination; the
-  `Method` arm refuses `lateinit` on any parameter (promoted or not). All four diagnosed at
-  signature-collection time, the same point `E_ARRAY_TYPE_TOO_DEEP` already fires from.
-- **§ 2's exemption**: a `lateinit` property is excluded from `ClassSignature::required_properties`, so
-  `ctor_init.rs`'s existing ADR 0022 § 2 pass never flags it — whether or not the class has a constructor.
-- **§ 3's intraprocedural check** (`mwl-types::lateinit`, new module): a sibling flow-analysis pass to
-  `ctor_init.rs`, run over *every* method a class declares (not only its constructor). Tracks each of the
-  class's own `lateinit` properties (`signatures::own_lateinit_properties`, trait-flattened like
-  `own_required_properties`) as "written" or not, joining `if`/`else`/`switch`/`try` branches by
-  intersection exactly like `ctor_init::InitState` does. A `$this->prop` read with no proven write on some
-  path is `E_LATEINIT_READ_BEFORE_WRITE_LOCAL`; any call (method/static/free-function) conservatively marks
-  every tracked property written, per the ADR's explicit "never false positive" mandate. Wired into
-  `check.rs` right after `check_class_init`.
-- **Known gap, matching the ADR's own scoping**: only a class's *own* (+ trait-flattened) `lateinit`
-  properties are tracked by the § 3 pass — one declared on a parent class and read via `$this` in a
-  *subclass* method relies entirely on the § 2 runtime throw (M4, not yet built). See `lateinit.rs`'s
-  module docs for the full list.
-- Also fixed, in passing: a stale known-gap note in `mwl-types/src/lib.rs` claiming the `parent` type atom
-  (`parent $x`) was unresolved — it has been handled by `lower::resolve_parent` since an earlier session;
-  only the module-doc summary hadn't caught up.
+- **`crates/mwl-ir/src/ids.rs`** — `StmtId`/`EdgeId`/`BlockId`/`ValueId` newtypes and an `IdGen` that hands
+  them out in one deterministic pre-order lowering walk, scoped per function (not process-wide). `StmtId`/
+  `EdgeId` each carry the source `Span` that produced them, recorded for later lookup — this is the stable
+  id [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s coverage/
+  branch probes need, reserved now per the milestone's own "cheap now, expensive to retrofit" framing.
+- **`crates/mwl-ir/src/ty.rs`** — a small, flat, representation-level `Ty` (`Bool`/`Int`/`Uint`/`Float`/
+  `Void` so far), deliberately **not** `mwl_types::ty::Ty`: the checker's type exists to reject the wrong
+  program (qualifiers, nominal identity, unions); by the time a function reaches this crate it has already
+  been proven to type-check, so the IR only needs to know how a value is *represented* for codegen. See the
+  module's own docs for the full reasoning — this is the kind of split worth knowing about before adding to
+  either enum.
+- **`crates/mwl-ir/src/ir.rs`** — the data model: `Program` of `Function`s, each a `Vec<BasicBlock>` (this
+  slice only ever produces one) of SSA `Inst`ructions ending in one `Terminator`. `Terminator::Branch`
+  already carries the `EdgeId`-tagged pair of outgoing edges ADR 0018 will need, and `Terminator::Jump`
+  exists too — neither is constructed yet, both reserved for when control flow lands.
+- **`crates/mwl-ir/src/print.rs`** — a text pretty-printer (`fn add(int, int) -> int { bb0: v0 = param 0 ;
+  int ... }`) used by snapshot tests today, intended for a future `mwl run --dump-ir`-shaped CLI flag once
+  one exists (M3, alongside `--dump-asm`).
+- **`crates/mwl-ir/src/lower.rs`** — `lower_method()`, the actual lowering, scoped to exactly one program
+  shape: a method body of typed local declarations, plain `$x = expr;` reassignment, scalar unary/binary
+  arithmetic and comparison operators over `bool`/`int`/`uint`/`float`, and `return`. No control flow at
+  all (no phi nodes needed yet — a straight-line body has exactly one predecessor for every use, which is
+  why this was the first slice). **Trusts its input already passed `mwl_types::check_program`** rather than
+  re-checking it — panics, naming the unsupported shape, for anything outside scope. Five unit tests with
+  `insta` snapshots cover straight-line arithmetic, reassignment producing a fresh SSA value (a bare
+  `$y = $x;` needs no new instruction at all — SSA value-numbering falls out for free), unary/comparison
+  operators, ADR 0007 § 4's uint-literal defaulting, and a `should_panic` proving control flow is refused.
+- **Deliberately no dependency on `mwl-hir`/`mwl-types` yet.** Every type this slice's lowering needs
+  (a parameter's, a local's, a method's return type) is read straight off the `mwl-syntax` AST, since ADR
+  0007 § 1 already requires it spelled out there in full for every shape in scope — no name resolution or
+  persisted checked-expression type is needed to answer "what type is this" *for this slice*. Widening past
+  scalars will need one of: (a) `mwl-ir` depending on `mwl-hir`/`mwl-types` and re-deriving types itself
+  (duplicating logic `mwl_types::expr` already has, currently all `pub(crate)`), or (b) `mwl-types` growing
+  a published, persisted typed-expression table (e.g. keyed by `Span` or by a stable per-expression id)
+  that lowering reads back rather than recomputes. **This is a real design decision for whoever picks up
+  widening — it wasn't forced this session because straight-line scalar code never needed it, but property
+  access/calls/`new` all will.** Flag it and decide deliberately rather than drifting into whichever shape
+  the first widening PR happens to need.
 
-`cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean (154 tests in
-`mwl-types`, up from 148). Landed in three commits: grammar+diagnostics, § 1/§ 2 checker work,
-§ 3's new module.
+`cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole
+workspace (mwl-types still at 154 tests, untouched; mwl-ir adds 5). Landed in three commits: crate
+skeleton (ids/ty/ir/print), the lowering slice + snapshot tests, and the M2 status-block update.
 
-**ADR 0038 is now fully done for everything M2 can verify** — its *Verification* section's M2 bullet
-(refusing the three rejected shapes, exempting `lateinit` from ADR 0022 § 2, and the § 3 call-free
-read-before-write check) is satisfied. Its M4 half (the actual runtime throw) has no backend to attach to
-yet, same residual as ADR 0022 § 3's own case.
+**Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
+order** (each is its own reasonably-sized slice; don't try all of them in one session):
 
-**With ADR 0038 closed, M2's name-resolution and type-checking work is essentially done** — every
-checker-side ADR M2 names (0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024 §§ 2-3, 0027, 0028, 0029/0030/0032,
-0033 §§ 2-4 M2-reachable entries, 0036, 0037, 0038) is implemented and tested. **The one item left in M2
-is the milestone's own last sentence: lowering to a CFG/SSA IR** — a new `mwl-ir` crate (doesn't exist yet
-— confirm with `find crates -maxdepth 1 -iname 'mwl-ir*'`), carrying explicit safepoints, refcount
-operations and runtime-helper calls, with every lowered statement and conditional CFG edge carrying the
-stable id [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs for
-its coverage/branch probes — cheap to reserve now, expensive to retrofit once M3 builds on top of the IR
-without it.
+1. **Control flow.** `if`/`while` first (the two structures that need exactly one join point each), then
+   `for`/`switch`/`try`. This is where SSA's real question — the join/phi-node algorithm — actually gets
+   answered; the first slice deliberately dodged it. `Terminator::Branch`'s `EdgeId`s should get their
+   first real construction here, and `crate::ir` may need a `Phi` instruction kind added.
+2. **Safepoints.** Belong at a loop back-edge and at function entry (recursion) — neither exists until (1)
+   lands loops. Reserve the instruction/marker shape when you get there; no guard test needs it until M3.
+3. **Calls, `new`, property/array access.** This is where the "does `mwl-ir` depend on `mwl-types`, or does
+   `mwl-types` publish a typed-expression table" decision above has to be made — resolve it before writing
+   the lowering code, not after.
+4. **Non-scalar values (`string`/`bytes`, arrays, objects) and refcount operations.** The milestone text's
+   third named ingredient; has nowhere to attach until a reference-counted value exists in `ir::Ty`.
+5. **Runtime-helper calls** — the milestone's fourth named ingredient, for `mixed`/union operands once they
+   exist in the IR (this slice's arithmetic lowers directly to native-shaped `BinOp`/`UnOp` with no helper
+   fallback, since every operand type is a single scalar by construction).
+6. `var` locals (ADR 0037) and full-magnitude/multi-base integer-literal cooking (hex/octal/binary) are
+   smaller, independent gaps that can land whenever convenient.
 
-This is a milestone-sized task on its own — plan the session's actual scope down to a first slice rather
-than attempting the whole thing in one sitting:
+Once control flow and calls both lower, M2's own *Verify* bullet ("IR snapshot tests; no program in the
+corpus produces an `Unknown` type") is worth revisiting for a real corpus-driven snapshot suite, not just
+hand-written fixtures — at that point M2 as a whole should be closeable and M3 (baseline Cranelift backend,
+`Hello World`) can start.
 
-1. Read [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) first for
-   the stable-id shape every lowered statement/edge needs to carry, since that's "cheap now, expensive
-   later" per the milestone text above — get the id scheme right before lowering anything.
-2. Stand up the `mwl-ir` crate (workspace member, following the same bring-up shape `mwl-hir`/`mwl-types`
-   used when their milestones started — lint/deny/fmt policy inherited from the workspace `Cargo.toml`).
-3. Design the IR's value/instruction representation (CFG of basic blocks, SSA form) — this is a real design
-   decision with memory/complexity tradeoffs (SSA construction cost/complexity vs. a simpler
-   non-SSA CFG deferred to codegen); per CLAUDE.md's last "Ground rules" bullet, if this looks like a
-   contested tradeoff rather than a mechanical follow-through of what the plan already committed to, stop
-   and ask rather than picking silently.
-4. Lower a first, narrow slice (e.g. a single method with only straight-line arithmetic/`return`) end to
-   end with a snapshot test, before widening to the rest of the checked AST's shapes (control flow, calls,
-   `new`, etc.).
-
-Also still open from before (independent, low priority, pick up only if there's time left over after the
-IR work above): a `set`-hooked property is exempted from ADR 0022's constructor check entirely rather than
-verified against the hook's body; the identical question now also applies to whether a `lateinit` +
-hooked property should discharge on the hook's first commit (ADR 0038's own *Revisiting* names this,
-deferred to `docs/spec/`).
+Also still open from before (independent, low priority, unrelated to `mwl-ir`): a `set`-hooked property is
+exempted from ADR 0022's constructor check entirely rather than verified against the hook's body; the
+identical question now also applies to whether a `lateinit` + hooked property should discharge on the
+hook's first commit (ADR 0038's own *Revisiting* names this, deferred to `docs/spec/`).
