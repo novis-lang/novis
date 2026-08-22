@@ -113,10 +113,22 @@
 > established, via a new `Lowering::lower_truthy_cond` both `lower_if`/`lower_while` now call instead of
 > asserting the condition is already `bool`. A class-instance or enum-case (`Ty::Object`) condition needs no
 > helper at all — ADR 0035 § 4 makes either always truthy — so it folds straight to a fresh `const.bool
-> true`. `null`/`mixed`/a union are still out of scope: neither a nullable-type nor a `Ty::Mixed` IR
-> representation exists yet to convert *from*. `&&`/`||`/`!` and the ternary/elvis condition (ADR 0035's
-> other four truthy positions) are unaffected — this crate doesn't lower any of the three yet.
-> `mwl-ir` is now at 77 tests.
+> true`. `null`/`mixed`/a union were still out of scope at the time: neither a nullable-type nor a
+> `Ty::Mixed` IR representation existed yet to convert *from* (see below — `Ty::Mixed` has since landed,
+> though converting one through this table still hasn't). `&&`/`||`/`!` and the ternary/elvis condition
+> (ADR 0035's other four truthy positions) are unaffected — this crate doesn't lower any of the three yet.
+> **`Ty::Mixed`** (ADR 0007 § 3's one unchecked position) has now landed too, scoped narrowly on purpose:
+> enough representation for a `mixed`-typed local, parameter, return value or call argument to exist and
+> round-trip through the exact same `bind_local`/`lower_call_args`/`release_all_locals`/`return` machinery
+> every other `Ty` already uses, keyed entirely off `Ty::is_refcounted`/`is_aliasing_read` rather than a
+> new insertion point — `lower_decl_type`/`lower_checked_ty` each gained one `Mixed` arm, mirroring exactly
+> how both already erase a class/enum name to `Ty::Object`. `Ty::Mixed` is deliberately excluded from
+> `Ty::is_refcounted`: a `mixed` value's actual runtime shape might or might not be refcounted, and nothing
+> decides that runtime type tag yet, so there is no way to know which today. That open question — how a
+> `mixed` value's runtime type tag is represented — is the real design work this slice deliberately does
+> *not* answer: arithmetic's `mixed` fallback, ADR 0035's `null`/`mixed` truthy case, and an array-element
+> access through a `mixed`-erased base all still panic naming the gap, now reachable (a `mixed`-typed value
+> can exist as input) rather than theoretical. `mwl-ir` is now at 82 tests.
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
@@ -195,13 +207,16 @@
 >
 > Deliberately out of scope still, all documented in the crate's own module docs: `for`/`switch`/`match`/
 > `try`, `break`/`continue`, the `null`/`mixed`/union half of ADR 0035's `if`/`while` truthy conversion
-> (neither a nullable-type nor a `Ty::Mixed` IR representation exists yet to convert *from* — the `bool`/
-> scalar/`array<T>`/`Ty::Object` half is landed, see above) and `&&`/`||`/`!`/the ternary-elvis condition
-> (ADR 0035's other four truthy positions, none of which this crate lowers at all yet), a nullsafe access of
+> (`null` has no nullable-type IR representation to convert *from* at all; `Ty::Mixed` now exists, see
+> below, but converting one through the table needs a runtime type-tag representation this crate still
+> doesn't have — the `bool`/scalar/`array<T>`/`Ty::Object` half is landed, see above) and `&&`/`||`/`!`/the
+> ternary-elvis condition (ADR 0035's other four truthy positions, none of which this crate lowers at all
+> yet), a nullsafe access of
 > either kind (`?->`), a
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
-> from, and applies on both the read and write side), array-element access through a `mixed`-erased base or
+> from, and applies on both the read and write side), array-element access through a `mixed`-erased base
+> (`Ty::Mixed` gives this a representation to fall back *to*, not yet a wired fallback) or
 > a non-`int`/`uint`/`string` key, `$a[]`/`$a[] = expr;` append syntax, and an
 > array-literal `...spread` or `&value` element (an explicit `key =>` element is landed, see above), virtual
 > dispatch (every call/access lowered so far has its receiver's static type equal to its runtime class),
