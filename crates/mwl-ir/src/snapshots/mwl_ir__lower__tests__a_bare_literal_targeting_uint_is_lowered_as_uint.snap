@@ -2,11 +2,12 @@
 source: crates/mwl-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
-fn m() -> uint {
+fn m(object) -> uint {
   bb0:
     safepoint
+    v0 = param 0  ; object
     ; stmt s0 @4:5-4:17
-    v0 = const.uint 1  ; uint
+    v1 = const.uint 1  ; uint
     ; stmt s1 @5:5-5:15
-    return v0
+    return v1
 }

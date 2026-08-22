@@ -2,11 +2,11 @@
 source: crates/mwl-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
-fn make(object) -> object {
+fn m(object) -> int {
   bb0:
     safepoint
     v0 = param 0  ; object
-    ; stmt s0 @5:5-5:22
-    v1 = new Foo()  ; object
+    ; stmt s0 @5:5-5:25
+    v1 = field.get v0, T::count  ; int
     return v1
 }

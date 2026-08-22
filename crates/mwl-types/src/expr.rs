@@ -946,6 +946,23 @@ fn check_property_access(
                 if is_unset {
                     report_unset_on_property(object.span.to(*name_span), &qname, &name, env);
                 }
+                // `mwl-ir` needs this access's resolved declaring class to
+                // lower an eventual field-read instruction — see
+                // `crate::expr_table`'s own module docs. The key must match
+                // `mwl-ir`'s lookup exactly: `object.span.to(*name_span)` is
+                // precisely how the parser built the enclosing
+                // `PropertyAccess` expression's own span (see
+                // `Parser::parse_new_target_expr`'s `?->`/`->` arm), so
+                // there's no need to thread that span through as a separate
+                // parameter.
+                env.exprs.record(
+                    object.span.to(*name_span),
+                    ExprInfo::Property {
+                        class: qname.clone(),
+                        name: name.clone(),
+                        ty,
+                    },
+                );
                 ty
             }
             None => {

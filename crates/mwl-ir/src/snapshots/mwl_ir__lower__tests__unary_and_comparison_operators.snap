@@ -2,15 +2,16 @@
 source: crates/mwl-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
-fn check(int) -> bool {
+fn check(object, int) -> bool {
   bb0:
     safepoint
-    v0 = param 0  ; int
+    v0 = param 0  ; object
+    v1 = param 1  ; int
     ; stmt s0 @4:5-4:25
-    v1 = neg v0  ; int
-    v2 = const.int 0  ; int
-    v3 = lt v1, v2  ; bool
+    v2 = neg v1  ; int
+    v3 = const.int 0  ; int
+    v4 = lt v2, v3  ; bool
     ; stmt s1 @5:5-5:18
-    v4 = not v3  ; bool
-    return v4
+    v5 = not v4  ; bool
+    return v5
 }

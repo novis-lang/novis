@@ -18,12 +18,13 @@
 //!
 //! This is a narrow, deliberately incomplete table — it exists to answer
 //! exactly the questions `mwl-ir`'s widening needed answered, not to become a
-//! second, general-purpose typed-AST. Widening `mwl-ir` further (property
-//! access, array access, `match`/ternary result identity, ...) is expected to
-//! grow [`ExprInfo`] with one new variant per question, each populated at its
-//! own `expr::infer` call site — not to replace this shape. See the crate's
-//! own known-gaps list for exactly which expression shapes have no entry here
-//! yet.
+//! second, general-purpose typed-AST. [`ExprInfo::Property`] is the first
+//! instance of the pattern this module's docs originally predicted: widening
+//! `mwl-ir` further (array access, `match`/ternary result identity, ...) is
+//! expected to keep growing [`ExprInfo`] with one new variant per question,
+//! each populated at its own `expr::infer`/`check_property_access`-style call
+//! site — not to replace this shape. See the crate's own known-gaps list for
+//! exactly which expression shapes have no entry here yet.
 //!
 //! # Why a lookup is keyed by [`mwl_diagnostics::Span`], not assignment order
 //!
@@ -115,6 +116,22 @@ pub enum ExprInfo {
         ctor: Option<ResolvedCall>,
         /// The `new` expression's own result type — always `Ty::Class(class)`,
         /// recorded directly so a consumer never needs to re-intern it.
+        ty: TypeId,
+    },
+    /// A resolved property access (`$obj->prop`) whose receiver statically
+    /// resolved to a known declaring class — never recorded for a shape or
+    /// plain-`object` receiver, since ADR 0036 § 4 erases either to `mixed`
+    /// with no declaring class to name at all (see
+    /// [`crate::expr::check_property_access`]'s own docs for that erasure).
+    /// A consumer with no entry for a `PropertyAccess` span must treat it the
+    /// same way the checker did: nothing compile-time-known to read.
+    Property {
+        /// The class that actually declares the property — the receiver's
+        /// own class, or an ancestor it inherited the property from.
+        class: QName,
+        /// The property's own name, `$`-sigil not included.
+        name: String,
+        /// The property's declared type.
         ty: TypeId,
     },
 }
@@ -324,5 +341,29 @@ mod tests {
         assert_eq!(call.class.to_string(), "T");
         assert_eq!(call.method, "a");
         assert_eq!(call.param_tys.len(), 1);
+    }
+
+    #[test]
+    fn a_property_access_through_a_known_class_records_the_resolved_property() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass T {\n  public int $count = 0;\n  function m(): int {\n    return $this->count;\n  }\n}\n",
+        );
+        let Some(ExprInfo::Property { class, name, .. }) = exprs.lookup(span) else {
+            panic!("expected a recorded `Property` entry");
+        };
+        assert_eq!(class.to_string(), "T");
+        assert_eq!(name, "count");
+    }
+
+    /// A plain `object`-typed receiver erases per ADR 0036 § 4 — there is no
+    /// declaring class to record, mirroring
+    /// `crate::expr::check_property_access`'s own "nothing diagnosed, nothing
+    /// resolved" treatment of that shape.
+    #[test]
+    fn a_property_access_through_a_plain_object_receiver_records_nothing() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
+        );
+        assert!(exprs.lookup(span).is_none());
     }
 }

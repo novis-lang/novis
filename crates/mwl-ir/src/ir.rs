@@ -22,7 +22,15 @@ pub struct Function {
     /// `crate::lower::lower_method`'s caller decides how it is qualified
     /// (bare method name, `Class::method`, ...).
     pub name: String,
-    /// Each parameter's representation, positional.
+    /// Each parameter's representation, positional. Index 0 is always the
+    /// implicit receiver (`$this`) — every lowered method carries it, whether
+    /// or not its body ever reads `$this`, mirroring
+    /// `mwl_types::check.rs`'s `check_method` seeding `$this` into its own
+    /// `LocalScope` unconditionally (not gated on a `static` modifier — see
+    /// that function's own comment for why). Every explicit
+    /// `MethodMember` parameter follows, starting at index 1. See
+    /// `crate::lower::lower_method`'s own doc comment for where the
+    /// receiver's value comes from.
     pub params: Vec<Ty>,
     /// The return representation, [`Ty::Void`] for a `void`-returning
     /// method.
@@ -127,24 +135,23 @@ pub enum InstKind {
         /// `(predecessor block, incoming value)` pairs.
         incoming: Vec<(BlockId, ValueId)>,
     },
-    /// A statically resolved call — a static method call today; an instance
-    /// method call once one lowers (see `receiver`'s own doc comment). The
-    /// target is already fully resolved by
-    /// `mwl_types::expr_table::ExprTypeTable` before lowering ever sees it —
-    /// there is no virtual dispatch to model here, only "which function does
-    /// this invoke."
+    /// A statically resolved call — a static method call, `new`'s
+    /// constructor invocation, or an instance method call
+    /// (`$obj->method(...)`, including `$this->…`). The target is already
+    /// fully resolved by `mwl_types::expr_table::ExprTypeTable` before
+    /// lowering ever sees it — there is no virtual dispatch to model here,
+    /// only "which function does this invoke." See the crate docs' "no
+    /// virtual dispatch" known gap for what happens once a receiver's static
+    /// and runtime types can actually differ.
     Call {
         /// The resolved target, rendered `"Class::method"` — a label for
         /// `crate::print`/a future codegen symbol table, not itself
         /// resolvable back to a `QName` (this crate never depends on
         /// `mwl-hir`; see `crate::lower`'s module docs).
         target: String,
-        /// The receiver value, for an instance method call. Always `None`
-        /// today — no expression shape lowered so far produces an instance
-        /// call (see the crate docs' known gaps); reserved now so adding one
-        /// later needs no second `InstKind` variant, the same "cheap now,
-        /// expensive to retrofit" reasoning `crate::ids` already documents
-        /// for `StmtId`/`EdgeId`.
+        /// The receiver value, for an instance method call (`Some`) — `None`
+        /// for a static call or `new`'s constructor invocation, neither of
+        /// which has a receiver at all.
         receiver: Option<ValueId>,
         /// Each positional argument, already lowered.
         args: Vec<ValueId>,
@@ -161,6 +168,26 @@ pub enum InstKind {
         /// Each constructor argument, already lowered — empty when `class`
         /// declares no explicit `constructor`.
         args: Vec<ValueId>,
+    },
+    /// Reads a compile-time-known field off an object — `$obj->prop` whose
+    /// receiver's static type resolved to a known declaring class (an
+    /// `mwl_types::expr_table::ExprInfo::Property` entry exists for it). No
+    /// actual byte offset is computed here: `class`/`field` are labels for a
+    /// future codegen layout pass, the same "resolved identity, not yet a
+    /// machine offset" shape `Call`/`New`'s own `target`/`class` labels
+    /// already use. A property access whose receiver erased to a shape or
+    /// plain `object` (ADR 0036 § 4) has no such entry to read at all —
+    /// `crate::lower` panics naming that case rather than lowering it; see
+    /// the crate docs' known gaps for why (the checker itself defers the
+    /// runtime-checked fallback to M4, with no IR/codegen yet to throw from).
+    FieldGet {
+        /// The receiver, already lowered.
+        object: ValueId,
+        /// The class that actually declares the field, rendered the same way
+        /// `Call::target`'s class half is.
+        class: String,
+        /// The field's own name, `$`-sigil not included.
+        field: String,
     },
 }
 

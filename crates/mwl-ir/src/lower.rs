@@ -69,6 +69,12 @@ type Env = FxHashMap<String, (ValueId, Ty)>;
 /// interner — the source of truth for a call's/`new`'s resolved target (see
 /// [`ExprInfo`] and the crate docs' "design choices" section).
 ///
+/// `Function::params`' index 0 is always the implicit receiver (`$this`),
+/// seeded into `Env` here before any explicit parameter — see
+/// [`Function::params`](crate::ir::Function::params)'s own doc comment and
+/// the crate docs' design-choices section for why every lowered method
+/// carries it unconditionally.
+///
 /// # Panics
 ///
 /// Panics, naming the unsupported shape, if `m` has no body or its body
@@ -96,12 +102,29 @@ pub fn lower_method(
     // and why this slice reserves only the shape, not a functional check.
     low.emit_safepoint(entry);
 
+    // The implicit receiver (`$this`), always parameter index 0 — seeded
+    // unconditionally, the same way `mwl_types::check.rs`'s `check_method`
+    // seeds `$this` into its own `LocalScope` regardless of a `static`
+    // modifier (see that function's own comment for why: a static method's
+    // body referencing `$this` is a distinct, unrelated diagnostic, not this
+    // crate's concern). `mwl-ir` never lowers a free function — every
+    // `MethodMember` it reaches belongs to a class per ADR 0011 — so there is
+    // no case where a receiver truly doesn't exist. This is the "implicit
+    // first parameter" shape from the crate docs' design-choices section,
+    // chosen over a receiver-only special case so `ExprKind::MethodCall`'s
+    // `$this`/an arbitrary receiver both flow through the ordinary
+    // `ExprKind::Variable`/`Env` lookup path with no new machinery.
+    let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    env.insert("this".to_owned(), (this_v, Ty::Object));
+    param_tys.push(Ty::Object);
+
     for (i, p) in m.params.iter().enumerate() {
         let decl_ty =
             p.ty.as_ref()
                 .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
         let ty = lower_decl_type(decl_ty);
-        let index = u32::try_from(i).expect("far more parameters than a call could ever take");
+        // +1: index 0 is always the implicit receiver seeded above.
+        let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let (v, _) = low.emit(entry, ty, InstKind::Param(index));
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
         env.insert(pname, (v, ty));
@@ -763,10 +786,49 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
-            // `self::method(...)`/`Class::method(...)` — no receiver value:
-            // an instance `$obj->method(...)` call is still out of scope
-            // (see the crate docs' known gaps), since it needs `$this`/an
-            // arbitrary receiver represented as a real value first.
+            // `$obj->method(...)`/`$this->method(...)` — the receiver is
+            // lowered like any other expression (for `$this`, that's just an
+            // `Env` lookup, since `lower_method` already seeded it as the
+            // implicit parameter 0); the resolved target itself still comes
+            // from `self.exprs`, exactly like a static call/`new` below.
+            ExprKind::MethodCall {
+                object,
+                nullsafe,
+                args,
+                ..
+            } => {
+                assert!(
+                    !*nullsafe,
+                    "mwl-ir does not yet lower a nullsafe method call (`?->`); see the crate \
+                     docs' known gaps"
+                );
+                let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
+                    panic!(
+                        "mwl-ir: an instance method call at {:?} has no resolved target \
+                         recorded in the typed-expression table — did this program pass \
+                         mwl_types::check_program with the same table?",
+                        expr.span
+                    );
+                };
+                let target_label = format!("{}::{}", call.class, call.method);
+                let param_tys = call.param_tys.clone();
+                let variadic = call.variadic;
+                let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+                let checked_types = self.checked_types;
+                let (receiver_v, _) = self.lower_expr(object, None, env, cur);
+                let arg_values =
+                    self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur);
+                self.emit(
+                    cur,
+                    return_ty,
+                    InstKind::Call {
+                        target: target_label,
+                        receiver: Some(receiver_v),
+                        args: arg_values,
+                    },
+                )
+            }
+            // `self::method(...)`/`Class::method(...)` — no receiver value.
             ExprKind::StaticCall { args, .. } => {
                 let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
                     panic!(
@@ -793,10 +855,50 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // `$obj->prop` — the receiver's declaring class comes from
+            // `self.exprs`, exactly like a call's resolved target; a shape or
+            // plain-`object` receiver (ADR 0036 § 4) has no such entry at
+            // all, so this panics naming that case rather than lowering it —
+            // see the crate docs' known gaps for why (the checker itself
+            // defers the runtime-checked fallback to M4, with no IR/codegen
+            // yet to throw from).
+            ExprKind::PropertyAccess {
+                object, nullsafe, ..
+            } => {
+                assert!(
+                    !*nullsafe,
+                    "mwl-ir does not yet lower a nullsafe property access (`?->`); see the \
+                     crate docs' known gaps"
+                );
+                let Some(ExprInfo::Property { class, name, ty }) = self.exprs.lookup(expr.span)
+                else {
+                    panic!(
+                        "mwl-ir: a property access at {:?} has no resolved declaring class \
+                         recorded in the typed-expression table — either it wasn't checked with \
+                         the same table, or its receiver erased to a shape/plain `object` (ADR \
+                         0036 § 4), which this crate does not yet lower (see the crate docs' \
+                         known gaps)",
+                        expr.span
+                    );
+                };
+                let field_ty = lower_checked_ty(*ty, self.checked_types);
+                let class_label = class.to_string();
+                let field_name = name.clone();
+                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                self.emit(
+                    cur,
+                    field_ty,
+                    InstKind::FieldGet {
+                        object: object_v,
+                        class: class_label,
+                        field: field_name,
+                    },
+                )
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
-                 operators, `new`, and a static call — got {other:?}; see the crate docs' known \
-                 gaps"
+                 operators, `new`, a static or instance method call, and property access — got \
+                 {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -1115,5 +1217,78 @@ mod tests {
             "<?mwl\nclass Foo {}\nclass T {\n  function make(): Foo {\n    Foo $x = new Foo();\n    return $x;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$this->a(1)` — the implicit receiver seeded by `lower_method` (SSA
+    /// value 0, parameter index 0) flows into `InstKind::Call`'s `receiver`
+    /// field via the same `ExprKind::Variable`/`Env` lookup any other local
+    /// uses; nothing about `MethodCall`'s own lowering is `$this`-specific.
+    #[test]
+    fn a_this_method_call() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): int {\n    return $this->a(1);\n  }\n  function a(int $x): int {\n    return $x;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->greet()` — an instance call through a receiver that isn't
+    /// `$this` at all, on a class with no explicit parameters, to exercise
+    /// the general `object` lowering path rather than only the `$this`
+    /// special case.
+    #[test]
+    fn an_instance_method_call_through_a_local_receiver() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj->greet();\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn a_nullsafe_method_call_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj?->greet();\n  }\n}\n",
+        );
+    }
+
+    /// `$this->count` — a property access through the implicit receiver,
+    /// resolved to its declaring class via `ExprInfo::Property`.
+    #[test]
+    fn a_this_property_access() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  public int $count = 0;\n  function m(): int {\n    return $this->count;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->count` — a property access through a receiver that isn't
+    /// `$this`, to exercise the general `object` lowering path rather than
+    /// only the `$this` special case.
+    #[test]
+    fn a_property_access_through_a_local_receiver() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj->count;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn a_nullsafe_property_access_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj?->count;\n  }\n}\n",
+        );
+    }
+
+    /// A property access through a plain-`object` receiver erases per ADR
+    /// 0036 § 4 — `mwl_types` records no `ExprInfo::Property` entry for it,
+    /// so lowering panics naming the case rather than reading a nonexistent
+    /// declaring class.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn a_property_access_through_a_plain_object_receiver_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
+        );
     }
 }

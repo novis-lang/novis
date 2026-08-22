@@ -105,6 +105,11 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
             format!("new {class}({})", parts.join(", "))
         }
+        InstKind::FieldGet {
+            object,
+            class,
+            field,
+        } => format!("field.get v{}, {class}::{field}", object.index()),
         InstKind::StmtMarker(_) | InstKind::Safepoint => unreachable!("returned above"),
     };
     let _ = writeln!(out, "    v{} = {rhs}  ; {}", v.index(), ty_name(ty));

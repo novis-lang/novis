@@ -2,20 +2,21 @@
 source: crates/mwl-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
-fn pick(bool, int, int) -> int {
+fn pick(object, bool, int, int) -> int {
   bb0:
     safepoint
-    v0 = param 0  ; bool
-    v1 = param 1  ; int
+    v0 = param 0  ; object
+    v1 = param 1  ; bool
     v2 = param 2  ; int
+    v3 = param 3  ; int
     ; stmt s0 @4:5-4:16
-    v3 = const.int 0  ; int
+    v4 = const.int 0  ; int
     ; stmt s1 @5:5-9:6
-    branch v0 -> bb2 (e0), bb3 (e1)
+    branch v1 -> bb2 (e0), bb3 (e1)
   bb1:
-    v4 = phi [bb2: v1, bb3: v2]  ; int
+    v5 = phi [bb2: v2, bb3: v3]  ; int
     ; stmt s6 @10:5-10:15
-    return v4
+    return v5
   bb2:
     ; stmt s2 @5:13-7:6
     ; stmt s3 @6:7-6:15

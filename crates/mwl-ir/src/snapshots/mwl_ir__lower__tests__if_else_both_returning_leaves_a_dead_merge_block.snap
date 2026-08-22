@@ -2,23 +2,24 @@
 source: crates/mwl-ir/src/lower.rs
 expression: "print_function(&f, map.file(file))"
 ---
-fn abs(int) -> int {
+fn abs(object, int) -> int {
   bb0:
     safepoint
-    v0 = param 0  ; int
+    v0 = param 0  ; object
+    v1 = param 1  ; int
     ; stmt s0 @4:5-8:6
-    v1 = const.int 0  ; int
-    v2 = lt v0, v1  ; bool
-    branch v2 -> bb2 (e0), bb3 (e1)
+    v2 = const.int 0  ; int
+    v3 = lt v1, v2  ; bool
+    branch v3 -> bb2 (e0), bb3 (e1)
   bb1:
     return
   bb2:
     ; stmt s1 @4:17-6:6
     ; stmt s2 @5:7-5:18
-    v3 = neg v0  ; int
-    return v3
+    v4 = neg v1  ; int
+    return v4
   bb3:
     ; stmt s3 @6:12-8:6
     ; stmt s4 @7:7-7:17
-    return v0
+    return v1
 }

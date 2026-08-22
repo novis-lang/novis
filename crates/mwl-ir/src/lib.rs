@@ -10,20 +10,28 @@
 //! # What this crate lowers so far
 //!
 //! One method whose body is typed local declarations, plain `$x = expr;`
-//! reassignment, `return`, nested `{}` blocks, `if`/`while`, `new`, and a
-//! static method call (`self::method(...)`/`Class::method(...)`) —
-//! [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
-//! `break`/`continue`, no instance method call, no property/array access, no
+//! reassignment, `return`, nested `{}` blocks, `if`/`while`, `new`, a static
+//! method call (`self::method(...)`/`Class::method(...)`), an instance
+//! method call (`$obj->method(...)`, including `$this->…`), and a
+//! compile-time-known property access (`$obj->prop`, including
+//! `$this->prop`) — [`lower::lower_method`] is the entry point. No
+//! `for`/`switch`/`try`, no `break`/`continue`, no array access, no
 //! non-scalar-*data* types (`string`/`bytes`/`array<T>` — a class/enum value
 //! itself now has a representation, [`ty::Ty::Object`], just not a way to
-//! read a field off one yet). The straight-line subset was deliberately the
-//! *first* slice landed (see git history and `docs/implementation-plan.md`'s
-//! M2 paragraph) because it was the smallest shape exercising every
-//! structural IR piece with no merge point at all; `if`/`while` came next,
-//! and are where SSA's actual join/phi question gets answered — see
-//! [`lower`]'s own module docs for exactly how. `new`/a static call are the
-//! third slice, and the first to need more than the AST alone — see the next
-//! section for the dependency that unlocked them.
+//! refcount one yet). The straight-line subset was deliberately the *first*
+//! slice landed (see git history and `docs/implementation-plan.md`'s M2
+//! paragraph) because it was the smallest shape exercising every structural
+//! IR piece with no merge point at all; `if`/`while` came next, and are where
+//! SSA's actual join/phi question gets answered — see [`lower`]'s own module
+//! docs for exactly how. `new`/a static call were the third slice, and the
+//! first to need more than the AST alone — see the next section for the
+//! dependency that unlocked them. An instance method call is the fourth
+//! slice, and the first to need a receiver represented as a real value — see
+//! the design-choices section below for the implicit-receiver-parameter shape
+//! that unlocked it. A property access is the fifth slice, and reuses that
+//! same receiver-as-a-value machinery, only for a field read instead of a
+//! call — see [`ir::InstKind::FieldGet`]'s own doc comment for the
+//! compile-time-known-field-only shape landed here.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -75,6 +83,25 @@
 //!   (naming the unsupported shape) rather than diagnosing when handed
 //!   something outside this slice's scope, or when a table lookup comes back
 //!   empty for an expression that should have one.
+//! - **`$this`/a receiver is an implicit first parameter, not a special-cased
+//!   field.** Landing an instance method call needed `$this` (and any other
+//!   receiver) represented as a real `ValueId` first — [`lower::lower_method`]
+//!   used to seed `Env` only from `m.params`. The shape chosen mirrors
+//!   `mwl_types::check.rs`'s `check_method`, which already seeds `$this` into
+//!   its own `LocalScope` the same way, unconditionally and not gated on a
+//!   `static` modifier (a static method's body referencing `$this` is a
+//!   distinct, unrelated diagnostic neither crate adds here): every lowered
+//!   method's [`ir::Function::params`] now carries the receiver at index 0,
+//!   ahead of every explicit parameter, whether or not the body ever reads
+//!   `$this`. The alternative — a receiver-only special case that leaves
+//!   `Function::params` untouched and threads a separate `Option<ValueId>`
+//!   just for `$this` — was rejected: it would need `Env`'s `$this` lookup to
+//!   go through a different path than every other local, duplicating the
+//!   `ExprKind::Variable` handling `lower_expr` already has, for a value that
+//!   behaves exactly like an ordinary parameter in every other respect. This
+//!   changes every existing snapshot's function signature line (regenerated
+//!   via `cargo insta test --accept -p mwl-ir` when this landed) — an
+//!   IR-representation choice, not a change visible to an MWL developer.
 //! - **Ids are stable, not global.** See [`ids`]'s own module docs.
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
@@ -95,22 +122,17 @@
 //!   the outer binding — not observable for any program in scope today (no
 //!   shape here can declare a same-named local in a narrower scope in a way
 //!   that matters), but worth knowing before trusting `Env` further.
-//! - **No instance method call** (`$obj->method(...)`, including `$this->…`)
-//!   — only a static call (`self::method(...)`/`Class::method(...)`) and
-//!   `new` lower so far. An instance call needs its receiver represented as a
-//!   real value, and `$this` in particular is not bound in `Env` at all
-//!   today — [`lower::lower_method`] only seeds `Env` from `m.params`, the
-//!   same as before this slice, since widening that (an implicit receiver
-//!   parameter ahead of every explicit one, changing `Function::params` for
-//!   *every* method whether it uses `$this` or not) is a bigger, separate
-//!   change than this slice's scope. [`ir::InstKind::Call`] already reserves
-//!   a `receiver` field for exactly this, so landing it needs no new
-//!   `InstKind` variant — see that field's own doc comment.
-//! - **No property or array access** — `$obj->prop`/`$arr[$i]` are
-//!   unsupported; lowering panics naming the expression. Property access
-//!   additionally needs ADR 0036 § 4's shape/`object`-erasure semantics
-//!   worked out at the IR level (a compile-time-known field vs. a
-//!   runtime-checked one), not just a representation to read from.
+//! - **No array access** — `$arr[$i]` is unsupported; lowering panics naming
+//!   the expression.
+//! - **Property access is compile-time-known-field-only.** A receiver whose
+//!   static type resolved to a known declaring class lowers to
+//!   [`ir::InstKind::FieldGet`], reading `mwl_types::expr_table::ExprInfo::Property`
+//!   the same way a call reads `ExprInfo::Call`. A receiver that erased to a
+//!   shape or plain `object` (ADR 0036 § 4) has no such entry at all — the
+//!   checker itself defers that case's runtime-checked fallback to M4, with
+//!   no IR/codegen yet to throw from, so lowering panics naming it rather
+//!   than guessing a representation. A nullsafe access (`?->`) is equally
+//!   unsupported today, same as a nullsafe method call.
 //! - No `string`/`bytes`/`array<T>` representation, and therefore no refcount
 //!   operations at all — the milestone text's "refcount operations" have
 //!   nowhere to attach until a reference-counted *data* value exists in the
@@ -120,10 +142,14 @@
 //! - **No virtual dispatch** — [`ir::InstKind::Call`]'s `target` is always the
 //!   statically resolved declaring class from
 //!   `mwl_types::expr_table::ResolvedCall`, exactly as MWL's checker resolved
-//!   it; whether a real vtable/interface-dispatch lookup is ever needed at
-//!   this IR level (as opposed to purely at codegen) is a question for
-//!   whichever session first lowers a call through an interface-typed or
-//!   overridden-method receiver.
+//!   it, for a static call, `new`'s constructor, and now an instance method
+//!   call alike. Every instance call lowered so far still has its receiver's
+//!   *static* type equal to its *runtime* class (a concrete, non-interface
+//!   local/`new` result) — whether a real vtable/interface-dispatch lookup is
+//!   ever needed at this IR level (as opposed to purely at codegen) remains a
+//!   question for whichever session first lowers a call through an
+//!   interface-typed or overridden-method receiver, where the two can
+//!   actually differ.
 //! - **No variadic, named, or spread call argument** —
 //!   `Lowering::lower_call_args` (in [`lower`]) panics naming any of the
 //!   three; `mwl_types` itself doesn't fully positionally type-check a

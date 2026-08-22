@@ -41,15 +41,23 @@
 > § 3's intraprocedural read-before-write check). Remaining for this milestone: ADR 0011/0024 §4/0033's
 > stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and finishing `mwl-ir`.
 >
-> `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, and now **`new`/a static
-> call**: `crates/mwl-ir/src/ids.rs` reserves the stable `StmtId`/`EdgeId` numbering
+> `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, **`new`/a static call**, and
+> now **an instance method call and a compile-time-known property access**: `crates/mwl-ir/src/ids.rs`
+> reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
 > `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
-> `InstKind::Call` and `InstKind::New`; `lower.rs` lowers a method body of typed local declarations, plain
-> `$x = expr;` reassignment, scalar arithmetic/comparison/unary operators, `return`, nested `{}` blocks,
-> `if`/`while`, `new Target(...)`, and a static call (`self::method(...)`/`Class::method(...)`) end to end,
-> with `insta` snapshot tests over the printed form (`print.rs`). `if`'s join and `while`'s loop-header join
+> `InstKind::Call`, `InstKind::New` and `InstKind::FieldGet`; `lower.rs` lowers a method body of typed local
+> declarations, plain `$x = expr;` reassignment, scalar arithmetic/comparison/unary operators, `return`,
+> nested `{}` blocks, `if`/`while`, `new Target(...)`, a static call
+> (`self::method(...)`/`Class::method(...)`), an instance method call (`$obj->method(...)`, including
+> `$this->…`), and a property access through a receiver whose declaring class is statically known
+> (`$obj->prop`, including `$this->prop`) end to end, with `insta` snapshot tests over the printed form
+> (`print.rs`). Every lowered method's `Function::params` now carries an implicit receiver at index 0
+> (`$this`, or an unused slot for a method that never reads it) ahead of its explicit parameters — the
+> shape an instance call needed to represent `$this`/an arbitrary receiver as a real SSA value, mirroring
+> `mwl_types::check.rs`'s `check_method` seeding `$this` into its own scope the same unconditional way. `if`'s
+> join and `while`'s loop-header join
 > are each a single hand-rolled two-predecessor (or pre-loop/back-edge) SSA merge, not a general
 > dominance-based phi-placement algorithm — sufficient since a structured `if`/`while` only ever has that one
 > join shape. An inert `InstKind::Safepoint` marker is reserved at function entry and on every `while` back
@@ -60,10 +68,11 @@
 > `mwl-ir` should depend on `mwl-types`/`mwl-hir` directly and re-derive a call's/`new`'s resolved target
 > itself, or whether `mwl-types` should publish a persisted result `mwl-ir` reads back. The user decided in
 > favor of the latter: `mwl-types` grew `crate::expr_table::ExprTypeTable`, a narrow, purpose-built table —
-> one `ExprInfo::Call`/`ExprInfo::New` entry per resolved method/static call or `new`, keyed by the
-> expression's own source span rather than an independently-numbered id (the two crates' AST walks aren't
-> guaranteed to visit expressions in the same order, so a span is the only key both agree on without
-> coordinating) — that `check_program` now populates and hands back alongside its type interner. `mwl-ir`
+> one `ExprInfo::Call`/`ExprInfo::New`/`ExprInfo::Property` entry per resolved method/static call, `new`, or
+> property access, keyed by the expression's own source span rather than an independently-numbered id (the
+> two crates' AST walks aren't guaranteed to visit expressions in the same order, so a span is the only key
+> both agree on without coordinating) — that `check_program` now populates and hands back alongside its
+> type interner. `mwl-ir`
 > depends on `mwl-types` for exactly this table plus the interner needed to translate a recorded `TypeId`
 > into its own `Ty`; it still never depends on `mwl-hir`, `mwl_types::signatures`, or `mwl_types::ClassGraph`
 > directly. `mwl-ir`'s own `Ty` gained one non-scalar variant, `Ty::Object` — an opaque class/enum reference
@@ -73,10 +82,12 @@
 >
 > Deliberately out of scope still, all documented in the crate's own module docs: `for`/`switch`/`match`/
 > `try`, `break`/`continue`, a non-`bool` `if`/`while` condition (ADR 0035's truthy conversion needs a
-> runtime-helper call that doesn't exist in the IR yet), an **instance** method call (needs `$this`/an
-> arbitrary receiver represented as a real value — `InstKind::Call` already reserves a `receiver` field for
-> it), property/array access, virtual dispatch, variadic/named/spread call arguments, and non-scalar *data*
-> types (`string`/`bytes`/`array<T>`) and therefore refcount operations on them.
+> runtime-helper call that doesn't exist in the IR yet), a nullsafe access of either kind (`?->`), a
+> property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
+> checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
+> from), array access, virtual dispatch (every call/access lowered so far has its receiver's static type
+> equal to its runtime class), variadic/named/spread call arguments, and non-scalar *data* types
+> (`string`/`bytes`/`array<T>`) and therefore refcount operations on them.
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
