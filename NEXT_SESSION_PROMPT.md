@@ -5,19 +5,20 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session was docs-only — planning, not coding — and touched nothing in `mwl-ir`/`mwl-types`/any
-crate.** It added [ADR 0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md): the VS Code
-extension goes deep (inspections, refactorings, a Test Explorer with coverage, an AST panel, a
-speedscope-format profiler view, DAP debugger-UI wiring), each feature tagged with the milestone/ADR it's
-staged behind, and a new milestone **M4B** (right after M4, ahead of M5) ships a minimal `mwl-lsp` +
-`editors/vscode` early so real-world testing in an editor starts the moment M4 makes MWL a usable CLI
-language rather than waiting for M10. It also names a required `mwl-syntax` addition — a second,
-error-recovering/lossless parse entry point (rust-analyzer's `rowan` design is the precedent), used only by
-editor tooling, alongside the existing strict whole-file parse `mwl check`/`mwl run` keep using unchanged.
-PhpStorm is untouched — still exactly [ADR 0016](docs/adr/0016-ide-integration.md)'s scope. None of this
-changes anything about M2's in-progress `mwl-ir` work below; M4B doesn't start until M4 (language
-completeness) is done, several milestones out. If picking up coding work next, resume M2 exactly where the
-prior coding session left it, below.
+**Last session was again docs-only — planning, not coding — and touched nothing in
+`mwl-ir`/`mwl-types`/any crate.** It added [ADR 0041](docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md),
+amending [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md): trace
+events gain a `call`/`gc`/`spawn` `kind` tag; the cycle collector's run routine and the three
+isolate-spawn/join routines (M5) each get their own instrumentation point — deliberately *not* the
+safepoint poll or any per-statement/per-call site, so it costs nothing on ADR 0018's already-measured hot
+path; and a speedscope-evented export renders all three kinds as one scrollable timeline, reusing the open
+format [ADR 0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md) already committed to for the
+sampling profiler rather than building a bespoke viewer. Two things raised in the same discussion were
+explicitly *not* pursued — named in ADR 0041's own *Revisiting*: an external/live attach mechanism (a new
+network-reachable trust boundary against priority 1, needing its own threat-modeled ADR if ever wanted),
+and a memory/allocation timeline (no probe mechanism exists for it at all). ADR 0040/M4B stand exactly as
+before this session. None of this changes anything about M2's in-progress `mwl-ir` work below. If picking
+up coding work next, resume M2 exactly where the prior *coding* session left it, below.
 
 **The most recent *coding* session landed array-element access (`$arr[$i]`, both read and write) — the item
 the plan had flagged as needing a real design decision about missing-key behavior, and it resolved to "no
@@ -216,3 +217,8 @@ hook's first commit (ADR 0038's own *Revisiting* names this, deferred to `docs/s
 **Separately, whenever M3 finishes and M4 is underway:** keep [ADR 0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md)
 in mind as M4 approaches its own "usable CLI language" exit criterion — M4B (minimal `mwl-lsp` +
 `editors/vscode`, plus `mwl-syntax`'s new resilient-parse mode) starts right after, per the plan.
+
+**Separately, whenever M5 (concurrency and script isolates) is underway:** give each of the three
+spawn-construct runtime routines its `spawn`-kind trace hook, and whenever the mark-sweep cycle collector's
+run routine is built, give it its `gc`-kind hook too — both per [ADR 0041](docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md),
+both instrumentation-only inside those already-rare routines, no change to the safepoint poll itself.
