@@ -32,7 +32,12 @@
 //! the one other non-scalar representation that exists, still reserved
 //! rather than functional (see its own doc comment) — widening lowering
 //! further adds variants to this enum; it does not replace the "erase
-//! checker qualifiers" design itself.
+//! checker qualifiers" design itself. [`Ty::Mixed`] is the newest, and the
+//! first variant that is reserved *by design* rather than only until a later
+//! slice gets to it: unlike every representation above, there is no obvious
+//! "next slice" that makes it functional without first deciding a runtime
+//! type-tag representation — see its own doc comment for exactly what that
+//! open design question is and what round-trips through it already.
 
 /// One IR value's representation.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -106,6 +111,36 @@ pub enum Ty {
     /// their own known gaps (append syntax, a non-int/uint/string key, a
     /// `mixed`-erased base).
     Array,
+    /// `mixed` — ADR 0007 § 3's one unchecked position. Bare and opaque,
+    /// like [`Self::Object`]/[`Self::Array`]: a `mixed`-typed value's actual
+    /// runtime shape (`int`, a `string`, an array, an object, ...) needs a
+    /// runtime type tag to distinguish, and this variant deliberately does
+    /// not decide that representation yet — the design question the
+    /// milestone text names is "how a `mixed` value's runtime type tag is
+    /// represented," and picking one is real, non-mechanical work belonging
+    /// to whichever slice first needs to branch on it (a runtime-helper call
+    /// dispatching on `mixed`'s actual type, ADR 0035's `null`/`mixed` truthy
+    /// case, or arithmetic's `mixed` fallback — see [`crate::lower`]'s crate
+    /// docs for all three). What *this* slice lands is narrower: enough
+    /// representation for a `mixed`-typed local, parameter, return value or
+    /// call argument to exist and round-trip through [`crate::lower`]'s
+    /// existing local-bind/call-argument/return machinery, which keys
+    /// entirely off [`Self::is_refcounted`] and needs no `mixed`-specific
+    /// insertion point to do that — see [`Self::is_refcounted`]'s own doc
+    /// comment for why this variant is excluded there too. Reading, writing
+    /// or converting a `mixed` value in any way that needs to know its actual
+    /// runtime type (arithmetic, `.` concatenation, an `if`/`while`
+    /// condition, indexing) still panics naming the case: this slice adds a
+    /// representation to erase into, not a way to see through it again.
+    /// Deliberately *not* what a union or a nullable (`?T`) type lowers to:
+    /// [`crate::lower::lower_decl_type`]/[`crate::lower::lower_checked_ty`]
+    /// only route the bare `TypeAtom::Mixed`/`CheckedTy::Mixed` atom here —
+    /// a union/`?T` still panics unchanged, since folding either into this
+    /// same representation would be its own decision (they are narrower than
+    /// fully-erased `mixed`, and `null`'s own IR representation is a
+    /// separate, still-open gap named elsewhere in this crate) rather than a
+    /// mechanical extension of it.
+    Mixed,
 }
 
 impl Ty {
@@ -116,6 +151,18 @@ impl Ty {
     /// today. [`Self::Object`] is deliberately *not* included yet: nothing
     /// allocates or frees the memory behind one so far (see that variant's
     /// own doc comment), so there is nothing yet for a retain/release to do.
+    /// [`Self::Mixed`] is excluded for the same reason, one level further
+    /// removed: a `mixed` value's *actual* runtime type might itself be
+    /// refcounted (a `string`, an array, an object) or not (a scalar), but
+    /// nothing decides that runtime type tag yet (see that variant's own doc
+    /// comment) — so there is no way to know *whether* a retain/release is
+    /// even needed for a given `mixed` value today, let alone emit the right
+    /// one. A `mixed`-typed local/parameter/return still round-trips
+    /// correctly without one: PHP's/ADR 0007's own semantics don't ask this
+    /// crate to free anything behind a value it never inspects, and every
+    /// insertion point this method gates already treats "not refcounted" as
+    /// "nothing to do here," not "assume no cleanup is ever needed" — the
+    /// distinction that will matter once a real tag representation lands.
     #[must_use]
     pub fn is_refcounted(self) -> bool {
         matches!(self, Ty::Str | Ty::Bytes | Ty::Array)

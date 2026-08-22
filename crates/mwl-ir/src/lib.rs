@@ -28,13 +28,17 @@
 //! known `int`/`uint`/`string` key (`$arr[$i]`, `$arr[$i] = expr;`), and now
 //! an `if`/`while` condition that isn't already `bool` — a scalar or
 //! `array<T>` converts through ADR 0035's truthy table (a class instance or
-//! enum case folds straight to a constant `true`, always truthy) —
-//! [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
-//! `break`/`continue`, no `$a[]` append syntax on either side, no explicit
-//! `key =>`/`...spread`/`&value` array-literal element, no
-//! concatenation of a `Stringable`-object operand (a class/enum value itself
-//! also has a representation, [`ty::Ty::Object`], just not a way to refcount
-//! one yet, nor a way to invoke its `toString()` from here). The straight-line
+//! enum case folds straight to a constant `true`, always truthy) — and now a
+//! `mixed`-typed local/parameter/return value/call-argument, which exists as
+//! an IR representation and round-trips, though nothing yet converts one
+//! through arithmetic, `.` concatenation, ADR 0035's truthy table or an
+//! array-element access — [`lower::lower_method`] is the entry point. No
+//! `for`/`switch`/`try`, no `break`/`continue`, no `$a[]` append syntax on
+//! either side, no explicit `key =>`/`...spread`/`&value` array-literal
+//! element, no concatenation of a `Stringable`-object operand (a class/enum
+//! value itself also has a representation, [`ty::Ty::Object`], just not a
+//! way to refcount one yet, nor a way to invoke its `toString()` from here).
+//! The straight-line
 //! subset was deliberately the *first* slice landed
 //! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
 //! it was the smallest shape exercising every structural IR piece with no
@@ -251,12 +255,47 @@
 //! property or array-element read) needs no extra release here, since its
 //! owning slot already releases it normally at reassignment or scope exit.
 //! What's still out of scope, deliberately: `null` (no nullable-type IR
-//! representation exists yet to convert *from*) and `mixed`/a union (the same
-//! `Ty::Mixed` gap the runtime-helper-calls known gap below already names) —
-//! both wait on those representations landing first, not on a new `Helper`
-//! variant. `&&`/`||`/`!` and the ternary/elvis condition (ADR 0035's other
-//! four truthy positions) are unaffected: this crate doesn't lower any of the
+//! representation exists yet to convert *from*) and `mixed`/a union (as of
+//! the eighteenth slice below, `mixed` *does* have an IR representation, but
+//! nothing yet converts one through this table — see that paragraph) — both
+//! still wait on more representation work, not on a new `Helper` variant.
+//! `&&`/`||`/`!` and the ternary/elvis condition (ADR 0035's other four
+//! truthy positions) are unaffected: this crate doesn't lower any of the
 //! three yet at all, so only `if`/`while`'s own condition changed this slice.
+//!
+//! [`ty::Ty::Mixed`] is the eighteenth slice, and the first slice to widen
+//! this crate's own IR type lattice rather than what it lowers — the
+//! recommended pick left at the end of the seventeenth slice's own session,
+//! since it was named as the single biggest unblock left (arithmetic's
+//! `mixed` fallback, ADR 0035's `null`/`mixed` truthy case, and item 3's
+//! mixed-erased-array-base gap were all separately waiting on it). Scoped
+//! narrowly, exactly as that recommendation called for: enough
+//! representation for a `mixed`-typed local, parameter, return value or call
+//! argument to exist and round-trip, and nothing that dispatches on a
+//! `mixed` value's actual runtime type. [`lower::lower_decl_type`] gained a
+//! `TypeAtom::Mixed => Ty::Mixed` arm and [`lower::lower_checked_ty`] a
+//! `CheckedTy::Mixed => Ty::Mixed` one, mirroring exactly how both functions
+//! already erase a class/enum name to [`ty::Ty::Object`] — no new
+//! [`lower::Lowering`] insertion point was needed at all, since
+//! [`lower::Lowering::bind_local`], [`lower::Lowering::lower_call_args`],
+//! [`lower::Lowering::release_all_locals`] and `StmtKind::Return`'s own arm
+//! all key off [`ty::Ty::is_refcounted`]/[`lower::is_aliasing_read`] rather
+//! than naming any concrete `Ty` variant directly, the same "extend the
+//! judgment, not the call sites" precedent the `bytes`/`array<T>` slices
+//! already established. [`ty::Ty::is_refcounted`] does **not** include
+//! [`ty::Ty::Mixed`] — see that variant's own doc comment for why "erase to
+//! one opaque representation" and "know whether to retain/release it" are
+//! two separate questions, and why leaving the second one open doesn't break
+//! the round-trip this slice actually promises. The real design question the
+//! milestone text poses — how a `mixed` value's runtime type tag is
+//! represented, needed before any code can branch on what a `mixed` value
+//! actually holds — is deliberately **not** answered here: every place that
+//! would need it (arithmetic, `.` concatenation, ADR 0035's truthy table,
+//! array-element access through a `mixed`-erased base) still panics naming
+//! the gap exactly as before, now reachable rather than theoretical for the
+//! truthy-table case specifically (a `mixed`-typed `if`/`while` condition
+//! could not exist as input before this slice; it can now, and still
+//! panics — see [`lower::Lowering::lower_truthy_cond`]'s own doc comment).
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -431,13 +470,18 @@
 //!   class instance or an enum case) is always truthy and needs no helper at
 //!   all (ADR 0035 § 4).** See the seventeenth-slice paragraph above for the
 //!   `Helper` variants this added and the release policy for a fresh
-//!   `Ty::Array` condition. What's still out of scope: `null`/`mixed`/a
-//!   union, since neither a nullable-type nor a `Ty::Mixed` IR representation
-//!   exists yet to convert *from* — lowering panics naming this, though
-//!   nothing in scope today can actually reach that arm (see the runtime-
-//!   helper-calls known gap below). `&&`/`||`/`!` and the ternary/elvis
-//!   condition — ADR 0035's other four truthy positions — are unaffected:
-//!   this crate doesn't lower any of the three yet at all.
+//!   `Ty::Array` condition. What's still out of scope: `null` (no
+//!   nullable-type IR representation exists yet to convert *from*, so
+//!   lowering panics naming this and nothing in scope today can actually
+//!   reach that arm) and `mixed`/a union — [`ty::Ty::Mixed`] (the eighteenth
+//!   slice, above) does now give `mixed` an IR representation, so a
+//!   `mixed`-typed condition *can* reach `lower_truthy_cond` as of this
+//!   session, but converting one through the table still needs the runtime
+//!   type-tag representation named in the runtime-helper-calls known gap
+//!   below, so it still panics — now naming a live gap rather than a
+//!   theoretical one. `&&`/`||`/`!` and the ternary/elvis condition — ADR
+//!   0035's other four truthy positions — are unaffected: this crate doesn't
+//!   lower any of the three yet at all.
 //! - No block-scoped shadowing: the environment `crate::lower` threads
 //!   through is one flat, function-wide map, exactly like the straight-line
 //!   slice's `locals` was. A nested `{}` declaring a local that shadows an
@@ -450,9 +494,16 @@
 //!   [`ir::InstKind::ArrayGet`]/[`ir::InstKind::ArraySet`] whenever the base
 //!   statically resolved to a known `array<T>` element type (an
 //!   `mwl_types::expr_table::ExprInfo::Index` entry exists for it) — a base
-//!   that erased to `mixed` has no such entry, so lowering panics naming it,
+//!   that erased to `mixed` (`mwl_types::expr::check_expr`'s own `Index` arm
+//!   records no entry in that case, only the checked-type fallback to
+//!   `mixed` itself) still has no such entry, so lowering panics naming it,
 //!   the same split `ExprInfo::Property` already draws for a shape/plain-
-//!   `object` receiver. Neither instruction models what happens when the key
+//!   `object` receiver. [`ty::Ty::Mixed`] (the eighteenth slice, above) gives
+//!   this case somewhere to fall back *to* — a representation now exists for
+//!   what such a read/write would produce/accept — but wiring that fallback
+//!   in is deliberately left for a future slice rather than folded into this
+//!   session's narrower round-trip-only scope; the panic and its message are
+//!   unchanged. Neither instruction models what happens when the key
 //!   is actually absent at runtime (PHP's own warning-and-`null` read,
 //!   autovivification on write) — that question is deferred wholesale, the
 //!   same way every other checked-throw is (no `try`/`throw` lowering exists
@@ -540,12 +591,15 @@
 //!   [`lower::Lowering::concat_operand`] (the twelfth slice) and
 //!   [`lower::Lowering::lower_truthy_cond`] (the seventeenth slice, above).
 //!   Ordinary arithmetic still lowers directly to [`ir::InstKind::BinOp`]/
-//!   [`ir::InstKind::UnOp`] with no helper fallback, since a `mixed`/union
-//!   operand has no IR representation to dispatch on yet — that gap, and the
-//!   `null`/`mixed` half of ADR 0035's own truthy conversion left open above,
-//!   are both expected to add new [`ir::Helper`] variants to the same enum
-//!   once [`ty::Ty`] gains a `Mixed`/nullable representation, rather than a
-//!   second call-shaped instruction.
+//!   [`ir::InstKind::UnOp`] with no helper fallback, since dispatching on a
+//!   `mixed`/union operand's *actual* runtime type needs a type-tag
+//!   representation this crate still doesn't have — [`ty::Ty::Mixed`] (the
+//!   eighteenth slice, above) gives `mixed` an opaque representation to
+//!   *erase into*, deliberately not one to *dispatch on*, so this gap (and
+//!   the `null`/`mixed` half of ADR 0035's own truthy conversion left open
+//!   above, and item 3's mixed-erased-array-base gap below) are all still
+//!   open, all still expected to add new [`ir::Helper`] variants once that
+//!   tag representation lands, not a second call-shaped instruction.
 //! - ~~Integer literal magnitude range-checking.~~ **Done**, at check time:
 //!   `mwl_types::expr::infer`'s own `ExprKind::Int` arm now enforces ADR 0007
 //!   § 4's exact rule — a literal too large for `int` is legal only where a

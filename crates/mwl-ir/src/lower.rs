@@ -1402,7 +1402,7 @@ impl<'a> Lowering<'a> {
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
                     Ty::Float => Helper::FloatToString,
-                    Ty::Str | Ty::Bytes | Ty::Void | Ty::Object | Ty::Array => {
+                    Ty::Str | Ty::Bytes | Ty::Void | Ty::Object | Ty::Array | Ty::Mixed => {
                         unreachable!("matched above")
                     }
                 };
@@ -1450,11 +1450,14 @@ impl<'a> Lowering<'a> {
     /// Panics naming the case for anything outside this table: `Ty::Bytes`
     /// (no truthy row is named for it — ADR 0035's table only covers
     /// `string`, not the separate `bytes` type) or `Ty::Void`. The `null`
-    /// case (a nullable type) and `mixed`/a union are likewise still
-    /// out of scope — neither has an IR representation to convert *from*
-    /// yet — but can't actually reach this method for any program in scope
-    /// today (see the crate docs' known gaps), so they fall into the same
-    /// panic arm rather than a dedicated message.
+    /// case (a nullable type) still has no IR representation to convert
+    /// *from* at all, so it can't actually reach this method for any program
+    /// in scope today. `Ty::Mixed` is different: as of this slice a
+    /// `mixed`-typed condition *can* reach here (a `mixed`-typed
+    /// local/parameter now round-trips — see that variant's own doc
+    /// comment), but converting one through ADR 0035's table needs the same
+    /// runtime type-tag representation this crate still doesn't have, so it
+    /// panics too, now naming a live gap rather than a theoretical one.
     fn lower_truthy_cond(&mut self, cond: &Expr, env: &Env, cur: BlockId) -> ValueId {
         let (v, ty) = self.lower_expr(cond, None, env, cur);
         let cond_v = match ty {
@@ -1465,7 +1468,7 @@ impl<'a> Lowering<'a> {
                     Ty::Uint => Helper::UintTruthy,
                     Ty::Float => Helper::FloatTruthy,
                     Ty::Str => Helper::StrTruthy,
-                    Ty::Bool | Ty::Void | Ty::Object | Ty::Array | Ty::Bytes => {
+                    Ty::Bool | Ty::Void | Ty::Object | Ty::Array | Ty::Bytes | Ty::Mixed => {
                         unreachable!("matched above")
                     }
                 };
@@ -1495,8 +1498,9 @@ impl<'a> Lowering<'a> {
             Ty::Object => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
             other => panic!(
                 "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `Ty::Array` \
-                 or `Ty::Object` `if`/`while` condition — got {other:?}; a `null`/`mixed`/union \
-                 condition needs an IR representation this crate doesn't have yet, see the \
+                 or `Ty::Object` `if`/`while` condition — got {other:?}; a `null` condition has \
+                 no IR representation to convert from at all, and a `mixed`/union condition \
+                 needs a runtime type-tag representation this crate doesn't have yet, see the \
                  crate docs' known gaps"
             ),
         };
@@ -1859,17 +1863,18 @@ fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, St
 
 /// Lowers a *declared* type straight off the AST — every scalar atom, plus
 /// `TypeAtom::Name(_)` (a plain class/interface/enum name) as
-/// [`Ty::Object`] and `TypeAtom::Array(_)` (bare `array` or `array<T>`) as
-/// [`Ty::Array`]. A plain name needs no resolution to lower this way: ADR
-/// 0007 § 1 already requires it to be spelled out in full, and this crate
-/// erases class identity entirely (see [`Ty::Object`]'s own doc comment), so
-/// "is this atom a class name at all" is the only question that matters here
-/// — which class doesn't need answering until a call/`new` on it does, via
-/// [`lower_checked_ty`] instead. `array<T>`'s own type argument is discarded
-/// the same way — [`Ty::Array`]'s own doc comment explains why no lowering
-/// decision needs it at this level. `self`/`static`/`parent` are not handled:
-/// resolving those needs the enclosing class, which this crate's straight-off-
-/// the-AST design (see the crate docs) has never needed to track before now.
+/// [`Ty::Object`], `TypeAtom::Array(_)` (bare `array` or `array<T>`) as
+/// [`Ty::Array`], and `TypeAtom::Mixed` as [`Ty::Mixed`]. A plain name needs
+/// no resolution to lower this way: ADR 0007 § 1 already requires it to be
+/// spelled out in full, and this crate erases class identity entirely (see
+/// [`Ty::Object`]'s own doc comment), so "is this atom a class name at all"
+/// is the only question that matters here — which class doesn't need
+/// answering until a call/`new` on it does, via [`lower_checked_ty`] instead.
+/// `array<T>`'s own type argument is discarded the same way — [`Ty::Array`]'s
+/// own doc comment explains why no lowering decision needs it at this level.
+/// `self`/`static`/`parent` are not handled: resolving those needs the
+/// enclosing class, which this crate's straight-off-the-AST design (see the
+/// crate docs) has never needed to track before now.
 fn lower_decl_type(ty: &Type) -> Ty {
     match &ty.kind {
         TypeKind::Atom(TypeAtom::Bool) => Ty::Bool,
@@ -1881,6 +1886,10 @@ fn lower_decl_type(ty: &Type) -> Ty {
         TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
         TypeKind::Atom(TypeAtom::Name(_)) => Ty::Object,
         TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
+        // `mixed` — ADR 0007 § 3. See `Ty::Mixed`'s own doc comment for
+        // exactly how much this representation does and doesn't do yet: a
+        // local/parameter/return/call-argument round-trips, nothing else.
+        TypeKind::Atom(TypeAtom::Mixed) => Ty::Mixed,
         TypeKind::Paren(inner) => lower_decl_type(inner),
         other => panic!(
             "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/a plain class name \
@@ -1913,8 +1922,10 @@ fn lower_decl_type(ty: &Type) -> Ty {
 /// Panics naming the unsupported shape for anything outside this slice's
 /// scope: either qualified (`tainted`/`secret`) string or bytes variant,
 /// `object`, a shape, a union/intersection, or any of
-/// `mixed`/`never`/`true`/`false`/`iterable`/`callable`/`null` — none of these
-/// have an IR representation yet (see the crate docs' known gaps).
+/// `never`/`true`/`false`/`iterable`/`callable`/`null` — none of these
+/// have an IR representation yet (see the crate docs' known gaps). `mixed`
+/// erases to [`Ty::Mixed`] — see that variant's own doc comment for exactly
+/// how much this boundary does and doesn't do with one yet.
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     match checked_types.get(id) {
         CheckedTy::Bool => Ty::Bool,
@@ -1929,9 +1940,11 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // already gives `TypeAtom::Array(_)`, see `Ty::Array`'s own doc
         // comment for why this crate has no lowering decision that needs it.
         CheckedTy::Array(_) => Ty::Array,
+        CheckedTy::Mixed => Ty::Mixed,
         other => panic!(
             "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
-             class/enum parameter or return type — got {other:?}; see the crate docs' known gaps"
+             class/enum/mixed parameter or return type — got {other:?}; see the crate docs' \
+             known gaps"
         ),
     }
 }
@@ -2157,6 +2170,74 @@ mod tests {
             "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    if ($f) {\n      return true;\n    }\n    return false;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `Ty::Mixed`'s first slice: a `mixed`-typed parameter, returned
+    /// straight back through the bare-`$name`-return transfer-out path — the
+    /// narrowest possible round-trip, exercising `lower_decl_type`'s new
+    /// `TypeAtom::Mixed` arm for both the parameter and the return type with
+    /// `Ty::is_refcounted` correctly reporting `false` (no retain/release
+    /// appears anywhere in the snapshot).
+    #[test]
+    fn a_mixed_parameter_round_trips_through_return() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function pick(mixed $x): mixed {\n    return $x;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `mixed $y = $x;` — an explicitly `mixed`-typed local declared from a
+    /// `mixed` parameter, then returned. Exercises `Lowering::bind_local`
+    /// with a `Ty::Mixed` binding: still no retain, since `Ty::Mixed` is not
+    /// `is_refcounted`, and the local correctly excludes itself from
+    /// `release_all_locals`'s exit sweep by transferring out on `return`,
+    /// exactly like any other bare-variable return.
+    #[test]
+    fn a_typed_mixed_local_round_trips() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function pick(mixed $x): mixed {\n    mixed $y = $x;\n    return $y;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `var $y = $x;` (ADR 0037) with a `mixed`-typed initializer — `var`'s
+    /// own inference path (`lower_expr` with `expected: None`) picks up
+    /// `Ty::Mixed` from the initializer exactly the way it already does for
+    /// any other representation, needing no `var`-specific handling.
+    #[test]
+    fn a_var_local_infers_mixed_from_a_mixed_initializer() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function pick(mixed $x): mixed {\n    var $y = $x;\n    return $y;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// Passing a `mixed` local as a call argument round-trips too — the
+    /// callee's own `mixed` parameter is just another local, released at the
+    /// callee's own (trivial, no-op) exit, mirroring every other
+    /// representation's call-argument boundary.
+    #[test]
+    fn passing_a_mixed_local_as_a_call_argument_round_trips() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(mixed $x): mixed {\n    return $this->identity($x);\n  }\n  function identity(mixed $v): mixed {\n    return $v;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `Ty::Mixed` gives a `mixed`-typed condition an IR representation to
+    /// exist at all, but not a way to convert it through ADR 0035's truthy
+    /// table — that still needs a runtime type-tag representation this slice
+    /// deliberately doesn't build (see `Ty::Mixed`'s own doc comment). Before
+    /// this slice this case was unreachable for any in-scope program (no
+    /// `mixed`-typed value could exist yet); now it's a live gap, so this
+    /// documents the panic actually fires rather than merely being named as
+    /// theoretical.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn a_mixed_condition_still_panics_naming_the_gap() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(mixed $x): bool {\n    if ($x) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        );
     }
 
     #[test]

@@ -1,0 +1,13 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, mixed) -> mixed {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; mixed
+    ; stmt s0 @4:5-4:32
+    v2 = call T::identity(this: v0, v1)  ; mixed
+    return v2
+}

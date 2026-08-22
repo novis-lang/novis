@@ -223,6 +223,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Str => "string",
         Ty::Bytes => "bytes",
         Ty::Array => "array",
+        Ty::Mixed => "mixed",
     }
 }
 

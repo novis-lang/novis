@@ -1,0 +1,13 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn pick(object, mixed) -> mixed {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; mixed
+    ; stmt s0 @4:5-4:17
+    ; stmt s1 @5:5-5:15
+    return v1
+}
