@@ -1,0 +1,17 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, bool) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; bool
+    ; stmt s0 @4:5-4:24
+    v2 = helper.bool_to_string v1  ; string
+    v3 = const.str "!"  ; string
+    v4 = concat v2, v3  ; string
+    release v2
+    release v3
+    return v4
+}

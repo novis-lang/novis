@@ -220,24 +220,31 @@ pub enum InstKind {
         value: ValueId,
     },
     /// `.` string concatenation: builds a fresh [`Ty::Str`] value from the
-    /// cooked bytes of `lhs` and `rhs`, both already [`Ty::Str`] this slice —
-    /// see `crate::lower`'s `ExprKind::Binary` arm for the panic naming any
-    /// other operand shape (a scalar/`Stringable`-object operand needs a
-    /// to-string conversion this crate has no runtime-helper-call shape to
-    /// express yet). Modeled as a dedicated instruction rather than a
-    /// runtime-helper call, the same "native instruction over already-typed
-    /// operands" treatment [`InstKind::BinOp`] already gives scalar
-    /// arithmetic — no helper-call shape exists in the IR yet (see the crate
-    /// docs' "no runtime-helper calls" known gap), and `.` only ever needs
-    /// this one fixed two-operand shape. The result is a fresh value with
-    /// exactly one natural owner — concatenation always allocates a new
-    /// buffer, so `crate::lower::is_aliasing_read` stays `false` for
-    /// `ExprKind::Binary`, same as it already is for [`InstKind::ConstStr`]/
-    /// [`InstKind::New`]/[`InstKind::Call`]. Neither operand is retained by
-    /// this instruction itself: each is only *read* to build the new buffer,
-    /// exactly the way [`InstKind::FieldGet`] reads its `object` receiver
-    /// without retaining it, so ownership of `lhs`/`rhs` stays wherever it
-    /// already was (their own local slot, field, ...).
+    /// cooked bytes of `lhs` and `rhs`, both already [`Ty::Str`] by the time
+    /// this instruction sees them — see
+    /// `crate::lower::Lowering::concat_operand`, which converts a scalar
+    /// operand through an [`InstKind::HelperCall`] first, and still panics
+    /// naming a `Stringable`-object operand (needs a resolved `toString`
+    /// call this crate can't synthesize yet). Modeled as a dedicated
+    /// instruction rather than a runtime-helper call itself, the same
+    /// "native instruction over already-typed operands" treatment
+    /// [`InstKind::BinOp`] already gives scalar arithmetic — `.` only ever
+    /// needs this one fixed two-operand shape, unlike the open-ended,
+    /// enum-tagged set [`HelperCall`](InstKind::HelperCall) exists for. The
+    /// result is a fresh value with exactly one natural owner —
+    /// concatenation always allocates a new buffer, so
+    /// `crate::lower::is_aliasing_read` stays `false` for `ExprKind::Binary`,
+    /// same as it already is for [`InstKind::ConstStr`]/[`InstKind::New`]/
+    /// [`InstKind::Call`]. Neither operand is retained by this instruction
+    /// itself: each is only *read* to build the new buffer, exactly the way
+    /// [`InstKind::FieldGet`] reads its `object` receiver without retaining
+    /// it, so ownership of `lhs`/`rhs` stays wherever it already was (their
+    /// own local slot, field, ...) — and `crate::lower::Lowering::concat_operand`'s
+    /// caller releases either operand right after this instruction reads it
+    /// when that operand was never such a slot to begin with (a literal, a
+    /// nested `Concat`'s own result, or a freshly converted
+    /// [`HelperCall`](InstKind::HelperCall) result), since nothing else will
+    /// ever release it otherwise.
     Concat {
         /// The left operand, already lowered and already [`Ty::Str`].
         lhs: ValueId,
@@ -268,6 +275,48 @@ pub enum InstKind {
         /// The value being released.
         operand: ValueId,
     },
+    /// Invokes one of a small, closed, engine-owned set of runtime
+    /// conversions — the milestone's third named ingredient, and this
+    /// crate's first. `helper` is a fixed [`Helper`] tag, never a resolved
+    /// class/method name: unlike [`InstKind::Call`]'s `target`, nothing here
+    /// comes from `mwl_types::expr_table::ExprTypeTable` or a class
+    /// hierarchy, so there is no receiver, no virtual dispatch question, and
+    /// no reason to share `Call`'s shape (see `crate::lower`'s module docs'
+    /// design-choices section for why a dedicated instruction was chosen
+    /// over reusing `Call` with a synthetic target label, and an enum tag
+    /// over a string name). Like [`InstKind::Call`]/[`InstKind::New`], this
+    /// does not yet model ADR 0002's checked-return convention — no status,
+    /// no error edge — since nothing in this crate models a call that can
+    /// fail at all yet (no `try`/`throw` lowered); that is expected to land
+    /// once such calls do, for every call-shaped instruction at once rather
+    /// than only for this one.
+    HelperCall {
+        /// Which conversion.
+        helper: Helper,
+        /// Each argument, already lowered.
+        args: Vec<ValueId>,
+    },
+}
+
+/// One member of the closed set of engine-owned runtime conversions
+/// [`InstKind::HelperCall`] can invoke — a fixed, non-exhaustive enum for
+/// the same reason [`BinOp`]/[`UnOp`] already are one: the set is small,
+/// closed, and known entirely to this crate and `mwl-codegen`, never
+/// user-extensible, so a string name would only trade compile-time
+/// exhaustiveness for nothing. Every variant here today converts one scalar
+/// to [`crate::ty::Ty::Str`] for `.` concatenation — see
+/// `crate::lower::Lowering::concat_operand`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
+pub enum Helper {
+    /// `int` to its decimal `string` representation.
+    IntToString,
+    /// `uint` to its decimal `string` representation.
+    UintToString,
+    /// `float` to its `string` representation.
+    FloatToString,
+    /// `bool` to `"1"`/`""`, PHP's own bool-to-string rule.
+    BoolToString,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

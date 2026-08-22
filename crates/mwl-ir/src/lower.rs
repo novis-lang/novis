@@ -54,7 +54,7 @@ use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, IdGen, ValueId};
-use crate::ir::{BasicBlock, BinOp, Function, Inst, InstKind, Terminator, UnOp};
+use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
 use crate::ty::Ty;
 use crate::{span_text, strip_sigil};
 
@@ -963,25 +963,35 @@ impl<'a> Lowering<'a> {
             // `.` concatenation is not `InstKind::BinOp` — it allocates a
             // fresh buffer rather than computing a native scalar result, so
             // it gets its own arm (and its own `InstKind::Concat`) ahead of
-            // the scalar-operator table below. This slice only lowers it
-            // between two operands that are already `Ty::Str`; a scalar or
-            // `Stringable`-object operand (both accepted by
-            // `mwl_types::expr::check_expr`'s own `require_stringable`) needs
-            // a to-string conversion this crate has no runtime-helper-call
-            // shape to express yet — see the crate docs' known gaps.
+            // the scalar-operator table below. Each operand goes through
+            // `Self::concat_operand` first, which converts a scalar through
+            // a new `InstKind::HelperCall` when it isn't already `Ty::Str` —
+            // a `Stringable`-object operand (also accepted by
+            // `mwl_types::expr::check_expr`'s own `require_stringable`) still
+            // panics there, since it needs a resolved `toString` call this
+            // crate can't synthesize yet. `concat_operand` also reports
+            // whether the value it hands back aliases storage a durable slot
+            // still owns; an operand that doesn't (a literal, a nested
+            // `Concat`'s own result, or a freshly converted `HelperCall`
+            // result) is released right after this `Concat` reads it, since
+            // nothing else ever will — the same "release a fresh value once
+            // its one and only use is done" precedent `Self::lower_expr_stmt`
+            // already sets for a bare call/`new` statement.
             ExprKind::Binary {
                 op: BinaryOp::Concat,
                 lhs,
                 rhs,
             } => {
-                let (lv, lty) = self.lower_expr(lhs, Some(Ty::Str), env, cur);
-                let (rv, rty) = self.lower_expr(rhs, Some(Ty::Str), env, cur);
-                assert!(
-                    lty == Ty::Str && rty == Ty::Str,
-                    "mwl-ir only lowers `.` between two `string` operands so far — got \
-                     {lty:?} . {rty:?}; see the crate docs' known gaps"
-                );
-                self.emit(cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv })
+                let (lv, l_alias) = self.concat_operand(lhs, env, cur);
+                let (rv, r_alias) = self.concat_operand(rhs, env, cur);
+                let result = self.emit(cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
+                if !l_alias {
+                    self.emit_release(cur, lv);
+                }
+                if !r_alias {
+                    self.emit_release(cur, rv);
+                }
+                result
             }
             ExprKind::Binary { op, lhs, rhs } => {
                 let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
@@ -1174,6 +1184,53 @@ impl<'a> Lowering<'a> {
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, and property access — got \
                  {other:?}; see the crate docs' known gaps"
+            ),
+        }
+    }
+
+    /// Lowers one `.` operand and, if it isn't already [`Ty::Str`], converts
+    /// it through a new [`InstKind::HelperCall`] — `mwl_types::expr::
+    /// check_expr`'s own `require_stringable` already accepts a scalar or a
+    /// `Stringable`-implementing object on either side of `.` (PHP-style
+    /// implicit stringification); this crate can express the scalar half
+    /// today (see [`crate::ir::Helper`]) but a `Stringable` object still has
+    /// no resolved `toString` call to synthesize here (that identity isn't
+    /// recorded anywhere `.` itself can read — a call's own resolved target
+    /// only exists for an actual call *expression*, and a bare `.` operand
+    /// isn't one), so it panics naming the case rather than guessing.
+    ///
+    /// Returns the resulting `Ty::Str` value together with whether it
+    /// [`is_aliasing_read`] of storage a durable slot still owns. A scalar
+    /// conversion is never an aliasing read regardless of where the scalar
+    /// itself came from — the `Ty::Str` `HelperCall` produces is always a
+    /// brand new buffer with exactly one owner, the conversion result
+    /// itself, same as a literal or a call's own result.
+    fn concat_operand(&mut self, expr: &Expr, env: &Env, cur: BlockId) -> (ValueId, bool) {
+        let (v, ty) = self.lower_expr(expr, None, env, cur);
+        match ty {
+            Ty::Str => (v, is_aliasing_read(&expr.kind)),
+            Ty::Bool | Ty::Int | Ty::Uint | Ty::Float => {
+                let helper = match ty {
+                    Ty::Bool => Helper::BoolToString,
+                    Ty::Int => Helper::IntToString,
+                    Ty::Uint => Helper::UintToString,
+                    Ty::Float => Helper::FloatToString,
+                    Ty::Str | Ty::Void | Ty::Object => unreachable!("matched above"),
+                };
+                let (sv, _) = self.emit(
+                    cur,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper,
+                        args: vec![v],
+                    },
+                );
+                (sv, false)
+            }
+            other => panic!(
+                "mwl-ir only converts a scalar operand to `string` for `.` so far — got \
+                 {other:?}; a `Stringable`-object operand needs a resolved `toString` call this \
+                 crate can't synthesize yet, see the crate docs' known gaps"
             ),
         }
     }
@@ -1920,10 +1977,14 @@ class T {
     /// `"a" . "b"` — two fresh literal operands lower to a single
     /// `InstKind::Concat`, with no retain of either operand (each is only
     /// read to build the new buffer, exactly the way `InstKind::FieldGet`
-    /// reads its `object` receiver without retaining it) and no retain of the
-    /// result when it's returned directly — a concatenation's own result is a
-    /// fresh producer, same as a literal or a call's result
-    /// (`lower::is_aliasing_read` stays `false` for `ExprKind::Binary`).
+    /// reads its `object` receiver without retaining it). Each is a fresh,
+    /// non-aliasing value with no durable slot of its own — a bare `Str`
+    /// literal isn't `is_aliasing_read` — so each gets exactly one release
+    /// right after `Concat` reads it, the same "release a fresh value once
+    /// its one and only use is done" precedent a bare call/`new` statement
+    /// already sets; the concatenation's own result needs no retain or
+    /// release at all when it's returned directly — a fresh producer, same
+    /// as a literal or a call's result, transferring straight out.
     #[test]
     fn concatenating_two_string_literals_needs_no_retain_of_either_operand() {
         let (f, map, file) = lower_first_method(
@@ -1949,18 +2010,50 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `1 . "x"` — a scalar operand on the `.` side that `mwl_types::expr::
+    /// `1 . "x"` — an `int` operand on the `.` side that `mwl_types::expr::
     /// check_expr`'s own `require_stringable` happily accepts (PHP-style
-    /// implicit to-string), but this slice only lowers `.` between two
-    /// operands that already reached `Ty::Str` — an `int` operand needs a
-    /// to-string conversion this crate has no runtime-helper-call shape to
-    /// express yet, so lowering panics naming the mismatch instead of
-    /// guessing a conversion.
+    /// implicit to-string) converts through a new `InstKind::HelperCall`
+    /// (`Helper::IntToString`) before reaching `InstKind::Concat`. Both the
+    /// helper-call result and the `"x"` literal are fresh, non-aliasing
+    /// values with no durable slot of their own, so both get released right
+    /// after `Concat` reads them — the concatenation's own result is
+    /// returned directly and needs no release at all.
+    #[test]
+    fn concatenating_an_int_literal_with_a_string_uses_a_helper_call() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): string {\n    return 1 . \"x\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$flag . "!"` — a `bool` local read (an aliasing read of its own
+    /// slot) converts through `Helper::BoolToString`; the conversion result
+    /// is still a fresh, non-aliasing `Ty::Str` value (the `bool` itself was
+    /// never refcounted, so there was nothing to alias into the conversion),
+    /// so it's released right after `Concat` reads it, same as the `int`
+    /// case above. `$flag`'s own slot needs no release from `Concat` at all
+    /// — it isn't `Ty::is_refcounted`, so `release_all_locals` skips it too.
+    #[test]
+    fn concatenating_a_bool_local_with_a_string_uses_a_helper_call() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $flag): string {\n    return $flag . \"!\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj . "x"` where `$obj`'s class implements `Stringable` — accepted
+    /// by `mwl_types::expr::check_expr`'s `require_stringable` (ADR 0028
+    /// § 1), but this crate has no way to synthesize the resolved
+    /// `toString()` call `.` would need to desugar to: a `.` operand isn't
+    /// itself a call expression, so there is no
+    /// `mwl_types::expr_table::ExprInfo::Call` entry recorded for it the way
+    /// an actual `$obj->toString()` call site would have. Lowering panics
+    /// naming the case instead of guessing at a target.
     #[test]
     #[should_panic(expected = "known gaps")]
-    fn concatenating_a_non_string_operand_is_still_out_of_scope() {
+    fn concatenating_a_stringable_object_operand_is_still_out_of_scope() {
         lower_first_method(
-            "<?mwl\nclass T {\n  function m(): string {\n    return 1 . \"x\";\n  }\n}\n",
+            "<?mwl\nclass Name implements Stringable {\n  function toString(): string { return \"x\"; }\n}\nclass T {\n  function m(Name $n): string {\n    return $n . \"x\";\n  }\n}\n",
         );
     }
 }

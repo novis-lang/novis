@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 use mwl_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
-use crate::ir::{BasicBlock, BinOp, Function, Inst, InstKind, Program, Terminator, UnOp};
+use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, UnOp};
 use crate::ty::Ty;
 
 /// Renders every function in `program`, in order, as text.
@@ -135,6 +135,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
         InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
+        InstKind::HelperCall { helper, args } => {
+            let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
+            format!("helper.{} {}", helper_name(*helper), parts.join(", "))
+        }
         InstKind::StmtMarker(_)
         | InstKind::Safepoint
         | InstKind::Retain { .. }
@@ -219,5 +223,14 @@ fn un_op_name(op: UnOp) -> &'static str {
     match op {
         UnOp::Neg => "neg",
         UnOp::Not => "not",
+    }
+}
+
+fn helper_name(h: Helper) -> &'static str {
+    match h {
+        Helper::IntToString => "int_to_string",
+        Helper::UintToString => "uint_to_string",
+        Helper::FloatToString => "float_to_string",
+        Helper::BoolToString => "bool_to_string",
     }
 }

@@ -20,12 +20,13 @@
 //! passed, returned, read or written from a literal, another local, a
 //! compile-time-known property or a resolved call's own result — with
 //! refcount retain/release operations around every one of those boundaries,
-//! plus `.` string concatenation between two already-`string` operands
-//! — [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
-//! `break`/`continue`, no array access, no `bytes`/`array<T>`, no
-//! concatenation of a non-`string` operand (a class/enum value itself also
-//! has a representation, [`ty::Ty::Object`], just not a way to refcount one
-//! yet). The straight-line
+//! plus `.` string concatenation, including a scalar (`int`/`uint`/`float`/
+//! `bool`) operand converted through this crate's first runtime-helper-call
+//! shape — [`lower::lower_method`] is the entry point. No `for`/`switch`/
+//! `try`, no `break`/`continue`, no array access, no `bytes`/`array<T>`, no
+//! concatenation of a `Stringable`-object operand (a class/enum value itself
+//! also has a representation, [`ty::Ty::Object`], just not a way to refcount
+//! one yet, nor a way to invoke its `toString()` from here). The straight-line
 //! subset was deliberately the *first* slice landed
 //! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
 //! it was the smallest shape exercising every structural IR piece with no
@@ -86,6 +87,25 @@
 //! `require_stringable` already accepts — still panics naming the mismatch:
 //! converting either to `string` needs a runtime-helper call this crate has
 //! no shape for yet (see the known gaps below).
+//!
+//! Runtime-helper calls themselves — the milestone's third named ingredient
+//! — are the twelfth slice, and land narrowly scoped to exactly the gap the
+//! eleventh slice named: a new [`ir::InstKind::HelperCall`] instruction,
+//! tagged with a closed, non-exhaustive [`ir::Helper`] enum (`IntToString`/
+//! `UintToString`/`FloatToString`/`BoolToString`), lets
+//! [`lower::Lowering::concat_operand`] convert a scalar `.` operand to
+//! `Ty::Str` before [`ir::InstKind::Concat`] ever sees it — closing that
+//! part of the gap, while a `Stringable`-object operand still panics (see
+//! the design-choices section below for why that half needs more than a new
+//! IR shape). Landing this also surfaced and fixed a latent leak in the
+//! eleventh slice's own `Concat` lowering: a fresh, non-aliasing `Ty::Str`
+//! operand consumed only by `Concat` and never bound into any durable slot
+//! (a bare literal, previously) had nothing that would ever release it —
+//! `concat_operand` now reports whether the value it returns
+//! [`lower::is_aliasing_read`]s a durable slot, and `Concat`'s own caller in
+//! [`lower::Lowering::lower_expr`] releases it right after when it doesn't,
+//! the same "release a fresh value once its one and only use is done"
+//! precedent the ninth slice's bare call/`new` statement already set.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -203,11 +223,49 @@
 //!   operands (each is read, not copied into a new durable slot — the same
 //!   treatment [`ir::InstKind::FieldGet`] already gives its `object`
 //!   receiver) nor of its own result (a fresh producer, same as `ConstStr`/
-//!   `New`/`Call`) — see that variant's own doc comment. What stays a known
-//!   gap: converting a non-`string` operand for `.` (needs a runtime-helper
-//!   call — a new operand-producing shape this session didn't need), and a
-//!   `tainted`/`secret`-qualified string (`lower_checked_ty` only handles the
-//!   plain, unqualified `string` type — see the known gaps below).
+//!   `New`/`Call`) — see that variant's own doc comment. It does need a
+//!   *release* of either operand right after `Concat` reads it, when that
+//!   operand [`lower::is_aliasing_read`] is `false` — i.e. when nothing else
+//!   already owns a slot that will release it later. This was missed when
+//!   the eleventh slice landed (a bare `"a" . "b"` leaked both literals) and
+//!   is fixed as part of this slice, in [`lower::Lowering::concat_operand`]'s
+//!   caller. What stays a known gap: converting a `Stringable`-object
+//!   operand for `.` (needs a resolved `toString` call this crate can't
+//!   synthesize from a bare `.` operand — see the design-choices bullet
+//!   below), and a `tainted`/`secret`-qualified string (`lower_checked_ty`
+//!   only handles the plain, unqualified `string` type — see the known gaps
+//!   below).
+//! - **A closed, engine-owned runtime-helper call gets its own
+//!   [`ir::InstKind::HelperCall`], tagged by a non-exhaustive [`ir::Helper`]
+//!   enum, rather than reusing [`ir::InstKind::Call`] with a synthetic
+//!   target label or a string helper name.** Three designs were weighed: (a)
+//!   a dedicated instruction with an enum tag, (b) `InstKind::Call` with a
+//!   reserved-namespace string `target` (e.g. `"Core::intToString"`), (c) a
+//!   dedicated instruction with a string name instead of an enum. (a) was
+//!   chosen. Against (b): `Call::target`'s own doc comment already scopes it
+//!   to a target [`mwl_types::expr_table::ExprTypeTable`] actually resolved
+//!   from the class hierarchy, and `Call::receiver` only makes sense for a
+//!   user-level instance call — a runtime helper has neither a class-graph
+//!   origin nor a receiver, so folding it into `Call` would blur exactly the
+//!   line the "no virtual dispatch" known gap below depends on staying
+//!   sharp (a future interface-dispatch lookup only ever has to consider
+//!   `Call`, never a helper). Against (c): the helper set is small, closed,
+//!   and known entirely to this crate and the future `mwl-codegen` helper
+//!   table — never user-extensible — so a string buys nothing a
+//!   `#[non_exhaustive]` enum doesn't already give for free, while losing
+//!   compile-time exhaustiveness checking and typo-safety; [`ir::BinOp`]/
+//!   [`ir::UnOp`] already establish the enum-for-a-closed-operator-set
+//!   precedent this follows. `HelperCall` also does **not** yet model ADR
+//!   0002's checked-return convention (no status value, no error edge) —
+//!   deliberately, since [`ir::InstKind::Call`]/[`ir::InstKind::New`]
+//!   themselves don't either: nothing in this crate models a call that can
+//!   fail at all yet (`try`/`throw` are both still unsupported — see the
+//!   known gaps below), so giving only `HelperCall` a checked-return shape
+//!   would be a partial, inconsistent step rather than the "shape now,
+//!   functional once a backend exists" treatment [`ir::InstKind::Safepoint`]/
+//!   [`ir::InstKind::Release`] already get. That convention is expected to
+//!   land for `Call`/`New`/`HelperCall` together, whenever `try`/`throw`
+//!   lowering needs it.
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
@@ -218,8 +276,13 @@
 //!   the same shapes rather than add new ones — see [`lower`]'s module docs.
 //! - An `if`/`while` condition must already be statically `bool` — ADR
 //!   0035's full truthy-table conversion for a non-`bool` condition needs a
-//!   runtime-helper call, which doesn't exist in the IR yet (see the
-//!   "no runtime-helper calls" gap below). Lowering panics naming this.
+//!   `bool`-producing runtime helper per source type (PHP's truthy rule
+//!   differs by type: `0`/`0.0`/`""`/`"0"`/an empty array/`null` are all
+//!   falsy, everything else truthy), most of which have no IR representation
+//!   to convert *from* yet (no `array<T>`, no nullable type) — so this is
+//!   naturally sequenced after those land, not purely a "no `HelperCall`
+//!   shape" gap now that one exists (see the design-choices section above).
+//!   Lowering panics naming this.
 //! - No block-scoped shadowing: the environment `crate::lower` threads
 //!   through is one flat, function-wide map, exactly like the straight-line
 //!   slice's `locals` was. A nested `{}` declaring a local that shadows an
@@ -287,10 +350,16 @@
 //!   lower it to an actual CPU-limit/cancellation/cycle-collector check, and
 //!   no guard test needs it functional before M3's backend does. `for`
 //!   loops will need the same back-edge marker once they land.
-//! - No runtime-helper calls (the milestone's third named ingredient) — this
-//!   slice's arithmetic lowers directly to [`ir::InstKind::BinOp`]/[`ir::InstKind::UnOp`],
-//!   with no helper-call fallback shape modeled yet (that only matters once
-//!   `mixed`/union operands exist in the IR).
+//! - **Runtime-helper calls (the milestone's third named ingredient) now
+//!   exist, but only for `.`'s scalar-to-`string` conversion.**
+//!   [`ir::InstKind::HelperCall`]/[`ir::Helper`] are landed and used by
+//!   [`lower::Lowering::concat_operand`] — see the twelfth-slice paragraph
+//!   above and the design-choices section for the shape this took. Ordinary
+//!   arithmetic still lowers directly to [`ir::InstKind::BinOp`]/
+//!   [`ir::InstKind::UnOp`] with no helper fallback, since a `mixed`/union
+//!   operand has no IR representation to dispatch on yet — that, and ADR
+//!   0035's truthy conversion above, are expected to add new [`ir::Helper`]
+//!   variants to the same enum rather than a second call-shaped instruction.
 //! - Integer literal magnitude range-checking is still not implemented
 //!   (mirroring `mwl_types::expr`'s own documented "not modeled this slice"
 //!   gap) — cooking now handles all four bases `mwl-syntax`'s lexer accepts
@@ -309,15 +378,23 @@
 //!   the same [`ir::InstKind::Concat`] chain a written-out `.` expression
 //!   already lowers to, so landing it alongside this cooking-completeness
 //!   work is a natural pairing, not a separate mechanism.
-//! - **`.` string concatenation only covers two already-`string` operands.**
-//!   `ExprKind::Binary`'s `BinaryOp::Concat` arm lowers to
-//!   [`ir::InstKind::Concat`] when both sides already reached [`ty::Ty::Str`];
-//!   a scalar (`int`/`uint`/`float`/`bool`) or `Stringable`-object operand —
-//!   both of which `mwl_types::expr::check_expr`'s own `require_stringable`
-//!   already accepts, since PHP's `.` implicitly stringifies either — still
-//!   panics naming the mismatch, since converting one to `string` needs a
-//!   runtime-helper call (see the "no runtime-helper calls" gap above) this
-//!   crate has no shape for yet.
+//! - **`.` string concatenation still doesn't cover a `Stringable`-object
+//!   operand.** [`lower::Lowering::concat_operand`] converts a scalar
+//!   operand to `string` through [`ir::InstKind::HelperCall`], but an object
+//!   whose class implements `Stringable` — which
+//!   `mwl_types::expr::check_expr`'s own `require_stringable` already
+//!   accepts, since PHP's `.` implicitly stringifies it via `toString()` —
+//!   still panics naming the case. Closing this needs more than a new IR
+//!   shape: `.`'s desugaring would have to synthesize a resolved call to the
+//!   receiver's own `toString()`, but a bare `.` operand isn't a call
+//!   expression, so `mwl_types::expr_table::ExprTypeTable` records no
+//!   `ExprInfo::Call` for it the way an actual `$obj->toString()` call site
+//!   would have — this either needs the checker to start recording that
+//!   resolution for a `.` operand too, or this crate to re-resolve
+//!   `toString` on its own account (the second `mwl-types` dependency this
+//!   crate has so far tried to avoid — see the design-choices section
+//!   above). Worth deciding deliberately rather than guessing at, whenever a
+//!   fixture actually needs it.
 
 pub mod ids;
 pub mod ir;
