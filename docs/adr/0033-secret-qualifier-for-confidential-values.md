@@ -5,8 +5,9 @@
 - **Scope:** a `secret` compile-time qualifier on `string`/`bytes`, independent of and composable with
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s `tainted`; how it enters, propagates, and is
   removed; the sinks that refuse a `secret` value (HTML/response output, `Core\Log`, debug-dump output,
-  `Throwable` messages, `serialize()`/the isolate-crossing boundary); the redaction `var_dump()`/`print_r()`
-  owe a `secret`-qualified property.
+  `Throwable` messages, `serialize()`/the isolate-crossing boundary, and — per
+  [ADR 0046](0046-attributes-shape-literal-metadata.md) — an attribute payload position); the redaction
+  `var_dump()`/`print_r()` owe a `secret`-qualified property.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — the conversion table's checked-conversion row now
   strips `secret` on success, the same total/checked shape [0024](0024-taint-tracking-for-injection-sinks.md)
   already gave `tainted`; every other row is unchanged.
@@ -33,6 +34,8 @@
   situation [0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already flagged once. M4 —
   the `var_dump`/`print_r` line item gains this ADR's redaction rule. M8 — the `Core\Log` line item gains
   this ADR's call-site inspection rule.
+- **Amended by:** [0046](0046-attributes-shape-literal-metadata.md) — adds an attribute payload position as
+  a fifth refusing sink; every other sink and rule here is unchanged.
 - **Relates to:** [0004](0004-memory-for-simplicity.md) (compile-time-only, erased before codegen — the same
   free-security argument [0024](0024-taint-tracking-for-injection-sinks.md) already made, applied to a
   second axis), [0009](0009-string-and-bytes.md) § 4 (the scalar payload pulled out of `mixed` may now also
@@ -59,11 +62,13 @@
 > [ADR 0012](0012-no-superglobals.md)'s five accessor classes: nothing in MWL is host-populated
 > ([0012](0012-no-superglobals.md)), so a value becomes `secret` only where a developer spells it on a
 > declaration — a config-loading helper that reads a credential is expected to declare its own return type as
-> `secret string`. Four sinks refuse a `secret` value by default: HTML/response output (refused outright, not
+> `secret string`. Five sinks refuse a `secret` value by default: HTML/response output (refused outright, not
 > auto-escaped — escaping doesn't restore confidentiality), `Core\Log` (the opposite of `tainted`'s "logging
 > it is the point" stance), debug-dump output and `Throwable` messages (a redaction placeholder, not the real
-> value), and `serialize()`/the isolate-crossing boundary (one refusal for the one operation
-> [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified). The only way to remove
+> value), `serialize()`/the isolate-crossing boundary (one refusal for the one operation
+> [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified), and — per
+> [ADR 0046](0046-attributes-shape-literal-metadata.md) — an attribute payload position, since only a
+> compile-time constant may appear there and a `secret` class constant is one. The only way to remove
 > `secret` outside a checked conversion is a narrow, named `Core` function —
 > `Core\Secret::reveal(secret string, string $reason): string` (and a `bytes` overload), modeled directly on
 > `Core\Taint::assertTrusted` — or a purpose-built helper that consumes a secret and returns a genuinely

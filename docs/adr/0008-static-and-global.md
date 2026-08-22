@@ -210,7 +210,8 @@ only says "not supported" is a bug in this decision, not a faithful implementati
   a `const` already covers everything a read-only global legitimately wanted.
 - **A `#[Memoize]` attribute as the sanctioned replacement for the memoisation use.** Deferred, not
   rejected — a separate caching feature with its own questions (key derivation, lifetime, size bound),
-  not to be smuggled into a decision about a keyword.
+  not to be smuggled into a decision about a keyword. The attribute *mechanism* it would need is now decided
+  ([ADR 0046](0046-attributes-shape-literal-metadata.md)); `#[Memoize]` itself still isn't.
 
 ## Revisiting
 

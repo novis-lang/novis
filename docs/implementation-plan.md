@@ -774,7 +774,11 @@ the first two showing only real declared properties with no `__debugInfo` hook, 
 property's value, which shows a fixed redaction placeholder instead
 ([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) — `Stringable` replacing
 `__toString` at every implicit string conversion, no destructors of any kind, and `unset()` refused on a
-declared object property ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)).
+declared object property ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)), and `#[...]`
+attribute syntax on a class/interface/method/property/parameter declaration — a shape-literal payload checked
+structurally against a named `type` alias or left bare, compile-time-constant-only field values, and the
+explicit `<T>` call-site type argument `Core\Attributes::get<T>`/`::all<T>` need even though their retrieval
+body doesn't land until M8 ([ADR 0046](adr/0046-attributes-shape-literal-metadata.md)).
 
 Also in this milestone: `mwl test` and the `.mwlt` format — deliberately defined as a **superset of
 `.phpt` sections** (`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`,
@@ -798,7 +802,11 @@ ever invoked by the language even when a refcount legitimately reaches zero mid-
 declared object property is refused regardless of nullability
 ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)). A
 non-trivial CLI program (an argument-parsing file-processing tool) runs correctly; no leaks under
-Valgrind/ASAN.
+Valgrind/ASAN. A named `#[Route(...)]`-style attribute is checked against its `type` alias the same way an
+equivalent standalone shape literal already is, and a mismatched field type is the identical diagnostic; a
+bare `#[{...}]` attaches with no such check. A non-constant field value (a variable, a call, `new`) is a
+compile-time diagnostic naming the compile-time-constant-only rule
+([ADR 0046](adr/0046-attributes-shape-literal-metadata.md)).
 
 ### M4B — Minimal `mwl-lsp` and the VS Code extension (~3 weeks)
 Pulled ahead of M10 by [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
@@ -932,7 +940,9 @@ unqualified `string` while bound parameters stay tainted-friendly, and `Core\Htm
 extension-provided — structural reflection and a runtime door onto `mwl-syntax`'s own lexer/parser, per
 [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md); reflective access enforces the same
 visibility/hook checks ordinary code does, and a parsed AST is typed, inert data with no path back into
-execution. Also here: **`Core\Fatal` and `Core\Log`**, plus the operator-configured `.mwl` error-handler
+execution. Also here: **`Core\Attributes`**, the narrow, statically-resolved `get<T>`/`all<T>` accessor onto
+attribute literals attached in M4 — deliberately not part of `Core\Reflect`'s general-purpose walk, per
+[ADR 0046](adr/0046-attributes-shape-literal-metadata.md). Also here: **`Core\Fatal` and `Core\Log`**, plus the operator-configured `.mwl` error-handler
 script and the engine-native logging floor beneath it, per
 [ADR 0020](adr/0020-error-escalation-ladder.md); `Core\Log`'s JSON-Lines writer is the same native
 serialiser the engine floor calls directly, so the two never disagree on log shape. `mwl check` refuses a
@@ -954,7 +964,12 @@ not part of this milestone.
 including TLS, prepared statements, transactions and large result streaming. `Core\Reflect`/`Core\Ast`
 verified per [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md)'s own M8 verification
 list — a reflective call to a `private` method from outside its class fails like the equivalent ordinary
-call; `Core\Ast::parse()` fuzzed with the same corpus as M1's lexer/parser target. `Core\Fatal`/`Core\Log`
+call; `Core\Ast::parse()` fuzzed with the same corpus as M1's lexer/parser target. `Core\Attributes` verified per
+[ADR 0046](adr/0046-attributes-shape-literal-metadata.md) — `get<T>` on a site with zero matching attributes
+compiles to a constant `null`, one match compiles to that constant value with no runtime lookup, and more
+than one match is a compile-time diagnostic naming `all<T>`; a literal property/parameter name that names no
+real member is a compile-time diagnostic, and a non-literal one is a runtime empty result instead.
+`Core\Fatal`/`Core\Log`
 verified per [ADR 0020](adr/0020-error-escalation-ladder.md)'s own M7/M8 list — `onUncaughtThrow` receives
 the real `Throwable`; the configured handler script runs charged to the engine's own reserve and still
 fires when the reporting request is at its own memory ceiling; application code and the engine floor

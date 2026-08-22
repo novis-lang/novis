@@ -44,6 +44,7 @@ the row below for whatever you're touching to get that.
 | PHP's `(int)$x`/`(string)$x` legacy cast syntax, why it doesn't parse | [ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md). Holds the only copy of the rule that `as` is the sole conversion spelling — the legacy cast keywords are diagnosed at parse time naming the equivalent `as` expression, with no alias kept. |
 | Whether an `if`/`while`/`for`/`?:`/`&&`/`\|\|`/`!` condition needs an explicit `as bool`, PHP truthiness | [ADR 0035](docs/adr/0035-truthy-boolean-context.md). Holds the only copy of the truthy table and the exact six syntax positions it applies to; every other `bool` position (a parameter, property, `==`/`===`) is untouched and still needs `as bool`. |
 | PHP's `and`/`or`/`xor` keyword operators, why they don't parse, "why does PHP have two ways to write AND/OR" | [ADR 0045](docs/adr/0045-and-or-xor-keyword-operators-rejected.md). Holds the only copy of the rule that `&&`/`\|\|` are the sole logical connectives — `and`/`or` are diagnosed naming that replacement, `xor` is diagnosed with no one-token replacement at all. |
+| `#[Attribute]`-style metadata, PHP doc-comment-as-config, annotations, `Core\Attributes`, why there's no attribute base class to declare | [ADR 0046](docs/adr/0046-attributes-shape-literal-metadata.md). Holds the only copy of the `#[Name(...)]`/`#[{...}]` shape-literal attribute syntax, the compile-time-constant-only payload rule, and the `Core\Attributes::get<T>`/`::all<T>` structural retrieval API — deliberately not part of `Core\Reflect`. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
@@ -263,6 +264,11 @@ If you find yourself restating more than a sentence, that detail belongs in the 
 - **`&&`/`||` are the only logical connectives** — PHP's `and`/`or`/`xor` keyword operators do not parse;
   `and`/`or` are diagnosed naming `&&`/`||` as the replacement, and `xor` is diagnosed with no one-token
   replacement at all, since MWL has no `^^` ([ADR 0045](docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
+- **`#[...]` attributes are shape-literal metadata, never a declared attribute class** — a named form checks
+  the literal against a `type` alias, a bare form checks nothing beyond well-formedness, every field value
+  must be a compile-time constant, and retrieval is the narrow `Core\Attributes::get<T>`/`::all<T>` accessor,
+  resolved structurally at compile time — not `Core\Reflect`'s general-purpose walk
+  ([ADR 0046](docs/adr/0046-attributes-shape-literal-metadata.md)).
 
 ## Commands
 

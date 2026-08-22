@@ -239,7 +239,8 @@ named a language to imitate rather than one to stay compatible with.
   exists in PHP only because a pure enum has no integer to fall back on; every MWL enum has one by
   construction.
 - **A `#[Flags]`-style attribute enabling bitwise operators directly on an enum type**, matching C#.
-  Deferred, not rejected — a separate design question; see *Revisiting*.
+  Deferred, not rejected — a separate design question; see *Revisiting*. The attribute *mechanism* it would
+  need is now decided ([ADR 0046](0046-attributes-shape-literal-metadata.md)); `#[Flags]` itself still isn't.
 
 ## Revisiting
 

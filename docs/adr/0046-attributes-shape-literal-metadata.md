@@ -1,0 +1,292 @@
+# ADR 0046 — Attributes are shape-literal metadata on declarations, retrieved structurally via `Core\Attributes`
+
+- **Status:** Accepted
+- **Date:** 2026-08-22
+- **Scope:** a new `#[...]` syntax attaching structured metadata to a class/interface declaration, a method
+  declaration, a property declaration, or a parameter — the PHP-Attributes/Java-annotations need, without
+  either PHP's doc-comment convention (no compiler involvement at all) or PHP/Java/C#'s requirement that a
+  custom attribute be backed by its own declared class. Covers: the `#[Name(...)]`/`#[{...}]` payload syntax
+  and its compile-time-constant-only contents, reusing [ADR 0036](0036-anonymous-object-shapes.md)'s
+  anonymous-object-literal/shape-type machinery; repeatable attachment; and the `Core\Attributes::get<T>`/
+  `::all<T>` retrieval API, including the one new piece of grammar it needs (an explicit type argument at a
+  call site) and how a class/property/parameter — none of them a `callable` — gets named as a lookup target.
+  Does not decide any compiler-recognized attribute (`#[Deprecated]`, `#[Override]`, and the still-deferred
+  `#[Memoize]`/`#[Flags]` bullets below) — those stay future work built *on* this mechanism, not part of it.
+- **Amends:** [0033](0033-secret-qualifier-for-confidential-values.md) — adds a fifth sink to its list: an
+  attribute payload position, since it is retained for the process's lifetime in the same constant-pool
+  fashion as an enum case or class constant ([0010](0010-enums-are-a-value-type.md)) and this ADR's own
+  compile-time-constant-only rule (*Decision § 2*) already forces every candidate value there to be a
+  literal, a class constant, or an enum case — exactly the shapes a `secret` value can flow through. No
+  change needed to [0024](0024-taint-tracking-for-injection-sinks.md)'s `tainted`: a tainted value has no
+  compile-time-constant source ([0012](0012-no-superglobals.md) — every `Core` accessor is a runtime call),
+  so one can never syntactically reach an attribute payload in the first place.
+  [0008](0008-static-and-global.md)'s deferred `#[Memoize]` bullet and
+  [0010](0010-enums-are-a-value-type.md)'s deferred `#[Flags]` bullet are both updated to point here as the
+  now-decided mechanism they were deferred pending — neither attribute itself is decided by this ADR.
+  [docs/implementation-plan.md](../implementation-plan.md) M4 gains the `#[...]` grammar and its shape/
+  compile-time-constant checks; M8 gains `Core\Attributes` alongside `Core\Reflect`/`Core\Ast`.
+- **Amended by:** none.
+- **Relates to:** [0036](0036-anonymous-object-shapes.md) (the payload literal *is* an anonymous object
+  literal, checked against a named shape type by the exact same width-subtyping rule, when one is named at
+  all), [0015](0015-no-name-aliasing.md) (an attribute's optional "name" is nothing but an ordinary `type`
+  alias identifier — no second namespace is created), [0027](0027-callable-is-closures-only.md) (first-class
+  callable syntax is the reference a method-level or constructor-level lookup targets), [0019](0019-reflection-and-ast-parsing-are-core-features.md)
+  (this ADR deliberately does *not* open a second, `Core\Reflect`-shaped generic-walk surface — retrieval
+  stays a narrow, statically-resolved accessor, consistent with that ADR's own scoping instinct),
+  [0011](0011-functions-and-constants-are-class-members.md) (`Core\Attributes` is a new `Core` domain class,
+  landing in M8 alongside `Core\Reflect`/`Core\Ast`), [0033](0033-secret-qualifier-for-confidential-values.md)
+  §4 (the literal-call-site-inspection technique this ADR reuses to validate a property/parameter name
+  string at compile time), [0022](0022-definite-property-initialization.md) (every class has a nameable
+  `constructor`, which is what makes a class-level lookup target expressible with no new "class as value"
+  token), [0042](0042-on-disk-artifact-cache-format.md) (an attribute literal is ordinary source text, already
+  covered by that ADR's content-addressed hash — no new cache-key rule needed), [0004](0004-memory-for-simplicity.md)
+  (states what this feature spends).
+
+> **In short:** `#[Name(field: value, ...)]` (or bare `#[{field: value, ...}]`) attaches an object-shape
+> literal — exactly [ADR 0036](0036-anonymous-object-shapes.md)'s literal, not a new kind of value — to a
+> class, interface, method, property, or parameter declaration. Naming it (`Route(...)` instead of a bare
+> `{...}`) is pure attach-site sugar: `Name` must resolve to a `type` alias whose right-hand side is a shape
+> type, and the literal is checked against it the same way any other shape-typed position already is; an
+> unnamed literal is checked only as a well-formed object literal. No class is ever declared, instantiated,
+> or invoked for this — MWL's attributes are inert data from the moment they're parsed, unlike PHP's, which
+> lazily construct a real object the first time `ReflectionAttribute::newInstance()` is called. A payload's
+> field values must be compile-time constants (literals, class constants, enum cases) — never a variable, a
+> call, or `new` — so the whole thing is resolved once, at compile time, into a constant pool exactly like an
+> enum case's backing value ([ADR 0010](0010-enums-are-a-value-type.md)). The same attribute may be attached
+> more than once to one site; nothing about attaching it is arity-checked. Retrieval is `Core\Attributes::get<T>(...)`/
+> `::all<T>(...)`, where `T` is a shape type — never a bare-name lookup, and never `Core\Reflect`. `T` is
+> resolved entirely at compile time against the target's statically-known attribute list: `get<T>` is a
+> compile error if more than one attached literal structurally satisfies `T` (use `all<T>` instead), and
+> `null` if none do — no runtime search, no reflection, no ambiguity discovered only when a request happens
+> to hit that code path. A class or its constructor's parameters are named as a lookup target through the
+> class's own `constructor` reference (already nameable per [ADR 0027](0027-callable-is-closures-only.md),
+> since [ADR 0022](0022-definite-property-initialization.md) guarantees every class has one); an ordinary
+> method's parameters are named through that method's own reference. A property has no callable reference of
+> its own, so its lookup takes the owning class's `constructor` reference plus the property's name as a
+> `string` — the one place this design accepts a name string instead of a fully static reference, and
+> `mwl check` closes most of that gap by validating a literal name string against the target's real declared
+> members at compile time, the same call-site-literal-inspection [ADR 0033](0033-secret-qualifier-for-confidential-values.md)
+> §4 already uses for its `Core\Log` sink check.
+
+## Context
+
+- PHP's doc comments are the status quo this ADR is replacing for MWL: plain, unstructured text above a
+  declaration that userland frameworks parse with their own regexes to drive real behavior (routing, ORM
+  column mapping, validation, DI). The compiler has no idea any of this exists; `phpdoc_to_return_type`-style
+  static analysis is bolted on by tooling, not the language. PHP Attributes (`#[Route('/x')]`) fixed the
+  "no compiler involvement" half but not the "class overhead" half — every attribute kind still needs its own
+  declared class, `#[Attribute]`-marked, constructed lazily on read.
+- Java/Kotlin annotations and C# attributes sit in the same place as PHP Attributes: lighter than a full
+  general-purpose class (an `@interface`/`annotation class` has no methods, no inheritance to speak of), but
+  still a separate declaration per attribute *kind* that exists for no reason other than to be attached
+  somewhere and reflected back later.
+- The genuinely lighter precedents are Rust's `#[attr(...)]` (a token tree, consumed by a proc-macro at
+  compile time, then erased — no runtime cost, but "custom attribute" still means writing macro-crate
+  tooling) and Elixir's `@tag value` module attributes (no declaration of any kind, but no structural
+  checking either — any term is accepted). MWL already has a mechanism that sits exactly between those two:
+  [ADR 0036](0036-anonymous-object-shapes.md)'s anonymous object literal and inline shape type — structurally
+  checked, zero declaration required for the unchecked case, one `type` alias line for the checked case. This
+  ADR is mostly the observation that attributes don't need a fourth mechanism; they need that one, attached
+  to a declaration instead of a variable.
+- MWL already has two forward-references to a `#[...]` attribute syntax that this ADR resolves: ADR 0008's
+  "a `#[Memoize]` attribute as the sanctioned replacement for the memoisation use — deferred, not rejected"
+  and ADR 0010's "a `#[Flags]`-style attribute enabling bitwise operators directly on an enum type." Neither
+  is decided here — both still need their own design (key derivation and lifetime for memoisation; the
+  operator-overload question for flags) — but both were blocked on *some* attribute mechanism existing at
+  all, which this ADR now provides.
+- Retrieval was the harder question. [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) put
+  reflection and AST parsing in `Core`, deliberately not the language surface, so that reflective access
+  keeps paying the same visibility/hook checks ordinary code does rather than opening a second, laxer path.
+  Routing attribute retrieval through a generic `Core\Reflect::getAttributes()` walk would fit that pattern
+  but reintroduces exactly the dynamic, walk-anything shape ADR 0019 was careful to avoid making the *only*
+  path — MWL's attribute list per declaration is fully static, known at compile time, so a generic runtime
+  walk throws away information the compiler already has. A narrow, statically-resolved `Core\Attributes`
+  accessor keeps ADR 0019's placement (a `Core` domain class, not a keyword) while being considerably more
+  specific than `Core\Reflect`'s general-purpose surface.
+
+## Decision
+
+### 1. Attach syntax and sites
+
+`#[...]` attaches to a class or interface declaration, a method declaration, a property declaration, or a
+parameter — written directly above (or, for a parameter, directly before) the thing it annotates:
+
+```php
+#[Route(path: "/users/:id", method: "GET")]
+class UserController {
+    #[Column(type: "varchar", length: 255)]
+    public string $name;
+
+    #[Cache(ttlSeconds: 60)]
+    #[Cache(ttlSeconds: 300, tag: "long")]
+    public function show(#[Autowire] UserRepository $repo): Response { ... }
+}
+```
+
+Two forms:
+
+- **Named**: `#[Name(field: value, ...)]`. `Name` must resolve, in the current namespace/`use` scope, to a
+  `type` alias whose right-hand side is a shape type (`type Route = {path: string, method: string};`). This
+  reads like a constructor call — deliberately, for PHP-attribute familiarity — but is not one: no class is
+  instantiated and nothing executes. `mwl-syntax` parses the parenthesized `field: value` list directly into
+  the same anonymous-object-literal AST node ADR 0036 already defines for `{field: value}`; `Name(...)` is
+  parsed sugar for `Name` immediately followed by that literal, nothing more.
+- **Bare**: `#[{field: value, ...}]`. An ordinary anonymous object literal with no named shape to check
+  against — checked only as a well-formed literal, exactly as it would be anywhere else in the language.
+
+Both forms attach; there is no third "declare a brand-new attribute kind" step, because there is no kind —
+`Name` in the named form is only ever a pre-existing `type` alias, resolved and checked the same way any
+other shape-typed position already is.
+
+### 2. Payload values are compile-time constants only
+
+Every field value inside a `#[...]` literal must be a compile-time constant: a literal, another class's
+`const`, or an enum case. No variable, no function/method call, no `new`, no `$this`. This is enforced by
+`mwl-types` the same pass that already resolves constant expressions for enum case values
+([ADR 0010](0010-enums-are-a-value-type.md)) and array sizes elsewhere.
+
+Two consequences fall out of this for free, not as separate rules:
+
+- The whole literal is resolvable once, at compile time, into a value that lives in the compiled unit's
+  constant pool — the same storage class an enum case's backing integer or a class constant already uses.
+  There is no "evaluate this attribute's arguments" step at class-definition time the way PHP's attribute
+  construction has one.
+- **No `tainted` or `secret` value can reach an attribute payload.** `tainted` has no compile-time-constant
+  source at all ([ADR 0012](0012-no-superglobals.md) — every ambient source is a `Core` accessor call), so
+  this needs no rule; `secret` *can* qualify a class constant, so this ADR adds "an attribute payload
+  position" as [ADR 0033](0033-secret-qualifier-for-confidential-values.md)'s fifth refusing sink, alongside
+  HTML output, `Core\Log`, debug dumps, and serialize/isolate-crossing — a value retained process-lifetime in
+  a constant pool is exactly the kind of durable exposure that list already exists to close off.
+
+### 3. Attributes are repeatable, with no arity checking at attach time
+
+The same attribute — named or bare, same or different field values — may be attached to one declaration any
+number of times, as `show()`'s two `#[Cache(...)]` attributes above show. Nothing about *attaching* one
+attribute is aware of how many others share its site; ambiguity, if any, is entirely retrieval's problem (§5)
+— attach time never rejects a duplicate.
+
+### 4. `Core\Attributes::get<T>` / `::all<T>` — structural, compile-time-resolved retrieval
+
+```php
+function Core\Attributes::get<T>(callable $target): ?T;
+function Core\Attributes::get<T>(callable $target, string $member): ?T;
+function Core\Attributes::all<T>(callable $target): array<T>;
+function Core\Attributes::all<T>(callable $target, string $member): array<T>;
+```
+
+`T` must itself be a shape type (an inline `{...}` or a `type` alias naming one). Retrieval is **structural,
+not nominal** — `get<T>`/`all<T>` return every attached literal that structurally satisfies `T` under ADR
+0036's existing width-subtyping rule (extra fields on the attached literal are fine), regardless of whether
+that literal was attached bare or through a named `Name(...)` form, and regardless of what that `Name` was.
+An attribute's optional attach-time name exists purely to validate the literal against a declared shape at
+the point it's written — it is never part of how a caller later asks for it. This sidesteps two problems at
+once: there is no second namespace of "attribute kind names" to collide across unrelated frameworks, and a
+bare `#[{...}]` attribute is retrievable exactly like a named one, through whatever shape the caller happens
+to ask for.
+
+**How a class, method, property, or parameter is named as `$target`:**
+
+- A **method** (including a constructor) is named by its own first-class-callable reference —
+  `Foo::bar(...)` — the exact syntax [ADR 0027](0027-callable-is-closures-only.md) already defines.
+- A **class or interface** has no callable of its own, so it is named by its `constructor`'s reference —
+  `Foo::constructor(...)`. Every class has one, definitely, per [ADR 0022](0022-definite-property-initialization.md),
+  so this needs no new "class as a value" token — including for a class with no user-written constructor,
+  since one is always synthesized.
+- A **parameter** is named by the owning method's (or constructor's) reference plus its `$member` name, e.g.
+  `Core\Attributes::get<Autowire>(UserController::show(...), "repo")`.
+- A **property** is named by the owning class's `constructor` reference plus its `$member` name, e.g.
+  `Core\Attributes::get<Column>(User::constructor(...), "name")`.
+
+A literal `$member` string is validated against the target's real declared parameters/properties by
+`mwl check` at the call site — the same literal-inspection technique
+[ADR 0033](0033-secret-qualifier-for-confidential-values.md) §4 already uses to catch a `secret` value
+reaching `Core\Log::write()` despite that call's open parameter type. Only a genuinely computed (non-literal)
+`$member` expression falls back to a runtime empty result if it names nothing real — see *Consequences*.
+
+### 5. `get<T>` is a compile-time error on ambiguity, not a runtime one
+
+Because a declaration's attached-attribute list is fully static, `Core\Attributes::get<T>($target)` is
+resolved entirely by `mwl check`: if the target carries no literal structurally satisfying `T`, the call is
+replaced with a compiled-in `null`; if it carries exactly one, the call is replaced with that constant value
+directly (no lookup at all, at runtime); if it carries more than one, the call is a **compile-time
+diagnostic** (code assigned at implementation) naming `Core\Attributes::all<T>` as the fix. This is a genuine
+improvement over PHP/Java/C#'s equivalent — there, "which one did I get?" for a repeatable attribute is a
+question a test run answers, not the compiler.
+
+### 6. One new piece of grammar: an explicit type argument at a call site
+
+`Core\Attributes::get<T>`/`::all<T>` need `T` supplied at the call site — there is no argument whose type
+`T` could be inferred from, unlike `array_map(callable, array<T>): array<U>`'s existing pattern. This ADR
+therefore introduces explicit `<T>` type-argument syntax on a call, scoped narrowly to this one pair of
+compiler-owned built-ins (M8's own note that "type variables stay available only to declarations the
+compiler owns; user-defined generics are not part of this milestone" already reserves exactly this kind of
+extension). It does not open user-defined generics — that stays exactly as out of scope as it already was.
+
+## Consequences
+
+**Positive**
+
+- A quick, one-off tag costs one `#[{...}]` literal — no class, no `type` alias, no ceremony. A validated,
+  reusable one costs exactly one `type` alias line — nothing close to PHP/Java/C#'s per-attribute-kind class
+  declaration.
+- Retrieval reuses three already-accepted mechanisms (ADR 0036 shapes/literals, ADR 0027 first-class
+  callables, ADR 0015 `type` aliases) rather than adding a fourth kind of thing to the language.
+- Ambiguity from a repeatable attribute is caught at compile time, at the exact call site that would be
+  wrong — not discovered the first time a request happens to hit a site with two matches, the way PHP/Java
+  reflection APIs leave it.
+- Structural retrieval means two unrelated libraries can each define their own `Route`-*shaped* attribute
+  with no naming collision or coordination — there is no global attribute-name registry to collide in.
+- Cost is O(attribute attachments in compiled code), stored once per declaration in the same constant-pool
+  class as an enum case's backing value or a class constant ([ADR 0010](0010-enums-are-a-value-type.md)) —
+  not O(requests), not O(objects), and not attached to any instance.
+
+**Negative**
+
+- Property and parameter lookup takes a `string` member name rather than a fully static reference — the one
+  place this design is less statically clean than the method/class case. `mwl check`'s literal-name
+  validation (§4) closes this for the overwhelmingly common literal-string case; a genuinely dynamic
+  (computed) member name still only fails at runtime, returning an empty result rather than a diagnostic.
+- Repeatable attachment has no deduplication: attaching the identical literal twice keeps both copies, and
+  `all<T>` returns both. Harmless, but worth knowing before relying on `count(all<T>(...))` as a
+  distinctness check.
+- This ADR ships no compiler-recognized attribute of its own — `#[Deprecated]`, `#[Override]`, and the still-
+  deferred `#[Memoize]`/`#[Flags]` are all future work built on top of this mechanism, not delivered by it.
+- The explicit `<T>` call-site type argument (§6) is new grammar with exactly two call sites using it at
+  launch. If MWL never grows user-defined generics, this stays a narrow, single-purpose piece of syntax
+  rather than the first instance of a general feature.
+
+## Alternatives rejected
+
+- **A full PHP/Java/C#-style attribute-class mechanism** (`#[Attribute] class Route { function
+  constructor(...) {} }`, lazily instantiated on read). Rejected outright — this is precisely the "class
+  overhead for what is fundamentally a bag of data" problem motivating this ADR. A `type` alias already gives
+  the same structural validation with no class, no constructor, and nothing ever instantiated.
+- **Stay with PHP's doc-comment convention.** Rejected — no compiler involvement, no structural checking, no
+  first-class retrieval; this is the status quo this ADR replaces, not an option to keep.
+- **Fully free-form payload, Go-struct-tag style (a bare string, parsed by convention).** Rejected — loses
+  structural checking entirely, pushing every validation concern to runtime, framework-side code with no
+  compiler help at all.
+- **Retrieval through `Core\Reflect`'s general-purpose walk** (`Core\Reflect::forClass(...)->getAttributes()`).
+  Rejected — reopens a second, broader introspection surface for a question the compiler can already answer
+  narrowly and statically; every attribute list is known at compile time, so a runtime walk-by-name only
+  throws that information away.
+- **A new `Foo::class`-style class-literal token, and a parallel property/parameter-reference token, instead
+  of reusing the `constructor` reference and a member-name string.** Rejected for this ADR's scope — every
+  class already has a nameable `constructor` reference, and a name string is no worse than what PHP's own
+  Reflection API already accepts for members that aren't independently callable. Revisit only if a `Foo::class`
+  token is ever added for an unrelated reason.
+- **Arbitrary runtime expressions as payload values**, matching PHP's actual attribute-argument flexibility
+  (any expression, including `new`). Rejected — it would turn "define a class" into an operation with an
+  execution order and side effects, and reopen the `tainted`/`secret`-flowing-into-a-retained-value question
+  this ADR closes for free by restricting to compile-time constants (§2).
+- **Bundle a starter set of compiler-recognized attributes (`#[Deprecated]`, `#[Override]`) into this same
+  ADR.** Rejected — keeps this decision scoped to one concern, the generic mechanism; each compiler-
+  recognized attribute has its own design questions (what a diagnostic looks like, whether it changes
+  codegen) better argued on their own.
+
+## Revisiting
+
+If MWL ever gains user-defined generics, reconsider whether §6's explicit `<T>` call-site syntax should
+generalize to ordinary user code rather than staying reserved to this one pair of built-ins. If a `Foo::class`-
+style literal is ever added for an unrelated reason, reconsider whether class-level lookup should use it
+instead of the `constructor` reference — purely a syntax question, since the semantics would be identical.
