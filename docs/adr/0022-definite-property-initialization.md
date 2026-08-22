@@ -10,6 +10,9 @@
 - **Amends:** [ADR 0007](0007-explicit-type-system.md) § 1 — "definite assignment is checked" was written
   for local variables only; this ADR names properties as the second binding kind the same analysis covers,
   and is the decision that paragraph's scope was silently missing.
+- **Amended by:** [ADR 0038](0038-lateinit-property-modifier.md) — resolves this ADR's *Revisiting* entry
+  "An opt-in `lateinit`-equivalent" by adding that modifier, reusing rather than replacing § 3's runtime
+  mechanism.
 - **Relates to:** [ADR 0002](0002-error-propagation.md) (the runtime fallback throws as an ordinary
   checked status, not by unwinding), [ADR 0004](0004-memory-for-simplicity.md) (what the "not yet written"
   marker costs), [ADR 0007](0007-explicit-type-system.md) (a declared type never silently holds something
@@ -173,18 +176,14 @@ additional bytes per property**.
   caught at its cause and the "one analysis, not two" simplicity gain available for free once ADR 0007's
   mechanism already exists.
 - **An opt-in `lateinit`-style modifier** (Kotlin), reachable from ordinary code rather than only reflection.
-  Not rejected outright — deferred (see *Revisiting*): the compile-time-only, no-opt-out decision made here
-  is the smaller commitment, since adding a keyword later costs nothing extra while removing one already
-  shipped would be breaking.
+  Not rejected outright — deferred at the time this ADR was written, since the compile-time-only, no-opt-out
+  decision made here was the smaller commitment while no implementation existed yet to make backward-
+  incompatible. Added by [ADR 0038](0038-lateinit-property-modifier.md).
 
 ## Revisiting
 
 Deferred deliberately, each needing its own argument once there is real code to argue from:
 
-- **An opt-in `lateinit`-equivalent**, if a real, common construction pattern — a DI container or ORM that
-  populates properties after `new` rather than inside a constructor — turns out to hit this ADR's
-  compile-time wall often enough that the reflection escape hatch in *3* is not the right place for it.
-  Nothing here forecloses adding it; no implementation exists yet to make backward-incompatible.
 - **Whether `Core\Reflect`'s constructor-bypassing instantiation should require every non-nullable
   property's value up front**, closing the residual runtime case in *3* entirely rather than leaving it to
   a first-read throw. That is a decision for `Core\Reflect`'s own API surface

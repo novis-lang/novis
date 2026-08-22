@@ -70,6 +70,7 @@ live, so a new row is picked up automatically.
 | [0035](0035-truthy-boolean-context.md) | A condition is judged by PHP's full truthy table; every other `bool` position stays checked | Accepted |
 | [0036](0036-anonymous-object-shapes.md) | `object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is MWL's one structurally-checked type | Accepted |
 | [0037](0037-var-local-type-inference.md) | `var $name = expr;` infers a local's type from its initializer and fixes it forever; a bare array-literal initializer is the one shape it refuses | Accepted |
+| [0038](0038-lateinit-property-modifier.md) | `lateinit` defers a non-nullable object property's first assignment past the constructor, throwing on read-before-write; scalars, `?T`, and `readonly` are all refused | Accepted |
 
 ## Decisions taken at project start
 
