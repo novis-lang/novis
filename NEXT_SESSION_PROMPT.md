@@ -120,6 +120,13 @@ chunk — check `mwl-syntax`/`mwl-hir` first to confirm it hasn't already landed
 session alongside the `mwl-ir` picks below or, better, give it its own dedicated session given its size.
 `mwl-hir`'s trait-flattening code is stale (still matches the pre-ADR-0043 design) until this lands.
 
+**FYI, no action needed:** [ADR 0044](docs/adr/0044-core-process-argv-only-no-shell.md) landed this session
+(docs-only) — `Core\Process::run()`/`::spawn()` replaces PHP's `exec`/`system`/`passthru`/`shell_exec`/
+`proc_open` family with one argv-only API (no shell-string form at all, a Windows batch/PowerShell-target
+refusal, coroutine-suspending waits), superseding ADR 0024 §4's placeholder bullet. It's M8-scoped and
+`Core\Process` doesn't exist yet on disk, so unlike ADR 0043 there is no stale code to fix now — nothing to
+pick up until M8 starts.
+
 **Housekeeping note:** `python .claude/brief.py`'s "WHERE THE PLAN STANDS" section has been hitting its
 4000-byte budget and truncating for at least three sessions now (the M2 paragraph in
 `docs/implementation-plan.md` is the largest single contributor) — this is exactly the signal
