@@ -65,7 +65,7 @@ collapses PHP's four same-frame inclusion keywords to this one: `include`, `incl
 | construct | isolation | resolution | status |
 |---|---|---|---|
 | `require 'path.mwl';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
-| `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name (see [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected*) |
+| `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. [ADR 0052](../adr/0052-closed-doors.md) § 4 holds the full rejection and the four analyses `eval` would make unsound at once; see also [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected* |
 | `spawn script 'path.mwl' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6) | new construct, grammar fixed below |
 
 The rule of thumb the diagnostics should teach: **`require` runs code in this frame; `spawn script` runs a

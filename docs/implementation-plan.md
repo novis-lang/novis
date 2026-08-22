@@ -14,17 +14,15 @@
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
 > + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle, `cargo-fuzz`
-> 0.13.2 under a WSL nightly toolchain (native Windows has no libFuzzer support; see CLAUDE.md's
-> "Fuzzing on Windows: use WSL").
+> 0.13.2 under a WSL nightly toolchain (CLAUDE.md says why).
 >
 > **M1 — done.** Lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full parser —
 > types, expressions, every control-flow statement, every declaration — plus the M1-scoped grammar of
 > ADRs 0024, 0031, 0033, 0034, 0035, 0036, 0037, 0049 and 0050. Each ADR states its own rule; do not
 > look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
-> checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics
-> (478,073 / 45,861 executions). That test's "clean" file count predates ADR 0049/0050 and is not
-> re-measured — every corpus file opens with `<?php`, so every one now also trips `E0229`. Known parser
-> gaps are tracked in `mwl-syntax`'s own module docs.
+> checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics. That
+> test's "clean" file count is not re-measured: every corpus file opens with `<?php`, so every one now
+> also trips `E0229`. Known parser gaps live in `mwl-syntax`'s module docs.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well underway;
 > `mwl-ir` is the remaining bulk. Checker-side rules landed for ADRs 0007, 0010, 0013, 0014, 0015, 0021,
@@ -34,6 +32,13 @@
 > 0047 (docs only so far), and finishing `mwl-ir`. Each ADR's own *Verification* section says what its
 > slice covers — that is the one home for it.
 >
+> **Not started, and ahead of M8 despite being stdlib decisions:** ADRs [0053](adr/0053-iteration-and-generators.md)
+> and [0054](adr/0054-decimal-scalar-type.md) add obligations to M1–M3, not to the stdlib milestone —
+> `Iterable`/`Iterator` checking plus an IR that can carry a suspension point inside a loop body, and
+> `decimal`'s lexer, checker and i128 backend rows. Both are cheap now and expensive once M3 builds on the
+> IR without them. [ADR 0055](adr/0055-extension-qualifier-declarations.md) is the third: it must be
+> reflected in the `mwl:ext@1.0.0` WIT world M8 authors, because M9 freezes it.
+>
 > One gap is not visible from the milestone text below, found by inspection rather than a failing test:
 > **`check_stmts` walks declarations only**, so a file's top-level statements are never type-checked
 > (`echo $undefinedThing;` at file scope passes `mwl check` clean; the same line in a method reports
@@ -42,13 +47,9 @@
 > statements are one synthesized frame whose variables are locals. On M3's critical path — the
 > `Hello, World!` acceptance program is exactly that shape.
 >
-> `mwl-ir`'s slice-by-slice history, its refcount insertion policy, the `mwl-types`-publishes-a-table
-> dependency decision, and its full known-gap list are **not** repeated here — they live in
-> `crates/mwl-ir/src/lib.rs`'s module doc, under its three headings (*What this crate lowers so far*,
-> *Design choices worth knowing before widening this further*, *Known gaps*). Same for `mwl-hir` and
-> `mwl-types`: read `mwl-hir::{hierarchy,members,requires}` and `mwl-types::{expr,ctor_init,lib}`
-> directly. Those are more current than a paragraph here could stay, which is why this block does not
-> carry one.
+> Per-crate detail — `mwl-ir`'s lowering history, refcount policy, table dependency and known gaps, and
+> the same for `mwl-hir` and `mwl-types` — lives in each crate's own module doc, which stays more current
+> than a paragraph here could.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -492,12 +493,19 @@ first-class-callable syntax or an `fn` literal, no `__invoke`
 ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)); identifier casing
 ([ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md)/[0032](adr/0032-acronym-casing-rule-revoked.md),
 lands in `mwl-syntax` directly since it needs no name resolution); `object` subtyping and shape-type
-structural checking ([ADR 0036](adr/0036-anonymous-object-shapes.md)).
+structural checking ([ADR 0036](adr/0036-anonymous-object-shapes.md)); `foreach` accepted over exactly an
+`array<T>`, an `Iterable<T>` or an `Iterator<T>`, with `$obj[$k]` on a non-array refused
+([ADR 0053](adr/0053-iteration-and-generators.md)); and `decimal`'s conversion and arithmetic rows,
+including `decimal + float` refused on the same grounds as `int + uint`
+([ADR 0054](adr/0054-decimal-scalar-type.md), which also adds the `m` literal suffix to M1's lexer).
 
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls, with a
 stable per-statement/per-edge id reserved for
 [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s probes — cheap now,
-expensive to retrofit once M3 builds on the IR without it.
+expensive to retrofit once M3 builds on the IR without it. The IR must also be able to represent a
+**suspension point inside a loop body**, so that [ADR 0053](adr/0053-iteration-and-generators.md)'s
+state-machine lowering of a generator can be added without reshaping it. The transform itself may land
+later; foreclosing it here is the expensive mistake, exactly as with the probe ids.
 
 **Verify:** `mwl check` on a curated corpus with one fixture per diagnostic named in each ADR listed
 above's own *Verification* section, plus ADR 0007's own core entries (undeclared/redeclared local,
@@ -541,9 +549,12 @@ inheritance/interfaces, including default/private interface method bodies and `b
 `Comparable` interface lowering `< <= > >= <=>` between
 two objects to `compareTo`, with no property-walk fallback ([ADR 0013](adr/0013-comparable-interface.md)),
 enums as a closed named integer type with cases inlined as compile-time
-constants ([ADR 0010](adr/0010-enums-are-a-value-type.md)), generators (nearly free given stackful
-coroutines), `foreach`
-and iterators, references (`&$x`), instance members and static members including late static binding
+constants ([ADR 0010](adr/0010-enums-are-a-value-type.md)), `decimal` arithmetic — i128 add/sub/compare
+inlined at equal scale, everything else through a runtime helper with a wider intermediate
+([ADR 0054](adr/0054-decimal-scalar-type.md)) — generators, lowered to an explicit state machine rather
+than to a coroutine so every target keeps them, alongside `foreach` over the two surviving iteration
+interfaces ([ADR 0053](adr/0053-iteration-and-generators.md)),
+references (`&$x`), instance members and static members including late static binding
 (`static::`, `new static()`, `: static`), property hooks feeding the built-in global `PropertyObserver`
 interface with a hard error on any undeclared property and no `__call`/`__callStatic` at all
 ([ADR 0014](adr/0014-property-observer.md)), `clone` kept as PHP's shallow, same-heap, single-level copy
@@ -713,12 +724,34 @@ to new requests; a revalidation that fails to compile fails only requests resolv
 storm against one hot, `mtime`-validated file is bounded by `revalidate_freq`, not by request rate.
 
 ### M8 — Stdlib and databases (~16 weeks)
-Two-tier regex with the `preg_*` layer; JSON; hashing and crypto (RustCrypto: sha2, blake3, argon2,
-bcrypt, aes-gcm); date/time with PHP-compatible formatting; filesystem and stream abstractions; process
+**The roster this milestone builds is [ADR 0051](adr/0051-standard-library-tiers.md) § 3** — which class is
+Core, which is a capability-gated native subsystem, which is an extension, and which of PHP's extensions
+has no equivalent at all. That ADR is the one home for the list; this paragraph covers only what M8 must
+decide beyond it.
+
+Regex is two-tier, and the tiering is a rule rather than an implementation detail: a linear-time engine by
+default, backtracking only for patterns it cannot express and only under a throwing step budget, with a
+literal pattern's tier settled at compile time and the *pattern* argument refusing `tainted`
+([ADR 0056](adr/0056-regex-engine-policy.md)). The compile-time half of that rides on
+[ADR 0057](adr/0057-intrinsic-literal-folding.md)'s closed intrinsic list, which also lands here and
+covers `Core\Uri`, the date-format strings and `Core\Str::format`'s placeholder checking.
+`Core\Decimal`/`Core\BigInt`/`Core\BigDecimal` supply the method surface around the `decimal` scalar M2–M4
+already built ([ADR 0054](adr/0054-decimal-scalar-type.md)) — including `divExact`, `divRound` and
+`allocate`, since division is the one place a decimal result may be inexact. `Core\Cache`'s two tiers, the
+copy-in/copy-out rule and the per-core memory cap are [ADR 0059](adr/0059-cross-request-state-is-explicit.md);
+`Core\Http\Client`'s `tainted`-refusing URL parameter, the `Core\Http::allowUrl` launderer and the
+`net.connect` address policy are [ADR 0058](adr/0058-outbound-request-policy.md); the closed
+signed-cookie/CSRF/TOTP/JWT roster and its correct-by-construction constraints are
+[ADR 0060](adr/0060-application-security-protocols.md).
+
+Also: JSON; hashing and crypto (RustCrypto: sha2, blake3, argon2,
+bcrypt, aes-gcm), AEAD-only per ADR 0051 § 3; date/time with PHP-compatible formatting; filesystem and
+stream abstractions — with no scheme dispatch anywhere in them
+([ADR 0052](adr/0052-closed-doors.md) § 2); process
 execution behind the `process.exec` capability gate — `Core\Process::run()`/`::spawn()`, argv-only with no
 shell-string form at all, a Windows batch/PowerShell-target refusal, and coroutine-suspending waits, per
 [ADR 0044](adr/0044-core-process-argv-only-no-shell.md) (which supersedes ADR 0024 §4's original
-placeholder bullet); sessions; a PDO-like DB API with pure-Rust
+placeholder bullet); sessions, which may not be backed by `Core\Cache`'s local tier; a PDO-like DB API with pure-Rust
 MySQL/MariaDB, PostgreSQL and MS SQL Server drivers plus SQLite (documenting `rusqlite`'s C dependency as an
 explicit, audited exception to the pure-Rust rule) — its query-text parameter requires the plain,
 unqualified `string` while bound parameters stay tainted-friendly, and `Core\Html::escape`/`Markup` and the
@@ -740,14 +773,22 @@ milestone's crypto line item above are the two ways a value legitimately loses `
 
 **Also in this milestone: author the `mwl:ext@1.0.0` WIT world.** It must be designed from the same
 value-access model as the `Core` domain classes' static methods, so the Tier 0 internal interface and the Tier 1 guest
-interface are one design rather than two that drift. Writing it later would mean retrofitting. The same
+interface are one design rather than two that drift. Writing it later would mean retrofitting. **It must
+also carry a qualifier axis** — a parameter that refuses `tainted`, and a return that is always `tainted` —
+per [ADR 0055](adr/0055-extension-qualifier-declarations.md), which M9 then freezes; adding it afterwards
+would be a breaking change to a published ABI, and without it any `.mwlx` launders untrusted data merely by
+being called. The same
 applies to the signatures themselves: the parametric array signatures
 ([ADR 0007](adr/0007-explicit-type-system.md) — `array_map(callable, array<T>): array<U>` and friends) are
 written once for the built-ins and reused by the WIT world, where `uint` now maps to `u64` with no
 conversion. Type variables stay available only to declarations the compiler owns; user-defined generics are
 not part of this milestone.
 
-**Verify:** per-subsystem conformance suites; DB drivers tested against real servers in CI containers,
+**Verify:** ADRs 0051 and 0054–0060 each carry their own M8 verification list — that is the one home for
+them, and this paragraph does not restate it. Two are worth naming here because they are CI infrastructure
+rather than fixtures: a check enumerating the default binary's C dependencies, failing on any addition not
+recorded against [ADR 0051](adr/0051-standard-library-tiers.md) § 4's two questions, and a check that no
+class outside Tier 0 registers a name beginning `Core\`. Beyond that: per-subsystem conformance suites; DB drivers tested against real servers in CI containers,
 including TLS, prepared statements, transactions and large result streaming. `Core\Reflect`/`Core\Ast`
 verified per [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md)'s own M8 verification
 list — a reflective call to a `private` method from outside its class fails like the equivalent ordinary
@@ -768,7 +809,10 @@ coroutine-suspension tests.
 
 ### M9 — Extension system (~6 weeks)
 `mwl-ext`: `.mwlx` loading (wasm component + `mwl.manifest` custom section), manifest parsing and
-registration into the compiler symbol table so extension calls are statically type-checked, the WIT host
+registration into the compiler symbol table so extension calls are statically type-checked — including the
+`tainted`/`secret` qualifier axis, applied at an extension call site by the same code path as a `Core` one,
+with a manifest attempting the laundering form ADR 0055 § 3 says does not exist failing validation at load
+time — the WIT host
 implementation, per-call handle tables for value access, lazy per-request instantiation on the pooling
 allocator, epoch-interruption wiring to the per-request CPU cap, `StoreLimits` wiring to the memory cap,
 the capability bridge (no ambient authority; optional WASI world with preopens derived from `mwl.ini`
@@ -778,9 +822,13 @@ content-addressed artifact cache.
 Tooling: `mwl ext new --lang rust|c|zig|go`, `mwl ext build` (one portable `.mwlx`), `mwl ext inspect`
 (manifest and requested capabilities), `mwl ext test`, `mwl ext verify`.
 
-**Verify:** a real extension end to end — an image codec or compression library — built from Rust *and*
-from a second language to prove the toolchain claim, running unmodified on all three platforms from one
-binary. Adversarial suite: an extension attempting filesystem or network access it was not granted fails;
+**Verify:** the two first-party extensions [ADR 0051](adr/0051-standard-library-tiers.md) § 3 places at
+Tier 1, end to end. The **image codec** is the one that makes the security claim legible — decoding an
+attacker-supplied file in a sandbox with a memory cap and an epoch deadline — and it is built from Rust
+*and* from a second language to prove the toolchain claim, running unmodified on all three platforms from
+one binary. The **intl component** proves the two shapes that ADR's Ext placement depends on: CLDR data
+carried in the component's own wasm data section, and a batch-shaped API where sorting 10,000 strings costs
+one boundary crossing rather than one per comparison. Adversarial suite: an extension attempting filesystem or network access it was not granted fails;
 a runaway extension is trapped by the request's CPU cap rather than hanging a core; a deliberately
 memory-hungry extension hits the cap; an extension that stores state in a global cannot observe it on the
 next request. Benchmark in-guest compute throughput against the equivalent native Tier 2 implementation and

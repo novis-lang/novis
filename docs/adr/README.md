@@ -83,6 +83,16 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0048](0048-portable-single-file-executables.md) | A portable single-file executable appends source to the host binary; rebundling is a build-time CLI step, not a runtime one | Accepted |
 | [0049](0049-single-open-tag-and-single-exit-keyword.md) | `<?php` and `die` are rejected; `<?mwl` and `exit` are the only spellings kept | Accepted |
 | [0050](0050-list-destructuring-spelling-rejected.md) | `list(...)` is rejected; `[...]` is the only destructuring spelling | Accepted |
+| [0051](0051-standard-library-tiers.md) | Six ordered tests place every stdlib candidate at Core, Native, Ext, dropped, or already-answered; PHP's extension partition is not inherited | Accepted |
+| [0052](0052-closed-doors.md) | Four closed doors: no FFI, no stream wrappers, no cross-request state, no `eval` | Accepted |
+| [0053](0053-iteration-and-generators.md) | `Iterable`/`Iterator` are the only iteration interfaces; generators exist and lower to state machines | Accepted |
+| [0054](0054-decimal-scalar-type.md) | `decimal` is a scalar type; `bcmath` and `gmp` are retired | Accepted |
+| [0055](0055-extension-qualifier-declarations.md) | Extension manifests carry `tainted`/`secret`; every declaration tightens, none loosens | Accepted |
+| [0056](0056-regex-engine-policy.md) | Regex runs on a linear-time engine by default; backtracking is opt-in and budgeted | Accepted |
+| [0057](0057-intrinsic-literal-folding.md) | Literal arguments to a closed list of intrinsic `Core` calls are validated and prepared at compile time | Accepted |
+| [0058](0058-outbound-request-policy.md) | Outbound connections carry an address policy; a tainted URL must be laundered and pinned | Accepted |
+| [0059](0059-cross-request-state-is-explicit.md) | `Core\Cache` is per-core, copied in and out, and charged to the core rather than a request | Accepted |
+| [0060](0060-application-security-protocols.md) | A closed roster of application-layer security protocols lives in `Core` | Accepted |
 
 ## Decisions taken at project start
 

@@ -30,9 +30,13 @@ the row below for whatever you're touching to get that.
 | Deciding what to build next; scoping a milestone; checking what exists | [docs/implementation-plan.md](docs/implementation-plan.md) — the status block at the top, then your milestone. This is the plan of record. |
 | Exceptions, the call ABI, helper signatures, panic containment | [ADR 0002](docs/adr/0002-error-propagation.md). It holds the only normative copy of the calling convention, and it *supersedes* any unwinding language you find elsewhere. |
 | Extensions, wasm, WIT, `.mwlx` | [ADR 0003](docs/adr/0003-extension-system.md) |
+| Whether a stdlib feature belongs in `Core`, in the default binary, in an extension or nowhere; which PHP extension maps to what; whether a C dependency is acceptable | [ADR 0051](docs/adr/0051-standard-library-tiers.md). Holds the only copy of the six ordered placement tests, the roster PHP's bundled extensions map onto, the rule that only Tier 0 may claim the `Core` prefix, and the two-question C-dependency test that replaces "argued individually". |
+| `FFI`, `dl()`, native modules, stream wrappers, `php://`/`phar://`, `shmop`/`sysv*`/APCu, `eval`, `putenv`, `setlocale`, or "why can't userland do X at all" | [ADR 0052](docs/adr/0052-closed-doors.md). Holds the only copy of the four structural closures and the argument each rests on. |
+| Whether a `.mwlx` can be an injection sink or source, `tainted`/`secret` at an extension call, what the manifest may declare | [ADR 0055](docs/adr/0055-extension-qualifier-declarations.md). Holds the only copy of the contagion-by-default rule, the two declarable deviations, the "an extension can never launder" rule, and the monotonicity property that makes the analysis independent of signature verification. |
 | Weighing memory against safety, speed or simplicity | [ADR 0004](docs/adr/0004-memory-for-simplicity.md) |
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
+| Caching between requests, APCu, `Core\Cache`, why a cached value is copied, what cache memory is charged to | [ADR 0059](docs/adr/0059-cross-request-state-is-explicit.md). Holds the only copy of the local/shared tier split, the copy-in/copy-out rule, and the O(cores × working set) cost statement. |
 | `include`/`require`, loading another file into the current frame | [ADR 0021](docs/adr/0021-single-file-inclusion-construct.md). Holds the only copy of the rule that `require` is the one surviving spelling — `include`, `include_once` and `require_once` are all rejected with a diagnostic naming it. |
 | Uninitialized properties, `undefined`, why a typed property can't silently be `null`/zero/`undefined` | [ADR 0022](docs/adr/0022-definite-property-initialization.md). Holds the only copy of the rule that every constructor must definitely assign every property it declares, with no new type and no silent per-type default; the one residual runtime throw is scoped to `Core\Reflect`-bypassed construction. |
 | `clone`, `serialize`/`unserialize`, `__clone`, `__serialize`/`__unserialize`/`__sleep`/`__wakeup`, or how a value crosses the `spawn`/`spawn worker`/`spawn script` boundary | [ADR 0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md). Holds the only copy of the rule that `clone` stays PHP's shallow, same-heap, single-level copy while `serialize()`/`unserialize()` share one recursive graph-copy operation with the isolate boundary; none of the four magic hooks exist, and `unserialize()` accepts only MWL's own closed format. |
@@ -40,6 +44,8 @@ the row below for whatever you're touching to get that.
 | The on-disk compiled-artifact cache — its file layout, header format, why a bad/tampered/wrong-target file is a cache miss rather than a crash, or its eviction policy | [ADR 0042](docs/adr/0042-on-disk-artifact-cache-format.md). Holds the only copy of the content-addressed file-per-unit layout, the mmap-verify-then-mprotect read path, the atomic-rename write path, why a payload checksum defends against corruption but never against a hostile cache directory, and the probabilistic eviction sweep. |
 | A portable single-file executable, `mwl build --compile`, bundling a CLI app's source into one runnable file, "rebundling" | [ADR 0048](docs/adr/0048-portable-single-file-executables.md). Holds the only copy of the append-to-host-binary payload format, why it ships source rather than precompiled artifacts, the reused ADR 0025 static-`require`-graph rule, and why bundling a web-serving deployment is explicitly out of scope. |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys | [ADR 0007](docs/adr/0007-explicit-type-system.md). Holds the only copy of the type grammar, the conversion table, the arithmetic result types and the list of deliberate divergences from PHP. |
+| `decimal`, money, `bcmath`, `gmp`, big integers, why floats aren't used for currency | [ADR 0054](docs/adr/0054-decimal-scalar-type.md). Holds the only copy of `decimal`'s layout, its literal form and `m` suffix, its rows in ADR 0007's conversion and arithmetic tables, its division policy, and what replaces `bcmath`/`gmp`. |
+| `foreach` over an object, `Iterator`/`IteratorAggregate`/`ArrayAccess`/`Countable`, generators, `yield`, lazy streaming | [ADR 0053](docs/adr/0053-iteration-and-generators.md). Holds the only copy of the two surviving interfaces, the rejection of `ArrayAccess`/`Countable`, and the rule that generators lower to a state machine rather than to a coroutine. |
 | `var`, local type inference, why `$x = "foo";` doesn't need its type spelled out | [ADR 0037](docs/adr/0037-var-local-type-inference.md). Holds the only copy of the rule that `var $name = expr;` infers a local's type from its initializer and fixes it forever, exactly as if written by hand — and the one initializer shape it refuses, a bare array literal. |
 | `lateinit`, deferring a property's first assignment past the constructor, DI/setter injection, "why can't this non-nullable property just be set later" | [ADR 0038](docs/adr/0038-lateinit-property-modifier.md). Holds the only copy of the rule that `lateinit` is restricted to non-nullable class/interface-typed properties, throws on read-before-write by reusing ADR 0022's existing mechanism, and is refused on `?T`, a promoted parameter, or alongside `readonly`. |
 | PHP's `(int)$x`/`(string)$x` legacy cast syntax, why it doesn't parse | [ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md). Holds the only copy of the rule that `as` is the sole conversion spelling — the legacy cast keywords are diagnosed at parse time naming the equivalent `as` expression, with no alias kept. |
@@ -49,6 +55,8 @@ the row below for whatever you're touching to get that.
 | `list($a, $b) = $pair;`, PHP's `list()` destructuring spelling, "why doesn't `list` parse" | [ADR 0050](docs/adr/0050-list-destructuring-spelling-rejected.md). Holds the only copy of the rule that `[...]` is the sole destructuring spelling — `list(...)` is parsed in full so the diagnostic can span it, then discarded as `StmtKind::Error`; the element grammar the two shared is unchanged. |
 | Restricting a parameter/property to one of a fixed set of values (PhpStorm's `#[ExpectedValues]`), `"a"\|"b"\|"c"` literal types, a subset of a class's constants, or a subset of an enum's cases (`Mode::A\|Mode::B`) | [ADR 0047](docs/adr/0047-literal-and-enum-case-types.md). Holds the only copy of the rule that a `string`/`int` literal and a named enum case are each their own type, unioned to declare a closed set; a class constant folds to its own literal type in that position, but an enum case never folds to its backing value — and why the wildcard/glob spelling (`Foo::TYPE_*`) was rejected outright rather than deferred. |
 | `#[Attribute]`-style metadata, PHP doc-comment-as-config, annotations, `Core\Attributes`, why there's no attribute base class to declare | [ADR 0046](docs/adr/0046-attributes-shape-literal-metadata.md). Holds the only copy of the `#[Name(...)]`/`#[{...}]` shape-literal attribute syntax, the compile-time-constant-only payload rule, and the `Core\Attributes::get<T>`/`::all<T>` structural retrieval API — deliberately not part of `Core\Reflect`. |
+| Regex, `preg_*`, `Core\Regex`, ReDoS, backreferences, lookaround, why a pattern can be refused at compile time | [ADR 0056](docs/adr/0056-regex-engine-policy.md). Holds the only copy of the two-tier engine rule, the throwing step budget, the compile-time tiering, and the rule that the *pattern* is a sink while the subject is not. |
+| Why a literal regex/URI/format string is checked by `mwl check`, compile-time preparation, the intrinsic `Core` list | [ADR 0057](docs/adr/0057-intrinsic-literal-folding.md). Holds the only copy of the closed intrinsic list, the validate-always/prepare-where-possible split, and the rule that preparation can never change behaviour. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
@@ -70,8 +78,10 @@ the row below for whatever you're touching to get that.
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, or any runtime introspection/parsing surface | [ADR 0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md). Holds the only copy of the rule that both are built-in `Core` features, not extensions — reflective access enforces the same visibility/hook checks as ordinary code (no `setAccessible(true)`), and a parsed AST is inert typed data with no path back into execution. |
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, compile-error reporting, `Core\Fatal`, `Core\Log`, or anything about what gets logged when a handler itself fails | [ADR 0020](docs/adr/0020-error-escalation-ladder.md). Holds the only copy of the four-tier escalation ladder, why a resource-limit report is not a `Throwable`, and why every tier is zero-retry. |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`/`bytes`, `Core\Html\Markup`, or why a `Core\Request` value can't reach a sink unescaped | [ADR 0024](docs/adr/0024-taint-tracking-for-injection-sinks.md). Holds the only copy of the `tainted` qualifier, how it propagates and is laundered, the sinks that refuse it, and the HTML auto-escape default. |
+| SSRF, fetching a user-supplied URL, `Core\Http\Client`, the `net.connect` address policy, DNS rebinding, redirects | [ADR 0058](docs/adr/0058-outbound-request-policy.md). Holds the only copy of the two-layer rule — a `tainted` URL laundered by `Core\Http::allowUrl` into an address-pinned `Target`, and a capability-level address policy re-checked per redirect hop. |
 | `exec`/`system`/`passthru`/`shell_exec`/backticks/`proc_open`, running another program, shell command injection, or `Core\Process` | [ADR 0044](docs/adr/0044-core-process-argv-only-no-shell.md). Holds the only copy of the `Core\Process::run()`/`::spawn()` API, why there is no shell-string form at all, the Windows batch/PowerShell-target refusal, and the `process.exec` capability. |
 | Passwords, API keys, credentials, `secret string`/`bytes`, why a value can't be echoed/logged/dumped, or how `secret` differs from and composes with `tainted` | [ADR 0033](docs/adr/0033-secret-qualifier-for-confidential-values.md). Holds the only copy of the `secret` qualifier, why it has no ambient source the way `tainted` does, the sinks that refuse it (HTML output, `Core\Log`, debug dumps, `Throwable` messages, serialize/isolate-crossing), and `Core\Secret::reveal()`. |
+| JWT, CSRF tokens, TOTP, signed/encrypted cookies, or whether OAuth/WebAuthn/SAML belong in `Core` | [ADR 0060](docs/adr/0060-application-security-protocols.md). Holds the only copy of the closed four-entry roster, the three-part admission test, the stateless-token-vs-flow boundary that keeps it closed, and the correct-by-construction constraints (the algorithm comes from the key, never the token). |
 | A wasm32 browser target, running MWL client-side in a tab, `Core\Browser`, or why `spawn`/coroutine suspension/`.mwlx` extensions don't reach that target | [ADR 0025](docs/adr/0025-wasm-browser-target.md). Holds the only copy of the per-target capability matrix and why the language itself doesn't grow a browser-specific dialect. |
 | The VS Code extension, the PhpStorm plugin, `mwl-lsp`/`mwl-fmt` client wiring, syntax highlighting, or what "IDE integration" does and doesn't cover yet | [ADR 0016](docs/adr/0016-ide-integration.md). Holds the only copy of the rule that language smarts and formatting live exactly once, in `mwl-lsp`/`mwl-fmt`, with a thin client per editor — PhpStorm's LSP-bridge-before-native phasing and the deferred debugger-UI wiring are both decided there, not left to be inferred from M10's task list. |
 | `mwl fmt`'s formatting rules — indentation, brace placement, quoting, trailing commas, modifier/import order, or why it never reflows a wrapped expression | [ADR 0039](docs/adr/0039-canonical-code-formatting.md). Holds the only copy of the PER-based style, the no-reflow (gofmt, not Prettier) model, and the rule that formatting is unconfigurable and never enforced by the compiler — `mwl fmt --check` is opt-in, not a diagnostic. |
@@ -120,8 +130,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   down to `deny` with narrow, reasoned allows. Lint policy is in [Cargo.toml](Cargo.toml).
 - **Nothing unwinds through a JIT frame** — every call returns a checked status instead, never
   `extern "C-unwind"` ([ADR 0002](docs/adr/0002-error-propagation.md)).
-- **Pure-Rust dependencies by default**, enforced by [deny.toml](deny.toml) in CI. Deviations are argued
-  individually.
+- **Pure-Rust dependencies by default**, enforced by [deny.toml](deny.toml) in CI. A C dependency is
+  accepted only against two questions — does attacker-controlled data reach it, and if so does it have a
+  demonstrable, exceptional verification record — and is otherwise confined to wasm
+  ([ADR 0051](docs/adr/0051-standard-library-tiers.md) § 4, which replaces "argued individually").
 - **Extensions are sandboxed wasm, never `dlopen`** ([ADR 0003](docs/adr/0003-extension-system.md)).
 - **An isolate shares nothing but compiled code, and spends its parent's budget** — the same value-crossing
   rules as cross-core worker dispatch, limits accounted at the request tree's root, never per isolate
@@ -291,6 +303,47 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   through to its `;` only so the diagnostic can span the real statement, then discarded rather than reaching
   the AST; the per-leaf element grammar is identical either way, so nothing downstream ever saw the
   difference ([ADR 0050](docs/adr/0050-list-destructuring-spelling-rejected.md)).
+- **A stdlib candidate is placed by six ordered tests, not by PHP's extension list** — runtime privilege,
+  sink-or-launderer, waits-on-the-world, per-call cost, parses-hostile-bytes, would-two-exist — and the
+  bloat being guarded against is API surface and the unsandboxed dependency set, never binary size or
+  runtime memory; only Tier 0 may claim the `Core` prefix
+  ([ADR 0051](docs/adr/0051-standard-library-tiers.md)).
+- **Four doors stay shut: no FFI, no stream wrappers, no cross-request state, no `eval`** — each rejected
+  from a commitment already made rather than on taste, and none has an opt-in, an ini flag or a trusted
+  mode ([ADR 0052](docs/adr/0052-closed-doors.md)).
+- **`Iterable`/`Iterator` are the only iteration interfaces, and generators lower to a state machine** —
+  `ArrayAccess` and `Countable` do not exist, `foreach` accepts only an array, an `Iterable` or an
+  `Iterator`, and `yield` is confined to the generator's own body so every compile target keeps generators
+  ([ADR 0053](docs/adr/0053-iteration-and-generators.md)).
+- **`decimal` is a scalar, not a class** — because MWL has no operator overloading, a class would mean
+  method chains forever, which is the ergonomics gap that drives PHP to floats for money; `decimal ⊕ float`
+  is a compile error on the same grounds `int ⊕ uint` is, division rounds half-even at a fixed
+  unconfigurable scale, and `bcmath`/`gmp` are retired in favour of it plus `Core\BigInt`
+  ([ADR 0054](docs/adr/0054-decimal-scalar-type.md)).
+- **An extension's manifest can only tighten the qualifier analysis, never loosen it** — contagion applies
+  at the boundary with nothing declared, a manifest may only add a refusal or add a taint, no extension may
+  ever launder, and `secret` does not cross at all
+  ([ADR 0055](docs/adr/0055-extension-qualifier-declarations.md)).
+- **Regex runs on a linear-time engine by default** — backtracking is reached only by patterns the linear
+  engine cannot express, under a step budget that **throws** rather than returning PHP's silent falsy
+  value; a literal pattern's tier is known at compile time, and the *pattern* argument is a sink
+  ([ADR 0056](docs/adr/0056-regex-engine-policy.md)).
+- **The compiler knows a closed list of `Core` intrinsics and validates their literal arguments during
+  checking** — a malformed pattern, URI or format string is a compile error, preparation is stored in the
+  artifact cache, and the prepared and runtime paths share one implementation so behaviour cannot diverge
+  ([ADR 0057](docs/adr/0057-intrinsic-literal-folding.md)).
+- **An outbound URL is a sink, and the connection is made to a pinned address** — a `tainted` URL must pass
+  `Core\Http::allowUrl`, which resolves, checks and pins; the `net.connect` capability carries an address
+  policy denying loopback, private and link-local ranges by default, re-checked on every redirect hop
+  ([ADR 0058](docs/adr/0058-outbound-request-policy.md)).
+- **Cross-request state is explicit: `Core\Cache` is per-core, copied in and out, and charged to the core**
+  — the local tier may lose any entry at any time and is never coherent across cores, `Core\Session` may
+  not use it, and the memory it spends is O(cores × working set) under its own cap
+  ([ADR 0059](docs/adr/0059-cross-request-state-is-explicit.md)).
+- **A closed four-entry roster of application-layer security protocols lives in `Core`** — signed cookies,
+  CSRF, TOTP and JWT, each correct by construction (a JWT's algorithm comes from the key, never the token);
+  stateless token operations are in, multi-step flows like OAuth and WebAuthn are permanently out
+  ([ADR 0060](docs/adr/0060-application-security-protocols.md)).
 
 ## Commands
 
