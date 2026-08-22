@@ -43,9 +43,9 @@
 >
 > `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, **`new`/a static call**, **an
 > instance method call and a compile-time-known property access**, **`var` locals and multi-base
-> integer-literal cooking**, and now **`string` locals with refcount retain/release operations** — the
-> milestone text's first non-scalar *data* representation and the first refcount operations of any kind:
-> `crates/mwl-ir/src/ids.rs`
+> integer-literal cooking**, **`string` locals with refcount retain/release operations** (the
+> milestone text's first non-scalar *data* representation and the first refcount operations of any kind),
+> and now **`string` crossing a call-argument/return/property-read boundary**: `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
@@ -77,15 +77,20 @@
 > slot (a fresh literal needs no retain — it already has exactly one natural owner), releases a slot's
 > previous value on overwrite, and `Lowering::release_all_locals` releases every refcounted local still
 > live at a `return`/implicit-`void` fallthrough except the one slot whose value transfers out directly
-> (a bare `return $name;`). This stays exactly balanced today because a `string` value currently has only
-> two possible producers (a fresh literal or a bare-variable copy); `docs/implementation-plan.md`'s own
-> optimizer feature list already names "refcount elision" as separate, later work, so emitting
-> unconditionally now and optimizing later — rather than a harder move analysis up front — matches
-> CLAUDE.md's priority ordering (correctness/simplicity before memory/latency). `string` is a
-> local/parameter/return-*type* representation only so far: a call argument, a resolved call's return
-> type, and a property field's type all still panic naming `string` unsupported (`lower_checked_ty` has
-> no `CheckedTy::String` arm yet) — extending past a local's own lifecycle needs the same aliasing
-> judgment applied to a property read and to whatever calling convention a call/return boundary picks.
+> (a bare `return $name;`); `docs/implementation-plan.md`'s own optimizer feature list already names
+> "refcount elision" as separate, later work, so emitting unconditionally now and optimizing later —
+> rather than a harder move analysis up front — matches CLAUDE.md's priority ordering
+> (correctness/simplicity before memory/latency). `lower_checked_ty` now also gives the plain, unqualified
+> `CheckedTy::String` a `Ty::Str` arm, so a resolved call's/`new`'s `string` parameter, a call's `string`
+> return type, and a compile-time-known `string`-typed property *read* (`InstKind::FieldGet`) all lower
+> too — the aliasing judgment generalized into a shared `is_aliasing_read` helper (a bare variable read or
+> a property read, either of which borrows storage some other binding still owns) that now also gates a
+> call argument (retained by the caller before the call, released by the callee at its own exit — the same
+> local declare/drop symmetry, just across a call frame) and a returned expression (a property read has no
+> local slot for `release_all_locals`'s exclusion mechanism to skip, so `Return`'s own arm retains it
+> explicitly instead). A property *write* (`$obj->prop = expr;`) remains entirely unsupported for any field
+> type, and a `tainted`/`secret`-qualified `string`/`bytes` variant (ADR 0024/0033) still has no
+> `lower_checked_ty` arm — both pre-existing, unrelated gaps.
 >
 > Widening past scalars needed an architecture decision the plan flagged as open for two sessions: whether
 > `mwl-ir` should depend on `mwl-types`/`mwl-hir` directly and re-derive a call's/`new`'s resolved target
@@ -108,13 +113,15 @@
 > runtime-helper call that doesn't exist in the IR yet), a nullsafe access of either kind (`?->`), a
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
-> from), array access, virtual dispatch (every call/access lowered so far has its receiver's static type
-> equal to its runtime class), variadic/named/spread call arguments, string concatenation (`.`) and
-> interpolated/heredoc/nowdoc string literals (only a plain single/double-quoted literal with no
+> from), a property *write* of any field type, array access, virtual dispatch (every call/access lowered so
+> far has its receiver's static type equal to its runtime class), variadic/named/spread call arguments, a
+> bare call used purely as a statement (`Lowering::lower_reassignment` only accepts an `ExprKind::Assign`
+> expression statement — noticed this session, unrelated to what it landed), string concatenation (`.`)
+> and interpolated/heredoc/nowdoc string literals (only a plain single/double-quoted literal with no
 > interpolation cooks today, and only the common escapes — a numeric escape passes through uncooked), a
-> `string` value crossing a call-argument/return/property-field boundary (see the paragraph above), and
-> `bytes`/`array<T>` (no representation exists yet at all; `Ty::Object` also still has no refcount
-> operations of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
+> `tainted`/`secret`-qualified string or bytes variant, and `bytes`/`array<T>` (no representation exists yet
+> at all; `Ty::Object` also still has no refcount operations of its own, deferred the same "shape now,
+> functional later" way `InstKind::Safepoint` was).
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
