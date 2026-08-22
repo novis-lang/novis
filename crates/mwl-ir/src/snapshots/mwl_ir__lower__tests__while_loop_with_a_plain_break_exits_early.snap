@@ -1,0 +1,37 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, int) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-4:16
+    v2 = const.int 0  ; int
+    ; stmt s1 @5:5-10:6
+    jump bb1
+  bb1:
+    v3 = phi [bb0: v2, bb4: v8]  ; int
+    v4 = lt v3, v1  ; bool
+    branch v4 -> bb2 (e0), bb3 (e1)
+  bb2:
+    ; stmt s2 @5:21-10:6
+    ; stmt s3 @6:7-8:8
+    v5 = const.int 3  ; int
+    v6 = eq v3, v5  ; bool
+    branch v6 -> bb5 (e2), bb4 (e3)
+  bb3:
+    ; stmt s7 @11:5-11:15
+    return v3
+  bb4:
+    ; stmt s6 @9:7-9:19
+    v7 = const.int 1  ; int
+    v8 = add v3, v7  ; int
+    safepoint
+    jump bb1
+  bb5:
+    ; stmt s4 @6:20-8:8
+    ; stmt s5 @7:9-7:15
+    jump bb3
+}

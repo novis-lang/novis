@@ -35,10 +35,13 @@
 //! array-element access, and now `$a[] = expr;` append syntax on the write
 //! side (`$a[]` as a read has no PHP meaning at all, so it stays unsupported
 //! by design, not by gap) — [`lower::lower_method`] is the entry point. No
-//! `for`/`switch`/`try`, no `break`/`continue`, no `...spread`/`&value`
+//! `for`/`switch`/`try`, no `break N`/`continue N` for `N > 1`, no `...spread`/`&value`
 //! array-literal element, no concatenation of a `Stringable`-object operand (a class/enum
 //! value itself also has a representation, [`ty::Ty::Object`], just not a
-//! way to refcount one yet, nor a way to invoke its `toString()` from here).
+//! way to refcount one yet, nor a way to invoke its `toString()` from here),
+//! and now `break`/`continue` for a `while` loop (level 1 only — see the
+//! twenty-first slice below for `for`/`switch`, which still aren't lowered
+//! at all).
 //! The straight-line
 //! subset was deliberately the *first* slice landed
 //! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
@@ -417,6 +420,50 @@
 //! `mixed`-erased base, still blocked on the runtime type-tag design
 //! question the eighteenth slice's own paragraph names.
 //!
+//! The twenty-first slice lowers `break`/`continue` for a `while` loop —
+//! the recommended pick left at the end of the twentieth slice's own
+//! session, chosen over the `mixed` runtime type-tag design question and a
+//! `...spread`/`&value` array-literal element as the more mechanical of the
+//! three, and deliberately narrowed to `while` alone (`for`/`switch` still
+//! don't lower at all) rather than attempting every loop-exit-shaped
+//! construct in one slice. A new [`lower::LoopFrame`] — pushed onto a new
+//! [`lower::Lowering::loop_stack`] field before [`lower::Lowering::lower_while`]
+//! lowers its body, popped back off once it returns — carries the loop's
+//! `header_block`/`after_block` plus one `(BlockId, Env)` pair per
+//! `break`/`continue` actually lowered inside that body, at any nesting
+//! depth reachable through `if`/nested `{}`; [`lower::Lowering::lower_break`]/
+//! [`lower::Lowering::lower_continue`] each just read the top frame, record
+//! their own edge into it, and seal the current block with a plain
+//! [`ir::Terminator::Jump`] to `after_block`/`header_block` respectively — no
+//! new `Terminator`/`InstKind` shape was needed, confirming the known-gaps
+//! list's own prediction that `if`/`while` had already exercised everything
+//! `for`/`switch`/`break`/`continue` would need. The actual design work was
+//! folding the recorded edges back into the two join points `lower_while`
+//! already built: a `continue` is exactly one more loop back edge, so its
+//! edge joins the body's own fall-through exit (when the body reaches one)
+//! before [`lower::Lowering::lower_while`]'s existing header-phi-patch loop
+//! runs, widened from "patch with the one fall-through value" to "patch
+//! with every back edge's value, fall-through included"; a `break` is a new
+//! kind of join `lower_while` never had before at all — before this slice,
+//! a loop's exit environment was always exactly `header_env`, since the
+//! condition's own false edge was the only way out — so `after_block` now
+//! runs the same [`lower::Lowering::merge_envs`] general-purpose join
+//! [`lower::Lowering::lower_if`] already uses for its own merge block,
+//! combining the false edge (carrying `header_env`) with every recorded
+//! `break` edge; with no `break` at all this degenerates back to exactly
+//! the prior single-clone behavior (`merge_envs`'s own `[(_, only)]` case),
+//! so a break-free loop's lowering is unchanged bit-for-bit apart from the
+//! extra clone. `break N`/`continue N` for `N > 1` and a `break`/`continue`
+//! with a non-literal level both still panic naming the gap — see
+//! [`lower::Lowering::loop_exit_level`]'s own doc comment for why unwinding
+//! more than one loop needs `loop_stack` walked past its innermost frame,
+//! left for whenever a fixture actually needs it — and so does either
+//! keyword reached with an empty `loop_stack` (outside any loop at all):
+//! `mwl_types` does not yet reject that itself (see the known gaps below),
+//! so this crate's own stack-emptiness check is the one place it's still
+//! caught, defensively, rather than building a `Jump` to a block that was
+//! never created.
+//!
 //! # Design choices worth knowing before widening this further
 //!
 //! - **SSA, not a plain CFG.** `docs/implementation-plan.md`'s M2 paragraph
@@ -580,11 +627,32 @@
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
-//! - `for`/`switch`/`match`/`try`, and `break`/`continue` of any kind, are
-//!   still unsupported: lowering panics naming the statement.
-//!   [`ir::Terminator::Branch`] and [`ids::EdgeId`] are both already
-//!   exercised by `if`/`while`, so widening to the rest is expected to reuse
-//!   the same shapes rather than add new ones — see [`lower`]'s module docs.
+//! - `for`/`switch`/`match`/`try` are still unsupported: lowering panics
+//!   naming the statement. [`ir::Terminator::Branch`] and [`ids::EdgeId`]
+//!   are both already exercised by `if`/`while`, so widening to the rest is
+//!   expected to reuse the same shapes rather than add new ones — see
+//!   [`lower`]'s module docs. `break`/`continue` now lower for a `while`
+//!   loop (the twenty-first slice, above) — see the next bullet for exactly
+//!   what's still out of scope on that front.
+//! - **`break`/`continue` lower for a `while` loop, level 1 only.** See the
+//!   twenty-first-slice paragraph above for [`lower::LoopFrame`]'s shape and
+//!   how a `continue`'s edge folds into the header's own phi-patch loop
+//!   while a `break`'s folds into a new [`lower::Lowering::merge_envs`] call
+//!   at the after-block. What's still out of scope: `break N`/`continue N`
+//!   for any `N > 1` (a multi-level exit — panics naming it), a
+//!   non-literal level expression (also panics), and either keyword inside
+//!   a `for`/`switch` body, since neither of those statements lowers at all
+//!   yet. A `break`/`continue` with no enclosing loop at all also still
+//!   reaches this crate unrejected — `mwl_types` does not itself check loop
+//!   nesting (see its own known gaps) — so [`lower::Lowering::loop_stack`]
+//!   being empty is this crate's own defensive check, not something a
+//!   well-formed input program could trigger; picking up that checker-side
+//!   gap would let this crate's own panic go from "defensive" to
+//!   "unreachable," the same way `mwl_types` growing ADR 0007 § 4's
+//!   literal-magnitude check already turned this crate's own out-of-range
+//!   integer-literal panic from a live gap into an unreachable-input
+//!   invariant (see the "Integer literal magnitude range-checking" bullet
+//!   below).
 //! - **An `if`/`while` condition converts through ADR 0035's truthy table for
 //!   a `bool`, scalar, or `Ty::Array` operand; a `Ty::Object` operand (a
 //!   class instance or an enum case) is always truthy and needs no helper at
@@ -718,8 +786,9 @@
 //!   gaps), so there is no resolved per-argument type to lower against even
 //!   if this crate wanted to try.
 //! - Safepoints are reserved, not functional. [`ir::InstKind::Safepoint`] is
-//!   emitted at function entry and at every `while` back edge (see that
-//!   variant's own doc comment), but it is inert — no codegen exists yet to
+//!   emitted at function entry and at every `while` back edge — the body's
+//!   own fall-through exit and every `continue` alike, as of the
+//!   twenty-first slice above — but it is inert — no codegen exists yet to
 //!   lower it to an actual CPU-limit/cancellation/cycle-collector check, and
 //!   no guard test needs it functional before M3's backend does. `for`
 //!   loops will need the same back-edge marker once they land.

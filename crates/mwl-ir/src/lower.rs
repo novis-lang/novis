@@ -62,6 +62,29 @@ use crate::{span_text, strip_sigil};
 /// representation type.
 type Env = FxHashMap<String, (ValueId, Ty)>;
 
+/// One `while` loop's exit points, gathered while its body is lowered.
+/// [`Lowering::lower_while`] pushes one of these onto
+/// [`Lowering::loop_stack`] before lowering its body and pops it back off
+/// once lowering returns; [`Lowering::lower_break`]/[`Lowering::lower_continue`]
+/// read the top frame's `after_block`/`header_block` and record their own
+/// `(block, env)` pair into it. `lower_while` then folds `continue_edges` in
+/// alongside the body's own fall-through exit when patching the header's
+/// phis, and `break_edges` in alongside the condition's false edge when
+/// building the loop's own after-block environment — see that method's own
+/// doc comment for exactly how both are combined.
+struct LoopFrame {
+    /// Where a `continue` jumps — the loop header, re-running the condition.
+    header_block: BlockId,
+    /// Where a `break` jumps — the block right after the loop.
+    after_block: BlockId,
+    /// One `(block, env)` pair per `continue` lowered inside this loop's
+    /// body, in source order.
+    continue_edges: Vec<(BlockId, Env)>,
+    /// One `(block, env)` pair per `break` lowered inside this loop's body,
+    /// in source order.
+    break_edges: Vec<(BlockId, Env)>,
+}
+
 /// Lowers `m` — which must have a body, and whose body must stay within this
 /// slice's supported statement/expression shapes (see the crate docs) — to a
 /// [`Function`] named `name`. `exprs`/`checked_types` are the
@@ -178,6 +201,11 @@ struct Lowering<'a> {
     block_ids: Vec<BlockId>,
     block_insts: Vec<Vec<Inst>>,
     block_terms: Vec<Option<Terminator>>,
+    /// The stack of enclosing `while` loops currently being lowered,
+    /// innermost last — see [`LoopFrame`]'s own doc comment for how
+    /// [`Self::lower_while`]/[`Self::lower_break`]/[`Self::lower_continue`]
+    /// use it.
+    loop_stack: Vec<LoopFrame>,
 }
 
 impl<'a> Lowering<'a> {
@@ -196,6 +224,7 @@ impl<'a> Lowering<'a> {
             block_ids: Vec::new(),
             block_insts: Vec::new(),
             block_terms: Vec::new(),
+            loop_stack: Vec::new(),
         }
     }
 
@@ -494,10 +523,12 @@ impl<'a> Lowering<'a> {
                 self.lower_if(cond, then, else_.as_deref(), cur, env);
             }
             StmtKind::While { cond, body } => self.lower_while(cond, body, cur, env),
+            StmtKind::Break(level) => self.lower_break(level, cur, env),
+            StmtKind::Continue(level) => self.lower_continue(level, cur, env),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration, a plain \
-                 reassignment, `return`, a nested block, `if` and `while` — got {other:?}; see \
-                 the crate docs' known gaps"
+                 reassignment, `return`, a nested block, `if`, `while` and a `while`-scoped \
+                 `break`/`continue` — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -748,7 +779,17 @@ impl<'a> Lowering<'a> {
     }
 
     /// `while (cond) body` — the module docs describe the loop-header phi
-    /// construction this drives.
+    /// construction this drives. A `break`/`continue` anywhere inside `body`
+    /// (at any nesting depth reachable through `if`/nested `{}`) adds one
+    /// more incoming edge to fold in: [`Self::lower_break`]/
+    /// [`Self::lower_continue`] record their own `(block, env)` pair into
+    /// the [`LoopFrame`] this method pushes before lowering `body` and pops
+    /// once it returns — a `continue`'s edge joins the body's own
+    /// fall-through exit when patching the header's phis below, and a
+    /// `break`'s edge joins the condition's false edge when building the
+    /// loop's own after-block environment, both through the same
+    /// [`Self::merge_envs`]/phi-patch machinery a fall-through-only loop
+    /// already used.
     ///
     /// # Panics
     ///
@@ -810,22 +851,42 @@ impl<'a> Lowering<'a> {
             },
         );
 
+        self.loop_stack.push(LoopFrame {
+            header_block,
+            after_block,
+            continue_edges: Vec::new(),
+            break_edges: Vec::new(),
+        });
         let mut body_env = header_env.clone();
         let mut body_cur = body_block;
         self.lower_stmt(body, &mut body_cur, &mut body_env);
+        let frame = self
+            .loop_stack
+            .pop()
+            .expect("just pushed this loop's own frame above");
+
+        // Every edge that loops back to the header: the body's own
+        // fall-through exit (if it reaches one) plus one more per `continue`
+        // recorded while lowering the body above.
+        let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
         if !self.is_terminated(body_cur) {
             // Reserved safepoint poll site (loop back edge) — see
             // `InstKind::Safepoint`'s own doc comment. Placed on the actual
             // back edge, not the loop header, so a body that never reaches
             // it (e.g. it always `return`s) polls zero times per skipped
-            // iteration, same as a functional poll would.
+            // iteration, same as a functional poll would. A `continue`'s own
+            // back edge already got its own poll in `Self::lower_continue`.
             self.emit_safepoint(body_cur);
             self.seal(body_cur, Terminator::Jump(header_block));
-            for (name, inst_index) in &phi_slots {
-                let &(back_v, _) = body_env.get(name).unwrap_or_else(|| {
+            back_edges.push((body_cur, body_env));
+        }
+        back_edges.extend(frame.continue_edges);
+        for (name, inst_index) in &phi_slots {
+            for (block, back_env) in &back_edges {
+                let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
                     panic!(
                         "mwl-ir: `{name}` was reassigned in a while body per the syntactic scan \
-                         but is missing from its exit environment — bug in \
+                         but is missing from a back edge's exit environment — bug in \
                          collect_reassigned_locals"
                     )
                 });
@@ -833,16 +894,124 @@ impl<'a> Lowering<'a> {
                 let InstKind::Phi { incoming } = &mut inst.kind else {
                     unreachable!("phi_slots only ever indexes a Phi instruction");
                 };
-                incoming.push((body_cur, back_v));
+                incoming.push((*block, back_v));
             }
         }
-        // If the body never reaches its own back edge (e.g. it always
-        // `return`s), each header phi keeps its single pre-loop incoming
-        // edge — a degenerate but valid phi, since no optimizer exists yet
-        // to fold a single-input phi away.
+        // If no back edge exists at all (e.g. the body always `return`s and
+        // never `continue`s), each header phi keeps its single pre-loop
+        // incoming edge — a degenerate but valid phi, since no optimizer
+        // exists yet to fold a single-input phi away.
 
-        *env = header_env;
+        // The loop's own exit environment: the condition's ordinary false
+        // edge (carrying `header_env` unchanged, since `lower_truthy_cond`
+        // only ever reads `header_env`, never mutates it) plus one more
+        // incoming edge per `break` recorded above. `Self::merge_envs`
+        // degenerates to a plain clone with no new phi at all when there is
+        // no `break` to fold in, exactly the prior "loop exit is always
+        // `header_env`" behavior.
+        let mut after_incoming: Vec<(BlockId, Env)> = vec![(cond_end, header_env.clone())];
+        after_incoming.extend(frame.break_edges);
+        *env = self.merge_envs(after_block, &after_incoming, &header_env);
         *cur = after_block;
+    }
+
+    /// `break;`/`break 1;` — jumps straight to the enclosing loop's exit
+    /// block, recording the current block and environment as one more
+    /// incoming edge [`Self::lower_while`] folds into its own after-block
+    /// merge once the body it's nested in finishes lowering. See
+    /// [`Self::loop_exit_level`] for what `level` is allowed to be.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Self::loop_stack`] is empty — `mwl_types` does not yet
+    /// reject a `break` outside any loop itself (see the crate docs' known
+    /// gaps), so this is the one place that still gets checked, defensively,
+    /// before building a jump with nothing to target.
+    fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
+        self.loop_exit_level(level, "break");
+        let after_block = self
+            .loop_stack
+            .last()
+            .unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: `break` reached lowering with no enclosing loop on the loop stack \
+                     — mwl_types should have already rejected this; see the crate docs' known \
+                     gaps"
+                )
+            })
+            .after_block;
+        self.loop_stack
+            .last_mut()
+            .expect("just read the same stack above")
+            .break_edges
+            .push((*cur, env.clone()));
+        self.seal(*cur, Terminator::Jump(after_block));
+    }
+
+    /// `continue;`/`continue 1;` — a loop back edge exactly like the body's
+    /// own fall-through exit, so it gets the same safepoint poll and the
+    /// same header-phi patching, folded in by [`Self::lower_while`] once the
+    /// body it's nested in finishes lowering. See [`Self::loop_exit_level`]
+    /// for what `level` is allowed to be.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Self::loop_stack`] is empty — see [`Self::lower_break`]'s
+    /// panic doc, the same defensive check applies here.
+    fn lower_continue(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
+        self.loop_exit_level(level, "continue");
+        let header_block = self
+            .loop_stack
+            .last()
+            .unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: `continue` reached lowering with no enclosing loop on the loop \
+                     stack — mwl_types should have already rejected this; see the crate docs' \
+                     known gaps"
+                )
+            })
+            .header_block;
+        self.emit_safepoint(*cur);
+        self.loop_stack
+            .last_mut()
+            .expect("just read the same stack above")
+            .continue_edges
+            .push((*cur, env.clone()));
+        self.seal(*cur, Terminator::Jump(header_block));
+    }
+
+    /// Validates a `break`/`continue` statement's optional level operand —
+    /// PHP allows `break N;`/`continue N;` to unwind `N` nested loops at
+    /// once. Only `None` (defaults to level 1) or a literal `1` is accepted
+    /// today: a non-literal level has no compile-time meaning to resolve,
+    /// and `N > 1` would need every enclosing [`LoopFrame`] on
+    /// [`Self::loop_stack`] up to the `N`-th, not just the innermost one, to
+    /// become that statement's target — a real widening [`Self::lower_while`]
+    /// doesn't do yet, left for whenever a fixture actually nests loops this
+    /// deeply.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the gap for a non-literal level or one greater than 1.
+    fn loop_exit_level(&self, level: &Option<Expr>, keyword: &str) {
+        let Some(level_expr) = level else {
+            return;
+        };
+        let ExprKind::Int(span) = &level_expr.kind else {
+            panic!(
+                "mwl-ir does not yet lower a `{keyword}` with a non-literal level; see the \
+                 crate docs' known gaps"
+            );
+        };
+        let (radix, digits) = int_literal_digits(self.src, *span);
+        let n = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
+            panic!("mwl-ir: `{keyword}` level literal `{digits}` doesn't fit a u64")
+        });
+        assert!(
+            n == 1,
+            "mwl-ir does not yet lower `{keyword} {n}` — a multi-level {keyword}; see the crate \
+             docs' known gaps"
+        );
     }
 
     /// Merges the environments reaching a join block into one, inserting a
@@ -3663,6 +3832,94 @@ class T {
     fn a_short_circuit_and_nested_in_a_call_argument_is_still_out_of_scope() {
         lower_first_method(
             "<?mwl\nclass T {\n  function m(bool $a, bool $b): void {\n    self::take($a && $b);\n  }\n  static function take(bool $x): void {}\n}\n",
+        );
+    }
+
+    /// A plain `break;` inside a nested `if`, with no reassignment along the
+    /// break path that would ever differ from the loop's own steady-state
+    /// value — `Lowering::merge_envs` degenerates to a plain clone (the same
+    /// `[(_, only)]` shape a break-free loop already produced) rather than a
+    /// spurious phi, but the CFG itself gains the extra break block/edge:
+    /// this is mostly a shape test confirming `break` lowers to a `Jump`
+    /// straight to the after-block at all, before the next test exercises a
+    /// case where the merge actually needs a fresh phi.
+    #[test]
+    fn while_loop_with_a_plain_break_exits_early() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    while ($i < $n) {\n      if ($i == 3) {\n        break;\n      }\n      $i = $i + 1;\n    }\n    return $i;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `break` after a reassignment the loop's own back edge never sees
+    /// (`$r = $i;` runs every iteration, but the `break` fires before the
+    /// bottom-of-body value the header phi's back edge would otherwise
+    /// carry) — the after-block's own environment now needs a real
+    /// `Lowering::merge_envs`-built phi for `$r`, combining the condition's
+    /// ordinary false edge (the loop-steady-state phi value) with the
+    /// break's own edge (that iteration's fresher value), not just a plain
+    /// clone of `header_env` the way a break-free loop always produced.
+    #[test]
+    fn break_merges_a_differing_value_into_the_after_block() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    int $r = 0;\n    while ($i < $n) {\n      $r = $i;\n      if ($i == 3) {\n        break;\n      }\n      $i = $i + 1;\n    }\n    return $r;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `continue` inside a nested `if` adds a *third* incoming edge to
+    /// `$sum`'s header phi, alongside the pre-loop edge and the body's own
+    /// fall-through back edge — `$sum` is skipped (via `continue`) on the
+    /// iteration where `$i == 3`, so that edge's value genuinely differs
+    /// from the fall-through edge's, confirming
+    /// `Lowering::lower_while`'s combined `back_edges` (fall-through plus
+    /// every recorded `continue`) all reach the same phi, not just the
+    /// fall-through edge alone.
+    #[test]
+    fn continue_adds_another_incoming_edge_to_the_header_phi() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $n): int {\n    int $i = 0;\n    int $sum = 0;\n    while ($i < $n) {\n      $i = $i + 1;\n      if ($i == 3) {\n        continue;\n      }\n      $sum = $sum + $i;\n    }\n    return $sum;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `break`/`continue` outside any loop at all reach lowering unrejected —
+    /// `mwl_types` does not yet check loop nesting at all (see the crate
+    /// docs' known gaps) — so `Lowering::loop_stack` being empty is the one
+    /// place this still gets caught, defensively, rather than lowering a
+    /// `Jump` to a block that was never created.
+    #[test]
+    #[should_panic(expected = "no enclosing loop")]
+    fn break_outside_any_loop_panics_naming_the_gap() {
+        lower_first_method("<?mwl\nclass T {\n  function m(): void {\n    break;\n  }\n}\n");
+    }
+
+    /// Same as above, for `continue`.
+    #[test]
+    #[should_panic(expected = "no enclosing loop")]
+    fn continue_outside_any_loop_panics_naming_the_gap() {
+        lower_first_method("<?mwl\nclass T {\n  function m(): void {\n    continue;\n  }\n}\n");
+    }
+
+    /// `break 2;`/`continue 2;` — a multi-level break/continue — still
+    /// panics naming the gap: unwinding more than one enclosing loop would
+    /// need every `LoopFrame` up to the `N`-th on `Lowering::loop_stack` to
+    /// become the statement's target, not just the innermost one
+    /// `Lowering::loop_exit_level` reads today.
+    #[test]
+    #[should_panic(expected = "multi-level break")]
+    fn a_multi_level_break_still_panics_naming_the_gap() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $n): void {\n    while ($n > 0) {\n      while ($n > 0) {\n        break 2;\n      }\n    }\n  }\n}\n",
+        );
+    }
+
+    /// Same as above, for `continue`.
+    #[test]
+    #[should_panic(expected = "multi-level continue")]
+    fn a_multi_level_continue_still_panics_naming_the_gap() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $n): void {\n    while ($n > 0) {\n      continue 2;\n    }\n  }\n}\n",
         );
     }
 }
