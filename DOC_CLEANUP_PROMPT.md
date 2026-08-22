@@ -12,12 +12,13 @@ over everything and clean it up:
 
 - Cleanup, compact, deduplicate, streamline everything so the project is in a cleaner state and new
   sessions/developers can pick it up easily.
-- Combine ADRs where it makes sense.
+- Combine/Merge ADRs where it makes sense.
 - Remove any decision or information that is now irrelevant and doesn't benefit the project.
 - Don't keep every single historical decision in the live docs just because it happened.
 - Where a choice deliberately diverges from PHP, don't excessively justify it — state that it was a
   definitive decision made during brainstorming and move on. Keep the "why we're not doing it PHP's
   way" reasoning to a bare minimum everywhere it appears.
+- If we made specific decisions that have a amendment that overrides the previous decision, collapse the decisions so not all the history of an idea flow will be kept in the docs. We have git versioning, everything ever existed is still in the git history, we dont need it in the docs. At the current stage, we can accept to override the "Accepted" areas in an ADR, because we are still in early prototyping phase.
 
 ## Standing rules for this pass (decided 2026-08-21, keep applying unless told otherwise)
 
