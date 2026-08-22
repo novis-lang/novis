@@ -12,6 +12,10 @@
 - **Relates to:** [0003](0003-extension-system.md) (the same phased shape: ship the portable, sandboxed
   answer first, and name the deeper native investment as a later, explicit decision rather than build it
   up front)
+- **Amended by:** [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) — for VS Code only (PhpStorm is
+  untouched): pulls a minimal `mwl-lsp`/`editors/vscode` into a new milestone, M4B, ahead of M10; commits to
+  a Test Explorer with coverage and to VS Code's debugger UI wiring, both of which § 2/§ 4 here left
+  deferred/out of scope; and adds a resilient-parse requirement to `mwl-syntax` that this ADR never named.
 
 > **In short:** a language server is necessary but not sufficient in either editor. VS Code always needs a
 > thin client extension regardless of the server behind it — something has to spawn `mwl lsp`, register the

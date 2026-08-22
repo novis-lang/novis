@@ -700,6 +700,28 @@ declared object property is refused regardless of nullability
 non-trivial CLI program (an argument-parsing file-processing tool) runs correctly; no leaks under
 Valgrind/ASAN.
 
+### M4B — Minimal `mwl-lsp` and the VS Code extension (~3 weeks)
+Pulled ahead of M10 by [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
+testing in an editor starts the moment M4 makes MWL a usable CLI language, rather than after M5–M9.
+`crates/mwl-syntax` gains a second, error-recovering parse entry point — a lossless tree, in the shape
+rust-analyzer's `rowan` popularized, that keeps producing a usable structure around a syntax error instead
+of aborting — used only by the pieces below; `mwl check`/`mwl run` keep the existing strict, all-or-nothing
+parse unchanged. `crates/mwl-lsp` (`tower-lsp`) ships its first, minimal slice: diagnostics (via `mwl
+check` run against the resilient tree), hover (declared types), go-to-definition, and keyword/member
+completion — no workspace-wide symbol search or code actions yet, that's M10. `editors/vscode` ships
+alongside it: `.mwl` registration, a TextMate grammar, `language-configuration.json`, `mwl lsp` process
+spawning, a `LanguageStatusItem` for server health, `mwl run`/`mwl test` as VS Code Tasks, and an AST
+explorer panel backed by the CLI's existing `mwl ast` command (no new language feature needed for that
+one). No formatting support yet (`mwl fmt` doesn't exist until M10) and no PhpStorm work — PhpStorm stays
+entirely at M10, per [ADR 0016](adr/0016-ide-integration.md).
+
+**Verify:** typing an incomplete statement (unclosed brace, trailing `->`) does not stop
+diagnostics/hover/completion from working on the well-formed code around it — the resilient-parse mode's
+core claim. The VS Code extension activates on `.mwl`, shows TextMate colour immediately and semantic-token
+colour once `mwl-lsp` responds, and diagnostics/hover/go-to-definition/completion round-trip through it
+with no logic duplicated into the extension. The AST panel renders `mwl ast --json`'s tree for the active
+file.
+
 ### M5 — Concurrency and script isolates (~5 weeks)
 Per-core runtimes, coroutine scheduler, `spawn` / `await` / `all` / `race` / `timeout`, `Channel` with
 backpressure, `parallel_map`, cross-core worker dispatch with deep-copy-or-move, structured concurrency
@@ -853,13 +875,14 @@ next request. Benchmark in-guest compute throughput against the equivalent nativ
 **commit the numbers** — this is the one figure in ADR 0003 that is currently asserted rather than
 measured.
 
-### M10 — Developer tooling and IDE integration (~14 weeks)
+### M10 — Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined)
 `mwl fmt` (canonical, idempotent — the **only** formatting implementation; neither editor client below gets
 its own; its PER-based, unconfigurable, no-reflow style and `--check`/`--diff` surface are
-[ADR 0039](adr/0039-canonical-code-formatting.md)); `mwl lsp` over `tower-lsp` reusing the front end with
-incremental reparse (completion, go-to-definition, hover types, diagnostics, rename); `mwl dap` using
-safepoints for breakpoints plus
-deopt-to-debug in codegen; a sampling profiler emitting flamegraphs; `mwl pkg` with lockfile, semver
+[ADR 0039](adr/0039-canonical-code-formatting.md)); `mwl-lsp` grows past M4B's minimal slice into full
+workspace-wide symbol search, incremental reparse, rename, and code actions; `mwl dap` using safepoints for
+breakpoints plus deopt-to-debug in codegen; a sampling profiler, emitting output in the open speedscope
+format so it opens in existing viewers rather than a bespoke flamegraph renderer
+([ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md)); `mwl pkg` with lockfile, semver
 resolution and a registry. Also here: `Core\Debug`, the `[debug]` `mwl.ini` section and
 `debug.trace`/`debug.profile` capabilities, and the Clover/lcov/Callgrind exporters wired to `mwl test
 --coverage=…` and `mwl run --profile=…` — the developer-facing coverage/tracing/profiling feature whose
@@ -867,36 +890,40 @@ probe mechanism landed with M3
 ([ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), a deterministic per-call
 profiler distinct from the sampling one above).
 
-**Also in this milestone: the two editor clients**, per [ADR 0016](adr/0016-ide-integration.md) — a
-language server alone does not give either editor tight integration, so this is real, scoped work rather
-than a side effect of `mwl lsp` existing:
+**Also in this milestone: the rest of the two editor clients.** M4B already shipped `mwl-lsp`'s minimal
+slice and `editors/vscode`'s baseline; what lands here per
+[ADR 0016](adr/0016-ide-integration.md)/[ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) is
+the deep half:
 
-- **`editors/vscode`** — a `vscode-languageclient` extension: `.mwl` language registration, a TextMate
-  grammar for instant syntax colour ahead of the first LSP response, semantic-token colour layered on once
-  the server is warm, `mwl lsp` process spawning, format-on-save and format commands wired to `mwl fmt`, and
-  `mwl run`/`mwl test` surfaced as VS Code Tasks.
-- **`editors/phpstorm`** — a Kotlin/Gradle plugin that registers `.mwl` as its own file type (distinct from
-  PhpStorm's bundled PHP support, which must not claim it), bridges to the **same** `mwl lsp`/`mwl fmt`
-  binaries through JetBrains' LSP client support (or LSP4IJ, per ADR 0016 *Revisiting*), and ships an
-  equivalent TextMate-or-equivalent baseline grammar. PSI-level refactoring, structural search, and a native
-  Formatter/Code Style page are explicitly out of scope for this phase — [ADR 0016](adr/0016-ide-integration.md)
-  names the native-plugin path as a later decision, not a silent gap.
-
-**Deferred out of this milestone, on record rather than by omission:** wiring either editor's debugger UI
-to `mwl dap` (VS Code's `DebugAdapterDescriptorFactory` + `launch.json` schema, PhpStorm's `XDebugger` UI).
-`mwl dap` itself still ships and is verified below; the editor-side debugger wiring is a tracked fast-follow
-([ADR 0016](adr/0016-ide-integration.md) *Revisiting*).
+- **`editors/vscode`** (extending the M4B package, not a second one) — format-on-save and format commands
+  wired to `mwl fmt`; inspections and quick fixes for every ADR-named diagnostic that has an obvious fix
+  (casing, legacy casts, missing property init, `include`→`require`, `tainted`/`secret` laundering);
+  workspace-wide rename, extract-to-method/variable, alias-free organize-imports; signature help and
+  cross-file completion; inlay hints; a native Test Explorer wired to `mwl test`/`.mwlt` with coverage via
+  VS Code's own `FileCoverage` API (no custom gutter UI); a "View Profile" command opening the
+  speedscope-format sampling output; and — reversing ADR 0016 § 4 for VS Code specifically — a
+  `DebugAdapterDescriptorFactory` and `launch.json` schema wiring `mwl dap` into VS Code's existing debugger
+  UI. Full rationale and per-feature dependencies: [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md).
+- **`editors/phpstorm`** — unchanged from [ADR 0016](adr/0016-ide-integration.md): a Kotlin/Gradle plugin
+  that registers `.mwl` as its own file type (distinct from PhpStorm's bundled PHP support, which must not
+  claim it), bridges to the **same** `mwl lsp`/`mwl fmt` binaries through JetBrains' LSP client support (or
+  LSP4IJ, per ADR 0016 *Revisiting*), and ships an equivalent TextMate-or-equivalent baseline grammar.
+  PSI-level refactoring, structural search, a native Formatter/Code Style page, a Test Explorer, and
+  debugger UI wiring are all still out of scope for PhpStorm — [ADR 0016](adr/0016-ide-integration.md)
+  names the native-plugin path as a later decision, not a silent gap, and [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md)
+  does not touch PhpStorm at all.
 
 **Verify:** `mwl fmt` is idempotent across the whole corpus, and neither editor extension contains its own
-formatting logic. The VS Code extension activates on `.mwl`, shows TextMate-grammar colour immediately and
-semantic-token colour once `mwl lsp` responds, and completion/hover/diagnostics/go-to-definition/rename/
-format-on-save all round-trip through `mwl lsp`/`mwl fmt`. The PhpStorm plugin registers `.mwl` as its own
-file type (opening one does not invoke PhpStorm's bundled PHP support) and gets the same
-completion/hover/diagnostics/rename/formatting round trip through the identical `mwl lsp`/`mwl fmt`
-binaries — evidenced by both editors agreeing byte-for-byte on the same file's formatted output and
-diagnostics. Breakpoints hit in JIT-compiled code with correct variable values (via `mwl dap` directly;
-neither editor's debugger UI is expected to exist yet). Profiler output attributes time to the right MWL
-functions.
+formatting logic. The VS Code extension's inspections/refactorings/rename round-trip as LSP code actions
+and requests with no logic duplicated locally; format-on-save matches `mwl fmt --check` byte-for-byte; the
+Test Explorer runs `.mwlt` cases and shows coverage sourced from the Clover/lcov exporters; a captured
+profile opens correctly in a speedscope-compatible viewer; a breakpoint set in VS Code's UI hits in
+JIT-compiled code with correct variable values through the wired-up `mwl dap` adapter, with no
+MWL-authored debugger UI code. The PhpStorm plugin registers `.mwl` as its own file type (opening one does
+not invoke PhpStorm's bundled PHP support) and gets the same completion/hover/diagnostics/rename/formatting
+round trip through the identical `mwl lsp`/`mwl fmt` binaries as VS Code — evidenced by both editors
+agreeing byte-for-byte on the same file's formatted output and diagnostics — with breakpoints verified via
+`mwl dap` directly, since PhpStorm's debugger UI is still not expected to exist yet.
 
 ### M11 — PHP transpiler (~10 weeks)
 `mwl convert`: PHP source → AST → rewrite passes → idiomatic `.mwl` output. **This milestone is now on the

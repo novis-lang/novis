@@ -72,6 +72,7 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0037](0037-var-local-type-inference.md) | `var $name = expr;` infers a local's type from its initializer and fixes it forever; a bare array-literal initializer is the one shape it refuses | Accepted |
 | [0038](0038-lateinit-property-modifier.md) | `lateinit` defers a non-nullable object property's first assignment past the constructor, throwing on read-before-write; scalars, `?T`, and `readonly` are all refused | Accepted |
 | [0039](0039-canonical-code-formatting.md) | `mwl fmt` is one canonical, unconfigurable, PER-based formatting style with no reflow; it is never wired into the compiler | Accepted |
+| [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) | The VS Code extension goes deep (inspections, refactorings, Test Explorer, debugger UI) on a schedule pulled ahead of M10; `mwl-syntax` gains a resilient parse mode | Accepted |
 
 ## Decisions taken at project start
 
