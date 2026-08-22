@@ -199,7 +199,7 @@ resolution logic runs, same as every other double-underscore magic method this d
 
 PHP itself removed `__autoload()` in 8.0 (replaced by `spl_autoload_register()`, itself not a magic method).
 It is noted here only so a future reader does not wonder why it is missing from the table above: MWL
-resolves every class/interface/trait/enum reference statically at compile time
+resolves every class/interface/enum reference statically at compile time
 ([implementation-plan.md](../implementation-plan.md) M2, `mwl-hir`'s `SymbolTable`), so there is no runtime
 moment at which an unresolved class name could trigger a loader callback in the first place. This is a
 consequence of the static-resolution architecture already being built, not a new decision.

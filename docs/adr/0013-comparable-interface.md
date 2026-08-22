@@ -186,7 +186,7 @@ Deferred deliberately, each needing its own argument:
 Verification, in the order it becomes possible:
 
 - **M1**: `interface Comparable { public function compareTo(self $other): int; }` parses with the grammar
-  M1 already gives classes/interfaces/traits — nothing new here, since this ADR adds no new syntax.
+  M1 already gives classes/interfaces — nothing new here, since this ADR adds no new syntax.
 - **M2**: the checker refuses `<`/`>`/`<=`/`>=`/`<=>` between two objects whose static types are not both
   provably the same `Comparable`-implementing class, with a diagnostic naming `Comparable`; the same
   operators between two objects that do satisfy it type-check as *Decision § 6*'s table gives, joining the

@@ -39,8 +39,10 @@
   the keyword/condition, preceded by one space; the closing brace starts its own line; `elseif`/`else`/
   `catch`/`finally` continue on the same line as the preceding closing brace. `elseif` is one word, never
   `else if`, matching PER.
-- **Allman brace placement** for every declaration with a body — `class`/`interface`/`trait`/`enum`, and a
-  named function or method: the opening brace starts its own line at the declaration's own indentation.
+- **Allman brace placement** for every declaration with a body — `class`/`interface`/`enum`, and a
+  named function or method (including a `public`/`private` interface method body, per
+  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)): the opening brace starts its
+  own line at the declaration's own indentation.
 - Exactly one blank line after a `namespace` declaration, one after the `use`-import block (§ 6), and one
   between two class members that each have a body (methods, and enum cases that carry one); no blank line
   is inserted between adjacent simple property or constant declarations.

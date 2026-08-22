@@ -17,7 +17,7 @@
 > in-language AST facility at all — `token_get_all()` returns a flat token list, not a tree, and a real AST
 > needs a userland library (`nikic/php-parser`) or a PECL-only extension (`ast`) most installs don't even
 > have. MWL requires both to be first-class, built into `Core`, with no extension to install: **`Core\Reflect`**
-> gives read-only structural introspection over a program's own classes, interfaces, traits, enums,
+> gives read-only structural introspection over a program's own classes, interfaces, enums,
 > functions, properties, constants, attributes and parameters; **`Core\Ast`** exposes the exact lexer and
 > parser `mwl-syntax` already uses to compile a file, so any `.mwl` program can parse a string or a file into
 > a typed AST value at runtime, not just at `mwl`-toolchain time. Two invariants keep both safe under the
@@ -57,9 +57,11 @@ fixes is the shape and the two invariants below, not the final member list.
 Illustrative shape, mirroring PHP's `Reflection*` family under the reserved namespace rather than one
 grab-bag class: `Core\Reflect\ClassInfo`, `MethodInfo`, `PropertyInfo`, `ParameterInfo`, `ConstantInfo`,
 `AttributeInfo`, `EnumInfo`, reachable from a value or a class name (`Core\Reflect\ClassInfo::of(User::class)`
-or `Core\Reflect\ClassInfo::of($someObject)`). Covers classes, interfaces, traits, enums (name and cases —
-see § 4), methods, properties, constants, parameters and attributes, matching what PHP's own extension
-covers today.
+or `Core\Reflect\ClassInfo::of($someObject)`). Covers classes, interfaces, enums (name and cases — see § 4),
+methods, properties, constants, parameters and attributes — including which methods an interface declares as
+`public` (part of its contract) versus `private` (an internal helper, per
+[ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)) — matching what PHP's own
+extension covers today, minus traits, which do not exist.
 
 ### 2. No `setAccessible(true)` — reflective access enforces the same checks ordinary code would
 

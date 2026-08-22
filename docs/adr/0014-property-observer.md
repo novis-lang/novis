@@ -248,8 +248,8 @@ Verification, in the order it becomes possible:
 - **M1**: property hooks parse per PHP 8.4's grammar, already scoped; `interface PropertyObserver { ... }`
   parses with the grammar M1 already gives interfaces — nothing new here, since this ADR adds no new syntax
   beyond an ordinary interface declaration.
-- **M2**: the checker refuses a property access naming anything not declared on the class (or an ancestor or
-  trait) with a diagnostic, for every literal-identifier access, on every receiver — `mwl_hir::members` for
+- **M2**: the checker refuses a property access naming anything not declared on the class (or an ancestor)
+  with a diagnostic, for every literal-identifier access, on every receiver — `mwl_hir::members` for
   `$this` (`E_UNDEFINED_PROPERTY`), `mwl-types::expr::check_property_access` for every other statically
   resolvable receiver (`E_UNKNOWN_MEMBER`) — joining the diagnostic corpus
   [ADR 0007](0007-explicit-type-system.md)'s own M2 entry already builds; a method named `__call` or

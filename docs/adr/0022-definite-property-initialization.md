@@ -3,23 +3,24 @@
 - **Status:** Accepted
 - **Date:** 2026-08-21
 - **Scope:** what a declared, non-nullable property holds before anything has assigned it — the
-  compile-time obligation on every constructor to definitely assign every property the class declares
-  (own, inherited, or trait-contributed), the one residual case static analysis cannot cover (an object
-  built through `Core\Reflect` without running a constructor), and the explicit rejection of a new
-  `undefined` value or type to model the gap.
+  compile-time obligation on every constructor to definitely assign every property the class declares (own
+  or inherited), the one residual case static analysis cannot cover (an object built through `Core\Reflect`
+  without running a constructor), and the explicit rejection of a new `undefined` value or type to model the
+  gap.
 - **Amends:** [ADR 0007](0007-explicit-type-system.md) § 1 — "definite assignment is checked" was written
   for local variables only; this ADR names properties as the second binding kind the same analysis covers,
   and is the decision that paragraph's scope was silently missing.
 - **Amended by:** [ADR 0038](0038-lateinit-property-modifier.md) — resolves this ADR's *Revisiting* entry
   "An opt-in `lateinit`-equivalent" by adding that modifier, reusing rather than replacing § 3's runtime
-  mechanism.
+  mechanism. [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) — § 2's "own,
+  inherited, or trait-contributed" phrasing is narrowed to "own or inherited": traits do not exist, and a
+  `by`-delegation target is an ordinary declared property with no special case of its own.
 - **Relates to:** [ADR 0002](0002-error-propagation.md) (the runtime fallback throws as an ordinary
   checked status, not by unwinding), [ADR 0004](0004-memory-for-simplicity.md) (what the "not yet written"
   marker costs), [ADR 0007](0007-explicit-type-system.md) (a declared type never silently holds something
   else — the invariant this ADR protects rather than exempts), [ADR 0014](0014-property-observer.md) (that
   ADR settled *undeclared*-property access; this one settles *declared-but-not-yet-assigned*, the gap it
-  left open), [ADR 0015](0015-no-name-aliasing.md) (trait flattening is what "own-declared properties"
-  means for a class using one), [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)
+  left open), [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)
   (`Core\Reflect` is the one path that can construct an object without running any constructor, which is
   where the residual runtime case comes from), [ADR 0020](0020-error-escalation-ladder.md) (this throw is
   explicitly *not* routed through the fatal ladder — it is an ordinary, catchable `Throwable`),
@@ -80,12 +81,13 @@ and that promise is what the rest of this ADR makes the compiler keep.
 For every constructor a class declares (including the implicit default constructor a class with none is
 given):
 
-- Every property declared **by that class itself** — a plain field, a promoted constructor parameter, or a
-  property contributed by a used trait ([ADR 0015](0015-no-name-aliasing.md)'s flattening) — must be
-  assigned on every path from the constructor's entry to every one of its returns, before this ADR's check
-  passes. A promoted parameter (`public int $x` in the parameter list) satisfies its own obligation by
-  construction — binding the parameter *is* the assignment. An inline default (`public int $x = 0;`)
-  satisfies it before the constructor body runs at all.
+- Every property declared **by that class itself** — a plain field or a promoted constructor parameter,
+  including one used as a [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)
+  `by`-delegation target, which is an ordinary property with no special case of its own — must be assigned on
+  every path from the constructor's entry to every one of its returns, before this ADR's check passes. A
+  promoted parameter (`public int $x` in the parameter list) satisfies its own obligation by construction —
+  binding the parameter *is* the assignment. An inline default (`public int $x = 0;`) satisfies it before the
+  constructor body runs at all.
 - A subclass constructor discharges the properties **it inherits** by calling `parent::constructor(...)` on
   every path. The analysis trusts that call rather than re-deriving it: the parent class's own constructors
   were already checked against this same rule when the parent was compiled, exactly as a function call's
@@ -149,9 +151,9 @@ additional bytes per property**.
   fully static guarantee, MWL cannot extend the compile-time promise across a boundary that exists
   specifically to bypass constructors. This is a smaller surface than PHP's (which allows the runtime state
   from *any* construction path, not just a reflective one), but it is not zero.
-- Extending the analysis through constructor chains and trait-flattened property sets is more work for
-  M2's checker than a locals-only definite-assignment pass would have been — real complexity cost against
-  priority 4, though it reuses one mechanism rather than adding a second.
+- Extending the analysis through constructor chains is more work for M2's checker than a locals-only
+  definite-assignment pass would have been — real complexity cost against priority 4, though it reuses one
+  mechanism rather than adding a second.
 - Stricter than PHP at compile time: PHP happily compiles a constructor that leaves a typed property unset
   on some path, and only fails when that path is actually read. Porting PHP source with such a gap needs a
   fix, not just a recompile — `mwl convert` (M11) must flag it, joining the TODO classes ADR 0007 §7 and

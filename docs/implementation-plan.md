@@ -278,7 +278,8 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Object comparison | Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright ([ADR 0013](adr/0013-comparable-interface.md)) |
 | Property access | A property's own hook runs first, then a declared `PropertyObserver` second, always both, never a fallback for a missing property ([ADR 0014](adr/0014-property-observer.md)) |
 | OOP-only: no free functions, no global constants | Every callable is a method, every constant a class constant; built-ins live under `Core` domain classes ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) |
-| Name aliasing | No `class_alias`, import `as`, or trait-use `as`; a compile-time-only `type` alias for a type expression is the one exception ([ADR 0015](adr/0015-no-name-aliasing.md)) |
+| Name aliasing | No `class_alias` or import `as`; a compile-time-only `type` alias for a type expression is the one exception ([ADR 0015](adr/0015-no-name-aliasing.md)) |
+| Code reuse | No `trait`; shared behavior is a `public`/`private` interface method body, shared state is explicit `implements Interface by $field;` delegation, and any resulting name collision is always a compile error requiring an explicit override — there is no `insteadof` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
 | PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`/pipe operator (`\|>`, deliberately unparsed — see `mwl-syntax`'s module docs). Existing PHP does not run unconverted — see *Consequences to accept* below, and each ADR above for its own divergence from PHP |
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
@@ -572,7 +573,7 @@ scratchpad.
 ### M1 — Front end (~3 weeks)
 Lexer with dual mode (`<?mwl`, `<?php`, `<?=`), inline HTML, heredoc/nowdoc, string interpolation, all
 PHP 8.5 tokens. Recursive-descent parser covering the pragmatic-superset grammar: classes, interfaces,
-traits, enums (cases and an optional backing type only — no methods, no `implements`, see
+enums (cases and an optional backing type only — no methods, no `implements`, see
 [ADR 0010](adr/0010-enums-are-a-value-type.md)), methods (a `function` declaration is only ever a class
 member, static or instance — see [ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
 attributes, `match`, `fn` closures — with or without a block body, and with an optional self-name for
@@ -587,9 +588,8 @@ and any `use` capture clause ([ADR 0031](adr/0031-callable-is-the-only-closure-t
 methods/`implements`/`string` backing
 ([ADR 0010](adr/0010-enums-are-a-value-type.md)), a `function` or `const` outside a class body and a
 `namespace` or class named `Core` ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
-every superglobal spelling ([ADR 0012](adr/0012-no-superglobals.md)), and `use … as …` or trait-use `as`
-(`insteadof` alone still parses; [ADR 0015](adr/0015-no-name-aliasing.md)). Error recovery good enough for
-the LSP.
+every superglobal spelling ([ADR 0012](adr/0012-no-superglobals.md)), and `use … as …`
+([ADR 0015](adr/0015-no-name-aliasing.md)). Error recovery good enough for the LSP.
 
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
 is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the
@@ -618,14 +618,27 @@ ambiguity: parenthesize to force the expression reading, diagnosed by name at bo
 non-empty literal is attempted without the parentheses. Parsing and this disambiguation are this
 milestone's job; `object`'s real subtyping and the shape's structural check are M2's.
 
+**Added after that, a fourth time — not yet implemented:**
+[ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) removes `trait`, class-body
+`use TraitName, ...;`, and `insteadof` from the grammar entirely (each becomes a parse-time diagnostic naming
+the replacement) and adds two small extensions in their place: an interface method may carry a body (a
+`public` default or a `private` helper), and one entry in a class's `implements` list may carry an optional
+`by $field` delegation suffix. This retroactively narrows the "classes, interfaces, traits, enums" grammar
+line above — `mwl-syntax`'s already-shipped `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/`TraitMethodRef`
+AST nodes and their parser/casing support are superseded and still need removing, tracked in that ADR's own
+*Consequences* and *Verification* rather than reopening this "done" milestone's checkbox.
+
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing (they will
 not *check* — see M2 — but they must parse). A snapshot pins the one grammar wrinkle in ADR 0007: `as` in a
 `foreach` header belongs to `foreach`, so a conversion of the subject needs parentheses.
 
 ### M2 — HIR, types, IR (~4 weeks)
-Name resolution: namespace/`use` scoping, class hierarchy with trait flattening
-([ADR 0015](adr/0015-no-name-aliasing.md)), statically resolved `require` with a dynamic fallback
+Name resolution: namespace/`use` scoping, class hierarchy resolution — no trait flattening, since traits do
+not exist; instead, default-method/private-method visibility and `by`-delegation type-matching
+([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md); this replaces
+`crates/mwl-hir`'s already-written `hierarchy.rs` trait-use/`insteadof` resolution, per that ADR's
+*Consequences*) — statically resolved `require` with a dynamic fallback
 ([ADR 0021](adr/0021-single-file-inclusion-construct.md)), every callable/constant resolved as a class
 member with no bare-name fallback ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
 `type`-alias substitution ([ADR 0015](adr/0015-no-name-aliasing.md)), and property-access resolution with
@@ -687,7 +700,9 @@ its logical `>>`, the conversion operator over every row of that ADR's conversio
 propagating correctly by checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)),
 closures that bind
 `$this` only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
-inheritance/interfaces/traits, the built-in global `Comparable` interface lowering `< <= > >= <=>` between
+inheritance/interfaces, including default/private interface method bodies and `by`-delegation
+([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)), the built-in global
+`Comparable` interface lowering `< <= > >= <=>` between
 two objects to `compareTo`, with no property-walk fallback ([ADR 0013](adr/0013-comparable-interface.md)),
 enums as a closed named integer type with cases inlined as compile-time
 constants ([ADR 0010](adr/0010-enums-are-a-value-type.md)), generators (nearly free given stackful
@@ -985,17 +1000,27 @@ an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call 
 built-in global function or constant (`strlen`, `array_map`, `PHP_EOL`, …) → the matching `Core`
 class-and-member, `Core\Str::len`, `Core\Arr::map`, `Core\Env::EOL`, via a maintained PHP-name → `Core`
 table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
-`use Path\To\Name as Other;` → the local alias replaced with the real short name or the FQN at every use, and
-`TraitA::method as newName;` → a synthesized delegating override method named `newName` that calls
-`TraitA::method()` ([ADR 0015](adr/0015-no-name-aliasing.md))); a
+`use Path\To\Name as Other;` → the local alias replaced with the real short name or the FQN at every use, a
+stateless PHP trait (methods only) → an `interface` with the same method bodies as defaults plus plain
+`implements` at every use site, and its `insteadof` conflicts → an explicit override calling the winner by
+qualified name ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) §§ 6.1, 6.3,
+superseding ADR 0015's now-withdrawn `TraitA::method as newName;` rewrite)); a
 rewrite that needs a human look because it changes the shape of the surrounding code (a source file's own
 top-level `function`/`const` declarations, with no built-in counterpart, are grouped into one generated
 class named after the file — the same "needs a class to hang it on" shape the function-static rewrite
-already has, per [ADR 0011](adr/0011-functions-and-constants-are-class-members.md)); annotated `TODO`
+already has, per [ADR 0011](adr/0011-functions-and-constants-are-class-members.md); a stateful PHP trait
+(declares a property) → an extracted interface plus a generated tracker class holding the state, with every
+use site rewritten to `implements ... by $field` and a constructor assignment —
+[ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) § 6.2, mechanical but flagged
+for review); annotated `TODO`
 diagnostics where neither applies (`eval` of constructed source, dynamic includes, unsupported `preg`
 constructs, a `bindTo()` whose target closure never names `$this` — the one divergence ADR 0008 introduces,
 and visible here rather than at run time — an enum that implements an interface or declares a method, which
-has no mechanical destination under [ADR 0010](adr/0010-enums-are-a-value-type.md), a class declaring
+has no mechanical destination under [ADR 0010](adr/0010-enums-are-a-value-type.md), a PHP trait's `static`
+property or a trait method that calls back into an unrelated method of its host class, neither of which has
+a mechanical destination
+([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) §§ 6.4-6.5), a class
+declaring
 `__get`/`__set` that needs a human call on whether the original logic was observation (→ `PropertyObserver`)
 or computation (→ a per-property hook), a class declaring `__call`/`__callStatic` with no mechanical
 destination at all ([ADR 0014](adr/0014-property-observer.md)), a `class_alias()` call whose target name is

@@ -47,7 +47,7 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0012](0012-no-superglobals.md) | There are no superglobals; request, session, environment and CLI state are `Core` accessor classes | Accepted |
 | [0013](0013-comparable-interface.md) | Ordering two objects requires `Comparable`; PHP's property-walk fallback is rejected | Accepted |
 | [0014](0014-property-observer.md) | Property hooks feed a declared `PropertyObserver`; no undefined-property fallback, no `__call`/`__callStatic` | Accepted |
-| [0015](0015-no-name-aliasing.md) | No `class_alias`, import `as`, or trait-use `as`; `type` aliases are the disciplined exception | Accepted |
+| [0015](0015-no-name-aliasing.md) | No `class_alias` or import `as`; `type` aliases are the disciplined exception | Accepted |
 | [0016](0016-ide-integration.md) | IDE integration is a thin per-editor client over one language server; PhpStorm goes LSP-bridge before native | Accepted |
 | [0017](0017-hot-reload-without-restart.md) | The compiled-unit cache revalidates lazily and swaps a per-path pointer; no filesystem watcher, no restart | Accepted |
 | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) | Coverage, tracing and profiling are safepoint-shaped probes, not a second compiled tier | Accepted |
@@ -75,6 +75,7 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) | The VS Code extension goes deep (inspections, refactorings, Test Explorer, debugger UI) on a schedule pulled ahead of M10; `mwl-syntax` gains a resilient parse mode | Accepted |
 | [0041](0041-timeline-export-and-gc-spawn-trace-events.md) | Trace events gain a `call`/`gc`/`spawn` kind and a speedscope-evented export, so a request's timeline shows GC pauses and isolate boundaries, not just calls | Accepted |
 | [0042](0042-on-disk-artifact-cache-format.md) | The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable | Accepted |
+| [0043](0043-interface-default-methods-and-delegation-replace-traits.md) | There is no `trait`; interface default/private methods share behavior and explicit `by` delegation shares state, with one conflict rule and no `insteadof` | Accepted |
 
 ## Decisions taken at project start
 

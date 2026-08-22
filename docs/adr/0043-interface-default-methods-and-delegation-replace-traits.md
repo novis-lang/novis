@@ -1,0 +1,366 @@
+# ADR 0043 — There is no `trait`; interface default/private methods plus explicit `by` delegation replace it
+
+- **Status:** Accepted
+- **Date:** 2026-08-22
+- **Scope:** PHP's `trait` declaration, `use Trait, ...;` inside a class body, and `insteadof` — all three are
+  removed from the grammar entirely. In their place: an `interface` method may carry a body (a **default**
+  method, or a **private** helper visible only to that interface's own method bodies), and each entry in a
+  class's `implements` list may carry an optional `by $field;` suffix that delegates every method that
+  interface requires to a named property. Also settles the one conflict rule both new mechanisms share, and
+  the `mwl convert` (M11) migration path from every PHP trait shape.
+- **Amends:** [0015](0015-no-name-aliasing.md) — § 3 ("Trait composition's `as` clause is gone; only
+  `insteadof` remains") is withdrawn in full: there is no trait composition left to have an `as` clause or an
+  `insteadof` fallback about. [0022](0022-definite-property-initialization.md) — the "own, inherited, or
+  trait-contributed" property phrasing in its *Scope* line and § 2 no longer names a real case; a `by`-target
+  field is an ordinary declared property, already covered by § 2's base rule with no special case needed.
+- **Amended by:** none.
+- **Relates to:** [0004](0004-memory-for-simplicity.md) (states what `by` delegation spends, per request),
+  [0011](0011-functions-and-constants-are-class-members.md) and
+  [0013](0013-comparable-interface.md)/[0014](0014-property-observer.md) (the existing precedent that
+  MWL already treats an interface as the vehicle for shared behavior, not a second, untyped mechanism),
+  [0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md)
+  (a default or private interface method's name is checked exactly like any other method name — no new
+  exception), [0038](0038-lateinit-property-modifier.md) (a `by`-target field may be `lateinit`; calling
+  through it before it is written throws that ADR's existing checked error, no new mechanism), [0007](0007-explicit-type-system.md)
+  (an interface's own private/default method body type-checks `$this` as that interface's type, not the
+  concrete implementing class — the boundary that makes the two mechanisms this ADR adds compose cleanly).
+
+> **In short:** PHP traits bundle two unrelated things — sharing *behavior* across otherwise-unrelated
+> classes, and sharing *state* — under one flattening-plus-`insteadof` mechanism. MWL already has the right
+> vehicle for the first (an `interface`, the same construct `Comparable`, `Stringable` and `PropertyObserver`
+> already use); this ADR lets an interface method carry a body — public ones are **default methods**,
+> callable and overridable exactly like any inherited method, and MWL adds one small, well-precedented
+> extra: a `private` interface method, visible only to that interface's own bodies, for the internal-helper
+> shape a trait private method covers. For the second — shared *state* — MWL adds explicit **delegation**:
+> `class Post implements Timestamped by $timestamps` tells the compiler to forward every method
+> `Timestamped` requires to the ordinary property `$timestamps`, whose declared type must itself implement
+> `Timestamped`. Both mechanisms share one conflict rule: if a method name is reachable from more than one
+> default or delegated source and the class does not itself override it, that is a compile error — there is
+> no `insteadof`, because there is no implicit winner to pick between two equally-valid sources. `trait`,
+> class-body `use Trait;`, and `insteadof` are removed from the grammar outright, each a parse-time
+> diagnostic naming the replacement — the same shape [ADR 0034](0034-legacy-cast-syntax-rejected.md) already
+> gives legacy casts. `mwl convert` (M11) has a fully mechanical rewrite for the common, stateless trait
+> shape and for the stateful shape; only PHP's per-class-copied trait *static* property and a trait method
+> that calls back into an *unrelated* method of its host class have no mechanical destination, named
+> honestly in *Decision § 6* rather than glossed over.
+
+## Context
+
+- A PHP trait does two things PHP's own vocabulary conflates: (a) flatten a set of methods into every
+  consuming class at compile time — pure behavior reuse, no type relationship — and (b) flatten a set of
+  *properties* the same way, silently duplicated per consuming class (and, for a `static` trait property,
+  duplicated *per class* in a way many PHP developers find genuinely surprising). `insteadof` exists only to
+  arbitrate (a); it says nothing about (b).
+- MWL already answers "how does unrelated code share behavior" once, and answers it with a type: an
+  `interface`. [ADR 0013](0013-comparable-interface.md)'s `Comparable`, [ADR 0014](0014-property-observer.md)'s
+  `PropertyObserver`, and [ADR 0028](0028-closing-the-remaining-magic-methods.md)'s `Stringable` are all
+  proof this project already prefers "declare a capability as an interface" over "declare an ambient
+  mechanism." A trait, by contrast, gives the reused code no type identity at all — a class using `Greets`
+  is not `instanceof Greets`, cannot be checked for it, and does not show up as a capability in
+  [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)'s reflection surface.
+- [ADR 0015](0015-no-name-aliasing.md) § 3 already narrowed trait composition once — dropping the `as`
+  rename/visibility clause, keeping `insteadof` — but that was a narrowing of PHP's mechanism, not a
+  replacement of it. `crates/mwl-hir`'s `hierarchy.rs` and `members.rs` already implement that narrowed
+  version: a `TraitDecl` AST node, `SymbolKind::Trait`, trait-use flattening into a class's member table, and
+  `insteadof`-based conflict resolution (`check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`). This ADR
+  supersedes that code's design, not merely its ADR citation — see *Consequences* for exactly what needs
+  reworking.
+- Two well-precedented mechanisms already solve this split in other statically-typed languages: Java 8/9's
+  default and private interface methods (behavior, no state — interfaces still cannot declare fields), and
+  Kotlin's `by` interface delegation (`class Derived(b: Base) : Base by b`, the compiler synthesizing
+  forwarding methods to a named value). Go's struct embedding and Rust's `delegate`/`ambassador` crates are
+  further evidence the "forward an interface to a field" shape is common enough to deserve first-class
+  syntax rather than being left to hand-written boilerplate. Neither is an MWL invention; this ADR is a
+  deliberate composition of two existing, well-tested ideas onto MWL's own type system.
+
+## Decision
+
+**`trait`, class-body `use Trait, ...;`, and `insteadof` do not exist. An interface method may carry a body:
+`public` makes it a default, inherited exactly like any other method and freely overridable; `private` makes
+it an internal helper visible only to that interface's own method bodies. Each entry in a class's
+`implements` list may carry `by $field;`, which forwards every method that interface requires to the named
+property. A method name reachable from more than one default or delegated source, with no class-declared
+override, is always a compile error — `E_INTERFACE_MEMBER_CONFLICT` — regardless of which of the two
+mechanisms contributed it.**
+
+### 1. `trait` is rejected outright
+
+```php
+trait Greets { public function hello(): void { /* … */ } }   // rejected
+class Foo { use Greets; }                                      // rejected
+class Foo { use A, B { A::hello insteadof B; } }                // rejected
+```
+
+Each of the three produces a parse-time diagnostic — `E_TRAIT_NOT_SUPPORTED` — naming §§ 2–4 below by name
+(default/private interface methods for shared behavior, `by` delegation for shared state), the same shape
+[ADR 0034](0034-legacy-cast-syntax-rejected.md) already gives legacy casts and
+[ADR 0021](0021-single-file-inclusion-construct.md) gives `include`/`require_once`. `mwl-syntax`'s AST loses
+`TraitDecl`, `UseTraitMember`, `TraitAdaptation`/`TraitAdaptationKind`, and `TraitMethodRef` — there is no
+node left to carry, since none of the three constructs produces one any more.
+
+### 2. Public interface methods with a body are default methods
+
+```php
+interface Greets
+{
+    public function name(): string;
+
+    public function greet(): string
+    {
+        return "Hello, " . $this->name() . "!";
+    }
+}
+
+class Person implements Greets
+{
+    private string $personName;
+
+    constructor(string $personName) { $this->personName = $personName; }
+
+    public function name(): string { return $this->personName; }
+}
+```
+
+`Person` gets `greet()` for free, exactly like an inherited method — and, unlike a trait, `Person` is
+genuinely `instanceof Greets`, reflectable via `Core\Reflect` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)),
+and checkable at every call site that asks for `Greets`. A class may override a default exactly as it
+overrides an inherited method — ordinary syntax a reader already knows, no `insteadof` needed for the single-
+source case.
+
+**`$this` inside an interface's own method body (default or private) is typed as that interface itself**,
+not the concrete implementing class — the same rule Java's default methods and Rust's trait default methods
+both enforce. Only members declared on that interface, or on an interface it `extends`, are reachable through
+`$this` there. This is the boundary that makes § 2/§ 3 (behavior, stateless) and § 4 (state, via a real
+object) compose without ambiguity: a default method body can call another method the interface itself
+requires, but it cannot reach into whatever the *concrete* class happens to also declare — that would make a
+default method's correctness depend on which class happens to use it, exactly the ambient-coupling shape
+[ADR 0014](0014-property-observer.md) and [ADR 0012](0012-no-superglobals.md) already close elsewhere.
+
+### 3. Private interface methods are internal-only helpers
+
+```php
+interface Csv
+{
+    public function toCsvRow(): string;
+
+    private function escapeField(string $field): string
+    {
+        return "\"" . Core\Str::replace($field, "\"", "\"\"") . "\"";
+    }
+}
+```
+
+`escapeField` is callable from `toCsvRow`'s body (and any other method `Csv` declares) via `$this->`, but is
+not part of `Csv`'s contract: an implementing class never needs to define it, can never override it, and a
+call to `$this->escapeField(...)` from outside `Csv`'s own bodies is `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`.
+This is the direct replacement for a PHP trait's private helper methods — the one trait shape default methods
+alone do not cover, since a default method is always part of the public contract.
+
+### 4. Explicit delegation for shared state
+
+```php
+interface Timestamped
+{
+    public function touch(): void;
+    public function createdAt(): ?DateTimeImmutable;
+}
+
+class TimestampTracker implements Timestamped
+{
+    private ?DateTimeImmutable $createdAt;
+
+    constructor() { $this->createdAt = null; }
+
+    public function touch(): void { $this->createdAt = new DateTimeImmutable(); }
+    public function createdAt(): ?DateTimeImmutable { return $this->createdAt; }
+}
+
+class Post implements Timestamped by $timestamps
+{
+    private TimestampTracker $timestamps;
+
+    constructor() { $this->timestamps = new TimestampTracker(); }
+}
+```
+
+`by $field` is grammar attached to one entry of `implements`, not a new top-level construct. The compiler
+synthesizes, for every method `Timestamped` requires, a one-line forward: `public function touch(): void {
+$this->timestamps->touch(); }`. Rules:
+
+- `$field` must be an ordinary declared property of the class (or a promoted constructor parameter), of a
+  non-nullable class or interface type whose type fully satisfies the delegated interface — checked the same
+  way any `implements` claim is checked, just on `$field`'s type instead of the class's own. A mismatch is
+  `E_DELEGATE_TYPE_MISMATCH`.
+- `$field` is subject to [ADR 0022](0022-definite-property-initialization.md)'s ordinary definite-assignment
+  rule (or may be `lateinit` per [ADR 0038](0038-lateinit-property-modifier.md)) — no new initialization
+  mechanism. Calling a delegated method before `$field` is written throws exactly the checked error those
+  ADRs already define for an unwritten non-nullable property; there is no third throw invented here.
+- Two different interfaces may delegate to the same field (`implements A by $x, B by $x`) if `$x`'s type
+  implements both. Two different fields may each satisfy a different interface in the same `implements` list.
+- A class may still write its own method with the same name as a delegated one — that is an ordinary
+  override, exactly as in § 2, and wins over the synthesized forward.
+
+### 5. One conflict rule for both mechanisms
+
+If a method name would be provided by more than one of: a default method from one implemented interface, a
+default method from a *different* implemented interface, or a `by`-delegated interface — and the class does
+not itself declare that method — this is `E_INTERFACE_MEMBER_CONFLICT`, naming every contributing source.
+There is no `insteadof`: PHP kept it because trait flattening had no other way to pick a winner; here, the
+fix is always the same ordinary override a reader already knows how to write, and it can still reach a
+specific source explicitly:
+
+- To call a specific interface's default from inside the overriding method: `InterfaceName::method()`,
+  bound to `$this` — the same qualified-call *shape* [ADR 0015](0015-no-name-aliasing.md) § 3 already used
+  for a trait's method (`Greets::hello()`), now meaningful for an interface because § 2 gives interfaces
+  method bodies at all. This is the one grammar extension this ADR makes to an existing call form, not a new
+  one.
+- To call a specific delegate's implementation explicitly: ordinary property access,
+  `$this->timestamps->touch()` — no new syntax needed at all, since a delegate is just a real object.
+
+### 6. Migration path from PHP traits (`mwl convert`, M11)
+
+Every PHP trait shape maps to one of the following. The first two are fully mechanical; the last two need a
+human decision, named honestly rather than silently attempted:
+
+1. **Stateless trait (methods only, no properties)** — the common case. `trait T { function m(): void {…}
+   abstract function n(): string; }` becomes `interface T { public function n(): string; public function
+   m(): void {…} }` verbatim (a method with a body becomes a default; an `abstract` method becomes a plain
+   interface method), and every `class C { use T; }` becomes `class C implements T {}` — no field, no
+   constructor change, no human review needed. A trait method's own `$this->someHelper()` calls that target
+   another method not already on the trait's abstract list are added to the generated interface as new
+   abstract methods — making the trait's previously-implicit contract explicit, a strict improvement over
+   PHP's unstated requirement, and still purely mechanical (every `$this->` call site in the trait body is
+   already known at the syntax level).
+2. **Stateful trait (declares at least one property)** — `trait Timestamps { private ?DateTimeImmutable
+   $createdAt = null; function touch(): void {…} function createdAt(): ?DateTimeImmutable {…} }` becomes an
+   extracted interface (`Timestamped`, the trait's public method signatures) plus a generated tracker class
+   (`TimestampsImpl`, named `{Trait}Impl`) owning the property and the original method bodies verbatim, and
+   every `class C { use Timestamps; }` becomes `class C implements Timestamped by $timestamps { private
+   TimestampsImpl $timestamps; constructor(...) { …; $this->timestamps = new TimestampsImpl(); } }` —
+   inserting a field and a constructor assignment, merged into an existing constructor if the class already
+   has one. Mechanical, but — like [ADR 0015](0015-no-name-aliasing.md) § 7's "group top-level functions into
+   a generated class" case — it changes the shape of the surrounding code enough that `mwl convert` flags it
+   for human review rather than applying it silently.
+3. **`insteadof`, either shape** — `use A, B { A::hello insteadof B; }` becomes an explicit override calling
+   the winner by name: `public function hello(): void { return A::hello(); }` for the stateless case (§ 5's
+   `InterfaceName::method()` form) or `public function hello(): void { return $this->a->hello(); }` for the
+   stateful/delegated case — the exact rewrite [ADR 0015](0015-no-name-aliasing.md) § 7 already specified for
+   the `as`-rename case, retargeted from a trait method call to an interface/delegate call.
+4. **A trait's `static` property** has no destination at all: PHP's per-consuming-class-copied trait static
+   is exactly the ambient, silently-duplicated state [ADR 0008](0008-static-and-global.md) already forbids in
+   general, independent of traits. `mwl convert` emits a `TODO` naming the property, requiring a human choice
+   between a real `static` property owned by one class or instance state carried through delegation.
+5. **A trait method that calls back into an *unrelated* method of its consuming class** — one not covered by
+   any abstract method the trait itself declares — has no mechanical translation once the trait becomes a
+   real, independent object under § 6.2: the generated tracker class has no reference to the class delegating
+   to it, and cannot acquire one without changing the shape of the code by hand. `mwl convert` emits a `TODO`
+   naming the call site; a human passes whatever callback or interface the tracker actually needs into its
+   own constructor instead. This is the one genuine capability PHP's implicit, unbounded trait `$this` had
+   that this ADR's design does not reproduce automatically — named here rather than glossed over, per this
+   project's [memory/simplicity accounting](0004-memory-for-simplicity.md) discipline applied to language
+   surface instead of bytes.
+
+### 7. Diagnostics
+
+- `trait Name { … }`, `use TraitName;` in a class body, or `insteadof` anywhere → `E_TRAIT_NOT_SUPPORTED`,
+  naming §§ 2–4: *traits do not exist; use an interface default/private method for shared behavior, or
+  `implements Interface by $field;` for shared state*
+- A method reachable from more than one default/delegated source with no class override →
+  `E_INTERFACE_MEMBER_CONFLICT`, naming every contributing interface and *add an explicit override, calling
+  the source you want by name*
+- `$this->privateHelper()` from outside the interface that declares `privateHelper` as `private` →
+  `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`
+- `implements Interface by $field;` where `$field`'s declared type does not implement `Interface` →
+  `E_DELEGATE_TYPE_MISMATCH`, naming the missing method(s)
+
+## Consequences
+
+**Positive**
+
+- Behavior reuse gains real type identity — `instanceof`, reflection, and static checking all see it — where
+  a trait gave none of that.
+- One conflict rule instead of two: `insteadof` disappears as a keyword entirely, since "the class overrides
+  it explicitly" already handles every collision shape, for both defaults and delegates alike.
+- Simplifies [ADR 0022](0022-definite-property-initialization.md): the "trait-contributed property" special
+  case in its § 2 is gone — a `by`-target field is an ordinary declared property, covered by the rule that
+  already exists for every other property.
+- The private-interface-method addition is small (Java 9 precedent) and closes the one trait shape default
+  methods alone would not cover, without reopening interfaces as state containers.
+- The migration path in § 6 covers every real PHP trait shape with a named destination — two of the four
+  fully mechanical — rather than leaving traits as a blanket "needs a human" TODO class.
+
+**Negative**
+
+- **A structural break from PHP**, joining the divergence list [ADR 0007](0007-explicit-type-system.md) § 7
+  already carries: PHP source using `trait` does not convert unconverted, unlike the narrower change ADR
+  0015 § 3 made (which kept traits, only dropping `as`).
+- **`by` delegation spends memory ADR 0004 requires naming**: one extra property (a pointer-sized reference)
+  per delegated interface, per class instance — the cost of the delegate object itself, plus that one
+  pointer, replaces PHP's per-class-*copied* trait property, which is not free either; this is not a net-new
+  cost class, just an explicit and inspectable one instead of an implicit one.
+- **Existing `mwl-hir`/`mwl-syntax` code implementing ADR 0015 § 3's narrower design is now superseded, not
+  merely re-cited** — `crates/mwl-syntax/src/ast.rs`'s `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/
+  `TraitMethodRef`, its parser production and casing rules in `parser.rs`/`casing.rs`/`token.rs`;
+  `crates/mwl-hir`'s `SymbolKind::Trait` (`symbol.rs`), the `TraitDecl` arms and trait-use flattening in
+  `resolve.rs`/`members.rs`/`requires.rs`, and `hierarchy.rs`'s entire trait-use/`insteadof` resolution
+  (`trait_refs`, `trait_methods`, `check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`) all need removal, and
+  the new default-method/private-method/`by`-delegation resolution (§§ 2–5) needs building in their place.
+  This ADR is docs-only as written — deliberately deferred to a dedicated follow-up coding session rather
+  than attempted alongside this decision, given M2 is already mid-flight.
+- One more grammar extension to an existing call form (§ 5's `InterfaceName::method()`), a small addition to
+  what a reader has to know `Identifier::method()` can mean, alongside `parent::`/`self::`/`static::`.
+- § 6.5's gap is real, not cosmetic: a trait that leans on PHP's implicit, unbounded `$this` to reach
+  unrelated methods on its host has no automatic translation, and needs a human-authored callback/interface
+  parameter on the generated tracker class.
+
+## Alternatives rejected
+
+- **Keep ADR 0015 § 3's narrower trait design** (traits minus `as`, `insteadof` kept). Rejected: it still
+  gives reused behavior no type identity, still duplicates properties per consuming class with no clearer
+  story than PHP's, and keeps `insteadof` as a second, trait-only conflict mechanism alongside the ordinary
+  override every other collision in this project already resolves with.
+- **Default interface methods only, no delegation** — require every trait-with-state case to hand-write
+  forwarding methods. Rejected: reproduces exactly the boilerplate Kotlin's `by` and Go's struct embedding
+  both exist to eliminate, for a shape (shared state across otherwise-unrelated classes) that is common
+  enough in ported PHP to deserve first-class syntax.
+- **Delegation only, no default methods** — represent every trait as a synthesized interface-plus-tracker
+  pair, even stateless ones. Rejected: needlessly heavier than default methods for the common, stateless
+  case, and gives up the "is this reused code checkable as a type" win for no reason once a class doesn't
+  need to hold a separate object just to answer `hello()`.
+- **A `mixin` keyword performing PHP-style flattening but with `implements`-shaped type identity** (a third,
+  new construct). Rejected: this is exactly the pattern [ADR 0011](0011-functions-and-constants-are-class-members.md)
+  and [ADR 0015](0015-no-name-aliasing.md) already warn against — a bespoke mechanism where an existing one
+  (interfaces) already does the job with less new surface to teach.
+- **PHP's `Interface.super.method()`-equivalent spelled as a new dedicated keyword** rather than reusing
+  `InterfaceName::method()`. Rejected: the qualified-call shape already exists and is already documented in
+  ADR 0015 § 3 for the same purpose; giving it a second spelling for interfaces would be exactly the kind of
+  duplicate-spelling surface [ADR 0015](0015-no-name-aliasing.md) itself exists to prevent.
+
+## Revisiting
+
+- **Whether `mwl convert` should attempt § 6.5's host-callback case automatically** by inferring a minimal
+  callback interface from the unrelated calls a trait body makes. Deferred: needs real ported code to argue
+  the shape from, the same deferral [ADR 0015](0015-no-name-aliasing.md) *Revisiting* already uses for its
+  own converter UX questions.
+- **Whether a `by`-delegated field should be allowed to itself be `?T`**, with delegated calls become
+  observable no-ops or a checked throw on null. Not requested by any motivating case found while writing this
+  ADR; left for a future ADR if real code wants it.
+
+Verification, in the order it becomes possible:
+
+- **M1 (follow-up — not yet implemented):** the parser rejects `trait`, class-body `use TraitName, ...;`, and
+  `insteadof` with `E_TRAIT_NOT_SUPPORTED` naming this ADR; `mwl-syntax`'s AST drops `TraitDecl`,
+  `UseTraitMember`, `TraitAdaptation`/`TraitAdaptationKind`, `TraitMethodRef`. New grammar parses: an
+  interface method with a body (`public` or `private`), and `by $field` as an optional suffix on one
+  `implements` entry.
+- **M2 (follow-up — not yet implemented):** `crates/mwl-hir`'s trait-specific code (§ *Consequences,
+  Negative* names every file) is removed; name resolution instead resolves default methods, private-method
+  visibility, and `by`-delegation type-matching; `E_INTERFACE_MEMBER_CONFLICT`,
+  `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`, and `E_DELEGATE_TYPE_MISMATCH` are all reachable with a fixture
+  each; `$this` inside an interface's own method body resolves only against that interface's (and its
+  `extends` ancestors') own declared members; a `by`-target field's definite-assignment obligation is
+  ordinary [ADR 0022](0022-definite-property-initialization.md)/[ADR 0038](0038-lateinit-property-modifier.md),
+  no special case.
+- **M11:** `mwl convert` performs § 6.1's and § 6.2's mechanical rewrites (the latter flagged for review),
+  § 6.3's `insteadof`-equivalent override synthesis, and emits the `TODO` diagnostics § 6.4/§ 6.5 describe for
+  the two shapes with no mechanical destination.

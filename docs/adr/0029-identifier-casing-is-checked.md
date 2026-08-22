@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
-- **Scope:** the casing every user-written identifier must use — class/interface/trait/enum names, enum
+- **Scope:** the casing every user-written identifier must use — class/interface/enum names, enum
   cases, namespace segments, method names, property names (any visibility, static or instance), parameter
   names, local variable names, and class constant names. Does **not** cover whitespace, indentation, brace
   placement, or any other physical formatting — those stay explicitly out of scope, deferred to a possible
@@ -36,7 +36,7 @@
 
 > **In short:** every user-written identifier's casing is checked at compile time and a mismatch is a hard
 > error — not a lint, not a warning, and **there is no suppression mechanism**. Types (`class`, `interface`,
-> `trait`, `enum`, an enum's own cases, and each namespace segment) are `PascalCase`. Methods are
+> `enum`, an enum's own cases, and each namespace segment) are `PascalCase`. Methods are
 > `camelCase`. Properties, parameters and local variables are `camelCase`, optionally with one leading
 > underscore (`_cache`, `$_unused`). Class constants are `SCREAMING_SNAKE_CASE`. An acronym is treated as a
 > single word (`HttpClient`, `parseXmlPayload`), never kept all-caps. There is exactly one accepted spelling
@@ -72,7 +72,7 @@ override, and no suppression annotation — the same "one canonical spelling" st
 
 | Category | Convention | Pattern | Example |
 |---|---|---|---|
-| Class, interface, trait, enum | `PascalCase` | `^[A-Z][A-Za-z0-9]*$` | `HttpClient`, `Comparable`, `Status` |
+| Class, interface, enum | `PascalCase` | `^[A-Z][A-Za-z0-9]*$` | `HttpClient`, `Comparable`, `Status` |
 | Enum case | `PascalCase` | `^[A-Z][A-Za-z0-9]*$` | `Active`, `Banned` |
 | Namespace segment | `PascalCase` | `^[A-Z][A-Za-z0-9]*$` | `Core\Html\Markup` |
 | Method (instance or `static`) | `camelCase` | `^[a-z][A-Za-z0-9]*$` | `getName`, `fromString` |
@@ -95,7 +95,7 @@ adjacent — `HTTPXMLParser`). Treating every acronym as an ordinary word needs 
 ### 2. A single leading underscore is allowed only on properties, parameters and locals
 
 `_cache`, `$_unused`, `_id` are accepted; `__cache` (two or more leading underscores) is rejected outright,
-and a leading underscore is never accepted on a class/interface/trait/enum/method/namespace-segment/constant
+and a leading underscore is never accepted on a class/interface/enum/method/namespace-segment/constant
 name. This exists because a leading underscore for "private field," "intentionally unused parameter," or
 "scratch/temporary local" is idiomatic across enough languages (PHP itself included, informally) that
 banning it outright would fight a habit for no gain — but it stays a strictly optional *prefix* to an
@@ -115,7 +115,7 @@ does not compile until it is renamed. See *Consequences* and *Alternatives rejec
 
 ## Diagnostics
 
-- A class/interface/trait/enum/enum-case/namespace-segment name not matching `PascalCase` → *`{name}` must
+- A class/interface/enum/enum-case/namespace-segment name not matching `PascalCase` → *`{name}` must
   be PascalCase, e.g. `{suggested}`*
 - A method name not matching `camelCase` → *method names must be camelCase, e.g. `{suggested}`*
 - A property/parameter/local name not matching `camelCase` (with at most one leading `_`) → *`{category}`
@@ -207,7 +207,7 @@ Verification, in the order it becomes possible:
   other. This check needs no symbol resolution, so it is not gated on the rest of M2's checker
   (`mwl-types`/`mwl-hir`) the way most of that milestone's diagnostics are.
 - A corpus entry per category in the table: one file each for a correctly-cased and a mis-cased class,
-  interface, trait, enum, enum case, namespace segment, method, property, parameter, local variable and
+  interface, enum, enum case, namespace segment, method, property, parameter, local variable and
   class constant, plus one entry for a two-or-more-leading-underscore name and one for an all-caps acronym,
   each asserting the exact diagnostic and suggested rename from *Diagnostics* above.
 - A negative corpus entry: a class declaring `__construct` produces no casing diagnostic at all, confirming
