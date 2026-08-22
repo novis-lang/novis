@@ -116,7 +116,7 @@
 > true`. `null`/`mixed`/a union were still out of scope at the time: neither a nullable-type nor a
 > `Ty::Mixed` IR representation existed yet to convert *from* (see below — `Ty::Mixed` has since landed,
 > though converting one through this table still hasn't). `&&`/`||`/`!` and the ternary/elvis condition
-> (ADR 0035's other four truthy positions) are unaffected — this crate doesn't lower any of the three yet.
+> (ADR 0035's other four truthy positions) have since landed too — see below.
 > **`Ty::Mixed`** (ADR 0007 § 3's one unchecked position) has now landed too, scoped narrowly on purpose:
 > enough representation for a `mixed`-typed local, parameter, return value or call argument to exist and
 > round-trip through the exact same `bind_local`/`lower_call_args`/`release_all_locals`/`return` machinery
@@ -128,7 +128,29 @@
 > `mixed` value's runtime type tag is represented — is the real design work this slice deliberately does
 > *not* answer: arithmetic's `mixed` fallback, ADR 0035's `null`/`mixed` truthy case, and an array-element
 > access through a `mixed`-erased base all still panic naming the gap, now reachable (a `mixed`-typed value
-> can exist as input) rather than theoretical. `mwl-ir` is now at 82 tests.
+> can exist as input) rather than theoretical.
+> **`&&`/`||`/`!`/the ternary-elvis operator** (ADR 0035's other four truthy positions) have now landed
+> too — the recommended pick left at the end of the `Ty::Mixed` session, since none of the four were lowered
+> at all before it. `&&`/`||` need genuine short-circuit control flow (PHP only evaluates the right operand
+> when it can change the answer), not just a value computation, so a new `Lowering::lower_expr_top` entry
+> point exists specifically for the handful of positions that already own a mutable `cur: &mut BlockId` (a
+> local declaration's initializer, `return`'s value, a plain reassignment's right-hand side, and any
+> condition under test) — only those can redirect "the current block" mid-expression the way `&&`/`||`/a
+> ternary need to; everywhere else (a call argument, an array-literal element, a `.`-operand) still panics
+> naming the gap. `!` always produces `Ty::Bool` via the same truthy table (fixing a latent bug: it
+> previously passed its operand's own type straight through, silently correct only by coincidence for the
+> one existing bool-only fixture) and recurses through `lower_expr_top` so `!($a && $b)` composes. The
+> ternary/elvis operator reuses `lower_if`'s own branch/merge shape, joining a `then`/`else` value through a
+> fresh `Phi` instead of a named local; elvis (`then` omitted) reuses `cond`'s own value on the truthy path
+> rather than retesting it, needing one exception to every other position's usual release-after-test rule
+> plus its own retain-on-alias handling — the same ownership question every `then`/`else` branch turned out
+> to need too (caught by a dedicated test, not assumed correct by inspection). A `then`/`else` pair lowering
+> to two different `Ty` representations, or any of the four nested where only a fixed `cur: BlockId` is
+> available, still panics naming the gap; PHP's low-precedence `and`/`or`/`xor` keyword operators are out of
+> scope by design (ADR 0035 names only `&&`/`||`/`!`). This session also surfaced and fixed a pre-existing,
+> previously-invisible gap: `ExprKind::Paren` (a parenthesized `(expr)`) was never unwrapped anywhere in
+> expression lowering at all — needed now since `!($a && $b)` requires the explicit parens (`!` binds
+> tighter than `&&`/`||`). `mwl-ir` is now at 94 tests (was 82).
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
@@ -209,9 +231,10 @@
 > `try`, `break`/`continue`, the `null`/`mixed`/union half of ADR 0035's `if`/`while` truthy conversion
 > (`null` has no nullable-type IR representation to convert *from* at all; `Ty::Mixed` now exists, see
 > below, but converting one through the table needs a runtime type-tag representation this crate still
-> doesn't have — the `bool`/scalar/`array<T>`/`Ty::Object` half is landed, see above) and `&&`/`||`/`!`/the
-> ternary-elvis condition (ADR 0035's other four truthy positions, none of which this crate lowers at all
-> yet), a nullsafe access of
+> doesn't have — the `bool`/scalar/`array<T>`/`Ty::Object` half is landed, see above; `&&`/`||`/`!`/the
+> ternary-elvis operator have since landed too, see above — a nested one where only a fixed `cur: BlockId`
+> is available, and a ternary whose branches lower to two different `Ty`s, still panic naming the gap), a
+> nullsafe access of
 > either kind (`?->`), a
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
