@@ -419,7 +419,9 @@ carried on the array header.
 Memory: refcounting + copy-on-write arrays/strings (PHP semantics). Reference cycles are bounded by the
 request lifetime — the whole request heap is dropped wholesale at request end, which makes cycle leaks
 structurally impossible to accumulate in the server. Long-running CLI scripts additionally get an optional
-mark-sweep cycle collector running at safepoints.
+mark-sweep cycle collector running at safepoints; whichever milestone implements its run routine also gives
+it a `gc`-kind trace event, at no cost to the safepoint poll itself
+([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)).
 
 Both choices here — 16 bytes per value instead of 8, and peak-not-average retention inside a request — cost
 memory to buy correct PHP semantics and a collector that never runs on the request path. That is the
@@ -743,7 +745,9 @@ It belongs here rather than later because it is a task with a heap boundary, whi
 milestone builds — and doing it now means the HTTP server in M7 is written against the same `Isolate`
 instead of growing a second isolation path that has to be unified afterwards. Enforcement of its *limits*
 and of the `script.spawn` capability lands with the rest of the config work in M6; until then it runs under
-compiled-in defaults.
+compiled-in defaults. The three spawn-construct routines built here also each gain a `spawn`-kind trace
+event with a parent/child overhead split, once ADR 0018's `TRACE`/`PROFILE` bits exist alongside them
+([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)).
 
 **Verify:** stress tests with 100k concurrent tasks; a deliberate deadlock test proves cancellation
 works; `parallel_map` shows near-linear speedup across cores on a CPU-bound benchmark; ThreadSanitizer
@@ -888,7 +892,9 @@ resolution and a registry. Also here: `Core\Debug`, the `[debug]` `mwl.ini` sect
 --coverage=…` and `mwl run --profile=…` — the developer-facing coverage/tracing/profiling feature whose
 probe mechanism landed with M3
 ([ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), a deterministic per-call
-profiler distinct from the sampling one above).
+profiler distinct from the sampling one above), plus a speedscope-evented export rendering that same
+trace data — now tagged `call`/`gc`/`spawn` — as one scrollable timeline
+([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)).
 
 **Also in this milestone: the rest of the two editor clients.** M4B already shipped `mwl-lsp`'s minimal
 slice and `editors/vscode`'s baseline; what lands here per

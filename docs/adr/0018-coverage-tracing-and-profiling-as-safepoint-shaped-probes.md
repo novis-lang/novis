@@ -13,6 +13,10 @@
   same copy-out rule `value`/`error`/`usage` already use — not an amendment, since 0006 left that surface
   provisional pending M5), [0016](0016-ide-integration.md) (`mwl dap` and the M10 sampling profiler are a
   different, already-decided mechanism this one is designed to sit beside, not replace)
+- **Amended by:** [0041](0041-timeline-export-and-gc-spawn-trace-events.md) — adds a `kind` tag to trace
+  events (`call`/`gc`/`spawn`), instruments the cycle collector's run routine and the three isolate-spawn/
+  join routines (none of which this ADR's probes cover), and adds a speedscope-evented export alongside the
+  Clover/lcov/Callgrind/NDJSON formats named here.
 
 > **In short:** MWL gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
 > deterministic per-call profiler — enabled with one `mwl.ini` directive or one `Core\Debug` call, exported
