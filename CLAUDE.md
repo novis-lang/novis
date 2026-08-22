@@ -43,6 +43,7 @@ the row below for whatever you're touching to get that.
 | `lateinit`, deferring a property's first assignment past the constructor, DI/setter injection, "why can't this non-nullable property just be set later" | [ADR 0038](docs/adr/0038-lateinit-property-modifier.md). Holds the only copy of the rule that `lateinit` is restricted to non-nullable class/interface-typed properties, throws on read-before-write by reusing ADR 0022's existing mechanism, and is refused on `?T`, a promoted parameter, or alongside `readonly`. |
 | PHP's `(int)$x`/`(string)$x` legacy cast syntax, why it doesn't parse | [ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md). Holds the only copy of the rule that `as` is the sole conversion spelling — the legacy cast keywords are diagnosed at parse time naming the equivalent `as` expression, with no alias kept. |
 | Whether an `if`/`while`/`for`/`?:`/`&&`/`\|\|`/`!` condition needs an explicit `as bool`, PHP truthiness | [ADR 0035](docs/adr/0035-truthy-boolean-context.md). Holds the only copy of the truthy table and the exact six syntax positions it applies to; every other `bool` position (a parameter, property, `==`/`===`) is untouched and still needs `as bool`. |
+| PHP's `and`/`or`/`xor` keyword operators, why they don't parse, "why does PHP have two ways to write AND/OR" | [ADR 0045](docs/adr/0045-and-or-xor-keyword-operators-rejected.md). Holds the only copy of the rule that `&&`/`\|\|` are the sole logical connectives — `and`/`or` are diagnosed naming that replacement, `xor` is diagnosed with no one-token replacement at all. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
 | `enum`, enum cases, backing type, anything enum-shaped | [ADR 0010](docs/adr/0010-enums-are-a-value-type.md). Holds the only copy of enum semantics — a closed, named integer type like C#'s, not PHP's class-like construct; PHP's enum design is deliberately disregarded in full. |
 | `static`, `global`, scoping, closure capture, where state may live at all | [ADR 0008](docs/adr/0008-static-and-global.md). Holds the only copy of the list of storage classes, and the one place `static`'s five PHP meanings are sorted into kept and rejected. |
@@ -259,6 +260,9 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   `&&`/`||`/`!` accept any type and resolve PHP's full truthy table at runtime; every other `bool` position
   (a parameter, property, `==`/`===`) still needs an explicit `as bool` or comparison
   ([ADR 0035](docs/adr/0035-truthy-boolean-context.md)).
+- **`&&`/`||` are the only logical connectives** — PHP's `and`/`or`/`xor` keyword operators do not parse;
+  `and`/`or` are diagnosed naming `&&`/`||` as the replacement, and `xor` is diagnosed with no one-token
+  replacement at all, since MWL has no `^^` ([ADR 0045](docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
 
 ## Commands
 

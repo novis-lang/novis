@@ -1706,10 +1706,7 @@ fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut E
         | BinaryOp::Identical
         | BinaryOp::NotIdentical
         | BinaryOp::And
-        | BinaryOp::Or
-        | BinaryOp::LowAnd
-        | BinaryOp::LowOr
-        | BinaryOp::LowXor => env.interner.bool_ty(),
+        | BinaryOp::Or => env.interner.bool_ty(),
         BinaryOp::Coalesce => env.interner.make_union([lhs, rhs]),
         _ => env.interner.mixed(),
     }

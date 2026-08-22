@@ -823,10 +823,12 @@ impl<'src, 'd> Parser<'src, 'd> {
     // Expressions — precedence chain, lowest to highest
     // ========================================================================
 
-    /// Parses one expression, from the lowest-precedence `or`/`xor`/`and`
-    /// keywords down through assignment, the ternary, and every binary and
-    /// unary operator, to a primary expression. Every other production that
-    /// needs "an expression" calls this.
+    /// Parses one expression: assignment, the ternary, and every binary and
+    /// unary operator, down to a primary expression. Every other production
+    /// that needs "an expression" calls this. A stray `and`/`or`/`xor`
+    /// keyword is also caught here — see [`Self::parse_low_or`] — since
+    /// `&&`/`||` are the only logical connectives MWL keeps
+    /// ([ADR 0045](../../../docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
     #[must_use]
     pub fn parse_expr(&mut self) -> Expr {
         // Any nested expression (a call argument, an array item, a
@@ -891,27 +893,53 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// [`Self::parse_not`]/[`Self::parse_unary`]/[`Self::parse_power`]
     /// without ever coming back through here. Each of those is guarded
     /// individually for that reason.
+    /// The guarded recursion entry above [`Self::parse_assignment`] — see
+    /// [`Self::guarded`]. Also where a stray `and`/`or`/`xor` keyword is
+    /// caught: MWL never gave them PHP's lower-precedence meaning distinct
+    /// from `&&`/`||`, so each occurrence is diagnosed in place
+    /// ([ADR 0045](../../../docs/adr/0045-and-or-xor-keyword-operators-rejected.md))
+    /// and folded into an `ExprKind::Error`, consuming its right-hand operand
+    /// so parsing can continue past it rather than cascading into unrelated
+    /// "expected token" errors.
     fn parse_low_or(&mut self) -> Expr {
-        self.guarded(Self::error_expr_here, |p| {
-            p.parse_left_assoc(
-                Self::parse_low_xor,
-                &[(TokenKind::Keyword(Keyword::Or), BinaryOp::LowOr)],
-            )
-        })
+        self.guarded(Self::error_expr_here, Self::parse_rejected_logical_keyword)
     }
 
-    fn parse_low_xor(&mut self) -> Expr {
-        self.parse_left_assoc(
-            Self::parse_low_and,
-            &[(TokenKind::Keyword(Keyword::Xor), BinaryOp::LowXor)],
-        )
-    }
-
-    fn parse_low_and(&mut self) -> Expr {
-        self.parse_left_assoc(
-            Self::parse_assignment,
-            &[(TokenKind::Keyword(Keyword::And), BinaryOp::LowAnd)],
-        )
+    fn parse_rejected_logical_keyword(&mut self) -> Expr {
+        let mut lhs = self.parse_assignment();
+        loop {
+            let (spelling, replacement) = match self.peek().kind {
+                TokenKind::Keyword(Keyword::Or) => ("or", Some("||")),
+                TokenKind::Keyword(Keyword::And) => ("and", Some("&&")),
+                TokenKind::Keyword(Keyword::Xor) => ("xor", None),
+                _ => break,
+            };
+            let op_span = self.bump().span;
+            let rhs = self.parse_assignment();
+            let span = lhs.span.to(rhs.span);
+            let help = match replacement {
+                Some(r) => format!("use `{r}` instead — it is the only logical connective MWL keeps"),
+                None => "there is no direct replacement — write `(a || b) && !(a && b)`, or `a != b` \
+                          when both operands are already `bool`"
+                    .to_string(),
+            };
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_LOGICAL_KEYWORD_UNSUPPORTED,
+                    format!("`{spelling}` is not supported"),
+                )
+                .with_primary(
+                    op_span,
+                    "MWL keeps exactly one spelling for each logical connective",
+                )
+                .with_help(help),
+            );
+            lhs = Expr {
+                span,
+                kind: ExprKind::Error,
+            };
+        }
+        lhs
     }
 
     /// Right-recursive on its own operand (`$a = $b = $c = ...`), so a long
@@ -5324,6 +5352,39 @@ mod tests {
             );
             assert!(matches!(e.kind, ExprKind::Error));
         }
+    }
+
+    /// ADR 0045: `&&`/`||` are the only logical connectives — PHP's
+    /// low-precedence `and`/`or`/`xor` keyword operators are diagnosed,
+    /// `and`/`or` naming `&&`/`||` as the replacement and `xor` naming none.
+    #[test]
+    fn and_or_xor_keywords_are_diagnosed() {
+        for src in ["$a and $b", "$a or $b", "$a xor $b"] {
+            let (e, diags) = parse_with_diags(src);
+            assert!(diags.has_errors(), "expected a diagnostic for {src:?}");
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_LOGICAL_KEYWORD_UNSUPPORTED)),
+                "expected E_LOGICAL_KEYWORD_UNSUPPORTED for {src:?}, got {diags:?}"
+            );
+            assert!(matches!(e.kind, ExprKind::Error));
+        }
+    }
+
+    /// A chained `$a and $b and $c` reports once per keyword rather than
+    /// cascading into unrelated "expected token" errors past the first one —
+    /// each keyword consumes its own right-hand operand before the loop in
+    /// `Parser::parse_rejected_logical_keyword` checks for another.
+    #[test]
+    fn chained_low_keyword_operators_report_once_each() {
+        let (e, diags) = parse_with_diags("$a and $b or $c");
+        let count = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_LOGICAL_KEYWORD_UNSUPPORTED))
+            .count();
+        assert_eq!(count, 2, "expected one diagnostic per keyword, got {diags:?}");
+        assert!(matches!(e.kind, ExprKind::Error));
     }
 
     /// ADR 0034: at statement start specifically, `(string)$x;` is also a

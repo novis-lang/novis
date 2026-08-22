@@ -215,6 +215,9 @@ pub mod code {
     /// PHP's legacy `(T)expr` cast syntax — `as` is the only conversion
     /// spelling. See ADR 0034 § 1, which amends ADR 0007 § 2.
     pub const E_LEGACY_CAST_UNSUPPORTED: Code = Code::new("E0225");
+    /// PHP's `and`/`or`/`xor` keyword operators — `&&`/`||` are the only
+    /// logical connectives. See ADR 0045 §§ 1-2.
+    pub const E_LOGICAL_KEYWORD_UNSUPPORTED: Code = Code::new("E0226");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

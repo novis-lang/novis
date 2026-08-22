@@ -225,12 +225,6 @@ pub enum BinaryOp {
     And,
     /// `||`
     Or,
-    /// `and` — the low-precedence keyword form, distinct from `&&`.
-    LowAnd,
-    /// `or` — the low-precedence keyword form, distinct from `||`.
-    LowOr,
-    /// `xor` — the low-precedence keyword form; there is no `^^` operator.
-    LowXor,
     Eq,
     NotEq,
     /// `===`
