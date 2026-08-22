@@ -1,0 +1,151 @@
+# ADR 0058 — Outbound connections carry an address policy; a tainted URL must be laundered and pinned
+
+- **Status:** Accepted
+- **Date:** 2026-08-23
+- **Scope:** server-side request forgery — how an attacker-influenced URL reaches an outbound connection,
+  and what stops it. Covers `Core\Http\Client`, `Core\Net`, and any host-provided socket a Tier 1 extension
+  is granted. Not in scope: the HTTP client's API, which M8 designs.
+- **Amends:** [0024](0024-taint-tracking-for-injection-sinks.md) — § 4's sink roster gains outbound URLs,
+  and § 3's launderer roster gains `Core\Http::allowUrl`, which is the first launderer whose check is
+  partly a *runtime* one. [0005](0005-config-changeability.md) — the `net.connect` grant gains an address
+  policy, not just a host list.
+- **Amended by:** none.
+- **Relates to:** [0051](0051-standard-library-tiers.md) (`Core\Http\Client` and `Core\Net` are Native),
+  [0055](0055-extension-qualifier-declarations.md) (an extension granted sockets is bound by the same
+  policy, since the policy lives in the capability rather than in the client),
+  [0057](0057-intrinsic-literal-folding.md) (a literal URL is validated during checking).
+
+> **In short:** SSRF is structurally an injection — untrusted data reaching a sink — but unlike the others
+> it cannot be settled at compile time alone, because the dangerous part is what a hostname *resolves to*
+> at request time. So it gets both layers. **Compile time:** an outbound URL parameter refuses `tainted`,
+> and the only way through is `Core\Http::allowUrl`, a sink-named launderer in
+> [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3's existing shape. **Run time:** the
+> `net.connect` capability carries an **address policy** — loopback, private and link-local ranges denied by
+> default — enforced on every connection, including ones built from hardcoded URLs. The launderer resolves,
+> checks, and **pins** the address, and the connection is made to the pinned address, which is what closes
+> the check-then-connect gap DNS rebinding walks through. Redirects are off by default and each hop is
+> re-checked and re-pinned.
+
+## Context
+
+- [ADR 0024](0024-taint-tracking-for-injection-sinks.md) treats every injection class as a language-level
+  concern, and names SQL, HTML, headers, paths and argv. SSRF is the one major class it does not name, and
+  it is the one most likely to convert a minor bug into a total compromise: `http://169.254.169.254/` is
+  the cloud instance-metadata endpoint, and reaching it turns "this feature fetches a URL the user gave us"
+  into credential theft.
+- SSRF resists the pure compile-time treatment the other sinks get. `http://internal.example.com/` is a
+  perfectly well-formed URL; the property that matters is the address it resolves to, which is only known
+  at connect time and can differ between two resolutions of the same name.
+- It also resists the pure runtime treatment. Nothing in a source file would indicate that a URL is
+  attacker-influenced, so the failure surfaces in production rather than at `mwl check`, and a developer has
+  no signal that a code path needs thought.
+- Fetching a user-supplied URL is a **legitimate feature** — webhooks, oEmbed, avatar imports, link
+  previews, outbound integrations. A design that only forbids is not deployable; the mechanism has to make
+  the safe version convenient.
+
+## Decision
+
+### 1. Compile time: an outbound URL is a sink
+
+The URL parameter of `Core\Http\Client`'s request methods, and the address parameter of `Core\Net`'s
+connect, have type `string | Core\Http\Target` — both unqualified. A `tainted` value at either position is
+a compile-time diagnostic, exactly as at `Core\Db`'s query-text parameter.
+
+The plain `string` form covers URLs the program itself authored — a literal, a configuration value, a
+composed path. Under [ADR 0057](0057-intrinsic-literal-folding.md) a literal is additionally validated
+during checking.
+
+### 2. `Core\Http::allowUrl` is the launderer, and it pins
+
+```
+Core\Http::allowUrl(tainted string $url): Core\Http\Target
+```
+
+It parses the URL, refuses schemes outside the grant, resolves the host, checks every resolved address
+against § 3's policy, and returns a `Target` carrying **both the URL and the specific address that was
+approved**. It throws — naming which check failed — rather than returning a falsy value.
+
+The `Target` return is the load-bearing part. A launderer that returned a plain `string` would leave a gap
+between the check and the connection in which a second DNS resolution could return a different address —
+the classic rebinding attack. Because the connection is made to the address inside the `Target`, there is
+no second resolution to poison. This is the first ADR 0024 launderer whose output is a value rather than a
+plain string, and that is why.
+
+### 3. Run time: the capability carries an address policy
+
+`net.connect` is not a boolean and not merely a host list. It carries an address policy, and the policy is
+enforced on **every** outbound connection — including from a hardcoded URL, because a hardcoded hostname
+can resolve into a private range, and because deployment configuration supplies most real endpoint URLs.
+
+Denied by default: loopback (`127.0.0.0/8`, `::1`), private (`10/8`, `172.16/12`, `192.168/16`,
+`fc00::/7`), **link-local (`169.254.0.0/16`, `fe80::/10`)**, unspecified (`0.0.0.0/8`), and IPv4-mapped
+IPv6 forms of all of the above. An operator grants exceptions explicitly — a service that must reach an
+internal API says so in `mwl.ini`, and that grant is visible in `mwl ext inspect`-style tooling and in
+review.
+
+Link-local is called out because it is the one whose omission is catastrophic rather than merely
+regrettable.
+
+### 4. Redirects
+
+Redirects are **not followed by default**. When enabled they are capped in count, and every hop is
+re-checked and re-pinned by § 2's procedure. A redirect to a denied address fails the request rather than
+being silently dropped from the chain — a redirect is the standard way to defeat a check applied only to
+the first URL.
+
+### 5. The policy lives in the capability, not in the client
+
+`Core\Http\Client`, `Core\Net`, and any socket a host import hands to a Tier 1 extension are all subject to
+the same policy, enforced at the point the connection is made. An extension cannot be granted a socket that
+escapes it, which matters because [ADR 0055](0055-extension-qualifier-declarations.md) permits an extension
+to be an I/O source and [ADR 0051](0051-standard-library-tiers.md) places several network clients at
+Tier 1.
+
+## Consequences
+
+- **Fetching a user-supplied URL becomes a two-line operation**, and the second line is the one that
+  documents the decision. That is the intended shape: not forbidden, but not accidental either.
+- **Existing PHP code will not port silently.** Any `file_get_contents($userUrl)` or
+  `curl_setopt(CURLOPT_URL, $userUrl)` becomes a compile-time diagnostic under
+  [ADR 0052](0052-closed-doors.md) § 2 and this ADR together. `mwl convert` (M11) emits the two-line form
+  with the launderer, rather than a direct translation.
+- **A deployment that legitimately calls internal services must say so.** This is real configuration work
+  that PHP does not require, and it is the point: the difference between an intended internal call and an
+  SSRF is exactly whether someone wrote it down.
+- **Pinning constrains the client's implementation.** Connection reuse, happy-eyeballs dual-stack racing
+  and proxy support all have to respect the pinned address rather than re-resolving. That is an
+  implementation cost recorded here so M8 plans for it rather than discovering it.
+- **A cost this ADR accepts:** the address policy cannot see through a forward proxy, since the proxy does
+  the resolving. A deployment routing outbound traffic through a proxy must enforce the policy there, and
+  the grant syntax should make that explicit rather than implying a guarantee MWL cannot make.
+
+## Alternatives rejected
+
+- **Runtime capability only**, with no `tainted` refusal. One mechanism instead of two, and the operator
+  holds the whole policy. Rejected: nothing in the source would mark a URL as attacker-influenced, so the
+  developer gets no signal and the failure appears in production. It also gives up the `mwl check`-time
+  audit that every other injection class has.
+- **Compile-time only** — refuse `tainted` and have the launderer validate the URL's shape. Rejected: shape
+  validation cannot stop `http://169.254.169.254/`, which is well-formed. The actual attack goes straight
+  through.
+- **A launderer returning a plain `string`.** Fits ADR 0024 § 3's existing shape exactly, with no new value
+  type. Rejected: it reintroduces the check-then-connect gap, which is the specific thing that makes SSRF
+  defenses fail in practice.
+- **Leave it to the application, with documentation.** No new mechanism. Rejected: every application
+  re-implements it, most incompletely — and it is inconsistent for a language that makes SQL and HTML
+  injection compile errors to treat this one as a matter of care.
+- **Deny by default with no grant syntax at all**, i.e. no outbound connections to private ranges, ever.
+  Simplest and safest. Rejected: internal service-to-service calls are the normal case in any non-trivial
+  deployment, and a rule that must be worked around is worse than one that must be written down.
+
+## Verification
+
+- **M8:** compile-time fixtures — a tainted URL at the client's parameter is a diagnostic naming
+  `Core\Http::allowUrl`; the laundered `Target` is accepted; a literal malformed URL is a compile error via
+  ADR 0057.
+- **M8:** runtime fixtures against a test resolver — a hostname resolving to `169.254.169.254` is refused
+  by default; the same hostname is permitted under an explicit grant; a hostname whose second resolution
+  differs from its first still connects to the pinned first address; a redirect to a denied address fails
+  the request and does not silently truncate the chain; redirects are not followed unless enabled.
+- **M9:** an extension granted a host socket is subject to the same policy, asserted in the adversarial
+  extension suite rather than assumed from § 5.

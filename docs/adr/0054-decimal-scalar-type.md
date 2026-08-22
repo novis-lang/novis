@@ -1,0 +1,213 @@
+# ADR 0054 — `decimal` is a scalar type; `bcmath` and `gmp` are retired
+
+- **Status:** Accepted
+- **Date:** 2026-08-23
+- **Scope:** a `decimal` scalar type, its literal form, its place in the conversion and arithmetic tables,
+  its division policy, and what replaces PHP's `bcmath` and `gmp`. Not in scope: `Core\Decimal`'s full
+  method roster, which M8 designs.
+- **Amends:** [0007](0007-explicit-type-system.md) — § 1's scalar list, § 2's conversion table and § 3's
+  arithmetic result table each gain `decimal`; § 5's divergence list gains one entry. This ADR is the only
+  home for those rows.
+- **Amended by:** none.
+- **Relates to:** [0013](0013-comparable-interface.md) (`decimal` is a scalar, so ordering it needs no
+  interface), [0037](0037-var-local-type-inference.md) (§ 2's suffix exists for exactly the positions where
+  `var` leaves no target type), [0047](0047-literal-and-enum-case-types.md) (a numeric literal's typing,
+  seen from the other side), [0051](0051-standard-library-tiers.md) (`Core\Decimal`, `Core\BigInt` and
+  `Core\BigDecimal`'s placement).
+
+> **In short:** `decimal` joins `int`, `uint`, `float`, `bool` and `string` as a scalar — a 128-bit value
+> holding a 96-bit signed mantissa and a scale of 0 to 28, the layout .NET's `System.Decimal` has used for
+> two decades. It is a **scalar rather than a class** because MWL has no operator overloading, so a class
+> would mean `$price->mul($qty)->add($shipping)` forever — and unreadable money arithmetic is precisely why
+> PHP developers reach for `float` and eat the rounding. A numeric literal takes `decimal` or `float` from
+> its target type; an `m` suffix forces `decimal` where there is no target. **`decimal ⊕ float` is a compile
+> error**, on the same grounds `int ⊕ uint` already is. Division rounds half-even at a fixed, unconfigurable
+> scale. `bcmath` and `gmp` are retired: exact fractional arithmetic is `decimal`, arbitrary-magnitude
+> integers are `Core\BigInt`, and the rare remainder is a `Core\BigDecimal` class.
+
+## Context
+
+- Money is the most common correctness bug in web applications, and PHP offers two bad answers: `float`,
+  which cannot represent `0.10`, or `bcmath`, whose API is `bcadd(bcmul($price, $qty), $shipping)` governed
+  by a **process-global** `bcscale()`. The causal chain matters more than either flaw on its own — bcmath is
+  unpleasant enough that developers choose the wrong tool, so the ergonomics *are* the vulnerability.
+- **MWL has no operator overloading and is not getting one.** [ADR 0013](0013-comparable-interface.md)
+  admits `Comparable` for ordering and explicitly refuses a cross-class overload;
+  [ADR 0027](0027-callable-is-closures-only.md) § *Alternatives* parks a general facility as hypothetical.
+  A `Core\Decimal` class therefore cannot participate in `+` at any point in the future, which makes the
+  choice between class and scalar a choice between method chains and arithmetic — not a matter of taste.
+- Three further things a class cannot do, all of which follow from the same fact: it cannot be a
+  compile-time constant, so `const decimal VAT = 0.19;` would be impossible and neither
+  [ADR 0046](0046-attributes-shape-literal-metadata.md)'s attribute payloads nor
+  [ADR 0047](0047-literal-and-enum-case-types.md)'s literal types could hold one; its only precision-safe
+  constructor takes a **string**, since `Decimal::of(19.99)` has already lost the value before the call;
+  and every intermediate in an expression is a heap allocation with a refcount, so a 500-line invoice does
+  roughly a thousand of them.
+- `Core\Db` needs a lossless landing type for `DECIMAL`/`NUMERIC` columns from its first day, and
+  `Core\Json` needs one for JSON numbers, whose grammar is arbitrary-precision decimal. Without one, both
+  start out lossy in exactly the domain that cares.
+
+## Decision
+
+### 1. The type
+
+`decimal` is a scalar: sign, a 96-bit unsigned mantissa, and a scale of 0 to 28 giving the number of digits
+after the point. Its value is `(-1)^sign × mantissa × 10^-scale`. That is roughly 29 significant digits.
+
+This is deliberately **not** arbitrary precision. World GDP in cents is 17 digits; Bitcoin to satoshis is
+16. The type is register-pair sized, allocation-free and refcount-free, and the cases it does not cover are
+covered explicitly in § 6 rather than by making every monetary value pay for a heap allocation.
+
+Rejected: IEEE 754-2008 `decimal128`. Better range and an actual standard, but the mature implementations
+are C (`libdecnumber`), failing the pure-Rust default and
+[ADR 0051](0051-standard-library-tiers.md) § 4's second question, and its cohort semantics — several
+representations of one value — add subtlety that buys nothing monetary.
+
+### 2. Literals: target-typed, with `m` where there is no target
+
+A numeric literal carrying a fractional part or an exponent is **untyped until placed**, and takes
+`decimal` or `float` from the type of the position it appears in. This needs no new mechanism:
+[ADR 0007](0007-explicit-type-system.md) already requires a declared type at every binding site, so the
+target is known almost everywhere, and an integer literal already adapts to `int`, `uint` or `float` the
+same way.
+
+```
+decimal $price = 19.99;          // exact: mantissa 1999, scale 2
+float   $ratio = 19.99;          // an f64
+public const decimal VAT = 0.19; // a compile-time constant
+
+var $x = 19.99;                  // no target type: float
+var $y = 19.99m;                 // no target type: decimal
+```
+
+The `m` suffix exists for exactly the positions with no target type — [ADR 0037](0037-var-local-type-inference.md)'s
+`var`, and a `mixed` or generic argument. It is `m`, following C#, and **not** `d`: in C# and Java `d`
+already means *double*, so `19.99d` would read as precisely the wrong thing. An `m`-suffixed literal in a
+`float` position is a compile error, not a conversion.
+
+### 3. Arithmetic
+
+Added to [ADR 0007](0007-explicit-type-system.md) § 3's table:
+
+| operation | result | on overflow / edge |
+|---|---|---|
+| `decimal ⊕ decimal` for `+ - * %` | `decimal` | **throws `ArithmeticError`** — no wrap, no promotion |
+| `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` — the integer is exact in 96 bits | as above |
+| `decimal ⊕ float` arithmetic | **compile error** | no representable common type; convert one side explicitly |
+| `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws `DivisionByZeroError` |
+| `decimal` against `int`/`uint`/`float` in `< <= > >= == ===` | `bool`, mathematically exact over the full range of both | — |
+| `**` with a `decimal` base | **compile error** — use `Core\Decimal::pow` | — |
+
+The `decimal ⊕ float` compile error is the same rule and the same reason as the existing `int ⊕ uint` row:
+there is no common type that represents both operands' values. Comparison is permitted for the same reason
+`int` against `uint` is — an exact comparison is always computable even where a common arithmetic type is
+not.
+
+**Division is the one place a decimal result may be inexact**, so its policy is fixed in the language and
+**not configurable**: round half to even, at the maximum scale the result admits. There is no `bcscale()`
+equivalent and never will be — ambient precision read by unrelated later code is the shape
+[ADR 0008](0008-static-and-global.md) and [ADR 0052](0052-closed-doors.md) § 3 both already close. Where
+rounding is business logic rather than an artifact, it is said out loud:
+`Core\Decimal::divExact()` throws unless the quotient is exact, `Core\Decimal::divRound($scale, $mode)`
+names both, and `Core\Decimal::allocate($amount, $ratios)` splits a sum into parts that add back to it
+exactly — the penny-allocation problem that actually loses money in production and that no mainstream
+language ships.
+
+Note the deliberate divergence from `int / int`, which yields `int|float`: `decimal / decimal` is always
+`decimal`, never a union.
+
+### 4. Conversions
+
+Added to [ADR 0007](0007-explicit-type-system.md) § 2's table:
+
+| conversion | behaviour |
+|---|---|
+| `int` / `uint` → `decimal` | always exact — both fit in 96 bits |
+| `decimal` → `int` / `uint` | integral and in range, or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round`, said out loud — the same rule `float` already follows |
+| `float` → `decimal` | the shortest decimal that round-trips to that `float`; i.e. exactly the value the float prints as. `0.1 as decimal` is `0.1`, not `0.1000000000000000055…` |
+| `decimal` → `float` | nearest `f64`, lossy, and explicit like every other `as` |
+| `string` → `decimal` | the whole string must be an exact decimal literal, or throws. No leading-garbage rule, exactly as `string → int` |
+| `decimal` → `string` | total, and **preserves scale**: `19.90` renders `"19.90"` |
+
+Scale is carried for rendering, and does not affect equality or hashing: `1.10 == 1.1000` is true. PHP
+loses trailing-zero information at every step and every application re-derives it with `number_format`.
+
+`decimal` is not an enum backing type ([ADR 0010](0010-enums-are-a-value-type.md) keeps `int`/`uint`), and
+array keys are unaffected — [ADR 0007](0007-explicit-type-system.md) § 5's first divergence already makes
+every key a `string`.
+
+### 5. `bcmath` is retired, not ported
+
+bcmath conflates two capabilities that have nothing to do with each other, and separating them is an
+improvement rather than a compromise:
+
+- **Exact fractional arithmetic at human magnitudes** — money, tax, percentages, and the overwhelming
+  majority of real `bc*` calls. Fully replaced by `decimal`, with better ergonomics and arithmetic in
+  registers instead of digit-by-digit over strings.
+- **Arbitrary-magnitude integers wearing a decimal API** — `bcpowmod` for modular exponentiation in
+  pure-PHP crypto, `bcpow` with large exponents, huge factorials. These were never fractional. Replaced by
+  **`Core\BigInt`** over `num-bigint`, which is both faster and honest about what it is. `gmp` is retired
+  the same way, and deliberately not by binding GMP itself, which is C and LGPL.
+
+### 6. The remainder is a class, and says so
+
+`Core\BigDecimal` — arbitrary-precision fractional arithmetic, heap-allocated, method-based, no literal
+form — exists for the genuinely rare case beyond 29 significant digits. Naming it here is the difference
+between "we cover 99% of this" and "we cover 99% of this and here is the other 1%."
+
+## Consequences
+
+- **M1's lexer gains the `m` suffix**, and a fractional literal becomes untyped-until-placed rather than
+  immediately `float`. **M2's checker** gains § 3's and § 4's rows. **M3/M4's backend** gains i128
+  arithmetic with scale reconciliation: `+`, `-` and comparison at equal scale inline to i128 operations,
+  while `*`, `/` and mixed-scale operands go through a runtime helper that needs a wider intermediate.
+  That helper is the real implementation cost of this ADR and is worth planning as such.
+- **A permanent keyword.** `decimal` is one more type every developer learns — but they learn
+  `Core\Decimal` under the alternative, with a larger method roster, so the surface cost is close to a
+  wash and arguably negative.
+- **16 bytes per value against 8 for a `float`.** Priority 5, and less than the ~40 bytes plus refcount a
+  boxed alternative would hold.
+- **This decision is reversible in one direction only.** Adding the scalar later means every money-handling
+  codebase has already been written against a class and must be rewritten; adding a class on top of a
+  scalar is trivial. That asymmetry is why it lands now, well ahead of M8.
+- **`mwl convert` (M11)** maps `bcadd`/`bcsub`/`bcmul` to operators, `bcdiv` to `/` with a note where the
+  original relied on a `bcscale()` that no longer exists, `bccomp` to a comparison, and `bcpowmod`/`bcsqrt`
+  to `Core\BigInt`. A `bcscale()` call is a diagnostic naming § 3, because there is no expression that
+  preserves its meaning.
+
+## Alternatives rejected
+
+- **`Core\Decimal` as an ordinary class.** No language surface, no JIT work, entirely inside M8. Rejected in
+  *Context*: with no operator overloading it is permanently three times more verbose than the wrong answer,
+  which reproduces PHP's failure mode with better internals. It also forecloses constants, literal types
+  and attribute payloads.
+- **A `money` type carrying a currency.** Would catch adding USD to EUR. Rejected: currency is application
+  domain, the arithmetic questions it raises (what type is USD ÷ USD?) have no single right answer, and
+  `decimal` plus a userland `Money` class layers correctly. A currency-aware type belongs on top of this
+  one, not instead of it.
+- **A scale in the type — `decimal<2>`.** Would let the checker prove a monetary value never gains
+  precision. Rejected on priority 4: it needs type-level integers, which nothing else in MWL has, and it
+  makes every signature that accepts "some decimal" either generic or wrong.
+- **Arbitrary precision as the scalar** (a `BigDecimal` layout with a heap mantissa). No range limit, one
+  type instead of three. Rejected on priority 3: it puts an allocation on every intermediate of every money
+  expression, which is the cost the fixed layout exists to avoid, for a range essentially no web
+  application needs.
+- **No suffix at all**, requiring a declared `decimal` type wherever one is introduced. Smallest possible
+  surface. Rejected narrowly: it would make [ADR 0037](0037-var-local-type-inference.md)'s `var` unable to
+  ever produce a `decimal`, which is an odd hole in a feature whose whole purpose is to infer from the
+  initializer.
+
+## Verification
+
+- **M1:** lexer fixtures for `19.99m`, `19.99`, `1m`, `1.0e3m`, a suffix on a hex literal (rejected), and a
+  literal whose mantissa exceeds 96 bits (rejected at parse time, not at runtime).
+- **M2:** checker fixtures for each row of § 3 and § 4 — in particular `decimal + float` rejected,
+  `decimal < 1.5` accepted, `19.99m` in a `float` position rejected, `var $y = 19.99m;` inferring `decimal`,
+  and `const decimal VAT = 0.19;` accepted as a compile-time constant.
+- **M3/M4:** a runtime suite asserting `0.1 + 0.2 == 0.3`; that mantissa overflow throws `ArithmeticError`
+  rather than wrapping; that `1.00 / 3` rounds half-even and `Core\Decimal::divExact` on the same operands
+  throws; that `Core\Decimal::allocate(100.00, [1, 1, 1])` sums back to `100.00` exactly; and that
+  `19.90 as string` is `"19.90"`. A typed decimal arithmetic loop is committed as a figure in `benches/`
+  with a guard, alongside the ADR 0007 loop the plan already requires.
+- **M8:** a `NUMERIC(30,10)` Postgres column throws on read rather than truncating, and
+  `Core\Json::decode` into a `decimal` shape field round-trips a 25-significant-digit number exactly.
