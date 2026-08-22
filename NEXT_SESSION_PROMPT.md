@@ -5,62 +5,58 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-## Landed this session: ADR 0043's M2 follow-up, first half — default-method inheritance/overriding + private-method visibility
+## Landed this session: ADR 0049 — `<?php` and `die` rejected, `<?mwl`/`exit` are the only spellings kept
 
-[ADR 0043](docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s M2 follow-up (default/
-private-method resolution, `by`-delegation, and the three new diagnostics) had been queued since the ADR's
-`mwl-syntax` grammar slice landed. This session took the first, self-contained half:
+A small, self-contained `mwl-syntax` slice, unrelated to M2's HIR/type-checker line of work below — picked
+up from a design discussion, not from the milestone queue.
 
-- **Default-method inheritance and overriding needed no new code at all** — `mwl-types::signatures::
-  resolve_method`'s existing `extends`/`implements` ancestor walk already checks a class's own signature
-  table before ever walking to an implemented interface's default, so an override already won, and an
-  uninherited default was already reachable through the walk. Confirmed rather than left implicit, with two
-  new fixtures in `crates/mwl-types/src/check.rs`: `a_default_interface_method_is_inherited_and_callable`,
-  `a_class_can_override_a_default_interface_method`.
-- **`$this` inside an interface's own method body already typed as that interface, not the implementing
-  class** — `check::check_method` types `$this` via `class_of_ctx(ctx, ...)`, which is the `QName` of
-  whatever declaration is currently being checked; for an `InterfaceDecl`'s own body that is the interface
-  itself, never whatever class happens to implement it later. Locked in with
-  `this_inside_a_default_method_body_does_not_see_the_implementing_class` (a default method reaching for a
-  member only the implementing class declares is `E_UNKNOWN_MEMBER`, not silently resolved).
-- **Private-method visibility is now enforced — the one new mechanism this half actually needed.**
-  `signatures::resolve_method`'s return type changed from `Option<MethodSig>` to `Option<(QName, MethodSig)>`
-  (every call site in `crates/mwl-types/src/expr.rs` updated: `MethodCall`, `StaticCall`, `New`'s constructor
-  lookup); `MethodSig` gained `pub interface_private: bool`, set in `signatures::collect_members` when a
-  `private`-modified method is declared inside a declaration whose `SymbolTable` kind is `Interface` (a
-  `SymbolKind::Interface` lookup on `qname`, computed once per `collect_members` call). `crate::expr::
-  check_interface_private_visibility` (new) reports the new `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`
-  (`E0435`, `crates/mwl-diagnostics/src/lib.rs`) at both the `MethodCall` and `StaticCall` sites whenever the
-  resolved owner differs from `ctx.current_class` — covering `$this->helper()` called from an implementing
-  class and the qualified `InterfaceName::helper()` form (ADR 0043 § 5's grammar) alike. Three new fixtures:
-  visible from the declaring interface's own other default method
-  (`a_private_interface_method_is_visible_from_its_own_interfaces_default_method`), refused via `$this->`
-  from an implementing class, and refused via the qualified call form.
+- **`die` is rejected; `exit` is the only process-termination keyword.** `parse_exit` (which both keywords
+  still dispatch to) now reports `E_DIE_UNSUPPORTED` (`E0228`) when the consumed keyword was `die`, naming
+  `exit` as the replacement, and returns `ExprKind::Error` instead of a live node. `ExprKind::ExitOrDie` is
+  renamed to `ExprKind::Exit` since `die` can no longer reach it — updated across `mwl-types::expr`,
+  `mwl-hir::{members,requires}`, and `mwl-syntax::casing`.
+- **`<?php` is rejected; `<?mwl` is the only code-mode open tag.** The lexer still recognizes `<?php` and
+  switches to code mode on it (unchanged), but `parser.rs`'s `parse_statement_inner` tag-reentry loop now
+  reports `E_PHP_OPEN_TAG_UNSUPPORTED` (`E0229`) each time it consumes an `OpenTagPhp` token — at file start
+  or any mid-file reopen — naming `<?mwl` as the replacement, then continues parsing the following code
+  normally (not misread as inline HTML).
+- Both diagnoses were chosen over keeping either as a permanent alias: neither ever differed in behavior
+  from the spelling kept (confirmed by a cross-language survey — no other language surveyed keeps a bare,
+  behaviorally-identical synonym for "terminate the process" or "open code mode"), and PHP source already
+  needs a `mwl convert` pass regardless, so the extra rename costs that tool nothing new.
+- **`docs/implementation-plan.md`'s M1 paragraph corrected**: `corpus_parse.rs`'s "parses clean" claim
+  predates this ADR — every real `php-src` file opens with `<?php`, so every corpus file now also trips
+  exactly one `E0229`. Noted as expected, not re-measured (no corpus is checked into this repo to re-run
+  against).
 
 Verified this session: `cargo build`/`cargo test`/`cargo clippy --all-targets -- -D warnings`/
-`cargo fmt --check` all clean across the full workspace (`mwl-diagnostics`, `mwl-syntax` 189 tests,
-`mwl-hir` 68 tests, `mwl-types` 222 tests — up from 216, six new ADR 0043 fixtures — `mwl-ir` 102 tests,
-all others unaffected).
+`cargo fmt --check` all clean across the full workspace (`mwl-syntax` 191 tests — up from 189, two new
+ADR 0049 fixtures — all other crates unaffected: `mwl-hir` 68, `mwl-types` 222, `mwl-ir` 102).
 
-**Not done, and explicitly left for a follow-up session** (ADR 0043's own updated M2 *Verification* bullet
-names this precisely — read it before starting):
+New doc: [ADR 0049](docs/adr/0049-single-open-tag-and-single-exit-keyword.md). Also touched: `docs/adr/
+0034-legacy-cast-syntax-rejected.md` (its *Consequences* section had named `<?php` as a still-kept PHP
+spelling — corrected to point at ADR 0049 instead), `docs/adr/README.md`'s index, `docs/spec/00-overview.md`
+§ 1's tag table, and `CLAUDE.md`'s routing table + ground-rules bullet list.
+
+## Pick up next: ADR 0043's `by`-delegation resolution — the one substantial M2 item still open
+
+This was queued before this session and is untouched by it:
 
 - **`by`-delegation resolution**: checking that `$field`'s declared type actually satisfies the delegated
   interface (`E_DELEGATE_TYPE_MISMATCH` on a mismatch), and synthesizing/checking the one-line forwarding
-  methods ADR 0043 § 4 describes. `mwl-syntax`'s `ImplementsClause.by_field` has parsed since the M1 slice
-  but is still completely unread by `mwl-hir`/`mwl-types` — grep for `by_field` to find the one unused site.
+  methods [ADR 0043](docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md) § 4
+  describes. `mwl-syntax`'s `ImplementsClause.by_field` has parsed since the M1 slice but is still
+  completely unread by `mwl-hir`/`mwl-types` — grep for `by_field` to find the one unused site.
 - **`E_INTERFACE_MEMBER_CONFLICT`**: today `resolve_method_rec`'s `find_map` over `extends.iter().chain
   (implements.iter())` silently returns whichever ancestor it reaches first when a method name is reachable
   from more than one default/delegated source with no class override — there is no collision check at all.
-  This is a structural, per-class-declaration check (not a per-call-site one like this session's private-
-  visibility work) — closer in shape to `hierarchy::detect_cycles` than to anything in `expr.rs`. Needs
-  `E_DELEGATE_TYPE_MISMATCH`'s `by`-delegation resolution to exist first, since a delegated interface is one
-  of the three conflict sources ADR 0043 § 5 names (the other two, "two different implemented interfaces'
-  defaults," are already checkable without it — consider whether that narrower slice is worth landing on its
-  own first).
+  This is a structural, per-class-declaration check (not a per-call-site one), closer in shape to
+  `hierarchy::detect_cycles` than to anything in `expr.rs`. Needs `E_DELEGATE_TYPE_MISMATCH`'s `by`-delegation
+  resolution to exist first, since a delegated interface is one of the three conflict sources ADR 0043 § 5
+  names (the other two, "two different implemented interfaces' defaults," are already checkable without it —
+  consider whether that narrower slice is worth landing on its own first).
 
-Pick up `by`-delegation next — it unblocks the conflict diagnostic and is the one substantial ADR 0043 M2
-item left. Give it the same care ADR 0043 §§ 4-5 already spell out rather than re-deriving the rules here.
+Give it the same care ADR 0043 §§ 4-5 already spell out rather than re-deriving the rules here.
 
 ## `mwl-ir`: still the main line of work once the above is closed out
 
@@ -68,7 +64,7 @@ item left. Give it the same care ADR 0043 §§ 4-5 already spell out rather than
 around `lower_while`'s body, recording one `(BlockId, Env)` edge per `break`/`continue` reached at any
 nesting depth, folded into the header phi-patch (for `continue`) or a new `merge_envs` join at `after_block`
 (for `break`, which previously always exited with exactly `header_env`). No new `Terminator`/`InstKind` was
-needed. Seven new tests (95 → 102). Nothing in `mwl-ir` changed this session.
+needed. 102 tests. Nothing in `mwl-ir` changed this session or the one before it.
 
 **Still explicitly out of scope:** `break N`/`continue N` for `N > 1` or a non-literal level (panics naming
 `Lowering::loop_exit_level`); either keyword inside `for`/`switch` (neither lowers yet); a `break`/`continue`
@@ -103,9 +99,13 @@ truncating (the M2 paragraph in `docs/implementation-plan.md` is the largest sin
 exactly the signal `DOC_CLEANUP_PROMPT.md` describes as "overdue for a trim pass." The user runs that pass
 manually; flagging it again since it's now a recurring truncation, not a one-off.
 
-## Note: concurrent session activity
+## Other PHP output/echo-family stdlib functions raised in the same discussion, not yet actioned
 
-A concurrent session added [ADR 0048](docs/adr/0048-portable-single-file-executables.md) (portable
-single-file executables) during/around this session's work, visible in `docs/adr/README.md`'s index. That
-work is unrelated to this prompt's scope and was left untouched here — if picking up anything ADR-0048-
-adjacent, read that ADR fresh rather than assuming anything about it from this note.
+Also discussed this session but deliberately not implemented (M2 has no `Core` stdlib classes yet — that's
+M7/M8): `sprintf`/`printf`/`print_r`/`var_dump`/`var_export` should become `Core` methods when the stdlib
+work starts, with `printf` as sugar over `echo sprintf(...)` (reuses ADR 0024/0033's sink rules for free)
+and `print_r`/`var_export`'s "return vs. print" boolean flag split into two distinct calls rather than
+carried over from PHP. `vprintf`/`vsprintf`/`fprintf`/`debug_zval_refcount` were recommended to skip
+(depend on undecided argument-unpacking/stream-resource features, or have no MWL equivalent at all). No ADR
+was deemed necessary — ordinary stdlib scoping under [ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md).
+Revisit this note when `Core` stdlib design actually starts; it may be stale by then.
