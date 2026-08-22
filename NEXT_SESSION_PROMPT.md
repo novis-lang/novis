@@ -105,12 +105,20 @@ exempted from ADR 0022's constructor check entirely rather than verified against
 identical question now also applies to whether a `lateinit` + hooked property should discharge on the
 hook's first commit (ADR 0038's own *Revisiting* names this, deferred to `docs/spec/`).
 
-**Note on concurrent work:** a separate session landed ADR 0043 (traits removed, replaced by interface
-default/private methods + `implements X by $field;` delegation) in parallel with this session's `mwl-ir`
-work — its own code follow-up (grammar/`mwl-hir` changes) is tracked in its own
-`NEXT_SESSION_PROMPT_ADR0043.md`, deliberately kept separate from this file to avoid the two sessions
-racing on the same doc. Check whether that follow-up has landed before assuming `mwl-hir`'s trait-flattening
-code still matches ADR 0043's predecessor.
+**Queued, independent of the `mwl-ir` work above: ADR 0043's code follow-up.** A separate concurrent session
+landed [ADR 0043](docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md) (docs-only,
+`81448ce`): `trait`, class-body `use Trait, ...;`, and `insteadof` are removed from the language entirely,
+replaced by an `interface` method with a `public`/`private` body and one `implements` entry carrying a
+`by $field;` delegation suffix. The ADR's own *Consequences* and *Verification* sections are the one home
+for the exact task list — don't re-derive it here — but the shape is: remove `mwl-syntax`'s
+`TraitDecl`/`UseTraitMember`/adaptation AST and grammar (replaced by a parse-time `E_TRAIT_NOT_SUPPORTED`
+diagnostic) and add default/private interface-method-body grammar plus `by $field` grammar; remove
+`mwl-hir`'s entire trait-use/`insteadof` resolution machinery (`hierarchy.rs`) and add default/private
+method resolution, `by`-delegation resolution, and the new `E_INTERFACE_MEMBER_CONFLICT`/
+`E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`/`E_DELEGATE_TYPE_MISMATCH` diagnostics. It's a large, separable
+chunk — check `mwl-syntax`/`mwl-hir` first to confirm it hasn't already landed, then either fold it into a
+session alongside the `mwl-ir` picks below or, better, give it its own dedicated session given its size.
+`mwl-hir`'s trait-flattening code is stale (still matches the pre-ADR-0043 design) until this lands.
 
 **Housekeeping note:** `python .claude/brief.py`'s "WHERE THE PLAN STANDS" section has been hitting its
 4000-byte budget and truncating for at least three sessions now (the M2 paragraph in
