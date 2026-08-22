@@ -13,8 +13,10 @@
 //! return type once, and hands the body to [`crate::locals::check_block`].
 //! Right after a `ClassDecl`'s members are checked this way,
 //! [`crate::ctor_init::check_class_init`] runs its own, separate
-//! constructor-only pass over the same declaration for ADR 0022 § 2 —
-//! interfaces/traits/enums never get that call, since only a class is ever
+//! constructor-only pass over the same declaration for ADR 0022 § 2, and
+//! [`crate::lateinit::check_class_lateinit_reads`] runs ADR 0038 § 3's
+//! sibling pass over every one of that declaration's *other* methods too —
+//! interfaces/traits/enums never get either call, since only a class is ever
 //! instantiated through a constructor.
 //!
 //! **Known gap:** a class/interface/trait/enum declared *inside* a method
@@ -30,6 +32,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ctor_init::check_class_init;
 use crate::expr::class_of_ctx;
+use crate::lateinit::check_class_lateinit_reads;
 use crate::locals::{LocalScope, check_block};
 use crate::lower::lower_optional_type;
 use crate::signatures::build_signatures;
@@ -111,6 +114,7 @@ fn check_stmts(
                 };
                 check_members(&decl.members, &ctx, env);
                 check_class_init(decl, &qname, env);
+                check_class_lateinit_reads(decl, &qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
