@@ -49,6 +49,14 @@
 //!   definite-assignment idea to a second binding kind, as that ADR's own
 //!   framing asks for, rather than reusing `locals`'s code directly (the two
 //!   passes track different per-path state and don't share a walker).
+//! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: ADR 0038's
+//!   `lateinit` property modifier. `signatures::build_signatures` validates
+//!   where it may appear (§ 1: refusing a scalar/enum type, `?T`, a promoted
+//!   parameter, and `readonly`) and excludes it from `ctor_init`'s
+//!   constructor-must-assign obligation; this module adds § 3's one
+//!   compile-time bonus check, a third flow-analysis pass — sibling to
+//!   `ctor_init`'s, but over every method body rather than only the
+//!   constructor.
 //!
 //! # Known gaps
 //!
@@ -133,9 +141,6 @@
 //!   conservatively contribute nothing to definite-assignment after them —
 //!   safe (may reject a few valid programs), never accepts an invalid one.
 //! - References (`&$x`) needing both sides to declare the same type.
-//! - `parent` as a *type* atom (`parent $x`) is still unresolved — only
-//!   `new parent(...)` is, since that's the one this slice's corpus needed;
-//!   see [`lower`]'s own docs.
 //! - A class constant's type, a promoted constructor-parameter property, and
 //!   a named/spread call argument's positional checking — see
 //!   [`signatures`]/[`expr`]'s own known-gaps lists.
@@ -145,6 +150,7 @@
 pub mod check;
 pub mod ctor_init;
 pub mod expr;
+pub mod lateinit;
 pub mod locals;
 pub mod lower;
 pub mod signatures;

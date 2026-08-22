@@ -574,6 +574,17 @@ mod tests {
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
+    /// ADR 0038 § 1: a `lateinit` property is exempt from ADR 0022 § 2's
+    /// constructor-must-assign obligation entirely, whether or not the class
+    /// even has a constructor.
+    #[test]
+    fn a_lateinit_property_is_exempt_from_the_constructor_check() {
+        let diags = check_src(
+            "<?mwl\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function constructor() {\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
     /// `walk_stmt`'s `Switch` arm: every case ends in a `break`, and a
     /// `default` covers "no case matched" — so `$count` is assigned on every
     /// path out of the constructor.
