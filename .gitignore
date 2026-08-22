@@ -49,3 +49,9 @@ Desktop.ini
 
 # Machine-local agent/tool settings
 .claude/settings.local.json
+
+# Unattended loop run artifacts (see AGENT_COORDINATOR_PROMPT.md)
+.claude/loop-log.md
+.claude/loop-logs/
+.claude/loop-status.txt
+.claude/loop-stop
