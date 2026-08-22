@@ -960,6 +960,29 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // `.` concatenation is not `InstKind::BinOp` — it allocates a
+            // fresh buffer rather than computing a native scalar result, so
+            // it gets its own arm (and its own `InstKind::Concat`) ahead of
+            // the scalar-operator table below. This slice only lowers it
+            // between two operands that are already `Ty::Str`; a scalar or
+            // `Stringable`-object operand (both accepted by
+            // `mwl_types::expr::check_expr`'s own `require_stringable`) needs
+            // a to-string conversion this crate has no runtime-helper-call
+            // shape to express yet — see the crate docs' known gaps.
+            ExprKind::Binary {
+                op: BinaryOp::Concat,
+                lhs,
+                rhs,
+            } => {
+                let (lv, lty) = self.lower_expr(lhs, Some(Ty::Str), env, cur);
+                let (rv, rty) = self.lower_expr(rhs, Some(Ty::Str), env, cur);
+                assert!(
+                    lty == Ty::Str && rty == Ty::Str,
+                    "mwl-ir only lowers `.` between two `string` operands so far — got \
+                     {lty:?} . {rty:?}; see the crate docs' known gaps"
+                );
+                self.emit(cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv })
+            }
             ExprKind::Binary { op, lhs, rhs } => {
                 let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
                 let (rv, _) = self.lower_expr(rhs, Some(lty), env, cur);
@@ -1891,6 +1914,53 @@ class T {
     fn writing_through_a_plain_object_receiver_is_still_out_of_scope() {
         lower_first_method(
             "<?mwl\nclass T {\n  function m(object $o): void {\n    $o->x = 1;\n  }\n}\n",
+        );
+    }
+
+    /// `"a" . "b"` — two fresh literal operands lower to a single
+    /// `InstKind::Concat`, with no retain of either operand (each is only
+    /// read to build the new buffer, exactly the way `InstKind::FieldGet`
+    /// reads its `object` receiver without retaining it) and no retain of the
+    /// result when it's returned directly — a concatenation's own result is a
+    /// fresh producer, same as a literal or a call's result
+    /// (`lower::is_aliasing_read` stays `false` for `ExprKind::Binary`).
+    #[test]
+    fn concatenating_two_string_literals_needs_no_retain_of_either_operand() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): string {\n    return \"a\" . \"b\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a . $b` — both operands are aliasing reads of an existing local, but
+    /// `InstKind::Concat` only *reads* them to build the new buffer; neither
+    /// local's own slot is retained on the way in, since concatenation never
+    /// becomes a second durable owner of either operand the way binding one
+    /// to a new local would. `$a`/`$b`'s own slots still get their ordinary
+    /// one release each at `m`'s exit sweep, and the concatenation's own
+    /// result — bound to `$c` here, an aliasing read of nothing — needs no
+    /// retain either, only the release `release_all_locals` gives every
+    /// refcounted local still live at return.
+    #[test]
+    fn concatenating_two_string_locals_reads_them_without_retaining() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $a = \"x\";\n    string $b = \"y\";\n    string $c = $a . $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `1 . "x"` — a scalar operand on the `.` side that `mwl_types::expr::
+    /// check_expr`'s own `require_stringable` happily accepts (PHP-style
+    /// implicit to-string), but this slice only lowers `.` between two
+    /// operands that already reached `Ty::Str` — an `int` operand needs a
+    /// to-string conversion this crate has no runtime-helper-call shape to
+    /// express yet, so lowering panics naming the mismatch instead of
+    /// guessing a conversion.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn concatenating_a_non_string_operand_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(): string {\n    return 1 . \"x\";\n  }\n}\n",
         );
     }
 }

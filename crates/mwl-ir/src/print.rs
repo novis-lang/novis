@@ -134,6 +134,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
+        InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
         InstKind::StmtMarker(_)
         | InstKind::Safepoint
         | InstKind::Retain { .. }

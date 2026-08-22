@@ -219,6 +219,31 @@ pub enum InstKind {
         /// The new value, already lowered.
         value: ValueId,
     },
+    /// `.` string concatenation: builds a fresh [`Ty::Str`] value from the
+    /// cooked bytes of `lhs` and `rhs`, both already [`Ty::Str`] this slice —
+    /// see `crate::lower`'s `ExprKind::Binary` arm for the panic naming any
+    /// other operand shape (a scalar/`Stringable`-object operand needs a
+    /// to-string conversion this crate has no runtime-helper-call shape to
+    /// express yet). Modeled as a dedicated instruction rather than a
+    /// runtime-helper call, the same "native instruction over already-typed
+    /// operands" treatment [`InstKind::BinOp`] already gives scalar
+    /// arithmetic — no helper-call shape exists in the IR yet (see the crate
+    /// docs' "no runtime-helper calls" known gap), and `.` only ever needs
+    /// this one fixed two-operand shape. The result is a fresh value with
+    /// exactly one natural owner — concatenation always allocates a new
+    /// buffer, so `crate::lower::is_aliasing_read` stays `false` for
+    /// `ExprKind::Binary`, same as it already is for [`InstKind::ConstStr`]/
+    /// [`InstKind::New`]/[`InstKind::Call`]. Neither operand is retained by
+    /// this instruction itself: each is only *read* to build the new buffer,
+    /// exactly the way [`InstKind::FieldGet`] reads its `object` receiver
+    /// without retaining it, so ownership of `lhs`/`rhs` stays wherever it
+    /// already was (their own local slot, field, ...).
+    Concat {
+        /// The left operand, already lowered and already [`Ty::Str`].
+        lhs: ValueId,
+        /// The right operand, already lowered and already [`Ty::Str`].
+        rhs: ValueId,
+    },
     /// Increments a [`Ty::is_refcounted`] value's reference count — emitted
     /// exactly where `crate::lower`'s "copy" case needs a second durable
     /// owner to see it stay alive (see that module's docs for the precise

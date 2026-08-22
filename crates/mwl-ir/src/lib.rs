@@ -19,11 +19,13 @@
 //! return value/call-argument/property-field, initialized, reassigned,
 //! passed, returned, read or written from a literal, another local, a
 //! compile-time-known property or a resolved call's own result — with
-//! refcount retain/release operations around every one of those boundaries
+//! refcount retain/release operations around every one of those boundaries,
+//! plus `.` string concatenation between two already-`string` operands
 //! — [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
-//! `break`/`continue`, no array access, no `bytes`/`array<T>`, no `.` string
-//! concatenation (a class/enum value itself also has a representation,
-//! [`ty::Ty::Object`], just not a way to refcount one yet). The straight-line
+//! `break`/`continue`, no array access, no `bytes`/`array<T>`, no
+//! concatenation of a non-`string` operand (a class/enum value itself also
+//! has a representation, [`ty::Ty::Object`], just not a way to refcount one
+//! yet). The straight-line
 //! subset was deliberately the *first* slice landed
 //! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
 //! it was the smallest shape exercising every structural IR piece with no
@@ -71,7 +73,19 @@
 //! read the field's *previous* value back with a `FieldGet` and release it
 //! (a field has no `Env` entry to consult before the overwrite the way a
 //! local does, so re-reading it is the only way to name the value being
-//! replaced).
+//! replaced). `.` string concatenation between two `string` operands is the
+//! eleventh slice: [`mwl_syntax::ast::ExprKind::Binary`] gains a dedicated
+//! arm ahead of the scalar-operator table for `BinaryOp::Concat`, lowering
+//! to a new [`ir::InstKind::Concat`] rather than [`ir::InstKind::BinOp`]
+//! (concatenation allocates a fresh buffer, unlike a native scalar op) — see
+//! that variant's own doc comment for why neither operand needs a retain
+//! (each is only read, never stored into a second durable slot) and why the
+//! result needs none either (a concatenation is a fresh producer, same as a
+//! literal or a call's result). A non-`string` operand — a scalar or a
+//! `Stringable` object, both of which `mwl_types::expr::check_expr`'s own
+//! `require_stringable` already accepts — still panics naming the mismatch:
+//! converting either to `string` needs a runtime-helper call this crate has
+//! no shape for yet (see the known gaps below).
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -184,12 +198,16 @@
 //!   what a local's own declare/drop already does), and a returned value
 //!   (`Lowering::lower_stmt`'s `StmtKind::Return` arm — a property read has
 //!   no local slot for `release_all_locals` to exclude the way a bare
-//!   variable does, so it retains explicitly there instead). What stays a
-//!   known gap: string concatenation (needs a runtime-helper call, or a
-//!   dedicated `InstKind` — either way, a new operand-producing shape this
-//!   session didn't need), and a `tainted`/`secret`-qualified string
-//!   (`lower_checked_ty` only handles the plain, unqualified `string` type —
-//!   see the known gaps below).
+//!   variable does, so it retains explicitly there instead). `.`
+//!   concatenation ([`ir::InstKind::Concat`]) needed neither a retain of its
+//!   operands (each is read, not copied into a new durable slot — the same
+//!   treatment [`ir::InstKind::FieldGet`] already gives its `object`
+//!   receiver) nor of its own result (a fresh producer, same as `ConstStr`/
+//!   `New`/`Call`) — see that variant's own doc comment. What stays a known
+//!   gap: converting a non-`string` operand for `.` (needs a runtime-helper
+//!   call — a new operand-producing shape this session didn't need), and a
+//!   `tainted`/`secret`-qualified string (`lower_checked_ty` only handles the
+//!   plain, unqualified `string` type — see the known gaps below).
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
@@ -287,11 +305,19 @@
 //!   function's own doc comment. `ExprKind::Interpolated` (a double-quoted
 //!   string or heredoc with at least one interpolation site) and a
 //!   heredoc/nowdoc-sourced `ExprKind::Str` are both entirely unsupported —
-//!   lowering panics naming either. There is also no `.` string-concatenation
-//!   operator lowered yet: `ExprKind::Binary`'s arm only accepts the
-//!   arithmetic/equality/ordering operators `BinaryOp` already covers for a
-//!   scalar operand, so a `string . string` expression panics there rather
-//!   than reaching `Ty::Str` at all.
+//!   lowering panics naming either. Interpolation is expected to desugar to
+//!   the same [`ir::InstKind::Concat`] chain a written-out `.` expression
+//!   already lowers to, so landing it alongside this cooking-completeness
+//!   work is a natural pairing, not a separate mechanism.
+//! - **`.` string concatenation only covers two already-`string` operands.**
+//!   `ExprKind::Binary`'s `BinaryOp::Concat` arm lowers to
+//!   [`ir::InstKind::Concat`] when both sides already reached [`ty::Ty::Str`];
+//!   a scalar (`int`/`uint`/`float`/`bool`) or `Stringable`-object operand —
+//!   both of which `mwl_types::expr::check_expr`'s own `require_stringable`
+//!   already accepts, since PHP's `.` implicitly stringifies either — still
+//!   panics naming the mismatch, since converting one to `string` needs a
+//!   runtime-helper call (see the "no runtime-helper calls" gap above) this
+//!   crate has no shape for yet.
 
 pub mod ids;
 pub mod ir;
