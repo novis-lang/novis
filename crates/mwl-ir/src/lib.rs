@@ -22,12 +22,14 @@
 //! property or a resolved call's own result — with refcount retain/release
 //! operations around every one of those boundaries, plus `.` string
 //! concatenation, including a scalar (`int`/`uint`/`float`/`bool`) operand
-//! converted through this crate's first runtime-helper-call shape —
-//! [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
-//! `break`/`continue`, no array access, no `array<T>`, no concatenation of a
-//! `Stringable`-object operand (a class/enum value itself also has a
-//! representation, [`ty::Ty::Object`], just not a way to refcount one yet,
-//! nor a way to invoke its `toString()` from here). The straight-line
+//! converted through this crate's first runtime-helper-call shape, and now a
+//! positional `array<T>` literal (`[...]`/legacy `array(...)`, refcounted
+//! like `string`/`bytes`) — [`lower::lower_method`] is the entry point. No
+//! `for`/`switch`/`try`, no `break`/`continue`, no array access (`$arr[$i]`),
+//! no explicit `key =>`/`...spread`/`&value` array-literal element, no
+//! concatenation of a `Stringable`-object operand (a class/enum value itself
+//! also has a representation, [`ty::Ty::Object`], just not a way to refcount
+//! one yet, nor a way to invoke its `toString()` from here). The straight-line
 //! subset was deliberately the *first* slice landed
 //! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
 //! it was the smallest shape exercising every structural IR piece with no
@@ -128,6 +130,28 @@
 //! shapes. A `Core\Bytes` conversion/constructor, once one exists (M7/M8),
 //! would be the first fresh producer; nothing about this slice's
 //! representation needs to change when it lands.
+//!
+//! `array<T>` is the fourteenth slice, and the first widening this crate has
+//! done since `string`/`bytes` landed a third refcounted representation:
+//! [`ty::Ty::Array`] is a bare, opaque unit variant carrying no element type
+//! at all — the same "representation, not identity" erasure
+//! [`ty::Ty::Object`] already gives a class/enum, chosen because no lowering
+//! decision made so far needs to branch on an array's *element* type at this
+//! IR level (`mwl_types::ty::Ty::Array(TypeId)` already enforces that at
+//! check time — see [`ty::Ty`]'s own module doc for the full split). A
+//! positional array literal (`[...]`/legacy `array(...)`, no explicit
+//! `key =>`, no `...spread`, no `&value`) lowers to a new
+//! [`ir::InstKind::ArrayNew`] — see that variant's own doc comment for the
+//! fixed `(key, value)`-pairs shape and why each key is a decimal string
+//! computed at lowering time, never a lowered expression. [`ty::Ty::Array`]
+//! is [`ty::Ty::is_refcounted`], so [`lower::Lowering::lower_expr`]'s new
+//! `ArrayLiteral` arm applies the exact same caller-side retain
+//! [`lower::Lowering::lower_call_args`] already gives a refcounted, aliasing
+//! call argument to each element that [`lower::is_aliasing_read`]s existing
+//! storage — no new policy, only a new call site for the existing one. An
+//! explicit `key =>` entry, a `...spread` element, a `&value` element, and
+//! reading/writing an existing array by index (`$arr[$i]`) are all still
+//! unsupported — see the known gaps below.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -312,8 +336,14 @@
 //!   the outer binding — not observable for any program in scope today (no
 //!   shape here can declare a same-named local in a narrower scope in a way
 //!   that matters), but worth knowing before trusting `Env` further.
-//! - **No array access** — `$arr[$i]` is unsupported; lowering panics naming
-//!   the expression.
+//! - **No array access, and only a positional literal.** `$arr[$i]` (read or
+//!   write) is unsupported; lowering panics naming the expression. A literal
+//!   with an explicit `key =>`, a `...spread` element, or a `&value` element
+//!   is equally unsupported — `crate::ir::InstKind::ArrayNew`'s own doc
+//!   comment explains why (`mwl_types::expr::check_array_literal` itself has
+//!   no key-normalization/rejection logic yet either, so lowering an explicit
+//!   key would mean guessing at a runtime conversion this crate can't yet
+//!   synthesize).
 //! - **Property access, read or write, is compile-time-known-field-only.** A
 //!   receiver whose static type resolved to a known declaring class lowers a
 //!   read to [`ir::InstKind::FieldGet`] and a write (`$obj->prop = expr;`) to
@@ -325,34 +355,32 @@
 //!   throw from, so lowering panics naming it rather than guessing a
 //!   representation. A nullsafe access (`?->`) is equally unsupported today
 //!   on either side, same as a nullsafe method call.
-//! - **`string` and now `bytes` both cross a local, call-argument, resolved-
-//!   return, and compile-time-known property-read *and write* boundary — but
-//!   `array<T>` still doesn't.** [`lower::lower_checked_ty`] has a
-//!   `CheckedTy::String => Ty::Str` arm and, as of the thirteenth slice, a
-//!   `CheckedTy::Bytes => Ty::Bytes` one beside it, so a call/`new` argument, a
-//!   resolved return type, and a property read or write
-//!   (`$obj->prop`/`$obj->prop = expr;`) all lower for either type, with the
-//!   same retain policy a local already had — see the design-choices section
-//!   above for exactly why `bytes` needed no new insertion point of its own.
-//!   `bytes` still has no literal syntax at all in `mwl-syntax`'s grammar (no
-//!   `b"..."` form), so every `bytes` value lowered so far originates as a
-//!   parameter or a property read, never a fresh literal the way
-//!   [`ir::InstKind::ConstStr`] gives `string` — see the design-choices
-//!   section above. Both `Ty::Str` and `Ty::Bytes` still only cover the
-//!   plain, unqualified type: `lower_checked_ty` has no arm for any of the
-//!   eight qualified `CheckedTy::TaintedString`/`SecretString`/
-//!   `SecretTaintedString`/`TaintedBytes`/`SecretBytes`/`SecretTaintedBytes`
-//!   variants (ADR 0024/0033), so a `tainted`/`secret`-qualified parameter,
-//!   return or field still panics there — those qualifiers need their own
-//!   laundering/sink story before they can flow through an IR value at all,
-//!   deliberately out of scope here. No `array<T>` representation exists yet
-//!   either — it needs its own element-layout decision first.
-//!   [`ty::Ty::Object`] is a reference too, but nothing allocates or frees
-//!   the memory behind one yet, and no retain/release is emitted for one —
-//!   see that variant's own doc comment for exactly what is and isn't
-//!   modeled; extending `Ty::is_refcounted` to include it is expected to
-//!   reuse the exact same `bind_local`/`lower_call_args`/`release_all_locals`
-//!   insertion points `Ty::Str`/`Ty::Bytes` already use, not new ones.
+//! - **`string`/`bytes`/`array<T>` all cross a local, call-argument,
+//!   resolved-return, and compile-time-known property-read *and write*
+//!   boundary.** [`lower::lower_checked_ty`] has a `CheckedTy::String =>
+//!   Ty::Str` arm, a `CheckedTy::Bytes => Ty::Bytes` one, and, as of the
+//!   fourteenth slice, a `CheckedTy::Array(_) => Ty::Array` one beside
+//!   them — so a call/`new` argument, a resolved return type, and a property
+//!   read or write (`$obj->prop`/`$obj->prop = expr;`) all lower for
+//!   `array<T>` too, with the same retain policy a local already had; no new
+//!   insertion point was needed, the same way `bytes` needed none (see the
+//!   design-choices section above). `array<T>` has no way to *read back* an
+//!   already-lowered array's own element yet (`$arr[$i]`) — see the
+//!   array-access bullet above. Every representation here still only covers
+//!   the plain, unqualified `string`/`bytes` type:
+//!   `lower_checked_ty` has no arm for any of the eight qualified
+//!   `CheckedTy::TaintedString`/`SecretString`/`SecretTaintedString`/
+//!   `TaintedBytes`/`SecretBytes`/`SecretTaintedBytes` variants (ADR
+//!   0024/0033), so a `tainted`/`secret`-qualified parameter, return or field
+//!   still panics there — those qualifiers need their own laundering/sink
+//!   story before they can flow through an IR value at all, deliberately out
+//!   of scope here. [`ty::Ty::Object`] is a reference too, but nothing
+//!   allocates or frees the memory behind one yet, and no retain/release is
+//!   emitted for one — see that variant's own doc comment for exactly what is
+//!   and isn't modeled; extending `Ty::is_refcounted` to include it is
+//!   expected to reuse the exact same
+//!   `bind_local`/`lower_call_args`/`release_all_locals` insertion points
+//!   `Ty::Str`/`Ty::Bytes`/`Ty::Array` already use, not new ones.
 //! - **No virtual dispatch** — [`ir::InstKind::Call`]'s `target` is always the
 //!   statically resolved declaring class from
 //!   `mwl_types::expr_table::ResolvedCall`, exactly as MWL's checker resolved

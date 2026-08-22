@@ -22,12 +22,17 @@
 //! doc comment anticipated: same representation shape, same
 //! [`crate::lower`] retain/release insertion points, no new policy needed —
 //! only nothing in the grammar constructs a *fresh* one yet (no literal
-//! syntax exists for `bytes`; see [`Self::Bytes`]'s own doc comment). Still
-//! not modeled: `array<T>` (needs its own element-layout decision first).
-//! [`Ty::Object`] is the one other non-scalar representation that exists,
-//! still reserved rather than functional (see its own doc comment) —
-//! widening lowering further adds variants to this enum; it does not replace
-//! the "erase checker qualifiers" design itself.
+//! syntax exists for `bytes`; see [`Self::Bytes`]'s own doc comment).
+//! [`Ty::Array`] is next: a bare, opaque representation exactly like
+//! [`Ty::Object`] — no boxed/interned element type — since no lowering
+//! decision made so far needs to branch on an array's *element* type at this
+//! IR level (`mwl_types::ty::Ty::Array(TypeId)` already enforces that at
+//! check time; erasing it here is the same "representation, not identity"
+//! split [`Ty::Object`] already draws for a class/enum). [`Ty::Object`] is
+//! the one other non-scalar representation that exists, still reserved
+//! rather than functional (see its own doc comment) — widening lowering
+//! further adds variants to this enum; it does not replace the "erase
+//! checker qualifiers" design itself.
 
 /// One IR value's representation.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -83,6 +88,19 @@ pub enum Ty {
     /// conversion or constructor, once one exists, would be the first fresh
     /// producer.
     Bytes,
+    /// A reference-counted, heap-allocated `array<T>` — ADR 0007 § 5's
+    /// insertion-ordered, string-keyed hash with copy-on-write value
+    /// semantics. Bare and opaque, carrying no element type at all: see this
+    /// module's own doc comment for why, mirroring [`Self::Object`]'s
+    /// "representation, not identity" erasure. [`crate::lower`] cooks a
+    /// literal (`[...]`/legacy `array(...)`) directly to
+    /// [`crate::ir::InstKind::ArrayNew`] and applies the same
+    /// [`crate::lower::is_aliasing_read`]-keyed retain policy to each element
+    /// that [`Self::is_refcounted`] — see that instruction's own doc comment
+    /// for the exact policy and its known gaps (an explicit `key =>` entry, a
+    /// `...spread` element, a `&value` element, and reading/writing an
+    /// existing array by index are all still unsupported).
+    Array,
 }
 
 impl Ty {
@@ -95,6 +113,6 @@ impl Ty {
     /// own doc comment), so there is nothing yet for a retain/release to do.
     #[must_use]
     pub fn is_refcounted(self) -> bool {
-        matches!(self, Ty::Str | Ty::Bytes)
+        matches!(self, Ty::Str | Ty::Bytes | Ty::Array)
     }
 }

@@ -1180,10 +1180,41 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
+            // doc comment for the full policy this mirrors and its known
+            // gaps. This slice only lowers a *positional* literal: every
+            // `ArrayItem` must supply no explicit `key =>`, no `...spread`
+            // and no `&value` — each unsupported shape panics naming itself
+            // rather than guessing at a runtime conversion this crate can't
+            // yet synthesize (`mwl_types::expr::check_array_literal` itself
+            // has no key-normalization/rejection logic yet either). A
+            // positional element's own key is simply its index, auto-
+            // numbered from `0` exactly like PHP's own `[$a, $b]` shorthand.
+            // Each element that's itself `Ty::is_refcounted` and
+            // `is_aliasing_read` is retained before the array durably owns
+            // it, the same policy `Self::lower_call_args` already applies at
+            // a call-argument boundary; the array literal's own result needs
+            // no retain — a fresh producer, same as `new`/a call's result.
+            ExprKind::ArrayLiteral(items) => {
+                let mut entries = Vec::with_capacity(items.len());
+                for (i, item) in items.iter().enumerate() {
+                    assert!(
+                        item.key.is_none() && !item.spread && !item.by_ref,
+                        "mwl-ir only lowers a positional array-literal element — an explicit \
+                         `key =>`, a `...spread`, or a `&value` element is a known gap"
+                    );
+                    let (v, ty) = self.lower_expr(&item.value, None, env, cur);
+                    if ty.is_refcounted() && is_aliasing_read(&item.value.kind) {
+                        self.emit_retain(cur, v);
+                    }
+                    entries.push((i.to_string(), v));
+                }
+                self.emit(cur, Ty::Array, InstKind::ArrayNew { entries })
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
-                 operators, `new`, a static or instance method call, and property access — got \
-                 {other:?}; see the crate docs' known gaps"
+                 operators, `new`, a static or instance method call, property access, and an \
+                 array literal — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -1215,7 +1246,9 @@ impl<'a> Lowering<'a> {
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
                     Ty::Float => Helper::FloatToString,
-                    Ty::Str | Ty::Bytes | Ty::Void | Ty::Object => unreachable!("matched above"),
+                    Ty::Str | Ty::Bytes | Ty::Void | Ty::Object | Ty::Array => {
+                        unreachable!("matched above")
+                    }
                 };
                 let (sv, _) = self.emit(
                     cur,
@@ -1388,12 +1421,15 @@ fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, St
 
 /// Lowers a *declared* type straight off the AST — every scalar atom, plus
 /// `TypeAtom::Name(_)` (a plain class/interface/enum name) as
-/// [`Ty::Object`]. A plain name needs no resolution to lower this way: ADR
+/// [`Ty::Object`] and `TypeAtom::Array(_)` (bare `array` or `array<T>`) as
+/// [`Ty::Array`]. A plain name needs no resolution to lower this way: ADR
 /// 0007 § 1 already requires it to be spelled out in full, and this crate
 /// erases class identity entirely (see [`Ty::Object`]'s own doc comment), so
 /// "is this atom a class name at all" is the only question that matters here
 /// — which class doesn't need answering until a call/`new` on it does, via
-/// [`lower_checked_ty`] instead. `self`/`static`/`parent` are not handled:
+/// [`lower_checked_ty`] instead. `array<T>`'s own type argument is discarded
+/// the same way — [`Ty::Array`]'s own doc comment explains why no lowering
+/// decision needs it at this level. `self`/`static`/`parent` are not handled:
 /// resolving those needs the enclosing class, which this crate's straight-off-
 /// the-AST design (see the crate docs) has never needed to track before now.
 fn lower_decl_type(ty: &Type) -> Ty {
@@ -1406,10 +1442,11 @@ fn lower_decl_type(ty: &Type) -> Ty {
         TypeKind::Atom(TypeAtom::String) => Ty::Str,
         TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
         TypeKind::Atom(TypeAtom::Name(_)) => Ty::Object,
+        TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
         TypeKind::Paren(inner) => lower_decl_type(inner),
         other => panic!(
-            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/a plain class name as a \
-             declared type — got {other:?}; see the crate docs' known gaps"
+            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/a plain class name \
+             as a declared type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -1437,7 +1474,7 @@ fn lower_decl_type(ty: &Type) -> Ty {
 ///
 /// Panics naming the unsupported shape for anything outside this slice's
 /// scope: either qualified (`tainted`/`secret`) string or bytes variant,
-/// `array<T>`, `object`, a shape, a union/intersection, or any of
+/// `object`, a shape, a union/intersection, or any of
 /// `mixed`/`never`/`true`/`false`/`iterable`/`callable`/`null` — none of these
 /// have an IR representation yet (see the crate docs' known gaps).
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
@@ -1450,9 +1487,13 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
         CheckedTy::Class(_) | CheckedTy::Enum(_) => Ty::Object,
+        // The element `TypeId` is discarded — same erasure `lower_decl_type`
+        // already gives `TypeAtom::Array(_)`, see `Ty::Array`'s own doc
+        // comment for why this crate has no lowering decision that needs it.
+        CheckedTy::Array(_) => Ty::Array,
         other => panic!(
-            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/class/\
-             enum parameter or return type — got {other:?}; see the crate docs' known gaps"
+            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
+             class/enum parameter or return type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -2134,6 +2175,107 @@ class T {
     fn writing_a_bytes_local_to_a_property_retains_it_before_releasing_the_old_value() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass Foo {\n  public bytes $data;\n  function constructor(bytes $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(bytes $seed, bytes $other): void {\n    Foo $obj = new Foo($seed);\n    $obj->data = $other;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    // `array<T>` is the fourteenth slice — `Ty::Array` is a bare, opaque
+    // representation exactly like `Ty::Object` (see that variant's own doc
+    // comment), and `InstKind::ArrayNew` is the fixed-shape literal
+    // instruction it needs. Every fixture below is a *positional* literal —
+    // no explicit `key =>`, no `...spread`, no `&value` — since those still
+    // panic naming the gap (see the `should_panic` fixtures at the end of
+    // this block).
+
+    /// `[]` — an empty array literal lowers to `InstKind::ArrayNew` with no
+    /// entries at all, still a well-formed fresh `Ty::Array` value.
+    #[test]
+    fn an_empty_array_literal_lowers_with_no_entries() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): array {\n    return [];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `[1, 2, 3]` — three fresh, non-aliasing `int` elements, auto-numbered
+    /// `"0"`/`"1"`/`"2"`. None of them is `Ty::is_refcounted`, so no retain is
+    /// emitted for any entry — only the array's own slot gets a release at
+    /// `m`'s exit sweep.
+    #[test]
+    fn a_literal_with_fresh_scalar_elements_needs_no_retain() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1, 2, 3];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `[$s]` — a `string` local read is an aliasing read
+    /// (`lower::is_aliasing_read`), so the element is retained before the
+    /// array durably owns it, the same policy `Lowering::lower_call_args`
+    /// already applies at a call-argument boundary. `$s`'s own slot still
+    /// gets its ordinary release at `m`'s exit sweep, alongside the array's.
+    #[test]
+    fn a_literal_with_an_aliasing_element_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $s = \"hi\";\n    array $a = [$s];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    #[test]
+    #[should_panic(expected = "known gap")]
+    fn an_explicit_keyed_array_element_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    array $a = [\"k\" => 1];\n  }\n}\n",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "known gap")]
+    fn a_spread_array_element_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1];\n    array $b = [...$a];\n  }\n}\n",
+        );
+    }
+
+    /// Passing an `array` local as a call argument retains it first —
+    /// `Lowering::lower_call_args`'s aliasing check, exactly mirroring the
+    /// `string`/`bytes` analogs above. `lower_checked_ty`'s new
+    /// `CheckedTy::Array(_) => Ty::Array` arm is what makes this boundary
+    /// work with no new insertion point of its own.
+    #[test]
+    fn passing_an_array_local_as_a_call_argument_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): int {\n    array $a = [1];\n    return self::take($a);\n  }\n  static function take(array $x): int {\n    return 1;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `var $s = $obj->data;` — an `array`-typed property read is an
+    /// aliasing read exactly like `string`/`bytes`, so binding it to a new
+    /// local retains the field's own value. `Foo`'s `array` property has no
+    /// literal default available in a property initializer the way a scalar
+    /// one would, so its constructor assigns it from an `array` parameter
+    /// instead — ADR 0022's definite-initialization obligation either way.
+    /// The constructor call itself also exercises an array literal
+    /// (`[1]`) passed as a resolved call argument, not just a local bind.
+    #[test]
+    fn binding_an_array_property_read_to_a_local_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public array $data;\n  function constructor(array $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo([1]);\n    var $s = $obj->data;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->data = $other;` — writing an aliasing `array` local into a
+    /// property retains the new value first, then reads and releases the
+    /// field's previous value, the same order
+    /// `Lowering::lower_reassignment`'s property-target arm always uses for
+    /// a refcounted field.
+    #[test]
+    fn writing_an_array_local_to_a_property_retains_it_before_releasing_the_old_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public array $data;\n  function constructor(array $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo([1]);\n    array $other = [2];\n    $obj->data = $other;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

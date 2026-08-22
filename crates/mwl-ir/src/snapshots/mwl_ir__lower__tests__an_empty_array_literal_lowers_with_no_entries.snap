@@ -1,0 +1,12 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> array {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:15
+    v1 = array.new []  ; array
+    return v1
+}

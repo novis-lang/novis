@@ -296,6 +296,46 @@ pub enum InstKind {
         /// Each argument, already lowered.
         args: Vec<ValueId>,
     },
+    /// `[...]`/legacy `array(...)`: builds a fresh [`crate::ty::Ty::Array`]
+    /// value — ADR 0007 § 5's insertion-ordered, string-keyed hash — from a
+    /// fixed list of already-lowered `(key, value)` pairs, bundled into one
+    /// instruction rather than an allocation plus a sequence of inserts, the
+    /// same "no codegen exists yet to make the split observable" reasoning
+    /// [`InstKind::New`]'s own doc comment already gives for a constructor
+    /// call. Every `key` here is a decimal string computed at lowering time,
+    /// not a lowered expression: `crate::lower::Lowering::lower_expr`'s
+    /// `ArrayLiteral` arm only lowers a *positional* element (no explicit
+    /// `key =>`), so each element's key is simply its index in the list,
+    /// auto-numbered from `0` exactly like PHP's own `[$a, $b]` shorthand —
+    /// known statically without a runtime index-tracking instruction. An
+    /// explicit `key =>` entry, a `...spread` element, and a `&value` element
+    /// are all still unsupported — lowering panics naming whichever is used
+    /// (see the crate docs' known gaps): `mwl_types::expr::check_array_literal`
+    /// itself has no key-normalization/rejection logic yet either (ADR 0007
+    /// § 5's int/uint-to-decimal-string normalization, float/bool/null
+    /// rejection), so lowering an explicit key here would mean guessing at a
+    /// runtime conversion this crate can't yet synthesize.
+    ///
+    /// The array itself is a fresh value with exactly one natural owner, the
+    /// same starting point [`InstKind::New`]/[`InstKind::ConstStr`] already
+    /// give — see `crate::lower::is_aliasing_read`, which stays `false` for
+    /// `ExprKind::ArrayLiteral`. Each element that's itself
+    /// [`crate::ty::Ty::is_refcounted`] and
+    /// [`is_aliasing_read`](crate::lower::is_aliasing_read) (a bare local or a
+    /// compile-time-known property read) is retained by
+    /// `crate::lower::Lowering::lower_expr`'s `ArrayLiteral` arm *before* this
+    /// instruction runs — the same caller-side retain
+    /// `crate::lower::Lowering::lower_call_args` already inserts for a
+    /// refcounted, aliasing call argument, since the array durably owns
+    /// whatever it stores exactly the way a callee's parameter slot does. A
+    /// fresh element (a literal, `new`, a nested array literal, or a call's
+    /// own result) needs no retain: it already has exactly one natural owner,
+    /// which simply transfers into the array's storage.
+    ArrayNew {
+        /// `(key, value)` pairs, in insertion order — ADR 0007 § 5's
+        /// "iteration order is insertion order, always."
+        entries: Vec<(String, ValueId)>,
+    },
 }
 
 /// One member of the closed set of engine-owned runtime conversions

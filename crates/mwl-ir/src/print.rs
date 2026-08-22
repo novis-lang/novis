@@ -139,6 +139,13 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
             format!("helper.{} {}", helper_name(*helper), parts.join(", "))
         }
+        InstKind::ArrayNew { entries } => {
+            let parts: Vec<String> = entries
+                .iter()
+                .map(|(k, v)| format!("{k:?}: v{}", v.index()))
+                .collect();
+            format!("array.new [{}]", parts.join(", "))
+        }
         InstKind::StmtMarker(_)
         | InstKind::Safepoint
         | InstKind::Retain { .. }
@@ -201,6 +208,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Object => "object",
         Ty::Str => "string",
         Ty::Bytes => "bytes",
+        Ty::Array => "array",
     }
 }
 
