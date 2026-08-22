@@ -5,68 +5,40 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session landed `&&`/`||`/`!`/the ternary-elvis operator — ADR 0035's other four truthy positions,
-beyond `if`/`while`, the nineteenth `mwl-ir` slice.** None of the four were lowered at all before this
-session, not even for a plain `bool` operand:
+**Last session landed `$a[] = expr;` — PHP's array append syntax, write side — the twentieth `mwl-ir`
+slice.** A new `InstKind::ArrayAppend { array, value }` instruction carries no key at all, unlike
+`InstKind::ArraySet`: PHP's real "next available integer key" rule tracks the highest `int` key ever used
+as part of the array's own runtime state (surviving earlier explicit-`int`-keyed inserts, removals and
+appends alike), which a lowering pass genuinely can't compute from the source text the way a literal's
+positional index or an explicit `key =>` already can — its storage and increment are left entirely to
+whatever `mwl-codegen`'s own array representation does with them, the same "shape now, functional once a
+backend exists" deferral `InstKind::Safepoint` already gets.
 
-- `&&`/`||` need genuine short-circuit control flow (PHP only evaluates the right operand when it can
-  change the answer), not just a value computation — a real architectural addition, not a pure
-  table-reuse: a new `Lowering::lower_expr_top` entry point exists specifically for the handful of
-  positions that already own a mutable `cur: &mut BlockId` (a local declaration's initializer, `return`'s
-  value, a plain reassignment's right-hand side — including a property/array-index target — and any
-  condition under test via the now-`&mut BlockId` `Lowering::lower_truthy_cond`). Only those positions can
-  redirect "the current block" mid-expression the way `&&`/`||`/a ternary need to; everywhere else (a call
-  argument, an array-literal element, a `.`-operand, a nested arithmetic operand) still panics naming the
-  gap, since those callers only ever own a fixed `cur: BlockId`. `Lowering::lower_and`/`Lowering::lower_or`
-  reuse `lower_if`'s own branch/merge shape, joining the expression's own `Ty::Bool` value through a fresh
-  `Phi` instead of merging named locals.
-- `!` always produces `Ty::Bool` via the same truthy table (`Lowering::negate_truthy`, shared by a
-  top-level `!` and a nested one), fixing a latent bug: it previously passed its operand's own type
-  straight through to the result, silently correct only because the one pre-existing fixture happened to
-  negate an already-`bool` local. A top-level `!` recurses through `lower_expr_top` for its own operand so
-  `!($a && $b)` composes; a nested `!` (no `&mut BlockId` available) still applies the table but can't
-  compose with a nested `&&`/`||`/ternary operand.
-- The ternary/elvis operator (`Lowering::lower_ternary`) reuses `lower_if`'s shape once more, joining a
-  `then`/`else` value through a `Phi`. Elvis (`then` omitted) reuses `cond`'s own value on the truthy path
-  rather than retesting it (PHP evaluates a `?:` condition exactly once), needing one exception to every
-  other truthy-tested position's usual release-after-test rule (`Lowering::truthy_convert`, the bare
-  conversion factored out of `Lowering::truthy_value`) plus a retain when that reused `cond` is an aliasing
-  read gaining a second owner. **The same retain-on-alias question turned out to apply to every ordinary
-  `then`/`else` branch too** — caught by a dedicated test
-  (`elvis_retains_an_aliased_refcounted_condition`), not assumed correct by inspection: nothing else treats
-  a ternary's own result as anything but an ordinary fresh value, so a branch whose own expression is a
-  bare variable/property/array-element read needs its own retain right there, or it would be double-released
-  at the enclosing function's own exit sweep. A `then`/`else` pair lowering to two different `Ty`
-  representations still panics naming the gap (the checker's own union has no IR fold yet — the same open
-  question `Ty::Mixed` names). PHP's low-precedence `and`/`or`/`xor` keyword operators are out of scope by
-  design — ADR 0035 names only `&&`/`||`/`!`.
-- `while`'s own lowering needed one adjustment to host a branching condition at all: the loop header's phis
-  still physically live in the fixed `header_block`, but the loop's own `Branch` terminator now seals onto
-  `cond_end` — wherever condition lowering actually ends up — not `header_block` itself.
-- **A pre-existing, previously-invisible gap surfaced and got fixed as a side effect:** `ExprKind::Paren` (a
-  parenthesized `(expr)`) was never unwrapped anywhere in this crate's expression lowering at all, only in
-  type position — invisible until now because no earlier slice's fixtures happened to need explicit parens.
-  `!($a && $b)` does (`!` binds tighter than `&&`/`||` in the grammar), so both `Lowering::lower_expr` and
-  `Lowering::lower_expr_top` now have their own transparent `Paren` arm.
+`Lowering::lower_reassignment`'s `Index`-target arm now matches on the subscript itself: `None` lowers the
+base and the new value only (no `lower_array_key` call at all, since there is no key to normalize) and
+emits `ArrayAppend`, retaining the value first under the same `Ty::is_refcounted`/`is_aliasing_read` policy
+`ArraySet`'s own value already gets; `Some(index)` is the unchanged pre-existing `ArraySet` path. `$a[]` as
+a *read* (no subscript, no assignment) is untouched by this session and stays a permanent panic in
+`Lowering::lower_expr`'s `Index` arm — it has no PHP meaning at all (PHP itself rejects it as "cannot use
+`[]` for reading"), a closed design question rather than a gap waiting to be filled, even though
+`mwl-syntax` parses it in any expression position and `mwl_types::expr::check_expr`'s `Index` arm doesn't
+reject it as a read either.
 
-Ten new tests cover: `&&`/`||` short-circuiting to a `Phi`, `!` fixing the type bug, `!` composing with a
-short-circuit `&&`, an `if`/`while` condition itself short-circuiting, a plain matching-type ternary, elvis
-with a non-refcounted condition (no retain needed), elvis retaining an aliased refcounted condition, elvis
-transferring a fresh refcounted condition (no retain *or* release needed), a mismatched-branch-type ternary
-still panicking, and a `&&` nested in a call argument still panicking (documents the scope boundary). `mwl-ir`
-is now at 94 tests (was 82); `mwl-types` unchanged at 217. Built, tested, clippy- and fmt-clean, committed.
-Two stale claims in the plan's M2 paragraph (both said `&&`/`||`/`!`/ternary were entirely unlowered) were
-fixed in place rather than left to contradict the new paragraph, per CLAUDE.md's "state a fact once."
+The prior `should_panic` write-side test was converted into two real lowering tests: a fresh `int` value
+needs no retain, and an aliasing `string` local value gets retained before `ArrayAppend` runs — both with
+`insta` snapshots. `mwl-ir` is now at 95 tests (was 94). Built, tested, clippy- and fmt-clean, committed.
+The crate's own module docs (`lib.rs`) and `docs/implementation-plan.md`'s M2 paragraph were both updated
+in place, including fixing a couple of already-stale claims in `lib.rs`'s top summary paragraph (it still
+listed the append-syntax gap and an already-landed "no explicit `key =>`" item from several slices back).
 
-**With that, `mwl-ir`'s known-gap list (its own module docs in `lib.rs`) stands at:**
+**With that, `mwl-ir`'s array-access shape (item 3 in its own known-gap list) is now closed except for one
+sub-bullet:**
 
 1. ~~Control flow (`if`/`while`).~~ **Done.**
 2. ~~Safepoints.~~ **Done** (reserved shape only). Revisit once M3's codegen exists.
-3. ~~`new`/a static call, an instance method call, a compile-time-known property access, and array-element
-   access through a known `int`/`uint`/`string` key.~~ **Done.** What's left of this shape:
-   - **`$a[]`/`$a[] = expr;` (PHP's append syntax).** Needs a "next available integer key" counter this
-     crate has no representation for yet. Fully self-contained — doesn't touch `mixed` at all. **Recommended
-     pick for next session — see below.**
+3. ~~`new`/a static call, an instance method call, a compile-time-known property access, array-element
+   access through a known `int`/`uint`/`string` key, an array literal's explicit `key =>` element, and
+   `$a[] = expr;` append syntax.~~ **All done.** What's left of this shape:
    - **Array-element access through a `mixed`-erased base.** `Ty::Mixed` gives this a representation to
      fall back *to*, but wiring the fallback in still needs the runtime type-tag design question (item 5
      below) settled first — not independently actionable yet.
@@ -94,32 +66,36 @@ fixed in place rather than left to contradict the new paragraph, per CLAUDE.md's
    turns out to be the only item left, in which case stop and report that instead of attempting it.
 7. ~~`var` locals, multi-base integer-literal cooking, integer-literal magnitude range-checking.~~ **Done.**
 8. ~~String-literal cooking completeness.~~ **Done.**
-9. ~~`&&`/`||`/`!`/the ternary-elvis operator (ADR 0035's other four truthy positions).~~ **Done** (this
-   session), at any position that already owns a mutable `cur` — see the module docs' nineteenth-slice
-   paragraph for the narrower "nested inside a fixed-`cur` position" and "mismatched branch types" residual
-   gaps.
+9. ~~`&&`/`||`/`!`/the ternary-elvis operator (ADR 0035's other four truthy positions).~~ **Done**, at any
+   position that already owns a mutable `cur` — a nested one inside a fixed-`cur` position and mismatched
+   ternary branch types are the narrower residual gaps (see `mwl-ir`'s own module docs).
+10. ~~`$a[] = expr;` append syntax (write side).~~ **Done** (this session). `$a[]` as a read stays a
+    permanent, deliberate panic — not a gap — since it has no PHP meaning at all.
 
-**Recommended pick for next session:** `$a[]`/`$a[] = expr;` (PHP's append syntax, item 3's remaining
-sub-bullet) — fully self-contained, doesn't touch `mixed` at all, and closes out array-element access to
-"every shape except a `mixed`-erased base." Needs a "next available integer key" counter: this crate has no
-representation for "the highest integer key used so far" (or, per the plan's own documented simplification,
-"how many positional elements exist so far" — see the array-literal paragraph in the plan for why that
-simpler rule was chosen over PHP's real one). Both `lower_array_key`'s read side and
-`Lowering::lower_reassignment`'s `ExprKind::Index { index: None, .. }` write-side arm currently panic naming
-this gap by name — both are the exact two places to wire up.
+**No self-contained mechanical mwl-ir slice is obviously next anymore** — every remaining item above is
+either blocked on the `mixed` runtime type-tag design question (item 5), needs its own real design
+(`...spread`/`&value`, item 4), is explicitly deferred (virtual dispatch, item 6), or waits on stdlib/M3
+work that doesn't exist yet. Recommended options for next session, roughly in order of how self-contained
+they are:
 
-Other self-contained options, roughly in order of size:
-- The `mixed` runtime type-tag representation (item 5 above) — the single biggest unblock left on this
-  list, but real, non-mechanical design work rather than a narrow mechanical slice. Pick this up instead of
-  append syntax if you'd rather tackle the bigger design question head-on; you're pre-authorized to design
-  and proceed.
-- A `...spread`/`&value` array-literal element (item 4 above) — each needs its own design (array-merge
-  semantics; a reference-value representation), bigger and less mechanical than append syntax.
+- **`for`/`switch`/`break`/`continue`.** Not named in the numbered list above (it's its own bullet in the
+  known-gaps section) but likely the most mechanical remaining pick: `Terminator::Branch`/`ids::EdgeId` are
+  already exercised by `if`/`while`, so this is expected to reuse the same shapes rather than invent new
+  ones — see `lower`'s own module docs for the SSA merge-block precedent (`Lowering::merge_envs` for a
+  fixed set of incoming edges, the seed-then-patch phi dance in `Lowering::lower_while` for a
+  not-yet-known back edge). `break`/`continue` need a way to track the enclosing loop's merge/exit blocks
+  through nested lowering — worth scoping deliberately rather than assuming it's free.
+- **The `mixed` runtime type-tag representation (item 5 above)** — the single biggest unblock left on this
+  list, but real, non-mechanical design work rather than a narrow mechanical slice. You're pre-authorized
+  to design and proceed if you pick this up.
+- **A `...spread`/`&value` array-literal element (item 4 above)** — each needs its own design (array-merge
+  semantics; a reference-value representation), bigger and less mechanical than append syntax was.
 
 Once control flow, calls, and property/array access all lower, M2's own *Verify* bullet ("IR snapshot
 tests; no program in the corpus produces an `Unknown` type") is worth revisiting for a real corpus-driven
 snapshot suite, not just hand-written fixtures — at that point M2 as a whole should be closeable and M3
-(baseline Cranelift backend, `Hello World`) can start.
+(baseline Cranelift backend, `Hello World`) can start. `for`/`switch`/`break`/`continue` landing would be a
+natural trigger to reassess whether that point has been reached.
 
 Also still open from before (independent, low priority, unrelated to `mwl-ir`): a `set`-hooked property is
 exempted from ADR 0022's constructor check entirely rather than verified against the hook's body; the
@@ -140,6 +116,17 @@ method resolution, `by`-delegation resolution, and the new `E_INTERFACE_MEMBER_C
 chunk — check `mwl-syntax`/`mwl-hir` first to confirm it hasn't already landed, then either fold it into a
 session alongside the `mwl-ir` picks above or, better, give it its own dedicated session given its size.
 `mwl-hir`'s trait-flattening code is stale (still matches the pre-ADR-0043 design) until this lands.
+
+**FYI, check for concurrent work before picking anything above:** at the end of this session, another
+concurrent session had uncommitted, in-progress changes in the shared working tree touching `CLAUDE.md`,
+`crates/mwl-diagnostics/src/lib.rs`, `crates/mwl-syntax/src/{ast,parser}.rs`, `crates/mwl-types/src/expr.rs`
+and `docs/adr/README.md`, plus a new untracked `docs/adr/0045-and-or-xor-keyword-operators-rejected.md`
+(status: Accepted) — PHP's `and`/`or`/`xor` keyword operators are being removed from the grammar entirely
+(parse-time diagnostic naming `&&`/`||` as the replacement, or naming none for `xor`), since ADR 0035 never
+included them and nothing past `mwl-types` ever lowered one anyway. This is unrelated to any `mwl-ir` pick
+above and needs no action from you — it just means `git status`/`git diff` may show files you didn't touch
+when you start; investigate before assuming corruption, per CLAUDE.md's own guidance, and don't disturb it
+unless it's actually finished/committed by the time you look.
 
 **FYI, no action needed:** [ADR 0044](docs/adr/0044-core-process-argv-only-no-shell.md) landed in a
 concurrent session — `Core\Process::run()`/`::spawn()` replaces PHP's `exec`/`system`/`passthru`/
