@@ -4,25 +4,22 @@ Continue MWL. M1 (front end) is done. M2 (HIR/types/IR) is in progress — run `
 then read `docs/implementation-plan.md`'s M2 paragraph for exactly what landed and how (this file only
 points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact once").
 
-**Last session was docs-only: [ADR 0038](docs/adr/0038-lateinit-property-modifier.md), the `lateinit`
-property modifier.** It resolves ADR 0022's deferred "opt-in lateinit-equivalent" item — the user hit a real
-design gap (a non-nullable class-typed property that a DI container/ORM populates after `new`, not inside
-the constructor) and walked through the options rather than defaulting to PHP's implicit-uninitialized
-state. Decided, in order: `lateinit` is restricted to non-nullable **class/interface types only** (a scalar
-already has a free real default, so it gets no benefit); once written it's **freely reassignable**, same as
-Kotlin's `lateinit var` (incompatible with `readonly`, which is the opposite promise); checking is
-**runtime-only** by default, reusing ADR 0022 §3's existing "never written" tag/throw rather than a new
-mechanism, **plus** one free intraprocedural compile-time check (same definite-assignment dataflow ADR 0022
-already runs, extended to run inside every method, not just constructors) that only fires on a
-call-free read-before-write in the same function — deliberately built to never produce a false positive,
-because a real cross-method/cross-object interprocedural version was considered and rejected: it would need
-whole-program analysis that fights ADR 0017's per-file hot-reload model. No code changed this session —
-`CLAUDE.md`, `docs/adr/README.md`'s index, and ADR 0022's own cross-references were updated; ADR 0038 is the
-only new file.
+**Last session was another docs-only pass: the periodic ADR cleanup from `DOC_CLEANUP_PROMPT.md`.** A
+read-only survey first checked every Amends/Amended-by pair for a genuine merge candidate under the
+project's strict "default to NOT merging" policy (decided 2026-08-21) — none qualified: no ADR has zero
+surviving unique content after a later amendment, and only 0009 is Proposed (no Proposed/Proposed pair
+exists to merge). No stale content or broken cross-links turned up either. So the pass was a pure trim:
+26 of the 37 ADRs (0002-0038) had their `## Context`/`## Investigation`/`## Alternatives rejected`
+sections compressed to short bullet lists, prior-art surveys collapsed to a one-line callout, and
+duplicated reasoning between sections removed — `## Decision`, `## Consequences`, metadata blocks,
+diagnostic names, and every cross-reference link are unchanged in meaning. Total ADR line count:
+8130 -> 7940. **The actual next-code-work item below is unchanged from before this cleanup pass** — it
+was never started.
 
-**This session's first job: implement ADR 0038 in the checker, mirroring how ADR 0022 §2 already landed**
-(`ctor_init.rs`, `signatures.rs`'s `required_properties`/`own_required_properties`, `E_UNINITIALIZED_PROPERTY`
-`E0409`, `E_MISSING_PARENT_CONSTRUCTOR_CALL` `E0410` — read that module before starting, it's the template):
+**The real next job — implement ADR 0038 (`lateinit`) in the checker, mirroring how ADR 0022 §2 already
+landed** (`ctor_init.rs`, `signatures.rs`'s `required_properties`/`own_required_properties`,
+`E_UNINITIALIZED_PROPERTY` `E0409`, `E_MISSING_PARENT_CONSTRUCTOR_CALL` `E0410` — read that module before
+starting, it's the template):
 
 1. **Parser**: a `lateinit` modifier token on a property declaration (`mwl-syntax`), positioned alongside
    `public`/`static`/`readonly`. Needs its own lexer/parser test coverage the same way other modifiers have.
@@ -40,8 +37,8 @@ only new file.
    method/function conservatively moves it to "assumed written" (never flag past a call — no false
    positives is the explicit design constraint in the ADR); a read reached with no intervening write and no
    intervening call on that path is `E_LATEINIT_READ_BEFORE_WRITE_LOCAL`. This likely reuses `locals.rs`'s
-   existing dataflow-join machinery (`if`/`else`/`switch`/`try` handling from the immediately preceding
-   session) rather than writing new control-flow plumbing.
+   existing dataflow-join machinery (`if`/`else`/`switch`/`try` handling from an earlier session) rather
+   than writing new control-flow plumbing.
 5. Runtime throw itself (ADR 0038 §2, reusing ADR 0022 §3's "never written" tag) is **M4** work, same as ADR
    0022's own residual case — no backend exists yet, nothing to do there this session.
 
