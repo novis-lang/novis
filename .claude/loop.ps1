@@ -10,7 +10,7 @@
 param(
     [int]    $MaxSessions    = 1,
     [string] $Model          = 'opus',
-    [string] $PermissionMode = 'default',
+    [string] $PermissionMode = 'bypassPermissions',
     [int]    $MaxStalls      = 3,      # consecutive no-commit sessions before giving up
     [int]    $MaxRetries     = 3,      # consecutive CLI failures (rate limit, crash) before giving up
     [int]    $DelaySeconds   = 0       # pause between sessions

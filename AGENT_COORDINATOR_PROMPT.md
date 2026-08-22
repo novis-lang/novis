@@ -32,7 +32,7 @@ Three things follow, and they are the whole design:
 |---|---|
 | `.claude/SESSION_PROMPT.md` | The fixed prompt handed to every session. Also holds the `NEXT_SESSION_PROMPT.md` handoff contract. |
 | `.claude/loop-goal.md` | The loop's target and its machine-checkable acceptance command, plus the decisions pre-authorized on the way there. |
-| `.claude/loop.ps1` | The driver. Not checked in yet — see *Running it*. |
+| `.claude/loop.ps1` | The driver. |
 | `NEXT_SESSION_PROMPT.md` | Live state, rewritten by each session under the 80-line contract. |
 | `.claude/loop-status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.claude/loop-log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
@@ -64,6 +64,13 @@ The acceptance check running *before* the `DONE` check is deliberate: the machin
 
 Parameters worth knowing: `-MaxSessions`, `-Model`, `-PermissionMode`, `-MaxStalls`, `-MaxRetries`,
 `-DelaySeconds`.
+
+`-PermissionMode` defaults to `bypassPermissions`, and that is not an incidental default. A `claude -p`
+session auto-denies any tool call that would otherwise prompt, so under `default` an unattended session
+cannot run `cargo`, cannot commit, and cannot write its own handoff file — the run would halt on three
+consecutive no-commit stalls having done nothing. Every session in the loop therefore runs unreviewed
+against this working tree; that is the cost of the design, and the reason `.claude/loop-stop` and Ctrl-C
+are both documented above.
 
 Watch it with `Get-Content .claude\loop-log.md -Wait`. Stop it with `New-Item .claude\loop-stop` (finishes
 the current session first) or Ctrl-C (kills it immediately; the repo is still consistent, because every
