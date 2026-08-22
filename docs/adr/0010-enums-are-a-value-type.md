@@ -39,23 +39,21 @@
 ## Context
 
 - PHP's enum (8.1) is a class in a trench coat: each case is a singleton instance, an enum can implement
-  interfaces and declare methods referencing `$this`, a backed enum exposes `::from()`/`::tryFrom()` and
-  `::cases()`. Not an accident — PHP reused the one construct it had (the class) for lack of a
-  lighter-weight nominal type.
-- C# instead gives an enum a real value-type story: `enum Color { Red, Green, Blue }` is just an integer
-  with names attached at compile time — no object, no allocation, no methods, no interface. The
-  requirement here is explicit: MWL follows C#'s model, and PHP's is disregarded entirely.
-- **Security and simplicity (priorities 1, 4):** a closed set of named values checked at the same
-  boundary as any other typed input (`Status $s = Core\Request::query('status') as Status;` throws on a
-  non-case value) with no second API (`::tryFrom()`) to remember, and none of PHP's unused-for-this-size
+  interfaces and declare methods referencing `$this`, and a backed enum exposes `::from()`/`::tryFrom()`/
+  `::cases()` — PHP reused the one construct it had (the class) for lack of a lighter-weight nominal type.
+- MWL follows C# instead, as a definitive decision: `enum Color { Red, Green, Blue }` is just an integer
+  with names attached at compile time — no object, no allocation, no methods, no interface. PHP's model is
+  disregarded entirely.
+- **Priorities 1/4 (security, simplicity):** a closed set of named values checked at the same boundary as
+  any other typed input, with no second API (`::tryFrom()`) and none of PHP's unused-for-this-size
   machinery (interfaces, methods, singleton identity, reflection).
-- **Memory (priority 5):** a C#-shaped case is a plain integer, zero extra bytes beyond what
-  [ADR 0007](0007-explicit-type-system.md) § 4 already spends on `uint` — unusually, this decision buys
-  priorities 1 and 4 for *less* memory than PHP's design, not more.
-- **Correctness of language semantics (priority 2) is the one priority knowingly spent here** — a ported
-  `enum Suit: string { case Hearts = 'H'; }` with a method does not run unconverted, the tenth deliberate
-  divergence after [ADR 0007](0007-explicit-type-system.md) § 7's nine, tracked locally per the precedent
-  [ADR 0008](0008-static-and-global.md) and [ADR 0009](0009-string-and-bytes.md) set.
+- **Priority 5 (memory):** a C#-shaped case is a plain integer, zero extra bytes beyond what
+  [ADR 0007](0007-explicit-type-system.md) § 4 already spends on `uint` — this decision buys priorities 1
+  and 4 for *less* memory than PHP's design, not more.
+- **Priority 2 is the one knowingly spent**: a ported `enum Suit: string { case Hearts = 'H'; }` with a
+  method does not run unconverted — the tenth deliberate divergence after
+  [ADR 0007](0007-explicit-type-system.md) § 7's nine, tracked locally per the precedent
+  [ADR 0008](0008-static-and-global.md)/[ADR 0009](0009-string-and-bytes.md) set.
 
 ## Decision
 
@@ -228,23 +226,20 @@ named a language to imitate rather than one to stay compatible with.
 
 ## Alternatives rejected
 
-- **Keep PHP's enum as-is** (singleton objects, methods, interfaces, `::cases()`/`::from()`). The
-  alternative the requirement explicitly rules out — a class in every way but name, at the memory and
-  complexity cost *Context* argues against.
-- **A middle ground: singleton case objects, but reject methods and interfaces.** Keeps identity-based
-  comparison and the allocation cost while dropping the features that would justify paying it — worse on
-  priority 5 than either design, for no benefit.
+- **Keep PHP's enum as-is** (singleton objects, methods, interfaces, `::cases()`/`::from()`) — the
+  alternative the requirement explicitly rules out, at the memory/complexity cost *Context* argues against.
+- **Singleton case objects, but reject methods and interfaces.** Keeps the allocation cost while dropping
+  the features that would justify it — worse on priority 5 than either design, for no benefit.
 - **Permissive conversion, matching C# exactly** (`as EnumName` never throws on an out-of-range value).
-  Rejected on priority 1: exactly the "coercion instead of refusal" shape
-  [ADR 0007](0007-explicit-type-system.md) argues against.
+  Rejected on priority 1: the "coercion instead of refusal" shape [ADR 0007](0007-explicit-type-system.md)
+  argues against.
 - **Keep `string` as an allowed backing type, matching PHP's backed enums.** Rejected in *Decision § 2*:
   reintroduces a heap-allocated case for something a `match` over the enum already gives for free.
 - **Keep the pure/backed split as two distinct declaration forms.** Rejected in *Decision § 2*: the split
-  exists in PHP only because a pure enum has no integer to fall back on; once every MWL enum has one by
-  construction, there is nothing left to distinguish.
+  exists in PHP only because a pure enum has no integer to fall back on; every MWL enum has one by
+  construction.
 - **A `#[Flags]`-style attribute enabling bitwise operators directly on an enum type**, matching C#.
-  Deferred, not rejected — a separate design question (which operators, what a combined `match` means);
-  see *Revisiting*.
+  Deferred, not rejected — a separate design question; see *Revisiting*.
 
 ## Revisiting
 

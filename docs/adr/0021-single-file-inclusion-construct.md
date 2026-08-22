@@ -23,25 +23,22 @@
 
 ## Context
 
-- PHP ships four keywords for one operation (splice a file into the calling frame) across two independent
-  axes: missing/broken file (`include` warns and evaluates to `false`; `require` throws) and repeat guard
-  (`_once` suffix or not). Four spellings for two independently-varying axes is the same "more than one name
-  for one behaviour" surface [ADR 0015](0015-no-name-aliasing.md) and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already argue against; nothing forces keeping
-  all four, so this collapses to one.
-- **Why "warn and continue" cannot survive**: every other PHP ambient-continuation path this project has
-  found has been closed, not kept — an undeclared property throws ([ADR 0014](0014-property-observer.md)), a
-  superglobal has no fallback ([ADR 0012](0012-no-superglobals.md)), comparing objects with no `Comparable`
-  is a diagnostic ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure is already how
-  every other MWL failure surfaces ([ADR 0002](0002-error-propagation.md)), so keeping it is not a new
-  decision.
-- **Why the `_once` axis doesn't need to survive**: declarations resolve by namespace
+- PHP ships four keywords for one operation (splice a file into the calling frame) across two axes:
+  missing/broken file (`include` warns and returns `false`; `require` throws) and repeat guard (`_once` or
+  not) — the same "more than one name for one behaviour" surface [ADR 0015](0015-no-name-aliasing.md) and
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) already argue against, so this collapses to
+  one.
+- **"Warn and continue" doesn't survive**: every other PHP ambient-continuation path here has been closed
+  instead of kept — an undeclared property throws ([ADR 0014](0014-property-observer.md)), a superglobal has
+  no fallback ([ADR 0012](0012-no-superglobals.md)), comparing objects with no `Comparable` is a diagnostic
+  ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure already matches every other MWL
+  failure path ([ADR 0002](0002-error-propagation.md)).
+- **The `_once` axis doesn't need to survive**: declarations resolve by namespace
   ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and by the per-path compiled-unit cache
-  ([ADR 0017](0017-hot-reload-without-restart.md)), not by how many times a file was spliced in — the
-  redeclaration problem `_once` guards against is a symptom of PHP's textual-inclusion-as-module-system,
-  which MWL doesn't adopt for declarations. A `require` used for what it's still needed for (a template
-  partial rendered from a loop) must run every time, which is what plain `require` already does — baking in
-  an automatic once-guard would silently break that case, so the suffix goes, not the default.
+  ([ADR 0017](0017-hot-reload-without-restart.md)), not by splice count — the redeclaration problem `_once`
+  guards against is a symptom of PHP's textual-inclusion-as-module-system, which MWL doesn't adopt for
+  declarations. A template partial re-`require`d from a loop must still run every time, so the suffix goes,
+  not the default.
 
 ## Decision
 

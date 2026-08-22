@@ -51,30 +51,21 @@
 
 ## Context
 
-- The user asked for PHP's `stdClass` — a base class holding arbitrary properties — as a way to pass a
-  shared, named bag of values across a function boundary (particularly through `callable`) without declaring
-  a class for a one-off shape. MWL cannot offer `stdClass` as-is: every property must be declared and typed
-  ([ADR 0007](0007-explicit-type-system.md)), and accessing or creating one that isn't is a hard error with
-  no fallback ([ADR 0014](0014-property-observer.md) § 5) — `stdClass` is exactly the mechanism that rule
-  exists to close.
-- [ADR 0031](0031-callable-is-the-only-closure-type.md) already named the gap this decision fills: two
-  closures sharing mutable state need "an ordinary object in user code," and it offered none of the ceremony
-  reduction a one-off shared bag actually wants.
-- The first design explored — a fully general, first-class structural record type, interned and canonicalized
-  everywhere a type can appear — was rejected as more machinery than the actual need justifies (see
-  *Alternatives rejected*). The design that survived splits into two small, separately justifiable pieces:
-  an opaque top type or every object (cheap, and it finishes an atom already sitting unused in the grammar),
-  and a narrow, call-site-local structural check for the one case an opaque view isn't enough.
-- `object` was found, by reading the actual grammar rather than assuming, to already be a reserved keyword
-  and interned type atom (`Keyword::Object` in `mwl-syntax`'s lexer/parser, `Ty::Object` in `mwl-types`) with
-  no subtyping or assignability code anywhere yet — M2 has not reached general subtyping. This ADR is what
-  finally gives that atom a meaning, not a new addition fighting for space.
-- Two concrete grammar collisions were found by reading `mwl-syntax/src/parser.rs` directly:
-  `parse_fn_expr` (the `fn(...) => ...` dispatch) already commits `{` immediately after `=>` to mean a block
-  body, and `parse_statement_inner` already commits a statement-initial `{` to mean a block statement. Both
-  are the identical ambiguity JavaScript already has for `() => {...}` and solves the identical way —
-  parenthesize to force expression interpretation — so this ADR inherits a known fix rather than inventing
-  one.
+- The user asked for PHP's `stdClass` — a way to pass a shared, named bag of values across a function
+  boundary without declaring a class. MWL cannot offer it as-is: every property must be declared and typed
+  ([ADR 0007](0007-explicit-type-system.md)), and accessing/creating an undeclared one is a hard error with
+  no fallback ([ADR 0014](0014-property-observer.md) § 5) — exactly the mechanism `stdClass` needs closed.
+- [ADR 0031](0031-callable-is-the-only-closure-type.md) already named the gap this fills: two closures
+  sharing mutable state need "an ordinary object in user code," with no ceremony-reduced way to write one.
+- A fully general, first-class structural record type (interned/canonicalized everywhere a type can appear)
+  was explored first and rejected as more machinery than the need justifies (*Alternatives rejected*). The
+  surviving design splits into two small pieces: an opaque top type for every object, and a narrow,
+  call-site-local structural check for the one case an opaque view isn't enough.
+- `object` was already a reserved keyword and interned type atom (`Keyword::Object`, `Ty::Object`) with no
+  subtyping wired up — this ADR finishes an atom already sitting in the grammar, not a new addition.
+- Two grammar collisions were found in `mwl-syntax/src/parser.rs`: `parse_fn_expr` already commits `{` after
+  `=>` to a block body, and `parse_statement_inner` commits a statement-initial `{` to a block statement —
+  the identical ambiguity JavaScript has for `() => {...}`, solved the identical way (parenthesize).
 
 ## Decision
 
@@ -226,23 +217,18 @@ the answer: declare an ordinary class.
 
 ## Alternatives rejected
 
-- **A fully general, first-class structural record type**, interned and canonicalized globally so any two
-  matching shapes anywhere in the program unify into one type, usable everywhere a type can appear (inside
-  `array<T>`, unions, etc.) with no distinction from `object`. Rejected: this is real, sizable checker
-  machinery — shape canonicalization, structural subtyping threaded through the whole type lattice — for a
-  need the opaque-`object`-plus-local-shape-check design already meets at a fraction of the cost. Nothing
-  here forecloses revisiting this if real converted code shows the local, call-site-scoped check is
-  insufficient.
-- **Reusing the `interface` keyword** for shapes, TypeScript's model. Rejected, per the user's own
-  observation: PHP/MWL's `interface` already means a nominal, `implements`-declared, method-bearing
-  contract; overloading it for something structural and property-only blurs a name that already carries
-  meaning — the same "two meanings, one name" problem [ADR 0015](0015-no-name-aliasing.md) already refuses
-  elsewhere.
+- **A fully general, first-class structural record type**, interned/canonicalized globally and usable
+  anywhere a type can appear. Rejected: sizable checker machinery (shape canonicalization, structural
+  subtyping threaded through the whole lattice) for a need the opaque-`object`-plus-local-shape-check design
+  already meets far cheaper. Revisitable if real converted code shows the local check insufficient.
+- **Reusing the `interface` keyword** for shapes (TypeScript's model). Rejected: PHP/MWL's `interface`
+  already means a nominal, `implements`-declared, method-bearing contract; overloading it for something
+  structural and property-only is the same "two meanings, one name" problem
+  [ADR 0015](0015-no-name-aliasing.md) already refuses elsewhere.
 - **PHP's `stdClass` directly.** Rejected outright: it requires dynamic, undeclared properties, which
   [ADR 0014](0014-property-observer.md) closes for exactly this reason.
-- **Exact-match shape types (no width subtyping).** Rejected: strictly narrower for no safety benefit over
-  width subtyping restricted to the fields actually named, and would force re-wrapping an already-compatible
-  value just to add one more field elsewhere in the program.
+- **Exact-match shape types (no width subtyping).** Rejected: strictly narrower for no safety benefit, and
+  would force re-wrapping an already-compatible value just to add one more field elsewhere in the program.
 
 ## Revisiting
 

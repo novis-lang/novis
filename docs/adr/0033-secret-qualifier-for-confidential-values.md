@@ -71,47 +71,27 @@
 
 ## Context
 
-- Two real, distinct security questions get conflated if MWL only ever asks "can I trust this value's
-  shape": `tainted` ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) already answers "where did this
-  come from, and is its structure safe for a given sink" — but a value can be perfectly well-shaped
-  (an API key is valid UTF-8, contains no injection metacharacters, converts cleanly `as string`) and still
-  be catastrophic to leak. Conversely, a value can be totally safe to display (a username) while being
-  attacker-controlled and needing escaping. Neither qualifier alone covers the other's case; a submitted
-  password is both at once.
-- `secret` cannot reuse `tainted`'s laundering story wholesale. § 2 of ADR 0024 removes `tainted` on a
-  successful checked conversion because passing that check *proves the value's shape is safe for structural
-  sinks*. That reasoning has no analog for confidentiality: an API key that happens to parse `as uint` is
-  exactly as sensitive afterward as before. This ADR's Decision keeps the same removal rule anyway for
-  consistency and grammar simplicity (see *Alternatives rejected* and *Revisiting* — this is a deliberately
-  accepted risk, not an oversight).
-- `secret` also cannot reuse `tainted`'s *source* story. [ADR 0012](0012-no-superglobals.md) already
-  enumerates every place untrusted data ambiently enters a script (`Core\Request`, `Core\Server`,
-  `Core\Session`, `Core\Env`, `Core\Cli`, `Core\Script::args()`), which is exactly what lets `tainted` be
-  attached automatically at those five return types. There is no equivalent enumeration for secrecy — a
-  `Core\Env::get('DB_PASSWORD')` call returns the same plain `string` (env values are not attacker-shaped the
-  way request data is, so [ADR 0024](0024-taint-tracking-for-injection-sinks.md) doesn't taint it either)
-  whether the variable name suggests a credential or not. Deciding that some `Core\Env`/config accessor should return `secret string` by convention is real
-  stdlib design, deferred per *Revisiting* — this ADR fixes the qualifier and its enforcement, not which
-  built-in accessors emit it.
-- `Core\Log`'s existing JSON-Lines writer ([ADR 0020](0020-error-escalation-ladder.md) § 6) takes an open
-  `fields: array<string, mixed>` bag by design — deliberately unconstrained per
-  [ADR 0007](0007-explicit-type-system.md) § 6's "structured input stays untyped." `tainted` values pass
-  through that same looseness freely and safely, because logging attacker-supplied input verbatim is the
-  entire point of a security log ([ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4). `secret`
-  values must **not** get the same free pass — there is no downstream mechanism analogous to SQL parameter
-  binding that neutralizes a leaked credential once it's written to a log line. This means `secret`'s
-  enforcement at this one sink cannot be a parameter-type refusal (the parameter is `mixed`, on purpose) and
-  must instead inspect the literal argument expressions at `Core\Log::write`'s own call sites — a checker
-  mechanism `tainted` never needed, because every place `tainted` meets an `array<mixed>` parameter
-  ([ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4's bound-parameters note) was deliberately
-  designed to be safe for it.
+- `tainted` ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) answers "is this value's shape safe for
+  a sink," not "is this value confidential" — an API key can be perfectly well-shaped and still catastrophic
+  to leak, while a username can be safe to display yet still attacker-controlled. Neither qualifier covers
+  the other's case; a submitted password is both at once.
+- `secret` cannot reuse `tainted`'s laundering rule on principle — a checked conversion proves shape safety,
+  not reduced confidentiality, so an API key that parses `as uint` is exactly as sensitive afterward. This
+  ADR keeps the same removal-on-conversion rule anyway, for grammar/implementation consistency rather than
+  because the reasoning transfers (see *Alternatives rejected*, *Revisiting*).
+- `secret` also cannot reuse `tainted`'s *source* story: [ADR 0012](0012-no-superglobals.md)'s five accessor
+  classes enumerate every place untrusted data ambiently enters, which is what lets `tainted` attach
+  automatically. There is no equivalent enumeration for secrecy, so `secret` has no ambient source at all —
+  which `Core` accessors should return it by convention is deferred stdlib design (*Revisiting*).
+- `Core\Log`'s open `fields: array<string, mixed>` bag ([ADR 0020](0020-error-escalation-ladder.md) § 6) lets
+  `tainted` values through freely, since logging attacker input is the log's purpose. `secret` needs the
+  opposite default, which a parameter-type refusal can't express on an already-`mixed` parameter — forcing
+  `mwl check` to inspect `Core\Log::write`'s call-site argument expressions instead, a mechanism `tainted`
+  never needed.
 - [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified `serialize()`/`unserialize()`
-  and the `spawn`/`spawn worker`/`spawn script` boundary into one recursive graph-copy operation with two
-  callers, specifically to avoid "two implementations to keep correct." Giving `secret` different behavior
-  at each caller (allow crossing into a live worker arena, refuse crossing to externalized bytes) would
-  reopen that seam for one type qualifier. This ADR keeps the unification and refuses `secret` at the one
-  operation, both callers — see *Alternatives rejected* for the case against, and *Revisiting* for the signal
-  that would justify splitting it later.
+  and the `spawn`/`spawn worker`/`spawn script` boundary into one operation to avoid two implementations to
+  keep correct. This ADR refuses `secret` at that one operation for both callers rather than reopening the
+  seam (*Alternatives rejected*, *Revisiting*).
 
 ## Decision
 
@@ -252,28 +232,21 @@ specific one of these proves to be a real leak vector in practice.
 
 ## Alternatives rejected
 
-- **Keep `secret` through checked `as` conversions, unlike `tainted`.** This is the *technically correct*
-  answer to the shape-vs-confidentiality distinction raised in *Context*, and was this ADR's original
-  recommendation. Rejected for this first cut in favor of the simpler, `tainted`-consistent rule, on the
-  reasoning that a second qualifier axis with a *different* propagation rule from the one just established is
-  more surface for a developer to hold in their head than the coverage gap costs today. Flagged in
-  *Revisiting* rather than silently dropped.
-- **Split `serialize()`-to-bytes from the live `spawn`/`spawn worker` boundary, allowing `secret` to cross the
-  latter but not the former.** Rejected to preserve [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)'s
-  explicit "one operation, two callers" unification rather than reopening it for one qualifier. Flagged in
-  *Revisiting*.
-- **An opaque `Core\Secret` wrapper value type instead of a qualifier.** Would give the value real runtime
-  identity (enabling, e.g., memory zeroing later) at the cost of a second mechanism alongside `tainted`'s
-  qualifier style, plus a wrapper's usual friction (no implicit interpolation, explicit unwrap everywhere).
-  Rejected for this ADR's scope as heavier than the problem needs; revisit only if runtime memory hygiene
-  (see next bullet) is ever actually pursued.
-- **Runtime memory zeroing of `secret` values on scope exit.** Rejected outright: this needs a
-  destructor-shaped hook, and [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 2 already decided MWL
-  has no destructors of any kind, for reasons (no sound throw-reporting spot, undoes the wholesale-heap-drop
-  request model) that apply here with equal force. `secret` stays compile-time-only and erased before
-  codegen, exactly like `tainted`, buying its protection for zero runtime cost per
-  [ADR 0004](0004-memory-for-simplicity.md)'s ordering — it stops accidental disclosure through code paths,
-  not memory scraping or core-dump exposure, and does not claim to.
+- **Keep `secret` through checked `as` conversions, unlike `tainted`** — the technically correct answer to
+  the shape-vs-confidentiality distinction in *Context*. Rejected for this first cut in favor of the simpler,
+  `tainted`-consistent rule; flagged in *Revisiting* rather than silently dropped.
+- **Split `serialize()`-to-bytes from the live `spawn`/`spawn worker` boundary**, allowing `secret` to cross
+  the latter but not the former. Rejected to preserve [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)'s
+  "one operation, two callers" unification. Flagged in *Revisiting*.
+- **An opaque `Core\Secret` wrapper value type instead of a qualifier.** Would enable runtime memory zeroing
+  later, at the cost of a second mechanism alongside `tainted`'s qualifier style plus a wrapper's usual
+  friction (no implicit interpolation, explicit unwrap everywhere). Rejected as heavier than the problem
+  needs.
+- **Runtime memory zeroing of `secret` values on scope exit.** Rejected outright: needs a destructor-shaped
+  hook, and [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 2 already rules out destructors of any
+  kind for the same reasons (no sound throw-reporting spot, undoes the wholesale-heap-drop request model).
+  `secret` stays compile-time-only and erased before codegen, like `tainted`, per
+  [ADR 0004](0004-memory-for-simplicity.md)'s ordering.
 
 ## Revisiting
 

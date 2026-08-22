@@ -40,23 +40,13 @@
 
 ## Context
 
-- Three options considered for exact, deterministic, cross-machine/OS performance comparison: (1)
-  simulated-instruction counting (an interpreter's opcode counter, or an external emulator like
-  Valgrind/callgrind), (2) hardware "instructions retired" via the CPU's PMU (`perf`/ETW/Instruments), (3) a
-  fixed external reference workload measured by wall-clock to normalize out clock-speed differences.
-- Option 1's interpreter half doesn't apply: Cranelift JIT is the only execution tier
-  ([README.md](README.md) § *Decisions taken at project start*), so only the emulator half
-  (Valgrind/callgrind) is a candidate.
-- Option 2 rejected: architecture-locked and multi-tool (`perf`/ETW/Instruments each differ), gives
-  "cross-machine, same architecture" at best, not the "cross-machine and OS" comparability needed.
-- Option 3 taken literally is already bettered by `benches/abi-probe/tests/perf_guards.rs`'s existing
-  pattern — ratios/slopes **within the same run** (2-frame vs 18-frame chain, thrown vs returned, process vs
-  task) rather than an unrelated reference binary; that file already reasons through why this normalizes
-  per-machine overhead, and needs no change.
-- The gap none of the three close: a historical trend line comparable across an arbitrary set of contributor
-  machines and CI runners over months of commits — a ratio-based guard answers "did this commit regress
-  *relative to itself*," not "is MWL getting faster in an absolute, comparable sense." That gap is this
-  ADR's actual scope.
+- Needed: an exact, deterministic performance measurement comparable across contributor machines/OSes and
+  over time — something the existing per-PR wall-clock ratio guards in `perf_guards.rs` don't attempt, since
+  a self-relative ratio only answers "did this commit regress against itself," not "is MWL getting faster in
+  an absolute sense."
+- Three candidates were weighed — simulated-instruction counting (Valgrind/callgrind), hardware
+  instructions-retired (`perf`/ETW/Instruments), and a fixed external reference workload measured by
+  wall-clock — see *Alternatives rejected* for why callgrind won.
 
 ## Investigation
 

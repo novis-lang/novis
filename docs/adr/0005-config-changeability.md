@@ -15,21 +15,20 @@
 
 ## Context
 
-- The project-start decision put every limit and capability in a single `RuntimeTighten` class ("a script
-  may narrow a limit but never widen one") — a clean win for priority 1, but it breaks priority 2 for one
-  of the most common idioms in the PHP corpus:
+- The project-start decision put every limit and capability in a single `RuntimeTighten` class ("narrow
+  only, never widen") — clean for priority 1, but it breaks priority 2 for one of the most common idioms in
+  the PHP corpus:
   ```php
   ini_set('memory_limit', '1G');   // php.ini says 128M
   set_time_limit(0);
   ```
-  In PHP this succeeds — `memory_limit` and `max_execution_time` are `PHP_INI_ALL`, changeable to any
-  value; `open_basedir` is PHP's one narrowing-only exception, special-cased precisely because it is the
-  exception.
-- Under tighten-only, converted code doesn't fail loudly at conversion time — it fails at runtime, in
-  production, as an out-of-memory or timeout error whose cause is exactly what the script was trying to fix.
-- The root problem: one directive conflated two questions — what a script gets without asking, and what the
-  host is willing to lose to one request. Every deployment that hit the resulting choice resolved it by
-  raising the global limit for everyone, which is worse for priority 1 than the fix below.
+  PHP allows this (`memory_limit`/`max_execution_time` are `PHP_INI_ALL`); `open_basedir` is PHP's one
+  narrowing-only exception, special-cased precisely as the exception.
+- Under tighten-only, converted code fails at runtime instead of at conversion time — as an out-of-memory or
+  timeout error, exactly the thing the script was trying to prevent.
+- Root problem: one directive conflated two questions — what a script gets by default, and what the host
+  will tolerate from one request. Deployments hitting this resolved it by raising the global limit for
+  everyone, worse for priority 1 than the fix below.
 
 ## Decision
 

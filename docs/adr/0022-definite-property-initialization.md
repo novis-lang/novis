@@ -45,23 +45,19 @@
 
 ## Context
 
-- PHP 7.4 typed properties introduced a state distinct from `null` — declared but unassigned. Reading one
-  throws, but only when discovered at the read, often far from the constructor that forgot to set it.
-- The user proposed reusing JavaScript's `undefined`. Rejected: JavaScript has no declared property types to
-  violate, while MWL's typed properties are exactly the guarantee [ADR 0007](0007-explicit-type-system.md)
-  built to prevent "a declared type silently holds something else" (its own `(int)$_GET['id']` → `0`
-  example); a universal `undefined` would reintroduce that failure one binding kind later, and is the same
-  ambient-magic shape already closed for undeclared properties/`__get`/`__set`
+- PHP 7.4 typed properties introduced a state distinct from `null` — declared but unassigned; reading one
+  throws only when discovered at the read, often far from the constructor that forgot to set it.
+- **JavaScript's `undefined` was proposed and rejected**: JS has no declared property types to violate, while
+  MWL's typed properties are exactly the guarantee [ADR 0007](0007-explicit-type-system.md) built to prevent
+  a declared type silently holding something else; a universal `undefined` would reintroduce that failure one
+  binding kind later — the same ambient-magic shape already closed for undeclared properties/`__get`/`__set`
   ([ADR 0014](0014-property-observer.md)) and superglobals ([ADR 0012](0012-no-superglobals.md)).
-- Precedent from other statically-typed languages: **Rust/Swift** require definite assignment at compile
-  time with no runtime-observable uninitialized state; **Kotlin**'s opt-in `lateinit` throws a specific
-  exception on early read rather than a silent value; **C#/Java** give every field a silent per-type default
-  — rejected here for the same reason ADR 0007 rejects silent coercion (a plausible wrong value is worse
-  than a loud one).
-- MWL already has the needed mechanism: ADR 0007 §1 commits to definite-assignment checking for local
-  variables. A property is a second, structurally similar binding kind, extended here with
-  `parent::constructor(...)` as what discharges inherited properties — mirroring Java/Kotlin's mandatory
-  `super()`.
+- Other statically-typed languages split between compile-time-only (Rust/Swift), an opt-in throw-on-early-
+  read modifier (Kotlin's `lateinit`), and a silent per-type default (C#/Java) — the last rejected here for
+  the same reason ADR 0007 rejects silent coercion.
+- MWL already has the mechanism: ADR 0007 §1 commits to definite-assignment checking for locals. A property
+  is a second, structurally similar binding kind, extended with `parent::constructor(...)` as what discharges
+  inherited properties — mirroring Java/Kotlin's mandatory `super()`.
 
 ## Decision
 

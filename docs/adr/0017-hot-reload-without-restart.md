@@ -37,20 +37,19 @@
 ## Investigation
 
 - **Filesystem watcher** (`inotify`/`ReadDirectoryChangesW`/`FSEvents`/`kqueue`) — rejected: four
-  platform-specific APIs to maintain, watch descriptors are a finite OS resource a large web root can exhaust,
-  it degrades silently on network filesystems (NFS/SMB), it still can't remove the need for a stat/hash check
-  (misses replace-via-rename), and it's an unattributable background subsystem
-  ([0004](0004-memory-for-simplicity.md)'s accounting rule).
-- **Lazy, stat-gated revalidation instead** — reuses PHP's own `opcache.validate_timestamps` model (`stat`
-  mtime+size → BLAKE3 hash → atomic swap): costs nothing when nothing changed, needs no new subsystem, and
-  its cost lands on the request that touches the file, as [0004](0004-memory-for-simplicity.md) wants.
-  `mtime` is a cheap pre-filter; only the content hash is trusted as the actual cache key.
-- **A rate cap** (`opcache.revalidate_freq`, matching PHP's own knob) bounds `stat` overhead at the request
-  volumes M7 targets (10k+ concurrent).
+  platform-specific APIs, watch descriptors are a finite OS resource, it degrades silently on network
+  filesystems, it still can't remove the need for a stat/hash check (misses replace-via-rename), and it's an
+  unattributable background subsystem ([0004](0004-memory-for-simplicity.md)'s accounting rule).
+- **Lazy, stat-gated revalidation instead** — PHP's own `opcache.validate_timestamps` model (`stat` mtime+size
+  → BLAKE3 hash → atomic swap): costs nothing when nothing changed, and its cost lands on the request that
+  touches the file, as [0004](0004-memory-for-simplicity.md) wants. `mtime` is a cheap pre-filter; only the
+  content hash is trusted as the actual cache key.
+- **A rate cap** (`opcache.revalidate_freq`) bounds `stat` overhead at the request volumes M7 targets
+  (10k+ concurrent).
 - **Per-path pointer swap, not a global version counter** — a global counter would serialise unrelated files'
-  updates against each other's readers and reintroduce shared mutable state; using the content hash itself as
-  the compare-and-swap token needs no separate counter and reuses DashMap's existing per-shard lock. A slower
-  compile of an older edit simply loses the compare and is discarded.
+  updates against each other's readers; using the content hash itself as the compare-and-swap token needs no
+  separate counter and reuses DashMap's existing per-shard lock. A slower compile of an older edit simply
+  loses the compare and is discarded.
 
 ## Decision
 

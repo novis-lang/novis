@@ -57,23 +57,20 @@
 ## Context
 
 - PHP treats "a script is handed data from outside" as magic variables, not declarations: superglobals
-  are simply *there*, populated by the SAPI, mutable, and readable from any scope without a `global` —
-  the one carve-out PHP gives its own magic that it denies a programmer's.
+  are simply *there*, populated by the SAPI, mutable, and readable from any scope without a `global`.
 - **`$GLOBALS` is a second, worse door onto the problem `global` already opens**
   ([ADR 0008](0008-static-and-global.md)): any function at any depth can read or overwrite any top-level
   variable by name, with no keyword and no declaration at all.
 - **The request-input superglobals deliver untrusted data with no declared boundary.**
   [ADR 0007](0007-explicit-type-system.md) § 6 already treats `$_GET`/`$_POST`/`$_SERVER` as untyped
-  input, but that input still arrived as a bare, ambiently-populated variable rather than through
-  anything resembling a declared, traceable entry point (contrast a grep-able `Core\Str::` call,
-  [ADR 0011](0011-functions-and-constants-are-class-members.md)).
+  input, but it still arrives as a bare, ambiently-populated variable rather than a declared, traceable
+  entry point (contrast a grep-able `Core\Str::` call, [ADR 0011](0011-functions-and-constants-are-class-members.md)).
 - **`$_SESSION`/`$_ENV` add ambient mutable/host-configuration state**, and `$_REQUEST` adds a third
   failure mode: it merges `$_GET`/`$_POST`/`$_COOKIE` in a `php.ini`-configurable order, so the same key
-  can silently mean a different source on different servers — the same "which source" ambiguity
-  [ADR 0007](0007-explicit-type-system.md) already closes for scalar type.
+  can silently mean a different source on different servers.
 - Not a new argument: [ADR 0008](0008-static-and-global.md)'s storage table is exhaustive, and a bare
-  ambiently-populated variable does not fit any row in it. This ADR applies that argument to the one
-  place PHP's magic variables were still standing.
+  ambiently-populated variable does not fit any row in it — this ADR closes the one place PHP's magic
+  variables were still standing.
 
 ## Decision
 

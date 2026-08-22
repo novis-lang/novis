@@ -56,22 +56,13 @@
   ([0010](0010-enums-are-a-value-type.md)), `MAX`/`DEFAULT_STATUS` constants, `Core\Str`-style namespaces) —
   an accident that stops holding the moment a second contributor or a converted PHP project writes code.
 
-## Investigation — how other languages handle this
-
-- **Go**: checks only first-letter case, because that bit *is* semantics (exported/unexported) — formatting
-  otherwise stays tooling-only (`gofmt`).
-- **Haskell/Elm/OCaml**: also first-letter-only, for parser disambiguation (constructor/type vs value), not
-  style.
-- **Rust**: the only mainstream language checking whole-identifier casing — but as a default-on **warning**,
-  suppressible per item (`#[allow(...)]`), because FFI/macro/serialization names legitimately need to
-  violate it.
-- **Java/C#**: tooling-only (Checkstyle, Roslyn + `.editorconfig`), never compiler-enforced.
-- **Python** (PEP 8): pure convention, zero enforcement.
-- No mainstream precedent for "hard error, zero exceptions" — but it extends a pattern MWL already applies:
-  [0011](0011-functions-and-constants-are-class-members.md), [0015](0015-no-name-aliasing.md),
-  [0021](0021-single-file-inclusion-construct.md) and [0027](0027-callable-is-closures-only.md) each pick one
-  accepted spelling and reject the rest outright rather than warn. Rust's warning-with-escape-hatch model is
-  the road not taken (see *Alternatives rejected*).
+No mainstream language hard-errors on identifier casing with zero exceptions — Go/Haskell/Elm/OCaml check
+only the first letter (for semantics/parsing, not style), Rust warns with a per-item escape hatch, and
+Java/C#/Python leave it to tooling or convention. This ADR extends a pattern MWL already applies elsewhere
+([0011](0011-functions-and-constants-are-class-members.md), [0015](0015-no-name-aliasing.md),
+[0021](0021-single-file-inclusion-construct.md), [0027](0027-callable-is-closures-only.md)): pick one
+accepted spelling, reject the rest outright, no warning tier. See *Alternatives rejected* for the
+warning-with-escape-hatch road not taken.
 
 ## Decision
 

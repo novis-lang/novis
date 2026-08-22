@@ -53,15 +53,10 @@
   reserved classes, for traceability — but the type system stops at the call site: nothing distinguishes
   `Core\Request::query('id')`'s return from a source literal, so concatenating it into SQL/HTML is invisible
   to `mwl check` — the exact gap enabling XSS and SQL injection.
-- Three prior attempts, each rejected for a reason specific to this codebase: **Perl's taint mode** —
-  runtime tag checked on every use, exactly the representation/per-op cost
-  [ADR 0004](0004-memory-for-simplicity.md) argues against when a free compile-time alternative exists;
-  **Google's safe-html-types/Error Prone** — static analysis bolted on outside the compiler as an optional,
-  skippable step, the same "optional is not a real guarantee" stance
-  [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already took for reflection/AST parsing;
-  **Go's `html/template`** — real and effective, but scoped to one template engine's HTML case, saying
-  nothing about SQL/shell/paths (its auto-escaping idea is folded into § 5 as one instance of a general
-  mechanism, not the whole answer).
+- Prior art considered: Perl's taint mode and Google's safe-html-types/Error Prone are rejected below (see
+  *Alternatives rejected*); Go's `html/template` auto-escaping is real and effective but scoped to one
+  template engine's HTML case, saying nothing about SQL/shell/paths — its idea is folded into § 5 as one
+  instance of a general mechanism, not the whole answer.
 - Taint sources are a standing **rule**, not a fixed list: anything a script receives that it didn't just
   compute (a live request, a persisted store, another process, the environment) carries the same risk,
   including second-order/stored injection — future sources (`Core\Db` rows, `Core\Cache` reads at M8/M9)

@@ -29,10 +29,9 @@
 
 ## Context
 
-- Two gaps: reflection is native and mature in PHP (every DI container, ORM, attribute-driven router, test
-  double already depends on it); AST/source parsing is not — `token_get_all()` gives tokens, not a tree, and
-  a real tree needs a third-party grammar (`nikic/php-parser`, or the PECL-only `ast` extension) that can
-  drift from the engine's own parsing rules.
+- Two gaps: reflection is native and mature in PHP; AST/source parsing is not — `token_get_all()` gives
+  tokens, not a tree, and a real tree needs a third-party grammar (`nikic/php-parser`, or the PECL-only `ast`
+  extension) that can drift from the engine's own parsing rules.
 - Requirement: MWL closes both gaps as core-language features, not "reflection ships, AST parsing is
   somebody's extension."
 - Correctness (priority 2): `Core\Ast` wraps `mwl-syntax`'s existing single parser rather than adding a
@@ -42,8 +41,8 @@
   ([ADR 0011](0011-functions-and-constants-are-class-members.md)); leaving AST parsing out would send every
   framework author back to a userland parser, reproducing PHP's own fragmentation.
 - Security (priority 1) is what this decision could spend if left unexamined: PHP's reflection bypasses
-  visibility via `setAccessible(true)`, and a runtime-reachable parser is new attacker-reachable surface — both
-  closed in *Decision* rather than inherited by default.
+  visibility via `setAccessible(true)`, and a runtime-reachable parser is new attacker-reachable surface —
+  both closed in *Decision* rather than inherited by default.
 
 ## Decision
 

@@ -44,22 +44,18 @@
 
 ## Context
 
-- PHP has three disconnected ways to intercept property/method access: property hooks (kept — explicit,
-  per-property, already in [M1](../implementation-plan.md)'s parser scope), `__get`/`__set` (ambient, fires
-  only on undefined/inaccessible property access), and `__call`/`__callStatic` (same ambient shape for
-  methods).
-- The gap driving this ADR: PHP has no way to run one cross-cutting hook (audit log, dirty tracking,
-  serialization boundary) for *every* declared property, hooked or not — `__get`/`__set` only ever see
-  undefined access, so real declared properties with real hooks get no shared observation point.
-- The ambient "a method existing by this exact name changes runtime behaviour" shape is the same one
-  [ADR 0011](0011-functions-and-constants-are-class-members.md), [ADR 0012](0012-no-superglobals.md) and
-  [ADR 0013](0013-comparable-interface.md) already closed elsewhere, for the same reason each time: nothing
-  in the declaration signals the behaviour exists. [ADR 0013](0013-comparable-interface.md)'s replacement of
-  PHP's property-walk `<`/`>` with a declared `Comparable` interface is the direct precedent this ADR follows
-  for `__get`/`__set`; `__call`/`__callStatic` get no replacement at all, since dynamic dispatch by an
-  unresolvable name is rejected outright, not just PHP's particular spelling of it.
-- Making undeclared-property access a hard error extends [ADR 0007](0007-explicit-type-system.md)'s existing
-  rule for undeclared locals and read-before-definite-assignment to property access — not new territory.
+- PHP has three disconnected ways to intercept property/method access: property hooks (kept, already in
+  [M1](../implementation-plan.md)'s parser scope), `__get`/`__set` (ambient, undefined-access only), and
+  `__call`/`__callStatic` (same ambient shape for methods).
+- The gap: PHP has no cross-cutting hook for *every* declared property, hooked or not — `__get`/`__set` only
+  ever see undefined access, so real properties with real hooks get no shared observation point.
+- Same "a method existing by this name changes behaviour" shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
+  [ADR 0012](0012-no-superglobals.md) and [ADR 0013](0013-comparable-interface.md) already closed elsewhere;
+  [ADR 0013](0013-comparable-interface.md)'s `Comparable` replacement of property-walk `<`/`>` is the direct
+  precedent followed here for `__get`/`__set`. `__call`/`__callStatic` get no replacement at all — dispatch by
+  an unresolvable name is rejected outright.
+- Undeclared-property access as a hard error extends [ADR 0007](0007-explicit-type-system.md)'s existing rule
+  for undeclared locals to property access — not new territory.
 
 ## Decision
 

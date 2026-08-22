@@ -17,25 +17,16 @@
 
 - MWL compiles every function to native code with Cranelift and has no interpreter tier, so two things must
   cross native frames reliably: MWL exceptions (`throw`/`catch`), and runtime panics, which must kill
-  exactly one request and never the process, since one process serves every request.
-- The obvious design — reuse the platform unwinder: emit unwind tables for JIT frames, let a panic or
-  exception unwind through them, catch it at the request boundary — is what the original plan assumed.
-
-## Investigation
-
-- Spike #1: a JIT function called a Rust helper declared `extern "C-unwind"` that panicked, with
-  Cranelift's `unwind_info = "true"` enabled. Result: the process died with the MSVC SEH exception code,
-  escaping uncaught — `catch_unwind` sitting directly above the JIT frame never observed it.
-- Root cause is in `cranelift-jit` 0.128.4 itself: it never calls `RtlAddFunctionTable` (Windows) or
-  `__register_frame` (ELF/DWARF). Its only unwind-related code is Wasmtime's own private side-table
-  mechanism, gated behind the `wasmtime-unwinder` feature — unrelated to the platform unwinder Rust panics
-  use. `unwind_info = "true"` makes Cranelift emit unwind data; nothing ever registers it with the OS.
-- Not Windows-specific — the same absence applies to DWARF FDE registration on Linux and macOS.
-- Building native unwinding ourselves would mean writing and maintaining, per platform: `RUNTIME_FUNCTION`
-  table construction and registration (Win64), `.eh_frame` FDE synthesis and registration (ELF), the
-  `compact_unwind`/`libunwind` equivalent (Mach-O), and a personality routine each — plus correct
-  interaction with coroutine stack switching, where the unwinder could walk off a coroutine stack into
-  unrelated memory.
+  exactly one request and never the process. The original plan assumed the obvious design — emit unwind
+  tables for JIT frames and let the platform unwinder carry a panic or exception to the request boundary.
+- Spike #1 disproved it: a JIT function calling a panicking `extern "C-unwind"` helper, with Cranelift's
+  `unwind_info = "true"` enabled, died with an uncaught MSVC SEH exception — `catch_unwind` sitting directly
+  above the JIT frame never saw it. Root cause: `cranelift-jit` 0.128.4 never registers its unwind info with
+  the OS (no `RtlAddFunctionTable` on Windows, no `__register_frame` on ELF/DWARF); its only unwind-related
+  code is Wasmtime's unrelated private side-table mechanism. The same gap applies on Linux and macOS.
+- Building native unwinding ourselves would mean writing and maintaining per-platform unwind tables, FDEs,
+  and personality routines, plus safe interaction with coroutine stack switching — where the unwinder could
+  walk off a coroutine stack into unrelated memory.
 
 ## Decision
 

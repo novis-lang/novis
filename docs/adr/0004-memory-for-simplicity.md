@@ -25,9 +25,9 @@ easy to size for in advance — not an embedded target. What is actually scarce:
 RAM can be bought; an invariant every future contributor has to remember cannot, and the places MWL is most
 likely to be wrong — unsafe modules, codegen call sites, the sandbox boundary — are exactly where a
 memory-saving trick would have to live. The project has already made this trade at least six times (see
-*Where this already applies* below), each argued separately on a different axis, which lets a reviewer show
-the smaller-memory option cheaper in isolation because its cost is diffuse and lands in a different file.
-Naming the ordering once puts the burden of proof where it belongs.
+*Where this already applies* below), each argued separately, which lets a reviewer show the smaller-memory
+option cheaper in isolation because its cost is diffuse and lands in a different file. Naming the ordering
+once puts the burden of proof where it belongs.
 
 ## Decision
 

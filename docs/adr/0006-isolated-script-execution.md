@@ -33,26 +33,23 @@
 ## Context
 
 - A script often needs to run another script without being affected by it (a queue worker running a job, a
-  report generator running a plugin, a CLI tool running a user's extension file) — concretely: the callee
-  must not see or clobber the caller's globals/statics/handles/output, a fatal or infinite loop in the
-  callee must not take the caller down with it, and the callee must reach nothing the caller could not.
-- PHP's only construct that provides this is not a language construct at all: spawn another `php` process
-  over pipes. Every in-process PHP construct (`include`/`require`, `eval`, a `Fiber`/generator) isolates
-  nothing — same symbol table, same heap, same statics.
-- Measured on this machine: a bare MWL task (coroutine created, run, dropped) costs 4.29 µs; PHP 8.5.8
-  booting and exiting costs 35.9 ms — **roughly 8000× a task**, before the child has parsed a line,
-  reconnected to a database, or rebuilt an autoloader. `CreateProcess` is dearer than `fork`+`exec`, so a
-  Linux figure would be smaller, but not by three orders of magnitude.
-- A child process is also worse at the isolation it's used for: it **inherits ambient authority** (env,
-  cwd, handles, OS-user rights all cross the boundary — every `mwl.ini` grant becomes advisory for the
-  spawned code, the same failure mode [ADR 0003](0003-extension-system.md) rejected `dlopen` for); it
-  **cannot be governed** (the parent can only kill it — no shared CPU accounting, no cooperative
-  cancellation, no memory attribution); and it **re-enters through the front door** (arguments serialised
-  onto a command line or temp file, its own injection surface).
-- MWL already has the machinery needed to do better, built for requests: a per-request arena with a hard
-  cap, fresh request/session state ([ADR 0012](0012-no-superglobals.md)), a copy-on-write config overlay, a
-  coroutine tree, safepoint-driven limits, and a process-wide compiled-unit cache. This ADR asks for the
-  same machinery from inside the language, rather than shipping it and denying script authors access to it.
+  plugin, a CLI tool running user code) — the callee must not see or clobber the caller's
+  globals/statics/handles/output, a fatal or infinite loop in it must not take the caller down, and it must
+  reach nothing the caller could not.
+- PHP's only real answer is spawning another `php` process over pipes — every in-process construct
+  (`include`/`require`, `eval`, `Fiber`/generator) shares the same symbol table, heap and statics, isolating
+  nothing.
+- Measured on this machine: a bare MWL task costs 4.29 µs; PHP 8.5.8 booting and exiting costs 35.9 ms —
+  **roughly 8000× a task**, before the child has even parsed a line. (`CreateProcess` is dearer than
+  `fork`+`exec`, so Linux would be smaller, but not by three orders of magnitude.)
+- A child process is also worse at the isolation it's used for: it inherits ambient authority (env, cwd,
+  handles, OS-user rights — the same failure mode [ADR 0003](0003-extension-system.md) rejected `dlopen`
+  for), cannot be governed (the parent can only kill it — no CPU/memory accounting, no cooperative
+  cancellation), and re-enters through the front door (arguments serialised onto a command line).
+- MWL already has the machinery for this, built for requests: a per-request arena with a hard cap, fresh
+  request/session state ([ADR 0012](0012-no-superglobals.md)), a copy-on-write config overlay, a coroutine
+  tree, safepoint-driven limits, a process-wide compiled-unit cache. This ADR exposes that machinery to
+  script authors instead of keeping it server-only.
 
 ## Decision
 

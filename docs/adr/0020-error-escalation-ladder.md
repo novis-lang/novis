@@ -221,24 +221,20 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 
 ## Alternatives rejected
 
-- **Let an ordinary `catch (Throwable)` intercept a `FATAL` anywhere in the call stack.** Rejected: reopens
-  [ADR 0002](0002-error-propagation.md)'s tested status model and spreads the catch-loop risk from one
-  boundary to every stack depth.
-- **Bounded-N retries** on a failing handler. Rejected: adds a knob to size and still risks stalling if `N`
-  is too high, for a case that should already be rare by tier 3.
-- **One handler API for both resource-limit and internal-panic `FATAL`s.** Rejected: would rerun user code
-  atop runtime state the runtime itself does not trust.
-- **Treat every compile failure as boundary-only**, including mid-execution ones. Rejected: diverges from
-  PHP's catchable `ParseError`, breaking the pattern of catching a bad template/plugin parse failure
-  gracefully instead of failing the whole request.
-- **`logfmt` as the shared record format.** Rejected: correct escaping of an arbitrary message or multi-line
-  stack trace is a bigger burden on tier 4's one unretried attempt than JSON's mechanical escaping.
-- **A purely engine-native logger, no operator-configurable script tier.** Rejected: forces every
-  deployment's error routing/formatting decision onto a second, host-side configuration surface instead of
-  the language already available.
-- **Give the tier-3 handler its own budget drawn from the request tree it is reporting on.** Rejected: a
-  request already at its ceiling has nothing left to give, making the feature unreachable exactly when it is
-  needed most.
+- **Let an ordinary `catch (Throwable)` intercept a `FATAL` anywhere in the call stack.** Reopens
+  [ADR 0002](0002-error-propagation.md)'s status model and spreads catch-loop risk to every stack depth.
+- **Bounded-N retries** on a failing handler. Just adds a knob to size, for a case that should already be
+  rare by tier 3.
+- **One handler API for both resource-limit and internal-panic `FATAL`s.** Would rerun user code atop
+  runtime state the runtime itself does not trust.
+- **Treat every compile failure as boundary-only**, including mid-execution ones. Diverges from PHP's
+  catchable `ParseError`.
+- **`logfmt` as the shared record format.** Escaping an arbitrary message or multi-line stack trace burdens
+  tier 4's one unretried attempt more than JSON's mechanical escaping.
+- **A purely engine-native logger, no operator-configurable script tier.** Forces error routing/formatting
+  onto a second, host-side configuration surface instead of the language already available.
+- **Give the tier-3 handler its own budget drawn from the request tree it is reporting on.** A request
+  already at its ceiling has nothing left to give, making the feature unreachable when needed most.
 
 ## Revisiting
 

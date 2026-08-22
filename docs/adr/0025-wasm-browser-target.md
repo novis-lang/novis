@@ -164,21 +164,17 @@ language underneath it.
 ## Alternatives rejected
 
 - **Compile the native JIT itself to wasm and run it inside the browser, JIT-ing MWL source at page load.**
-  Rejected: requires mmap'ing executable pages from inside a wasm sandbox, which no browser permits, and
-  would contradict [0003](0003-extension-system.md)'s own reasoning for why native code gets no ambient
-  authority. AOT-compiling to a `.wasm` artifact ahead of time is the only shape that respects the boundary.
-- **Emulate coroutines with Asyncify to keep one execution model across every target.** Rejected for v1:
-  Asyncify instruments every function reachable from a suspend point, not only the ones that suspend — a
-  whole-module cost paid by code that never spawns or yields, exactly the blanket spend
+  Requires mmap'ing executable pages from inside a wasm sandbox, which no browser permits, and contradicts
+  [0003](0003-extension-system.md)'s reasoning for why native code gets no ambient authority.
+- **Emulate coroutines with Asyncify** to keep one execution model across every target. Instruments every
+  function reachable from a suspend point, not only the ones that suspend — a whole-module cost
   [0004](0004-memory-for-simplicity.md) asks to be paid deliberately rather than by default.
-- **Give the browser target its own weaker isolation primitive instead of dropping `spawn` outright** (e.g.
-  silently degrading to a same-thread call). Rejected: a construct whose isolation guarantee quietly
-  disappears on one target is worse than one simply refused there — isolation must not be optional by
-  platform.
+- **Give the browser target its own weaker isolation primitive** instead of dropping `spawn` outright (e.g.
+  silently degrading to a same-thread call). A construct whose isolation guarantee quietly disappears on one
+  target is worse than one simply refused there.
 - **Model the browser context as `Core\Request` or `Core\Cli` with browser-specific methods bolted on.**
-  Rejected: invites the same "is this call legal in this context" ambiguity
-  [0012](0012-no-superglobals.md) already closed by giving the CLI its own `Core\Cli` rather than folding
-  `argv` into `Core\Server`.
+  Invites the same "is this call legal in this context" ambiguity [0012](0012-no-superglobals.md) already
+  closed by giving the CLI its own `Core\Cli`.
 
 ## Revisiting
 

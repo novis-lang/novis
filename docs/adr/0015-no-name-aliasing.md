@@ -32,25 +32,22 @@
 
 ## Context
 
-- PHP gives a name three ways to acquire a second spelling: `class_alias()` (a second global class name,
-  interchangeable everywhere `instanceof`/`new`/autoloading look), `use X as Y;` (rebinds an import's short
-  name), and trait-use `as` (renames a trait method, or changes its visibility). Each duplicates a declared
-  name the same way [ADR 0008](0008-static-and-global.md) and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already closed for state and for behaviour —
-  a reader who has found one spelling still cannot be sure it is the only one in play.
-- Simplicity (priority 4): two tokens meaning the same class is pure surface a reader must hold in their head
-  for zero semantic gain.
+- PHP gives a name three ways to acquire a second spelling: `class_alias()` (a second global class name),
+  `use X as Y;` (rebinds an import's short name), and trait-use `as` (renames a method, or its visibility).
+  Each duplicates a declared name the same way [ADR 0008](0008-static-and-global.md) and
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) already closed for state and behaviour — a
+  reader who has found one spelling still cannot be sure it is the only one in play.
+- Simplicity (priority 4): two tokens meaning the same class is pure surface for zero semantic gain.
 - Security (priority 1): `class_alias()` is exactly the tool PHP autoloading exploits and feature-flag
   frameworks use to swap which implementation a name resolves to *after the fact* — the same problem
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) and
-  [ADR 0014](0014-property-observer.md) already closed for calls and property access.
-- Not affected: a reference (`&$x`) binding two *variable names* to one storage slot is a different concept
-  (function-scoped, same-type per [ADR 0007](0007-explicit-type-system.md) § 1), not a second global name for
-  a declaration.
-- The one genuine need: [ADR 0007](0007-explicit-type-system.md)'s own *Negative* section already flagged
+  [ADR 0011](0011-functions-and-constants-are-class-members.md) and [ADR 0014](0014-property-observer.md)
+  already closed for calls and property access.
+- Not affected: a reference (`&$x`) binds two *variable names* to one storage slot — function-scoped, per
+  [ADR 0007](0007-explicit-type-system.md) § 1 — not a second global name for a declaration.
+- The one genuine need: [ADR 0007](0007-explicit-type-system.md)'s own *Negative* section flagged
   `array<array<int|string>> $rows`-style verbosity and named a `type` alias as unresolved relief — answered
-  here, kept narrow enough (a synonym for a *type expression*, erased before codegen) that it cannot smuggle
-  the rejected kind of aliasing back in.
+  here, kept narrow (a synonym for a *type expression*, erased before codegen) so it cannot smuggle the
+  rejected kind of aliasing back in.
 
 ## Decision
 

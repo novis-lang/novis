@@ -39,28 +39,18 @@
 
 ## Context
 
-- PHP's closure surface is eleven moving parts across two literal forms, two capture modes, and a handful of
-  dynamic-dispatch mechanisms already narrowed by [ADR 0027](0027-callable-is-closures-only.md) and
-  [ADR 0008](0008-static-and-global.md) § 4: the block-bodied `function(...) use (...) {...}` literal, the
-  expression-bodied `fn(...) => ...` arrow literal, `use ($y)` capture by value, `use (&$y)` capture by
-  reference, the `static` closure modifier, `__invoke`, three dynamic callable-string/array spellings, and
-  the `Closure` class's own `bind`/`bindTo`/`call`/`fromCallable` API.
-- [ADR 0027](0027-callable-is-closures-only.md) already closed the string/array spellings and `__invoke`:
-  `callable` accepts only a `Closure` value. [ADR 0008](0008-static-and-global.md) § 4 already closed the
-  `static` modifier by making the property it asserted (a closure that doesn't reference `$this` can't
-  extend the enclosing object's lifetime) true unconditionally, decided by whether the body uses `$this`.
-- What was left after those two: two literal spellings for the same underlying value, an explicit `use`
-  clause with two capture modes, and a `Closure`/`callable` type-name pair that — once ADR 0027 landed —
-  have identical membership: every value satisfying `callable` is a `Closure`, and there is no other value
-  either name could ever refer to. Two names, zero remaining semantic difference — the same pattern
-  [ADR 0015](0015-no-name-aliasing.md) already refuses for `class_alias` and import renaming.
-- The remaining literal form doesn't need to stay two spellings either. PHP kept both `function(){}` and
-  `fn() => ...` only because the arrow form was added later and never grew a block body; there is no reason
-  MWL's `fn` needs the same restriction.
-- Explicit capture (`use`) exists to make a closure's free variables visible at the call site. Auto-capture
-  (what PHP's arrow functions already do) buys the same simplicity `use`-based capture would; the deciding
-  factor was whether the *by-reference* half of `use` has a real, non-substitutable use case, since that is
-  the one thing implicit auto-capture cannot express.
+- PHP's closure surface is eleven moving parts, several already narrowed by
+  [ADR 0027](0027-callable-is-closures-only.md) (closed the string/array spellings and `__invoke`) and
+  [ADR 0008](0008-static-and-global.md) § 4 (closed the `static` closure modifier). Left standing: two
+  literal spellings (`function(...) use (...) {...}` and `fn(...) => ...`) for the same value, `use`'s two
+  capture modes, and a `Closure`/`callable` type-name pair that — once ADR 0027 landed — have identical
+  membership: two names, zero remaining semantic difference, the pattern [ADR 0015](0015-no-name-aliasing.md)
+  already refuses elsewhere.
+- The two literal forms only diverged historically because PHP's arrow form was added later and never grew a
+  block body; nothing requires MWL's `fn` to keep that restriction.
+- Explicit `use` capture exists to make free variables visible at the call site; auto-capture (already what
+  PHP's arrow functions do) buys the same visibility for the by-value case. The only question was whether
+  `use (&$y)`'s by-reference half has a real use auto-capture can't express — it does not (see § 2).
 
 ## Decision
 
@@ -210,37 +200,23 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 
 ## Alternatives rejected
 
-- **Keep both `function(){}` and `fn() => ...`.** Two literal spellings producing an identical value, purely
-  a matter of which one the author happened to type — the exact redundant-surface pattern
+- **Keep both `function(){}` and `fn() => ...`.** Two spellings for one value — the redundant-surface pattern
   [ADR 0015](0015-no-name-aliasing.md) already refuses elsewhere.
-- **Keep `use ($y)` as documentation even though capture is now implicit.** Considered because an explicit
-  capture list does document a closure's free variables at the call site. Rejected because it would be
-  optional decoration with no enforcement — nothing would stop it from going stale relative to what the body
-  actually reads — and "optional, unchecked annotation" is a shape MWL avoids everywhere else in the
-  language.
-- **Keep `use (&$y)`, drop only the by-value form.** Backwards from the real cost/benefit: by-value capture
-  is the common, safe case and the one auto-capture already replaces for free; by-reference is the rare,
-  footgun-prone case this ADR exists to remove.
-- **A builtin `Core\Ref<T>`/boxed-cell type**, to give the shared-mutable-cell pattern a first-class,
-  ready-made answer instead of "write a one-property class." Deferred, not rejected — see *Revisiting*.
-- **Keep both `callable` and `Closure` as distinct spellings**, on the theory that a future typed-closure
-  signature (`Closure(int): string`) might want `Closure` reserved for that. Rejected: if typed-closure
-  signatures are ever added, the natural spelling is `callable(int): string`, consistent with every other
-  parametric stdlib signature already using `callable` bare; nothing about keeping the type-signature
-  question open (as [ADR 0007](0007-explicit-type-system.md) § 3 already leaves it) requires keeping two
-  names alive today.
-- **Drop the `fn` keyword for bare `($x) => ...`, JavaScript-style.** Rejected on parser grounds, not taste:
-  a bare `(...)` before `=>` is ambiguous with a parenthesized expression until the parser has consumed the
-  matching `)` and checked what follows — the same "arrow function head" problem JavaScript's own grammar
-  needs a dedicated cover-grammar production to resolve. `fn` gives single-token lookahead for free;
-  dropping it re-imports a parsing cost PHP's own choice of keyword already avoided, for no semantic gain
-  and at the cost of being the one construct in MWL's surface grammar with no leading keyword at all.
-- **Make blocks expression-valued** (the last statement's value becomes the block's value, no `return`
-  needed, à la Rust), to unify the expression- and block-bodied forms even further. Rejected as far larger
-  than this decision's scope: it would mean deciding statements-vs-expressions for the whole language, not
-  just closures, in tension with [ADR 0007](0007-explicit-type-system.md) § 7's PHP-compatible-observable-
-  behavior stance, for a benefit (saving one `return` keyword in block-bodied closures) this ADR does not
-  need.
+- **Keep `use ($y)` as documentation even though capture is implicit.** Would be unenforced, driftable
+  decoration — a shape MWL avoids everywhere else.
+- **Keep `use (&$y)`, drop only the by-value form.** Backwards: by-value is the common, safe case
+  auto-capture already replaces; by-reference is the rare footgun this ADR removes.
+- **A builtin `Core\Ref<T>`/boxed-cell type** for the shared-mutable-cell pattern. Deferred, not rejected —
+  see *Revisiting*.
+- **Keep both `callable` and `Closure`**, reserving `Closure` for a future typed-closure signature. The
+  natural spelling for that would be `callable(int): string` anyway, consistent with other parametric
+  signatures — no need to keep two names alive today.
+- **Drop the `fn` keyword for bare `($x) => ...`, JavaScript-style.** Parser-grounds rejection: a bare
+  `(...)` before `=>` is ambiguous with a parenthesized expression, the same cover-grammar problem
+  JavaScript needs a dedicated production to resolve; `fn` gives single-token lookahead for free.
+- **Make blocks expression-valued** (Rust-style implicit last-expression return), to unify the two body
+  forms further. Far larger than this decision's scope — it would mean deciding statements-vs-expressions
+  for the whole language for the sake of saving one `return` keyword.
 
 ## Revisiting
 

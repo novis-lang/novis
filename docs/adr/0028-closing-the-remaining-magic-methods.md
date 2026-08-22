@@ -66,15 +66,12 @@ PHP declares seventeen-ish magic methods; four of the ADR-worthy ones are alread
 | `__set_state` | rejected outright, no replacement | **this ADR, § 5** |
 | `__autoload` | moot — removed by PHP itself, and by static resolution | **this ADR, § 6** |
 
-- Every closed row above shares one argument, made in full in
+- Every closed row above shares one argument already made in full by
   [0011](0011-functions-and-constants-are-class-members.md), [0012](0012-no-superglobals.md),
-  [0013](0013-comparable-interface.md) and repeated at [0014](0014-property-observer.md)'s and
-  [0027](0027-callable-is-closures-only.md)'s own Context sections: a behavior triggered by a reserved
-  method name is invisible from the class declaration, unreadable by a checker or IDE without
-  reimplementing PHP's dispatch rules, and often the exact shape of PHP's worst security history
-  (`__wakeup`/`__unserialize` object injection, closed in
-  [0023](0023-clone-serialize-and-cross-boundary-copy.md)).
-- This ADR applies that reasoning to the five remaining cases, plus one reason specific to each — most
+  [0013](0013-comparable-interface.md), [0014](0014-property-observer.md) and
+  [0027](0027-callable-is-closures-only.md): a behavior triggered by a reserved method name is invisible
+  from the class declaration and unreadable by a checker or IDE without reimplementing PHP's dispatch rules.
+  This ADR applies that same reasoning to the five remaining cases, plus one reason specific to each — most
   notably `__destruct`, which fails for a second, independent reason (§ 2).
 
 ## Decision
@@ -246,23 +243,20 @@ consequence of the static-resolution architecture already being built, not a new
 
 ## Alternatives rejected
 
-- **A declared `Disposable`/`Closeable` interface with automatic invocation at scope exit.** A deterministic
-  middle ground for § 2, but scope-exit-triggered calls don't exist anywhere else in MWL — a new construct
-  to justify a magic method this ADR is otherwise just deleting; see *Revisiting*.
-- **Keep `__destruct`, forbid throwing, skip it at request-heap teardown.** PHP's behavior in stricter
-  clothing — still requires walking every live object whose refcount reaches zero mid-request, the exact
-  per-object cost [0004](0004-memory-for-simplicity.md)'s wholesale drop avoids paying.
-- **Keep ambient `__isset`/`__unset` for parity.** They exist only to serve `__get`/`__set`'s fallback,
-  already closed by [0014](0014-property-observer.md) — nothing left to intercept.
+- **A declared `Disposable`/`Closeable` interface with scope-exit invocation.** No scope-exit-triggered call
+  exists anywhere else in MWL; see *Revisiting*.
+- **Keep `__destruct`, forbid throwing, skip it at request-heap teardown.** Still requires walking every live
+  object whose refcount reaches zero mid-request — the per-object cost [0004](0004-memory-for-simplicity.md)'s
+  wholesale drop avoids.
+- **Keep ambient `__isset`/`__unset` for parity.** Nothing left to intercept once [0014](0014-property-observer.md)
+  closed `__get`/`__set`'s fallback.
 - **Let `unset()` reset a non-nullable property to a type default.** [0022](0022-definite-property-initialization.md)
   already rejected per-type silent defaults for exactly this reason.
-- **A `DebugRepresentable`-style interface for `var_dump()`.** Unlike `Stringable`/`Comparable`, there's no
-  unsafe default to close off — PHP's own dump with no `__debugInfo` is already safe, so this would add a
+- **A `DebugRepresentable`-style interface for `var_dump()`.** No unsafe default to close off — would add a
   customization surface with no motivating problem.
-- **Keep PHP's open `var_export()`/`__set_state` format for `mwl convert`.** Same reason
-  [0023](0023-clone-serialize-and-cross-boundary-copy.md) rejected PHP's open serialize format:
-  generated-code-as-data-format is the "well-shaped payload constructs arbitrary objects" surface that ADR
-  already closed.
+- **Keep PHP's open `var_export()`/`__set_state` format for `mwl convert`.** Same
+  generated-code-as-data-format risk [0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed
+  for serialize.
 
 ## Revisiting
 

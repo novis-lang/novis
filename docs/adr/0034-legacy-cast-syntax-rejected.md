@@ -24,21 +24,17 @@
 ## Context
 
 - ADR 0007 § 2 already made the semantics honest: `(int)$x` throws on `"abc"` exactly as `$x as int` does.
-  Priority 1 (security) was already satisfied — a conversion of untrusted data was already a reviewable,
-  loudly-failing operation under either spelling. What remained was purely a priority-4 (simplicity)
-  question: keep two spellings of one operation, or one.
+  Priority 1 was already satisfied; what remained was purely a priority-4 question — keep two spellings of
+  one operation, or one.
 - Two spellings of one operation is exactly the shape [ADR 0015](0015-no-name-aliasing.md) and
-  [ADR 0021](0021-single-file-inclusion-construct.md) already rule against elsewhere in the language — a
-  second name buys nothing but a second thing to teach, a second thing a formatter/linter must treat as
-  equivalent, and a second question ("which one do we use here?") for every style guide and code review.
-  `as` was always the one this project would keep: it is what every *other* checked conversion in ADR 0007
-  is spelled, including the ones with no PHP-cast equivalent at all (`array<int> → array<int|string>`,
-  `int → uint`).
-- The only cost identified against removal is losing a slice of the "pragmatic superset" promise: a PHP file
-  using `(int)$x` no longer parses unconverted. This is a smaller break than it looks — `mwl convert` (M11)
-  already runs a mechanical rewrite pass over a PHP source tree for a dozen other rejected constructs
-  (`settype`, `eval`, `include`, …); one more mechanical substitution (`(int)$x` → `$x as int`) is not a new
-  category of work, just one more line in the same pass.
+  [ADR 0021](0021-single-file-inclusion-construct.md) already rule against elsewhere — a second name buys
+  nothing but a second thing to teach and a second question for every style guide and review. `as` was
+  always the one this project would keep: every *other* checked conversion in ADR 0007 is spelled that way,
+  including ones with no PHP-cast equivalent at all (`int → uint`).
+- The only cost is losing a slice of the "pragmatic superset" promise — a PHP file using `(int)$x` no longer
+  parses unconverted. Smaller than it looks: `mwl convert` (M11) already runs a mechanical rewrite pass for a
+  dozen other rejected constructs; one more substitution (`(int)$x` → `$x as int`) is one more line in the
+  same pass, not a new category of work.
 
 ## Decision
 

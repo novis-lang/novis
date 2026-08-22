@@ -34,20 +34,15 @@
 
 ## Context
 
-ADR 0022 committed to compile-time definite assignment for every non-nullable property and deliberately left
-one case unresolved, in its own words: *"if a real, common construction pattern — a DI container or ORM that
-populates properties after `new` rather than inside a constructor — turns out to hit this ADR's compile-time
-wall often enough that the reflection escape hatch is not the right place for it."* That pattern is common
-enough in real PHP code being ported (constructor takes the cheap dependencies, a container or setter fills
-in the rest after construction; a circular reference between two objects that cannot both be fully built in
-either constructor; an ORM hydrating a lazy-loaded relation) that requiring every such property to be
-either `?T` (permanently, even though it is never legitimately absent once the object is in use) or backed
-by a sentinel/placeholder instance is a real ergonomic wall, not a hypothetical one.
-
-Kotlin's `lateinit var` is the direct precedent: an opt-in modifier that exempts a property from
-definite-assignment checking, defers the guarantee to a runtime throw on first read, and is restricted to
-non-primitive, non-nullable types for exactly the reason restated below — a primitive already has a free
-real default, so `lateinit` would only ever be a lazier spelling of one.
+- ADR 0022 committed to compile-time definite assignment for every non-nullable property but deliberately
+  left one case open: a DI container or ORM that populates properties after `new` rather than inside a
+  constructor. That pattern is common enough in ported PHP (a container/setter filling in dependencies after
+  construction, a circular reference between two objects, an ORM hydrating a lazy relation) that requiring
+  `?T` forever or a placeholder instance is a real ergonomic wall, not a hypothetical one.
+- Kotlin's `lateinit var` is the direct precedent: an opt-in modifier exempting a property from
+  definite-assignment checking, deferring the guarantee to a runtime throw on first read, restricted to
+  non-primitive, non-nullable types for the same reason restated in *Decision § 1* — a primitive already has
+  a free real default.
 
 ## Decision
 
@@ -157,29 +152,20 @@ raised and considered, is not worth its cost here.
 ## Alternatives rejected
 
 - **Interprocedural / whole-program compile-time checking**, tracing which methods can write a `lateinit`
-  property before which methods read it, across the whole class (and its subclasses' overrides). Rejected:
-  MWL's hot-reload model ([ADR 0017](0017-hot-reload-without-restart.md)) revalidates and swaps a single
-  file's compiled unit without touching the rest of the program; a whole-program lateinit analysis would
-  need to re-check a much wider blast radius on every edit, since a caller's change in one file could change
-  what is provably safe in a class it does not even import. That reopens exactly the "no request-serving
-  core blocked on a recompile it did not ask for" invariant ADR 0017 was written to guarantee, for a check
-  whose easy cases are already covered by § 3's free intraprocedural pass and whose hard cases — the whole
-  reason `lateinit` exists — are cross-function and cross-object by nature, so a large analysis investment
-  would still fall through to the runtime throw most of the time.
-- **A write-once ("deferred readonly") variant**, where a `lateinit` property may be assigned exactly once,
-  at any point, then frozen. Not rejected outright — deferred (see *Revisiting*): it needs its own tracked
-  write-count check beyond what this ADR's freely-reassignable choice requires, and no real code exists yet
-  to argue the shape from.
-- **Allowing `lateinit` on any non-nullable type, including scalars**, for a single uniform rule. Rejected
-  for the reason Kotlin already rejects it: a scalar always has a free, real, zero-cost default available
-  (`= 0`, `= false`, `= ""`), so `lateinit` on a scalar would only ever be a lazier spelling of writing that
-  default and reassigning later — it buys nothing a scalar property doesn't already have for free, while
-  widening the surface this modifier has to cover.
-- **Leaving this to the `Core\Reflect` escape hatch alone**, i.e. doing nothing and telling DI containers to
-  construct via reflection and assign every property before first use. Rejected: that forces a normal
-  setter-injection pattern to route through reflection-based construction just to get an initialization order
-  the language should be able to express directly, and reflection's own throw-on-unwritten-read behavior is
-  exactly what `lateinit` needs — there was no reason to keep it fenced off from ordinary constructors.
+  property before which methods read it. Rejected: MWL's hot-reload model
+  ([ADR 0017](0017-hot-reload-without-restart.md)) revalidates and swaps one file's compiled unit at a time;
+  a whole-program analysis would widen that blast radius on every edit, for a check whose easy cases § 3's
+  free intraprocedural pass already covers and whose hard cases are cross-function/cross-object by nature and
+  would fall through to the runtime throw anyway.
+- **A write-once ("deferred readonly") variant**, assignable exactly once at any point, then frozen. Deferred
+  rather than rejected outright (*Revisiting*) — it needs its own tracked write-count check this ADR's
+  freely-reassignable design doesn't build, and no real code exists yet to argue the shape from.
+- **Allowing `lateinit` on any non-nullable type, including scalars.** Rejected, per Kotlin's own precedent:
+  a scalar always has a free, real default (`= 0`, `= false`, `= ""`), so `lateinit` there would only be a
+  lazier spelling of writing that default and reassigning later.
+- **Leaving this to the `Core\Reflect` escape hatch alone.** Rejected: that forces ordinary setter injection
+  to route through reflection-based construction just to get an initialization order the language should
+  express directly, and reflection's throw-on-unwritten-read behavior is exactly what `lateinit` needs.
 
 ## Revisiting
 

@@ -34,26 +34,22 @@
 
 ## Context
 
-- PHP gives objects two independent notions of "copy," and MWL inherits both real needs: `clone` is
-  shallow, same-heap, with an `__clone()` hook; `serialize`/`unserialize` is recursive over the whole
-  reachable graph (cycle-safe) to bytes and back, with `__sleep`/`__wakeup`/`__serialize`/`__unserialize`
-  hooks; a value crossing `spawn worker`/`spawn script` is the same recursive, cycle-safe graph copy,
-  arena-to-arena, with no hook at all — already fixed by [ADR 0006](0006-isolated-script-execution.md).
+- PHP gives objects two independent notions of "copy": `clone` (shallow, same-heap, `__clone()` hook);
+  `serialize`/`unserialize` (recursive over the whole reachable graph, cycle-safe, to bytes and back, with
+  `__sleep`/`__wakeup`/`__serialize`/`__unserialize` hooks); and a value crossing `spawn worker`/
+  `spawn script`, already fixed hookless by [ADR 0006](0006-isolated-script-execution.md) as the same
+  recursive, cycle-safe graph copy, arena-to-arena.
 - The `spawn` row already exists under a different name ("deep-copied, or moved when refcount is 1" — ADR
-  0006 § *Values cross by copy*). It is the same walk as `serialize()` — recursive, shared-substructure-
-  preserving, cycle-terminating — aimed at a different carrier (a live arena vs. bytes); defining it twice
-  would repeat the "two implementations to keep correct" problem ADR 0006 itself warned against when it
-  declined a second value-crossing design for `spawn script`.
+  0006 § *Values cross by copy*) and is the same walk as `serialize()`, aimed at a different carrier (a live
+  arena vs. bytes) — defining it twice would repeat the "two implementations to keep correct" problem ADR
+  0006 already declined.
 - `clone` does **not** fold into that operation: PHP's shallow-clone is often the point (cloning a tree node
-  shouldn't deep-copy what it references), and forcing it deep would silently break every ported PHP class
-  relying on shallow-copy-by-default — a correctness regression for a consistency argument that doesn't
-  actually need it.
-- **Why no `__clone`/`__serialize`/`__unserialize`/`__sleep`/`__wakeup`**: the same shape
-  [ADR 0014](0014-property-observer.md) already closed for `__get`/`__set`/`__call`/`__callStatic` — a
-  hookable mechanism `mwl check` can't reason about, at exactly the operation (copy/deserialize) a project
-  most wants to reason about. PHP's own history is the cautionary tale for the unserialize half
-  specifically: object-injection/property-oriented-programming gadget chains exist only because a hook fires
-  during reconstruction; refusing the hook removes the exploitation class by construction.
+  shouldn't deep-copy what it references), and forcing it deep would silently break ported PHP classes
+  relying on shallow-copy-by-default.
+- **No `__clone`/`__serialize`/`__unserialize`/`__sleep`/`__wakeup`**: the same shape
+  [ADR 0014](0014-property-observer.md) already closed for `__get`/`__set`/`__call`/`__callStatic`. PHP's own
+  `unserialize()` object-injection/gadget-chain history is the cautionary tale — a hook firing during
+  reconstruction is what makes that exploitation class possible at all.
 
 ## Decision
 

@@ -29,24 +29,17 @@
 
 ## Context
 
-- Priority 4 (simplicity of the language surface) argues for it directly: PHP code — and the ported code
-  `mwl convert` will produce — leans on `if ($str)`, `if ($rows)`, `if ($err)` constantly. Requiring
-  `$str !== ''`, `count($rows) > 0`, or `$err !== null` at every one of those sites, or an `as bool`
-  conversion that would itself have to *define* a truthy rule to have any meaning, is exactly the kind of
-  bloat ADR 0007's own verbosity trade-off already worries about (§ *Consequences* → *Negative*) — but here
-  compounded at every branch in a program rather than at every declaration.
-- Priority 1 (security) is the reason ADR 0007 § 2 exists at all, and the concern does not actually reach
-  this decision: the risk ADR 0007 closes is a *value's declared type silently changing* (`"abc"` becoming
-  `0`, an array key silently colliding). A condition's truthiness test produces no value and changes no
-  binding's type — it is a read-only branch decision, structurally incapable of the "wrong answer far from
-  its cause" failure mode ADR 0007 § *Context* describes. The one genuine PHP footgun in this neighborhood —
-  `"0"` falsy but `"0.0"` and `"false"` truthy — is a source-legibility complaint about *string content*, not
-  a type-safety hole; it is exactly as visible in MWL as it always was in PHP, no better and no worse, and
-  not the class of bug ADR 0007 exists to close.
-- The alternatives considered and turned down (below) either reintroduce exactly the ceremony this decision
-  exists to remove (no implicit truthiness at all) or draw a line inside PHP's truthy table with no
-  principled edge (a "restricted subset" that still special-cases some scalars and not others) — worse than
-  either keeping the whole table or dropping it entirely.
+- Priority 4 argues for it directly: ported PHP code leans on `if ($str)`, `if ($rows)`, `if ($err)`
+  constantly. Requiring `$str !== ''`, `count($rows) > 0`, or an `as bool` conversion at every such site is
+  exactly the ceremony ADR 0007's own verbosity trade-off already worries about — compounded at every branch
+  rather than at every declaration.
+- Priority 1 doesn't actually require the strict reading: the risk ADR 0007 § 2 closes is a *declared type
+  silently changing*. A truthiness test produces no value and changes no binding's type, so it can't produce
+  a "wrong answer far from its cause." PHP's one real footgun here — `"0"` falsy but `"0.0"`/`"false"` truthy
+  — is a string-legibility complaint, not a type-safety hole, and no worse in MWL than it already is in PHP.
+- The rejected alternatives (below) either reintroduce the ceremony this decision removes, or draw a line
+  inside PHP's truthy table with no principled edge — worse than either keeping the whole table or dropping
+  it entirely.
 
 ## Decision
 
@@ -139,23 +132,17 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 
 ## Alternatives rejected
 
-- **No implicit truthiness anywhere — every condition must already be `bool`.** The strict reading of ADR
-  0007 with zero exceptions. Rejected per this ADR's whole argument: the ceremony this would force at every
-  branch in every program is the priority-4 cost this decision exists to avoid, and priority 1 does not
-  actually require it (see *Context*).
-- **A restricted subset** (only `null`/`bool` tested implicitly; `string`/`int`/`array` conditions still need
-  an explicit `as bool` or comparison). Considered as a middle ground, but it draws a line inside PHP's
-  truthy table with no principled basis — `if ($rows)` and `if ($count)` are exactly as common in real code
-  as `if ($maybeNull)`, and a checker that accepts one bare and rejects the other teaches a rule with no
-  memorable shape ("some scalars need `as bool`, others don't, memorize which").
-- **Full truthy table, but only for `if`/`while`/ternary — `&&`/`||`/`!` still require `bool` operands.**
-  Considered to keep boolean algebra strictly `bool`-typed. Rejected: `$user && $user->active` is at least as
-  common a ported idiom as a bare `if`, and splitting the position list down this line would mean the same
-  value bare in one spot and rejected two tokens later (`if ($user && $user->active)` legal for the `if`,
-  illegal for the `&&`) — a harder rule to hold in mind than treating all six positions alike.
+- **No implicit truthiness anywhere — every condition must already be `bool`.** The strict ADR 0007 reading
+  with zero exceptions. Rejected: the ceremony this forces at every branch is the priority-4 cost this
+  decision avoids, and priority 1 doesn't require it (*Context*).
+- **A restricted subset** (only `null`/`bool` tested implicitly; other scalars still need `as bool`).
+  Rejected: draws a line inside PHP's truthy table with no principled basis — `if ($rows)` is exactly as
+  common as `if ($maybeNull)`.
+- **Full truthy table for `if`/`while`/ternary only — `&&`/`||`/`!` still require `bool` operands.** Rejected:
+  `$user && $user->active` is at least as common a ported idiom as a bare `if`, and splitting the position
+  list this way means the same value is bare in one spot and rejected two tokens later.
 - **Judging an enum case by its backing integer.** Rejected in *Decision § 4*: matches MWL's own
-  representation but not what any real program — PHP or MWL — has ever observed an enum case's truthiness
-  to mean.
+  representation but not what any real program has ever observed an enum case's truthiness to mean.
 
 ## Revisiting
 
