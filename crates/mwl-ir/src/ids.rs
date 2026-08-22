@@ -49,11 +49,10 @@ id_newtype!(
     StmtId
 );
 id_newtype!(
-    /// One conditional CFG edge — ADR 0018's branch-probe unit. Not yet
-    /// constructed by [`lower`](crate::lower) (no lowered program has a
-    /// conditional edge until control flow widens past straight-line
-    /// bodies), but the id space is reserved so a future `if`/`while`/`match`
-    /// lowering needs no renumbering of ids already handed out.
+    /// One conditional CFG edge — ADR 0018's branch-probe unit. Constructed
+    /// by [`lower`](crate::lower) for each outgoing edge of an `if`/`while`'s
+    /// [`crate::ir::Terminator::Branch`]; `for`/`switch`/`try` will add more
+    /// once they land, with no renumbering of ids already handed out.
     EdgeId
 );
 id_newtype!(

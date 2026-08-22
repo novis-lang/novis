@@ -27,8 +27,9 @@ pub struct Function {
     /// The return representation, [`Ty::Void`] for a `void`-returning
     /// method.
     pub ret: Ty,
-    /// The function's basic blocks. This slice's lowering only ever produces
-    /// exactly one (see the crate docs' "no control flow yet" known gap).
+    /// The function's basic blocks. A straight-line body still produces
+    /// exactly one; `if`/`while` each add the blocks their join point needs
+    /// (see `crate::lower`'s module docs).
     pub blocks: Vec<BasicBlock>,
     /// Which block execution starts in.
     pub entry: BlockId,
@@ -36,8 +37,8 @@ pub struct Function {
     /// [`crate::ids`]'s own module docs on why this table, not a hash map,
     /// backs the lookup.
     pub stmt_spans: Vec<Span>,
-    /// The source span [`crate::ids::EdgeId::index`] names. Empty in every
-    /// program this slice can lower — no conditional edge exists yet.
+    /// The source span [`crate::ids::EdgeId::index`] names. Non-empty for
+    /// any function containing an `if`/`while`.
     pub edge_spans: Vec<Span>,
 }
 
@@ -101,6 +102,17 @@ pub enum InstKind {
         /// The operand.
         operand: ValueId,
     },
+    /// A phi node: selects the incoming value based on which predecessor
+    /// block control arrived from. One entry per predecessor that can reach
+    /// this instruction's own block — `if`/`while`'s join points are the
+    /// first thing to construct one; see `crate::lower`'s module docs.
+    /// A single-entry phi is a legal (if degenerate) case: a `while` body
+    /// that never reaches its own back edge (e.g. it always returns) leaves
+    /// the loop header's phi with only the pre-loop incoming edge.
+    Phi {
+        /// `(predecessor block, incoming value)` pairs.
+        incoming: Vec<(BlockId, ValueId)>,
+    },
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single
@@ -150,12 +162,11 @@ pub enum UnOp {
 pub enum Terminator {
     /// `return;` (`None`) or `return expr;` (`Some`).
     Return(Option<ValueId>),
-    /// An unconditional jump. Not produced by this slice's lowering —
-    /// reserved for when loops land.
+    /// An unconditional jump — a branch's arm rejoining its merge point, or a
+    /// loop's back edge to its header.
     Jump(BlockId),
     /// A two-way conditional branch, carrying the [`EdgeId`] ADR 0018's
-    /// branch probe needs on *each* outgoing edge. Not produced by this
-    /// slice's lowering — reserved for when `if`/`while`/`match` land.
+    /// branch probe needs on *each* outgoing edge.
     Branch {
         /// The condition value.
         cond: ValueId,

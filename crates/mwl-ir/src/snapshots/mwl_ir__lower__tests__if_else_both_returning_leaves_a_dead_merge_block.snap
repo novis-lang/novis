@@ -1,0 +1,23 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn abs(int) -> int {
+  bb0:
+    v0 = param 0  ; int
+    ; stmt s0 @4:5-8:6
+    v1 = const.int 0  ; int
+    v2 = lt v0, v1  ; bool
+    branch v2 -> bb2 (e0), bb3 (e1)
+  bb1:
+    return
+  bb2:
+    ; stmt s1 @4:17-6:6
+    ; stmt s2 @5:7-5:18
+    v3 = neg v0  ; int
+    return v3
+  bb3:
+    ; stmt s3 @6:12-8:6
+    ; stmt s4 @7:7-7:17
+    return v0
+}

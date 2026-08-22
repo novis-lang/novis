@@ -78,6 +78,13 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             format!("{} v{}, v{}", bin_op_name(*op), lhs.index(), rhs.index())
         }
         InstKind::UnOp { op, operand } => format!("{} v{}", un_op_name(*op), operand.index()),
+        InstKind::Phi { incoming } => {
+            let parts: Vec<String> = incoming
+                .iter()
+                .map(|(b, v)| format!("{}: v{}", block_name(*b), v.index()))
+                .collect();
+            format!("phi [{}]", parts.join(", "))
+        }
         InstKind::StmtMarker(_) => unreachable!("returned above"),
     };
     let _ = writeln!(out, "    v{} = {rhs}  ; {}", v.index(), ty_name(ty));

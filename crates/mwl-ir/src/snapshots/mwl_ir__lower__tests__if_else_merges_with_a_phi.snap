@@ -1,0 +1,26 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn pick(bool, int, int) -> int {
+  bb0:
+    v0 = param 0  ; bool
+    v1 = param 1  ; int
+    v2 = param 2  ; int
+    ; stmt s0 @4:5-4:16
+    v3 = const.int 0  ; int
+    ; stmt s1 @5:5-9:6
+    branch v0 -> bb2 (e0), bb3 (e1)
+  bb1:
+    v4 = phi [bb2: v1, bb3: v2]  ; int
+    ; stmt s6 @10:5-10:15
+    return v4
+  bb2:
+    ; stmt s2 @5:13-7:6
+    ; stmt s3 @6:7-6:15
+    jump bb1
+  bb3:
+    ; stmt s4 @7:12-9:6
+    ; stmt s5 @8:7-8:15
+    jump bb1
+}

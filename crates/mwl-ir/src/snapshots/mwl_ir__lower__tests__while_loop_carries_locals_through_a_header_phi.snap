@@ -1,0 +1,30 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn sum(int) -> int {
+  bb0:
+    v0 = param 0  ; int
+    ; stmt s0 @4:5-4:20
+    v1 = const.int 0  ; int
+    ; stmt s1 @5:5-5:16
+    v2 = const.int 0  ; int
+    ; stmt s2 @6:5-9:6
+    jump bb1
+  bb1:
+    v3 = phi [bb0: v1, bb2: v6]  ; int
+    v4 = phi [bb0: v2, bb2: v8]  ; int
+    v5 = lt v4, v0  ; bool
+    branch v5 -> bb2 (e0), bb3 (e1)
+  bb2:
+    ; stmt s3 @6:21-9:6
+    ; stmt s4 @7:7-7:28
+    v6 = add v3, v4  ; int
+    ; stmt s5 @8:7-8:19
+    v7 = const.int 1  ; int
+    v8 = add v4, v7  ; int
+    jump bb1
+  bb3:
+    ; stmt s6 @10:5-10:19
+    return v3
+}

@@ -1,0 +1,22 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn clamp(int) -> int {
+  bb0:
+    v0 = param 0  ; int
+    ; stmt s0 @4:5-4:17
+    ; stmt s1 @5:5-7:6
+    v1 = const.int 0  ; int
+    v2 = lt v0, v1  ; bool
+    branch v2 -> bb2 (e0), bb1 (e1)
+  bb1:
+    v4 = phi [bb2: v3, bb0: v0]  ; int
+    ; stmt s4 @8:5-8:15
+    return v4
+  bb2:
+    ; stmt s2 @5:17-7:6
+    ; stmt s3 @6:7-6:14
+    v3 = const.int 0  ; int
+    jump bb1
+}
