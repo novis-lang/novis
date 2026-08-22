@@ -29,8 +29,8 @@ authoritative; a number written anywhere else is a copy that can go stale.
 5. If it changes what a milestone builds, update that milestone's paragraph in
    [the plan](../implementation-plan.md) with a link and a headline, not a restatement.
 
-`.claude/brief.sh` needs no update for any of this: it slices this file's table and the plan's status block
-live, so a new row is picked up automatically.
+`.claude/brief.py` needs no update for any of this: it slices this file's table and the plan's status block
+live, so a new row is picked up automatically (up to its own byte budget — see the script's module doc).
 
 | # | Decision | Status |
 |---|---|---|

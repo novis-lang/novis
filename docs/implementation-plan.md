@@ -1,451 +1,46 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-> **Status — 2026-08-21.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
+> **Status — 2026-08-22.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
 > Nothing runs yet; `Hello World` is M3.
 >
+> *This block is a bounded snapshot, not a changelog — overwrite it each session rather than appending a*
+> *new paragraph. Session-by-session history lives in `git log`; per-file known-gap detail lives in each*
+> *crate's own module docs, not here (see [CLAUDE.md](../CLAUDE.md)'s "Keep work small" section).*
+>
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
-> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer and parser — see below — plus, from M2, the
-> ADR 0029/0030 identifier-casing check), `crates/mwl-hir`
-> (name resolution's first slice — see the M2 paragraph below), `crates/mwl-types` (the type
-> checker's first slice — see the same paragraph), `crates/mwl-cli` (the `mwl ast` and, new this
-> slice, `mwl check` subcommands), the `fuzz/` crate (`lex`/`parse` targets, guarding M1), and
-> [`benches/abi-probe`](../benches/abi-probe/) holding the promoted M0 spikes as permanent guard
-> tests. Every other crate in the layout is unwritten, and is created when its milestone starts
-> rather than sitting empty.
+> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer, full recursive-descent parser, the ADR
+> 0029/0030/0032 identifier-casing check), `crates/mwl-hir` (name resolution), `crates/mwl-types` (the
+> type checker), `crates/mwl-cli` (`mwl ast`, `mwl check`), the `fuzz/` crate (`lex`/`parse` targets),
+> and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is created when
+> its milestone starts.
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
 > + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle, `cargo-fuzz`
 > 0.13.2 under a WSL nightly toolchain (native Windows has no libFuzzer support; see CLAUDE.md's
 > "Fuzzing on Windows: use WSL").
 >
-> **M1 — done.** The lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full
-> recursive-descent parser — types and expressions, every control-flow statement, and declarations
-> (classes/interfaces/traits/enums, their members, attributes, `namespace`/`use`/`type` alias,
-> including the file-level HTML/code-tag round trip) — plus the `tainted` qualifier's grammar
-> addition ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 1: `Keyword::Tainted`, the
-> `TaintedString`/`TaintedBytes` atoms, round-trip tests in every declaration slot, and the
-> `E_TAINTED_NON_SCALAR` diagnostic for every other atom), and [ADR 0031](adr/0031-callable-is-the-only-closure-type.md)'s
-> closure-literal collapse: `ClosureExpr`/`ClosureUse`/`ArrowFnExpr` are gone from `mwl-syntax`'s AST,
-> replaced by one `FnExpr`/`FnBody` shape covering `fn(...) => expr`, `fn(...) => { ... }` and an
-> optional self-name (`fn factorial(...) => ...`); the old `function(...) {...}` and
-> `function(...) use (...) {...}` spellings are rejected with a diagnostic naming `fn`, and a `use`
-> clause of either capture mode gets its own, more specific diagnostic (`E0222`-`E0224`). Verification is
-> now complete on every axis the milestone's *Verify* line asks for: `crates/mwl-syntax/tests/corpus_parse.rs`
-> parses the full local `php-src` checkout without crashing, and a 5-minute `cargo fuzz run lex`/`run parse` (WSL,
-> nightly, nightly `libfuzzer-sys`) found zero panics on either target — 478,073 lexer executions and
-> 45,861 parser executions, both `DONE` with no crash/artifact directory produced. `crates/mwl-syntax`'s
-> module docs carry the current list of known parser gaps (`goto` labels, PHP's alternative colon
-> syntax deliberately out of scope) for whoever next touches the grammar.
+> **M1 — done.** Lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full parser
+> (types, expressions, every control-flow statement, all declarations), plus every M1-scoped grammar
+> item from ADRs 0024 (`tainted`), 0031 (`fn`-only closures), 0033 (`secret`), 0034 (legacy casts
+> rejected), 0035 (truthy conditions, checker-only), 0036 (object literals/shape types) and 0037 (`var`
+> inference). Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
+> checkout clean, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics (478,073 /
+> 45,861 executions). Known parser gaps (`goto` labels, PHP's alternative colon syntax — deliberately
+> out of scope) are tracked in `mwl-syntax`'s own module docs.
 >
-> **M1's second pending grammar item is now landed:** [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)
-> § 1's `secret` qualifier — independent of and composable with `tainted` — is implemented in `mwl-syntax`
-> the same way `tainted` itself was: a new `Keyword::Secret`, and `SecretString`/`SecretBytes`/
-> `SecretTaintedString`/`SecretTaintedBytes` atoms alongside the existing `TaintedString`/`TaintedBytes` pair.
-> `parse_type_atom`'s `Secret` arm recurses into `parse_type_atom` for its operand exactly as the `Tainted`
-> arm already did, so `secret tainted string` composes for free — the recursive `tainted` call lands on the
-> already-built `SecretString`/`SecretBytes` atom and wraps it into `SecretTaintedString`/`SecretTaintedBytes`.
-> The wrong order (`tainted secret string`) is caught by teaching the `Tainted` arm to recognize an
-> already-`Secret*` inner atom and report `E_SECRET_TAINTED_ORDER` (`E0116`, newly added) naming the required
-> `secret`-before-`tainted` spelling, rather than falling through to the generic `E_TAINTED_NON_SCALAR`; a
-> `secret`-qualified non-scalar (`secret int`) gets its own `E_SECRET_NON_SCALAR` (`E0115`, newly added),
-> mirroring `E_TAINTED_NON_SCALAR` exactly. Round-trip tests cover every declaration slot `tainted`'s own
-> tests already cover (parameter, return type, property, local declaration, `foreach` binding), plus the
-> `secret tainted`/`tainted secret` order pair, in both `mwl-syntax`'s lexer and parser test modules.
-> `mwl-types`' `lower_atom` match already had a wildcard arm (`TypeAtom` is `#[non_exhaustive]`), so the four
-> new atoms fall through to `mixed` there for now — modeling `secret`'s actual propagation/laundering/sink
-> rules (ADR 0033 §§ 2-4) is unstarted, tracked as an M2 follow-up alongside `tainted`'s own §§ 2-3.
->
-> **M1 retires a grammar item instead of adding one:** [ADR 0034](adr/0034-legacy-cast-syntax-rejected.md)
-> rejects PHP's legacy `(int)$x`-style cast syntax outright — `ExprKind::Cast`/`CastType` are gone from
-> `mwl-syntax`'s AST, `parse_unary_inner`'s cast lookahead now reports `E_LEGACY_CAST_UNSUPPORTED` (`E0225`)
-> naming the equivalent `as` expression, and the same shape is caught one level up, at statement-dispatch,
-> for the `(string)$x;`-as-a-bare-statement case that would otherwise silently commit to
-> `parse_stmt_maybe_local_decl`'s trial parse as a redundantly-parenthesized declaration — closing the
-> known parser gap the prior session surfaced under ADR 0028. `mwl-types` lost its matching `Cast`
-> type-checking arm and `cast_result_type` helper; every fixture that exercised the legacy spelling now uses
-> `as`. [ADR 0035](adr/0035-truthy-boolean-context.md) is a sibling, checker-only decision needing no
-> parser change: a condition (`if`/`while`/`for`'s middle clause/`?:`/`&&`/`||`/`!`) accepts any type,
-> judged by PHP's full truthy table rather than requiring `bool` already — `mwl-types`' `check_stmt` already
-> passed no expected type into a condition, so this ADR makes that existing behavior deliberate rather than
-> accidental; `check.rs`'s `a_non_bool_condition_is_never_a_type_mismatch` locks it in. The runtime side (a
-> `mixed`-typed condition's dynamic truthiness dispatch) has no code yet — it arrives with M3's first
-> backend, per that ADR's *Verification*.
->
-> **M1's third pending grammar item is now landed:** [ADR 0036](adr/0036-anonymous-object-shapes.md) §§ 2-3's
-> anonymous object-literal expression (`{a: 1, b: 2}`, a new `ExprKind::ObjectLiteral` in `parse_primary`)
-> and inline structural shape type (`{name: T, ...}`, a new `TypeAtom::Shape` wired into `token_starts_type`/
-> `parse_type_atom` so it composes for free with unions, intersections and `array<T>`) are implemented in
-> `mwl-syntax`. No shorthand field (`{x}`, `E_OBJECT_LITERAL_SHORTHAND`, `E0118`) and no computed key
-> (`{[$expr]: 1}`, `E_OBJECT_LITERAL_COMPUTED_KEY`, `E0119`) parse, both newly added diagnostics. The two
-> grammar collisions the ADR names — `fn() => {...}` already meaning a block body per ADR 0031, and a
-> statement-initial `{` already meaning a block statement — are resolved by a one-token-past-`{` lookahead
-> (`{ ident :`) at exactly those two call sites: when it matches, the literal is parsed anyway (so its own
-> shorthand/computed-key diagnostics still fire) but the result is discarded as `ExprKind::Error` behind a
-> new `E_OBJECT_LITERAL_NEEDS_PARENS` (`E0117`) naming the `({...})`/`({...});` fix, the same
-> diagnose-then-`Error`-recover shape the legacy-cast rejection already uses. An empty `{}` never matches
-> that lookahead, so it stays an ordinary empty block at both sites, unchanged from before this ADR.
-> `mwl-syntax::casing` gained one more `check_expr` arm: a literal's field names are ordinary property names
-> per the ADR's § 2, so they get the same camelCase/no-leading-underscore check a class property does.
-> **Known gap, not attempted this session:** a local variable declaration typed with a bare shape type
-> (`{x: int} $point;`) doesn't parse — statement-initial `{` already commits to a block before a type-prefix
-> lookahead would ever run; every other declaration slot (parameter, return, property, const, `foreach`
-> binding) supports it fine, and the workaround is the same named-alias spelling the ADR's own example uses.
-> `mwl-types`' `lower_atom` again falls through its existing wildcard arm to `mixed` for `TypeAtom::Shape`
-> at the time of this paragraph; `object`'s real subtyping and the shape's structural check (ADR 0036
-> §§ 1, 3-4) are now done — see the M2 paragraph below for that work.
->
-> **A fourth grammar item lands after M1, alongside M2's checker work:** [ADR 0037](adr/0037-var-local-type-inference.md)'s
-> `var $name = expr;` — a local declaration with no written type, inferred from `expr`'s own checked type
-> and then fixed forever, same as a written-out one. `mwl-syntax`'s statement dispatch gains a plain
-> `TokenKind::Keyword(Keyword::Var)` arm (`parse_var_local_decl`, no trial parse needed — `var` never starts
-> anything else at statement position) and `ast::StmtKind::LocalDecl.ty` becomes `Option<Type>`, `None`
-> meaning `var`'s elided spelling; every other consumer of that variant (`casing`, `mwl-hir::requires`,
-> `mwl-hir::members`, `mwl-types::ctor_init`) already matched on `value` alone and needed no change. Unlike
-> ADR 0033/0036's grammar-first landings, the checker side is done in the same pass: `mwl-types::locals`'s
-> `LocalDecl` arm now branches on `ty`, routing `None` through `check_expr`'s existing no-`expected` synthesis
-> path (the same one an `echo` argument already uses) and declaring the result exactly like a written
-> type — declare-once and definite-assignment are unaffected, since by that point there is no distinction
-> left. The one case `var` refuses is a bare array-literal initializer (`var $x = [1, 2];`,
-> `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, `E0414`), since an array literal has nothing to synthesize an element
-> type from without a target — the same reason ADR 0007 § 5 checks array literals against a target rather
-> than inferring one.
->
-> **M2 — in progress.** Name resolution, the type checker, and IR lowering; see this document's M2
-> paragraph below and [docs/adr/README.md](adr/README.md)'s index for the ADRs it enforces (0007's
-> type table; 0010/0015/0022/0027/0028's checker-side rules (0013's and 0014's own are now done — see below);
-> 0024 §§ 2-3's tainted propagation and
-> laundering; 0033 §§ 2-4's secret propagation, checked-conversion laundering, and its `Markup`/`Throwable`-message
-> sink refusals, now that ADR 0033's grammar addition has landed in M1). `crates/mwl-hir` has name resolution's first two slices: namespace/`use` scoping matching
-> PHP's own per-namespace `use`-import reset, a fully-qualified [`QName`](../crates/mwl-hir/src/qname.rs)
-> symbol table for every class/interface/trait/enum/`type`-alias declaration with duplicate-declaration
-> diagnostics (`E0304`), `use`-import resolution against that table with `Core` targets trusted rather
-> than checked (`E0306` when unresolved), ADR 0015 § 6's "no aliasing a single bare class" rule for
-> `type` aliases (`E0307`), the class hierarchy graph (M2 item 1): `extends`/`implements`
-> resolved to real symbols with the same forward-reference and `use`-import support as the symbol
-> table itself, a wrong-kind parent diagnosed (`E0303`, e.g. a class `extends`ing an interface), a
-> circular `extends`/trait-use chain diagnosed (`E0305`), and a trait method-name collision across a
-> class/trait's used traits diagnosed unless `insteadof` names a winner (`E0308`) — see
-> [`crates/mwl-hir/src/hierarchy.rs`](../crates/mwl-hir/src/hierarchy.rs)'s module docs for the one
-> known gap (nested trait-of-trait composition isn't flattened recursively yet) — and now member
-> resolution (M2 item 2): every `self`/`static`/`parent`/explicit-class-name `Class::member` reference
-> (a static call, a class constant, an enum case, a static property) checked against a
-> [`MemberTable`](../crates/mwl-hir/src/members.rs) of each declaration's own members plus every
-> ancestor reached through the class graph, diagnosing an undeclared class side (`E0303`) or an
-> undeclared member (`E0309`, newly added) — see
-> [`crates/mwl-hir/src/members.rs`](../crates/mwl-hir/src/members.rs)'s module docs for its known gaps
-> (a dynamic class side, `new`'s target, and member visibility are not checked; a trait's `self::`
-> can't see members only the composing class supplies). Item 3 is now fully done: every `type` alias's
-> expansion — including through another alias, recursively — is substituted into an
-> [`AliasTable`](../crates/mwl-hir/src/aliases.rs), with a cycle (`type A = B; type B = A;`) diagnosed
-> (`E0310`, newly added) rather than looped, matching ADR 0015 § 5's "resolved eagerly, and a cycle is a
-> diagnostic." **Known gap:** the table has no consumer yet — there is no property/parameter/return-type
-> walk anywhere in `mwl-hir` for it to feed; that arrives with `mwl-types`. Item 4 is now done too:
-> [`requires::resolve_program`](../crates/mwl-hir/src/requires.rs) walks the `require` graph reachable
-> from one entry file, resolving every literal-string `require` path relative to its requiring file's own
-> directory and merging the target's declarations into the same symbol table/class graph/member table/
-> alias table a single pasted-together file would have produced — exactly what
-> [ADR 0021](adr/0021-single-file-inclusion-construct.md)'s "no isolation" semantics require. A missing or
-> unloadable literal target is `E_REQUIRE_TARGET_NOT_FOUND` (`E0311`, newly added); a require chain
-> leading back to a file already being resolved is `E_CIRCULAR_REQUIRE` (`E0312`, newly added) rather than
-> unbounded recursion; a file reachable by more than one path (a diamond, not a cycle) is loaded and
-> collected exactly once. A non-literal path (a variable, a concatenation, an interpolated string) is left
-> untouched for the dynamic runtime fallback the ADR also names, and a literal `require` inside a file with
-> no on-disk path has no directory to resolve against and is left the same way — see
-> [`requires.rs`](../crates/mwl-hir/src/requires.rs)'s module docs for both known gaps in full. Item 5 is
-> now done too, completing `mwl-hir`'s five-item M2 name-resolution list: every `$this->name` property
-> access is checked against the same [`MemberTable`](../crates/mwl-hir/src/members.rs)/[`ClassGraph`]
-> pair member resolution (item 2) already built, diagnosing an undeclared property (`E0313`, newly added)
-> per [ADR 0014](adr/0014-property-observer.md) § 5's "no `__get`/`__set` fallback." **Known gap:** `$this`
-> is the only receiver checked — a typed local, a chained call result, or an explicit `new Foo()` all need
-> `mwl-types`' static types to know which class's properties apply, and are left for that milestone; see
-> [`members.rs`](../crates/mwl-hir/src/members.rs)'s module docs for this and every other known gap in
-> full. Separately, [ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md)/[0032](adr/0032-acronym-casing-rule-revoked.md)'s
-> identifier-casing check is also done, and lives in `crates/mwl-syntax` rather than `mwl-hir` — it needs no
-> name resolution, so it runs directly off the AST [`parse_file`](../crates/mwl-syntax/src/parser.rs) already
-> produces. [`check_casing`](../crates/mwl-syntax/src/casing.rs) walks every class/interface/trait/enum/
-> enum-case/namespace-segment declaration (`PascalCase`, `E0110`), method declaration (`camelCase`, `E0111`,
-> with `__construct` singled out for its own targeted `E0114` naming `constructor` as the fix), property/
-> parameter/local-variable declaration and a closure's optional self-name (`camelCase` with no leading-
-> underscore allowance at all per ADR 0030, `E0112`), and class constant declaration
-> (`SCREAMING_SNAKE_CASE`, `E0113`) — every diagnostic's message names a mechanically-derived suggested
-> rename, split on the identifier's own case/underscore boundaries and re-joined in the target convention,
-> attached as a machine-applicable fix. Only the leading character's case is checked — ADR 0032 revokes
-> ADR 0029 § 1's "acronyms are one word" rule, so `HTTPClient`/`parseXMLPayload`-style spellings compile
-> unchanged. Only a declaration site is checked, never a reference, and a `type` alias's own name is left
-> unchecked since ADR 0029's scope table doesn't list that category — see
-> [`casing.rs`](../crates/mwl-syntax/src/casing.rs)'s module docs for the full list of what is and isn't
-> walked.
->
-> `crates/mwl-types` now exists, with its own first, deliberately scoped slice of ADR 0007: an
-> interned type representation ([`Ty`/`TypeId`/`TypeInterner`](../crates/mwl-types/src/ty.rs)) that
-> [`lower_type`](../crates/mwl-types/src/lower.rs) resolves a parsed
-> [`Type`](../crates/mwl-syntax/src/ast.rs) into — `self`/`static` resolved against the enclosing
-> class, a `type` alias substituted via `mwl-hir`'s [`AliasTable`](../crates/mwl-hir/src/aliases.rs)
-> (its first real consumer), and ADR 0007 § 5's depth-32 array-nesting bound enforced
-> (`E_ARRAY_TYPE_TOO_DEEP`, `E0408`, newly added). On top of that,
-> [`locals.rs`](../crates/mwl-types/src/locals.rs) checks every local variable's declare-once rule
-> (`E_REDECLARED_LOCAL`, `E0406`, newly added) and flow-sensitive definite assignment
-> (`E_UNDEFINED_VARIABLE`, reused from `mwl-hir`'s M2 item 1 code, since "read before anything
-> assigned it" is the same fact either way) via a structural walk of the AST rather than a CFG — the
-> milestone has no IR yet. [`expr.rs`](../crates/mwl-types/src/expr.rs) is a minimal bidirectional
-> checker: literals, variable reads, the arithmetic/comparison operator table (ADR 0007 § 4,
-> including `int ⊕ uint` refused as `E_INT_UINT_ARITHMETIC`, `E0407`, newly added), `as`/cast
-> conversions, and array literals checked directly against a target element type rather than
-> inferred-then-compared (ADR 0007 § 5) — every other expression form (a call's return, property
-> access, `match`, ternary, a closure's body) is opaque `mixed` rather than modeled.
-> [`check.rs`](../crates/mwl-types/src/check.rs) is the entry point (`mwl check`'s new CLI wiring
-> calls it), walking every class/interface/trait/enum's methods the same way `mwl-hir`'s
-> [`members.rs`](../crates/mwl-hir/src/members.rs) already does, seeding each body's locals from its
-> lowered parameters — `$this` included, typed as the enclosing class — and checking `return` against
-> the lowered return type (`E_BAD_RETURN_TYPE`, reused). A [`signatures.rs`](../crates/mwl-types/src/signatures.rs)
-> module, built ahead of any body-checking, records every class/interface/trait/enum's own declared
-> property types and method parameter/return types; `resolve_property`/`resolve_method` walk
-> `extends`/`implements`/trait-use ancestors to find an inherited one, the same shape `mwl-hir`'s own
-> `member_declared` already walks for existence-only checking. [`expr.rs`](../crates/mwl-types/src/expr.rs)
-> types a property access, an instance method call, a static call/property, `new` (including `new
-> parent(...)`), and `match`/ternary as the union of their arms/branches — diagnostics are split by
-> receiver so nothing is reported twice: a `self`/`static`/`parent`/explicit-class-name static
-> reference keeps its existing `mwl-hir` `E_UNDEFINED_MEMBER`/`E_UNDEFINED_CLASS` diagnostics and only
-> gains a recovered type here, a `$this->prop` access keeps `mwl-hir`'s existing `E_UNDEFINED_PROPERTY`,
-> and every other shape — an instance method call on any receiver including `$this`, and a property
-> access on anything but `$this` — was never checked by `mwl-hir` at all (no static type to check
-> against) and gets `E_UNKNOWN_MEMBER` (`E0405`). A resolved call signature also gets positional arity
-> (`E_ARITY_MISMATCH`, `E0402`) and per-argument type checking, including a `new Foo(...)`'s arguments
-> against a resolved `constructor`.
->
-> The prior session closed the next item in the M2 follow-up list: [ADR 0022](adr/0022-definite-property-initialization.md)
-> § 2's definite-property-initialization check, in a new
-> [`ctor_init.rs`](../crates/mwl-types/src/ctor_init.rs) — a second, narrower flow-analysis pass over
-> each class's own constructor, run right after `check.rs` checks that class's method bodies.
-> [`signatures.rs`](../crates/mwl-types/src/signatures.rs) gained `required_properties` (a class's own
-> non-nullable, no-default, non-hooked properties) and `own_required_properties` (that set, plus every
-> used trait's own, recursively — trait flattening, but restricted to `traits` alone rather than the
-> full `extends`/`implements`/trait-use ancestor walk `resolve_property`/`resolve_method` do, since an
-> *inherited* property is discharged by calling `parent::constructor(...)`, not by assigning it a
-> second time). `ctor_init.rs` walks a constructor's body with the same control-flow shape
-> `locals.rs`'s own definite-assignment pass uses (`if`/`else` join by intersecting, `switch`/`try`'s
-> body and catches conservatively contributing nothing, only `finally`/a `do`-`while` body — which
-> always run — updating the tracked state), checking at every `return` (and the implicit one at the
-> body's end, if some path never explicitly returns) that every required property has been assigned
-> via a plain `$this->prop = ...` and, when the class `extends` another, that
-> `parent::constructor(...)` has been called on that path. A class with no constructor at all and a
-> required property is refused right at that property's own declaration instead
-> (`E_UNINITIALIZED_PROPERTY`, `E0409`, newly added, for both shapes); a subclass constructor with a
-> path that never calls `parent::constructor(...)` is `E_MISSING_PARENT_CONSTRUCTOR_CALL` (`E0410`,
-> newly added). Left, at the time, for a follow-up: a property backed by a `set` hook is exempted from
-> the check entirely rather than verified against the hook's own body, and `ctor_init.rs`'s expression
-> scan only descends into a handful of common composite forms, so a `$this->prop = ...`/
-> `parent::constructor(...)` buried inside a closure body or a `match` arm produces a spurious
-> diagnostic rather than being missed silently — see that module's own docs for the full list.
->
-> The session before last closed the next item: [ADR 0013](adr/0013-comparable-interface.md)'s `Comparable`
-> interface, entirely inside `mwl-hir`/`mwl-types` — no new syntax, since `interface`/`implements` were
-> already parseable. [`QName::is_reserved_global_interface`](../crates/mwl-hir/src/qname.rs) marks
-> `Comparable` (by bare name, not under `Core`) as trusted to exist without a source declaration, the
-> same way [`QName::is_core`] already trusts `Core\*` — [`hierarchy::resolve_supertype`](../crates/mwl-hir/src/hierarchy.rs)
-> now checks it alongside `is_core()`, so `class Money implements Comparable {}` resolves with no
-> interface declaration anywhere. A new [`hierarchy::implements_interface`](../crates/mwl-hir/src/hierarchy.rs)
-> walks every `extends`/`implements`/trait-use ancestor (the same shape `signatures::resolve_method`
-> already walks) asking a plain reachability question — "is `target` anywhere in this chain" — rather
-> than resolving a member, so it works unchanged whether `target` is an ordinary declared interface or
-> a reserved one with no `ClassGraph` entry of its own. [`expr.rs`](../crates/mwl-types/src/expr.rs)'s
-> `binary_result` now routes `< <= > >= <=>` through a new `object_comparison_result` whenever *both*
-> operands are `Ty::Class` (an enum operand, or a `mixed`/scalar one, is untouched — this only amends
-> ADR 0007 § 4's table with the object-operand row ADR 0013 § 6 adds): two different classes, or a
-> class not provably implementing `Comparable`, is `E_COMPARISON_REQUIRES_COMPARABLE` (`E0411`, newly
-> added); the same class provably implementing it types as `bool` (`int` for `<=>`), matching *Decision
-> § 6*'s table. **Known gap:** this only checks *that* the class implements `Comparable`, never that it
-> actually declares a matching `compareTo` — no ADR has asked for general interface-method-completeness
-> checking yet (no interface's methods are verified against any implementer today, for any interface),
-> so a class claiming `implements Comparable` with no `compareTo` at all still type-checks; running
-> `compareTo` and diagnosing that gap both wait for a later milestone/ADR.
->
-> The prior session closed [ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)'s two
-> M2-relevant sections, reusing `Comparable`'s exact shape end to end. §1: `Stringable` joins
-> `Comparable` in [`QName::is_reserved_global_interface`](../crates/mwl-hir/src/qname.rs), and a new
-> [`expr::require_stringable`](../crates/mwl-types/src/expr.rs) refuses an object at every implicit
-> string-conversion site — string interpolation, concatenation, `echo`, `print`, and `as string` (the
-> legacy `(string)` cast this list also covered at the time no longer parses at all —
-> [ADR 0034](adr/0034-legacy-cast-syntax-rejected.md)) — unless its static type provably implements it via the same
-> `mwl_hir::implements_interface` reachability walk ADR 0013 introduced
-> (`E_STRINGABLE_REQUIRED`, `E0412`, newly added; skipped for an unmodeled `Core` class and for any
-> non-`Ty::Class` operand, same scoping as the `Comparable` check). §3: `ExprKind::PropertyAccess`'s
-> checking logic was factored out into a shared `expr::check_property_access(..., is_unset: bool, ...)`
-> so `unset()`'s operand (`locals.rs`'s new `StmtKind::Unset` arm, via `expr::check_unset_target`) can
-> run the identical receiver/member resolution and, when it lands on an actually-*declared* property,
-> refuse it outright (`E_UNSET_ON_PROPERTY`, `E0413`, newly added) rather than typing it and moving on —
-> an array element or a local variable passed to `unset()` is untouched, since that section is scoped to
-> object properties only. Both checks were smoke-tested by hand through `mwl check` in addition to the
-> new automated corpus (7 new tests in `mwl-types::check`, one new in `mwl-hir::qname`). **Known gap
-> surfaced, not fixed, that session, closed by [ADR 0034](adr/0034-legacy-cast-syntax-rejected.md):**
-> `(string)$x;` written as its own statement (no enclosing assignment) mis-parsed as a `LocalDecl`
-> redeclaring `$x` with a parenthesized type, rather than as a cast expression-statement —
-> `mwl-syntax`'s statement-vs-declaration lookahead didn't disambiguate a parenthesized legacy-cast
-> prefix from a parenthesized *type* prefix. Rather than teach that disambiguation the correct rule, ADR
-> 0034 removed the ambiguity's other side: the legacy cast keywords are now routed straight to the
-> expression-statement path ahead of `parse_stmt_maybe_local_decl`'s trial parse whenever they appear in
-> this shape, so the statement reports `E_LEGACY_CAST_UNSUPPORTED` instead of silently declaring a local.
->
-> This session closed [ADR 0036](adr/0036-anonymous-object-shapes.md)'s M2 item — its M1 grammar (the
-> literal and the shape-type syntax) landed two sessions ago; this is §§ 1, 3-4's checker semantics on top
-> of it. [`ty.rs`](../crates/mwl-types/src/ty.rs) gained `Ty::Shape(Vec<(String, TypeId)>)`, fields sorted
-> by name so two shapes naming the same fields in a different written order intern to the same `TypeId`
-> (the same canonicalization idea `make_union`/`make_intersection` already use, applied to field order);
-> [`lower.rs`](../crates/mwl-types/src/lower.rs)'s `TypeAtom::Shape` arm (previously falling through to
-> `mixed`) now lowers each field's type and builds one. § 1: [`expr::is_assignable`](../crates/mwl-types/src/expr.rs)
-> gained real `object` subtyping — every `Ty::Class` or `Ty::Shape` is now `<: object` — as a new branch
-> ahead of its existing union check. § 3: a `Ty::Shape` target routes through a new `shape_satisfied`,
-> width-subtyping the source (a matching `Ty::Shape`'s own fields, or a `Ty::Class`'s properties via the
-> same `resolve_property` ancestor walk `$obj->prop` already uses) against every field the target names,
-> each checked by this same `is_assignable` rule recursively — no new comparison logic, per the ADR's own
-> framing. `is_assignable`'s signature grew two parameters (`graph`, `signatures`) to reach that ancestor
-> walk; both call sites already had an `Env` to pull them from. `ExprKind::ObjectLiteral` (parsed since
-> M1, never typed before this) now infers to the exact-fields `Ty::Shape` its initializers' own types
-> build, so it flows into a narrower shape or plain `object` target for free through the same width-subtyping
-> rule. A `type` alias naming a shape type resolves exactly like any other alias with no extra code, since
-> alias substitution already runs before an atom is matched. § 4: `expr::check_property_access` gained two
-> branches ahead of its existing class lookup — a field a shape names types cleanly with no diagnostic
-> either way (reading it never throws, per the ADR); a name it doesn't list, or a plain `object` receiver,
-> resolves to `mixed` with **no diagnostic**, deferred to ADR 0014 § 5's runtime-checked-throw fallback
-> this extends — that fallback itself has no code yet, since it needs M4's IR/codegen to actually throw
-> from. 14 new tests in `mwl-types::check`, 2 in `mwl-types::ty`. **Known gap, not attempted this
-> session:** ADR 0028 § 3's `unset()`-on-a-declared-property refusal was not extended to a shape-typed
-> receiver's own fields — only an ordinary class property triggers it; whether a shape field should get
-> the same treatment wasn't asked for by either ADR and is left as an open question if it comes up.
->
-> This session closed [ADR 0010](adr/0010-enums-are-a-value-type.md)'s M2 item: the enum-vs-class atom
-> distinction beyond "resolves to *a* symbol." Two existing spots always interned `Ty::Class` for a
-> resolved name without checking whether that name was actually an enum —
-> [`expr::class_of_ctx`](../crates/mwl-types/src/expr.rs) (`self`/`static`/`$this`'s type) and
-> [`lower::resolve_special`](../crates/mwl-types/src/lower.rs) (the `self`/`static` *type* atom) — both now
-> branch on `mwl_hir::SymbolTable`'s `SymbolKind`, the same check `lower::resolve_name_type` already made
-> for an explicit enum name, and intern `Ty::Enum` when the enclosing declaration is one. In practice an
-> enum has no methods to reach either path from in a well-formed program (ADR 0010 § 3), but
-> `mwl-syntax`'s parser still recovers a rejected method member (`E_ENUM_MEMBER_UNSUPPORTED`) and hands it
-> to this checker anyway, so the fix keeps that recovered body from being typed against the wrong class.
-> More visibly, `expr.rs`'s `ClassConstAccess` arm — previously typing every `Class::CONST`-shaped access as
-> `mixed` unconditionally — now recovers `Ty::Enum` for a case access (`Status::Active`) specifically: an
-> enum's cases live in the same `mwl_hir::members::MemberTable` slot as an ordinary class constant and are
-> already existence-checked there, so this only recovers the *type* on the enum side, same split-by-receiver
-> shape every other static reference in this module already uses; an ordinary class constant's own type
-> stays unmodeled `mixed`, a separate, already-tracked gap. ADR 0010 § 5's "no arithmetic or bitwise
-> operator is defined on an enum type directly" and "converting one enum to a *different* enum, even via
-> `as`, is rejected" are both new diagnostics rather than silent `mixed` fallthrough: a new
-> `expr::reject_enum_operand` (wired into `arithmetic_result`/`division_result`/`bitwise_result`) reports
-> `E_ENUM_ARITHMETIC_UNSUPPORTED` (`E0415`, newly added) whenever either operand is `Ty::Enum`, naming
-> `as int`/`as uint` as the fix; a new `expr::reject_enum_to_enum_conversion` reports
-> `E_ENUM_CONVERSION_UNSUPPORTED` (`E0416`, newly added) when an `as` conversion's source and target are two
-> different `Ty::Enum`s, naming an explicit `match` as the replacement — converting an enum to its own
-> underlying type, or to itself, is untouched. 8 new tests in `mwl-types::check`. **Known gap, not
-> attempted this session:** `==`/`===` between two different enum types is not diagnosed — ADR 0010 § 5
-> asks for it, but no general equality-operand-compatibility check exists for *any* type pair yet (not even
-> `int` against `uint`), so adding an enum-only special case here would be inconsistent with the rest of the
-> table; it wants its own pass once equality gets checked at all.
->
-> This session closed [ADR 0014](adr/0014-property-observer.md)'s remaining M2 item — but found no new
-> logic was needed, only a stale doc correction. The item on the prior queue was "a property access on
-> any receiver other than `$this`," left by `mwl_hir::members`'s own module docs as an open gap needing
-> `mwl-types`' static types. `mwl-types::expr::check_property_access` had already closed it in an earlier
-> session, while adding `E_UNKNOWN_MEMBER` for the "every other receiver shape" case generally (see its
-> own module docs) — the fixture `an_undeclared_property_on_a_typed_local_is_diagnosed` in
-> `mwl-types::check` already exercises exactly this shape (`Foo $x = new Foo(); $x->missing;`). Both
-> `mwl_hir::members`'s and `mwl-types`' own known-gap notes were simply never updated to say so. Fixed in
-> [`members.rs`](../crates/mwl-hir/src/members.rs) and [`lib.rs`](../crates/mwl-types/src/lib.rs)'s module
-> docs, and here. **A second, separate staleness surfaced while re-reading ADR 0014 § 6 to check this:**
-> that section's claim that "a method literally named `__call`/`__callStatic` is an ordinary method: it
-> compiles" is no longer true and, on inspection, never became true — [ADR 0029](adr/0029-identifier-casing-is-checked.md)'s
-> method-casing rule never carried a leading-underscore allowance the way properties/parameters/locals did
-> (that allowance, and the `__construct`-only exception, is what [ADR 0030](adr/0030-no-leading-underscores-constructor-spelling.md)
-> later revoked), so `check_method_name` in `mwl-syntax::casing` has always rejected `__call` with
-> `E_BAD_METHOD_CASING` before any resolution logic runs. The *outcome* ADR 0014 § 6 wants — no ambient
-> `__call`/`__callStatic` dispatch — still holds, more strongly than described: the name cannot be
-> declared at all, not merely "declared but never specially dispatched." ADR 0014 § 6 and its M2
-> verification line are corrected to say so; no code changed, since the casing checker already produces
-> the right diagnostic for the right reason.
->
-> This session closed [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) §§ 2-3 (`tainted`
-> propagation/laundering) and [ADR 0027](adr/0027-callable-is-closures-only.md) (`callable` value-shape
-> checking), the next two items on the prior queue — both entirely inside
-> [`mwl-types::expr`](../crates/mwl-types/src/expr.rs), no grammar changes needed since both ADRs' M1
-> halves had already landed. **ADR 0024:** concatenation and interpolation now poison their result exactly
-> like ADR 0007's `mixed`-arithmetic precedent whenever either operand is `tainted string`/`tainted bytes`
-> (`is_tainted`, a new one-question helper). `ExprKind::Conversion` gained `apply_taint_conversion_rule`:
-> a checked conversion to `uint`/`int`/`float`/`bool`/an enum's backing type launders for free (those
-> targets never carried the qualifier to begin with, so no code was even needed there), while `bytes`/
-> `string` keep it across either direction per ADR 0009 § 3 — including the identity-shaped
-> `tainted string as string`, which this rule deliberately refuses to treat as laundering, since that would
-> be a silent bypass of the whole mechanism. `is_assignable` gained the one new subtyping rule this axis
-> needed: a plain `string`/`bytes` is assignable into its `tainted` counterpart (a trusted value is always a
-> safe over-approximation of "may be tainted," the same one-directional shape `mixed` already has, just
-> pointed the other way), never the reverse — without it, no fixture could even construct a `tainted`-typed
-> local from a literal to exercise the poisoning rules above. `reject_non_literal_markup_conversion` covers
-> ADR 0024 § 5's one M2-scoped rule: `as Core\Html\Markup` accepts only a literal string token, tainted or
-> not, closing "compute the escape-defeating payload at runtime, then cast it" — resolved via the same
-> `qname.to_string() == "Core\\Html\\Markup"` trust `Core`'s own classes already get, since `mwl-stdlib`
-> doesn't exist yet. **ADR 0027:** `report_non_callable_value_if_applicable`, called from `check_expr` ahead
-> of its generic `is_assignable` mismatch, gives a bare string or `[$obj, 'method']`-shaped array literal a
-> targeted diagnostic naming the first-class-callable-syntax replacement wherever `callable` is the expected
-> type (`E_CALLABLE_STRING_UNSUPPORTED`/`E_CALLABLE_ARRAY_UNSUPPORTED`, `E0418`/`E0419`, both newly added);
-> `report_call_on_non_callable` refuses `$obj(...)` whenever `$obj`'s static type resolves to a class
-> (`E_NOT_CALLABLE`, `E0420`, newly added) — MWL has no `__invoke`, so no class ever makes `()` mean anything
-> else, and a class literally named `__invoke` can't even be declared (ADR 0029/0030's casing rule already
-> rejects any leading-underscore method name, so this fixture doesn't need one to demonstrate the rule).
-> **A real gap surfaced and fixed in the same pass, not merely documented:** `$obj->method(...)`/
-> `Foo::bar(...)` (first-class callable syntax, `CallArgs::FirstClassCallable`) was typing as the referenced
-> method's own *return type* rather than `callable` — so `callable $fn = $obj->method(...);` would have
-> mismatched against, say, `int` instead of type-checking, the opposite of what ADR 0027 promises ("already
-> produces exactly the Closure value this decision requires"). The `MethodCall`/`StaticCall`/`Call` arms in
-> `expr::infer` now check for that sentinel first and return `Ty::Callable` unconditionally. 21 new tests in
-> `mwl-types::check` (`E0417`, newly added, for the Markup rule). **Known gap, not attempted this session:**
-> ADR 0024 § 4's sink list (`Core\Db`, `Core\Process`, `Core\Http`, `Core\Fs`) has no code refusing anything
-> yet, since none of those `Core` classes are declared stdlib until M7/M8 — a plain-typed parameter on an
-> ordinary user-declared method already acts as an equivalent sink today, through the same
-> `tainted string`-vs-`string` assignability rule, but the ADR's own named sinks are still to come with the
-> stdlib that defines them; § 5's auto-escape default and `Markup + Markup` composition wait on `Core\Html`
-> actually existing too.
->
-> This session closed [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md) §§ 2-4 (`secret`
-> propagation, checked-conversion laundering, and its two M2-reachable sink refusals), the next item on the
-> prior queue — reusing ADR 0024's just-added `tainted` machinery rather than duplicating it, since the two
-> qualifiers are independent bits over the same `string`/`bytes` base.
-> [`ty::Ty`](../crates/mwl-types/src/ty.rs) gained four more atoms (`SecretString`/`SecretBytes`/
-> `SecretTaintedString`/`SecretTaintedBytes`), `lower_atom` now maps `mwl-syntax`'s matching `TypeAtom`
-> variants onto them instead of falling through to `mixed`, and [`expr.rs`](../crates/mwl-types/src/expr.rs)
-> gained a small shared vocabulary — `is_secret` (`is_tainted`'s new sibling, both now also recognizing the
-> two `SecretTainted*` atoms), `qualifiable_base`/`qualified_scalar` (mapping the two independent qualifier
-> bits onto the one atom-per-combination representation and back) — that concatenation/interpolation,
-> `is_assignable`'s widening rule, and `ExprKind::Conversion`'s laundering rule (renamed
-> `apply_qualifier_conversion_rule`) all route through, so both qualifiers poison/widen/launder identically
-> and independently with no separate code path per axis. `secret` follows `tainted`'s exact laundering shape
-> including its one deliberately accepted inconsistency: a checked `as uint`/`int`/`float`/`bool`/enum-
-> backing-type conversion strips `secret` too, even though (per the ADR's own *Alternatives rejected*)
-> "shape-proof implies safe" never actually justified that for confidentiality the way it does for taint.
-> Two sinks, both reachable without any stdlib: `reject_secret_markup_conversion` gives a `secret` operand
-> converted `as Core\Html\Markup` its own diagnostic (`E_SECRET_MARKUP_UNSUPPORTED`, `E0421`) ahead of the
-> existing literal-required one, naming *why* — escaping doesn't restore confidentiality, so `secret` gets
-> no auto-escape carve-out even once one exists for `tainted`. `reject_secret_throwable_message` refuses a
-> `secret` value as a `Throwable`-shaped class's constructor message (`E_SECRET_THROWABLE_MESSAGE`, `E0422`)
-> — reachable this early only because a new [`mwl_hir::QName::is_reserved_global_class`] trusts `Throwable`/
-> `Exception`/`Error` to exist without a source declaration, mirroring `is_reserved_global_interface`'s
-> existing treatment of `Comparable`/`Stringable`, and wired into the three places that needed to trust it
-> (`hierarchy::resolve_supertype` for `extends`, `check_new_target`/`resolve_name_type` for `new`/a typed
-> declaration) plus the two `E_UNKNOWN_MEMBER` guards that already exempt an unmodeled `Core` class, so a
-> method call or property access on one of these three stays silently `mixed` rather than newly erroring.
-> `check_args_typed` now returns each argument's own checked type so the `New` arm can read the first one
-> back for this sink without a second, diagnostic-duplicating pass over the same expression. 12 new tests in
-> `mwl-types::check`, one in `mwl-hir::qname`, one in `mwl-hir::hierarchy`, one in `mwl-types::lower`.
-> `cargo build`/`test`/`clippy -D warnings`/`fmt --check` all clean.
->
-> **Known gaps left across `mwl-types`**: exhaustive control-flow reachability (`switch`/`try` bodies
-> conservatively contribute nothing to definite assignment after them — safe, never accepts an invalid
-> program); references (`&$x`) needing both sides to declare the same type; `parent` as a *type* atom
-> (`parent $x`, distinct from `new parent(...)`, which now resolves); a class constant's type; a promoted
-> constructor-parameter property (tracked as neither a property nor a definite-assignment obligation,
-> mirroring a pre-existing `mwl_hir::members`/`signatures.rs` gap); a named/spread call argument's positional
-> checking; a class with no explicit `constructor` is not held to a zero-argument arity check on `new`, nor
-> to the `parent::constructor(...)` obligation. ADR 0033's own remaining sinks (`Core\Log`'s call-site
-> inspection, `var_dump`/`print_r`'s redaction, `serialize()`/the `spawn worker` boundary) wait on M8/M4/M5
-> respectively, per that ADR's own *Verification*. `mwl-ir` hasn't started.
+> **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well
+> underway; IR lowering (`mwl-ir`) hasn't started. ADRs with checker-side rules landed so far: 0007
+> (type table, definite assignment, arithmetic table), 0010 (enum/class atom split), 0013
+> (`Comparable`), 0014 (property-access resolution, no `__get`/`__set` fallback), 0015 (`type`-alias
+> substitution + cycle diagnostic), 0021 (`require` graph resolution), 0022 (constructor
+> definite-property-init), 0024 §§2-3 (`tainted` propagation/laundering), 0027 (`callable` value-shape
+> checks), 0028 (`Stringable`, `unset()` refusal), 0029/0030/0032 (casing — lives in `mwl-syntax`), 0033
+> §§2-4 (`secret` propagation/laundering/sinks), 0036 §§1,3-4 (`object` subtyping, shape structural
+> checks). Remaining for this milestone: ADR 0011/0024 §4/0033's stdlib-dependent sinks (wait on
+> `Core` classes that don't exist until M7/M8), and `mwl-ir` itself. Per-crate known gaps (what a
+> receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
+> `mwl-hir::{hierarchy,members,requires}` and `mwl-types::{expr,ctor_init,lib}` — read those directly
+> rather than expecting a summary here; they're more current than a paragraph in this file could stay.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -849,96 +444,39 @@ not *check* — see M2 — but they must parse). A snapshot pins the one grammar
 `foreach` header belongs to `foreach`, so a conversion of the subject needs parentheses.
 
 ### M2 — HIR, types, IR (~4 weeks)
-Name resolution, namespaces and `use`, class hierarchy with trait flattening (conflicts resolved by
-`insteadof` alone — there is no rename or visibility-change path, see
-[ADR 0015](adr/0015-no-name-aliasing.md)), statically resolved `require` ([ADR 0021](adr/0021-single-file-inclusion-construct.md)) with a dynamic
-fallback.
-Every callable and constant resolves as a class member — there
-is no bare-name fallback in the resolver at all — and a declaration reusing the reserved `Core` namespace is
-a diagnostic at that site ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). A `class`,
-`interface`, `trait` or `enum` resolves to exactly the name it declared — there is no alias table anywhere in
-the resolver — and a `type` alias resolves and is substituted away before anything downstream sees it, unless
-its expression is a single bare class/interface/enum atom, which is a diagnostic
-([ADR 0015](adr/0015-no-name-aliasing.md)). The same
-resolver refuses a property access naming anything not declared on the class or an ancestor/trait, for
-every literal-identifier access — there is no `__get`/`__set` fallback for a missing property, since one
-cannot exist under this rule ([ADR 0014](adr/0014-property-observer.md)). The type checker of
-[ADR 0007](adr/0007-explicit-type-system.md): every binding's declared type recorded and enforced,
-definite-assignment checking, flow-sensitive narrowing of unions, array element types checked at every
-write and at every nesting depth, the arithmetic result-type table including the refusal of `int + uint`,
-and interned type descriptors. Definite assignment covers a second binding kind here too: every
-constructor must assign every property its class declares on every path, or the diagnostic names the
-property or the missing path ([ADR 0022](adr/0022-definite-property-initialization.md)). There is **no
-inference engine and no `Unknown` type** — that is the
-simplification the mandatory declarations buy. Also from that table: `<`/`>`/`<=`/`>=`/`<=>` between two
-objects refused unless both sides are provably the same class implementing `Comparable`
-([ADR 0013](adr/0013-comparable-interface.md)) — there is no property-walk fallback to fall into. The same
-checker enforces the `tainted` qualifier on `string`/`bytes` — poisoning through concatenation and
-interpolation, laundering only through a checked `as` conversion or a named `Core` function, and a
-diagnostic at any sink requiring the plain type ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)).
-A value typed `callable` is accepted only from first-class callable syntax or an `fn` closure literal — a
-string- or array-shaped callable is refused with a diagnostic naming the first-class-callable-syntax
-replacement, and MWL has no `__invoke`, so `$obj(...)` is refused for any non-`callable` `$obj` regardless of
-what its class declares ([ADR 0027](adr/0027-callable-is-closures-only.md); `callable` is the sole surviving
-type name for this value, per [ADR 0031](adr/0031-callable-is-the-only-closure-type.md)). An object used at an implicit
-string-conversion site is accepted only when its static type provably implements the global `Stringable`
-interface, and `unset()` on a declared object property is refused outright regardless of nullability
-([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)). Every declared identifier's casing is checked
-against [ADR 0029](adr/0029-identifier-casing-is-checked.md)'s per-category table, tightened by
-[ADR 0030](adr/0030-no-leading-underscores-constructor-spelling.md) to allow no leading underscore on any
-identifier and to spell the constructor `constructor` rather than `__construct` — needs no name
-resolution, so it can land in `mwl-syntax` directly off each declaration's AST node rather than waiting on
-the rest of this milestone's checker. `object` gains real subtyping (every named or literal-synthesized
-class type is provably `<: object`), and an inline `{name: T, ...}` shape type is checked structurally by
-width subtyping and ordinary field assignability at each assignment/call/return — MWL's one deliberate,
-tightly scoped exception to otherwise fully nominal typing, extending ADR 0014 § 5's runtime-checked-access
-fallback to an erased receiver type as well as a dynamic name ([ADR 0036](adr/0036-anonymous-object-shapes.md)).
-Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls. Every lowered
-statement and every conditional CFG edge also carries the stable id [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-addresses a coverage/branch probe by — cheap to reserve here, expensive to retrofit once M3 onward has built
-on top of the IR without it.
+Name resolution: namespace/`use` scoping, class hierarchy with trait flattening
+([ADR 0015](adr/0015-no-name-aliasing.md)), statically resolved `require` with a dynamic fallback
+([ADR 0021](adr/0021-single-file-inclusion-construct.md)), every callable/constant resolved as a class
+member with no bare-name fallback ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
+`type`-alias substitution ([ADR 0015](adr/0015-no-name-aliasing.md)), and property-access resolution with
+no `__get`/`__set` fallback ([ADR 0014](adr/0014-property-observer.md)).
 
-**Verify:** `mwl check` on a curated corpus where every diagnostic named in ADR 0007 is its own file — an
-undeclared local, a re-declared local, a read before definite assignment, `int + uint`, `int $n = 7 / 2;`,
-a `mixed` assigned into a typed binding, an element-type violation at depth 1, 2 and 3, a missing narrowing
-and a present one. Plus ADR 0022's own corpus entries: a constructor with a branch that leaves a
-non-nullable property unassigned, a subclass constructor with a path that skips `parent::constructor(...)`,
-and a class with no constructor and no inline default for a non-nullable property. Plus ADR 0024's own
-entries: a `tainted` value concatenated into a sink requiring the plain type is refused, naming the
-qualifier and the sink; a checked `as uint`/enum conversion on a tainted source produces an unqualified
-result with no extra syntax; `tainted string as Markup` is refused even though a literal succeeds. Plus
-[ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)'s own entries (its § 1 grammar addition has
-landed; these wait on §§ 2-4's checker-side propagation, still unstarted): a `secret` value poisons through
-concatenation/interpolation independently of `tainted`; a checked
-`as uint`/enum conversion on a secret source strips `secret` (and `tainted`, if present) with no diagnostic;
-a `secret` value reaching a `Markup`-building interpolation position is refused even though the equivalent
-`tainted`-only value is auto-escaped; a `secret` value passed as a `Throwable` message argument is refused;
-`tainted secret string` (wrong qualifier order) is refused naming the required `secret`-before-`tainted`
-spelling. Plus ADR 0027's own entries: a bare string, an `"Class::method"` string, and a `[$obj, 'method']` array each
-refused where `callable` is the declared type, naming the first-class-callable-syntax
-replacement; `$obj(...)` refused for a non-`callable` `$obj` even when its class declares a method literally
-named `__invoke`, naming the class and stating MWL has no `__invoke`. Plus ADR 0031's own entries: an
-anonymous `function(...) {...}` literal and a `use (...)` capture clause of either kind are both refused,
-naming `fn` as the replacement; `Closure` named as a type is refused, naming `callable`; a self-named `fn`
-literal resolves its own name only inside its own body. Plus ADR 0028's own entries: an object
-whose class does not implement `Stringable` used in string interpolation, concatenation, `echo`, or
-`as string`, naming `Stringable` as the fix; `unset()` on a declared object property refused for both a
-nullable and a non-nullable property, naming ADR 0022's guarantee as the reason. Plus ADR 0029's own
-entries: a mis-cased class, interface, trait, enum, enum case, namespace segment, method, property,
-parameter, local variable and class constant, one file each, each naming the exact diagnostic and suggested
-rename — no entry for an all-caps acronym, since [ADR 0032](adr/0032-acronym-casing-rule-revoked.md)
-revokes that rule; `HTTPClient`/`parseXMLPayload`-style spellings compile with no diagnostic at all. Plus
-ADR 0030's own entries: a property, a parameter and a local variable each starting with `_`, all three
-refused with the standard camelCase diagnostic (no leading-underscore allowance survives); a method named
-`__construct` refused with the targeted "spelled `constructor`, not `__construct`" diagnostic rather than
-the generic mis-casing one; a class declaring `constructor` produces no casing diagnostic and is recognized
-as satisfying ADR 0022's per-constructor obligation. Plus
-[ADR 0014](adr/0014-property-observer.md)'s own entry: `$this->missing` for a property not declared on the
-class or any `extends`/`implements`/trait-use ancestor is refused, naming ADR 0014 § 5's "no `__get`/`__set`
-fallback" rule. IR snapshot tests. No program in the corpus produces an `Unknown` type, because the IR
-no longer has one. `< > <= >= <=>` on two objects diagnosed exactly per [ADR 0013](adr/0013-comparable-interface.md):
-refused when the class does not implement `Comparable`, refused across two different classes even when
-both do.
+Type checker ([ADR 0007](adr/0007-explicit-type-system.md)): declared types enforced, definite assignment
+(locals, and per [ADR 0022](adr/0022-definite-property-initialization.md) every constructor-declared
+property), flow-sensitive union narrowing, array element types checked at every depth, the arithmetic
+result-type table. No inference engine and no `Unknown` type — that's the simplification the mandatory
+declarations buy. Also enforced here: `Comparable`-gated object ordering
+([ADR 0013](adr/0013-comparable-interface.md)); `tainted` poisoning/laundering
+([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)) and, independently, `secret`
+([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)); `callable` accepted only from
+first-class-callable syntax or an `fn` literal, no `__invoke`
+([ADR 0027](adr/0027-callable-is-closures-only.md), [ADR 0031](adr/0031-callable-is-the-only-closure-type.md));
+`Stringable`-gated string conversion and `unset()` refused on a declared property
+([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)); identifier casing
+([ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md)/[0032](adr/0032-acronym-casing-rule-revoked.md),
+lands in `mwl-syntax` directly since it needs no name resolution); `object` subtyping and shape-type
+structural checking ([ADR 0036](adr/0036-anonymous-object-shapes.md)).
+
+Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls, with a
+stable per-statement/per-edge id reserved for
+[ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s probes — cheap now,
+expensive to retrofit once M3 builds on the IR without it.
+
+**Verify:** `mwl check` on a curated corpus with one fixture per diagnostic named in each ADR listed
+above's own *Verification* section, plus ADR 0007's own core entries (undeclared/redeclared local,
+read-before-definite-assignment, `int + uint`, array element-type violations at depth, a missing vs.
+present narrowing). Plus IR snapshot tests; no program in the corpus produces an `Unknown` type, since
+the IR has none.
 
 ### M3 — Baseline Cranelift backend → **Hello World** (~3 weeks)
 The checked-return calling convention from [ADR 0002](adr/0002-error-propagation.md), which is normative

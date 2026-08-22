@@ -15,12 +15,15 @@ Read this file, then **one** row below. Do not read the docs tree breadth-first:
 and only grows as ADRs are added, and most of it is reasoning you only need when you are about to overturn
 a decision.
 
-**First, run `sh .claude/brief.sh`.** One call, well under 15 KB: the plan's status block, the current and
-next milestone, the one-line title and status of every ADR, what the guard tests actually hold with their
-thresholds, and what exists on disk. It stores no facts — it slices the live files and names each source,
-so it cannot go stale, and it says so loudly if a slice comes back empty. It deliberately does not print
-each ADR's full rule, so it stays small as more ADRs are added — open the row below for whatever you're
-touching to get that.
+**First, run `python .claude/brief.py`.** One call, well under 20 KB: the plan's status block, the current
+and next milestone, the one-line title and status of every ADR, what the guard tests actually hold with
+their thresholds, and what exists on disk. It stores no facts — it slices the live files and names each
+source, so it cannot go stale, and it says so loudly if a slice comes back empty. Each section also carries
+a hard byte budget: if a source doc grows past it, that section is truncated with a note naming the file to
+open directly, rather than silently growing the digest. Hitting a budget routinely means the doc it points
+at is overdue for [DOC_CLEANUP_PROMPT.md](DOC_CLEANUP_PROMPT.md)'s trim pass, not that the budget should
+grow. It deliberately does not print each ADR's full rule, so it stays small as more ADRs are added — open
+the row below for whatever you're touching to get that.
 
 | Doing this | Open this |
 |---|---|
@@ -282,3 +285,10 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 - The docs accumulate rationale bloat as ADRs are added. Periodically (the user does this manually, you never automatically) re-run the pass
   captured in [DOC_CLEANUP_PROMPT.md](DOC_CLEANUP_PROMPT.md) rather than re-deciding its rules from scratch.
 - Everytime we decide to add new features, change feature or remove features, decide and ask what the tradeoffs are in performance, memory, usability and simplicity for developers using the langauge. If there are huge tradeoffs, notify the user and ask for agreement before proceeding. If there are only benefits, just go ahead.
+- [docs/implementation-plan.md](docs/implementation-plan.md)'s leading status block is a bounded snapshot,
+  not a changelog: overwrite it in place each session (current milestone, what's on disk, what's next) —
+  never append a new "this session closed..." paragraph. Session-by-session history already lives in
+  `git log`; per-file known-gap detail belongs in that crate's own module doc comment, not in the plan. A
+  milestone's own paragraph gets the same discipline: name the ADR it draws a rule from and stop, don't
+  re-derive the rule inline — that's what [docs/adr/README.md](docs/adr/README.md) already owns. This is
+  what keeps `python .claude/brief.py` bounded without needing ever-larger budgets.

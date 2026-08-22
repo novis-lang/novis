@@ -60,7 +60,7 @@ open question itself alone. Cleanup is not the moment to make new calls.
 
 ## How to run this pass
 
-1. Read `CLAUDE.md`, run `sh .claude/brief.sh`, and read `docs/adr/README.md` to get the current shape
+1. Read `CLAUDE.md`, run `python .claude/brief.py`, and read `docs/adr/README.md` to get the current shape
    of the doc set (ADR count, statuses, what's Accepted vs Proposed).
 2. Survey for merge candidates and stale/irrelevant content before editing anything — read-only pass,
    report findings, get human approval on any proposed merge before acting on it.
