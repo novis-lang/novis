@@ -93,8 +93,21 @@
 > § 5) by reusing the existing `IntToString`/`UintToString` helpers verbatim. `ArraySet` does not mirror
 > `FieldSet`'s read-old-value-then-release shape — an array key may not already exist, unlike a
 > definitely-initialized class field — so it bundles the whole replace-or-insert into one instruction
-> instead of a conditional get/release pair. `$a[]`/`$a[] = expr;` (append syntax) and a `float`/`bool`/
-> `null` subscript key both still panic naming the case. `mwl-ir` is now at 62 tests.
+> instead of a conditional get/release pair. `$a[]`/`$a[] = expr;` (append syntax) still panics naming the
+> case — it needs a "next available integer key" counter this crate has no representation for yet. A
+> `float`/`bool`/`null` array key — a subscript or an array-literal explicit `key =>` alike — is now
+> rejected at check time by a new `mwl_types::expr::check_array_key_type` helper and
+> `E_ARRAY_KEY_INVALID_TYPE` diagnostic (ADR 0007 § 5), called from both `check_expr`'s `Index` arm and
+> `check_array_literal`'s explicit-key arm, so `lower_array_key`'s matching panic arm is now an unreachable
+> internal-invariant check rather than a live gap. **An array literal's explicit `key =>` element** now
+> lowers too: a literal with at least one explicit key builds an empty `InstKind::ArrayNew` followed by one
+> `InstKind::ArraySet` per element in source order (reusing `lower_array_key` verbatim for every key,
+> explicit or positional), while a purely positional literal keeps the original single-`ArrayNew` shape
+> unchanged. This deliberately does not reproduce PHP's rule that an explicit `int`/`uint` key also advances
+> the positional auto-increment counter — a positional element still numbers from "how many positional
+> elements came before it," a documented simplification left for whenever the append-syntax counter gap
+> above is tackled. A `...spread` element and a `&value` element are both still unsupported either way.
+> `mwl-ir` is now at 72 tests.
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
