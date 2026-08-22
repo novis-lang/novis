@@ -1,0 +1,16 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:40
+    v1 = const.str "it's a \\ test"  ; string
+    ; stmt s1 @5:5-5:49
+    v2 = const.str "line1\nline2\t\"quoted\""  ; string
+    release v2
+    release v1
+    return
+}

@@ -105,6 +105,13 @@ pub enum InstKind {
     ConstUint(u64),
     /// A `float` constant.
     ConstFloat(f64),
+    /// A `string` literal's cooked bytes — a fresh [`Ty::Str`] value with
+    /// exactly one implicit owner (itself), the same "one natural reference"
+    /// starting point [`InstKind::New`] gives a freshly constructed object.
+    /// See `crate::lower::cook_str_literal`'s own doc comment for exactly
+    /// which escape sequences are cooked this slice and which are a known
+    /// gap.
+    ConstStr(String),
     /// Reads the function's own parameter at this positional index.
     Param(u32),
     /// A binary arithmetic or comparison operator over two already-lowered
@@ -188,6 +195,30 @@ pub enum InstKind {
         class: String,
         /// The field's own name, `$`-sigil not included.
         field: String,
+    },
+    /// Increments a [`Ty::is_refcounted`] value's reference count — emitted
+    /// exactly where `crate::lower`'s "copy" case needs a second durable
+    /// owner to see it stay alive (see that module's docs for the precise
+    /// insertion policy and the syntactic "is this an aliasing read"
+    /// judgment it's keyed on). Defines no value; operates on `operand`
+    /// in place.
+    Retain {
+        /// The value being retained.
+        operand: ValueId,
+    },
+    /// Decrements a [`Ty::is_refcounted`] value's reference count, freeing
+    /// its heap allocation if it reaches zero — emitted where a durable
+    /// slot's previous value is overwritten, and for every such slot still
+    /// live when its owning function returns (except the one slot whose
+    /// value is the return value itself, which transfers out instead — see
+    /// `crate::lower::Lowering::release_all_locals`'s own doc comment).
+    /// Defines no value; operates on `operand` in place. No codegen exists
+    /// yet to lower this to an actual decrement-and-maybe-free sequence —
+    /// reserved the same "shape now, functional once a backend exists" way
+    /// [`InstKind::Safepoint`] already is.
+    Release {
+        /// The value being released.
+        operand: ValueId,
     },
 }
 

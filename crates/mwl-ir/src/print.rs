@@ -68,6 +68,14 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    safepoint");
         return;
     }
+    if let InstKind::Retain { operand } = inst.kind {
+        let _ = writeln!(out, "    retain v{}", operand.index());
+        return;
+    }
+    if let InstKind::Release { operand } = inst.kind {
+        let _ = writeln!(out, "    release v{}", operand.index());
+        return;
+    }
     let v = inst
         .result
         .expect("every non-marker instruction defines a value");
@@ -77,6 +85,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ConstInt(n) => format!("const.int {n}"),
         InstKind::ConstUint(n) => format!("const.uint {n}"),
         InstKind::ConstFloat(n) => format!("const.float {n}"),
+        InstKind::ConstStr(s) => format!("const.str {s:?}"),
         InstKind::Param(i) => format!("param {i}"),
         InstKind::BinOp { op, lhs, rhs } => {
             format!("{} v{}, v{}", bin_op_name(*op), lhs.index(), rhs.index())
@@ -110,7 +119,12 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
-        InstKind::StmtMarker(_) | InstKind::Safepoint => unreachable!("returned above"),
+        InstKind::StmtMarker(_)
+        | InstKind::Safepoint
+        | InstKind::Retain { .. }
+        | InstKind::Release { .. } => {
+            unreachable!("returned above")
+        }
     };
     let _ = writeln!(out, "    v{} = {rhs}  ; {}", v.index(), ty_name(ty));
 }
@@ -164,6 +178,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Float => "float",
         Ty::Void => "void",
         Ty::Object => "object",
+        Ty::Str => "string",
     }
 }
 

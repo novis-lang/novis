@@ -137,7 +137,11 @@ pub fn lower_method(
     low.lower_stmts(&body.stmts, &mut cur, &mut env);
     // No explicit final `return` — the same fallback the straight-line slice
     // always had, now expressed as sealing whatever block is still open.
+    // Nothing transfers out on this path (there is no return value), so
+    // every refcounted local still live here gets released, same as an
+    // explicit `return;`.
     if !low.is_terminated(cur) {
+        low.release_all_locals(cur, &env, None);
         low.seal(cur, Terminator::Return(None));
     }
 
@@ -244,6 +248,89 @@ impl<'a> Lowering<'a> {
         });
     }
 
+    /// Appends an [`InstKind::Retain`] on `v` to `b` — see the module docs'
+    /// refcounting-policy section for when a call site actually wants one;
+    /// this just emits the instruction unconditionally, since every caller
+    /// has already checked [`Ty::is_refcounted`] itself.
+    fn emit_retain(&mut self, b: BlockId, v: ValueId) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::Retain { operand: v },
+        });
+    }
+
+    /// Appends an [`InstKind::Release`] on `v` to `b` — see [`Self::emit_retain`].
+    fn emit_release(&mut self, b: BlockId, v: ValueId) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::Release { operand: v },
+        });
+    }
+
+    /// Binds `name` to `(v, ty)` in `env` — every `var`/typed local
+    /// declaration and every plain reassignment goes through here, `source`
+    /// being the already-lowered right-hand-side expression. This is the
+    /// declare/reassign half of the module docs' refcounting policy (the
+    /// function-exit half is [`Self::release_all_locals`]):
+    ///
+    /// - If `ty` [`Ty::is_refcounted`] and `source` is a bare `$other`
+    ///   variable read, this bind creates a *second* durable owner of a
+    ///   value some other binding already owns — retain `v` first. Nothing
+    ///   else can produce a refcounted value yet outside a fresh literal
+    ///   (see the crate docs' known gaps for what still panics), and a fresh
+    ///   literal already has exactly one natural owner, so no other `source`
+    ///   shape needs a retain here.
+    /// - If `name` already held a refcounted value — an overwrite, not a
+    ///   fresh declaration — release the *old* value, always *after* the
+    ///   retain above so a self-assignment (`$x = $x;`) never observes a
+    ///   transient zero refcount.
+    fn bind_local(
+        &mut self,
+        cur: BlockId,
+        env: &mut Env,
+        name: String,
+        v: ValueId,
+        ty: Ty,
+        source: &Expr,
+    ) {
+        if ty.is_refcounted() && matches!(source.kind, ExprKind::Variable(_)) {
+            self.emit_retain(cur, v);
+        }
+        if let Some(&(old_v, old_ty)) = env.get(&name)
+            && old_ty.is_refcounted()
+        {
+            self.emit_release(cur, old_v);
+        }
+        env.insert(name, (v, ty));
+    }
+
+    /// Releases every refcounted local still live in `env`, in a fixed
+    /// (name-sorted) order for deterministic output — the function-exit half
+    /// of the module docs' refcounting policy (see [`Self::bind_local`] for
+    /// the declare/reassign half). `except`, when given, is the one local
+    /// name whose value is transferring out as the function's own return
+    /// value rather than being dropped here — `Self::lower_stmt`'s
+    /// `StmtKind::Return` arm passes it exactly when the returned expression
+    /// is itself a bare `$name` read, the only shape that can currently
+    /// alias a still-live local; anything else (a fresh literal, or no
+    /// return value at all) has no local to exclude, so every live local is
+    /// released.
+    fn release_all_locals(&mut self, cur: BlockId, env: &Env, except: Option<&str>) {
+        let mut names: Vec<&String> = env.keys().collect();
+        names.sort();
+        for name in names {
+            if Some(name.as_str()) == except {
+                continue;
+            }
+            let &(v, ty) = env.get(name).expect("just listed from env.keys()");
+            if ty.is_refcounted() {
+                self.emit_release(cur, v);
+            }
+        }
+    }
+
     /// Consumes the builder, pairing up every block's id, instructions and
     /// terminator.
     ///
@@ -301,10 +388,8 @@ impl<'a> Lowering<'a> {
             } => {
                 let expected = lower_decl_type(decl_ty);
                 let (v, _) = self.lower_expr(value, Some(expected), env, *cur);
-                env.insert(
-                    strip_sigil(span_text(self.src, *local_name)).to_owned(),
-                    (v, expected),
-                );
+                let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
+                self.bind_local(*cur, env, lname, v, expected, value);
             }
             // ADR 0037: `var $x = expr;` — no declared type at all, so there
             // is no `expected` to check `value` against. `lower_expr` already
@@ -325,16 +410,26 @@ impl<'a> Lowering<'a> {
                 value: Some(value),
             } => {
                 let (v, ty) = self.lower_expr(value, None, env, *cur);
-                env.insert(
-                    strip_sigil(span_text(self.src, *local_name)).to_owned(),
-                    (v, ty),
-                );
+                let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
+                self.bind_local(*cur, env, lname, v, ty, value);
             }
             StmtKind::Expr(e) => self.lower_reassignment(e, env, *cur),
+            // See `Self::release_all_locals`'s own doc comment for why a
+            // bare `$name` return expression is excluded from the exit
+            // sweep rather than retained: its value transfers out instead of
+            // being copied.
             StmtKind::Return(value) => {
+                let except = value.as_ref().and_then(|v| {
+                    if let ExprKind::Variable(span) = &v.kind {
+                        Some(strip_sigil(span_text(self.src, *span)).to_owned())
+                    } else {
+                        None
+                    }
+                });
                 let v = value
                     .as_ref()
                     .map(|v| self.lower_expr(v, Some(self.ret_ty), env, *cur).0);
+                self.release_all_locals(*cur, env, except.as_deref());
                 self.seal(*cur, Terminator::Return(v));
             }
             StmtKind::Block(b) => self.lower_stmts(&b.stmts, cur, env),
@@ -375,7 +470,7 @@ impl<'a> Lowering<'a> {
         let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
         let expected = env.get(&lname).map(|&(_, t)| t);
         let (v, ty) = self.lower_expr(value, expected, env, cur);
-        env.insert(lname, (v, ty));
+        self.bind_local(cur, env, lname, v, ty, value);
     }
 
     /// `if (cond) then (else else_)?` — the module docs describe the
@@ -703,6 +798,13 @@ impl<'a> Lowering<'a> {
                     .unwrap_or_else(|_| panic!("mwl-ir: float literal `{digits}` failed to parse"));
                 self.emit(cur, Ty::Float, InstKind::ConstFloat(n))
             }
+            // A fresh `Ty::Str` value with exactly one natural owner — see
+            // `Self::bind_local`'s doc comment for why a value produced here
+            // never needs a retain of its own, only whatever consumes it.
+            ExprKind::Str(span) => {
+                let s = cook_str_literal(self.src, *span);
+                self.emit(cur, Ty::Str, InstKind::ConstStr(s))
+            }
             ExprKind::Variable(span) => {
                 let name = strip_sigil(span_text(self.src, *span));
                 let &(v, ty) = env.get(name).unwrap_or_else(|| {
@@ -986,6 +1088,57 @@ fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
     span_text(src, span).chars().filter(|&c| c != '_').collect()
 }
 
+/// Cooks a plain, non-interpolated string literal's span — `mwl_syntax::ast::ExprKind::Str`'s
+/// own doc comment: a single-quoted string, or a double-quoted/heredoc/nowdoc string with no
+/// interpolation in it — into its runtime bytes.
+///
+/// A single-quoted literal only ever needs the two escapes `mwl-syntax`'s lexer recognizes there
+/// (`\\` and `\'` — see `Lexer::lex_single_quoted`'s own
+/// `single_quoted_string_only_escapes_backslash_and_quote` test); a double-quoted literal
+/// additionally cooks the common named escapes (`\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\0`). Any
+/// other backslash sequence (a numeric escape like `\xHH`/`\u{...}`/octal, or any escape not
+/// meaningful for the quote kind in play) is passed through literally rather than cooked — a
+/// known gap, mirroring [`int_literal_digits`]'s own "not modeled this slice" magnitude gap for
+/// integer literals. A heredoc/nowdoc-sourced `Str` — whose span doesn't open with a quote
+/// character at all — isn't handled here either: this crate has no lowered fixture reaching one
+/// yet, so it panics naming the gap rather than guessing a representation.
+fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
+    let raw = span_text(src, span);
+    let quote = raw
+        .chars()
+        .next()
+        .unwrap_or_else(|| panic!("mwl-ir: an empty string literal span at {span:?} — lexer bug?"));
+    assert!(
+        quote == '\'' || quote == '"',
+        "mwl-ir does not yet cook a heredoc/nowdoc string literal (its span doesn't open with a \
+         quote character) — got {raw:?}; see the crate docs' known gaps"
+    );
+    let inner = &raw[quote.len_utf8()..raw.len() - quote.len_utf8()];
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some(next) if next == quote => out.push(quote),
+            Some('n') if quote == '"' => out.push('\n'),
+            Some('t') if quote == '"' => out.push('\t'),
+            Some('r') if quote == '"' => out.push('\r'),
+            Some('$') if quote == '"' => out.push('$'),
+            Some('0') if quote == '"' => out.push('\0'),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
 /// Splits a cooked integer-literal span into the radix its prefix names and
 /// the digit run to parse against it — `mwl_syntax::Lexer::lex_number` emits
 /// one `IntLiteral` token for all four forms (`0x…`/`0o…`/`0b…`, or a plain
@@ -1031,11 +1184,12 @@ fn lower_decl_type(ty: &Type) -> Ty {
         TypeKind::Atom(TypeAtom::Uint) => Ty::Uint,
         TypeKind::Atom(TypeAtom::Float) => Ty::Float,
         TypeKind::Atom(TypeAtom::Void) => Ty::Void,
+        TypeKind::Atom(TypeAtom::String) => Ty::Str,
         TypeKind::Atom(TypeAtom::Name(_)) => Ty::Object,
         TypeKind::Paren(inner) => lower_decl_type(inner),
         other => panic!(
-            "mwl-ir only lowers bool/int/uint/float/void/a plain class name as a declared type \
-             — got {other:?}; see the crate docs' known gaps"
+            "mwl-ir only lowers bool/int/uint/float/void/string/a plain class name as a declared \
+             type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -1368,6 +1522,53 @@ mod tests {
     fn multi_base_integer_literals_cook_to_the_same_value() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(): int {\n    int $hex = 0x1F;\n    int $oct = 0o17;\n    int $bin = 0b101;\n    return $hex + $oct + $bin;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `string` literal cooks to `InstKind::ConstStr` — a single-quoted
+    /// literal only unescapes `\\`/`\'`, a double-quoted one additionally
+    /// unescapes `\n`/`\t`/`\"`. Neither local is ever aliased or returned,
+    /// so both get exactly one release at the implicit `void` fallback
+    /// return — no retain anywhere in this fixture.
+    #[test]
+    fn string_literals_cook_their_escapes_and_release_at_scope_exit() {
+        let (f, map, file) = lower_first_method(
+            r#"<?mwl
+class T {
+  function m(): void {
+    string $single = 'it\'s a \\ test';
+    string $double = "line1\nline2\t\"quoted\"";
+  }
+}
+"#,
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `string $b = $a;` aliases `$a`'s already-owned value rather than
+    /// constructing a fresh one — `Lowering::bind_local` retains it. `return
+    /// $b;` then transfers `$b`'s reference out directly (excluded from
+    /// `Lowering::release_all_locals`'s sweep), leaving exactly one release
+    /// for `$a`'s slot — one retain, one release, never zero and never two,
+    /// for a value that in fact has exactly one owner (the caller) once this
+    /// function returns.
+    #[test]
+    fn assigning_one_string_local_to_another_retains_the_shared_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function pick(): string {\n    string $a = \"hello\";\n    string $b = $a;\n    return $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// Reassigning a `string` local to a fresh literal releases the value it
+    /// previously held — `$x`'s `\"a\"` is released the moment `\"b\"`
+    /// overwrites it, well before the function's own exit sweep releases
+    /// `\"b\"` in turn.
+    #[test]
+    fn reassigning_a_string_local_releases_its_previous_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $x = \"a\";\n    $x = \"b\";\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

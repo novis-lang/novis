@@ -13,11 +13,14 @@
 //! inferred-type declaration (ADR 0037), plain `$x = expr;` reassignment,
 //! `return`, nested `{}` blocks, `if`/`while`, `new`, a static method call
 //! (`self::method(...)`/`Class::method(...)`), an instance method call
-//! (`$obj->method(...)`, including `$this->…`), and a compile-time-known
-//! property access (`$obj->prop`, including `$this->prop`) —
-//! [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
-//! `break`/`continue`, no array access, no non-scalar-*data* types
-//! (`string`/`bytes`/`array<T>` — a class/enum value itself now has a
+//! (`$obj->method(...)`, including `$this->…`), a compile-time-known
+//! property access (`$obj->prop`, including `$this->prop`), and now a
+//! `string`-typed local/parameter/return value initialized or reassigned
+//! from a literal, with refcount retain/release operations around its
+//! declare/reassign/scope-exit lifecycle — [`lower::lower_method`] is the
+//! entry point. No `for`/`switch`/`try`, no `break`/`continue`, no array
+//! access, no `bytes`/`array<T>`, no `string` crossing a call argument,
+//! return, or property-field boundary (a class/enum value itself also has a
 //! representation, [`ty::Ty::Object`], just not a way to refcount one yet).
 //! The straight-line subset was deliberately the *first* slice landed (see
 //! git history and `docs/implementation-plan.md`'s M2 paragraph) because it
@@ -38,6 +41,12 @@
 //! slice — neither needed a new IR shape, only reusing `Lowering::lower_expr`'s
 //! existing `expected: None` inference path for `var`, and widening a new
 //! `int_literal_digits` helper's radix handling for the literal forms.
+//! `string` locals and the retain/release IR shape are the seventh slice,
+//! and the first non-scalar *data* representation to land at all — see the
+//! design-choices section below for the retain/release insertion policy this
+//! needed, and [`ty::Ty::Str`]/[`lower`]'s own module docs for exactly which
+//! boundary (a local's own lifecycle, not yet a call/return/field one) it's
+//! scoped to.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -109,6 +118,45 @@
 //!   via `cargo insta test --accept -p mwl-ir` when this landed) — an
 //!   IR-representation choice, not a change visible to an MWL developer.
 //! - **Ids are stable, not global.** See [`ids`]'s own module docs.
+//! - **Refcount insertion is naive and syntactic, not a liveness/move
+//!   analysis — correctness first, elision left to a later optimizer pass.**
+//!   `docs/implementation-plan.md`'s own optimizer feature list already names
+//!   "refcount elision" as separate future work, distinct from *emitting* the
+//!   operations at all — this session only had to answer the latter. Two
+//!   designs were weighed: (a) a full last-use/move analysis that only
+//!   retains when a value is genuinely shared and skips it otherwise, or (b)
+//!   inserting a retain everywhere a value is copied into a second durable
+//!   slot and a release everywhere a slot's value is overwritten or the slot
+//!   itself goes out of scope, with no attempt to prove a copy was
+//!   unnecessary. (b) was chosen: CLAUDE.md's priority ordering ranks
+//!   correctness and simplicity ahead of memory/latency, nothing can execute
+//!   this IR yet to make (a)'s payoff measurable, and ADR 0004/0006/the
+//!   project's own architecture notes already commit to "a refcount per
+//!   value ... moved only when the refcount is 1" as a *codegen-time*
+//!   optimization for the isolate-boundary case specifically — generalizing
+//!   that to ordinary lowering here would be scope creep beyond what any ADR
+//!   asks for, not a mechanical extension of it. Concretely: a value that is
+//!   read out of an *existing* binding (`ExprKind::Variable`) and copied into
+//!   another durable slot (a local bind — [`lower::Lowering::bind_local`]) is
+//!   retained first; a freshly constructed value (so far, only a string
+//!   literal) needs no retain, since it already has exactly one natural
+//!   owner and this bind just gives that owner a name. A slot's *previous*
+//!   value is released whenever it's overwritten, and every slot still live
+//!   at a `return`/implicit-`void`-fallthrough is released too — except the
+//!   one slot whose value is the return expression itself when that
+//!   expression is a bare `$name` read, which transfers out instead (see
+//!   [`lower::Lowering::release_all_locals`]'s own doc comment for exactly
+//!   why excluding it there, rather than retaining it and releasing
+//!   everything unconditionally, keeps the count exactly balanced even under
+//!   aliasing). This stays exactly balanced only because today's expression
+//!   grammar gives a `string` value exactly two possible producers (a fresh
+//!   literal, or a bare-variable copy) — widening `lower_checked_ty` to let a
+//!   call argument, return value or property field produce or consume one
+//!   will need the same "is this a borrow of storage someone else still
+//!   owns" judgment extended to those sites (a call result and `new` are
+//!   already fresh-like `ExprKind` shapes; a property read is not, and needs
+//!   the same retain-on-copy treatment a bare variable read gets) — see the
+//!   known gaps below for exactly what's still out of scope.
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
@@ -139,12 +187,31 @@
 //!   no IR/codegen yet to throw from, so lowering panics naming it rather
 //!   than guessing a representation. A nullsafe access (`?->`) is equally
 //!   unsupported today, same as a nullsafe method call.
-//! - No `string`/`bytes`/`array<T>` representation, and therefore no refcount
-//!   operations at all — the milestone text's "refcount operations" have
-//!   nowhere to attach until a reference-counted *data* value exists in the
-//!   IR. [`ty::Ty::Object`] is a reference too, but nothing allocates or frees
-//!   the memory behind one yet — see that variant's own doc comment for
-//!   exactly what is and isn't modeled.
+//! - **`string` is a local/parameter/return-type representation only — not
+//!   yet a call-argument, resolved-return, or property-field one.**
+//!   [`lower::lower_decl_type`] (a type spelled directly in source) now maps
+//!   `TypeAtom::String` to [`ty::Ty::Str`], but [`lower::lower_checked_ty`] (a
+//!   *resolved* call's/`new`'s parameter or return type, or a resolved
+//!   property's field type) still panics naming `CheckedTy::String` — so a
+//!   call/`new` with a `string` argument, a call whose declared return type
+//!   is `string`, and a `string`-typed property read/write are all still
+//!   unsupported. Landing any of those needs the same aliasing judgment the
+//!   design-choices section above describes, extended to a property read
+//!   (which borrows the field's own reference, needing a retain on copy out,
+//!   same as a bare variable read) and to a call's argument/return boundary
+//!   (which needs the calling convention itself decided: does the caller
+//!   retain before passing and the callee release at its own exit, mirroring
+//!   what a local already does, or does ownership move some other way?). No
+//!   `bytes` or `array<T>` representation exists yet either — `bytes` is
+//!   expected to be a mechanical repeat of `Ty::Str`'s shape once it lands
+//!   (same refcounted-heap-value treatment, different content), while
+//!   `array<T>` needs its own element-layout decision first.
+//!   [`ty::Ty::Object`] is a reference too, but nothing allocates or frees
+//!   the memory behind one yet, and no retain/release is emitted for one —
+//!   see that variant's own doc comment for exactly what is and isn't
+//!   modeled; extending `Ty::is_refcounted` to include it is expected to
+//!   reuse the exact same `bind_local`/`release_all_locals` insertion points
+//!   this session added for `Ty::Str`, not new ones.
 //! - **No virtual dispatch** — [`ir::InstKind::Call`]'s `target` is always the
 //!   statically resolved declaring class from
 //!   `mwl_types::expr_table::ResolvedCall`, exactly as MWL's checker resolved
@@ -177,6 +244,20 @@
 //!   gap) — cooking now handles all four bases `mwl-syntax`'s lexer accepts
 //!   (decimal, `0x`, `0o`, `0b`), just not whether a literal overflows the
 //!   target width.
+//! - **String-literal cooking is escape-incomplete, and interpolation isn't
+//!   lowered at all.** `lower::cook_str_literal` handles the two escapes a
+//!   single-quoted literal actually has (`\\`, `\'`) and the common named
+//!   escapes in a double-quoted one (`\n`, `\t`, `\r`, `\\`, `\"`, `\$`,
+//!   `\0`); a numeric escape (`\xHH`, `\u{...}`, octal) passes through
+//!   literally rather than cooking to the byte/codepoint it names — see that
+//!   function's own doc comment. `ExprKind::Interpolated` (a double-quoted
+//!   string or heredoc with at least one interpolation site) and a
+//!   heredoc/nowdoc-sourced `ExprKind::Str` are both entirely unsupported —
+//!   lowering panics naming either. There is also no `.` string-concatenation
+//!   operator lowered yet: `ExprKind::Binary`'s arm only accepts the
+//!   arithmetic/equality/ordering operators `BinaryOp` already covers for a
+//!   scalar operand, so a `string . string` expression panics there rather
+//!   than reaching `Ty::Str` at all.
 
 pub mod ids;
 pub mod ir;

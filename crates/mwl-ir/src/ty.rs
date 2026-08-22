@@ -15,12 +15,16 @@
 //! # Known gaps
 //!
 //! Scoped to exactly what's lowered so far — see the crate's own module docs
-//! for the full list. Not modeled yet, deliberately: `string`/`bytes` (need a
-//! runtime representation and a refcounting decision first) and `array<T>`.
-//! [`Ty::Object`] is the one non-scalar representation that does exist,
-//! reserved rather than functional (see its own doc comment) — widening
-//! lowering further adds variants to this enum; it does not replace the
-//! "erase checker qualifiers" design itself.
+//! for the full list. [`Ty::Str`] is the first refcounted, heap-allocated
+//! representation to land (a `string`-typed local, parameter or return —
+//! see [`crate::lower`]'s module docs for the retain/release insertion
+//! policy that makes it safe). Not modeled yet, deliberately: `bytes` (an
+//! easy, mechanical follow-on to `Ty::Str` — same representation shape) and
+//! `array<T>` (needs its own element-layout decision first).
+//! [`Ty::Object`] is the one other non-scalar representation that exists,
+//! still reserved rather than functional (see its own doc comment) —
+//! widening lowering further adds variants to this enum; it does not replace
+//! the "erase checker qualifiers" design itself.
 
 /// One IR value's representation.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -50,4 +54,31 @@ pub enum Ty {
     /// modeled: `new` constructing one, and passing/returning one through a
     /// resolved call.
     Object,
+    /// A reference-counted, heap-allocated `string` — ADR 0009 (still
+    /// *Proposed*, not *Accepted*) has not settled that type's indexing
+    /// granularity, but nothing lowered so far needs indexing at all: only a
+    /// literal's *bytes*, which are granularity-independent. [`crate::lower`]
+    /// cooks a literal directly to [`crate::ir::InstKind::ConstStr`] and
+    /// inserts [`crate::ir::InstKind::Retain`]/[`crate::ir::InstKind::Release`]
+    /// around a local's declare/reassign/scope-exit lifecycle — see that
+    /// module's own docs for the exact policy and its known gaps. A
+    /// `string`-typed call argument, return value or property field is not
+    /// yet lowered: [`crate::lower::lower_checked_ty`] still panics naming
+    /// `string`, since retaining across a call/field boundary needs the same
+    /// aliasing question answered there too, deliberately deferred.
+    Str,
+}
+
+impl Ty {
+    /// Whether a value of this representation is a reference-counted heap
+    /// allocation that needs a matching retain/release around every point it
+    /// is copied into or dropped from a durable slot — see
+    /// [`crate::lower`]'s module docs for exactly what "durable slot" means
+    /// today. [`Self::Object`] is deliberately *not* included yet: nothing
+    /// allocates or frees the memory behind one so far (see that variant's
+    /// own doc comment), so there is nothing yet for a retain/release to do.
+    #[must_use]
+    pub fn is_refcounted(self) -> bool {
+        matches!(self, Ty::Str)
+    }
 }
