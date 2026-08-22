@@ -306,6 +306,30 @@ impl<'a> Lowering<'a> {
                     (v, expected),
                 );
             }
+            // ADR 0037: `var $x = expr;` — no declared type at all, so there
+            // is no `expected` to check `value` against. `lower_expr` already
+            // synthesizes a type from the expression alone whenever `expected`
+            // is `None` (a bare integer literal defaults to `Ty::Int`, etc.) —
+            // exactly the same rule `mwl_types::locals::check_stmt`'s own
+            // `None` arm applies (`check_expr(value, None, ...)` before fixing
+            // the binding to whatever came back), so this just reuses that
+            // path and binds the local to the type `lower_expr` returns
+            // instead of a type read off the AST. The parser/checker both
+            // guarantee `value` is present whenever `ty` is `None` — see
+            // `StmtKind::LocalDecl`'s own doc comment — and a bare
+            // array-literal initializer is already a checker error (ADR
+            // 0037's own refused shape), so it never reaches this arm.
+            StmtKind::LocalDecl {
+                ty: None,
+                name: local_name,
+                value: Some(value),
+            } => {
+                let (v, ty) = self.lower_expr(value, None, env, *cur);
+                env.insert(
+                    strip_sigil(span_text(self.src, *local_name)).to_owned(),
+                    (v, ty),
+                );
+            }
             StmtKind::Expr(e) => self.lower_reassignment(e, env, *cur),
             StmtKind::Return(value) => {
                 let v = value
@@ -659,14 +683,14 @@ impl<'a> Lowering<'a> {
             // expected type, `int` otherwise. Magnitude range-checking is a
             // known gap here, same as it already is there.
             ExprKind::Int(span) => {
-                let digits = clean_digits(self.src, *span);
+                let (radix, digits) = int_literal_digits(self.src, *span);
                 if expected == Some(Ty::Uint) {
-                    let n: u64 = digits.parse().unwrap_or_else(|_| {
+                    let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
                         panic!("mwl-ir: integer literal `{digits}` doesn't fit a `uint`")
                     });
                     self.emit(cur, Ty::Uint, InstKind::ConstUint(n))
                 } else {
-                    let n: i64 = digits.parse().unwrap_or_else(|_| {
+                    let n: i64 = i64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
                         panic!("mwl-ir: integer literal `{digits}` doesn't fit an `int`")
                     });
                     self.emit(cur, Ty::Int, InstKind::ConstInt(n))
@@ -960,6 +984,34 @@ impl<'a> Lowering<'a> {
 /// Reads a numeric-literal span's text with `_` digit separators stripped.
 fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
     span_text(src, span).chars().filter(|&c| c != '_').collect()
+}
+
+/// Splits a cooked integer-literal span into the radix its prefix names and
+/// the digit run to parse against it — `mwl_syntax::Lexer::lex_number` emits
+/// one `IntLiteral` token for all four forms (`0x…`/`0o…`/`0b…`, or a plain
+/// decimal run; a legacy leading-zero octal spelling like PHP's `0755` is
+/// deliberately *not* one of them, so `0755` lexes as decimal 755 with no
+/// prefix to strip), and this is the one place that distinction has to be
+/// undone before `str::from_str_radix` can parse the value. Full-magnitude
+/// range-checking stays a known gap here, same as it already is in
+/// `mwl_types::expr::infer`'s own doc comment for the decimal case — this
+/// only widens which *bases* get cooked, not how large a value either arm
+/// accepts.
+fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, String) {
+    let digits = clean_digits(src, span);
+    for (prefix, radix) in [
+        ("0x", 16),
+        ("0X", 16),
+        ("0o", 8),
+        ("0O", 8),
+        ("0b", 2),
+        ("0B", 2),
+    ] {
+        if let Some(rest) = digits.strip_prefix(prefix) {
+            return (radix, rest.to_owned());
+        }
+    }
+    (10, digits)
 }
 
 /// Lowers a *declared* type straight off the AST — every scalar atom, plus
@@ -1290,5 +1342,33 @@ mod tests {
         lower_first_method(
             "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
         );
+    }
+
+    /// `var $n = 1;` (ADR 0037) — no declared type at all, so the local's
+    /// type is whatever `lower_expr` synthesizes from the initializer alone,
+    /// exactly as `mwl_types::locals::check_stmt`'s own `var` arm fixes it.
+    /// A bare integer literal with no `expected` type defaults to `int`
+    /// (ADR 0007 § 4), so `$n` ends up `int` here even though nothing in the
+    /// source spells that out.
+    #[test]
+    fn a_var_local_infers_its_type_from_the_initializer() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): int {\n    var $n = 1;\n    return $n;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A hex/octal/binary integer literal cooks to the same value its
+    /// decimal spelling would — `mwl-syntax`'s lexer accepts all three
+    /// prefixed forms as one `IntLiteral` token (see
+    /// `crates/mwl-syntax/src/lexer.rs`'s `lex_number`), and until this
+    /// session `mwl-ir` only cooked a plain decimal run, so `0x1F` would have
+    /// panicked as "doesn't fit an `int`" rather than lowering to `31`.
+    #[test]
+    fn multi_base_integer_literals_cook_to_the_same_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): int {\n    int $hex = 0x1F;\n    int $oct = 0o17;\n    int $bin = 0b101;\n    return $hex + $oct + $bin;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 }

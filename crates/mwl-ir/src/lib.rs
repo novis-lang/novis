@@ -9,29 +9,35 @@
 //!
 //! # What this crate lowers so far
 //!
-//! One method whose body is typed local declarations, plain `$x = expr;`
-//! reassignment, `return`, nested `{}` blocks, `if`/`while`, `new`, a static
-//! method call (`self::method(...)`/`Class::method(...)`), an instance
-//! method call (`$obj->method(...)`, including `$this->…`), and a
-//! compile-time-known property access (`$obj->prop`, including
-//! `$this->prop`) — [`lower::lower_method`] is the entry point. No
-//! `for`/`switch`/`try`, no `break`/`continue`, no array access, no
-//! non-scalar-*data* types (`string`/`bytes`/`array<T>` — a class/enum value
-//! itself now has a representation, [`ty::Ty::Object`], just not a way to
-//! refcount one yet). The straight-line subset was deliberately the *first*
-//! slice landed (see git history and `docs/implementation-plan.md`'s M2
-//! paragraph) because it was the smallest shape exercising every structural
-//! IR piece with no merge point at all; `if`/`while` came next, and are where
-//! SSA's actual join/phi question gets answered — see [`lower`]'s own module
-//! docs for exactly how. `new`/a static call were the third slice, and the
-//! first to need more than the AST alone — see the next section for the
-//! dependency that unlocked them. An instance method call is the fourth
-//! slice, and the first to need a receiver represented as a real value — see
-//! the design-choices section below for the implicit-receiver-parameter shape
-//! that unlocked it. A property access is the fifth slice, and reuses that
-//! same receiver-as-a-value machinery, only for a field read instead of a
-//! call — see [`ir::InstKind::FieldGet`]'s own doc comment for the
-//! compile-time-known-field-only shape landed here.
+//! One method whose body is typed local declarations, a `var $x = expr;`
+//! inferred-type declaration (ADR 0037), plain `$x = expr;` reassignment,
+//! `return`, nested `{}` blocks, `if`/`while`, `new`, a static method call
+//! (`self::method(...)`/`Class::method(...)`), an instance method call
+//! (`$obj->method(...)`, including `$this->…`), and a compile-time-known
+//! property access (`$obj->prop`, including `$this->prop`) —
+//! [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
+//! `break`/`continue`, no array access, no non-scalar-*data* types
+//! (`string`/`bytes`/`array<T>` — a class/enum value itself now has a
+//! representation, [`ty::Ty::Object`], just not a way to refcount one yet).
+//! The straight-line subset was deliberately the *first* slice landed (see
+//! git history and `docs/implementation-plan.md`'s M2 paragraph) because it
+//! was the smallest shape exercising every structural IR piece with no merge
+//! point at all; `if`/`while` came next, and are where SSA's actual join/phi
+//! question gets answered — see [`lower`]'s own module docs for exactly how.
+//! `new`/a static call were the third slice, and the first to need more than
+//! the AST alone — see the next section for the dependency that unlocked
+//! them. An instance method call is the fourth slice, and the first to need
+//! a receiver represented as a real value — see the design-choices section
+//! below for the implicit-receiver-parameter shape that unlocked it. A
+//! property access is the fifth slice, and reuses that same
+//! receiver-as-a-value machinery, only for a field read instead of a call —
+//! see [`ir::InstKind::FieldGet`]'s own doc comment for the
+//! compile-time-known-field-only shape landed here. `var` locals and
+//! multi-base (`0x`/`0o`/`0b`) integer-literal cooking are the sixth slice,
+//! closing out two gaps this crate had been carrying since the straight-line
+//! slice — neither needed a new IR shape, only reusing `Lowering::lower_expr`'s
+//! existing `expected: None` inference path for `var`, and widening a new
+//! `int_literal_digits` helper's radix handling for the literal forms.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -166,12 +172,11 @@
 //!   slice's arithmetic lowers directly to [`ir::InstKind::BinOp`]/[`ir::InstKind::UnOp`],
 //!   with no helper-call fallback shape modeled yet (that only matters once
 //!   `mixed`/union operands exist in the IR).
-//! - `var` locals (ADR 0037) are unsupported — this slice only lowers a
-//!   [`mwl_syntax::ast::StmtKind::LocalDecl`] with an explicit `ty`.
-//! - Integer literal cooking supports plain decimal digits with `_`
-//!   separators only; hex/octal/binary literal bodies and magnitude
-//!   range-checking are not implemented (mirroring `mwl_types::expr`'s own
-//!   documented "not modeled this slice" gap for the same case).
+//! - Integer literal magnitude range-checking is still not implemented
+//!   (mirroring `mwl_types::expr`'s own documented "not modeled this slice"
+//!   gap) — cooking now handles all four bases `mwl-syntax`'s lexer accepts
+//!   (decimal, `0x`, `0o`, `0b`), just not whether a literal overflows the
+//!   target width.
 
 pub mod ids;
 pub mod ir;
