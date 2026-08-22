@@ -3514,9 +3514,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 stmt.span,
                 "use `[...]` instead — it is the only destructuring spelling MWL keeps",
             )
-            .with_help(
-                "the element grammar is identical: `list(int $a, string $b) = $pair;`                  becomes `[int $a, string $b] = $pair;`",
-            ),
+            .with_help("the element grammar is identical inside either bracket (ADR 0050)"),
         );
         Stmt {
             span: stmt.span,
