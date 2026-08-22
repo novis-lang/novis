@@ -5,40 +5,25 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session was ADR-only — no code changed.** The user asked how the compiled-code cache works for a
-long-running HTTP server versus a one-off CLI invocation, specifically whether a one-shot `mwl run` has to
-recompile every process start. Answer: no — the plan already committed to a content-addressed on-disk cache
-(BLAKE3) alongside the in-process cache [ADR 0017](docs/adr/0017-hot-reload-without-restart.md) covers, and
-M6 already named "integrity verification" and "refusal to use a world-writable cache directory" as
-requirements — but nothing had ever specified the file format, the read/write mechanics, or the eviction
-policy. That gap is now closed: **[ADR 0042](docs/adr/0042-on-disk-artifact-cache-format.md)** decides it.
-Headline: one immutable file per compiled unit, addressed by `BLAKE3(source ‖ target triple ‖ CPU features
-‖ compiler version hash)` — folding the environment into the *address* so a wrong-environment artifact is a
-plain miss, never an open-then-reject. A reader `mmap`s read-only, hashes the mapped bytes, and only then
-`mprotect`s to executable (W^X, extended one step earlier). A writer compiles to a temp file, `fsync`s it,
-and does one atomic rename — no lock file anywhere. Eviction rides the already-expensive cold-compile path
-at a small probability (PHP's own `session.gc_probability`/`gc_divisor` shape), so a warm hit never pays for
-it. One point stated explicitly rather than left implied: the payload checksum defends against corruption,
-never against a hostile co-resident writer — that threat is closed only by the world-writable/wrong-owner
-directory refusal, a permission check, not a hash. `docs/adr/README.md`, `CLAUDE.md`'s "Where to look" table
-and ground-rules list, and `docs/implementation-plan.md`'s Code-cache row and M6 paragraph were all updated
-to point at it, per the ADR-README's own "touch exactly these" checklist.
+**Last session closed gap item 8 in full.** Heredoc/nowdoc-sourced string literals now cook and lower —
+PHP 7.3's "flexible heredoc" indentation-stripping rule is implemented in
+`mwl_types::string_lit::heredoc_shape`/`dedent_heredoc_run` (extracts the closing marker's own
+indentation straight from the literal's whole span — no parser/AST change needed, since the marker's line
+is always the text after that span's last newline — then strips it from every body line, per-run for an
+interpolated heredoc so a line starting right after an interpolation site is still recognized as a fresh
+line). A nowdoc applies no escapes at all afterward, matching PHP; a heredoc runs the same escape grammar
+a double-quoted literal does, via a new `cook_double_quoted_text_str` (owned-`&str` sibling of
+`cook_double_quoted_text`, needed since dedenting breaks the byte-for-byte span correspondence the
+precise-span cooker relies on). Two new diagnostics, `E_HEREDOC_MIXED_INDENT` and
+`E_HEREDOC_INSUFFICIENT_INDENT`, cover a malformed marker/body line; checker and `mwl-ir` share the same
+`string_lit` routines so they can never disagree on what a literal cooks to. Built, tested (new unit tests
+in `mwl_types::string_lit`, new checker fixtures in `mwl_types::check`, new `mwl-ir` snapshot tests),
+clippy- and fmt-clean, committed. One named, documented limitation left in place deliberately (not a
+panic, not a bug): a body line whose only content is an interpolation expression (no leading text) isn't
+checked against the marker's required indentation, since its leading-whitespace run is empty either way —
+strict PHP would flag this as insufficiently indented in that one shape, this compiler doesn't yet.
 
-**Separately, uncommitted M2 work from before this session was found sitting in the working tree and got
-folded into the same commit** (built, tested, clippy- and fmt-clean before committing): gap item 8,
-string-literal cooking completeness, is now **done for every double-quoted-sourced case** — a numeric
-escape (`\xHH` hex, `\NNN` octal, `\u{...}` Unicode) cooks to the byte/codepoint it names, and a
-non-heredoc `ExprKind::Interpolated` lowers to the same `InstKind::Concat` chain a written-out `.`
-expression already produces, sharing one escape-cooking routine (`mwl_types::string_lit::cook_double_quoted_text`,
-a new `mwl-types` module) between the checker and `mwl-ir` so the two can never silently disagree on what
-an escape means. `mwl-ir`'s own known-gaps doc (crate-level, in `lib.rs`) was updated in place to reflect
-this — read it there for the details, per CLAUDE.md's "per-file known-gap detail belongs in the crate's own
-module docs, not the plan." **Still open, still panicking naming the case:** a heredoc/nowdoc-sourced
-`ExprKind::Str`/`ExprKind::Interpolated` — no flexible-heredoc indentation-stripping story exists yet. The
-rest of the M2 gap list below is unchanged from before — pick up from here:
-
-**Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
-order** (each is its own reasonably-sized slice; don't try all of them in one session):
+**With that, `mwl-ir`'s known-gap list (its own module docs in `lib.rs`) is down to:**
 
 1. ~~Control flow (`if`/`while`).~~ **Done.**
 2. ~~Safepoints.~~ **Done** (reserved shape only). Revisit once M3's codegen exists.
@@ -57,18 +42,17 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
      case (mirrors `ExprInfo::Property`'s shape/`object`-erasure gap), so lowering panics naming it — but
      this is currently *unreachable* without first hitting the unrelated, already-documented "no
      `Ty::Mixed` representation" gap (item 5 below), since `mixed` isn't a lowerable declared type or
-     resolved-call return type in this crate yet either. No dedicated fixture for it this session for that
-     reason; add one once `Ty::Mixed` lands if it's still worth a dedicated proof at that point.
+     resolved-call return type in this crate yet either.
 4. **Non-scalar *data* values and refcount operations — `string`/`bytes`/`array<T>` locals, the
    call/return/property-read-and-write boundary, `.` concatenation, and array-element read/write are all
    landed; two pieces remain, both mechanical:**
-   - **An explicit `key =>`, a `...spread`, or a `&value` array-literal element.** Unchanged from before:
-     `mwl_types::expr::check_array_literal` itself has no key-normalization/rejection logic yet (ADR 0007
-     § 5's int/uint-to-decimal-string normalization, float/bool/null rejection), so lowering an explicit
-     key would mean guessing at a runtime conversion this crate can't yet synthesize. Landing this probably
-     wants a checker-side fix first (`mwl-types`), not just an `mwl-ir` change — and, now that
-     `lower_array_key`'s int/uint-to-string conversion exists, is likely to reuse it once the checker side
-     is ready.
+   - **An explicit `key =>`, a `...spread`, or a `&value` array-literal element.** `mwl_types::expr::check_array_literal`
+     itself has no key-normalization/rejection logic yet (ADR 0007 § 5's int/uint-to-decimal-string
+     normalization, float/bool/null rejection), so lowering an explicit key would mean guessing at a
+     runtime conversion this crate can't yet synthesize. Landing this probably wants a checker-side fix
+     first (`mwl-types`), not just an `mwl-ir` change — and, now that `lower_array_key`'s int/uint-to-string
+     conversion exists, is likely to reuse it once the checker side is ready. **This is next session's best
+     pick if you want a well-scoped item excluding the deferred item 6.**
    - **`Ty::Object` refcounting.** Still zero retain/release operations for an object reference — the
      `bind_local`/`lower_call_args`/`release_all_locals`/`lower_expr_stmt`/`lower_reassignment` insertion
      points already extended for `Ty::Str`/`Ty::Bytes`/`Ty::Array` are expected to extend to it directly
@@ -80,7 +64,7 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
      string/bytes variants (`TaintedString`/`SecretString`/`SecretTaintedString` and their `Bytes`
      counterparts) still panic. These likely want to wait for ADR 0024 §4/0033's stdlib-dependent sinks
      anyway (M7/M8), since a qualifier with nothing to launder against isn't very actionable yet.
-5. **Runtime-helper calls are landed** (`ir::InstKind::HelperCall`/`ir::Helper`), now used for both `.`'s
+5. **Runtime-helper calls are landed** (`ir::InstKind::HelperCall`/`ir::Helper`), now used for `.`'s
    scalar-to-`string` conversion and an `int`/`uint` array-subscript's key normalization. Two more named
    uses remain, both blocked on something other than the `HelperCall` shape itself now:
    - **A `mixed`/union operand** — needs a `Ty::Mixed`-shaped IR representation first; none exists yet, so
@@ -105,12 +89,20 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
    its *runtime* class — none has gone through an interface-typed or overridden-method/property receiver
    yet, which is the first place the two could actually differ. Whether a real vtable/interface-dispatch
    lookup belongs at this IR level (as opposed to purely at codegen, once M3 exists) is an open,
-   architectural question — flag it rather than guessing if you reach it before M3 starts.
+   architectural question — **skip this one** (per standing user direction, deferred until M3 starts)
+   unless it turns out to be the only item left, in which case stop and report that instead of attempting
+   it.
 7. ~~`var` locals (ADR 0037), multi-base integer-literal cooking (hex/octal/binary), and integer-literal
    magnitude range-checking.~~ **Done**, all three.
-8. ~~String-literal cooking completeness (numeric escapes, non-heredoc interpolation).~~ **Done**, this
-   session. **Remaining, and independent:** a heredoc/nowdoc-sourced `ExprKind::Str`/`ExprKind::Interpolated`
-   — needs PHP's flexible-heredoc indentation-stripping rule designed first, not just wired up.
+8. ~~String-literal cooking completeness (numeric escapes, non-heredoc interpolation, heredoc/nowdoc
+   flexible-indentation stripping).~~ **Done**, fully, as of last session.
+
+**Recommended pick for next session:** item 4's array-literal explicit `key =>`/`...spread`/`&value` gap
+— it needs a small `mwl_types::expr::check_array_literal` checker-side fix (key normalization/rejection
+per ADR 0007 § 5) before the `mwl-ir` lowering side, which can then reuse `lower_array_key`'s existing
+int/uint-to-string helper. `Ty::Object` refcounting is the other mechanical option, but check first
+whether an allocation/field-layout story exists yet to attach retain/release to — if not, that one isn't
+ready regardless of how mechanical the refcount insertion points themselves are.
 
 Once control flow, calls, and property/array access all lower, M2's own *Verify* bullet ("IR snapshot
 tests; no program in the corpus produces an `Unknown` type") is worth revisiting for a real corpus-driven
