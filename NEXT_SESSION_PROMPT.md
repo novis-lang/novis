@@ -5,98 +5,142 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session landed a positional `array<T>` literal — the design tradeoff the plan had flagged as the
-one remaining piece needing a real decision, and it resolved to "no decision needed" once the actual
-question was pinned down.** A prior session's research (reproduced in that session's own prompt, and now
-folded into `crates/mwl-ir/src/ty.rs`'s module doc) established that ADR 0007 fixes *observable* array
-semantics (insertion-ordered, copy-on-write, every key a `string`) but never mandates hashmap-vs-contiguous
-backing storage — that's a `mwl-codegen`/runtime question, not an IR-representation one. So the actual
-question this session answered was narrower: does `mwl-ir`'s own `Ty` need to carry an array's *element*
-type at all? No — exactly like `Ty::Object` erases a class/enum's identity because no lowering decision
-branches on *which* class it is, no lowering decision branches on an array's element type either (the
-checker's own `mwl_types::ty::Ty::Array(TypeId)` already enforces element-type correctness at check time).
-So `Ty::Array` landed as a bare, opaque unit variant — same shape as `Ty::Object`, zero new fields, zero new
-dependencies.
+**Last session landed array-element access (`$arr[$i]`, both read and write) — the item the plan had
+flagged as needing a real design decision about missing-key behavior, and it resolved to "no decision
+needed this slice" once the actual question was pinned down.** The guidance going in suspected
+`mwl_types` has no compile-time "is this key present" concept at all, only an element-type resolution —
+that turned out to be exactly right: `mwl_types::expr::check_expr`'s `ExprKind::Index` arm resolves the
+same element type regardless of whether a given key exists at runtime, mirroring
+`check_property_access`'s shape/`object`-erasure case (which also answers "what type" without ever
+asking "does this exist"). So the missing-key runtime behavior (PHP's own warning-and-`null` read,
+autovivification on write) was never actually in scope to weigh a design against — it's deferred
+wholesale, the same way every other checked-throw already is in this crate (no `try`/`throw` lowering
+exists at all yet). What *was* an actual design point, and got a real (if small) decision: `InstKind::
+ArraySet` does **not** mirror `InstKind::FieldSet`'s "read the old value back with a `FieldGet`, then
+release it" shape. A class field always exists once its instance is definitely initialized (ADR 0022), so
+`FieldSet` can safely assume there's an old value to read and release. An array key may or may not already
+be present — an *ordinary* `$arr[$newKey] = v;` insert is completely normal, not an edge case — so a
+conditional get here would mean modeling the exact "does this key exist" question this slice just
+deferred. `ArraySet` instead bundles the whole replace-or-insert into one instruction, leaving "release
+whatever was there, if anything" as an implementation detail of `mwl-codegen`'s own future array-mutation
+primitive, the same "no codegen exists yet to make this split observable" reasoning `InstKind::New`
+already uses for allocation-plus-constructor.
 
 **What landed, concretely:**
 
-- `Ty::Array` (`crates/mwl-ir/src/ty.rs`) — a third refcounted, heap-allocated representation alongside
-  `Ty::Str`/`Ty::Bytes`. `Ty::is_refcounted` now matches `Ty::Str | Ty::Bytes | Ty::Array`.
-- `ir::InstKind::ArrayNew { entries: Vec<(String, ValueId)> }` (`crates/mwl-ir/src/ir.rs`) — builds a fresh
-  array from a fixed list of already-lowered `(key, value)` pairs. Each `key` is a **decimal string computed
-  at lowering time**, not a lowered expression: this slice only lowers a *positional* literal (no explicit
-  `key =>`), so an element's key is simply its index, auto-numbered from `0` exactly like PHP's own
-  `[$a, $b]` shorthand — no runtime index-tracking instruction needed.
-- `lower::lower_decl_type` gained a `TypeAtom::Array(_) => Ty::Array` arm (the type argument is discarded,
-  same erasure `TypeAtom::Name(_) => Ty::Object` already does).
-- `lower::lower_checked_ty` gained a `CheckedTy::Array(_) => Ty::Array` arm — this is what made the
-  call-argument/return/property-read-and-write boundary work **with no new insertion point at all**, the
-  same way `bytes` needed none: every retain/release site (`bind_local`, `lower_call_args`,
-  `release_all_locals`, `lower_reassignment`'s property-target arm) already keys off
-  `Ty::is_refcounted`/`is_aliasing_read` rather than naming `Ty::Str` by name.
-- `lower::Lowering::lower_expr` gained an `ExprKind::ArrayLiteral` arm: lowers each positional element
-  (panicking naming the gap for an explicit `key =>`, a `...spread`, or a `&value` element), retaining any
-  element that's itself `Ty::is_refcounted` and `is_aliasing_read` — the exact same caller-side retain
-  `lower_call_args` already gives a refcounted, aliasing call argument, reused verbatim rather than a new
-  policy. The array literal's own result needs no retain (a fresh producer, same as `new`/a call's result).
-- `print::ty_name` gained a `Ty::Array => "array"` arm, and `print_inst` gained an `InstKind::ArrayNew` arm
-  (renders as `array.new ["0": v1, "1": v2, ...]`).
-- `concat_operand`'s inner helper-dispatch `unreachable!` arm (matched exhaustively within this crate,
-  `#[non_exhaustive]` only restricts other crates) had to add `Ty::Array` alongside `Ty::Str`/`Ty::Bytes`/
-  `Ty::Void`/`Ty::Object`.
+- `mwl_types::expr_table::ExprInfo::Index { elem_ty: TypeId }` (`crates/mwl-types/src/expr_table.rs`) — a
+  new entry, the same shape as `ExprInfo::Property` minus a declaring class (an array has no class
+  identity to name). Recorded by `crates/mwl-types/src/expr.rs`'s `ExprKind::Index` arm exactly when the
+  base statically resolved to a known `Ty::Array(elem)`, left unrecorded when it erased to `mixed` — the
+  same split `check_property_access` already draws for a shape/plain-`object` receiver. Recorded for a
+  read and a write alike: `check_assign`'s general (non-plain-local) arm routes an assignment target back
+  through the same `check_expr`/`Index` path a read takes, so both are keyed by the `Index` expression's
+  own span.
+- `ir::InstKind::ArrayGet { array: ValueId, key: ValueId }` (`crates/mwl-ir/src/ir.rs`) — reads `array` at
+  `key` (already `Ty::Str`). Reads `array` without retaining it, same as `FieldGet` reads its `object`.
+  Models only the happy path — no missing-key behavior at all, per the design note above.
+- `ir::InstKind::ArraySet { array: ValueId, key: ValueId, value: ValueId }` — writes `value` at `key` into
+  `array`, bundling replace-or-insert into one instruction rather than `FieldSet`'s get/release pair (see
+  above for why). Defines no value.
+- `lower::Lowering::lower_array_key` (`crates/mwl-ir/src/lower.rs`) — lowers an `Index`'s subscript and
+  normalizes it to a `Ty::Str` key: ADR 0007 § 5's "every key is a `string`" rule, with an `int`/`uint`
+  subscript converted to its decimal-string form via the **existing** `Helper::IntToString`/
+  `Helper::UintToString` (no new `Helper` variant needed — the exact conversion `concat_operand` already
+  had for `.`'s scalar operand, reused verbatim). Returns `(ValueId, bool)` mirroring `concat_operand`'s
+  shape: the bool says whether the key value is itself an aliasing read of a durable slot (a plain `Ty::Str`
+  local/property/array read passed through unchanged) versus a fresh, single-owner buffer (a converted
+  `int`/`uint`, or any other fresh producer) — this drives the retain-on-write / release-after-read policy
+  below. A `float`/`bool`/`null` subscript — the three source types ADR 0007 § 5 itself rejects as a key,
+  which `mwl_types` doesn't yet enforce either (the same known gap `InstKind::ArrayNew`'s own doc comment
+  already names for an array literal's explicit `key =>`) — panics naming the case.
+- `lower::Lowering::lower_expr`'s new `ExprKind::Index` read arm: looks up `ExprInfo::Index` (panicking,
+  naming the `mixed`-erasure/missing-table case, if absent), lowers the base and the key, emits
+  `ArrayGet`, and releases the key right after when `lower_array_key` reported it's *not* an aliasing read
+  (nothing else will ever release a freshly converted key) — the same "release a fresh value once its one
+  and only use is done" policy `Concat`'s caller already applies. `base[]` (`index` is `None`, PHP's append
+  syntax) panics — it is legal to *parse* in a read position (the parser's postfix-index loop doesn't
+  restrict an empty subscript to assignment targets, and `mwl_types::expr::check_expr` doesn't reject it
+  as a read either), so this needed its own explicit panic rather than being unreachable.
+- `lower::Lowering::lower_reassignment`'s new `ExprKind::Index` target arm: looks up `ExprInfo::Index` at
+  `target.span`, lowers the base and the key (retaining the key first if `lower_array_key` reported it's
+  an aliasing read — the array now durably owns a second reference), lowers the value (retaining it too
+  when refcounted and an aliasing read, the ordinary `bind_local`-style judgment), and emits `ArraySet` —
+  no old-value get/release pair, per the design note above. `base[] = expr;` panics naming the gap (needs
+  a "next available integer key" counter this crate has no representation for yet).
+- `lower::is_aliasing_read` gained `ExprKind::Index` alongside `ExprKind::Variable`/`ExprKind::PropertyAccess`
+  — an array-element read borrows the same "storage some other binding still owns" reference a property
+  read does (ADR 0007 § 5's copy-on-write value semantics), so `bind_local`/`lower_call_args`/
+  `StmtKind::Return`'s existing retain call sites picked this up with **no new insertion point at all** —
+  the same "extend the judgment, not the call sites" pattern the `bytes`/`array<T>` slices already
+  established.
+- `print::print_inst` gained `InstKind::ArrayGet`/`InstKind::ArraySet` rendering (`array.get v1, v2` /
+  `array.set v1, v2, v3`).
 
-**Nine new snapshot tests** in `crates/mwl-ir/src/lower.rs`'s `tests` module, all passing and reviewed by
-hand against the retain/release bookkeeping they're meant to prove correct:
+**Eight new tests.** Two in `crates/mwl-types/src/expr_table.rs`'s `tests` module
+(`an_array_index_through_a_known_element_type_records_the_element_type`,
+`an_array_index_through_a_mixed_base_records_nothing`) proving `ExprInfo::Index` is recorded/not-recorded
+exactly when expected — `mwl-types` is now at 164 tests. Six new snapshot tests in
+`crates/mwl-ir/src/lower.rs`'s `tests` module, reviewed by hand against the retain/release bookkeeping
+they're meant to prove correct — `mwl-ir` is now at 62 tests:
 
-- `an_empty_array_literal_lowers_with_no_entries` — `[]` returned directly, no retain (fresh producer,
-  `is_aliasing_read` is `false` for `ArrayLiteral`), no release (transfers out).
-- `a_literal_with_fresh_scalar_elements_needs_no_retain` — `[1, 2, 3]`, none of the elements refcounted, so
-  only the array's own slot gets released at the exit sweep.
-- `a_literal_with_an_aliasing_element_retains_it` — `[$s]` where `$s` is a `string` local: retains `$s`'s
-  value before `array.new`, then releases both the array and `$s`'s own slot at exit (name-sorted order) —
-  one retain, two releases, correctly balanced (the array's own release is expected to cascade to its
-  stored elements once a runtime exists; that's the array's own drop responsibility, not something this
-  lowering needs to spell out per element, same as `InstKind::Release`'s doc comment already frames generically).
-- `an_explicit_keyed_array_element_is_still_out_of_scope` / `a_spread_array_element_is_still_out_of_scope`
-  — both `should_panic(expected = "known gap")`.
-- `passing_an_array_local_as_a_call_argument_retains_it`, `binding_an_array_property_read_to_a_local_retains_it`,
-  `writing_an_array_local_to_a_property_retains_it_before_releasing_the_old_value` — mirror the `string`/
-  `bytes` call-argument and property read/write tests exactly, proving the "no new insertion point" claim
-  above rather than just asserting it. The property tests use the same "no literal default, so the
-  constructor takes an `array` parameter and assigns it" pattern `bytes`'s property tests already
-  established, since a property initializer has no `array` literal-default precedent in this crate either.
+- `reading_an_int_element_through_a_literal_key_normalizes_it_to_a_string` — `$a[0]` through an
+  `array<int>` parameter: the literal key converts via `Helper::IntToString` and is released right after
+  the `ArrayGet` reads it (fresh, non-aliasing); the `int` result needs no retain (not refcounted).
+- `reading_a_string_element_through_a_string_local_key_retains_the_result` — `$a[$k]` through
+  `array<string>`/`string` parameters: the key is a bare local read, so it's *not* released after the get
+  (its own slot still owns it); binding the `string` result to `var $s` retains it (a new aliasing-read
+  shape via `is_aliasing_read`'s `Index` arm).
+- `reading_base_append_syntax_is_still_out_of_scope` / `writing_base_append_syntax_is_still_out_of_scope`
+  / `a_bool_subscript_key_is_still_out_of_scope` — three `should_panic(expected = "known gaps")` tests for
+  the three deliberately-out-of-scope shapes named above.
+- `writing_an_int_element_through_a_literal_key_normalizes_it_to_a_string` — `$a[0] = 5;`: no retain of
+  either the converted key or the fresh `int` value, just `ArraySet` and the array's own exit release.
+- `writing_a_string_element_through_a_string_local_key_retains_both_key_and_value` — `$a[$k] = $v;` where
+  both are `string` locals: both get retained before `ArraySet` (the array now durably owns a second
+  reference to each), and all three locals (`$a`/`$k`/`$v`) still get their ordinary exit-sweep release.
 
-`mwl-ir` is now at 55 tests (`mwl-types` unchanged at 162). `cargo build`/`test`/`clippy --all-targets -- -D
-warnings`/`fmt --check` all clean across the whole workspace. `crates/mwl-ir/src/lib.rs`'s module docs (the
-"what this crate lowers so far" list, the known-gaps section) and `ty.rs`/`ir.rs`'s own doc comments were
-updated in place (not appended) to describe the slice; `docs/implementation-plan.md`'s M2 paragraph was
-updated the same way — note that section was *already* over `.claude/brief.py`'s 4000-byte budget before
-this session (it truncates and says so); it grew slightly more this session since the edit was
-additive-in-place rather than a trim. Not fixed here — `DOC_CLEANUP_PROMPT.md`'s trim pass is the
-user-run remedy for that, unrelated to this session's own scope.
+`cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole
+workspace. `crates/mwl-ir/src/lib.rs`'s module docs (the "what this crate lowers so far" list, the
+design-choices section, the known-gaps section), `crates/mwl-ir/src/ty.rs`'s `Ty::Array` doc comment, and
+`crates/mwl-ir/src/ir.rs`'s `InstKind`/`Helper` doc comments were all updated in place (not appended) to
+describe the slice; `docs/implementation-plan.md`'s M2 paragraph was updated the same way — note that
+section was *already* over `.claude/brief.py`'s 4000-byte budget before this session (it truncates and
+says so); it grew slightly more this session since the edit was additive-in-place rather than a trim. Not
+fixed here — `DOC_CLEANUP_PROMPT.md`'s trim pass is the user-run remedy for that, unrelated to this
+session's own scope.
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
 
 1. ~~Control flow (`if`/`while`).~~ **Done.**
 2. ~~Safepoints.~~ **Done** (reserved shape only). Revisit once M3's codegen exists.
-3. ~~`new`/a static call, an instance method call, and a compile-time-known property access (including the
-   shape/`object`-erasure panic case).~~ **Done.** One shape remains:
-   - **Array access (`$arr[$i]`, read or write)** is still unsupported; lowering panics naming the
-     expression. Now that `Ty::Array`/`InstKind::ArrayNew` exist, this is the natural next pickup — it
-     needs its own new `InstKind` (an indexed read/write) and a real design question: what happens on a
-     missing key (PHP throws a warning-and-null on read, autovivifies on write) and whether that's
-     modeled at this IR level at all yet, or deferred like other throwing operations are (no `try`/`throw`
-     lowering exists yet — see item 5's `try`/`throw` note).
+3. ~~`new`/a static call, an instance method call, a compile-time-known property access, and array-element
+   access through a known `int`/`uint`/`string` key.~~ **Done.** What's left of this shape:
+   - **`$a[]`/`$a[] = expr;` (PHP's append syntax).** Needs a "next available integer key" counter this
+     crate has no representation for yet — genuinely more than mechanical, since it means tracking (or
+     re-deriving) an array's own highest-inserted-integer-key state at lowering time, not just reading one
+     back.
+   - **A `float`/`bool`/`null` array-subscript key.** `ADR 0007 § 5` rejects these outright as a key
+     source type, but `mwl_types::expr::check_expr`'s `Index` arm doesn't enforce that yet — `mwl-ir`
+     panics naming the case in `lower_array_key` rather than guessing at a conversion PHP itself doesn't
+     define. Fixing this properly means a `mwl_types` checker-side diagnostic first (same shape as item 4's
+     array-literal explicit-key gap below), not an `mwl-ir` change.
+   - **Array-element access through a `mixed`-erased base.** No `ExprInfo::Index` entry exists for that
+     case (mirrors `ExprInfo::Property`'s shape/`object`-erasure gap), so lowering panics naming it — but
+     this is currently *unreachable* without first hitting the unrelated, already-documented "no
+     `Ty::Mixed` representation" gap (item 5 below), since `mixed` isn't a lowerable declared type or
+     resolved-call return type in this crate yet either. No dedicated fixture for it this session for that
+     reason; add one once `Ty::Mixed` lands if it's still worth a dedicated proof at that point.
 4. **Non-scalar *data* values and refcount operations — `string`/`bytes`/`array<T>` locals, the
-   call/return/property-read-and-write boundary, and `.` concatenation (including a scalar operand, via a
-   helper call) are all landed; two pieces remain, both mechanical:**
-   - **An explicit `key =>`, a `...spread`, or a `&value` array-literal element.** `InstKind::ArrayNew`'s
-     own doc comment explains why this session scoped them out: `mwl_types::expr::check_array_literal`
-     itself has no key-normalization/rejection logic yet (ADR 0007 § 5's int/uint-to-decimal-string
-     normalization, float/bool/null rejection), so lowering an explicit key would mean guessing at a
-     runtime conversion this crate can't yet synthesize. Landing this probably wants a checker-side fix
-     first (`mwl-types`), not just an `mwl-ir` change.
+   call/return/property-read-and-write boundary, `.` concatenation, and now array-element read/write are
+   all landed; two pieces remain, both mechanical:**
+   - **An explicit `key =>`, a `...spread`, or a `&value` array-literal element.** Unchanged from before:
+     `mwl_types::expr::check_array_literal` itself has no key-normalization/rejection logic yet (ADR 0007
+     § 5's int/uint-to-decimal-string normalization, float/bool/null rejection), so lowering an explicit
+     key would mean guessing at a runtime conversion this crate can't yet synthesize. Landing this probably
+     wants a checker-side fix first (`mwl-types`), not just an `mwl-ir` change — and, now that
+     `lower_array_key`'s int/uint-to-string conversion exists, is likely to reuse it once the checker side
+     is ready.
    - **`Ty::Object` refcounting.** Still zero retain/release operations for an object reference — the
      `bind_local`/`lower_call_args`/`release_all_locals`/`lower_expr_stmt`/`lower_reassignment` insertion
      points already extended for `Ty::Str`/`Ty::Bytes`/`Ty::Array` are expected to extend to it directly
@@ -108,17 +152,18 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
      string/bytes variants (`TaintedString`/`SecretString`/`SecretTaintedString` and their `Bytes`
      counterparts) still panic. These likely want to wait for ADR 0024 §4/0033's stdlib-dependent sinks
      anyway (M7/M8), since a qualifier with nothing to launder against isn't very actionable yet.
-5. **Runtime-helper calls are landed** (`ir::InstKind::HelperCall`/`ir::Helper`), but only for `.`'s
-   scalar-to-`string` conversion. Two more named uses remain, both blocked on something other than the
-   `HelperCall` shape itself now:
+5. **Runtime-helper calls are landed** (`ir::InstKind::HelperCall`/`ir::Helper`), now used for both `.`'s
+   scalar-to-`string` conversion and an `int`/`uint` array-subscript's key normalization. Two more named
+   uses remain, both blocked on something other than the `HelperCall` shape itself now:
    - **A `mixed`/union operand** — needs a `Ty::Mixed`-shaped IR representation first; none exists yet, so
      there's nothing for a helper to dispatch on. Adding one is its own small design question (how a
-     `mixed` value's runtime type tag is represented) before any helper call can use it.
+     `mixed` value's runtime type tag is represented) before any helper call can use it. (This is also
+     what item 3's "mixed-erased array base" gap above is blocked on.)
    - **ADR 0035's truthy conversion** for a non-`bool` `if`/`while` condition — PHP's truthy table differs
-     by source type (`0`/`0.0`/`""`/`"0"`/an empty array/`null` are falsy, everything else truthy). Now
-     that `Ty::Array` exists, the array-emptiness case has a representation to convert *from* — but a
-     nullable-type representation still doesn't, so the `null` case still waits. A scalar-plus-array-only
-     truthy helper could land now as a partial slice if a fixture wants it.
+     by source type (`0`/`0.0`/`""`/`"0"`/an empty array/`null` are falsy, everything else truthy). Both
+     `Ty::Array` and array-element access exist now, giving the array-emptiness case a representation to
+     convert *from* — but a nullable-type representation still doesn't, so the `null` case still waits. A
+     scalar-plus-array-only truthy helper could land now as a partial slice if a fixture wants it.
    - Both are expected to add new `Helper` variants to the same enum, not a second call-shaped instruction.
    - The one remaining `.`-concatenation gap — a `Stringable`-object operand — is *not* primarily a
      `HelperCall` gap any more: it needs `.` to synthesize a resolved `toString()` call, which needs either
@@ -127,11 +172,11 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
      design-choices writeup in `mwl-ir`'s module docs before picking this up — it's a small but genuine
      decision, not a mechanical extension.
 6. **Virtual dispatch** — every call/access lowered so far (`new`'s constructor, a static call, an
-   instance call, a property access) has its receiver's *static* type equal to its *runtime* class — none
-   has gone through an interface-typed or overridden-method/property receiver yet, which is the first
-   place the two could actually differ. Whether a real vtable/interface-dispatch lookup belongs at this IR
-   level (as opposed to purely at codegen, once M3 exists) is an open question for whichever session first
-   hits that shape.
+   instance call, a property access, an array-element access) has its receiver's *static* type equal to
+   its *runtime* class — none has gone through an interface-typed or overridden-method/property receiver
+   yet, which is the first place the two could actually differ. Whether a real vtable/interface-dispatch
+   lookup belongs at this IR level (as opposed to purely at codegen, once M3 exists) is an open question
+   for whichever session first hits that shape.
 7. ~~`var` locals (ADR 0037) and multi-base integer-literal cooking (hex/octal/binary).~~ **Done.** Full
    integer-literal *magnitude* range-checking (negative-into-`uint`, too-large-for-either) is still not
    modeled, mirroring `mwl_types::expr::infer`'s own documented gap for the same case — small and
