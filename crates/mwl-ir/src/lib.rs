@@ -511,19 +511,23 @@
 //!   int` reports the identical diagnostic) — left as a real, if narrow,
 //!   MWL/PHP divergence for whoever picks up `Core`'s integer-limit constants
 //!   to note.
-//! - **String-literal cooking is escape-incomplete, and interpolation isn't
-//!   lowered at all.** `lower::cook_str_literal` handles the two escapes a
-//!   single-quoted literal actually has (`\\`, `\'`) and the common named
-//!   escapes in a double-quoted one (`\n`, `\t`, `\r`, `\\`, `\"`, `\$`,
-//!   `\0`); a numeric escape (`\xHH`, `\u{...}`, octal) passes through
-//!   literally rather than cooking to the byte/codepoint it names — see that
-//!   function's own doc comment. `ExprKind::Interpolated` (a double-quoted
-//!   string or heredoc with at least one interpolation site) and a
-//!   heredoc/nowdoc-sourced `ExprKind::Str` are both entirely unsupported —
-//!   lowering panics naming either. Interpolation is expected to desugar to
-//!   the same [`ir::InstKind::Concat`] chain a written-out `.` expression
-//!   already lowers to, so landing it alongside this cooking-completeness
-//!   work is a natural pairing, not a separate mechanism.
+//! - ~~String-literal cooking is escape-incomplete, and interpolation isn't
+//!   lowered at all.~~ **Done for every double-quoted-sourced case.** A
+//!   numeric escape (`\xHH` hex, `\NNN` octal, `\u{...}` Unicode) now cooks to
+//!   the byte/codepoint it names, and a non-heredoc `ExprKind::Interpolated`
+//!   lowers to the same [`ir::InstKind::Concat`] chain a written-out `.`
+//!   expression already produces — see `lower::Lowering::lower_interpolated_parts`'s
+//!   own doc comment for the one refcount subtlety a single-part `"$x"` (no
+//!   surrounding literal text, so no `Concat` ever runs) forces into the
+//!   open. Both share `mwl_types::string_lit::cook_double_quoted_text`'s
+//!   escape grammar with the checker, which is what lets `mwl_types::expr::infer`'s
+//!   own `ExprKind::Str`/`ExprKind::Interpolated` arms diagnose exactly the
+//!   cooking this crate performs, rather than the two crates disagreeing on
+//!   what a given escape means. **Still unsupported, and still a panic naming
+//!   the case:** a heredoc/nowdoc-sourced `ExprKind::Str` or `ExprKind::Interpolated`
+//!   — this crate has no flexible-heredoc indentation-stripping story yet, so
+//!   it refuses to guess a representation rather than emit text with the
+//!   wrong leading whitespace baked in.
 //! - **`.` string concatenation still doesn't cover a `Stringable`-object
 //!   operand.** [`lower::Lowering::concat_operand`] converts a scalar
 //!   operand to `string` through [`ir::InstKind::HelperCall`], but an object

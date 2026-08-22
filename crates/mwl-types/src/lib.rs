@@ -54,6 +54,13 @@
 //!   to lower one — see that module's own docs for the full design and why
 //!   `mwl-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
 //!   directly.
+//! - [`string_lit`] — [`string_lit::cook_double_quoted_text`]: cooks a
+//!   double-quoted string literal's (or an interpolated-heredoc text run's)
+//!   escapes into the `string` it denotes, diagnosing the two ways cooking
+//!   can fail — an out-of-range `\u{...}` codepoint, or a byte escape
+//!   sequence that isn't valid UTF-8. `pub`, and reused directly by
+//!   `mwl-ir`'s own lowering rather than duplicated — see that module's own
+//!   docs for why this one, unlike `expr`'s `int_literal_digits`, is shared.
 //! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: ADR 0038's
 //!   `lateinit` property modifier. `signatures::build_signatures` validates
 //!   where it may appear (§ 1: refusing a scalar/enum type, `?T`, a promoted
@@ -160,6 +167,7 @@ pub mod lateinit;
 pub mod locals;
 pub mod lower;
 pub mod signatures;
+pub mod string_lit;
 pub mod ty;
 
 pub use check::check_program;

@@ -46,8 +46,8 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MethodMember, Stmt, StmtKind, Type, TypeAtom,
-    TypeKind, UnaryOp as AstUnaryOp,
+    AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MethodMember, Stmt, StmtKind, StringPart, Type,
+    TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
@@ -993,6 +993,26 @@ impl<'a> Lowering<'a> {
                 let s = cook_str_literal(self.src, *span);
                 self.emit(cur, Ty::Str, InstKind::ConstStr(s))
             }
+            // A double-quoted-sourced `Interpolated` lowers to the same
+            // `InstKind::Concat` chain a written-out `.` expression already
+            // does — see `Self::lower_interpolated_parts`'s own doc comment
+            // for the one subtlety plain N-ary `.`-folding wouldn't force
+            // into the open on its own. A heredoc-sourced `Interpolated`
+            // (whose span opens with `<`, not `"`) shares `ExprKind::Str`'s
+            // own heredoc/nowdoc gap above — not lowered here either, since
+            // this crate has no flexible-heredoc indentation-stripping story
+            // yet, so panic naming that instead of emitting text with the
+            // wrong leading whitespace still baked in.
+            ExprKind::Interpolated(parts) => {
+                let raw = span_text(self.src, expr.span);
+                assert!(
+                    raw.starts_with('"'),
+                    "mwl-ir does not yet lower a heredoc/nowdoc-sourced Interpolated string \
+                     (its span doesn't open with `\"`) — got {raw:?}; see the crate docs' known \
+                     gaps"
+                );
+                self.lower_interpolated_parts(parts, env, cur)
+            }
             ExprKind::Variable(span) => {
                 let name = strip_sigil(span_text(self.src, *span));
                 let &(v, ty) = env.get(name).unwrap_or_else(|| {
@@ -1372,6 +1392,84 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// Lowers `ExprKind::Interpolated`'s parts into the single [`Ty::Str`]
+    /// value they denote — a left-to-right fold of [`InstKind::Concat`],
+    /// reusing [`Self::concat_operand`] per `StringPart::Expr` piece exactly
+    /// the way `.`-concatenation's own two-operand arm does (a
+    /// `Stringable`-object piece hits the identical "needs a resolved
+    /// `toString`" panic that method's own doc comment already names as a
+    /// shared, not-yet-lowerable case — this is not primarily a new gap, just
+    /// the same one reached from a second syntax). A `StringPart::Text` piece
+    /// cooks straight to a fresh [`InstKind::ConstStr`] via
+    /// [`mwl_types::string_lit::cook_double_quoted_text`] — the same routine
+    /// [`cook_str_literal`] delegates to for a plain double-quoted `Str`,
+    /// since a `Text` run's escape grammar is identical either way (see that
+    /// function's own doc comment).
+    ///
+    /// The one shape plain N-ary `.`-folding wouldn't otherwise force into
+    /// the open: an `Interpolated` with exactly one part that is itself an
+    /// aliasing read (`"$x"` alone, no literal text around it and nothing
+    /// else to concatenate against) never emits an `InstKind::Concat` at
+    /// all, so nothing along the way copies `$x`'s value into a fresh
+    /// buffer. Returning `$x`'s own `ValueId` unchanged would hand the
+    /// caller a second durable owner of a slot's existing storage with no
+    /// retain behind it — exactly the free-turns-into-a-dangling-reference
+    /// bug [`Self::bind_local`]'s own retain-on-aliasing-source rule exists
+    /// to avoid. `is_aliasing_read` deliberately does not list
+    /// `ExprKind::Interpolated` at all (mirroring `ExprKind::Binary { op:
+    /// Concat, .. }`, which never lists it either, since two or more parts
+    /// always produce a real `Concat`'s fresh buffer) — so this function,
+    /// not `Self::bind_local`, is the one place that single-part degenerate
+    /// case has to convert a borrowed reference into an owned one, by
+    /// retaining it directly before handing it back as though it were as
+    /// fresh as every other shape this function can return.
+    fn lower_interpolated_parts(
+        &mut self,
+        parts: &[StringPart],
+        env: &Env,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        assert!(
+            !parts.is_empty(),
+            "mwl-syntax's collapse_string_parts only ever produces ExprKind::Interpolated for a \
+             non-empty parts vec"
+        );
+        let mut acc: Option<(ValueId, bool)> = None;
+        for part in parts {
+            let piece = match part {
+                StringPart::Text(span) => {
+                    let s = mwl_types::string_lit::cook_double_quoted_text(self.src, *span).0;
+                    (self.emit(cur, Ty::Str, InstKind::ConstStr(s)).0, false)
+                }
+                StringPart::Expr(e) => self.concat_operand(e, env, cur),
+            };
+            acc = Some(match acc {
+                None => piece,
+                Some((lv, l_alias)) => {
+                    let (rv, r_alias) = piece;
+                    let (result, _) =
+                        self.emit(cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
+                    if !l_alias {
+                        self.emit_release(cur, lv);
+                    }
+                    if !r_alias {
+                        self.emit_release(cur, rv);
+                    }
+                    (result, false)
+                }
+            });
+        }
+        let (v, alias) = acc.expect("checked non-empty above");
+        if alias {
+            // The single-part-alias degenerate case this function's own doc
+            // comment names — no `Concat` ran, so `v` is still someone
+            // else's storage; retain it to become this expression's own
+            // single fresh owner.
+            self.emit_retain(cur, v);
+        }
+        (v, Ty::Str)
+    }
+
     /// Lowers `expr` — an `ExprKind::Index`'s subscript — and normalizes it
     /// to a [`Ty::Str`] key: ADR 0007 § 5's "every key is a `string`" rule,
     /// with an `int`/`uint` subscript normalized to its decimal-string form
@@ -1498,15 +1596,21 @@ fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
 ///
 /// A single-quoted literal only ever needs the two escapes `mwl-syntax`'s lexer recognizes there
 /// (`\\` and `\'` — see `Lexer::lex_single_quoted`'s own
-/// `single_quoted_string_only_escapes_backslash_and_quote` test); a double-quoted literal
-/// additionally cooks the common named escapes (`\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\0`). Any
-/// other backslash sequence (a numeric escape like `\xHH`/`\u{...}`/octal, or any escape not
-/// meaningful for the quote kind in play) is passed through literally rather than cooked — a
-/// known gap (see the crate docs' known-gaps section; integer-literal magnitude range-checking,
-/// which used to be [`int_literal_digits`]'s own equivalent gap, is closed now — see that
-/// function's own doc comment). A heredoc/nowdoc-sourced `Str` — whose span doesn't open with a quote
-/// character at all — isn't handled here either: this crate has no lowered fixture reaching one
-/// yet, so it panics naming the gap rather than guessing a representation.
+/// `single_quoted_string_only_escapes_backslash_and_quote` test), cooked inline below since
+/// there is no invalid-UTF-8 case to guard against (both escapes are ASCII, and every other
+/// character copies straight through from a source file that is already valid UTF-8) — nothing
+/// worth sharing a routine for. A double-quoted literal instead delegates its whole inner span to
+/// [`mwl_types::string_lit::cook_double_quoted_text`] — the full escape grammar (named escapes,
+/// octal/hex byte escapes, `\u{...}` codepoints) plus its two failure modes (an out-of-range
+/// `\u{...}`, or byte escapes that don't assemble into valid UTF-8) live there now, not here, so
+/// `mwl_types::expr::infer`'s own `ExprKind::Str` arm can diagnose exactly the same cooking this
+/// function performs — see that module's own docs for why the routine is shared rather than
+/// duplicated the way [`int_literal_digits`] is. This function discards the returned issues:
+/// `mwl_types::check_program` already reported them, the same "checker diagnoses, `mwl-ir` trusts"
+/// split every other panic in this crate relies on. A heredoc/nowdoc-sourced `Str` — whose span
+/// doesn't open with a quote character at all — isn't handled here either: this crate has no
+/// lowered fixture reaching one yet, so it panics naming the gap rather than guessing a
+/// representation.
 fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
     let raw = span_text(src, span);
     let quote = raw
@@ -1518,7 +1622,11 @@ fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
         "mwl-ir does not yet cook a heredoc/nowdoc string literal (its span doesn't open with a \
          quote character) — got {raw:?}; see the crate docs' known gaps"
     );
-    let inner = &raw[quote.len_utf8()..raw.len() - quote.len_utf8()];
+    let inner_span = mwl_diagnostics::Span::new(span.file, span.start + 1, span.end - 1);
+    if quote == '"' {
+        return mwl_types::string_lit::cook_double_quoted_text(src, inner_span).0;
+    }
+    let inner = span_text(src, inner_span);
     let mut out = String::with_capacity(inner.len());
     let mut chars = inner.chars();
     while let Some(c) = chars.next() {
@@ -1529,11 +1637,6 @@ fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
         match chars.next() {
             Some('\\') => out.push('\\'),
             Some(next) if next == quote => out.push(quote),
-            Some('n') if quote == '"' => out.push('\n'),
-            Some('t') if quote == '"' => out.push('\t'),
-            Some('r') if quote == '"' => out.push('\r'),
-            Some('$') if quote == '"' => out.push('$'),
-            Some('0') if quote == '"' => out.push('\0'),
             Some(other) => {
                 out.push('\\');
                 out.push(other);
@@ -1989,6 +2092,88 @@ class T {
 "#,
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A double-quoted literal's numeric escapes (`\101` octal, `\x2A` hex,
+    /// `\u{1F600}` a multi-byte Unicode codepoint) now cook to the actual
+    /// byte/codepoint they name, delegated to
+    /// `mwl_types::string_lit::cook_double_quoted_text` — see
+    /// `cook_str_literal`'s own doc comment for why this crate shares that
+    /// routine with the checker rather than duplicating it.
+    #[test]
+    fn numeric_escapes_cook_to_their_byte_or_codepoint() {
+        let (f, map, file) = lower_first_method(
+            r#"<?mwl
+class T {
+  function m(): void {
+    string $s = "\101\x2A\u{1F600}";
+  }
+}
+"#,
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `"pre$mid post"` — a double-quoted literal with one interpolation
+    /// site surrounded by literal text on both sides — lowers to the same
+    /// two-`InstKind::Concat` shape a written-out `"pre" . $mid . " post"`
+    /// would, per `Lowering::lower_interpolated_parts`. `$mid`'s own read is
+    /// an aliasing one, so it's left unreleased by the first `Concat`
+    /// (its slot still owns it); the two literal text pieces and both
+    /// intermediate/final `Concat` results are all fresh and released once
+    /// each side reads them, ending with the whole method's own `void`
+    /// exit releasing `$s`.
+    #[test]
+    fn interpolated_string_with_text_on_both_sides_folds_left_to_right() {
+        let (f, map, file) = lower_first_method(
+            r#"<?mwl
+class T {
+  function m(): void {
+    string $mid = "middle";
+    string $s = "pre$mid post";
+  }
+}
+"#,
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `"$x"` alone — no literal text around the one interpolation site —
+    /// is `ExprKind::Interpolated`'s degenerate single-part case:
+    /// `mwl_syntax::parser::collapse_string_parts` still picks `Interpolated`
+    /// over `Str` (the one part isn't `StringPart::Text`), but no
+    /// `InstKind::Concat` ever runs to copy `$x`'s value into a fresh
+    /// buffer. `Lowering::lower_interpolated_parts` has to retain `$x`'s
+    /// value itself in exactly this shape — the snapshot should show a
+    /// retain on `$x`'s own value immediately after it's read, with no
+    /// `Concat` instruction anywhere in the function, and the usual single
+    /// release of `$s` (now the sole owner of that retained reference,
+    /// alongside `$x`'s own still-live slot) at the implicit return.
+    #[test]
+    fn interpolated_string_with_only_a_variable_retains_it() {
+        let (f, map, file) = lower_first_method(
+            r#"<?mwl
+class T {
+  function m(): void {
+    string $x = "hello";
+    string $s = "$x";
+  }
+}
+"#,
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A heredoc-sourced `Interpolated` string shares `ExprKind::Str`'s own
+    /// heredoc/nowdoc gap: this crate has no flexible-heredoc
+    /// indentation-stripping story yet, so lowering panics naming the case
+    /// rather than emitting text with the wrong leading whitespace baked in.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn heredoc_sourced_interpolated_string_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $x = \"hi\";\n    string $s = <<<EOT\nvalue: $x\nEOT;\n  }\n}\n",
+        );
     }
 
     /// `string $b = $a;` aliases `$a`'s already-owned value rather than

@@ -1,0 +1,22 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:28
+    v1 = const.str "middle"  ; string
+    ; stmt s1 @5:5-5:32
+    v2 = const.str "pre"  ; string
+    v3 = concat v2, v1  ; string
+    release v2
+    v4 = const.str " post"  ; string
+    v5 = concat v3, v4  ; string
+    release v3
+    release v4
+    release v1
+    release v5
+    return
+}

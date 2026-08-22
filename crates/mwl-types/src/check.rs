@@ -508,6 +508,80 @@ mod tests {
         );
     }
 
+    /// A `\u{...}` escape naming a codepoint past Unicode's `0x10FFFF` scalar
+    /// ceiling has no UTF-8 encoding — `crate::string_lit`'s own
+    /// `E_INVALID_UNICODE_ESCAPE`.
+    #[test]
+    fn a_unicode_escape_out_of_range_is_diagnosed() {
+        let diags = check_in_method(r#"string $s = "\u{110000}";"#);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INVALID_UNICODE_ESCAPE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A `\u{...}` escape naming a UTF-16 surrogate codepoint is the other
+    /// shape with no UTF-8 encoding.
+    #[test]
+    fn a_unicode_escape_naming_a_surrogate_is_diagnosed() {
+        let diags = check_in_method(r#"string $s = "\u{D800}";"#);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INVALID_UNICODE_ESCAPE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A lone `\xFF` byte escape can never be a valid UTF-8 sequence on its
+    /// own — `string` is guaranteed-valid UTF-8 (ADR 0009), so this is
+    /// `E_STRING_LITERAL_INVALID_UTF8`, not silently accepted.
+    #[test]
+    fn a_byte_escape_producing_invalid_utf8_is_diagnosed() {
+        let diags = check_in_method(r#"string $s = "\xFF";"#);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRING_LITERAL_INVALID_UTF8)),
+            "{diags:?}"
+        );
+    }
+
+    /// Two byte escapes that combine into one valid UTF-8 character
+    /// (`\xC3\xA9` is `é`) are fine — the check is on the assembled result,
+    /// not each escape byte in isolation.
+    #[test]
+    fn byte_escapes_combining_into_valid_utf8_are_not_diagnosed() {
+        let diags = check_in_method(r#"string $s = "\xC3\xA9";"#);
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// A single-quoted literal's own two escapes (`\\`/`\'`) can never
+    /// produce invalid UTF-8, so it gets no cooking-diagnostic pass at all —
+    /// confirming the quote-kind guard actually gates on the literal's own
+    /// spelling rather than always running.
+    #[test]
+    fn a_single_quoted_literal_is_never_escape_diagnosed() {
+        let diags = check_in_method(r"string $s = '\xFF';");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The same invalid-UTF-8 byte-escape check applies inside an
+    /// interpolated string's own literal text, not just a plain `Str` —
+    /// `ExprKind::Interpolated`'s `StringPart::Text` arm.
+    #[test]
+    fn a_byte_escape_inside_an_interpolated_string_is_diagnosed() {
+        let diags = check_in_method("string $y = \"z\";\nstring $s = \"\\xFF$y\";\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_STRING_LITERAL_INVALID_UTF8)),
+            "{diags:?}"
+        );
+    }
+
     #[test]
     fn integer_division_into_a_plain_int_is_diagnosed() {
         let diags = check_in_method("int $n = 7 / 2;\n");

@@ -358,6 +358,49 @@ fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) {
     (10, cleaned)
 }
 
+/// Narrows a double-quoted `ExprKind::Str`'s own span (quote characters
+/// included) to the text strictly between them —
+/// [`crate::string_lit::cook_double_quoted_text`]'s expected input shape,
+/// the same one a `StringPart::Text` span already has natively. `"` is
+/// one byte, so trimming exactly one byte off each end is exact, not an
+/// approximation.
+fn inner_quoted_span(span: Span) -> Span {
+    Span::new(span.file, span.start + 1, span.end - 1)
+}
+
+/// Cooks `span` (already known to be double-quoted-grammar text — see the two
+/// call sites in [`infer`]) purely to surface [`crate::string_lit::CookIssue`]s
+/// as diagnostics; the cooked `String` itself is discarded here; `mwl-ir`
+/// re-cooks it from the same span when it actually lowers the literal, per
+/// `crate::string_lit`'s own module docs on why that duplicate call is safe
+/// (one shared implementation) rather than a second, divergent one.
+fn check_double_quoted_text_issues(span: Span, env: &mut Env<'_>) {
+    let (_, issues) = crate::string_lit::cook_double_quoted_text(env.src, span);
+    for issue in issues {
+        match issue {
+            crate::string_lit::CookIssue::InvalidUnicodeEscape(span) => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_INVALID_UNICODE_ESCAPE,
+                        "this `\\u{...}` escape does not name a valid Unicode code point",
+                    )
+                    .with_primary(span, "outside 0..=0x10FFFF, or a UTF-16 surrogate"),
+                );
+            }
+            crate::string_lit::CookIssue::InvalidUtf8(span) => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_STRING_LITERAL_INVALID_UTF8,
+                        "this string literal's `\\xHH`/octal byte escapes do not form valid \
+                         UTF-8 once assembled — `string` is guaranteed-valid UTF-8, see ADR 0009",
+                    )
+                    .with_primary(span, "not valid UTF-8"),
+                );
+            }
+        }
+    }
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one match arm per AST expression variant, each a couple of lines"
@@ -423,16 +466,40 @@ fn infer(
             }
         }
         ExprKind::Float(_) => env.interner.float(),
-        ExprKind::Str(_) => env.interner.string(),
+        ExprKind::Str(span) => {
+            // Only a double-quoted literal runs the richer escape grammar
+            // `check_double_quoted_text_issues` cooks — a single-quoted
+            // literal's own two escapes (`\\`/`\'`) can never produce invalid
+            // UTF-8, and a heredoc/nowdoc-sourced `Str` (whose span opens
+            // with `<`, not a quote) is a separate, still-open `mwl-ir`
+            // lowering gap this checker doesn't validate ahead of yet — see
+            // `crate::string_lit`'s own module docs.
+            if span_text(env.src, *span).starts_with('"') {
+                check_double_quoted_text_issues(inner_quoted_span(*span), env);
+            }
+            env.interner.string()
+        }
         ExprKind::Interpolated(parts) => {
             let mut tainted = false;
             let mut secret = false;
             for part in parts {
-                if let StringPart::Expr(e) = part {
-                    let ty = check_expr(e, None, live, scope, ctx, env);
-                    require_stringable(ty, e.span, env);
-                    tainted |= is_tainted(ty, env.interner);
-                    secret |= is_secret(ty, env.interner);
+                match part {
+                    StringPart::Expr(e) => {
+                        let ty = check_expr(e, None, live, scope, ctx, env);
+                        require_stringable(ty, e.span, env);
+                        tainted |= is_tainted(ty, env.interner);
+                        secret |= is_secret(ty, env.interner);
+                    }
+                    // A `Text` run's escapes follow exactly the same grammar
+                    // regardless of whether the overall literal is
+                    // double-quoted or an interpolated heredoc — see
+                    // `crate::string_lit`'s own module docs for why one
+                    // routine cooks both. The span never includes a quote
+                    // character (`mwl_syntax::parser::parse_string_body`
+                    // never emits one as part of a `Text` token), so no
+                    // quote-kind check is needed here the way `Str` above
+                    // needs one.
+                    StringPart::Text(span) => check_double_quoted_text_issues(*span, env),
                 }
             }
             qualified_scalar(false, tainted, secret, env.interner)

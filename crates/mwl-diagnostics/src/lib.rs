@@ -379,6 +379,21 @@ pub mod code {
     /// negative value, since an integer literal's digits are never signed and
     /// the sign comes from a wrapping unary `-`. See ADR 0007 § 4.
     pub const E_INT_LITERAL_OUT_OF_RANGE: Code = Code::new("E0429");
+    /// A `\u{...}` escape inside a double-quoted string literal (or an
+    /// interpolated-heredoc text run) names a value outside Unicode's valid
+    /// scalar range (`> 0x10FFFF`) or inside the UTF-16 surrogate range
+    /// (`0xD800..=0xDFFF`) — neither has a UTF-8 encoding, so it cannot be
+    /// cooked into `string`'s guaranteed-valid-UTF-8 representation. Distinct
+    /// from `E_INVALID_ESCAPE`, which the lexer already raises for a
+    /// `\u{...}` that is syntactically malformed (no hex digits, or no
+    /// closing `}`) — this fires only once the digits are syntactically fine
+    /// but numerically out of range.
+    pub const E_INVALID_UNICODE_ESCAPE: Code = Code::new("E0430");
+    /// A double-quoted string literal's (or interpolated-heredoc text run's)
+    /// `\xHH`/octal byte escapes assembled into a sequence that is not valid
+    /// UTF-8 — `string` is guaranteed-valid UTF-8 (ADR 0009), so a byte
+    /// escape's raw output has to actually decode, not just fit in a byte.
+    pub const E_STRING_LITERAL_INVALID_UTF8: Code = Code::new("E0431");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.
