@@ -275,13 +275,12 @@ impl<'a> Lowering<'a> {
     /// declare/reassign half of the module docs' refcounting policy (the
     /// function-exit half is [`Self::release_all_locals`]):
     ///
-    /// - If `ty` [`Ty::is_refcounted`] and `source` is a bare `$other`
-    ///   variable read, this bind creates a *second* durable owner of a
-    ///   value some other binding already owns — retain `v` first. Nothing
-    ///   else can produce a refcounted value yet outside a fresh literal
-    ///   (see the crate docs' known gaps for what still panics), and a fresh
-    ///   literal already has exactly one natural owner, so no other `source`
-    ///   shape needs a retain here.
+    /// - If `ty` [`Ty::is_refcounted`] and `source` [`is_aliasing_read`] (a
+    ///   bare `$other` variable read, or a compile-time-known property read),
+    ///   this bind creates a *second* durable owner of a value some other
+    ///   binding already owns — retain `v` first. A fresh literal, `new`, or
+    ///   a call's own result already has exactly one natural owner, so none
+    ///   of those need a retain here.
     /// - If `name` already held a refcounted value — an overwrite, not a
     ///   fresh declaration — release the *old* value, always *after* the
     ///   retain above so a self-assignment (`$x = $x;`) never observes a
@@ -295,7 +294,7 @@ impl<'a> Lowering<'a> {
         ty: Ty,
         source: &Expr,
     ) {
-        if ty.is_refcounted() && matches!(source.kind, ExprKind::Variable(_)) {
+        if ty.is_refcounted() && is_aliasing_read(&source.kind) {
             self.emit_retain(cur, v);
         }
         if let Some(&(old_v, old_ty)) = env.get(&name)
@@ -417,7 +416,12 @@ impl<'a> Lowering<'a> {
             // See `Self::release_all_locals`'s own doc comment for why a
             // bare `$name` return expression is excluded from the exit
             // sweep rather than retained: its value transfers out instead of
-            // being copied.
+            // being copied. A property read has no local slot to exclude
+            // from that sweep at all — the field's own storage keeps its
+            // reference regardless of what this function does — so it needs
+            // an explicit retain here instead, the same `is_aliasing_read`
+            // judgment `Self::bind_local`/`Self::lower_call_args` already
+            // apply at their own boundary.
             StmtKind::Return(value) => {
                 let except = value.as_ref().and_then(|v| {
                     if let ExprKind::Variable(span) = &v.kind {
@@ -426,9 +430,13 @@ impl<'a> Lowering<'a> {
                         None
                     }
                 });
-                let v = value
-                    .as_ref()
-                    .map(|v| self.lower_expr(v, Some(self.ret_ty), env, *cur).0);
+                let v = value.as_ref().map(|v| {
+                    let (rv, rty) = self.lower_expr(v, Some(self.ret_ty), env, *cur);
+                    if except.is_none() && rty.is_refcounted() && is_aliasing_read(&v.kind) {
+                        self.emit_retain(*cur, rv);
+                    }
+                    rv
+                });
                 self.release_all_locals(*cur, env, except.as_deref());
                 self.seal(*cur, Terminator::Return(v));
             }
@@ -1031,7 +1039,17 @@ impl<'a> Lowering<'a> {
 
     /// Lowers a resolved call's/`new`'s positional argument list against
     /// `param_tys` — the already-resolved parameter types from
-    /// `mwl_types::expr_table::ResolvedCall`.
+    /// `mwl_types::expr_table::ResolvedCall`. An argument whose expected type
+    /// [`Ty::is_refcounted`] and whose source expression [`is_aliasing_read`]
+    /// (a bare variable or a compile-time-known property read) is retained
+    /// before the call — the callee's own parameter is bound into its `Env`
+    /// exactly like a local (see [`lower_method`]) and released at its own
+    /// exit by [`Lowering::release_all_locals`], so this retain is the
+    /// caller-side half of a balanced pair, symmetric with what
+    /// [`Lowering::bind_local`] already does for a local declaration. A
+    /// fresh literal, `new`, or a call's own result passed directly as an
+    /// argument needs no retain: it already has exactly one owner, which
+    /// simply transfers into the callee's parameter slot.
     ///
     /// # Panics
     ///
@@ -1076,7 +1094,10 @@ impl<'a> Lowering<'a> {
         let mut out = Vec::with_capacity(list.len());
         for (arg, &pty) in list.iter().zip(param_tys) {
             let expected = lower_checked_ty(pty, checked_types);
-            let (v, _) = self.lower_expr(&arg.value, Some(expected), env, cur);
+            let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
+            if ty.is_refcounted() && is_aliasing_read(&arg.value.kind) {
+                self.emit_retain(cur, v);
+            }
             out.push(v);
         }
         out
@@ -1195,24 +1216,30 @@ fn lower_decl_type(ty: &Type) -> Ty {
 }
 
 /// Translates an already-*checked* type — a [`TypeId`] recorded in an
-/// [`ExprInfo::Call`]/[`ExprInfo::New`] entry, naming a call's resolved
-/// parameter/return type — into this crate's own [`Ty`]. Distinct from
-/// [`lower_decl_type`], which reads a type straight off the AST instead: this
-/// one exists because a resolved call's parameter/return types come from
-/// `mwl_types`' own interner, not from a `Type` AST node this crate can lower
-/// directly (there may be no local `Type` node at all, e.g. an inherited
-/// method's parameter declared on a different class's source). `Class`/`Enum`
-/// both erase to [`Ty::Object`], same as [`lower_decl_type`]'s `Name` case —
-/// see that variant's own doc comment for why identity doesn't need to
-/// survive this translation.
+/// [`ExprInfo::Call`]/[`ExprInfo::New`]/[`ExprInfo::Property`] entry, naming a
+/// call's resolved parameter/return type or a property's declared field type
+/// — into this crate's own [`Ty`]. Distinct from [`lower_decl_type`], which
+/// reads a type straight off the AST instead: this one exists because a
+/// resolved call's parameter/return types (and a property's field type) come
+/// from `mwl_types`' own interner, not from a `Type` AST node this crate can
+/// lower directly (there may be no local `Type` node at all, e.g. an
+/// inherited method's parameter declared on a different class's source).
+/// `Class`/`Enum` both erase to [`Ty::Object`], same as [`lower_decl_type`]'s
+/// `Name` case — see that variant's own doc comment for why identity doesn't
+/// need to survive this translation. `String` erases to [`Ty::Str`], the same
+/// representation [`lower_decl_type`] already gives a local/parameter/return
+/// type spelled directly in source — see [`crate::lower`]'s module docs for
+/// the retain policy this now needs at a call-argument/return/property-field
+/// boundary, which [`Lowering::bind_local`], [`Lowering::lower_call_args`] and
+/// `StmtKind::Return`'s own arm all apply via [`is_aliasing_read`].
 ///
 /// # Panics
 ///
 /// Panics naming the unsupported shape for anything outside this slice's
-/// scope: `string`/`bytes` (any qualifier), `array<T>`, `object`, a shape, a
-/// union/intersection, or any of `mixed`/`never`/`true`/`false`/`iterable`/
-/// `callable`/`null` — none of these have an IR representation yet (see the
-/// crate docs' known gaps).
+/// scope: `bytes`, either qualified (`tainted`/`secret`) string or bytes
+/// variant, `array<T>`, `object`, a shape, a union/intersection, or any of
+/// `mixed`/`never`/`true`/`false`/`iterable`/`callable`/`null` — none of these
+/// have an IR representation yet (see the crate docs' known gaps).
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     match checked_types.get(id) {
         CheckedTy::Bool => Ty::Bool,
@@ -1220,12 +1247,32 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::Uint => Ty::Uint,
         CheckedTy::Float => Ty::Float,
         CheckedTy::Void => Ty::Void,
+        CheckedTy::String => Ty::Str,
         CheckedTy::Class(_) | CheckedTy::Enum(_) => Ty::Object,
         other => panic!(
-            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/class/enum \
+            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/class/enum \
              parameter or return type — got {other:?}; see the crate docs' known gaps"
         ),
     }
+}
+
+/// Whether reading `kind` produces a *borrowed* reference to storage some
+/// other binding still owns, rather than a freshly constructed value with
+/// exactly one natural owner — the same "is this a copy or a fresh value"
+/// judgment [`Lowering::bind_local`]'s own doc comment already describes for
+/// a bare variable read, now shared with a call argument
+/// ([`Lowering::lower_call_args`]) and a returned expression
+/// (`StmtKind::Return`'s own arm). A plain local (`ExprKind::Variable`) and a
+/// compile-time-known property read (`ExprKind::PropertyAccess`) both borrow
+/// storage that keeps its own reference after this read — a local's own slot,
+/// or the object's field — so copying either into a new durable slot needs a
+/// retain. A fresh literal, `new`, or a call's own result already has exactly
+/// one natural owner and needs none.
+fn is_aliasing_read(kind: &ExprKind) -> bool {
+    matches!(
+        kind,
+        ExprKind::Variable(_) | ExprKind::PropertyAccess { .. }
+    )
 }
 
 #[cfg(test)]
@@ -1569,6 +1616,62 @@ class T {
     fn reassigning_a_string_local_releases_its_previous_value() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(): void {\n    string $x = \"a\";\n    $x = \"b\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// Passing a `string` local as a call argument retains it first —
+    /// `Lowering::lower_call_args`'s own aliasing check — since the callee's
+    /// own parameter is bound like any other local and released at the
+    /// callee's exit (not visible in this snapshot, since `lower_first_method`
+    /// only lowers `T`'s first method). `take` returns `int`, not `string`,
+    /// so the call's own result needs no refcount treatment — this fixture
+    /// isolates the argument-side retain from the return-side question the
+    /// two tests below cover. Net effect on `$s`'s own slot: one retain right
+    /// before the call, one release at `m`'s own exit sweep.
+    #[test]
+    fn passing_a_string_local_as_a_call_argument_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): int {\n    string $s = \"hi\";\n    return self::take($s);\n  }\n  static function take(string $x): int {\n    return 1;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `var $s = $obj->name;` — a `string`-typed property read is an
+    /// aliasing read exactly like a bare variable read
+    /// (`lower::is_aliasing_read`), so binding it to a new local retains the
+    /// field's own value; `$obj` itself is `Ty::Object`, not yet refcounted,
+    /// so only `$s`'s slot is released at the exit sweep.
+    #[test]
+    fn binding_a_string_property_read_to_a_local_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public string $name = \"hi\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    var $s = $obj->name;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `return $obj->name;` — a property read has no local slot for
+    /// `Lowering::release_all_locals` to exclude the way a bare `$name`
+    /// return does, so `StmtKind::Return`'s own arm retains it explicitly
+    /// instead: exactly one retain, no release, leaving the caller with
+    /// exactly one owned reference once this function returns.
+    #[test]
+    fn returning_a_string_property_read_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public string $name = \"hi\";\n}\nclass T {\n  function m(): string {\n    Foo $obj = new Foo();\n    return $obj->name;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `return self::make();` where `make` returns `string` — a call's own
+    /// result is a fresh-like producer, same as `new` or a literal
+    /// (`lower::is_aliasing_read` is `false` for `ExprKind::StaticCall`), so
+    /// returning it directly needs no retain at all: it already has exactly
+    /// one owner, which just transfers out to the caller.
+    #[test]
+    fn returning_a_string_returning_calls_result_needs_no_retain() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): string {\n    return self::make();\n  }\n  static function make(): string {\n    return \"hi\";\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

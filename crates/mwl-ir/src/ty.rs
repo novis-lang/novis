@@ -60,12 +60,12 @@ pub enum Ty {
     /// literal's *bytes*, which are granularity-independent. [`crate::lower`]
     /// cooks a literal directly to [`crate::ir::InstKind::ConstStr`] and
     /// inserts [`crate::ir::InstKind::Retain`]/[`crate::ir::InstKind::Release`]
-    /// around a local's declare/reassign/scope-exit lifecycle — see that
-    /// module's own docs for the exact policy and its known gaps. A
-    /// `string`-typed call argument, return value or property field is not
-    /// yet lowered: [`crate::lower::lower_checked_ty`] still panics naming
-    /// `string`, since retaining across a call/field boundary needs the same
-    /// aliasing question answered there too, deliberately deferred.
+    /// around a local's declare/reassign/scope-exit lifecycle, a call
+    /// argument/parameter, a returned value, and a compile-time-known
+    /// property read — see [`crate::lower`]'s own docs for the exact policy
+    /// (keyed on [`crate::lower::is_aliasing_read`]) and its known gaps
+    /// (string concatenation and `tainted`/`secret`-qualified string
+    /// variants are still unsupported).
     Str,
 }
 

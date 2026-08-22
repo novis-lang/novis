@@ -14,27 +14,28 @@
 //! `return`, nested `{}` blocks, `if`/`while`, `new`, a static method call
 //! (`self::method(...)`/`Class::method(...)`), an instance method call
 //! (`$obj->method(...)`, including `$this->…`), a compile-time-known
-//! property access (`$obj->prop`, including `$this->prop`), and now a
-//! `string`-typed local/parameter/return value initialized or reassigned
-//! from a literal, with refcount retain/release operations around its
-//! declare/reassign/scope-exit lifecycle — [`lower::lower_method`] is the
-//! entry point. No `for`/`switch`/`try`, no `break`/`continue`, no array
-//! access, no `bytes`/`array<T>`, no `string` crossing a call argument,
-//! return, or property-field boundary (a class/enum value itself also has a
-//! representation, [`ty::Ty::Object`], just not a way to refcount one yet).
-//! The straight-line subset was deliberately the *first* slice landed (see
-//! git history and `docs/implementation-plan.md`'s M2 paragraph) because it
-//! was the smallest shape exercising every structural IR piece with no merge
-//! point at all; `if`/`while` came next, and are where SSA's actual join/phi
-//! question gets answered — see [`lower`]'s own module docs for exactly how.
-//! `new`/a static call were the third slice, and the first to need more than
-//! the AST alone — see the next section for the dependency that unlocked
-//! them. An instance method call is the fourth slice, and the first to need
-//! a receiver represented as a real value — see the design-choices section
-//! below for the implicit-receiver-parameter shape that unlocked it. A
-//! property access is the fifth slice, and reuses that same
-//! receiver-as-a-value machinery, only for a field read instead of a call —
-//! see [`ir::InstKind::FieldGet`]'s own doc comment for the
+//! property access (`$obj->prop`, including `$this->prop`), and a
+//! `string`-typed local/parameter/return value/call-argument/property-field,
+//! initialized, reassigned, passed, returned or read from a literal, another
+//! local, a compile-time-known property or a resolved call's own result —
+//! with refcount retain/release operations around every one of those
+//! boundaries — [`lower::lower_method`] is the entry point. No
+//! `for`/`switch`/`try`, no `break`/`continue`, no array access, no `bytes`/
+//! `array<T>`, no `.` string concatenation (a class/enum value itself also
+//! has a representation, [`ty::Ty::Object`], just not a way to refcount one
+//! yet). The straight-line subset was deliberately the *first* slice landed
+//! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
+//! it was the smallest shape exercising every structural IR piece with no
+//! merge point at all; `if`/`while` came next, and are where SSA's actual
+//! join/phi question gets answered — see [`lower`]'s own module docs for
+//! exactly how. `new`/a static call were the third slice, and the first to
+//! need more than the AST alone — see the next section for the dependency
+//! that unlocked them. An instance method call is the fourth slice, and the
+//! first to need a receiver represented as a real value — see the
+//! design-choices section below for the implicit-receiver-parameter shape
+//! that unlocked it. A property access is the fifth slice, and reuses that
+//! same receiver-as-a-value machinery, only for a field read instead of a
+//! call — see [`ir::InstKind::FieldGet`]'s own doc comment for the
 //! compile-time-known-field-only shape landed here. `var` locals and
 //! multi-base (`0x`/`0o`/`0b`) integer-literal cooking are the sixth slice,
 //! closing out two gaps this crate had been carrying since the straight-line
@@ -44,9 +45,13 @@
 //! `string` locals and the retain/release IR shape are the seventh slice,
 //! and the first non-scalar *data* representation to land at all — see the
 //! design-choices section below for the retain/release insertion policy this
-//! needed, and [`ty::Ty::Str`]/[`lower`]'s own module docs for exactly which
-//! boundary (a local's own lifecycle, not yet a call/return/field one) it's
-//! scoped to.
+//! needed. Widening that same `string` representation across a call
+//! argument, a resolved return type and a compile-time-known property field
+//! is the eighth slice, and needed no new IR shape at all — only
+//! [`lower::lower_checked_ty`] gaining a `String` arm and the existing
+//! aliasing-vs-fresh judgment ([`lower::is_aliasing_read`]) extending to a
+//! property read and a call argument/return boundary, both described in the
+//! design-choices section below.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -135,28 +140,36 @@
 //!   value ... moved only when the refcount is 1" as a *codegen-time*
 //!   optimization for the isolate-boundary case specifically — generalizing
 //!   that to ordinary lowering here would be scope creep beyond what any ADR
-//!   asks for, not a mechanical extension of it. Concretely: a value that is
-//!   read out of an *existing* binding (`ExprKind::Variable`) and copied into
-//!   another durable slot (a local bind — [`lower::Lowering::bind_local`]) is
-//!   retained first; a freshly constructed value (so far, only a string
-//!   literal) needs no retain, since it already has exactly one natural
-//!   owner and this bind just gives that owner a name. A slot's *previous*
-//!   value is released whenever it's overwritten, and every slot still live
-//!   at a `return`/implicit-`void`-fallthrough is released too — except the
-//!   one slot whose value is the return expression itself when that
-//!   expression is a bare `$name` read, which transfers out instead (see
+//!   asks for, not a mechanical extension of it. Concretely: reading a value
+//!   out of storage some other binding still owns — [`lower::is_aliasing_read`]
+//!   names exactly two such shapes today, a bare `ExprKind::Variable` and a
+//!   compile-time-known `ExprKind::PropertyAccess` — and copying it into
+//!   another durable slot needs a retain first; a freshly constructed value
+//!   (a string literal, `new`, or a call's own result) needs none, since it
+//!   already has exactly one natural owner and the copy just gives that
+//!   owner a new name/slot. A slot's *previous* value is released whenever
+//!   it's overwritten, and every slot still live at a
+//!   `return`/implicit-`void`-fallthrough is released too — except the one
+//!   slot whose value is the return expression itself when that expression is
+//!   a bare `$name` read, which transfers out instead (see
 //!   [`lower::Lowering::release_all_locals`]'s own doc comment for exactly
 //!   why excluding it there, rather than retaining it and releasing
 //!   everything unconditionally, keeps the count exactly balanced even under
-//!   aliasing). This stays exactly balanced only because today's expression
-//!   grammar gives a `string` value exactly two possible producers (a fresh
-//!   literal, or a bare-variable copy) — widening `lower_checked_ty` to let a
-//!   call argument, return value or property field produce or consume one
-//!   will need the same "is this a borrow of storage someone else still
-//!   owns" judgment extended to those sites (a call result and `new` are
-//!   already fresh-like `ExprKind` shapes; a property read is not, and needs
-//!   the same retain-on-copy treatment a bare variable read gets) — see the
-//!   known gaps below for exactly what's still out of scope.
+//!   aliasing). This one judgment now covers every "durable slot" a `string`
+//!   value can be copied into: a local bind
+//!   ([`lower::Lowering::bind_local`]), a resolved call's argument
+//!   ([`lower::Lowering::lower_call_args`] — the callee's own parameter is
+//!   just another local, released at the callee's own exit, so the caller's
+//!   retain and the callee's release are a symmetric pair, exactly mirroring
+//!   what a local's own declare/drop already does), and a returned value
+//!   (`Lowering::lower_stmt`'s `StmtKind::Return` arm — a property read has
+//!   no local slot for `release_all_locals` to exclude the way a bare
+//!   variable does, so it retains explicitly there instead). What stays a
+//!   known gap: string concatenation (needs a runtime-helper call, or a
+//!   dedicated `InstKind` — either way, a new operand-producing shape this
+//!   session didn't need), and a `tainted`/`secret`-qualified string
+//!   (`lower_checked_ty` only handles the plain, unqualified `string` type —
+//!   see the known gaps below).
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
@@ -187,31 +200,33 @@
 //!   no IR/codegen yet to throw from, so lowering panics naming it rather
 //!   than guessing a representation. A nullsafe access (`?->`) is equally
 //!   unsupported today, same as a nullsafe method call.
-//! - **`string` is a local/parameter/return-type representation only — not
-//!   yet a call-argument, resolved-return, or property-field one.**
-//!   [`lower::lower_decl_type`] (a type spelled directly in source) now maps
-//!   `TypeAtom::String` to [`ty::Ty::Str`], but [`lower::lower_checked_ty`] (a
-//!   *resolved* call's/`new`'s parameter or return type, or a resolved
-//!   property's field type) still panics naming `CheckedTy::String` — so a
-//!   call/`new` with a `string` argument, a call whose declared return type
-//!   is `string`, and a `string`-typed property read/write are all still
-//!   unsupported. Landing any of those needs the same aliasing judgment the
-//!   design-choices section above describes, extended to a property read
-//!   (which borrows the field's own reference, needing a retain on copy out,
-//!   same as a bare variable read) and to a call's argument/return boundary
-//!   (which needs the calling convention itself decided: does the caller
-//!   retain before passing and the callee release at its own exit, mirroring
-//!   what a local already does, or does ownership move some other way?). No
-//!   `bytes` or `array<T>` representation exists yet either — `bytes` is
-//!   expected to be a mechanical repeat of `Ty::Str`'s shape once it lands
-//!   (same refcounted-heap-value treatment, different content), while
-//!   `array<T>` needs its own element-layout decision first.
+//! - **`string` now crosses a local, call-argument, resolved-return, and
+//!   compile-time-known property-*read* boundary — but not a property
+//!   *write*, `bytes`, or `array<T>`.** [`lower::lower_checked_ty`] gained a
+//!   `CheckedTy::String => Ty::Str` arm, so a call/`new` with a `string`
+//!   argument, a call whose declared return type is `string`, and a
+//!   `string`-typed property *read* (`$obj->prop`) all lower now, with the
+//!   same retain policy a local already had extended to each — see the
+//!   design-choices section above. `$obj->prop = expr;` (a property *write*)
+//!   is still entirely unsupported for any field type, not just `string`:
+//!   `Lowering::lower_reassignment` only accepts a plain-local assignment
+//!   target, and panics naming anything else — a pre-existing gap this
+//!   session didn't touch. `Ty::Str` also still only covers the plain,
+//!   unqualified `string` type: `lower_checked_ty` has no arm for
+//!   `CheckedTy::TaintedString`/`SecretString`/`SecretTaintedString` (ADR
+//!   0024/0033), so a `tainted`/`secret`-qualified `string` parameter, return
+//!   or field still panics there — those qualifiers need their own laundering/
+//!   sink story before they can flow through an IR value at all, deliberately
+//!   out of scope here. No `bytes` or `array<T>` representation exists yet
+//!   either — `bytes` is expected to be a mechanical repeat of `Ty::Str`'s
+//!   shape once it lands (same refcounted-heap-value treatment, different
+//!   content), while `array<T>` needs its own element-layout decision first.
 //!   [`ty::Ty::Object`] is a reference too, but nothing allocates or frees
 //!   the memory behind one yet, and no retain/release is emitted for one —
 //!   see that variant's own doc comment for exactly what is and isn't
 //!   modeled; extending `Ty::is_refcounted` to include it is expected to
-//!   reuse the exact same `bind_local`/`release_all_locals` insertion points
-//!   this session added for `Ty::Str`, not new ones.
+//!   reuse the exact same `bind_local`/`lower_call_args`/`release_all_locals`
+//!   insertion points `Ty::Str` already uses, not new ones.
 //! - **No virtual dispatch** — [`ir::InstKind::Call`]'s `target` is always the
 //!   statically resolved declaring class from
 //!   `mwl_types::expr_table::ResolvedCall`, exactly as MWL's checker resolved
@@ -229,6 +244,18 @@
 //!   named/spread argument against a signature yet either (see its own known
 //!   gaps), so there is no resolved per-argument type to lower against even
 //!   if this crate wanted to try.
+//! - **No bare call as its own statement** — noticed while widening `string`
+//!   across a call boundary this session, not new to it: `StmtKind::Expr`'s
+//!   arm (`Lowering::lower_reassignment`) only accepts an `ExprKind::Assign`
+//!   expression statement, so `doSomething();` with no assignment at all
+//!   (the ordinary way to call a `void`-returning method) panics naming the
+//!   unsupported shape. Every call fixture landed so far routes a call
+//!   through a `var`/typed local binding or a `return` instead. Fixing this
+//!   needs `lower_stmt`'s `StmtKind::Expr` arm to also accept a bare
+//!   `MethodCall`/`StaticCall`/`New` expression, lowering it purely for its
+//!   side effect and discarding any `Ty::is_refcounted` result with a
+//!   `Release` right there (nothing else in the function will ever bind or
+//!   return it) — small and independent, land whenever convenient.
 //! - Safepoints are reserved, not functional. [`ir::InstKind::Safepoint`] is
 //!   emitted at function entry and at every `while` back edge (see that
 //!   variant's own doc comment), but it is inert — no codegen exists yet to
