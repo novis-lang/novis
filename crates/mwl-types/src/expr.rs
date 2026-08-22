@@ -112,11 +112,27 @@ use mwl_syntax::ast::{
 };
 use rustc_hash::FxHashSet;
 
+use crate::expr_table::{ExprInfo, ResolvedCall};
 use crate::locals::LocalScope;
 use crate::lower::lower_type;
 use crate::signatures::{MethodSig, SignatureTable, resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, span_text, strip_sigil};
+
+/// Builds the [`ExprInfo::Call`] entry [`crate::expr_table::ExprTypeTable`]
+/// persists for a resolved method/static call — the one place `qname`/`name`/
+/// `sig` (already computed for this call's own type-checking) get bundled
+/// into the shape `mwl-ir` reads back, so the `MethodCall`/`StaticCall`/`New`
+/// arms below don't each repeat the field list.
+fn resolved_call(qname: QName, name: String, sig: &MethodSig) -> ResolvedCall {
+    ResolvedCall {
+        class: qname,
+        method: name,
+        param_tys: sig.params.clone(),
+        variadic: sig.variadic,
+        return_ty: sig.return_ty,
+    }
+}
 
 /// Checks `expr`, optionally against `expected`, returning the type it was
 /// found (or, for an array literal checked against a target, declared) to
@@ -452,17 +468,18 @@ fn infer(
             // Unlike a static call, `mwl_hir::members` never checks an
             // instance method call's existence for any receiver — including
             // `$this` — so this is the first and only place it's diagnosed.
-            let sig = match (class_qname_of(object_ty, env.interner), method) {
+            let resolved = match (class_qname_of(object_ty, env.interner), method) {
                 (Some(qname), MemberName::Ident(name_span)) => {
                     let name = span_text(env.src, *name_span).to_owned();
                     let found = resolve_method(&qname, &name, env.signatures, env.graph);
                     if found.is_none() && !qname.is_core() && !qname.is_reserved_global_class() {
                         report_unknown_member(object.span, &qname, &name, "method", env);
                     }
-                    found
+                    found.map(|sig| (qname, name, sig))
                 }
                 _ => None,
             };
+            let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
             check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
             // ADR 0027: `$obj->method(...)` (first-class callable syntax)
             // names a `Closure` value, not the method's return type — the
@@ -470,6 +487,15 @@ fn infer(
             // shape, ahead of the ordinary-call typing below.
             if matches!(args, CallArgs::FirstClassCallable) {
                 return env.interner.callable();
+            }
+            // `mwl-ir` needs this call's resolved target (not just its return
+            // type) to lower an eventual instance-call instruction — see
+            // `crate::expr_table`'s own module docs.
+            if let Some((qname, name, sig)) = &resolved {
+                env.exprs.record(
+                    expr.span,
+                    ExprInfo::Call(resolved_call(qname.clone(), name.clone(), sig)),
+                );
             }
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
@@ -484,20 +510,30 @@ fn infer(
             // (`self::`/`static::`/`parent::`/an explicit class name) — this
             // only recovers the call's *type* when a signature resolves, and
             // adds no second diagnostic when it doesn't.
-            let sig = match method {
+            let resolved = match method {
                 MemberName::Ident(name_span) => {
                     resolve_class_expr(class, ctx, env).and_then(|qname| {
                         let name = span_text(env.src, *name_span).to_owned();
                         resolve_method(&qname, &name, env.signatures, env.graph)
+                            .map(|sig| (qname, name, sig))
                     })
                 }
                 _ => None,
             };
+            let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
             check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
             // See the `MethodCall` arm above: first-class callable syntax
             // names a `Closure`, not the resolved method's return type.
             if matches!(args, CallArgs::FirstClassCallable) {
                 return env.interner.callable();
+            }
+            // See the `MethodCall` arm above: persisted for `mwl-ir` to read
+            // back a resolved static call's target.
+            if let Some((qname, name, sig)) = &resolved {
+                env.exprs.record(
+                    expr.span,
+                    ExprInfo::Call(resolved_call(qname.clone(), name.clone(), sig)),
+                );
             }
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
@@ -556,6 +592,20 @@ fn infer(
             let arg_types = check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
             if let Some(qname) = &target_qname {
                 reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
+                // `mwl-ir` needs the constructed class and its resolved
+                // constructor (if any) to lower `new` — see
+                // `crate::expr_table`'s own module docs.
+                let ctor = sig
+                    .as_ref()
+                    .map(|s| resolved_call(qname.clone(), "constructor".to_owned(), s));
+                env.exprs.record(
+                    expr.span,
+                    ExprInfo::New {
+                        class: qname.clone(),
+                        ctor,
+                        ty: target_ty,
+                    },
+                );
             }
             target_ty
         }

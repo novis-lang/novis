@@ -129,6 +129,10 @@ pub fn build_signatures(
 ) -> SignatureTable {
     let mut table = SignatureTable::default();
     let placeholder = SignatureTable::default();
+    // Same placeholder idea as `signatures` above: signature collection only
+    // ever lowers property/parameter/return *type annotations*, never a call
+    // expression, so nothing during this pass ever records into `exprs`.
+    let mut placeholder_exprs = crate::expr_table::ExprTypeTable::default();
     let mut env = Env {
         symbols,
         aliases,
@@ -136,6 +140,7 @@ pub fn build_signatures(
         signatures: &placeholder,
         src,
         interner,
+        exprs: &mut placeholder_exprs,
         diags,
     };
     collect_stmts(stmts, &[], &FxHashMap::default(), &mut table, &mut env);

@@ -49,6 +49,11 @@
 //!   definite-assignment idea to a second binding kind, as that ADR's own
 //!   framing asks for, rather than reusing `locals`'s code directly (the two
 //!   passes track different per-path state and don't share a walker).
+//! - [`expr_table`] — [`expr_table::ExprTypeTable`]: the typed-expression
+//!   table `mwl-ir` reads a call's/`new`'s resolved target from once it needs
+//!   to lower one — see that module's own docs for the full design and why
+//!   `mwl-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
+//!   directly.
 //! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: ADR 0038's
 //!   `lateinit` property modifier. `signatures::build_signatures` validates
 //!   where it may appear (§ 1: refusing a scalar/enum type, `?T`, a promoted
@@ -150,6 +155,7 @@
 pub mod check;
 pub mod ctor_init;
 pub mod expr;
+pub mod expr_table;
 pub mod lateinit;
 pub mod locals;
 pub mod lower;
@@ -157,6 +163,7 @@ pub mod signatures;
 pub mod ty;
 
 pub use check::check_program;
+pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ResolvedCall};
 pub use ty::{Ty, TypeId, TypeInterner};
 
 use mwl_diagnostics::{SourceFile, Span};
@@ -196,6 +203,9 @@ pub(crate) struct Env<'a> {
     pub signatures: &'a SignatureTable,
     pub src: &'a SourceFile,
     pub interner: &'a mut TypeInterner,
+    /// Where a call's/`new`'s resolved target is persisted for `mwl-ir` to
+    /// read back later — see [`crate::expr_table`]'s own module docs.
+    pub exprs: &'a mut crate::expr_table::ExprTypeTable,
     pub diags: &'a mut mwl_diagnostics::Diagnostics,
 }
 

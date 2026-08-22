@@ -269,6 +269,7 @@ mod tests {
             current_class: None,
         };
         let signatures = crate::signatures::SignatureTable::new();
+        let mut exprs = crate::expr_table::ExprTypeTable::new();
         let mut env = Env {
             symbols: &module.symbols,
             aliases: &module.aliases,
@@ -276,6 +277,7 @@ mod tests {
             signatures: &signatures,
             src: map.file(file),
             interner: &mut interner,
+            exprs: &mut exprs,
             diags: &mut diags,
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);

@@ -410,6 +410,7 @@ mod tests {
     use mwl_hir::resolve_file;
     use mwl_syntax::parse_file;
 
+    use crate::expr_table::ExprTypeTable;
     use crate::ty::TypeInterner;
 
     fn check_src(src: &str) -> Diagnostics {
@@ -421,7 +422,15 @@ mod tests {
         let module = resolve_file(&stmts, map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut interner = TypeInterner::new();
-        crate::check_program(&stmts, map.file(file), &module, &mut interner, &mut diags);
+        let mut exprs = ExprTypeTable::new();
+        crate::check_program(
+            &stmts,
+            map.file(file),
+            &module,
+            &mut interner,
+            &mut exprs,
+            &mut diags,
+        );
         diags
     }
 

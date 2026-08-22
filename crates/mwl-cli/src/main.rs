@@ -86,7 +86,15 @@ fn run_check(path: &std::path::Path) -> ExitCode {
     let stmts = parse_file(map.file(id), &mut diags);
     let module = mwl_hir::resolve_file(&stmts, map.file(id), &mut diags);
     let mut interner = mwl_types::TypeInterner::new();
-    mwl_types::check_program(&stmts, map.file(id), &module, &mut interner, &mut diags);
+    let mut exprs = mwl_types::ExprTypeTable::new();
+    mwl_types::check_program(
+        &stmts,
+        map.file(id),
+        &module,
+        &mut interner,
+        &mut exprs,
+        &mut diags,
+    );
 
     render_diagnostics(&mut diags, &map);
 

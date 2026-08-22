@@ -32,6 +32,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ctor_init::check_class_init;
 use crate::expr::class_of_ctx;
+use crate::expr_table::ExprTypeTable;
 use crate::lateinit::check_class_lateinit_reads;
 use crate::locals::{LocalScope, check_block};
 use crate::lower::lower_optional_type;
@@ -47,12 +48,16 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// name-resolved `module` for symbol/alias lookups. `interner` accumulates
 /// every type this run interns — pass the same one across every file of a
 /// program sharing `module`, the same way `module` itself is built once and
-/// shared.
+/// shared. `exprs` accumulates every call's/`new`'s resolved target this run
+/// records — see [`crate::expr_table`]'s own module docs; a caller with no use
+/// for it yet (today, only `mwl-ir` reads it back) still passes one and may
+/// simply drop it afterward.
 pub fn check_program(
     stmts: &[Stmt],
     src: &SourceFile,
     module: &Module,
     interner: &mut TypeInterner,
+    exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) {
     let signatures = build_signatures(
@@ -71,6 +76,7 @@ pub fn check_program(
         signatures: &signatures,
         src,
         interner,
+        exprs,
         diags,
     };
     check_stmts(stmts, &[], &FxHashMap::default(), &mut env);
@@ -211,7 +217,15 @@ mod tests {
         let module = resolve_file(&stmts, map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut interner = TypeInterner::new();
-        check_program(&stmts, map.file(file), &module, &mut interner, &mut diags);
+        let mut exprs = ExprTypeTable::new();
+        check_program(
+            &stmts,
+            map.file(file),
+            &module,
+            &mut interner,
+            &mut exprs,
+            &mut diags,
+        );
         diags
     }
 
