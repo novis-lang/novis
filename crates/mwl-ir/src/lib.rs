@@ -260,8 +260,9 @@
 //! nothing yet converts one through this table — see that paragraph) — both
 //! still wait on more representation work, not on a new `Helper` variant.
 //! `&&`/`||`/`!` and the ternary/elvis condition (ADR 0035's other four
-//! truthy positions) are unaffected: this crate doesn't lower any of the
-//! three yet at all, so only `if`/`while`'s own condition changed this slice.
+//! truthy positions) are unaffected by this seventeenth slice itself — only
+//! `if`/`while`'s own condition changed here; see the nineteenth slice below
+//! for where those four land.
 //!
 //! [`ty::Ty::Mixed`] is the eighteenth slice, and the first slice to widen
 //! this crate's own IR type lattice rather than what it lowers — the
@@ -296,6 +297,89 @@
 //! truthy-table case specifically (a `mixed`-typed `if`/`while` condition
 //! could not exist as input before this slice; it can now, and still
 //! panics — see [`lower::Lowering::lower_truthy_cond`]'s own doc comment).
+//!
+//! The nineteenth slice lowers ADR 0035's other four truthy positions:
+//! `&&`/`||`/`!` and the ternary/elvis operator (`cond ? then : else`/
+//! `cond ?: else`) — the recommended pick left at the end of the eighteenth
+//! slice's own session, since none of the four were lowered by this crate at
+//! all before it, not even for a plain `bool` operand. PHP's low-precedence
+//! `and`/`or`/`xor` keyword operators are deliberately **not** included —
+//! ADR 0035 names only `&&`/`||`/`!`, not their keyword siblings.
+//!
+//! `&&`/`||` need genuine short-circuit control flow, not just a value
+//! computation: [`lower::Lowering::lower_and`]/[`lower::Lowering::lower_or`]
+//! lower to the same branch/merge-block shape
+//! [`lower::Lowering::lower_if`]'s own module-doc section describes, except
+//! the join point produces the expression's own [`ty::Ty::Bool`] value via a
+//! fresh [`ir::InstKind::Phi`] instead of merging named locals. This is why a
+//! new [`lower::Lowering::lower_expr_top`] entry point exists at all: unlike
+//! every other expression form this crate lowers, `&&`/`||`/ternary can
+//! redirect "the current block" mid-expression, so only positions that
+//! already own a mutable `cur: &mut BlockId` — a local declaration's
+//! initializer, `return`'s value, a plain reassignment's right-hand side
+//! (including a property/array-index target), and any condition under test —
+//! route through it instead of the plain, non-branching
+//! [`lower::Lowering::lower_expr`]. Everywhere else — a call argument, an
+//! array-literal element, a `.`-operand, a nested arithmetic/comparison
+//! operand — still panics naming the gap if it contains one of these forms,
+//! since those callers only ever own a fixed `cur: BlockId`. `!` never
+//! branches on its own, but recurses through `lower_expr_top` for its own
+//! operand so `!($a && $b)` composes at a top-level position; nested `!` (no
+//! `&mut BlockId` available) still applies ADR 0035's truthy table plus a
+//! negate via the plain [`lower::Lowering::lower_expr`], just without that
+//! composition — see [`lower::Lowering::negate_truthy`], now shared by both
+//! paths, and fixing a latent bug the seventeenth slice's own table
+//! introduced: unary `!` previously passed its operand's own type straight
+//! through to its result rather than always producing `Ty::Bool`, silently
+//! correct only because the one existing fixture happened to negate an
+//! already-`bool` local.
+//!
+//! The ternary/elvis operator ([`lower::Lowering::lower_ternary`]) is the
+//! same branch/merge shape once more, joining a `then`/`else` value instead
+//! of a named local. Elvis (`then` omitted) needs one exception to every
+//! other truthy-tested position's "release a fresh, non-aliasing refcounted
+//! operand once its truthy test is done" rule
+//! ([`lower::Lowering::truthy_value`]): PHP evaluates a `?:` condition
+//! exactly once, so the truthy path's own *value* is `cond` itself, not a
+//! fresh conversion — releasing it as part of the truthy test would
+//! use-after-free that reuse. [`lower::Lowering::truthy_convert`] (the bare
+//! conversion, factored out of `truthy_value`) lets `lower_ternary` decide
+//! that ownership question itself: release `cond` once `then` is given
+//! (nothing left to reuse it for), or retain it once more when `then` is
+//! omitted and `cond` is an aliasing read gaining a second independent owner.
+//! The same question applies to every `then`/`else` branch, not just elvis's
+//! reused `cond`: nothing else treats a ternary's own result as anything but
+//! an ordinary fresh value (`is_aliasing_read` never lists `ExprKind::Ternary`
+//! itself), so a branch whose own expression *is* an aliasing read needs its
+//! own retain right there, converting a still-slot-owned reference into the
+//! ternary's own independent one — caught by one of this slice's own tests
+//! (`elvis_retains_an_aliased_refcounted_condition` and its sibling covering
+//! the non-elvis case) rather than assumed correct by inspection alone. A
+//! `then`/`else` pair that lowers to two different [`ty::Ty`] representations
+//! still panics naming the case — the checker's own union of their static
+//! types has no IR representation this crate can fold into yet, the same
+//! open question [`ty::Ty::Mixed`]'s own doc comment names for why a union
+//! isn't automatically folded into it.
+//!
+//! `while`'s own lowering needed one adjustment to host a branching condition
+//! at all: the loop header's phis still physically live in the fixed
+//! `header_block` created before condition lowering runs, but the loop's own
+//! `Branch` terminator now seals onto whichever block condition lowering
+//! actually ends in (`cond_end`, tracked separately) — unchanged from
+//! `header_block` itself unless the condition contains one of these new
+//! forms.
+//!
+//! One more pre-existing gap surfaced (and is fixed) as part of this slice:
+//! `ExprKind::Paren` — a parenthesized `(expr)` — was never unwrapped
+//! anywhere in this crate's expression lowering at all (only in type
+//! position, `lower_decl_type`'s own `TypeKind::Paren` arm), even though
+//! `mwl_types::expr::check_expr`'s own `Paren` arm has always treated it as
+//! fully transparent. Invisible until now because no earlier slice's own
+//! fixtures happened to need explicit parens; `!($a && $b)` does, since `!`
+//! binds tighter than `&&`/`||` in the grammar. Both
+//! [`lower::Lowering::lower_expr`] and [`lower::Lowering::lower_expr_top`]
+//! now have their own transparent `Paren` arm, recursing back into
+//! themselves respectively.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -480,8 +564,25 @@
 //!   type-tag representation named in the runtime-helper-calls known gap
 //!   below, so it still panics — now naming a live gap rather than a
 //!   theoretical one. `&&`/`||`/`!` and the ternary/elvis condition — ADR
-//!   0035's other four truthy positions — are unaffected: this crate doesn't
-//!   lower any of the three yet at all.
+//!   0035's other four truthy positions — now lower too, as of the
+//!   nineteenth slice; see the next bullet.
+//! - **`&&`/`||`/`!` and the ternary/elvis operator all lower, at any
+//!   position that already owns a mutable `cur: &mut BlockId`.** See the
+//!   nineteenth-slice paragraph above for the full shape
+//!   ([`lower::Lowering::lower_and`]/[`lower::Lowering::lower_or`]/
+//!   [`lower::Lowering::lower_not`]/[`lower::Lowering::lower_ternary`], all
+//!   reached through the new [`lower::Lowering::lower_expr_top`] entry
+//!   point). What's still out of scope: any of the four nested inside a
+//!   position that only owns a fixed `cur: BlockId` — a call argument, an
+//!   array-literal element, a `.`-operand, a nested arithmetic/comparison
+//!   operand — still panics naming the gap, since [`lower::Lowering::
+//!   lower_expr`] itself was deliberately not widened to redirect the
+//!   current block. A ternary whose `then`/`else` branches lower to two
+//!   different [`ty::Ty`] representations also still panics — folding the
+//!   checker's own union into this crate's flatter `Ty` lattice is its own
+//!   decision, the same open question `Ty::Mixed`'s own doc comment names.
+//!   PHP's low-precedence `and`/`or`/`xor` keyword operators are out of
+//!   scope by design, not oversight — ADR 0035 names only `&&`/`||`/`!`.
 //! - No block-scoped shadowing: the environment `crate::lower` threads
 //!   through is one flat, function-wide map, exactly like the straight-line
 //!   slice's `locals` was. A nested `{}` declaring a local that shadows an

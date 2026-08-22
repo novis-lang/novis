@@ -420,7 +420,7 @@ impl<'a> Lowering<'a> {
                 value: Some(value),
             } => {
                 let expected = lower_decl_type(decl_ty);
-                let (v, _) = self.lower_expr(value, Some(expected), env, *cur);
+                let (v, _) = self.lower_expr_top(value, Some(expected), env, cur);
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, expected, value);
             }
@@ -442,11 +442,11 @@ impl<'a> Lowering<'a> {
                 name: local_name,
                 value: Some(value),
             } => {
-                let (v, ty) = self.lower_expr(value, None, env, *cur);
+                let (v, ty) = self.lower_expr_top(value, None, env, cur);
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, ty, value);
             }
-            StmtKind::Expr(e) => self.lower_expr_stmt(e, env, *cur),
+            StmtKind::Expr(e) => self.lower_expr_stmt(e, env, cur),
             // See `Self::release_all_locals`'s own doc comment for why a
             // bare `$name` return expression is excluded from the exit
             // sweep rather than retained: its value transfers out instead of
@@ -464,13 +464,17 @@ impl<'a> Lowering<'a> {
                         None
                     }
                 });
-                let v = value.as_ref().map(|v| {
-                    let (rv, rty) = self.lower_expr(v, Some(self.ret_ty), env, *cur);
-                    if except.is_none() && rty.is_refcounted() && is_aliasing_read(&v.kind) {
+                let ret_ty = self.ret_ty;
+                let v = if let Some(value_expr) = value.as_ref() {
+                    let (rv, rty) = self.lower_expr_top(value_expr, Some(ret_ty), env, cur);
+                    if except.is_none() && rty.is_refcounted() && is_aliasing_read(&value_expr.kind)
+                    {
                         self.emit_retain(*cur, rv);
                     }
-                    rv
-                });
+                    Some(rv)
+                } else {
+                    None
+                };
                 self.release_all_locals(*cur, env, except.as_deref());
                 self.seal(*cur, Terminator::Return(v));
             }
@@ -506,7 +510,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming the unsupported shape for anything outside this slice's
     /// scope: an expression statement that is neither a plain reassignment
     /// nor a bare call/`new`.
-    fn lower_expr_stmt(&mut self, e: &Expr, env: &mut Env, cur: BlockId) {
+    fn lower_expr_stmt(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
         match &e.kind {
             ExprKind::Assign {
                 op: AssignOp::Assign,
@@ -514,9 +518,9 @@ impl<'a> Lowering<'a> {
                 ..
             } => self.lower_reassignment(e, env, cur),
             ExprKind::MethodCall { .. } | ExprKind::StaticCall { .. } | ExprKind::New { .. } => {
-                let (v, ty) = self.lower_expr(e, None, env, cur);
+                let (v, ty) = self.lower_expr(e, None, env, *cur);
                 if ty.is_refcounted() {
-                    self.emit_release(cur, v);
+                    self.emit_release(*cur, v);
                 }
             }
             other => panic!(
@@ -530,7 +534,7 @@ impl<'a> Lowering<'a> {
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
     /// SSA renaming needs no join logic here, only a fresh binding in `env`
     /// (a local target) or a [`InstKind::FieldSet`] (a property target).
-    fn lower_reassignment(&mut self, e: &Expr, env: &mut Env, cur: BlockId) {
+    fn lower_reassignment(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Assign {
             op: AssignOp::Assign,
             target,
@@ -544,8 +548,8 @@ impl<'a> Lowering<'a> {
             ExprKind::Variable(name_span) => {
                 let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
                 let expected = env.get(&lname).map(|&(_, t)| t);
-                let (v, ty) = self.lower_expr(value, expected, env, cur);
-                self.bind_local(cur, env, lname, v, ty, value);
+                let (v, ty) = self.lower_expr_top(value, expected, env, cur);
+                self.bind_local(*cur, env, lname, v, ty, value);
             }
             // `$obj->prop = expr;` — the receiver's declaring class comes
             // from `self.exprs`, exactly like `ExprKind::PropertyAccess`'s
@@ -584,14 +588,14 @@ impl<'a> Lowering<'a> {
                 let field_ty = lower_checked_ty(*ty, self.checked_types);
                 let class_label = class.to_string();
                 let field_name = name.clone();
-                let (object_v, _) = self.lower_expr(object, None, env, cur);
-                let (v, _) = self.lower_expr(value, Some(field_ty), env, cur);
+                let (object_v, _) = self.lower_expr(object, None, env, *cur);
+                let (v, _) = self.lower_expr_top(value, Some(field_ty), env, cur);
                 if field_ty.is_refcounted() && is_aliasing_read(&value.kind) {
-                    self.emit_retain(cur, v);
+                    self.emit_retain(*cur, v);
                 }
                 if field_ty.is_refcounted() {
                     let (old_v, _) = self.emit(
-                        cur,
+                        *cur,
                         field_ty,
                         InstKind::FieldGet {
                             object: object_v,
@@ -599,9 +603,9 @@ impl<'a> Lowering<'a> {
                             field: field_name.clone(),
                         },
                     );
-                    self.emit_release(cur, old_v);
+                    self.emit_release(*cur, old_v);
                 }
-                self.emit_field_set(cur, object_v, class_label, field_name, v);
+                self.emit_field_set(*cur, object_v, class_label, field_name, v);
             }
             // `$arr[$i] = expr;` — the element's declared type comes from
             // `self.exprs`, exactly like the read side above (`check_assign`'s
@@ -634,16 +638,16 @@ impl<'a> Lowering<'a> {
                          docs' known gaps"
                     );
                 };
-                let (array_v, _) = self.lower_expr(base, None, env, cur);
-                let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+                let (array_v, _) = self.lower_expr(base, None, env, *cur);
+                let (key_v, key_aliasing) = self.lower_array_key(index, env, *cur);
                 if key_aliasing {
-                    self.emit_retain(cur, key_v);
+                    self.emit_retain(*cur, key_v);
                 }
-                let (v, _) = self.lower_expr(value, Some(elem_ty), env, cur);
+                let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
                 if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
-                    self.emit_retain(cur, v);
+                    self.emit_retain(*cur, v);
                 }
-                self.emit_array_set(cur, array_v, key_v, v);
+                self.emit_array_set(*cur, array_v, key_v, v);
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \
@@ -670,7 +674,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         env: &mut Env,
     ) {
-        let cond_v = self.lower_truthy_cond(cond, env, *cur);
+        let cond_v = self.lower_truthy_cond(cond, env, cur);
 
         let merge_block = self.new_block();
         let then_block = self.new_block();
@@ -765,14 +769,21 @@ impl<'a> Lowering<'a> {
             phi_slots.push((name.clone(), inst_index));
         }
 
-        let cond_v = self.lower_truthy_cond(cond, &header_env, header_block);
+        // `cond` may itself need to branch (a `&&`/`||`/ternary condition —
+        // see `Self::lower_truthy_cond`), in which case the loop's own
+        // `Branch` terminator belongs on whichever block that evaluation
+        // actually ends in, not necessarily `header_block` itself. The header
+        // phis above still physically live in `header_block` — cond
+        // lowering only ever *appends* blocks after it, never touches those.
+        let mut cond_end = header_block;
+        let cond_v = self.lower_truthy_cond(cond, &header_env, &mut cond_end);
 
         let body_block = self.new_block();
         let after_block = self.new_block();
         let body_edge = self.ids.next_edge(body.span);
         let after_edge = self.ids.next_edge(cond.span);
         self.seal(
-            header_block,
+            cond_end,
             Terminator::Branch {
                 cond: cond_v,
                 then_block: body_block,
@@ -944,6 +955,14 @@ impl<'a> Lowering<'a> {
         cur: BlockId,
     ) -> (ValueId, Ty) {
         match &expr.kind {
+            // `(expr)` is fully transparent — `mwl_types::expr::check_expr`'s
+            // own `ExprKind::Paren` arm just recurses with the same
+            // `expected`, and this does the same for lowering. Needed for
+            // `!($a && $b)`-shaped input at all: `!` binds tighter than
+            // `&&`/`||` in the grammar, so writing "not (a and b)" requires
+            // the explicit parens, which the parser keeps as their own node
+            // rather than discarding.
+            ExprKind::Paren(inner) => self.lower_expr(inner, expected, env, cur),
             ExprKind::Bool(b) => self.emit(cur, Ty::Bool, InstKind::ConstBool(*b)),
             // ADR 0007 § 4, mirroring `mwl_types::expr::infer`'s own rule: a
             // bare integer literal means `uint` exactly where that's the
@@ -1013,11 +1032,27 @@ impl<'a> Lowering<'a> {
                 });
                 (v, ty)
             }
+            // `!` always produces `Ty::Bool` via ADR 0035's truthy table
+            // (`Self::negate_truthy`), regardless of `inner`'s own type — a
+            // separate arm from the plain arithmetic/bitwise unary operators
+            // below, which just pass their operand's own type straight
+            // through. `inner` is lowered with the plain, non-branching
+            // `Self::lower_expr` here (this arm has no `&mut BlockId` to
+            // redirect) — a nested `&&`/`||`/ternary `inner` still panics via
+            // that call's own arms; `Self::lower_not` is the top-level
+            // sibling that supports composing with those.
+            ExprKind::Unary {
+                op: AstUnaryOp::Not,
+                expr: inner,
+            } => {
+                let (v, ty) = self.lower_expr(inner, None, env, cur);
+                let r = self.negate_truthy(v, ty, is_aliasing_read(&inner.kind), cur);
+                (r, Ty::Bool)
+            }
             ExprKind::Unary { op, expr: inner } => {
                 let (v, ty) = self.lower_expr(inner, expected, env, cur);
                 let uop = match op {
                     AstUnaryOp::Neg => UnOp::Neg,
-                    AstUnaryOp::Not => UnOp::Not,
                     other => panic!(
                         "mwl-ir's control-flow slice only lowers unary `-`/`!` — got {other:?}; \
                          see the crate docs' known gaps"
@@ -1424,26 +1459,23 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// Lowers `cond` — an `if`/`while` condition — for ADR 0035's truthy
-    /// table rather than requiring it already be [`Ty::Bool`]: a `Ty::Bool`
-    /// value passes straight through; `Ty::Int`/`Ty::Uint`/`Ty::Float`/
-    /// `Ty::Str` each convert through their own new [`Helper`] variant
+    /// Converts an already-lowered `(v, ty)` pair through ADR 0035's truthy
+    /// table, with no ownership decision attached — see [`Self::truthy_value`]
+    /// for the usual "release a fresh, non-aliasing refcounted operand once
+    /// its truthy test is done" wrapper every caller but
+    /// [`Self::lower_ternary`]'s elvis arm wants; elvis needs the bare
+    /// conversion on its own, since its truthy-path *value* is `v` itself
+    /// (PHP only evaluates a `?:` condition once) and releasing it here would
+    /// use-after-free that reuse.
+    ///
+    /// `Ty::Bool` passes straight through; `Ty::Int`/`Ty::Uint`/`Ty::Float`/
+    /// `Ty::Str` each convert through their own [`Helper`] variant
     /// (`IntTruthy`/`UintTruthy`/`FloatTruthy`/`StrTruthy`); [`Ty::Array`]
     /// converts through [`Helper::ArrayTruthy`] (falsy iff empty, ADR 0035's
     /// table); and [`Ty::Object`] — a class instance or an enum case — needs
     /// no helper at all, since ADR 0035 § 4 makes either always truthy: this
     /// folds straight to a fresh [`InstKind::ConstBool`] `true` rather than
-    /// emitting a call with nothing to inspect at runtime. A refcounted
-    /// operand (`Ty::Str`/`Ty::Array`) that isn't [`is_aliasing_read`] — a
-    /// fresh call/`new`/literal result whose only use is this truthy test —
-    /// is released right after the helper reads it, the same "release a
-    /// fresh value once its one and only use is done" precedent
-    /// [`Self::concat_operand`]'s own caller already sets for `.`
-    /// concatenation; an aliasing read (a bare variable, a compile-time-known
-    /// property or array-element read) still durably belongs to whatever
-    /// slot it came from and needs no release here.
-    ///
-    /// Returns the resulting [`Ty::Bool`] value.
+    /// emitting a call with nothing to inspect at runtime.
     ///
     /// # Panics
     ///
@@ -1452,15 +1484,11 @@ impl<'a> Lowering<'a> {
     /// `string`, not the separate `bytes` type) or `Ty::Void`. The `null`
     /// case (a nullable type) still has no IR representation to convert
     /// *from* at all, so it can't actually reach this method for any program
-    /// in scope today. `Ty::Mixed` is different: as of this slice a
-    /// `mixed`-typed condition *can* reach here (a `mixed`-typed
-    /// local/parameter now round-trips — see that variant's own doc
-    /// comment), but converting one through ADR 0035's table needs the same
-    /// runtime type-tag representation this crate still doesn't have, so it
-    /// panics too, now naming a live gap rather than a theoretical one.
-    fn lower_truthy_cond(&mut self, cond: &Expr, env: &Env, cur: BlockId) -> ValueId {
-        let (v, ty) = self.lower_expr(cond, None, env, cur);
-        let cond_v = match ty {
+    /// in scope today. `Ty::Mixed` still panics too: converting one through
+    /// ADR 0035's table needs a runtime type-tag representation this crate
+    /// still doesn't have.
+    fn truthy_convert(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> ValueId {
+        match ty {
             Ty::Bool => v,
             Ty::Int | Ty::Uint | Ty::Float | Ty::Str => {
                 let helper = match ty {
@@ -1498,16 +1526,329 @@ impl<'a> Lowering<'a> {
             Ty::Object => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
             other => panic!(
                 "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `Ty::Array` \
-                 or `Ty::Object` `if`/`while` condition — got {other:?}; a `null` condition has \
-                 no IR representation to convert from at all, and a `mixed`/union condition \
-                 needs a runtime type-tag representation this crate doesn't have yet, see the \
-                 crate docs' known gaps"
+                 or `Ty::Object` value — got {other:?}; a `null` value has no IR representation \
+                 to convert from at all, and a `mixed`/union value needs a runtime type-tag \
+                 representation this crate doesn't have yet, see the crate docs' known gaps"
             ),
-        };
-        if ty.is_refcounted() && !is_aliasing_read(&cond.kind) {
+        }
+    }
+
+    /// [`Self::truthy_convert`] plus the ownership half every truthy-tested
+    /// position but elvis wants: a refcounted operand (`Ty::Str`/`Ty::Array`)
+    /// that isn't [`is_aliasing_read`] — a fresh call/`new`/literal result
+    /// whose only use is this truthy test — is released right after it's
+    /// read, the same "release a fresh value once its one and only use is
+    /// done" precedent [`Self::concat_operand`]'s own caller already sets for
+    /// `.` concatenation; an aliasing read (a bare variable, a
+    /// compile-time-known property or array-element read) still durably
+    /// belongs to whatever slot it came from and needs no release here.
+    fn truthy_value(&mut self, v: ValueId, ty: Ty, is_alias: bool, cur: BlockId) -> ValueId {
+        let cond_v = self.truthy_convert(v, ty, cur);
+        if ty.is_refcounted() && !is_alias {
             self.emit_release(cur, v);
         }
         cond_v
+    }
+
+    /// Lowers `cond` — an `if`/`while` condition, or `&&`/`||`'s own operand
+    /// (see [`Self::lower_and`]/[`Self::lower_or`]) — through
+    /// [`Self::lower_expr_top`] (so a nested `&&`/`||`/`!`/ternary composes,
+    /// e.g. `if ($a && $b)`) and then [`Self::truthy_value`]'s table.
+    /// `*cur` is updated to whichever block `cond`'s own evaluation ends in —
+    /// unchanged unless `cond` itself needed to branch.
+    ///
+    /// # Panics
+    ///
+    /// See [`Self::truthy_convert`]'s own panic doc — the same restriction
+    /// applies here.
+    fn lower_truthy_cond(&mut self, cond: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
+        let (v, ty) = self.lower_expr_top(cond, None, env, cur);
+        self.truthy_value(v, ty, is_aliasing_read(&cond.kind), *cur)
+    }
+
+    /// Lowers `expr` in a position that owns a mutable `cur` — a local
+    /// declaration's initializer, `return`'s value, a plain reassignment's
+    /// right-hand side, or a condition under test
+    /// ([`Self::lower_truthy_cond`]) — and so can redirect it if `expr` needs
+    /// control flow of its own: `&&`/`||` ([`Self::lower_and`]/
+    /// [`Self::lower_or`], ADR 0035's short-circuit truthy positions), `!`
+    /// ([`Self::lower_not`], which recurses through here for its own operand
+    /// so `!($a && $b)` composes), or a ternary/elvis branch
+    /// ([`Self::lower_ternary`]). PHP's low-precedence `and`/`or`/`xor`
+    /// keyword operators are deliberately **not** included — ADR 0035 names
+    /// only `&&`/`||`/`!`, not their keyword siblings, so those still fall
+    /// through to [`Self::lower_expr`]'s existing panic.
+    ///
+    /// Everywhere else `lower_expr` is called directly instead — a call
+    /// argument, an array-literal element, a `.`-operand, a nested
+    /// arithmetic/comparison operand — still panics naming the gap if it
+    /// contains one of these forms, since those callers only ever own a
+    /// fixed `cur: BlockId`, not a `&mut BlockId` they could redirect after a
+    /// branch; see the crate docs' known gaps.
+    fn lower_expr_top(
+        &mut self,
+        expr: &Expr,
+        expected: Option<Ty>,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        match &expr.kind {
+            // See `Self::lower_expr`'s own `ExprKind::Paren` arm — same
+            // transparent unwrap, just recursing back through this method
+            // instead so a parenthesized `&&`/`||`/`!`/ternary still composes
+            // (e.g. `!($a && $b)`).
+            ExprKind::Paren(inner) => self.lower_expr_top(inner, expected, env, cur),
+            ExprKind::Binary {
+                op: BinaryOp::And,
+                lhs,
+                rhs,
+            } => (self.lower_and(lhs, rhs, env, cur), Ty::Bool),
+            ExprKind::Binary {
+                op: BinaryOp::Or,
+                lhs,
+                rhs,
+            } => (self.lower_or(lhs, rhs, env, cur), Ty::Bool),
+            ExprKind::Unary {
+                op: AstUnaryOp::Not,
+                expr: inner,
+            } => (self.lower_not(inner, env, cur), Ty::Bool),
+            ExprKind::Ternary { cond, then, else_ } => {
+                self.lower_ternary(cond, then.as_deref(), else_, env, cur)
+            }
+            _ => self.lower_expr(expr, expected, env, *cur),
+        }
+    }
+
+    /// `!expr` — ADR 0035's truthy table applied to `expr`, then negated;
+    /// always produces [`Ty::Bool`] regardless of `expr`'s own type, unlike a
+    /// plain arithmetic/bitwise unary operator. `expr` is lowered through
+    /// [`Self::lower_expr_top`] so `!($a && $b)`/`!($a ? $b : $c)` compose the
+    /// same way a bare `&&`/`||`/ternary does at a top-level position.
+    fn lower_not(&mut self, inner: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
+        let (v, ty) = self.lower_expr_top(inner, None, env, cur);
+        self.negate_truthy(v, ty, is_aliasing_read(&inner.kind), *cur)
+    }
+
+    /// Shared by [`Self::lower_not`] (a top-level `!`, whose operand may
+    /// itself branch) and [`Self::lower_expr`]'s own `!` arm (a nested `!`
+    /// with no `&mut BlockId` to redirect, so its operand may not branch):
+    /// [`Self::truthy_value`]'s conversion, then an [`InstKind::UnOp`]
+    /// negating the resulting [`Ty::Bool`].
+    fn negate_truthy(&mut self, v: ValueId, ty: Ty, is_alias: bool, cur: BlockId) -> ValueId {
+        let b = self.truthy_value(v, ty, is_alias, cur);
+        self.emit(
+            cur,
+            Ty::Bool,
+            InstKind::UnOp {
+                op: UnOp::Not,
+                operand: b,
+            },
+        )
+        .0
+    }
+
+    /// `lhs && rhs` — PHP's short-circuit `&&`: `rhs` is only evaluated when
+    /// `lhs` is truthy. Lowered exactly like [`Self::lower_if`]'s own
+    /// branch/merge shape, except the join point produces the expression's
+    /// own [`Ty::Bool`] value via a fresh [`InstKind::Phi`] instead of
+    /// merging named locals (an expression's own temporaries never live in
+    /// [`Env`] — that's [`Self::merge_envs`]' business, not this one's).
+    /// `lhs`/`rhs` each go through [`Self::lower_truthy_cond`], so either may
+    /// itself be any type ADR 0035's table covers, and either may itself be a
+    /// nested `&&`/`||`/`!`/ternary.
+    fn lower_and(&mut self, lhs: &Expr, rhs: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
+        let lhs_v = self.lower_truthy_cond(lhs, env, cur);
+        let lhs_end = *cur;
+        // Emitted in `lhs_end` before it's sealed below — this is the join's
+        // incoming value for the short-circuit (falsy-`lhs`) edge.
+        let short_v = self.emit(lhs_end, Ty::Bool, InstKind::ConstBool(false)).0;
+
+        let rhs_block = self.new_block();
+        let merge_block = self.new_block();
+        let rhs_edge = self.ids.next_edge(rhs.span);
+        let short_edge = self.ids.next_edge(lhs.span);
+        self.seal(
+            lhs_end,
+            Terminator::Branch {
+                cond: lhs_v,
+                then_block: rhs_block,
+                then_edge: rhs_edge,
+                else_block: merge_block,
+                else_edge: short_edge,
+            },
+        );
+
+        let mut rhs_cur = rhs_block;
+        let rhs_v = self.lower_truthy_cond(rhs, env, &mut rhs_cur);
+        let rhs_end = rhs_cur;
+        self.seal(rhs_end, Terminator::Jump(merge_block));
+
+        let (result, _) = self.emit(
+            merge_block,
+            Ty::Bool,
+            InstKind::Phi {
+                incoming: vec![(lhs_end, short_v), (rhs_end, rhs_v)],
+            },
+        );
+        *cur = merge_block;
+        result
+    }
+
+    /// `lhs || rhs` — [`Self::lower_and`]'s mirror: `rhs` is only evaluated
+    /// when `lhs` is falsy, and the short-circuit (truthy-`lhs`) edge carries
+    /// `true` instead of `false`.
+    fn lower_or(&mut self, lhs: &Expr, rhs: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
+        let lhs_v = self.lower_truthy_cond(lhs, env, cur);
+        let lhs_end = *cur;
+        let short_v = self.emit(lhs_end, Ty::Bool, InstKind::ConstBool(true)).0;
+
+        let rhs_block = self.new_block();
+        let merge_block = self.new_block();
+        let short_edge = self.ids.next_edge(lhs.span);
+        let rhs_edge = self.ids.next_edge(rhs.span);
+        self.seal(
+            lhs_end,
+            Terminator::Branch {
+                cond: lhs_v,
+                then_block: merge_block,
+                then_edge: short_edge,
+                else_block: rhs_block,
+                else_edge: rhs_edge,
+            },
+        );
+
+        let mut rhs_cur = rhs_block;
+        let rhs_v = self.lower_truthy_cond(rhs, env, &mut rhs_cur);
+        let rhs_end = rhs_cur;
+        self.seal(rhs_end, Terminator::Jump(merge_block));
+
+        let (result, _) = self.emit(
+            merge_block,
+            Ty::Bool,
+            InstKind::Phi {
+                incoming: vec![(lhs_end, short_v), (rhs_end, rhs_v)],
+            },
+        );
+        *cur = merge_block;
+        result
+    }
+
+    /// `cond ? then : else` (`then` is `None` for elvis, `cond ?: else`) —
+    /// [`Self::lower_if`]'s branch/merge shape again, this time joining the
+    /// expression's own value via a [`InstKind::Phi`] rather than merging
+    /// named locals.
+    ///
+    /// `cond` is converted through [`Self::truthy_convert`] directly, not
+    /// [`Self::lower_truthy_cond`]/[`Self::truthy_value`]: elvis's truthy
+    /// path reuses `cond`'s own value (PHP evaluates a `?:` condition exactly
+    /// once), so releasing it as part of the truthy test — the usual rule
+    /// every other truthy-tested position wants — would use-after-free that
+    /// reuse. Instead: a refcounted, non-aliasing `cond` is released once
+    /// `then` is given (nothing left to reuse it for), or retained once more
+    /// when `then` is omitted and `cond` *is* an aliasing read (its value is
+    /// about to gain a second, independent owner — the ternary's own
+    /// result) — the same [`is_aliasing_read`]-keyed retain
+    /// [`Self::bind_local`]/[`Self::lower_call_args`] already apply at their
+    /// own ownership-transfer boundaries. A fresh, non-aliasing `cond`
+    /// reused by elvis needs neither: it already has exactly one owner,
+    /// which simply becomes the ternary's result.
+    ///
+    /// The same retain question applies to every `then`/`else` branch, not
+    /// just elvis's reused `cond`: every consumer of this method's own result
+    /// ([`Self::bind_local`], `return`) treats it as an ordinary fresh value —
+    /// [`is_aliasing_read`] never lists [`mwl_syntax::ast::ExprKind::Ternary`]
+    /// — so this method has to guarantee that itself. A branch whose own
+    /// expression [`is_aliasing_read`] (a bare variable, a compile-time-known
+    /// property or array-element read) is retained right there, converting a
+    /// still-slot-owned reference into the ternary's own independent one,
+    /// exactly like [`Self::lower_interpolated_parts`]' own "single-part
+    /// alias" case; a branch that's already fresh (a literal, `new`, a call
+    /// result, or a nested `&&`/`||`/`!`/ternary — the last already guarantees
+    /// its own freshness by this same rule) needs no retain, since ownership
+    /// just transfers.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the case if `then`'s and `else`'s branches lower to two
+    /// different [`Ty`] representations — the checker's own union of their
+    /// static types has no IR representation this crate can fold into yet
+    /// (see [`Ty::Mixed`]'s own doc comment on why a union isn't folded into
+    /// it automatically). Otherwise see [`Self::truthy_convert`]'s own panic
+    /// doc for `cond`'s own restriction.
+    fn lower_ternary(
+        &mut self,
+        cond: &Expr,
+        then: Option<&Expr>,
+        else_: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (cond_v, cond_ty) = self.lower_expr_top(cond, None, env, cur);
+        let cond_is_alias = is_aliasing_read(&cond.kind);
+        let truthy_v = self.truthy_convert(cond_v, cond_ty, *cur);
+        let pre_block = *cur;
+        if then.is_some() && cond_ty.is_refcounted() && !cond_is_alias {
+            self.emit_release(pre_block, cond_v);
+        }
+
+        let then_block = self.new_block();
+        let else_block = self.new_block();
+        let merge_block = self.new_block();
+        let then_edge = self.ids.next_edge(then.map_or(cond.span, |t| t.span));
+        let else_edge = self.ids.next_edge(else_.span);
+        self.seal(
+            pre_block,
+            Terminator::Branch {
+                cond: truthy_v,
+                then_block,
+                then_edge,
+                else_block,
+                else_edge,
+            },
+        );
+
+        let (then_v, then_ty, then_end) = match then {
+            Some(then_expr) => {
+                let mut then_cur = then_block;
+                let (v, ty) = self.lower_expr_top(then_expr, None, env, &mut then_cur);
+                if ty.is_refcounted() && is_aliasing_read(&then_expr.kind) {
+                    self.emit_retain(then_cur, v);
+                }
+                (v, ty, then_cur)
+            }
+            None => {
+                if cond_ty.is_refcounted() && cond_is_alias {
+                    self.emit_retain(then_block, cond_v);
+                }
+                (cond_v, cond_ty, then_block)
+            }
+        };
+        self.seal(then_end, Terminator::Jump(merge_block));
+
+        let mut else_cur = else_block;
+        let (else_v, else_ty) = self.lower_expr_top(else_, None, env, &mut else_cur);
+        if else_ty.is_refcounted() && is_aliasing_read(&else_.kind) {
+            self.emit_retain(else_cur, else_v);
+        }
+        self.seal(else_cur, Terminator::Jump(merge_block));
+
+        assert_eq!(
+            then_ty, else_ty,
+            "mwl-ir's ternary/elvis slice only lowers a ternary whose branches share the same \
+             IR-level type — got {then_ty:?} vs {else_ty:?}; a differing-branch-type ternary \
+             erases to a union the checker already computed but this crate has no IR \
+             representation to fold it into yet, see the crate docs' known gaps"
+        );
+
+        let (result, _) = self.emit(
+            merge_block,
+            then_ty,
+            InstKind::Phi {
+                incoming: vec![(then_end, then_v), (else_cur, else_v)],
+            },
+        );
+        *cur = merge_block;
+        (result, then_ty)
     }
 
     /// Lowers `ExprKind::Interpolated`'s parts into the single [`Ty::Str`]
@@ -3129,6 +3470,163 @@ class T {
     fn a_bool_subscript_key_is_rejected_before_lowering_even_runs() {
         lower_first_method(
             "<?mwl\nclass T {\n  function m(array<int> $a, bool $b): void {\n    $a[$b] = 1;\n  }\n}\n",
+        );
+    }
+
+    /// `$a && $b` — ADR 0035's short-circuit `&&`, the nineteenth slice's
+    /// first new form: `$a`'s own truthy test branches straight to a merge
+    /// block carrying `const.bool false` when falsy, only evaluating `$b`
+    /// (through its own truthy test) on the truthy path — `Lowering::
+    /// lower_and`'s branch/`Phi`-merge shape, reached from `return`'s
+    /// mutable `cur` via `Lowering::lower_expr_top`.
+    #[test]
+    fn and_short_circuits_to_a_phi() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    return $a && $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a || $b` — `Lowering::lower_or`'s mirror of `and_short_circuits_to_a_phi`:
+    /// the short-circuit edge (truthy `$a`) carries `const.bool true` instead,
+    /// and `$b` is only evaluated when `$a` is falsy.
+    #[test]
+    fn or_short_circuits_to_a_phi() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    return $a || $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `!$s` with a `string` operand — fixes a latent bug the seventeenth
+    /// slice's own table left behind: unary `!` previously passed its
+    /// operand's own type straight through as the result type (only
+    /// coincidentally correct for the one existing fixture, which negated an
+    /// already-`bool` local) instead of always producing `Ty::Bool` per ADR
+    /// 0035. `$s` converts through `Helper::StrTruthy` first, then negates —
+    /// `$s` is a bare parameter read (`is_aliasing_read`), so no release
+    /// follows the helper call, same as any other truthy-tested aliasing
+    /// read.
+    #[test]
+    fn not_converts_a_non_bool_operand_through_the_truthy_table_then_negates() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(string $s): bool {\n    return !$s;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `!($a && $b)` — `!`'s operand is itself a short-circuit `&&`, composing
+    /// through `Lowering::lower_not`'s own `Lowering::lower_expr_top` call
+    /// rather than the plain, non-branching `Lowering::lower_expr` a nested
+    /// `!` would otherwise be stuck with.
+    #[test]
+    fn not_composes_with_a_short_circuit_and() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    return !($a && $b);\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `if ($a && $b)` — an `if`'s own condition is itself a short-circuit
+    /// `&&`, exercising `Lowering::lower_if`'s updated call into
+    /// `Lowering::lower_truthy_cond` with a mutable `cur` that `&&`'s own
+    /// branch/merge shape gets to redirect before the `if`'s own `Branch`
+    /// terminator is sealed.
+    #[test]
+    fn if_condition_short_circuits_with_and() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $a, bool $b): bool {\n    if ($a && $b) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `while ($a || $b)` — exercises the loop-header adjustment
+    /// `Lowering::lower_while` needed to host a branching condition at all:
+    /// the header phi for `$a` still lives in the fixed loop-header block,
+    /// but the loop's own `Branch` terminator now seals onto `cond_end`
+    /// (wherever `||`'s own merge block ended up), not the header block
+    /// itself.
+    #[test]
+    fn while_condition_short_circuits_with_or() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $a, bool $b): void {\n    while ($a || $b) {\n      $a = false;\n    }\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$c ? $a : $b` with both branches the same `int` — `Lowering::
+    /// lower_ternary`'s ordinary (non-elvis) shape: `cond`'s own value is
+    /// released once `truthy_convert` reads it (nothing reuses it, unlike
+    /// elvis), and the two branches join through a fresh `Phi`.
+    #[test]
+    fn ternary_with_matching_branch_types_merges_with_a_phi() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $c, int $a, int $b): int {\n    return $c ? $a : $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a ?: $b` (elvis) where `$a` is a non-refcounted `int` — the truthy
+    /// path reuses `$a`'s own value as the ternary's result with neither a
+    /// retain nor a release, since `Ty::Int` isn't `is_refcounted` at all;
+    /// this is the "nothing to own" half of elvis's reuse rule.
+    #[test]
+    fn elvis_with_a_non_refcounted_condition_needs_no_retain() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $a, int $b): int {\n    return $a ?: $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$s ?: $d` (elvis) where `$s` is a `string` parameter — `$s` is an
+    /// aliasing read (its own parameter slot still owns it), so reusing it as
+    /// the truthy path's value needs a retain (a second, independent owner:
+    /// the ternary's own result) rather than the release every other
+    /// truthy-tested position would apply here.
+    #[test]
+    fn elvis_retains_an_aliased_refcounted_condition() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(string $s, string $d): string {\n    return $s ?: $d;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `self::make() ?: \"x\"` (elvis) where `cond` is a *fresh*, non-aliasing
+    /// `string` (a call's own result) — the opposite corner from
+    /// `elvis_retains_an_aliased_refcounted_condition`: reusing it needs
+    /// neither a retain nor a release, since it already has exactly one
+    /// owner, which simply transfers to become the ternary's result.
+    #[test]
+    fn elvis_transfers_a_fresh_refcounted_condition_with_no_retain_or_release() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): string {\n    return self::make() ?: \"x\";\n  }\n  static function make(): string {\n    return \"y\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A ternary whose `then`/`else` branches lower to two different
+    /// `crate::ty::Ty` representations (`int` vs `string`) — the checker's
+    /// own union of their static types has no IR representation this crate
+    /// can fold into yet, so `Lowering::lower_ternary` panics naming the
+    /// mismatch rather than guessing which side wins.
+    #[test]
+    #[should_panic(expected = "share the same IR-level type")]
+    fn a_ternary_with_mismatched_branch_types_still_panics_naming_the_gap() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $c): mixed {\n    mixed $r = $c ? 1 : \"x\";\n    return $r;\n  }\n}\n",
+        );
+    }
+
+    /// `&&`/`||`/`!`/ternary only compose at a position that already owns a
+    /// mutable `cur` — a call argument still only has a fixed `cur: BlockId`,
+    /// so `$a && $b` nested there still panics via the plain, non-branching
+    /// `Lowering::lower_expr`'s existing arithmetic/equality/ordering-only
+    /// `Binary` table, exactly as before this slice.
+    #[test]
+    #[should_panic(expected = "arithmetic/equality/ordering operators")]
+    fn a_short_circuit_and_nested_in_a_call_argument_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(bool $a, bool $b): void {\n    self::take($a && $b);\n  }\n  static function take(bool $x): void {}\n}\n",
         );
     }
 }

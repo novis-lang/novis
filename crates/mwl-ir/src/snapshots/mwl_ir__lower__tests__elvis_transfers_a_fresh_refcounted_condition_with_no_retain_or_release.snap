@@ -1,0 +1,21 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:32
+    v1 = call T::make()  ; string
+    v2 = helper.str_truthy v1  ; bool
+    branch v2 -> bb1 (e0), bb2 (e1)
+  bb1:
+    jump bb3
+  bb2:
+    v3 = const.str "x"  ; string
+    jump bb3
+  bb3:
+    v4 = phi [bb1: v1, bb2: v3]  ; string
+    return v4
+}

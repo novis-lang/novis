@@ -1,0 +1,15 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, string) -> bool {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    ; stmt s0 @4:5-4:16
+    v2 = helper.str_truthy v1  ; bool
+    v3 = not v2  ; bool
+    release v1
+    return v3
+}
