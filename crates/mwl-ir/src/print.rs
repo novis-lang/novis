@@ -200,6 +200,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Void => "void",
         Ty::Object => "object",
         Ty::Str => "string",
+        Ty::Bytes => "bytes",
     }
 }
 

@@ -1,0 +1,15 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, bytes) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; bytes
+    ; stmt s0 @4:5-4:27
+    retain v1
+    v2 = call T::take(v1)  ; int
+    release v1
+    return v2
+}

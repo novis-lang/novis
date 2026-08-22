@@ -1215,7 +1215,7 @@ impl<'a> Lowering<'a> {
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
                     Ty::Float => Helper::FloatToString,
-                    Ty::Str | Ty::Void | Ty::Object => unreachable!("matched above"),
+                    Ty::Str | Ty::Bytes | Ty::Void | Ty::Object => unreachable!("matched above"),
                 };
                 let (sv, _) = self.emit(
                     cur,
@@ -1404,11 +1404,12 @@ fn lower_decl_type(ty: &Type) -> Ty {
         TypeKind::Atom(TypeAtom::Float) => Ty::Float,
         TypeKind::Atom(TypeAtom::Void) => Ty::Void,
         TypeKind::Atom(TypeAtom::String) => Ty::Str,
+        TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
         TypeKind::Atom(TypeAtom::Name(_)) => Ty::Object,
         TypeKind::Paren(inner) => lower_decl_type(inner),
         other => panic!(
-            "mwl-ir only lowers bool/int/uint/float/void/string/a plain class name as a declared \
-             type — got {other:?}; see the crate docs' known gaps"
+            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/a plain class name as a \
+             declared type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -1424,18 +1425,19 @@ fn lower_decl_type(ty: &Type) -> Ty {
 /// inherited method's parameter declared on a different class's source).
 /// `Class`/`Enum` both erase to [`Ty::Object`], same as [`lower_decl_type`]'s
 /// `Name` case — see that variant's own doc comment for why identity doesn't
-/// need to survive this translation. `String` erases to [`Ty::Str`], the same
-/// representation [`lower_decl_type`] already gives a local/parameter/return
-/// type spelled directly in source — see [`crate::lower`]'s module docs for
-/// the retain policy this now needs at a call-argument/return/property-field
-/// boundary, which [`Lowering::bind_local`], [`Lowering::lower_call_args`] and
+/// need to survive this translation. `String` erases to [`Ty::Str`] and
+/// `Bytes` to [`Ty::Bytes`] — the same representations [`lower_decl_type`]
+/// already gives a local/parameter/return type spelled directly in source —
+/// see [`crate::lower`]'s module docs for the retain policy this now needs at
+/// a call-argument/return/property-field boundary, which
+/// [`Lowering::bind_local`], [`Lowering::lower_call_args`] and
 /// `StmtKind::Return`'s own arm all apply via [`is_aliasing_read`].
 ///
 /// # Panics
 ///
 /// Panics naming the unsupported shape for anything outside this slice's
-/// scope: `bytes`, either qualified (`tainted`/`secret`) string or bytes
-/// variant, `array<T>`, `object`, a shape, a union/intersection, or any of
+/// scope: either qualified (`tainted`/`secret`) string or bytes variant,
+/// `array<T>`, `object`, a shape, a union/intersection, or any of
 /// `mixed`/`never`/`true`/`false`/`iterable`/`callable`/`null` — none of these
 /// have an IR representation yet (see the crate docs' known gaps).
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
@@ -1446,10 +1448,11 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::Float => Ty::Float,
         CheckedTy::Void => Ty::Void,
         CheckedTy::String => Ty::Str,
+        CheckedTy::Bytes => Ty::Bytes,
         CheckedTy::Class(_) | CheckedTy::Enum(_) => Ty::Object,
         other => panic!(
-            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/class/enum \
-             parameter or return type — got {other:?}; see the crate docs' known gaps"
+            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/class/\
+             enum parameter or return type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -2055,5 +2058,83 @@ class T {
         lower_first_method(
             "<?mwl\nclass Name implements Stringable {\n  function toString(): string { return \"x\"; }\n}\nclass T {\n  function m(Name $n): string {\n    return $n . \"x\";\n  }\n}\n",
         );
+    }
+
+    // `bytes` is the mechanical follow-on to `string` the crate docs named:
+    // same `Ty::Bytes` representation, same `Lowering::bind_local`/
+    // `lower_call_args`/`release_all_locals`/`lower_reassignment` insertion
+    // points `Ty::Str` already uses. `mwl-syntax`'s grammar has no `bytes`
+    // literal syntax at all (no `b"..."` form), so unlike the `string` tests
+    // above, every fixture below sources its `bytes` value from a parameter
+    // or a property read rather than a literal — both already-covered
+    // `is_aliasing_read` shapes, so this still exercises the same policy a
+    // literal-sourced fixture would.
+
+    /// `bytes $b = $a;` aliases the parameter `$a`'s already-owned value —
+    /// `Lowering::bind_local` retains it, exactly like the `string` analog
+    /// above. `return $b;` transfers `$b`'s reference out directly (excluded
+    /// from `Lowering::release_all_locals`'s sweep), leaving exactly one
+    /// release for `$a`'s own slot at the exit sweep.
+    #[test]
+    fn a_bytes_parameter_bound_to_a_local_transfers_out_on_return() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function pick(bytes $a): bytes {\n    bytes $b = $a;\n    return $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `bytes $x = $a; $x = $b;` — reassigning a `bytes` local to a second
+    /// aliasing parameter retains the new value first, then releases the
+    /// value `$x` previously held, the same order `Lowering::bind_local`
+    /// always uses. At the exit sweep every local still live — `$a`, `$b` and
+    /// `$x` (now aliasing `$b`'s storage) — gets its own release: `$a`'s
+    /// storage ends up released twice in total (once when `$x` moves off it,
+    /// once for `$a`'s own slot), which is correct rather than a double free
+    /// — two live slots (`$a`, and `$x` before the reassignment) really did
+    /// hold two independent references to it.
+    #[test]
+    fn reassigning_a_bytes_local_retains_the_new_value_and_releases_the_old() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bytes $a, bytes $b): void {\n    bytes $x = $a;\n    $x = $b;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// Passing a `bytes` local as a call argument retains it first —
+    /// `Lowering::lower_call_args`'s aliasing check, exactly mirroring the
+    /// `string` analog above. `take` returns `int`, isolating the
+    /// argument-side retain from any return-side question.
+    #[test]
+    fn passing_a_bytes_local_as_a_call_argument_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(bytes $s): int {\n    return self::take($s);\n  }\n  static function take(bytes $x): int {\n    return 1;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `var $s = $obj->data;` — a `bytes`-typed property read is an aliasing
+    /// read exactly like a `string` one, so binding it to a new local retains
+    /// the field's own value. `Foo`'s `bytes` property has no literal default
+    /// available (see this block's own note), so its constructor assigns it
+    /// from a `bytes` parameter instead — ADR 0022's definite-initialization
+    /// obligation either way.
+    #[test]
+    fn binding_a_bytes_property_read_to_a_local_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public bytes $data;\n  function constructor(bytes $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(bytes $seed): void {\n    Foo $obj = new Foo($seed);\n    var $s = $obj->data;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->data = $other;` — writing an aliasing `bytes` local into a
+    /// property retains the new value first, then reads and releases the
+    /// field's previous value, the same order `Lowering::lower_reassignment`'s
+    /// property-target arm always uses for a refcounted field.
+    #[test]
+    fn writing_a_bytes_local_to_a_property_retains_it_before_releasing_the_old_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public bytes $data;\n  function constructor(bytes $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(bytes $seed, bytes $other): void {\n    Foo $obj = new Foo($seed);\n    $obj->data = $other;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 }

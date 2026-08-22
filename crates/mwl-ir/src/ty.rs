@@ -18,9 +18,12 @@
 //! for the full list. [`Ty::Str`] is the first refcounted, heap-allocated
 //! representation to land (a `string`-typed local, parameter or return —
 //! see [`crate::lower`]'s module docs for the retain/release insertion
-//! policy that makes it safe). Not modeled yet, deliberately: `bytes` (an
-//! easy, mechanical follow-on to `Ty::Str` — same representation shape) and
-//! `array<T>` (needs its own element-layout decision first).
+//! policy that makes it safe). [`Ty::Bytes`] is the mechanical follow-on that
+//! doc comment anticipated: same representation shape, same
+//! [`crate::lower`] retain/release insertion points, no new policy needed —
+//! only nothing in the grammar constructs a *fresh* one yet (no literal
+//! syntax exists for `bytes`; see [`Self::Bytes`]'s own doc comment). Still
+//! not modeled: `array<T>` (needs its own element-layout decision first).
 //! [`Ty::Object`] is the one other non-scalar representation that exists,
 //! still reserved rather than functional (see its own doc comment) —
 //! widening lowering further adds variants to this enum; it does not replace
@@ -67,6 +70,19 @@ pub enum Ty {
     /// (string concatenation and `tainted`/`secret`-qualified string
     /// variants are still unsupported).
     Str,
+    /// A reference-counted, heap-allocated `bytes` value — ADR 0009 (still
+    /// *Proposed*). The same representation shape as [`Self::Str`], different
+    /// content: same retain/release treatment at a local's declare/reassign/
+    /// scope-exit lifecycle, a call argument/parameter, a returned value, and
+    /// a compile-time-known property read/write. Unlike [`Self::Str`],
+    /// nothing in `mwl-syntax`'s grammar constructs a *fresh* `bytes` value
+    /// yet — there is no `bytes` literal syntax (no `b"..."` form or
+    /// equivalent), so every `bytes` value a fixture can lower today
+    /// originates as a parameter or a property read, both
+    /// [`crate::lower::is_aliasing_read`] shapes. A `Core\Bytes`-producing
+    /// conversion or constructor, once one exists, would be the first fresh
+    /// producer.
+    Bytes,
 }
 
 impl Ty {
@@ -79,6 +95,6 @@ impl Ty {
     /// own doc comment), so there is nothing yet for a retain/release to do.
     #[must_use]
     pub fn is_refcounted(self) -> bool {
-        matches!(self, Ty::Str)
+        matches!(self, Ty::Str | Ty::Bytes)
     }
 }
