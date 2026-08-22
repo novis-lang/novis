@@ -5,9 +5,23 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session landed array-element access (`$arr[$i]`, both read and write) — the item the plan had
-flagged as needing a real design decision about missing-key behavior, and it resolved to "no decision
-needed this slice" once the actual question was pinned down.** The guidance going in suspected
+**Last session was docs-only — planning, not coding — and touched nothing in `mwl-ir`/`mwl-types`/any
+crate.** It added [ADR 0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md): the VS Code
+extension goes deep (inspections, refactorings, a Test Explorer with coverage, an AST panel, a
+speedscope-format profiler view, DAP debugger-UI wiring), each feature tagged with the milestone/ADR it's
+staged behind, and a new milestone **M4B** (right after M4, ahead of M5) ships a minimal `mwl-lsp` +
+`editors/vscode` early so real-world testing in an editor starts the moment M4 makes MWL a usable CLI
+language rather than waiting for M10. It also names a required `mwl-syntax` addition — a second,
+error-recovering/lossless parse entry point (rust-analyzer's `rowan` design is the precedent), used only by
+editor tooling, alongside the existing strict whole-file parse `mwl check`/`mwl run` keep using unchanged.
+PhpStorm is untouched — still exactly [ADR 0016](docs/adr/0016-ide-integration.md)'s scope. None of this
+changes anything about M2's in-progress `mwl-ir` work below; M4B doesn't start until M4 (language
+completeness) is done, several milestones out. If picking up coding work next, resume M2 exactly where the
+prior coding session left it, below.
+
+**The most recent *coding* session landed array-element access (`$arr[$i]`, both read and write) — the item
+the plan had flagged as needing a real design decision about missing-key behavior, and it resolved to "no
+decision needed this slice" once the actual question was pinned down.** The guidance going in suspected
 `mwl_types` has no compile-time "is this key present" concept at all, only an element-type resolution —
 that turned out to be exactly right: `mwl_types::expr::check_expr`'s `ExprKind::Index` arm resolves the
 same element type regardless of whether a given key exists at runtime, mirroring
@@ -198,3 +212,7 @@ Also still open from before (independent, low priority, unrelated to `mwl-ir`): 
 exempted from ADR 0022's constructor check entirely rather than verified against the hook's body; the
 identical question now also applies to whether a `lateinit` + hooked property should discharge on the
 hook's first commit (ADR 0038's own *Revisiting* names this, deferred to `docs/spec/`).
+
+**Separately, whenever M3 finishes and M4 is underway:** keep [ADR 0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md)
+in mind as M4 approaches its own "usable CLI language" exit criterion — M4B (minimal `mwl-lsp` +
+`editors/vscode`, plus `mwl-syntax`'s new resilient-parse mode) starts right after, per the plan.
