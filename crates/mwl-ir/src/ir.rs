@@ -196,6 +196,29 @@ pub enum InstKind {
         /// The field's own name, `$`-sigil not included.
         field: String,
     },
+    /// Writes a compile-time-known field on an object — `$obj->prop = expr;`
+    /// whose receiver's static type resolved to a known declaring class,
+    /// exactly the same [`ExprInfo::Property`](mwl_types::expr_table::ExprInfo::Property)
+    /// resolution [`InstKind::FieldGet`] already relies on for a read (see
+    /// that variant's own doc comment for why `class`/`field` stay labels
+    /// rather than a machine offset, and for the erased-receiver panic case
+    /// this shares). `crate::lower::Lowering::lower_reassignment` emits this
+    /// alongside a retain of `value` (if it's an aliasing read) and a release
+    /// of whatever the field previously held, the same refcounting policy
+    /// [`Retain`](InstKind::Retain)/[`Release`](InstKind::Release)'s own doc
+    /// comments describe for a local. Defines no value; operates on `object`
+    /// in place.
+    FieldSet {
+        /// The receiver, already lowered.
+        object: ValueId,
+        /// The class that actually declares the field, rendered the same way
+        /// `FieldGet::class` is.
+        class: String,
+        /// The field's own name, `$`-sigil not included.
+        field: String,
+        /// The new value, already lowered.
+        value: ValueId,
+    },
     /// Increments a [`Ty::is_refcounted`] value's reference count — emitted
     /// exactly where `crate::lower`'s "copy" case needs a second durable
     /// owner to see it stay alive (see that module's docs for the precise

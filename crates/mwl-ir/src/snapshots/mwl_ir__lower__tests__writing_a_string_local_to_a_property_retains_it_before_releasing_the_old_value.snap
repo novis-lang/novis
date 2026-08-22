@@ -1,0 +1,20 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @7:5-7:26
+    v1 = new Foo()  ; object
+    ; stmt s1 @8:5-8:22
+    v2 = const.str "hi"  ; string
+    ; stmt s2 @9:5-9:21
+    retain v2
+    v3 = field.get v1, Foo::name  ; string
+    release v3
+    field.set v1, Foo::name, v2
+    release v2
+    return
+}

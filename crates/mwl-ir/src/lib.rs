@@ -14,16 +14,17 @@
 //! `return`, nested `{}` blocks, `if`/`while`, `new`, a static method call
 //! (`self::method(...)`/`Class::method(...)`), an instance method call
 //! (`$obj->method(...)`, including `$this->…`), a compile-time-known
-//! property access (`$obj->prop`, including `$this->prop`), and a
-//! `string`-typed local/parameter/return value/call-argument/property-field,
-//! initialized, reassigned, passed, returned or read from a literal, another
-//! local, a compile-time-known property or a resolved call's own result —
-//! with refcount retain/release operations around every one of those
-//! boundaries — [`lower::lower_method`] is the entry point. No
-//! `for`/`switch`/`try`, no `break`/`continue`, no array access, no `bytes`/
-//! `array<T>`, no `.` string concatenation (a class/enum value itself also
-//! has a representation, [`ty::Ty::Object`], just not a way to refcount one
-//! yet). The straight-line subset was deliberately the *first* slice landed
+//! property access (`$obj->prop`, including `$this->prop`) both read and
+//! written (`$obj->prop = expr;`), and a `string`-typed local/parameter/
+//! return value/call-argument/property-field, initialized, reassigned,
+//! passed, returned, read or written from a literal, another local, a
+//! compile-time-known property or a resolved call's own result — with
+//! refcount retain/release operations around every one of those boundaries
+//! — [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
+//! `break`/`continue`, no array access, no `bytes`/`array<T>`, no `.` string
+//! concatenation (a class/enum value itself also has a representation,
+//! [`ty::Ty::Object`], just not a way to refcount one yet). The straight-line
+//! subset was deliberately the *first* slice landed
 //! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
 //! it was the smallest shape exercising every structural IR piece with no
 //! merge point at all; `if`/`while` came next, and are where SSA's actual
@@ -59,7 +60,18 @@
 //! and a bare `MethodCall`/`StaticCall`/`New` through the ordinary
 //! `lower_expr` path, releasing its result immediately when
 //! [`ty::Ty::is_refcounted`] since nothing else will ever bind or return it —
-//! no new `InstKind` needed.
+//! no new `InstKind` needed. A `string`-typed property *write*
+//! (`$obj->prop = expr;`) is the tenth slice, closing the read/write
+//! asymmetry the eighth slice left open: [`lower::Lowering::lower_reassignment`]
+//! now matches on the assignment target — a plain local still binds into
+//! `Env` exactly as before, and an [`mwl_syntax::ast::ExprKind::PropertyAccess`]
+//! target lowers to a new [`ir::InstKind::FieldSet`], wrapped in the same
+//! retain-then-release policy [`lower::Lowering::bind_local`] already applies
+//! to a local — retain the new value first if it's an aliasing read, then
+//! read the field's *previous* value back with a `FieldGet` and release it
+//! (a field has no `Env` entry to consult before the overwrite the way a
+//! local does, so re-reading it is the only way to name the value being
+//! replaced).
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -199,28 +211,27 @@
 //!   that matters), but worth knowing before trusting `Env` further.
 //! - **No array access** — `$arr[$i]` is unsupported; lowering panics naming
 //!   the expression.
-//! - **Property access is compile-time-known-field-only.** A receiver whose
-//!   static type resolved to a known declaring class lowers to
-//!   [`ir::InstKind::FieldGet`], reading `mwl_types::expr_table::ExprInfo::Property`
-//!   the same way a call reads `ExprInfo::Call`. A receiver that erased to a
-//!   shape or plain `object` (ADR 0036 § 4) has no such entry at all — the
-//!   checker itself defers that case's runtime-checked fallback to M4, with
-//!   no IR/codegen yet to throw from, so lowering panics naming it rather
-//!   than guessing a representation. A nullsafe access (`?->`) is equally
-//!   unsupported today, same as a nullsafe method call.
+//! - **Property access, read or write, is compile-time-known-field-only.** A
+//!   receiver whose static type resolved to a known declaring class lowers a
+//!   read to [`ir::InstKind::FieldGet`] and a write (`$obj->prop = expr;`) to
+//!   [`ir::InstKind::FieldSet`], both reading
+//!   `mwl_types::expr_table::ExprInfo::Property` the same way a call reads
+//!   `ExprInfo::Call`. A receiver that erased to a shape or plain `object`
+//!   (ADR 0036 § 4) has no such entry at all — the checker itself defers
+//!   that case's runtime-checked fallback to M4, with no IR/codegen yet to
+//!   throw from, so lowering panics naming it rather than guessing a
+//!   representation. A nullsafe access (`?->`) is equally unsupported today
+//!   on either side, same as a nullsafe method call.
 //! - **`string` now crosses a local, call-argument, resolved-return, and
-//!   compile-time-known property-*read* boundary — but not a property
-//!   *write*, `bytes`, or `array<T>`.** [`lower::lower_checked_ty`] gained a
+//!   compile-time-known property-read *and write* boundary — but not
+//!   `bytes` or `array<T>`.** [`lower::lower_checked_ty`] gained a
 //!   `CheckedTy::String => Ty::Str` arm, so a call/`new` with a `string`
 //!   argument, a call whose declared return type is `string`, and a
-//!   `string`-typed property *read* (`$obj->prop`) all lower now, with the
-//!   same retain policy a local already had extended to each — see the
-//!   design-choices section above. `$obj->prop = expr;` (a property *write*)
-//!   is still entirely unsupported for any field type, not just `string`:
-//!   `Lowering::lower_reassignment` only accepts a plain-local assignment
-//!   target, and panics naming anything else — a pre-existing gap this
-//!   session didn't touch. `Ty::Str` also still only covers the plain,
-//!   unqualified `string` type: `lower_checked_ty` has no arm for
+//!   `string`-typed property read or write (`$obj->prop`/`$obj->prop = expr;`)
+//!   all lower now, with the same retain policy a local already had extended
+//!   to each — see the design-choices section above. `Ty::Str` still only
+//!   covers the plain, unqualified `string` type: `lower_checked_ty` has no
+//!   arm for
 //!   `CheckedTy::TaintedString`/`SecretString`/`SecretTaintedString` (ADR
 //!   0024/0033), so a `tainted`/`secret`-qualified `string` parameter, return
 //!   or field still panics there — those qualifiers need their own laundering/

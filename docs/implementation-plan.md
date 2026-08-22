@@ -45,29 +45,36 @@
 > instance method call and a compile-time-known property access**, **`var` locals and multi-base
 > integer-literal cooking**, **`string` locals with refcount retain/release operations** (the
 > milestone text's first non-scalar *data* representation and the first refcount operations of any kind),
-> **`string` crossing a call-argument/return/property-read boundary**, and now **a bare call/`new` used
-> purely as its own statement** (`doSomething();`, with no assignment at all — the ordinary way to invoke a
-> `void`-returning method): `StmtKind::Expr` now dispatches through a new `Lowering::lower_expr_stmt`, which
-> routes a plain `$x = expr;` reassignment to the existing `lower_reassignment` and a bare
-> `MethodCall`/`StaticCall`/`New` through the ordinary `lower_expr` path, releasing its result immediately
-> when `Ty::is_refcounted` since nothing else in the function will ever bind or return it — no new
-> `InstKind` needed, and `mwl-ir` is now at 33 tests. `crates/mwl-ir/src/ids.rs`
+> **`string` crossing a call-argument/return/property-read boundary**, **a bare call/`new` used purely as
+> its own statement** (`doSomething();`, with no assignment at all — the ordinary way to invoke a
+> `void`-returning method), and now **a `string`-typed property *write*** (`$obj->prop = expr;`), closing
+> the read/write asymmetry the property-read slice left open: `StmtKind::Expr` dispatches through
+> `Lowering::lower_expr_stmt`, which routes a plain `$x = expr;` reassignment or a `$obj->prop = expr;`
+> property assignment to `Lowering::lower_reassignment` (now matching on the assignment target rather than
+> only accepting a plain local) and a bare `MethodCall`/`StaticCall`/`New` through the ordinary `lower_expr`
+> path, releasing its result immediately when `Ty::is_refcounted` since nothing else in the function will
+> ever bind or return it. A property-write target lowers to a new `InstKind::FieldSet`, wrapped in the same
+> retain-then-release policy a local bind already gets: retain the new value first if it's an aliasing read
+> (`Lowering::is_aliasing_read`), then read the field's *previous* value back with a `FieldGet` and release
+> it — a field has no `Env` entry to consult before the overwrite the way a local does, so re-reading it is
+> the only way to name the value being replaced. `mwl-ir` is now at 37 tests. `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
 > `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
-> `InstKind::Call`, `InstKind::New`, `InstKind::FieldGet`, `InstKind::ConstStr`, `InstKind::Retain` and
-> `InstKind::Release`; `lower.rs` lowers a method body of typed local
+> `InstKind::Call`, `InstKind::New`, `InstKind::FieldGet`, `InstKind::FieldSet`, `InstKind::ConstStr`,
+> `InstKind::Retain` and `InstKind::Release`; `lower.rs` lowers a method body of typed local
 > declarations, an ADR 0037 `var $x = expr;` inferred-type declaration, plain `$x = expr;` reassignment,
 > scalar arithmetic/comparison/unary operators, `return`,
 > nested `{}` blocks, `if`/`while`, `new Target(...)`, a static call
 > (`self::method(...)`/`Class::method(...)`), an instance method call (`$obj->method(...)`, including
-> `$this->…`), a property access through a receiver whose declaring class is statically known
-> (`$obj->prop`, including `$this->prop`), and now a `string`-typed local/parameter/return value
-> initialized or reassigned from a literal, end to end, with `insta` snapshot tests over the printed form
-> (`print.rs`). A bare integer literal now cooks correctly in all four bases `mwl-syntax`'s lexer
-> accepts (decimal, `0x`, `0o`, `0b`), not just decimal. Every lowered method's `Function::params` now
-> carries an implicit receiver at index 0
+> `$this->…`), a property access through a receiver whose declaring class is statically known, read
+> (`$obj->prop`) or written (`$obj->prop = expr;`), including through `$this`, and a `string`-typed local/
+> parameter/return value/call-argument/property-field initialized, reassigned, passed, returned, read or
+> written from a literal, another local, a compile-time-known property or a resolved call's own result, end
+> to end, with `insta` snapshot tests over the printed form (`print.rs`). A bare integer literal now cooks
+> correctly in all four bases `mwl-syntax`'s lexer accepts (decimal, `0x`, `0o`, `0b`), not just decimal.
+> Every lowered method's `Function::params` now carries an implicit receiver at index 0
 > (`$this`, or an unused slot for a method that never reads it) ahead of its explicit parameters — the
 > shape an instance call needed to represent `$this`/an arbitrary receiver as a real SSA value, mirroring
 > `mwl_types::check.rs`'s `check_method` seeding `$this` into its own scope the same unconditional way. `if`'s
@@ -86,17 +93,16 @@
 > (a bare `return $name;`); `docs/implementation-plan.md`'s own optimizer feature list already names
 > "refcount elision" as separate, later work, so emitting unconditionally now and optimizing later —
 > rather than a harder move analysis up front — matches CLAUDE.md's priority ordering
-> (correctness/simplicity before memory/latency). `lower_checked_ty` now also gives the plain, unqualified
+> (correctness/simplicity before memory/latency). `lower_checked_ty` gives the plain, unqualified
 > `CheckedTy::String` a `Ty::Str` arm, so a resolved call's/`new`'s `string` parameter, a call's `string`
-> return type, and a compile-time-known `string`-typed property *read* (`InstKind::FieldGet`) all lower
-> too — the aliasing judgment generalized into a shared `is_aliasing_read` helper (a bare variable read or
-> a property read, either of which borrows storage some other binding still owns) that now also gates a
-> call argument (retained by the caller before the call, released by the callee at its own exit — the same
-> local declare/drop symmetry, just across a call frame) and a returned expression (a property read has no
-> local slot for `release_all_locals`'s exclusion mechanism to skip, so `Return`'s own arm retains it
-> explicitly instead). A property *write* (`$obj->prop = expr;`) remains entirely unsupported for any field
-> type, and a `tainted`/`secret`-qualified `string`/`bytes` variant (ADR 0024/0033) still has no
-> `lower_checked_ty` arm — both pre-existing, unrelated gaps.
+> return type, and a compile-time-known `string`-typed property read or write both lower too — the aliasing
+> judgment generalized into a shared `is_aliasing_read` helper (a bare variable read or a property read,
+> either of which borrows storage some other binding still owns) that gates a call argument (retained by
+> the caller before the call, released by the callee at its own exit — the same local declare/drop
+> symmetry, just across a call frame), a returned expression (a property read has no local slot for
+> `release_all_locals`'s exclusion mechanism to skip, so `Return`'s own arm retains it explicitly instead),
+> and now a property-write's own new value. A `tainted`/`secret`-qualified `string`/`bytes` variant (ADR
+> 0024/0033) still has no `lower_checked_ty` arm — a pre-existing, unrelated gap.
 >
 > Widening past scalars needed an architecture decision the plan flagged as open for two sessions: whether
 > `mwl-ir` should depend on `mwl-types`/`mwl-hir` directly and re-derive a call's/`new`'s resolved target
@@ -119,15 +125,13 @@
 > runtime-helper call that doesn't exist in the IR yet), a nullsafe access of either kind (`?->`), a
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
-> from), a property *write* of any field type, array access, virtual dispatch (every call/access lowered so
-> far has its receiver's static type equal to its runtime class), variadic/named/spread call arguments, a
-> bare call used purely as a statement (`Lowering::lower_reassignment` only accepts an `ExprKind::Assign`
-> expression statement — noticed this session, unrelated to what it landed), string concatenation (`.`)
-> and interpolated/heredoc/nowdoc string literals (only a plain single/double-quoted literal with no
-> interpolation cooks today, and only the common escapes — a numeric escape passes through uncooked), a
-> `tainted`/`secret`-qualified string or bytes variant, and `bytes`/`array<T>` (no representation exists yet
-> at all; `Ty::Object` also still has no refcount operations of its own, deferred the same "shape now,
-> functional later" way `InstKind::Safepoint` was).
+> from, and applies on both the read and write side), array access, virtual dispatch (every call/access
+> lowered so far has its receiver's static type equal to its runtime class), variadic/named/spread call
+> arguments, string concatenation (`.`) and interpolated/heredoc/nowdoc string literals (only a plain
+> single/double-quoted literal with no interpolation cooks today, and only the common escapes — a numeric
+> escape passes through uncooked), a `tainted`/`secret`-qualified string or bytes variant, and
+> `bytes`/`array<T>` (no representation exists yet at all; `Ty::Object` also still has no refcount
+> operations of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —

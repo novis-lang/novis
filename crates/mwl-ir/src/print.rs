@@ -76,6 +76,21 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    release v{}", operand.index());
         return;
     }
+    if let InstKind::FieldSet {
+        object,
+        ref class,
+        ref field,
+        value,
+    } = inst.kind
+    {
+        let _ = writeln!(
+            out,
+            "    field.set v{}, {class}::{field}, v{}",
+            object.index(),
+            value.index()
+        );
+        return;
+    }
     let v = inst
         .result
         .expect("every non-marker instruction defines a value");
@@ -122,7 +137,8 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::StmtMarker(_)
         | InstKind::Safepoint
         | InstKind::Retain { .. }
-        | InstKind::Release { .. } => {
+        | InstKind::Release { .. }
+        | InstKind::FieldSet { .. } => {
             unreachable!("returned above")
         }
     };

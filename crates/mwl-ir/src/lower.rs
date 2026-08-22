@@ -269,6 +269,29 @@ impl<'a> Lowering<'a> {
         });
     }
 
+    /// Appends an [`InstKind::FieldSet`] to `b` — see
+    /// [`Self::lower_reassignment`]'s property-target arm for the retain/
+    /// release policy wrapped around this.
+    fn emit_field_set(
+        &mut self,
+        b: BlockId,
+        object: ValueId,
+        class: String,
+        field: String,
+        value: ValueId,
+    ) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::FieldSet {
+                object,
+                class,
+                field,
+                value,
+            },
+        });
+    }
+
     /// Binds `name` to `(v, ty)` in `env` — every `var`/typed local
     /// declaration and every plain reassignment goes through here, `source`
     /// being the already-lowered right-hand-side expression. This is the
@@ -493,8 +516,9 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// `$x = expr;` as a bare expression statement — SSA renaming needs no
-    /// join logic here, only a fresh binding in `env`.
+    /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
+    /// SSA renaming needs no join logic here, only a fresh binding in `env`
+    /// (a local target) or a [`InstKind::FieldSet`] (a property target).
     fn lower_reassignment(&mut self, e: &Expr, env: &mut Env, cur: BlockId) {
         let ExprKind::Assign {
             op: AssignOp::Assign,
@@ -505,16 +529,74 @@ impl<'a> Lowering<'a> {
         else {
             unreachable!("Self::lower_expr_stmt only routes a plain `AssignOp::Assign` here");
         };
-        let ExprKind::Variable(name_span) = &target.kind else {
-            panic!(
-                "mwl-ir's control-flow slice only lowers reassignment to a plain local, not {:?}",
-                target.kind
-            );
-        };
-        let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
-        let expected = env.get(&lname).map(|&(_, t)| t);
-        let (v, ty) = self.lower_expr(value, expected, env, cur);
-        self.bind_local(cur, env, lname, v, ty, value);
+        match &target.kind {
+            ExprKind::Variable(name_span) => {
+                let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
+                let expected = env.get(&lname).map(|&(_, t)| t);
+                let (v, ty) = self.lower_expr(value, expected, env, cur);
+                self.bind_local(cur, env, lname, v, ty, value);
+            }
+            // `$obj->prop = expr;` — the receiver's declaring class comes
+            // from `self.exprs`, exactly like `ExprKind::PropertyAccess`'s
+            // own read-side lowering in `Self::lower_expr`: `check_assign`'s
+            // general (non-plain-local) arm in `mwl_types::expr` routes the
+            // target through the ordinary `check_property_access`, which
+            // records the same `ExprInfo::Property` entry a read would, keyed
+            // by the `PropertyAccess` expression's own span — i.e. `target.span`
+            // here. Refcounting mirrors `Self::bind_local`'s local-slot policy,
+            // adapted to a field with no `Env` entry to consult before the
+            // overwrite: retain the new value first (if it's an aliasing read,
+            // same `is_aliasing_read` judgment), *then* read the field's
+            // previous value back with a `FieldGet` and release it — retain
+            // before release, same order `bind_local` uses, so a
+            // self-assignment (`$obj->prop = $obj->prop;`) never observes a
+            // transient zero refcount.
+            ExprKind::PropertyAccess {
+                object, nullsafe, ..
+            } => {
+                assert!(
+                    !*nullsafe,
+                    "mwl-ir does not yet lower a nullsafe property assignment target (`?->`); \
+                     see the crate docs' known gaps"
+                );
+                let Some(ExprInfo::Property { class, name, ty }) = self.exprs.lookup(target.span)
+                else {
+                    panic!(
+                        "mwl-ir: a property assignment target at {:?} has no resolved declaring \
+                         class recorded in the typed-expression table — either it wasn't checked \
+                         with the same table, or its receiver erased to a shape/plain `object` \
+                         (ADR 0036 § 4), which this crate does not yet lower (see the crate docs' \
+                         known gaps)",
+                        target.span
+                    );
+                };
+                let field_ty = lower_checked_ty(*ty, self.checked_types);
+                let class_label = class.to_string();
+                let field_name = name.clone();
+                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                let (v, _) = self.lower_expr(value, Some(field_ty), env, cur);
+                if field_ty.is_refcounted() && is_aliasing_read(&value.kind) {
+                    self.emit_retain(cur, v);
+                }
+                if field_ty.is_refcounted() {
+                    let (old_v, _) = self.emit(
+                        cur,
+                        field_ty,
+                        InstKind::FieldGet {
+                            object: object_v,
+                            class: class_label.clone(),
+                            field: field_name.clone(),
+                        },
+                    );
+                    self.emit_release(cur, old_v);
+                }
+                self.emit_field_set(cur, object_v, class_label, field_name, v);
+            }
+            other => panic!(
+                "mwl-ir's control-flow slice only lowers reassignment to a plain local or a \
+                 compile-time-known property, not {other:?}"
+            ),
+        }
     }
 
     /// `if (cond) then (else else_)?` — the module docs describe the
@@ -1759,5 +1841,56 @@ class T {
             "<?mwl\nclass Foo {\n  function greet(): void {}\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->greet();\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->name = "new";` — a `string`-typed property write from a fresh
+    /// literal. `Lowering::lower_reassignment`'s property-target arm reads
+    /// the field's previous value back with a `FieldGet` and releases it, but
+    /// needs no retain of the new value: a literal already has exactly one
+    /// natural owner (`is_aliasing_read` is `false` for `ExprKind::Str`),
+    /// same as any other durable-slot bind.
+    #[test]
+    fn writing_a_fresh_string_literal_to_a_property_releases_its_previous_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->name = \"new\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->name = $s;` — writing an aliasing local into a property retains
+    /// the new value first (same order `Lowering::bind_local` uses for a
+    /// local target), then reads and releases the field's previous value —
+    /// retain before release, so a self-assignment through the same slot
+    /// would never observe a transient zero refcount.
+    #[test]
+    fn writing_a_string_local_to_a_property_retains_it_before_releasing_the_old_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    string $s = \"hi\";\n    $obj->name = $s;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$this->name = "new";` — a property write through the implicit
+    /// receiver, exercising the same `$this`/`Env` lookup path
+    /// `Lowering::lower_expr`'s `PropertyAccess` read arm already shares with
+    /// an ordinary local receiver.
+    #[test]
+    fn writing_through_this_lowers_too() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  public string $name = \"orig\";\n  function m(): void {\n    $this->name = \"new\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A property write through a plain-`object` receiver erases per ADR
+    /// 0036 § 4 — `mwl_types` records no `ExprInfo::Property` entry for it,
+    /// so lowering panics naming the case, the same way the read side already
+    /// does for the identical receiver shape.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn writing_through_a_plain_object_receiver_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(object $o): void {\n    $o->x = 1;\n  }\n}\n",
+        );
     }
 }
