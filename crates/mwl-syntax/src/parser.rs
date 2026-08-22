@@ -918,10 +918,14 @@ impl<'src, 'd> Parser<'src, 'd> {
             let rhs = self.parse_assignment();
             let span = lhs.span.to(rhs.span);
             let help = match replacement {
-                Some(r) => format!("use `{r}` instead — it is the only logical connective MWL keeps"),
-                None => "there is no direct replacement — write `(a || b) && !(a && b)`, or `a != b` \
+                Some(r) => {
+                    format!("use `{r}` instead — it is the only logical connective MWL keeps")
+                }
+                None => {
+                    "there is no direct replacement — write `(a || b) && !(a && b)`, or `a != b` \
                           when both operands are already `bool`"
-                    .to_string(),
+                        .to_string()
+                }
             };
             self.diags.report(
                 Diagnostic::error(
@@ -5383,7 +5387,10 @@ mod tests {
             .iter()
             .filter(|d| d.code == Some(code::E_LOGICAL_KEYWORD_UNSUPPORTED))
             .count();
-        assert_eq!(count, 2, "expected one diagnostic per keyword, got {diags:?}");
+        assert_eq!(
+            count, 2,
+            "expected one diagnostic per keyword, got {diags:?}"
+        );
         assert!(matches!(e.kind, ExprKind::Error));
     }
 
