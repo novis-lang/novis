@@ -47,7 +47,7 @@
 > milestone text's first non-scalar *data* representation and the first refcount operations of any kind),
 > **`string` crossing a call-argument/return/property-read boundary**, **a bare call/`new` used purely as
 > its own statement**, **a `string`-typed property *write***, **`.` string concatenation** between two
-> `string` operands, and now **runtime-helper calls** (the milestone's third named ingredient) — narrowly
+> `string` operands, **runtime-helper calls** (the milestone's third named ingredient) — narrowly
 > scoped to converting a scalar `.` operand to `string`: a new `InstKind::HelperCall` instruction, tagged
 > with a closed, non-exhaustive `Helper` enum (`IntToString`/`UintToString`/`FloatToString`/`BoolToString`,
 > an enum rather than a string name so the closed helper set stays exhaustiveness-checked, and a dedicated
@@ -69,23 +69,37 @@
 > all since every retain/release site already keys off `Ty::is_refcounted`/`is_aliasing_read` rather than
 > naming `Ty::Str` directly — only `lower_decl_type`/`lower_checked_ty` gained a `Bytes` arm each.
 > `mwl-syntax`'s grammar has no `bytes` literal syntax at all, so every `bytes` value lowered today
-> originates as a parameter or a property read rather than a fresh literal. `mwl-ir` is now at 47 tests.
+> originates as a parameter or a property read rather than a fresh literal. Now **a positional `array<T>`
+> literal** has landed too: `Ty::Array` is a third refcounted representation, deliberately bare and opaque
+> like `Ty::Object` — it carries no element type at all, since no lowering decision needs to branch on one
+> at this IR level (the checker's own `mwl_types::ty::Ty::Array(TypeId)` already enforces that). A new
+> `InstKind::ArrayNew` instruction builds one from a fixed list of already-lowered `(key, value)` pairs,
+> where each key is a decimal string computed at lowering time (an element's own position, auto-numbered
+> from `0`, exactly like PHP's `[$a, $b]` shorthand) rather than a lowered expression — an explicit
+> `key =>` entry, a `...spread` element, and a `&value` element are all still unsupported, panicking naming
+> whichever is used. Crossing a call-argument/return/compile-time-known-property boundary needed no new
+> insertion point at all, the same way `bytes` needed none: `lower_checked_ty` gained a
+> `CheckedTy::Array(_) => Ty::Array` arm beside its existing `String`/`Bytes` ones, so every existing
+> `Ty::is_refcounted`/`is_aliasing_read`-keyed site inherited the retain/release policy for free. `mwl-ir`
+> is now at 55 tests.
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
 > `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
 > `InstKind::Call`, `InstKind::New`, `InstKind::FieldGet`, `InstKind::FieldSet`, `InstKind::ConstStr`,
-> `InstKind::Concat`, `InstKind::HelperCall`, `InstKind::Retain` and `InstKind::Release`; `lower.rs` lowers a
+> `InstKind::Concat`, `InstKind::HelperCall`, `InstKind::ArrayNew`, `InstKind::Retain` and
+> `InstKind::Release`; `lower.rs` lowers a
 > method body of typed local declarations, an ADR 0037 `var $x = expr;` inferred-type declaration, plain
 > `$x = expr;` reassignment,
 > scalar arithmetic/comparison/unary operators, `return`,
 > nested `{}` blocks, `if`/`while`, `new Target(...)`, a static call
 > (`self::method(...)`/`Class::method(...)`), an instance method call (`$obj->method(...)`, including
 > `$this->…`), a property access through a receiver whose declaring class is statically known, read
-> (`$obj->prop`) or written (`$obj->prop = expr;`), including through `$this`, a `string`-typed local/
-> parameter/return value/call-argument/property-field initialized, reassigned, passed, returned, read or
-> written from a literal, another local, a compile-time-known property or a resolved call's own result, and
+> (`$obj->prop`) or written (`$obj->prop = expr;`), including through `$this`, a `string`/`bytes`/`array<T>`-
+> typed local/parameter/return value/call-argument/property-field initialized, reassigned, passed,
+> returned, read or written from a literal (`array<T>`'s own literal is positional-only — see above),
+> another local, a compile-time-known property or a resolved call's own result, and
 > `.` concatenation between two operands each either already `string` or a converted scalar, end
 > to end, with `insta` snapshot tests over the printed form (`print.rs`). A bare integer literal now cooks
 > correctly in all four bases `mwl-syntax`'s lexer accepts (decimal, `0x`, `0o`, `0b`), not just decimal.
@@ -109,9 +123,10 @@
 > "refcount elision" as separate, later work, so emitting unconditionally now and optimizing later —
 > rather than a harder move analysis up front — matches CLAUDE.md's priority ordering
 > (correctness/simplicity before memory/latency). `lower_checked_ty` gives the plain, unqualified
-> `CheckedTy::String`/`CheckedTy::Bytes` a `Ty::Str`/`Ty::Bytes` arm each, so a resolved call's/`new`'s
-> `string`/`bytes` parameter, a call's `string`/`bytes` return type, and a compile-time-known
-> `string`/`bytes`-typed property read or write all lower too — the aliasing
+> `CheckedTy::String`/`CheckedTy::Bytes`/`CheckedTy::Array(_)` a `Ty::Str`/`Ty::Bytes`/`Ty::Array` arm each,
+> so a resolved call's/`new`'s `string`/`bytes`/`array<T>` parameter, a call's `string`/`bytes`/`array<T>`
+> return type, and a compile-time-known `string`/`bytes`/`array<T>`-typed property read or write all lower
+> too — the aliasing
 > judgment generalized into a shared `is_aliasing_read` helper (a bare variable read or a property read,
 > either of which borrows storage some other binding still owns) that gates a call argument (retained by
 > the caller before the call, released by the callee at its own exit — the same local declare/drop
@@ -143,16 +158,19 @@
 > `HelperCall` shape now that one exists), a nullsafe access of either kind (`?->`), a
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
-> from, and applies on both the read and write side), array access, virtual dispatch (every call/access
-> lowered so far has its receiver's static type equal to its runtime class), variadic/named/spread call
+> from, and applies on both the read and write side), array access (`$arr[$i]`, read or write), an
+> array-literal element with an explicit `key =>`, a `...spread`, or a `&value` (the checker's own
+> `check_array_literal` has no key-normalization/rejection logic yet either, so lowering an explicit key
+> would mean guessing at a runtime conversion this crate can't yet synthesize), virtual dispatch (every
+> call/access lowered so far has its receiver's static type equal to its runtime class),
+> variadic/named/spread call
 > arguments, `.` concatenation of a `Stringable`-object operand (needs a resolved `toString` call `.` has
 > no way to synthesize from a bare operand — see `mwl-ir`'s own module docs for why that's more than a new
 > IR shape) and interpolated/heredoc/nowdoc string literals (only a plain
 > single/double-quoted literal with no interpolation cooks today, and only the common escapes — a numeric
-> escape passes through uncooked), any of the eight `tainted`/`secret`-qualified string/bytes variants
-> (`string`/`bytes` themselves are landed, unqualified only), and `array<T>` (no representation exists yet
-> at all — needs its own element-layout decision first; `Ty::Object` also still has no refcount operations
-> of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
+> escape passes through uncooked), and any of the eight `tainted`/`secret`-qualified string/bytes variants
+> (`string`/`bytes` themselves are landed, unqualified only; `Ty::Object` also still has no refcount
+> operations of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
