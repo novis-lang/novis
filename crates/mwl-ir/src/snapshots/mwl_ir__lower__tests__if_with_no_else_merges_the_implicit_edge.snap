@@ -4,6 +4,7 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn clamp(int) -> int {
   bb0:
+    safepoint
     v0 = param 0  ; int
     ; stmt s0 @4:5-4:17
     ; stmt s1 @5:5-7:6

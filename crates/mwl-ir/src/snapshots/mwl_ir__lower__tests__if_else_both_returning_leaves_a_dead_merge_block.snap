@@ -4,6 +4,7 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn abs(int) -> int {
   bb0:
+    safepoint
     v0 = param 0  ; int
     ; stmt s0 @4:5-8:6
     v1 = const.int 0  ; int

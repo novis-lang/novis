@@ -77,12 +77,12 @@
 //! - No `string`/`bytes`/array/object representation, and therefore no
 //!   refcount operations at all — the milestone text's "refcount operations"
 //!   have nowhere to attach until a reference-counted value exists in the IR.
-//! - No safepoints — the milestone text's other named ingredient. A
-//!   safepoint belongs at a loop back-edge and at function entry; `while`
-//!   now lowers a real back edge ([`ir::Terminator::Jump`] from the loop
-//!   body to its header), but nothing marks it as a safepoint poll site yet
-//!   — reserved for whenever M3's codegen needs the marker to exist (no
-//!   guard test needs it before then, per the plan's M2 paragraph).
+//! - Safepoints are reserved, not functional. [`ir::InstKind::Safepoint`] is
+//!   emitted at function entry and at every `while` back edge (see that
+//!   variant's own doc comment), but it is inert — no codegen exists yet to
+//!   lower it to an actual CPU-limit/cancellation/cycle-collector check, and
+//!   no guard test needs it functional before M3's backend does. `for`
+//!   loops will need the same back-edge marker once they land.
 //! - No runtime-helper calls (the milestone's third named ingredient) — this
 //!   slice's arithmetic lowers directly to [`ir::InstKind::BinOp`]/[`ir::InstKind::UnOp`],
 //!   with no helper-call fallback shape modeled yet (that only matters once

@@ -4,6 +4,7 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn check(int) -> bool {
   bb0:
+    safepoint
     v0 = param 0  ; int
     ; stmt s0 @4:5-4:25
     v1 = neg v0  ; int

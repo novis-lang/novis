@@ -4,6 +4,7 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn sum(int) -> int {
   bb0:
+    safepoint
     v0 = param 0  ; int
     ; stmt s0 @4:5-4:20
     v1 = const.int 0  ; int
@@ -23,6 +24,7 @@ fn sum(int) -> int {
     ; stmt s5 @8:7-8:19
     v7 = const.int 1  ; int
     v8 = add v4, v7  ; int
+    safepoint
     jump bb1
   bb3:
     ; stmt s6 @10:5-10:19

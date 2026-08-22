@@ -37,6 +37,12 @@
 //! ([`Lowering::collect_reassigned_locals`]), not a second type-check: it
 //! only has to be a safe *over-approximation* of "might be reassigned",
 //! since a spurious phi is merely redundant, never wrong.
+//!
+//! [`Lowering::emit_safepoint`] reserves an inert [`crate::ir::InstKind::Safepoint`]
+//! at function entry ([`lower_method`]) and on a `while`'s actual back edge
+//! (the last thing appended to the body block before it jumps to the
+//! header) — see that variant's own doc comment for why only the shape is
+//! reserved this session.
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
@@ -72,6 +78,11 @@ pub fn lower_method(name: &str, m: &MethodMember, src: &SourceFile) -> Function 
     let mut cur = entry;
     let mut env = Env::default();
     let mut param_tys = Vec::new();
+
+    // Reserved safepoint poll site (recursion) — see `InstKind::Safepoint`'s
+    // own doc comment for why function entry is one of the two fixed sites
+    // and why this slice reserves only the shape, not a functional check.
+    low.emit_safepoint(entry);
 
     for (i, p) in m.params.iter().enumerate() {
         let decl_ty =
@@ -171,6 +182,17 @@ impl<'a> Lowering<'a> {
             kind,
         });
         (v, ty)
+    }
+
+    /// Appends a reserved [`InstKind::Safepoint`] marker to `b` — see that
+    /// variant's own doc comment for the two call sites this has today
+    /// (function entry, a loop's back edge) and why it defines no value.
+    fn emit_safepoint(&mut self, b: BlockId) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::Safepoint,
+        });
     }
 
     /// Consumes the builder, pairing up every block's id, instructions and
@@ -424,6 +446,12 @@ impl<'a> Lowering<'a> {
         let mut body_cur = body_block;
         self.lower_stmt(body, &mut body_cur, &mut body_env);
         if !self.is_terminated(body_cur) {
+            // Reserved safepoint poll site (loop back edge) — see
+            // `InstKind::Safepoint`'s own doc comment. Placed on the actual
+            // back edge, not the loop header, so a body that never reaches
+            // it (e.g. it always `return`s) polls zero times per skipped
+            // iteration, same as a functional poll would.
+            self.emit_safepoint(body_cur);
             self.seal(body_cur, Terminator::Jump(header_block));
             for (name, inst_index) in &phi_slots {
                 let &(back_v, _) = body_env.get(name).unwrap_or_else(|| {

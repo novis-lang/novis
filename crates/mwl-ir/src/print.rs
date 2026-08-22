@@ -64,6 +64,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    ; stmt s{} @{}", id.index(), fmt_span(span, src));
         return;
     }
+    if let InstKind::Safepoint = inst.kind {
+        let _ = writeln!(out, "    safepoint");
+        return;
+    }
     let v = inst
         .result
         .expect("every non-marker instruction defines a value");
@@ -85,7 +89,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                 .collect();
             format!("phi [{}]", parts.join(", "))
         }
-        InstKind::StmtMarker(_) => unreachable!("returned above"),
+        InstKind::StmtMarker(_) | InstKind::Safepoint => unreachable!("returned above"),
     };
     let _ = writeln!(out, "    v{} = {rhs}  ; {}", v.index(), ty_name(ty));
 }

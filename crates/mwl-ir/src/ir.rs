@@ -75,6 +75,20 @@ pub enum InstKind {
     /// previous lowered statement's instructions end and the next one's
     /// begin, in program order. Defines no value.
     StmtMarker(StmtId),
+    /// A reserved safepoint poll site — function entry (recursion) or a
+    /// loop's back edge, the two sites the project-start "safepoints emitted
+    /// from the first backend commit" decision names
+    /// ([`docs/adr/README.md`](../../../docs/adr/README.md)'s "Decisions
+    /// taken at project start" section) and that ADR 0018 § *Negative*
+    /// contrasts its own, denser probe grid against. This slice reserves the
+    /// shape only — no codegen exists yet to lower it to an actual CPU-limit/
+    /// cancellation/cycle-collector check, and no guard test needs it
+    /// functional before M3 builds the backend on top of this IR. Reserved
+    /// now rather than later for the same "cheap now, expensive to
+    /// retrofit" reason `crate::ids` already gives for `StmtId`/`EdgeId`:
+    /// inserting it after the fact would mean re-walking every already-
+    /// lowered function. Defines no value.
+    Safepoint,
     /// A `bool` constant.
     ConstBool(bool),
     /// An `int` constant.

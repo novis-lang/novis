@@ -4,6 +4,7 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn pick(bool, int, int) -> int {
   bb0:
+    safepoint
     v0 = param 0  ; bool
     v1 = param 1  ; int
     v2 = param 2  ; int

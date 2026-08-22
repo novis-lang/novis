@@ -4,6 +4,7 @@ expression: "print_function(&f, map.file(file))"
 ---
 fn add(int, int) -> int {
   bb0:
+    safepoint
     v0 = param 0  ; int
     v1 = param 1  ; int
     ; stmt s0 @4:5-4:24
