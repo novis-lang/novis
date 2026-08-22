@@ -45,7 +45,13 @@
 > instance method call and a compile-time-known property access**, **`var` locals and multi-base
 > integer-literal cooking**, **`string` locals with refcount retain/release operations** (the
 > milestone text's first non-scalar *data* representation and the first refcount operations of any kind),
-> and now **`string` crossing a call-argument/return/property-read boundary**: `crates/mwl-ir/src/ids.rs`
+> **`string` crossing a call-argument/return/property-read boundary**, and now **a bare call/`new` used
+> purely as its own statement** (`doSomething();`, with no assignment at all — the ordinary way to invoke a
+> `void`-returning method): `StmtKind::Expr` now dispatches through a new `Lowering::lower_expr_stmt`, which
+> routes a plain `$x = expr;` reassignment to the existing `lower_reassignment` and a bare
+> `MethodCall`/`StaticCall`/`New` through the ordinary `lower_expr` path, releasing its result immediately
+> when `Ty::is_refcounted` since nothing else in the function will ever bind or return it — no new
+> `InstKind` needed, and `mwl-ir` is now at 33 tests. `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
