@@ -5,6 +5,18 @@ Reusable prompt for periodically compacting MWL's docs (ADRs, `docs/adr/README.m
 file as the prompt when you want another pass. Update it in place if a future pass finds a rule that
 needs adjusting — don't let it drift out of sync with how cleanup is actually done.
 
+## When this pass is due
+
+`python .claude/brief.py` prints a banner at the very top of its output naming any section that blew
+its byte budget, and the source doc that section is sliced from. That banner is the signal — the doc it
+names has grown past what a session can be handed at orientation, and this pass is what brings it back.
+Absent a banner, run this when you feel the docs have drifted; there is no schedule.
+
+One exception, so a pass does not waste effort on it: the ADR index in `docs/adr/README.md` grows a row
+per decision and is *supposed* to. It is not trimmable and is not a target here. If it is the section
+hitting its budget, the fix is in `.claude/brief.py` (a tighter row format, or a raised budget for that
+one section), not in the doc.
+
 ## The ask
 
 We've done a lot of work on the documentation. Before proceeding with the next milestone prompt, go

@@ -7,294 +7,48 @@
 > *new paragraph. Session-by-session history lives in `git log`; per-file known-gap detail lives in each*
 > *crate's own module docs, not here (see [CLAUDE.md](../CLAUDE.md)'s "Keep work small" section).*
 >
-> **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
-> `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer, full recursive-descent parser, the ADR
-> 0029/0030/0032 identifier-casing check), `crates/mwl-hir` (name resolution), `crates/mwl-types` (the
-> type checker), `crates/mwl-ir` (CFG/SSA IR — see the M2 paragraph below for exactly how much of it),
-> `crates/mwl-cli` (`mwl ast`, `mwl check`), the `fuzz/` crate (`lex`/`parse` targets), and
-> [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is created when its
-> milestone starts.
+> **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
+> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-cli` (`mwl ast`, `mwl check`), the `fuzz/` crate,
+> and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is created when its
+> milestone starts — `python .claude/brief.py` lists what is actually there.
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
 > + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle, `cargo-fuzz`
 > 0.13.2 under a WSL nightly toolchain (native Windows has no libFuzzer support; see CLAUDE.md's
 > "Fuzzing on Windows: use WSL").
 >
-> **M1 — done.** Lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full parser
-> (types, expressions, every control-flow statement, all declarations), plus every M1-scoped grammar
-> item from ADRs 0024 (`tainted`), 0031 (`fn`-only closures), 0033 (`secret`), 0034 (legacy casts
-> rejected), 0035 (truthy conditions, checker-only), 0036 (object literals/shape types) and 0037 (`var`
-> inference). Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
+> **M1 — done.** Lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full parser —
+> types, expressions, every control-flow statement, every declaration — plus the M1-scoped grammar of
+> ADRs 0024, 0031, 0033, 0034, 0035, 0036, 0037, 0049 and 0050. Each ADR states its own rule; do not
+> look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
 > checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics
-> (478,073 / 45,861 executions). The "clean" (zero-diagnostic) file count that test reports predates
-> ADR 0049: every corpus file opens with `<?php`, so every file now also trips exactly one `E0229`
-> (`<?php` rejected in favor of `<?mwl`) — expected, not re-measured here since the corpus isn't
-> checked in. Known parser gaps (`goto` labels, PHP's alternative colon syntax — deliberately out of
-> scope) are tracked in `mwl-syntax`'s own module docs. [ADR 0050](adr/0050-list-destructuring-spelling-rejected.md)
-> has since removed `list(...)` on the same grounds ADR 0049 removed `<?php`, so a corpus file using it
-> trips `E0230` too.
+> (478,073 / 45,861 executions). That test's "clean" file count predates ADR 0049/0050 and is not
+> re-measured — every corpus file opens with `<?php`, so every one now also trips `E0229`. Known parser
+> gaps are tracked in `mwl-syntax`'s own module docs.
 >
-> **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well
-> underway. ADRs with checker-side rules landed so far: 0007
-> (type table, definite assignment, arithmetic table), 0010 (enum/class atom split), 0013
-> (`Comparable`), 0014 (property-access resolution, no `__get`/`__set` fallback), 0015 (`type`-alias
-> substitution + cycle diagnostic), 0021 (`require` graph resolution), 0022 (constructor
-> definite-property-init), 0024 §§2-3 (`tainted` propagation/laundering), 0027 (`callable` value-shape
-> checks), 0028 (`Stringable`, `unset()` refusal), 0029/0030/0032 (casing — lives in `mwl-syntax`), 0033
-> §§2-4 (`secret` propagation/laundering/sinks), 0036 §§1,3-4 (`object` subtyping, shape structural
-> checks), 0037 (`var` local type inference), 0038 (`lateinit` placement checks, ADR 0022 § 2 exemption,
-> § 3's intraprocedural read-before-write check). ADR 0043's `mwl-syntax` slice has also landed: `trait`/
-> class-body `use`/`insteadof` are gone, rejected via `E_TRAIT_NOT_SUPPORTED`; `implements ... by $field`
-> parses; and its default-method inheritance/overriding plus private-method visibility have now landed too
-> (`E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE` reachable with a fixture) — see
-> [ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s own M2 *Verification*
-> bullet for exactly what that covers. Remaining for this milestone: ADR 0011/0024 §4/0033's
-> stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), ADR 0043's `by`-delegation
-> type-matching/forwarding synthesis and its `E_INTERFACE_MEMBER_CONFLICT`/`E_DELEGATE_TYPE_MISMATCH`
-> diagnostics, 0047's literal/enum-case types and their checked-conversion rules (docs only so far — see
-> [ADR 0047](adr/0047-literal-and-enum-case-types.md)), and finishing `mwl-ir`. One further gap, found by
-> inspection rather than by a failing test and not visible from the milestone text above: **`check_stmts`
-> walks declarations only**, so a file's top-level statements are never type-checked at all
+> **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well underway;
+> `mwl-ir` is the remaining bulk. Checker-side rules landed for ADRs 0007, 0010, 0013, 0014, 0015, 0021,
+> 0022, 0024, 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, and 0043's syntax + default/private-method
+> slice. Still open: 0011/0024/0033's stdlib-dependent sinks (blocked on `Core` classes until M7/M8),
+> 0043's `by`-delegation type-matching and its `E_INTERFACE_MEMBER_CONFLICT`/`E_DELEGATE_TYPE_MISMATCH`,
+> 0047 (docs only so far), and finishing `mwl-ir`. Each ADR's own *Verification* section says what its
+> slice covers — that is the one home for it.
+>
+> One gap is not visible from the milestone text below, found by inspection rather than a failing test:
+> **`check_stmts` walks declarations only**, so a file's top-level statements are never type-checked
 > (`echo $undefinedThing;` at file scope passes `mwl check` clean; the same line in a method reports
-> `E0301`). `mwl-ir` has the mirror-image gap — only `lower_method` exists. Both are the same fix, and
-> [ADR 0008](adr/0008-static-and-global.md) § 2 already decides it: the script body is a function, so its
-> statements are one synthesized frame whose variables are locals. It is on M3's critical path, since the
+> `E0301`), and `mwl-ir` has the mirror-image gap — only `lower_method` exists. Both are one fix, already
+> decided by [ADR 0008](adr/0008-static-and-global.md) § 2: the script body is a function, so its
+> statements are one synthesized frame whose variables are locals. On M3's critical path — the
 > `Hello, World!` acceptance program is exactly that shape.
 >
-> `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, **`new`/a static call**, **an
-> instance method call and a compile-time-known property access**, **`var` locals and multi-base
-> integer-literal cooking**, **`string` locals with refcount retain/release operations** (the
-> milestone text's first non-scalar *data* representation and the first refcount operations of any kind),
-> **`string` crossing a call-argument/return/property-read boundary**, **a bare call/`new` used purely as
-> its own statement**, **a `string`-typed property *write***, **`.` string concatenation** between two
-> `string` operands, **runtime-helper calls** (the milestone's third named ingredient) — narrowly
-> scoped to converting a scalar `.` operand to `string`: a new `InstKind::HelperCall` instruction, tagged
-> with a closed, non-exhaustive `Helper` enum (`IntToString`/`UintToString`/`FloatToString`/`BoolToString`,
-> an enum rather than a string name so the closed helper set stays exhaustiveness-checked, and a dedicated
-> instruction rather than reusing `InstKind::Call` with a synthetic target label, since a helper has no
-> class-hierarchy origin or receiver the way a resolved call does — see `mwl-ir`'s own module docs'
-> design-choices section for the full weighing against ADR 0002), lets `Lowering::concat_operand` convert an
-> `int`/`uint`/`float`/`bool` `.` operand before `InstKind::Concat` sees it; a `Stringable`-object operand
-> still panics naming the case, since desugaring it needs a resolved `toString` call `.` has no way to
-> synthesize yet. `HelperCall` does not model ADR 0002's checked-return convention (no status, no error
-> edge) — deliberately, matching `Call`/`New`'s own still-unmodeled call-that-can-fail case, so all three
-> get that treatment together once `try`/`throw` lowering needs it, rather than `HelperCall` alone getting a
-> partial version of it now. Landing this also fixed a latent leak in the `.` slice itself: a fresh,
-> non-aliasing `Ty::Str` operand read only by `Concat` and never bound into a durable slot (a bare string
-> literal, previously) had nothing that would ever release it; `concat_operand` now reports whether its
-> result aliases a durable slot, and `Concat`'s caller releases it right after when it doesn't, the same
-> "release a fresh value once its one and only use is done" precedent a bare call/`new` statement already
-> set. `bytes` then landed as a mechanical repeat of `string`'s own shape, exactly as flagged two sessions
-> running: `Ty::Bytes` is a second refcounted representation, needing no new `Lowering` insertion point at
-> all since every retain/release site already keys off `Ty::is_refcounted`/`is_aliasing_read` rather than
-> naming `Ty::Str` directly — only `lower_decl_type`/`lower_checked_ty` gained a `Bytes` arm each.
-> `mwl-syntax`'s grammar has no `bytes` literal syntax at all, so every `bytes` value lowered today
-> originates as a parameter or a property read rather than a fresh literal. Now **a positional `array<T>`
-> literal** has landed too: `Ty::Array` is a third refcounted representation, deliberately bare and opaque
-> like `Ty::Object` — it carries no element type at all, since no lowering decision needs to branch on one
-> at this IR level (the checker's own `mwl_types::ty::Ty::Array(TypeId)` already enforces that). A new
-> `InstKind::ArrayNew` instruction builds one from a fixed list of already-lowered `(key, value)` pairs,
-> where each key is a decimal string computed at lowering time (an element's own position, auto-numbered
-> from `0`, exactly like PHP's `[$a, $b]` shorthand) rather than a lowered expression — an explicit
-> `key =>` entry, a `...spread` element, and a `&value` element are all still unsupported, panicking naming
-> whichever is used. Crossing a call-argument/return/compile-time-known-property boundary needed no new
-> insertion point at all, the same way `bytes` needed none: `lower_checked_ty` gained a
-> `CheckedTy::Array(_) => Ty::Array` arm beside its existing `String`/`Bytes` ones, so every existing
-> `Ty::is_refcounted`/`is_aliasing_read`-keyed site inherited the retain/release policy for free.
-> **Array-element access** (`$arr[$i]`, read and write) has landed too, through a known `int`/`uint`/
-> `string` key: new `InstKind::ArrayGet`/`InstKind::ArraySet` instructions, typed off a new
-> `mwl_types::expr_table::ExprInfo::Index { elem_ty }` entry the checker records exactly when an
-> `Index` expression's base resolved to a known `array<T>` element type (unrecorded, same as
-> `ExprInfo::Property`, when it erased to `mixed`). The checker itself has no compile-time notion of key
-> *presence* at all — it resolves the same element type whether or not a given key exists at runtime — so
-> the missing-key runtime behavior (PHP's warning-and-`null` read, autovivification on write) was never in
-> scope to design around; it is deferred wholesale, the same way every other checked-throw is until `try`/
-> `throw` lowering exists. An `int`/`uint` subscript normalizes to its decimal-string key form (ADR 0007
-> § 5) by reusing the existing `IntToString`/`UintToString` helpers verbatim. `ArraySet` does not mirror
-> `FieldSet`'s read-old-value-then-release shape — an array key may not already exist, unlike a
-> definitely-initialized class field — so it bundles the whole replace-or-insert into one instruction
-> instead of a conditional get/release pair. **`$a[] = expr;` append syntax** (the write side) has since
-> landed too: a new `InstKind::ArrayAppend` instruction carries no key at all, unlike `ArraySet` — PHP's
-> real "next available integer key" rule tracks the highest `int` key ever used as part of the array's own
-> runtime state, which a lowering pass can't compute from the source text the way a literal's positional
-> index or an explicit key can, so its storage/increment is left entirely to `mwl-codegen`'s own array
-> representation, the same "shape now, functional later" deferral `InstKind::Safepoint` already gets. `$a[]`
-> as a *read* has no PHP meaning at all (PHP itself rejects it) and stays a permanent panic, not a gap. A
-> `float`/`bool`/`null` array key — a subscript or an array-literal explicit `key =>` alike — is now
-> rejected at check time by a new `mwl_types::expr::check_array_key_type` helper and
-> `E_ARRAY_KEY_INVALID_TYPE` diagnostic (ADR 0007 § 5), called from both `check_expr`'s `Index` arm and
-> `check_array_literal`'s explicit-key arm, so `lower_array_key`'s matching panic arm is now an unreachable
-> internal-invariant check rather than a live gap. **An array literal's explicit `key =>` element** now
-> lowers too: a literal with at least one explicit key builds an empty `InstKind::ArrayNew` followed by one
-> `InstKind::ArraySet` per element in source order (reusing `lower_array_key` verbatim for every key,
-> explicit or positional), while a purely positional literal keeps the original single-`ArrayNew` shape
-> unchanged. This deliberately does not reproduce PHP's rule that an explicit `int`/`uint` key also advances
-> the positional auto-increment counter — a positional element still numbers from "how many positional
-> elements came before it," a documented simplification left for whenever the append-syntax counter gap
-> above is tackled. A `...spread` element and a `&value` element are both still unsupported either way.
-> **An `if`/`while` condition that isn't already `bool`** now converts through ADR 0035's truthy table too,
-> for a scalar or `array<T>` operand: five new `Helper` variants (`IntTruthy`/`UintTruthy`/`FloatTruthy`/
-> `StrTruthy`/`ArrayTruthy`) reuse the same `InstKind::HelperCall` shape the `.`-conversion helpers already
-> established, via a new `Lowering::lower_truthy_cond` both `lower_if`/`lower_while` now call instead of
-> asserting the condition is already `bool`. A class-instance or enum-case (`Ty::Object`) condition needs no
-> helper at all — ADR 0035 § 4 makes either always truthy — so it folds straight to a fresh `const.bool
-> true`. `null`/`mixed`/a union were still out of scope at the time: neither a nullable-type nor a
-> `Ty::Mixed` IR representation existed yet to convert *from* (see below — `Ty::Mixed` has since landed,
-> though converting one through this table still hasn't). `&&`/`||`/`!` and the ternary/elvis condition
-> (ADR 0035's other four truthy positions) have since landed too — see below.
-> **`Ty::Mixed`** (ADR 0007 § 3's one unchecked position) has now landed too, scoped narrowly on purpose:
-> enough representation for a `mixed`-typed local, parameter, return value or call argument to exist and
-> round-trip through the exact same `bind_local`/`lower_call_args`/`release_all_locals`/`return` machinery
-> every other `Ty` already uses, keyed entirely off `Ty::is_refcounted`/`is_aliasing_read` rather than a
-> new insertion point — `lower_decl_type`/`lower_checked_ty` each gained one `Mixed` arm, mirroring exactly
-> how both already erase a class/enum name to `Ty::Object`. `Ty::Mixed` is deliberately excluded from
-> `Ty::is_refcounted`: a `mixed` value's actual runtime shape might or might not be refcounted, and nothing
-> decides that runtime type tag yet, so there is no way to know which today. That open question — how a
-> `mixed` value's runtime type tag is represented — is the real design work this slice deliberately does
-> *not* answer: arithmetic's `mixed` fallback, ADR 0035's `null`/`mixed` truthy case, and an array-element
-> access through a `mixed`-erased base all still panic naming the gap, now reachable (a `mixed`-typed value
-> can exist as input) rather than theoretical.
-> **`&&`/`||`/`!`/the ternary-elvis operator** (ADR 0035's other four truthy positions) have now landed
-> too — the recommended pick left at the end of the `Ty::Mixed` session, since none of the four were lowered
-> at all before it. `&&`/`||` need genuine short-circuit control flow (PHP only evaluates the right operand
-> when it can change the answer), not just a value computation, so a new `Lowering::lower_expr_top` entry
-> point exists specifically for the handful of positions that already own a mutable `cur: &mut BlockId` (a
-> local declaration's initializer, `return`'s value, a plain reassignment's right-hand side, and any
-> condition under test) — only those can redirect "the current block" mid-expression the way `&&`/`||`/a
-> ternary need to; everywhere else (a call argument, an array-literal element, a `.`-operand) still panics
-> naming the gap. `!` always produces `Ty::Bool` via the same truthy table (fixing a latent bug: it
-> previously passed its operand's own type straight through, silently correct only by coincidence for the
-> one existing bool-only fixture) and recurses through `lower_expr_top` so `!($a && $b)` composes. The
-> ternary/elvis operator reuses `lower_if`'s own branch/merge shape, joining a `then`/`else` value through a
-> fresh `Phi` instead of a named local; elvis (`then` omitted) reuses `cond`'s own value on the truthy path
-> rather than retesting it, needing one exception to every other position's usual release-after-test rule
-> plus its own retain-on-alias handling — the same ownership question every `then`/`else` branch turned out
-> to need too (caught by a dedicated test, not assumed correct by inspection). A `then`/`else` pair lowering
-> to two different `Ty` representations, or any of the four nested where only a fixed `cur: BlockId` is
-> available, still panics naming the gap. PHP's low-precedence `and`/`or`/`xor` keyword operators need no
-> lowering at all — a later session (ADR 0045) removed them from the language entirely, so `mwl-syntax`
-> never produces the AST shape that would reach this crate. This session also surfaced and fixed a pre-existing,
-> previously-invisible gap: `ExprKind::Paren` (a parenthesized `(expr)`) was never unwrapped anywhere in
-> expression lowering at all — needed now since `!($a && $b)` requires the explicit parens (`!` binds
-> tighter than `&&`/`||`). `$a[] = expr;` append syntax (the write side) has since landed too, see above.
-> **`break`/`continue` for a `while` loop** have since landed too, level 1 only: a new `Lowering::LoopFrame`
-> (pushed/popped around a `while`'s own body lowering) records each `break`'s/`continue`'s `(block, env)`
-> pair, and `lower_while` folds a `continue`'s edge into its existing header-phi patch (widened from "the
-> one fall-through edge" to "every back edge") and a `break`'s edge into a new `merge_envs` call at the
-> after-block (previously always a plain clone of the header environment, since the condition's false edge
-> was the loop's only exit) — no new `Terminator`/`InstKind` shape needed either way. `break N`/`continue N`
-> for `N > 1`, a non-literal level, and either keyword inside a `for`/`switch` body (neither of which lowers
-> yet) all still panic naming the gap; so does either keyword with no enclosing loop at all, since
-> `mwl_types` doesn't yet check loop nesting itself.
-> `mwl-ir` is now at 102 tests (was 95).
-> `crates/mwl-ir/src/ids.rs`
-> reserves the stable `StmtId`/`EdgeId` numbering
-> [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
-> deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
-> `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
-> `InstKind::Call`, `InstKind::New`, `InstKind::FieldGet`, `InstKind::FieldSet`, `InstKind::ConstStr`,
-> `InstKind::Concat`, `InstKind::HelperCall`, `InstKind::ArrayNew`, `InstKind::ArrayGet`,
-> `InstKind::ArraySet`, `InstKind::ArrayAppend`, `InstKind::Retain` and `InstKind::Release`; `lower.rs`
-> lowers a
-> method body of typed local declarations, an ADR 0037 `var $x = expr;` inferred-type declaration, plain
-> `$x = expr;` reassignment,
-> scalar arithmetic/comparison/unary operators, `return`,
-> nested `{}` blocks, `if`/`while`, `new Target(...)`, a static call
-> (`self::method(...)`/`Class::method(...)`), an instance method call (`$obj->method(...)`, including
-> `$this->…`), a property access through a receiver whose declaring class is statically known, read
-> (`$obj->prop`) or written (`$obj->prop = expr;`), including through `$this`, a `string`/`bytes`/`array<T>`-
-> typed local/parameter/return value/call-argument/property-field initialized, reassigned, passed,
-> returned, read or written from a literal (`array<T>`'s own literal is positional-only — see above),
-> another local, a compile-time-known property or a resolved call's own result, an array-element read
-> (`$arr[$i]`) or write (`$arr[$i] = expr;`) through a known `int`/`uint`/`string` key, and
-> `.` concatenation between two operands each either already `string` or a converted scalar, end
-> to end, with `insta` snapshot tests over the printed form (`print.rs`). A bare integer literal now cooks
-> correctly in all four bases `mwl-syntax`'s lexer accepts (decimal, `0x`, `0o`, `0b`), not just decimal, and
-> `mwl_types::expr::infer` now range-checks its magnitude against ADR 0007 § 4's own rule (too large for
-> `int` is legal only where `uint` is expected; too large even for `uint`'s `u64` range is always
-> `E_INT_LITERAL_OUT_OF_RANGE`) — closing that gap at check time means `mwl-ir`'s own literal-cooking panic
-> is now unreachable input, the same "trusts a prior clean `check_program` run" contract every other panic
-> in that crate already relies on.
-> Every lowered method's `Function::params` now carries an implicit receiver at index 0
-> (`$this`, or an unused slot for a method that never reads it) ahead of its explicit parameters — the
-> shape an instance call needed to represent `$this`/an arbitrary receiver as a real SSA value, mirroring
-> `mwl_types::check.rs`'s `check_method` seeding `$this` into its own scope the same unconditional way. `if`'s
-> join and `while`'s loop-header join
-> are each a single hand-rolled two-predecessor (or pre-loop/back-edge) SSA merge, not a general
-> dominance-based phi-placement algorithm — sufficient since a structured `if`/`while` only ever has that one
-> join shape. An inert `InstKind::Safepoint` marker is reserved at function entry and on every `while` back
-> edge — the two fixed sites the project-start "safepoints from the first backend commit" decision names —
-> but it lowers to nothing yet; no codegen or guard test needs it functional before M3's backend exists.
->
-> The refcount insertion policy chosen is naive and syntactic rather than a liveness/move analysis:
-> `Lowering::bind_local` retains a value copied out of an existing `$name` binding into a second durable
-> slot (a fresh literal needs no retain — it already has exactly one natural owner), releases a slot's
-> previous value on overwrite, and `Lowering::release_all_locals` releases every refcounted local still
-> live at a `return`/implicit-`void` fallthrough except the one slot whose value transfers out directly
-> (a bare `return $name;`); `docs/implementation-plan.md`'s own optimizer feature list already names
-> "refcount elision" as separate, later work, so emitting unconditionally now and optimizing later —
-> rather than a harder move analysis up front — matches CLAUDE.md's priority ordering
-> (correctness/simplicity before memory/latency). `lower_checked_ty` gives the plain, unqualified
-> `CheckedTy::String`/`CheckedTy::Bytes`/`CheckedTy::Array(_)` a `Ty::Str`/`Ty::Bytes`/`Ty::Array` arm each,
-> so a resolved call's/`new`'s `string`/`bytes`/`array<T>` parameter, a call's `string`/`bytes`/`array<T>`
-> return type, and a compile-time-known `string`/`bytes`/`array<T>`-typed property read or write all lower
-> too — the aliasing
-> judgment generalized into a shared `is_aliasing_read` helper (a bare variable read, a property read, or
-> (as of the array-access slice) a compile-time-known array-element read, each of which borrows storage
-> some other binding still owns) that gates a call argument (retained by
-> the caller before the call, released by the callee at its own exit — the same local declare/drop
-> symmetry, just across a call frame), a returned expression (a property read has no local slot for
-> `release_all_locals`'s exclusion mechanism to skip, so `Return`'s own arm retains it explicitly instead),
-> and now a property-write's own new value. A `tainted`/`secret`-qualified `string`/`bytes` variant (ADR
-> 0024/0033) still has no `lower_checked_ty` arm — a pre-existing, unrelated gap.
->
-> Widening past scalars needed an architecture decision the plan flagged as open for two sessions: whether
-> `mwl-ir` should depend on `mwl-types`/`mwl-hir` directly and re-derive a call's/`new`'s resolved target
-> itself, or whether `mwl-types` should publish a persisted result `mwl-ir` reads back. The user decided in
-> favor of the latter: `mwl-types` grew `crate::expr_table::ExprTypeTable`, a narrow, purpose-built table —
-> one `ExprInfo::Call`/`ExprInfo::New`/`ExprInfo::Property` entry per resolved method/static call, `new`, or
-> property access, keyed by the expression's own source span rather than an independently-numbered id (the
-> two crates' AST walks aren't guaranteed to visit expressions in the same order, so a span is the only key
-> both agree on without coordinating) — that `check_program` now populates and hands back alongside its
-> type interner. `mwl-ir`
-> depends on `mwl-types` for exactly this table plus the interner needed to translate a recorded `TypeId`
-> into its own `Ty`; it still never depends on `mwl-hir`, `mwl_types::signatures`, or `mwl_types::ClassGraph`
-> directly. `mwl-ir`'s own `Ty` gained one non-scalar variant, `Ty::Object` — an opaque class/enum reference
-> with no identity carried in the IR (a call's/`new`'s target is already resolved to a concrete label before
-> lowering sees it) and no refcount operations yet, reserved the same "shape now, functional later" way
-> `InstKind::Safepoint` was.
->
-> Deliberately out of scope still, all documented in the crate's own module docs: `for`/`switch`/`match`/
-> `try`, `break`/`continue`, the `null`/`mixed`/union half of ADR 0035's `if`/`while` truthy conversion
-> (`null` has no nullable-type IR representation to convert *from* at all; `Ty::Mixed` now exists, see
-> below, but converting one through the table needs a runtime type-tag representation this crate still
-> doesn't have — the `bool`/scalar/`array<T>`/`Ty::Object` half is landed, see above; `&&`/`||`/`!`/the
-> ternary-elvis operator have since landed too, see above — a nested one where only a fixed `cur: BlockId`
-> is available, and a ternary whose branches lower to two different `Ty`s, still panic naming the gap), a
-> nullsafe access of
-> either kind (`?->`), a
-> property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
-> checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
-> from, and applies on both the read and write side), array-element access through a `mixed`-erased base
-> (`Ty::Mixed` gives this a representation to fall back *to*, not yet a wired fallback) or
-> a non-`int`/`uint`/`string` key, `$a[]` as a *read* (no PHP meaning at all, a permanent panic rather than a
-> gap — `$a[] = expr;`'s write side has since landed, see above), and an
-> array-literal `...spread` or `&value` element (an explicit `key =>` element is landed, see above), virtual
-> dispatch (every call/access lowered so far has its receiver's static type equal to its runtime class),
-> variadic/named/spread call
-> arguments, and `.` concatenation of a `Stringable`-object operand (needs a resolved `toString` call `.`
-> has no way to synthesize from a bare operand — see `mwl-ir`'s own module docs for why that's more than a
-> new IR shape). Every string-literal shape now cooks and lowers, including numeric escapes and
-> interpolation/heredoc/nowdoc (PHP 7.3's flexible-heredoc indentation strip included) — see
-> `mwl-ir`'s own module docs for the escape grammar/dedent split. Still open: any of the eight
-> `tainted`/`secret`-qualified string/bytes variants
-> (`string`/`bytes` themselves are landed, unqualified only; `Ty::Object` also still has no refcount
-> operations of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
->
-> Per-crate known gaps (what a
-> receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
-> `mwl-hir::{hierarchy,members,requires}` and `mwl-types::{expr,ctor_init,lib}` — read those directly
-> rather than expecting a summary here; they're more current than a paragraph in this file could stay.
+> `mwl-ir`'s slice-by-slice history, its refcount insertion policy, the `mwl-types`-publishes-a-table
+> dependency decision, and its full known-gap list are **not** repeated here — they live in
+> `crates/mwl-ir/src/lib.rs`'s module doc, under its three headings (*What this crate lowers so far*,
+> *Design choices worth knowing before widening this further*, *Known gaps*). Same for `mwl-hir` and
+> `mwl-types`: read `mwl-hir::{hierarchy,members,requires}` and `mwl-types::{expr,ctor_init,lib}`
+> directly. Those are more current than a paragraph here could stay, which is why this block does not
+> carry one.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

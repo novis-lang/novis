@@ -11,7 +11,14 @@ Unlike the old `brief.sh`, every section here also carries a hard byte budget. I
 doc it slices grows past that budget, the section is truncated with a loud note naming the
 file to open directly -- so this digest cannot silently balloon back to tens of KB just
 because a doc grew between DOC_CLEANUP_PROMPT.md passes. A budget getting hit routinely is a
-signal that doc, not this script, needs trimming.
+signal that doc, not this script, needs trimming -- so an over-budget section also raises a
+banner at the very top of the output, where it cannot be read past, in addition to the inline
+note at the cut.
+
+The one section whose growth is legitimate is the ADR index: it gains a row per decision and
+nothing about it can be trimmed. That row is printed compressed (filename, decision, and the
+status only when it is not Accepted) rather than as the raw markdown table, which is what keeps
+it inside its budget as ADRs accumulate.
 
 Usage:  python .claude/brief.py            # the digest
         python .claude/brief.py --no-git   # skip the working-tree section
@@ -41,6 +48,13 @@ TOTAL_BUDGET = STATUS_BUDGET + MILESTONE_BUDGET + ADR_TABLE_BUDGET + NO_ADR_BUDG
 
 out = []
 
+# Sections that blew their budget this run, as (title, actual_bytes, budget). main() turns
+# these into a banner at the very top of the digest: the inline truncation note is easy to
+# read past, and an over-budget section means a doc needs trimming -- something the reader
+# has to act on, not notice in passing.
+over_budget = []
+current_section = "(unknown)"
+
 
 def emit(line=""):
     out.append(line)
@@ -52,6 +66,8 @@ def warn(msg):
 
 
 def section(title, source):
+    global current_section
+    current_section = title
     emit()
     emit()
     emit(f"== {title}")
@@ -64,6 +80,7 @@ def cap_text(text, budget, source_hint):
     encoded = text.encode("utf-8")
     if len(encoded) <= budget:
         return text
+    over_budget.append((current_section, len(encoded), budget))
     lines = text.split("\n")
     kept = []
     total = 0
@@ -164,6 +181,28 @@ def run_milestones(status, plan_text):
 # ------------------------------------------------------------------ decisions
 
 
+ADR_ROW_RE = re.compile(r"^[|][^[]*\[[^]]*\]\(([^)]+)\)([^|]*)[|]([^|]*)[|]([^|]*)[|]")
+
+
+def compress_adr_rows(rows):
+    """One line per ADR: filename, then the decision. The status column is dropped for the
+    Accepted majority and printed only where it differs, which roughly doubles how many
+    further ADRs fit inside the same budget. A row that does not match the expected
+    cell shape is passed through verbatim rather than silently reshaped or dropped."""
+    compressed = []
+    for row in rows:
+        m = ADR_ROW_RE.match(row)
+        if not m:
+            compressed.append(row)
+            continue
+        filename = m.group(1).strip()
+        decision = m.group(3).strip()
+        status = m.group(4).strip()
+        suffix = "" if status == "Accepted" else "   [" + status + "]"
+        compressed.append(filename + "  " + decision + suffix)
+    return compressed
+
+
 def run_adr_index():
     section("DECISIONS WITH AN ADR (number, decision, status)", f"{rel(ADR_README)} (the index table)")
     text = read(ADR_README)
@@ -172,8 +211,10 @@ def run_adr_index():
         return
     rows = [line for line in text.split("\n") if line.startswith("| [")]
     if rows:
-        emit(cap_text("\n".join(rows), ADR_TABLE_BUDGET, rel(ADR_README)))
+        emit(cap_text("\n".join(compress_adr_rows(rows)), ADR_TABLE_BUDGET, rel(ADR_README)))
         emit()
+        emit("Every ADR not marked otherwise is Accepted -- the status column is printed only for")
+        emit("the exceptions, so this section stays inside its budget as ADRs keep being added.")
         emit("This table intentionally omits the full rule and reasoning -- open the file it names for those.")
         emit('CLAUDE.md, section "Where to look", maps a topic to the same file.')
     else:
@@ -388,6 +429,14 @@ def main():
     run_disk()
     if not no_git:
         run_git()
+
+    if over_budget:
+        banner = ["!! brief.py: this digest is INCOMPLETE -- a section was cut to fit its budget."]
+        for title, actual, budget in over_budget:
+            banner.append("!!   " + title + ": " + str(actual) + " B against a " + str(budget) + " B budget")
+        banner.append("!! Each section below names the file to open for the rest. A budget hit means")
+        banner.append("!! that doc needs DOC_CLEANUP_PROMPT.md's trim pass, not a bigger budget.")
+        out[0:0] = banner + [""]
 
     text = "\n".join(out).lstrip("\n") + "\n"
     sys.stdout.write(text)
