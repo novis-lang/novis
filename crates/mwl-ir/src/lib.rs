@@ -142,17 +142,17 @@
 //! IR level (`mwl_types::ty::Ty::Array(TypeId)` already enforces that at
 //! check time — see [`ty::Ty`]'s own module doc for the full split). A
 //! positional array literal (`[...]`/legacy `array(...)`, no explicit
-//! `key =>`, no `...spread`, no `&value`) lowers to a new
-//! [`ir::InstKind::ArrayNew`] — see that variant's own doc comment for the
-//! fixed `(key, value)`-pairs shape and why each key is a decimal string
-//! computed at lowering time, never a lowered expression. [`ty::Ty::Array`]
-//! is [`ty::Ty::is_refcounted`], so [`lower::Lowering::lower_expr`]'s new
-//! `ArrayLiteral` arm applies the exact same caller-side retain
-//! [`lower::Lowering::lower_call_args`] already gives a refcounted, aliasing
-//! call argument to each element that [`lower::is_aliasing_read`]s existing
-//! storage — no new policy, only a new call site for the existing one. An
-//! explicit `key =>` entry, a `...spread` element, and a `&value` element are
-//! all still unsupported — see the known gaps below.
+//! `key =>`) lowers to a new [`ir::InstKind::ArrayNew`] — see that variant's
+//! own doc comment for the fixed `(key, value)`-pairs shape and why each key
+//! is a decimal string computed at lowering time, never a lowered
+//! expression. [`ty::Ty::Array`] is [`ty::Ty::is_refcounted`], so
+//! [`lower::Lowering::lower_expr`]'s new `ArrayLiteral` arm applies the exact
+//! same caller-side retain [`lower::Lowering::lower_call_args`] already gives
+//! a refcounted, aliasing call argument to each element that
+//! [`lower::is_aliasing_read`]s existing storage — no new policy, only a new
+//! call site for the existing one. A `...spread` element and a `&value`
+//! element are still unsupported — see the known gaps below. An explicit
+//! `key =>` element landed later, in the sixteenth slice below.
 //!
 //! Array-element access (`$arr[$i]`, both read and write) is the fifteenth
 //! slice, and the natural pickup once `ir::InstKind::ArrayNew` existed to
@@ -198,11 +198,33 @@
 //! `bytes`/`array<T>` themselves. `$a[]`/`$a[] = expr;` (PHP's append
 //! syntax, `index` is `None`) is unsupported on both sides — it needs a
 //! "next available integer key" counter this crate has no representation
-//! for yet — and a non-`int`/`uint`/`string` subscript (a `float`/`bool`/
-//! `null` key ADR 0007 § 5 itself rejects, which `mwl_types` doesn't yet
-//! enforce either — the same known gap `ArrayNew`'s own doc comment already
-//! names for an array literal's explicit `key =>`) still panics in
-//! `lower_array_key` naming the case.
+//! for yet — and a non-`int`/`uint`/`string` subscript still panics in
+//! `lower_array_key` naming the case, now as an unreachable internal-
+//! invariant panic rather than a live gap: `mwl_types` rejects a `float`/
+//! `bool`/`null` key at check time as of the sixteenth slice below.
+//!
+//! An array literal's explicit `key =>` element is the sixteenth slice, and
+//! the two-part fix the recorded next-session pick called for:
+//! `mwl_types::expr::check_array_key_type` (new) is called from both
+//! `check_array_literal`'s explicit-key arm and `check_expr`'s `Index` arm,
+//! rejecting a `float`/`bool`/`null` key with a new `E_ARRAY_KEY_INVALID_TYPE`
+//! diagnostic and leaving `int`/`uint`/`string` (and anything statically
+//! unknown, like `mixed`) alone — the same "erase to `mixed` rather than
+//! guess" split `division_result`/`bitwise_result` already draw. On the
+//! lowering side, a literal with at least one explicit key now builds an
+//! *empty* `ArrayNew` followed by one `ArraySet` per element in source
+//! order, reusing [`lower::Lowering::lower_array_key`] verbatim for every
+//! key (explicit or positional) rather than adding a second key-lowering
+//! path — see [`ir::InstKind::ArrayNew`]'s own doc comment for the full
+//! split and the one PHP behavior it deliberately doesn't reproduce (a
+//! positional element mixed after an explicit `int`/`uint` key numbers from
+//! "how many positional elements came before it," not PHP's real "highest
+//! int key used so far," since that needs the very "next available integer
+//! key" counter the paragraph above already names as a separate, bigger gap).
+//! A purely positional literal is untouched — same single `ArrayNew`, same
+//! snapshots, zero behavior change — since the split only triggers once an
+//! explicit key actually appears. `...spread` and `&value` elements remain
+//! exactly as unsupported as before this slice.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -405,15 +427,16 @@
 //!   place). `$a[]`/`$a[] = expr;` (append syntax, `index` is `None`) is
 //!   unsupported on either side — it needs a "next available integer key"
 //!   counter this crate has no representation for yet. A `float`/`bool`/
-//!   `null` subscript — the three source types ADR 0007 § 5 itself rejects
-//!   as a key, which `mwl_types` doesn't yet enforce either — still panics
-//!   in `lower::Lowering::lower_array_key` naming the case. A literal with
-//!   an explicit `key =>`, a `...spread` element, or a `&value` element is
-//!   equally unsupported — `crate::ir::InstKind::ArrayNew`'s own doc comment
-//!   explains why (`mwl_types::expr::check_array_literal` itself has no
-//!   key-normalization/rejection logic yet either, so lowering an explicit
-//!   key would mean guessing at a runtime conversion this crate can't yet
-//!   synthesize).
+//!   `null` subscript is rejected by `mwl_types::expr::check_array_key_type`
+//!   at check time as of the sixteenth slice, so `lower::Lowering::
+//!   lower_array_key`'s `other` panic arm is unreachable for it now, not a
+//!   live gap. An array literal's explicit `key =>` element is landed too
+//!   (same slice) — see [`ir::InstKind::ArrayNew`]'s own doc comment for the
+//!   `ArrayNew`-then-`ArraySet*` shape it takes and the one PHP behavior it
+//!   deliberately doesn't reproduce. A `...spread` element or a `&value`
+//!   element is still unsupported either way — lowering panics naming
+//!   whichever is used, since neither has a merge/reference representation
+//!   in this crate yet.
 //! - **Property access, read or write, is compile-time-known-field-only.** A
 //!   receiver whose static type resolved to a known declaring class lowers a
 //!   read to [`ir::InstKind::FieldGet`] and a write (`$obj->prop = expr;`) to

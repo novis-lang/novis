@@ -297,24 +297,33 @@ pub enum InstKind {
         args: Vec<ValueId>,
     },
     /// `[...]`/legacy `array(...)`: builds a fresh [`crate::ty::Ty::Array`]
-    /// value — ADR 0007 § 5's insertion-ordered, string-keyed hash — from a
-    /// fixed list of already-lowered `(key, value)` pairs, bundled into one
-    /// instruction rather than an allocation plus a sequence of inserts, the
-    /// same "no codegen exists yet to make the split observable" reasoning
-    /// [`InstKind::New`]'s own doc comment already gives for a constructor
-    /// call. Every `key` here is a decimal string computed at lowering time,
-    /// not a lowered expression: `crate::lower::Lowering::lower_expr`'s
-    /// `ArrayLiteral` arm only lowers a *positional* element (no explicit
-    /// `key =>`), so each element's key is simply its index in the list,
-    /// auto-numbered from `0` exactly like PHP's own `[$a, $b]` shorthand —
-    /// known statically without a runtime index-tracking instruction. An
-    /// explicit `key =>` entry, a `...spread` element, and a `&value` element
-    /// are all still unsupported — lowering panics naming whichever is used
-    /// (see the crate docs' known gaps): `mwl_types::expr::check_array_literal`
-    /// itself has no key-normalization/rejection logic yet either (ADR 0007
-    /// § 5's int/uint-to-decimal-string normalization, float/bool/null
-    /// rejection), so lowering an explicit key here would mean guessing at a
-    /// runtime conversion this crate can't yet synthesize.
+    /// value — ADR 0007 § 5's insertion-ordered, string-keyed hash. A
+    /// *purely positional* literal (no element has an explicit `key =>`)
+    /// bundles the whole thing into one instruction from a fixed list of
+    /// already-lowered `(key, value)` pairs, rather than an allocation plus a
+    /// sequence of inserts — the same "no codegen exists yet to make the
+    /// split observable" reasoning [`InstKind::New`]'s own doc comment
+    /// already gives for a constructor call. Every `key` here is a decimal
+    /// string computed at lowering time, not a lowered expression: each
+    /// positional element's key is simply its index in the list, auto-
+    /// numbered from `0` exactly like PHP's own `[$a, $b]` shorthand — known
+    /// statically without a runtime index-tracking instruction. A literal
+    /// with at least one explicit `key =>` element instead lowers to an
+    /// *empty* `ArrayNew` (`entries` is `Vec::new()`) followed by one
+    /// [`InstKind::ArraySet`] per element in source order —
+    /// `crate::lower::Lowering::lower_array_key` gives every key (explicit or
+    /// positional alike) a real `Ty::Str` `ValueId` there, which this fixed-
+    /// entries shape has no field for. See
+    /// `crate::lower::Lowering::lower_expr`'s `ArrayLiteral` arm for exactly
+    /// which of the two shapes a given literal takes, and its own doc comment
+    /// for the one PHP behavior that split deliberately does not reproduce: a
+    /// positional element mixed after an explicit `int`/`uint` key still
+    /// numbers from "how many positional elements came before it," not from
+    /// PHP's real "highest integer key used so far" rule, since that needs
+    /// the same "next available integer key" runtime counter `$a[]` append
+    /// syntax is still waiting on (see the crate docs' known gaps). A
+    /// `...spread` element and a `&value` element are both still unsupported
+    /// either way — lowering panics naming whichever is used.
     ///
     /// The array itself is a fresh value with exactly one natural owner, the
     /// same starting point [`InstKind::New`]/[`InstKind::ConstStr`] already
@@ -323,17 +332,21 @@ pub enum InstKind {
     /// [`crate::ty::Ty::is_refcounted`] and
     /// [`is_aliasing_read`](crate::lower::is_aliasing_read) (a bare local or a
     /// compile-time-known property read) is retained by
-    /// `crate::lower::Lowering::lower_expr`'s `ArrayLiteral` arm *before* this
-    /// instruction runs — the same caller-side retain
+    /// `crate::lower::Lowering::lower_expr`'s `ArrayLiteral` arm *before* it
+    /// is stored — the same caller-side retain
     /// `crate::lower::Lowering::lower_call_args` already inserts for a
     /// refcounted, aliasing call argument, since the array durably owns
     /// whatever it stores exactly the way a callee's parameter slot does. A
     /// fresh element (a literal, `new`, a nested array literal, or a call's
     /// own result) needs no retain: it already has exactly one natural owner,
-    /// which simply transfers into the array's storage.
+    /// which simply transfers into the array's storage. An explicit key that
+    /// [`is_aliasing_read`](crate::lower::is_aliasing_read) (a bare variable
+    /// holding the key) gets the identical retain, mirroring
+    /// `crate::lower::Lowering::lower_reassignment`'s `Index`-target arm.
     ArrayNew {
         /// `(key, value)` pairs, in insertion order — ADR 0007 § 5's
-        /// "iteration order is insertion order, always."
+        /// "iteration order is insertion order, always." Always empty for a
+        /// literal with an explicit `key =>` element; see above.
         entries: Vec<(String, ValueId)>,
     },
     /// Reads the element at `key` off `array` — `$arr[$i]`, whose base

@@ -1262,34 +1262,76 @@ impl<'a> Lowering<'a> {
             }
             // `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
             // doc comment for the full policy this mirrors and its known
-            // gaps. This slice only lowers a *positional* literal: every
-            // `ArrayItem` must supply no explicit `key =>`, no `...spread`
-            // and no `&value` — each unsupported shape panics naming itself
-            // rather than guessing at a runtime conversion this crate can't
-            // yet synthesize (`mwl_types::expr::check_array_literal` itself
-            // has no key-normalization/rejection logic yet either). A
-            // positional element's own key is simply its index, auto-
-            // numbered from `0` exactly like PHP's own `[$a, $b]` shorthand.
-            // Each element that's itself `Ty::is_refcounted` and
+            // gaps. `...spread` and `&value` elements are still unsupported
+            // — each panics naming itself rather than guessing at a merge/
+            // reference representation this crate doesn't have yet. A
+            // *purely positional* literal (no element has an explicit
+            // `key =>`) keeps the original single-`ArrayNew` shape: each
+            // element's key is simply its index, auto-numbered from `0`
+            // exactly like PHP's own `[$a, $b]` shorthand, computed at
+            // lowering time with no runtime key instruction at all. A
+            // literal with at least one explicit `key =>` element instead
+            // builds an empty array first and appends one `ArraySet` per
+            // element in source order — seeing `crate::ir::InstKind::ArrayNew`'s
+            // own doc comment for why that's the only shape general enough
+            // to give an explicit key's (possibly runtime-computed) value a
+            // place to live, and the one PHP behavior it deliberately doesn't
+            // reproduce (a positional element's key numbering ignores any
+            // explicit `int`/`uint` key elsewhere in the same literal, rather
+            // than PHP's real "continues from the highest int key used so
+            // far"). Each value that's itself `Ty::is_refcounted` and
             // `is_aliasing_read` is retained before the array durably owns
             // it, the same policy `Self::lower_call_args` already applies at
-            // a call-argument boundary; the array literal's own result needs
-            // no retain — a fresh producer, same as `new`/a call's result.
+            // a call-argument boundary; an explicit key gets the identical
+            // treatment via `Self::lower_array_key`'s own aliasing flag. The
+            // array literal's own result needs no retain — a fresh producer,
+            // same as `new`/a call's result.
             ExprKind::ArrayLiteral(items) => {
-                let mut entries = Vec::with_capacity(items.len());
-                for (i, item) in items.iter().enumerate() {
-                    assert!(
-                        item.key.is_none() && !item.spread && !item.by_ref,
-                        "mwl-ir only lowers a positional array-literal element — an explicit \
-                         `key =>`, a `...spread`, or a `&value` element is a known gap"
-                    );
-                    let (v, ty) = self.lower_expr(&item.value, None, env, cur);
-                    if ty.is_refcounted() && is_aliasing_read(&item.value.kind) {
-                        self.emit_retain(cur, v);
+                assert!(
+                    items.iter().all(|item| !item.spread && !item.by_ref),
+                    "mwl-ir does not yet lower a `...spread` or `&value` array-literal element \
+                     — see the crate docs' known gaps"
+                );
+                if items.iter().all(|item| item.key.is_none()) {
+                    let mut entries = Vec::with_capacity(items.len());
+                    for (i, item) in items.iter().enumerate() {
+                        let (v, ty) = self.lower_expr(&item.value, None, env, cur);
+                        if ty.is_refcounted() && is_aliasing_read(&item.value.kind) {
+                            self.emit_retain(cur, v);
+                        }
+                        entries.push((i.to_string(), v));
                     }
-                    entries.push((i.to_string(), v));
+                    self.emit(cur, Ty::Array, InstKind::ArrayNew { entries })
+                } else {
+                    let array = self.emit(
+                        cur,
+                        Ty::Array,
+                        InstKind::ArrayNew {
+                            entries: Vec::new(),
+                        },
+                    );
+                    let mut next_index = 0usize;
+                    for item in items {
+                        let (key_v, key_aliasing) = match &item.key {
+                            Some(key) => self.lower_array_key(key, env, cur),
+                            None => {
+                                let key_str = next_index.to_string();
+                                next_index += 1;
+                                let (kv, _) = self.emit(cur, Ty::Str, InstKind::ConstStr(key_str));
+                                (kv, false)
+                            }
+                        };
+                        if key_aliasing {
+                            self.emit_retain(cur, key_v);
+                        }
+                        let (v, ty) = self.lower_expr(&item.value, None, env, cur);
+                        if ty.is_refcounted() && is_aliasing_read(&item.value.kind) {
+                            self.emit_retain(cur, v);
+                        }
+                        self.emit_array_set(cur, array.0, key_v, v);
+                    }
+                    array
                 }
-                self.emit(cur, Ty::Array, InstKind::ArrayNew { entries })
             }
             // `$arr[$i]` — the element's declared type comes from
             // `self.exprs`, exactly like a property access's declaring
@@ -1508,13 +1550,14 @@ impl<'a> Lowering<'a> {
     /// (`$a[8]` is `$a["8"]`) via the exact [`Helper::IntToString`]/
     /// [`Helper::UintToString`] conversion [`Self::concat_operand`] already
     /// uses for `.`'s scalar operand — reused verbatim rather than a new
-    /// policy. A `float`, `bool`, or `null` subscript is a compile-time
-    /// rejection ADR 0007 § 5 also names, but `mwl_types::expr::check_expr`'s
-    /// `Index` arm doesn't enforce it yet — the same known gap
-    /// [`ir::InstKind::ArrayNew`]'s own doc comment already names for an
-    /// array literal's explicit `key =>` — so this panics naming the case
-    /// rather than guessing at a conversion PHP itself doesn't define for
-    /// those types.
+    /// policy. Also used, identically, for an array literal's explicit
+    /// `key =>` element (see [`ir::InstKind::ArrayNew`]'s own doc comment). A
+    /// `float`, `bool`, or `null` key is a compile-time rejection
+    /// `mwl_types::expr::check_array_key_type` now enforces at both call
+    /// sites (an `Index` subscript and an array-literal explicit key alike),
+    /// so the `other` arm below is an internal-invariant panic — unreachable
+    /// for anything that already passed `mwl_types::check_program` — rather
+    /// than a live known gap.
     ///
     /// Returns the resulting `Ty::Str` value together with whether it
     /// [`is_aliasing_read`]s storage a durable slot still owns — exactly the
@@ -1543,9 +1586,9 @@ impl<'a> Lowering<'a> {
                 (sv, false)
             }
             other => panic!(
-                "mwl-ir only lowers an int/uint/string array-subscript key — got {other:?}; \
-                 mwl_types doesn't yet reject a float/bool/null subscript (ADR 0007 § 5), so \
-                 this crate can't trust it was rejected upstream; see the crate docs' known gaps"
+                "mwl-ir: an array key lowered to {other:?} — mwl_types::check_program is trusted \
+                 to have already rejected a float/bool/null key (ADR 0007 § 5) at both the \
+                 subscript and array-literal explicit-key sites, so this should be unreachable"
             ),
         }
     }
@@ -2631,8 +2674,10 @@ class T {
     // `array<T>` is the fourteenth slice — `Ty::Array` is a bare, opaque
     // representation exactly like `Ty::Object` (see that variant's own doc
     // comment), and `InstKind::ArrayNew` is the fixed-shape literal
-    // instruction it needs. Every fixture below is a *positional* literal —
-    // no explicit `key =>`, no `...spread`, no `&value` — since those still
+    // instruction it needs. The fixtures immediately below are all
+    // *positional* literals — no explicit `key =>` — which keep the single-
+    // `ArrayNew` shape; the explicit-`key =>` fixtures further down cover the
+    // `ArrayNew` (empty) + `ArraySet`* shape. `...spread`/`&value` still
     // panic naming the gap (see the `should_panic` fixtures at the end of
     // this block).
 
@@ -2671,12 +2716,54 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// `["k" => 1]` — a literal with an explicit `key =>` element lowers to
+    /// an empty `ArrayNew` plus one `ArraySet`: `"k"` is a fresh `ConstStr`
+    /// (a source-literal string is never an aliasing read), so it needs no
+    /// retain of its own, mirroring the value `1`.
     #[test]
-    #[should_panic(expected = "known gap")]
-    fn an_explicit_keyed_array_element_is_still_out_of_scope() {
-        lower_first_method(
+    fn a_string_literal_keyed_array_element_lowers_to_array_new_then_array_set() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(): void {\n    array $a = [\"k\" => 1];\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `[5 => "a"]` — an `int` literal key normalizes to its decimal string
+    /// via `Lowering::lower_array_key`'s existing `Helper::IntToString`
+    /// conversion, the exact same helper an `$arr[$i]` subscript already
+    /// reuses.
+    #[test]
+    fn an_int_literal_keyed_array_element_normalizes_the_key_to_a_string() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    array $a = [5 => \"a\"];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `[$k => 1]` — a `string` local used as an explicit key is an aliasing
+    /// read, so it is retained before the array durably owns it, exactly the
+    /// policy `Lowering::lower_reassignment`'s `Index`-target arm already
+    /// gives `$a[$k] = 1;`.
+    #[test]
+    fn a_dynamic_string_keyed_array_element_retains_the_key() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(string $k): void {\n    array $a = [$k => 1];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `[1, "k" => 2, 3]` — a positional element mixed with an explicit key
+    /// still numbers from "how many positional elements came before it" —
+    /// `"0"`, then `"1"` for the trailing `3` — not PHP's real "continues
+    /// from the highest int key used so far" rule (see
+    /// `ir::InstKind::ArrayNew`'s own doc comment for why that's a
+    /// deliberate, documented simplification rather than a bug).
+    #[test]
+    fn a_positional_element_after_an_explicit_key_keeps_its_own_position_counter() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    array $a = [1, \"k\" => 2, 3];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     #[test]
@@ -2813,15 +2900,17 @@ class T {
         );
     }
 
-    /// A `bool` subscript isn't one of ADR 0007 § 5's three legal key
-    /// source types (`int`/`uint`/`string`) — `mwl_types` doesn't reject it
-    /// at check time yet (the same known gap `InstKind::ArrayNew`'s own doc
-    /// comment already names for an array literal's explicit `key =>`), so
-    /// `Lowering::lower_array_key` is the one that panics naming it, rather
-    /// than guessing at a conversion PHP itself doesn't define for that type.
+    /// A `bool` subscript isn't one of ADR 0007 § 5's three legal key source
+    /// types (`int`/`uint`/`string`) — `mwl_types::expr::check_array_key_type`
+    /// now rejects it at check time (see `mwl_types::check`'s own
+    /// `a_bool_key_array_literal_is_diagnosed`-style fixtures for the
+    /// diagnostic side), so `lower_first_method`'s own `check_program` call
+    /// already fails the fixture before lowering ever runs —
+    /// `Lowering::lower_array_key`'s `other` panic arm is unreachable for
+    /// this input now, not the thing this test demonstrates.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn a_bool_subscript_key_is_still_out_of_scope() {
+    #[should_panic(expected = "fixture failed to check")]
+    fn a_bool_subscript_key_is_rejected_before_lowering_even_runs() {
         lower_first_method(
             "<?mwl\nclass T {\n  function m(array<int> $a, bool $b): void {\n    $a[$b] = 1;\n  }\n}\n",
         );

@@ -821,7 +821,8 @@ fn infer(
         ExprKind::Index { base, index } => {
             let base_ty = check_expr(base, None, live, scope, ctx, env);
             if let Some(index) = index {
-                check_expr(index, None, live, scope, ctx, env);
+                let index_ty = check_expr(index, None, live, scope, ctx, env);
+                check_array_key_type(index_ty, index.span, env);
             }
             let elem_ty = match env.interner.get(base_ty) {
                 Ty::Array(elem) => Some(*elem),
@@ -1029,7 +1030,8 @@ fn check_array_literal(
     });
     for item in items {
         if let Some(key) = &item.key {
-            check_expr(key, None, live, scope, ctx, env);
+            let key_ty = check_expr(key, None, live, scope, ctx, env);
+            check_array_key_type(key_ty, key.span, env);
         }
         check_expr(&item.value, elem_expected, live, scope, ctx, env);
     }
@@ -1039,6 +1041,30 @@ fn check_array_literal(
             let mixed = env.interner.mixed();
             env.interner.array(mixed)
         }
+    }
+}
+
+/// ADR 0007 § 5: every array key is a `string`, and an `int`/`uint` key
+/// normalizes to its own decimal string — key normalization, not a value
+/// conversion, so neither needs a diagnostic here. A `float`, `bool`, or
+/// `null` key is rejected outright: PHP's silent truncate-to-int/stringify-
+/// to-`"1"`/`""` is exactly the kind of implicit conversion that turns a
+/// typo into a missing row rather than a diagnostic. Anything else — `mixed`,
+/// a union, an object, ... — isn't statically known to be one of these four,
+/// so it is left alone here, the same "erase to `mixed` rather than guess"
+/// split `division_result`/`bitwise_result` already draw for an operand pair
+/// they don't recognize; ADR 0007 § 5's own runtime normalization/throw
+/// covers it once a value arrives through `mixed`.
+fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>) {
+    if matches!(env.interner.get(key_ty), Ty::Float | Ty::Bool | Ty::Null) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ARRAY_KEY_INVALID_TYPE,
+                "a `float`, `bool`, or `null` array key is not allowed",
+            )
+            .with_primary(span, "this key")
+            .with_help("array keys are `int`, `uint`, or `string` — convert explicitly with `as`"),
+        );
     }
 }
 

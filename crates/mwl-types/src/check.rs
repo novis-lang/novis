@@ -710,6 +710,77 @@ mod tests {
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
+    // ADR 0007 § 5: an array key is `int`, `uint`, or `string`; a `float`,
+    // `bool`, or `null` key is rejected outright.
+
+    #[test]
+    fn a_string_key_array_literal_is_fine() {
+        let diags = check_in_method(r#"array<int> $a = ["x" => 1, "y" => 2];"#);
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn an_int_key_array_literal_is_fine() {
+        let diags = check_in_method(r#"array<int> $a = [5 => 1, 6 => 2];"#);
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_dynamic_string_key_array_literal_is_fine() {
+        let diags = check_in_method("string $k = \"x\";\narray<int> $a = [$k => 1];\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_float_key_array_literal_is_diagnosed() {
+        let diags = check_in_method(r#"array<int> $a = [1.5 => 1];"#);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ARRAY_KEY_INVALID_TYPE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_bool_key_array_literal_is_diagnosed() {
+        let diags = check_in_method(r#"array<int> $a = [true => 1];"#);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ARRAY_KEY_INVALID_TYPE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_null_key_array_literal_is_diagnosed() {
+        let diags = check_in_method(r#"array<int> $a = [null => 1];"#);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ARRAY_KEY_INVALID_TYPE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_bool_subscript_key_is_diagnosed() {
+        let diags = check_in_method("array<int> $a = [1];\nbool $b = true;\n$a[$b] = 1;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_ARRAY_KEY_INVALID_TYPE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn an_int_subscript_key_is_fine() {
+        let diags = check_in_method("array<int> $a = [1, 2, 3];\nint $x = $a[1];\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
     #[test]
     fn a_type_alias_is_substituted_into_a_local_declaration() {
         let diags = check_src(

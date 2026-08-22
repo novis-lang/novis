@@ -407,6 +407,15 @@ pub mod code {
     /// so it can be stripped uniformly. A line that is entirely empty is
     /// exempt from this check. See `mwl_types::string_lit::dedent_heredoc_run`.
     pub const E_HEREDOC_INSUFFICIENT_INDENT: Code = Code::new("E0433");
+    /// A `float`, `bool`, or `null` array key — an explicit `key =>` in an
+    /// array literal today, and eventually an `$a[...]` subscript once that
+    /// site gains the identical check. PHP silently truncates a float,
+    /// stringifies `true` to `"1"` and `null` to `""`; ADR 0007 § 5 rejects
+    /// all three outright since each is a silent conversion at the exact
+    /// place a mistake becomes a missing row. An `int`/`uint`/`string` key is
+    /// fine — an `int`/`uint` key normalizes to its own decimal string, which
+    /// needs no `as` and is not a value conversion.
+    pub const E_ARRAY_KEY_INVALID_TYPE: Code = Code::new("E0434");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.
