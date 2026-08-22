@@ -412,7 +412,7 @@ impl<'a> Lowering<'a> {
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, ty, value);
             }
-            StmtKind::Expr(e) => self.lower_reassignment(e, env, *cur),
+            StmtKind::Expr(e) => self.lower_expr_stmt(e, env, *cur),
             // See `Self::release_all_locals`'s own doc comment for why a
             // bare `$name` return expression is excluded from the exit
             // sweep rather than retained: its value transfers out instead of
@@ -453,6 +453,46 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// An expression used as its own statement — either `$x = expr;` (routed
+    /// to [`Self::lower_reassignment`]) or a call/`new` invoked purely for
+    /// its side effect with no assignment at all, e.g. `doSomething();`, the
+    /// ordinary way to invoke a `void`-returning method. The latter shares no
+    /// machinery with [`Self::bind_local`]'s declare/reassign policy — there
+    /// is no local slot for the produced value to occupy, and nothing else in
+    /// the function will ever bind or return it — so it is lowered for
+    /// whatever it does and its result, if any, is released immediately when
+    /// [`Ty::is_refcounted`] (a `void`-returning call has nothing to
+    /// release). The receiver of a discarded instance call is not released
+    /// here: [`Ty::Object`] isn't refcounted yet at all (see the crate docs'
+    /// known gaps), independent of whether the call itself is a statement or
+    /// bound to something.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the unsupported shape for anything outside this slice's
+    /// scope: an expression statement that is neither a plain reassignment
+    /// nor a bare call/`new`.
+    fn lower_expr_stmt(&mut self, e: &Expr, env: &mut Env, cur: BlockId) {
+        match &e.kind {
+            ExprKind::Assign {
+                op: AssignOp::Assign,
+                by_ref: false,
+                ..
+            } => self.lower_reassignment(e, env, cur),
+            ExprKind::MethodCall { .. } | ExprKind::StaticCall { .. } | ExprKind::New { .. } => {
+                let (v, ty) = self.lower_expr(e, None, env, cur);
+                if ty.is_refcounted() {
+                    self.emit_release(cur, v);
+                }
+            }
+            other => panic!(
+                "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment or a \
+                 bare call/`new` as an expression statement — got {other:?}; see the crate \
+                 docs' known gaps"
+            ),
+        }
+    }
+
     /// `$x = expr;` as a bare expression statement — SSA renaming needs no
     /// join logic here, only a fresh binding in `env`.
     fn lower_reassignment(&mut self, e: &Expr, env: &mut Env, cur: BlockId) {
@@ -463,11 +503,7 @@ impl<'a> Lowering<'a> {
             by_ref: false,
         } = &e.kind
         else {
-            panic!(
-                "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment as \
-                 an expression statement — got {:?}; see the crate docs' known gaps",
-                e.kind
-            );
+            unreachable!("Self::lower_expr_stmt only routes a plain `AssignOp::Assign` here");
         };
         let ExprKind::Variable(name_span) = &target.kind else {
             panic!(
@@ -1672,6 +1708,55 @@ class T {
     fn returning_a_string_returning_calls_result_needs_no_retain() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(): string {\n    return self::make();\n  }\n  static function make(): string {\n    return \"hi\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `self::helper();` with no assignment at all — the ordinary way to
+    /// invoke a `void`-returning method. `Lowering::lower_expr_stmt` now
+    /// routes a bare call/`new` expression statement through `lower_expr`
+    /// for its side effect alone; `helper` returns `void`, so there is
+    /// nothing to release afterward.
+    #[test]
+    fn a_bare_void_call_used_as_a_statement_lowers_with_no_release() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    self::helper();\n  }\n  static function helper(): void {}\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `self::make();` with no assignment, where `make` returns `string` —
+    /// the call's `string` result is refcounted and nothing ever binds it, so
+    /// `Lowering::lower_expr_stmt` releases it immediately, right after the
+    /// call, rather than leaking it: exactly one release, no retain (a call's
+    /// own result is a fresh producer, per `is_aliasing_read`).
+    #[test]
+    fn a_bare_call_used_as_a_statement_releases_a_discarded_string_result() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    self::make();\n  }\n  static function make(): string {\n    return \"hi\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `new Foo();` with no assignment at all — a bare `new` used purely for
+    /// a constructor's side effect. `Ty::Object` isn't refcounted yet (see
+    /// the crate docs' known gaps), so `Lowering::lower_expr_stmt` lowers the
+    /// construction but emits no release for it.
+    #[test]
+    fn a_bare_new_used_as_a_statement_lowers_with_no_release() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  function constructor() {}\n}\nclass T {\n  function m(): void {\n    new Foo();\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->greet();` with no assignment — a bare *instance* call as a
+    /// statement, not just a static one, to make sure `lower_expr_stmt`'s
+    /// dispatch isn't accidentally `StaticCall`-only.
+    #[test]
+    fn a_bare_instance_call_used_as_a_statement_lowers_too() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  function greet(): void {}\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->greet();\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

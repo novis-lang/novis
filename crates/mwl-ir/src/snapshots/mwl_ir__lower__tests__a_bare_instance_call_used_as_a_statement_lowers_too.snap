@@ -1,0 +1,14 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @7:5-7:26
+    v1 = new Foo()  ; object
+    ; stmt s1 @8:5-8:19
+    v2 = call Foo::greet(this: v1)  ; void
+    return
+}

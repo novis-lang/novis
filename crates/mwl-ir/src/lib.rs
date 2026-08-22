@@ -51,7 +51,15 @@
 //! [`lower::lower_checked_ty`] gaining a `String` arm and the existing
 //! aliasing-vs-fresh judgment ([`lower::is_aliasing_read`]) extending to a
 //! property read and a call argument/return boundary, both described in the
-//! design-choices section below.
+//! design-choices section below. A bare call/`new` used purely as its own
+//! statement (`doSomething();`, with no assignment at all — the ordinary way
+//! to invoke a `void`-returning method) is the ninth slice: `StmtKind::Expr`
+//! now dispatches through [`lower::Lowering::lower_expr_stmt`], which routes
+//! a plain reassignment to the existing [`lower::Lowering::lower_reassignment`]
+//! and a bare `MethodCall`/`StaticCall`/`New` through the ordinary
+//! `lower_expr` path, releasing its result immediately when
+//! [`ty::Ty::is_refcounted`] since nothing else will ever bind or return it —
+//! no new `InstKind` needed.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -244,18 +252,6 @@
 //!   named/spread argument against a signature yet either (see its own known
 //!   gaps), so there is no resolved per-argument type to lower against even
 //!   if this crate wanted to try.
-//! - **No bare call as its own statement** — noticed while widening `string`
-//!   across a call boundary this session, not new to it: `StmtKind::Expr`'s
-//!   arm (`Lowering::lower_reassignment`) only accepts an `ExprKind::Assign`
-//!   expression statement, so `doSomething();` with no assignment at all
-//!   (the ordinary way to call a `void`-returning method) panics naming the
-//!   unsupported shape. Every call fixture landed so far routes a call
-//!   through a `var`/typed local binding or a `return` instead. Fixing this
-//!   needs `lower_stmt`'s `StmtKind::Expr` arm to also accept a bare
-//!   `MethodCall`/`StaticCall`/`New` expression, lowering it purely for its
-//!   side effect and discarding any `Ty::is_refcounted` result with a
-//!   `Release` right there (nothing else in the function will ever bind or
-//!   return it) — small and independent, land whenever convenient.
 //! - Safepoints are reserved, not functional. [`ir::InstKind::Safepoint`] is
 //!   emitted at function entry and at every `while` back edge (see that
 //!   variant's own doc comment), but it is inert — no codegen exists yet to
