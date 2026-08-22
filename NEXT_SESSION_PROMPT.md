@@ -5,36 +5,40 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session landed the first bullet of item 4 below — a bare call/`new` used purely as its own
-statement.** This was flagged as a "noticed along the way" gap two sessions ago and was already scoped in
-detail; no new IR shape was needed:
+**Last session landed the first bullet of item 4 below — a `string`-typed property *write* — closing the
+read/write asymmetry the property-read slice had left open.** This was already scoped in detail two
+sessions ago; one new `InstKind` was needed:
 
-- `Lowering::lower_stmt`'s `StmtKind::Expr` arm now dispatches through a new `Lowering::lower_expr_stmt`
-  instead of calling `lower_reassignment` directly. It matches on the expression: a plain
-  `ExprKind::Assign { op: AssignOp::Assign, by_ref: false, .. }` still routes to `lower_reassignment`
-  (unchanged behavior — that function's own `let ... else` on the assignment shape is now `unreachable!()`
-  rather than a panic, since `lower_expr_stmt` already guarantees it matched); a bare
-  `ExprKind::MethodCall`/`ExprKind::StaticCall`/`ExprKind::New` — i.e. `doSomething();`, `self::helper();`,
-  `new Foo();` with no assignment at all, the ordinary way to invoke a `void`-returning method or run a
-  constructor purely for a side effect — now lowers through the ordinary `lower_expr` path and immediately
-  releases the produced value with `emit_release` when `Ty::is_refcounted` is true. Nothing else in the
-  function will ever bind or return that value, so this couldn't reuse `bind_local`'s declare/reassign
-  policy or `release_all_locals`'s exit sweep — it's its own one-line "lower it, then release if
-  refcounted" right after the call/`new` instruction. A `void`-returning call needs no release (nothing to
-  release); a `new` needs none either today, since `Ty::Object` still isn't refcounted at all (a
-  pre-existing, separate gap — see item 4's `Ty::Object` bullet below). Anything else reaching this arm
-  (e.g. a compound-assign or by-ref assignment) still panics naming the shape, same as before.
-- Four new `insta` snapshot tests, all under `crates/mwl-ir/src/lower.rs`'s `tests` module:
-  `a_bare_void_call_used_as_a_statement_lowers_with_no_release` (`self::helper();` where `helper` returns
-  `void` — call, then straight to `return`, no release inserted), `a_bare_call_used_as_a_statement_releases_a_discarded_string_result`
-  (`self::make();` where `make` returns `string` — exactly one `release` right after the call, no retain,
-  since a call's own result is a fresh producer per `is_aliasing_read`), `a_bare_new_used_as_a_statement_lowers_with_no_release`
-  (`new Foo();` — constructs and immediately discards, no release since `Ty::Object` isn't refcounted yet),
-  and `a_bare_instance_call_used_as_a_statement_lowers_too` (`$obj->greet();` through a local receiver — makes
-  sure the dispatch isn't accidentally `StaticCall`-only). Read the actual snapshot output before trusting
-  the design holds: it does (verified this session, all four checked by hand) — `mwl-ir` is now at 33 tests
-  (`mwl-types` unchanged at 162). `cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check`
-  all clean across the whole workspace.
+- `crate::ir::InstKind::FieldSet { object, class, field, value }` — mirrors `FieldGet`, but writes rather
+  than reads and defines no value (like `Retain`/`Release`/`Safepoint`). `crate::print::print_inst` renders
+  it as `field.set v{object}, {class}::{field}, v{value}`.
+- `Lowering::lower_reassignment` now matches on the assignment *target* instead of only accepting a plain
+  local: `ExprKind::Variable` still binds into `Env` exactly as before; a new `ExprKind::PropertyAccess`
+  arm handles `$obj->prop = expr;` (including `$this->prop = expr;`, which needs nothing special — the
+  receiver is just another `Env` lookup). It looks up `ExprInfo::Property` from `self.exprs` keyed by
+  `target.span` (the `PropertyAccess` expression's own span) — confirmed by reading `mwl_types::expr::
+  check_assign`'s general (non-plain-local) arm: it routes the target through the ordinary `check_expr` →
+  `check_property_access`, which records the *same* `ExprInfo::Property` entry a read would, so no checker
+  changes were needed. Refcounting mirrors `bind_local`'s local-slot policy, adapted to a field with no
+  `Env` entry to consult before the overwrite: retain the new value first if it's an aliasing read (reusing
+  `is_aliasing_read` unchanged), *then* read the field's previous value back with a `FieldGet` and release
+  it — retain before release, same order `bind_local` already uses, so a self-assignment
+  (`$obj->prop = $obj->prop;`) never observes a transient zero refcount. Anything else reaching
+  `lower_reassignment`'s target match (an array element, a static-property target, ...) still panics naming
+  the shape.
+- A nullsafe property-assignment target (`$obj?->prop = expr;`) asserts out, same as a nullsafe read/method
+  call; a receiver that erased to a shape or plain `object` (ADR 0036 § 4) panics the same way the read side
+  already did, since `check_property_access` never records an entry for either.
+- Four new `insta` snapshot tests in `crates/mwl-ir/src/lower.rs`'s `tests` module:
+  `writing_a_fresh_string_literal_to_a_property_releases_its_previous_value` (a literal RHS — `FieldGet` +
+  `release` of the old value, `field.set`, no retain, since a literal is a fresh producer),
+  `writing_a_string_local_to_a_property_retains_it_before_releasing_the_old_value` (an aliasing local RHS —
+  `retain` first, *then* `FieldGet` + `release` of the old value, then `field.set`, confirming the ordering),
+  `writing_through_this_lowers_too` (`$this->name = "new";`, the implicit-receiver path), and
+  `writing_through_a_plain_object_receiver_is_still_out_of_scope` (`#[should_panic]`, the erased-receiver
+  case). Read the actual snapshot output before trusting the design holds: it does (verified this session,
+  all four checked by hand) — `mwl-ir` is now at 37 tests (`mwl-types` unchanged at 162). `cargo build`/
+  `test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole workspace.
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
@@ -46,34 +50,26 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
    - **Array access (`$arr[$i]`)** is still unsupported; lowering panics naming the expression. No
      `array<T>` *data* representation exists yet either (see item 4 below), so this may naturally land
      together with that slice rather than alone.
-4. **Non-scalar *data* values and refcount operations — `string` locals, the call/return/property-read
-   boundary, and a bare call/`new` statement are all landed; four pieces remain:**
-   - **A `string`-typed property *write*.** `$obj->prop = expr;` panics for any field type today, not just
-     `string` — `Lowering::lower_reassignment` only accepts a plain-local assignment target (its `target`
-     check, distinct from the assignment-shape check `lower_expr_stmt` now does before calling it). Landing
-     this needs a new `InstKind::FieldSet` (mirroring `FieldGet`) plus a retain of the new value (if it's an
-     aliasing read — reuse `is_aliasing_read`) and a release of whatever the field previously held (a
-     `FieldGet`-then-release, since nothing tracks a field's prior value beyond re-reading it — unlike a
-     local, there is no `Env` entry to consult before the overwrite). This is the most natural next pickup:
-     small, independent, and already scoped in detail, same as the bare-call-statement gap was.
+4. **Non-scalar *data* values and refcount operations — `string` locals, the call/return/property-read-and-
+   write boundary, and a bare call/`new` statement are all landed; four pieces remain:**
    - **String concatenation (`.`).** `ExprKind::Binary`'s arm only accepts the scalar
      arithmetic/equality/ordering operators; `BinaryOp::Concat` on two `string` operands panics there.
      Lowering this needs a runtime-helper call (see item 5) or a dedicated `InstKind`, since concatenation
      allocates a new buffer rather than being a native scalar instruction. The result is a fresh value (one
      natural owner, same as a literal) — `is_aliasing_read` should *not* need to grow a `Binary` arm for it.
+     This is the most natural next pickup: small, independent, and already scoped in detail.
    - **`bytes`.** Expected to be a mechanical repeat of `Ty::Str`'s shape (same refcounted-heap-value
-     treatment, different content, same `bind_local`/`lower_call_args`/`release_all_locals`/`lower_expr_stmt`
-     insertion points, same `is_aliasing_read` reuse) — extend `Ty::is_refcounted`, `lower_decl_type`,
-     `lower_checked_ty`, and add an escape-cooking helper once a fixture needs one.
+     treatment, different content, same `bind_local`/`lower_call_args`/`release_all_locals`/`lower_expr_stmt`/
+     `lower_reassignment` insertion points, same `is_aliasing_read` reuse) — extend `Ty::is_refcounted`,
+     `lower_decl_type`, `lower_checked_ty`, and add an escape-cooking helper once a fixture needs one.
    - **`array<T>`.** Needs its own element-layout decision first (this is the one still-open piece with a
      real design tradeoff — contiguous vs. hashmap-backed storage, COW-on-write semantics per ADR 0004 —
      work out the tradeoff explicitly before implementing, per CLAUDE.md's priority ordering).
    - **`Ty::Object` refcounting.** Still zero retain/release operations for an object reference — the
-     `bind_local`/`lower_call_args`/`release_all_locals`/`lower_expr_stmt` insertion points already extended
-     for `Ty::Str` (most recently to `lower_expr_stmt`'s own discard-and-release path this session) are
-     expected to extend to it directly (just flip `Ty::is_refcounted` to include `Ty::Object` and re-run the
-     existing test suite to see what breaks), once there's an actual allocation/field-layout story to attach
-     it to.
+     `bind_local`/`lower_call_args`/`release_all_locals`/`lower_expr_stmt`/`lower_reassignment` insertion
+     points already extended for `Ty::Str` are expected to extend to it directly (just flip
+     `Ty::is_refcounted` to include `Ty::Object` and re-run the existing test suite to see what breaks),
+     once there's an actual allocation/field-layout story to attach it to.
    - **Qualified string/bytes types (`tainted`, `secret`, and their combination).** `lower_checked_ty` only
      has an arm for the plain `CheckedTy::String`; the four qualified variants
      (`TaintedString`/`SecretString`/`SecretTaintedString`, and their `Bytes` counterparts once `bytes`
