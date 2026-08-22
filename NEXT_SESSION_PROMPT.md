@@ -5,6 +5,14 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
+**Also landed this session, independent of the `mwl-ir` thread below: [ADR 0039](docs/adr/0039-canonical-code-formatting.md)**
+decides `mwl fmt`'s actual formatting rules — PER as the base style, explicit rules for the MWL-only
+constructs PER never saw (`fn` closures, `tainted`/`secret`, `lateinit`, shape types, `match`), a
+gofmt-style no-reflow model (never wraps/collapses an expression by width), zero configuration ever, and a
+hard separation from the compiler (`mwl fmt --check` warns; `mwl check` never does). Docs only — `mwl-fmt`
+itself doesn't exist until M10, so there is nothing to build from this yet; it's there so M10 starts from a
+decided style instead of an open question.
+
 **Last session stood up the `mwl-ir` crate and lowered its first slice** — M2's last named deliverable,
 "lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls, with
 a stable per-statement/per-edge id" (the milestone text already committed to "CFG/**SSA**", so that part
