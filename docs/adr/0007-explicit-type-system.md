@@ -40,6 +40,9 @@
   [0037](0037-var-local-type-inference.md) — § 1's local-decl row gains a second spelling, `var $name =
   expr;`, whose type is the initializer's own checked type; resolves the *Alternatives rejected*/
   *Revisiting* entries this ADR used to carry for exactly that idea.
+  [0047](0047-literal-and-enum-case-types.md) — § 3's atom grammar gains a `string`/`int` literal atom, a
+  class-constant reference that folds to one, and an enum-case reference that stays a narrowed subtype of
+  its enum — generalising the `true`/`false` literal atoms already in this section's grammar.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),

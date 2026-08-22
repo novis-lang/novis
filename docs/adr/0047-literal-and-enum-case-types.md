@@ -1,0 +1,297 @@
+# ADR 0047 — A scalar literal or a named enum case is itself a type; unioning them declares a closed set
+
+- **Status:** Accepted
+- **Date:** 2026-08-22
+- **Scope:** two new atom kinds in the type grammar — a `string`/`int` literal type, and an enum-case type
+  (`EnumName::CaseName`) — unioned to declare an explicit closed set of accepted values; a class constant
+  (`ClassName::CONST_NAME`) used in type position as sugar that folds to its own literal type when the
+  constant is scalar-eligible; the checked-conversion and narrowing rules for a value entering or leaving
+  one of these types. Does not touch `float` literal types (deferred, see *Revisiting*) or `match`/`switch`
+  exhaustiveness (stays [ADR 0010](0010-enums-are-a-value-type.md)'s own deferred item).
+- **Amends:** [0007](0007-explicit-type-system.md) — § 3's atom grammar gains `StringLiteral`, `IntLiteral`,
+  a class-constant reference, and an enum-case reference as four new atom productions, alongside the
+  existing `true`/`false` literal atoms this ADR generalises.
+- **Amended by:** none.
+- **Relates to:** [0010](0010-enums-are-a-value-type.md) (an enum-case type is a checker-only narrowed view
+  of a case that already exists — it reuses that ADR's zero-byte runtime representation verbatim, never
+  folding a case to its backing integer the way *Decision § 3* explains), [0046](0046-attributes-shape-literal-metadata.md)
+  (why this is a type-system decision and not an attribute — see *Alternatives rejected*),
+  [0002](0002-error-propagation.md) (the checked conversion into one of these types throws like every other
+  conversion), [0036](0036-anonymous-object-shapes.md) (this is a second, narrowly-scoped structural
+  exception to nominal typing, for scalars and enum cases rather than object shapes), [0024](0024-taint-tracking-for-injection-sinks.md)/
+  [0033](0033-secret-qualifier-for-confidential-values.md) (a `tainted`/`secret` value still needs the same
+  checked `as`/narrowing guard to satisfy a literal-typed binding that it already needs for any other
+  typed binding — no new rule required).
+
+> **In short:** `"a"|"b"|"c"` and `1|2` are now legal types, usable everywhere [ADR 0007](0007-explicit-type-system.md)
+> § 1 requires one — the same generalisation that ADR already made for `true`/`false`, extended to `string`
+> and `int` literals. `ClassName::CONST_NAME` is legal in the same position as sugar: if the constant is a
+> scalar (`string`/`int`) compile-time constant, the reference resolves to *that value's own literal type* —
+> `Foo::TYPE_A|Foo::TYPE_B` type-checks exactly like writing out the two literals it names, so a parameter's
+> accepted set is spelled out at the call site, not re-derived from a naming convention. `EnumName::CaseName`
+> is legal too, but means something different and stays that way on purpose: it is a **narrowed subtype of
+> the enum**, not a folded integer — `Mode::A|Mode::B` accepts only those two cases of `Mode`, never a raw
+> `int` equal to either one's backing value, because folding it that way would reopen exactly the
+> "raw-int-accepted-where-enum-required" hole [ADR 0010](0010-enums-are-a-value-type.md) closed. Converting
+> untrusted input into any of these types is one checked `as`, exactly [ADR 0007](0007-explicit-type-system.md)
+> § 2's existing shape; widening a literal or case-subset type into its base type is free; narrowing the
+> other way needs a guard or an `as`, exactly [ADR 0007](0007-explicit-type-system.md) § 6's existing shape
+> for any union. None of this costs a byte at runtime beyond what the base type already costs — a literal
+> type is checked entirely at compile time wherever the static type is known, and an enum-case type reuses
+> the enum's own zero-byte tag; the only runtime cost is the same small membership check `uint`/`enum`
+> conversion already pays when a value arrives through `mixed`.
+
+## Context
+
+- The motivating gap: PHP has no way to say "this parameter accepts exactly `"a"`, `"b"`, or `"c"`, and
+  nothing else" as part of its own type system. PhpStorm's `#[ExpectedValues(["a", "b", "c"])]` patches
+  this for IDE autocomplete and inspections only — it is not seen by `php` itself, is invisible to any tool
+  that isn't PhpStorm, and enforces nothing at runtime. The request this ADR answers is to make that a real,
+  checked, compiler-enforced feature instead of a third-party IDE convention.
+- A second, related gap: "accept some subset of an existing group of named values" — a class with twenty
+  `TYPE_*` constants, where a given parameter should only accept three of them. The naive fix, matching by
+  name prefix (`Foo::TYPE_*`), was considered and rejected outright — see *Alternatives rejected* — because
+  the accepted set would not be visible at the call site and would silently grow the day a new `TYPE_*`
+  constant is added, which is exactly the kind of implicit, drifting surface the project's "state a fact
+  once, visibly" principle already argues against elsewhere (e.g. [ADR 0021](0021-single-file-inclusion-construct.md),
+  [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
+- MWL already has two pieces of the real answer, both previously scoped narrower than they needed to be:
+  - [ADR 0007](0007-explicit-type-system.md) § 3 already has `true`/`false` as literal atoms sitting inside
+    ordinary unions — `bool` was always, quietly, "the union of its two literal values." Nothing before this
+    ADR generalised that to `string`/`int`.
+  - [ADR 0010](0010-enums-are-a-value-type.md) already gives a closed, named, checked set of values for a
+    *new* domain concept. It does not, by itself, answer "accept only some of an existing enum's cases,"
+    which is a real and distinct request from "define a brand-new closed type."
+- **Priorities 1/2/4:** priority 1 (security) wants untrusted input validated against an explicit, narrow
+  set as loudly and mechanically as any other conversion; priority 2 (semantics) is unaffected — PHP has no
+  construct this replaces, so there is nothing to diverge from; priority 4 (simplicity) is why this reuses
+  the union/conversion machinery [ADR 0007](0007-explicit-type-system.md) already built rather than adding
+  a fourth mechanism, the same restraint [ADR 0046](0046-attributes-shape-literal-metadata.md) exercised.
+- **Priority 5 (memory):** the whole point of *Decision § 5* is that this spends nothing beyond what the
+  base type already spends — a literal or case-subset type is a compile-time refinement, not a new runtime
+  representation.
+
+## Decision
+
+**A `string`/`int` literal, and a named enum case, are each their own type. Unioning them declares an
+explicit closed set. A class constant used in type position is sugar for its own literal type, but an enum
+case used in type position stays a narrowed view of its enum — it is never folded to a raw integer.**
+
+### 1. String and int literal types
+
+```
+atom := ... (as ADR 0007 § 3) ...
+      | StringLiteral                    // e.g. "a" — the singleton type inhabited by that exact string
+      | IntLiteral                       // e.g. 1, -1 — the singleton type inhabited by that exact int
+```
+
+Parsed only in type position, the same way `array<T>` already is. `"a"|"b"|"c"` and `1|2|3` are ordinary
+unions of these atoms, canonicalised exactly as [ADR 0007](0007-explicit-type-system.md) § 3 already
+specifies (flattened, de-duplicated, order-insensitive). `?"a"` is sugar for `"a"|null`, following the
+existing `?atom` rule. This is usable at every binding site ADR 0007 § 1 lists — parameter, property,
+constant, local, return, `foreach` binding — with no special case, the same generality
+[ADR 0010](0010-enums-are-a-value-type.md) § 4 already established for an enum's own name.
+
+```php
+function setMode(string $mode) { ... }              // before: any string, validated by hand or not at all
+function setMode("a"|"b"|"c" $mode) { ... }          // after: the set is the type
+```
+
+### 2. A class constant folds to its own literal type
+
+`ClassName::CONST_NAME`, used where a type is expected, resolves at compile time to the constant's own
+value, exactly as long as that value is a `string` or `int` compile-time constant — the same constant-
+folding pass [ADR 0010](0010-enums-are-a-value-type.md) already runs for a case's backing value and
+[ADR 0046](0046-attributes-shape-literal-metadata.md) § 2 already runs for an attribute payload field, given
+a third call site here.
+
+```php
+class Foo {
+    public const string TYPE_A = "a";
+    public const string TYPE_B = "b";
+    public const string TYPE_C = "c";
+}
+
+function handle(Foo::TYPE_A|Foo::TYPE_B $type) { ... }   // exactly "a"|"b" — TYPE_C not accepted
+```
+
+This is safe precisely because a scalar `const` is not a distinct nominal type — `Foo::TYPE_A` genuinely
+*is* the string `"a"`, so folding it to that literal type changes nothing a caller could observe: passing
+the bare string `"a"` directly is exactly as valid as passing `Foo::TYPE_A`. A constant backed by a
+non-scalar type (`array`, an object, a `float` — see *7*) is not eligible, and using one this way is a
+diagnostic naming the eligible types.
+
+### 3. An enum case is a narrowed subtype of its enum — never folded to its backing value
+
+`EnumName::CaseName`, used where a type is expected, does **not** resolve to its backing integer. It names a
+new, checker-only type: a subtype of `EnumName` inhabited by exactly that one case.
+
+```php
+enum Mode { Read, Write, Admin }
+
+function grant(Mode::Read|Mode::Write $m) { ... }    // accepts only those two cases of Mode
+```
+
+This has to work differently from *2* because an enum case is not just its backing value — it carries its
+enum's own nominal type ([ADR 0010](0010-enums-are-a-value-type.md) § 6). If `Mode::Read|Mode::Write` folded
+to its cases' backing integers (say `0|1`), a caller could satisfy that parameter with the bare `int` `0`,
+which is exactly the hole [ADR 0010](0010-enums-are-a-value-type.md) § 5 closed by making `int → Mode`
+always a checked conversion. An enum-case type is therefore its own atom kind, distinct from an int literal
+type that happens to share a case's backing value — the two are never unified by canonicalisation, because
+they carry different runtime tags (§5).
+
+A case-subset union may name cases of more than one enum, or mix case atoms with unrelated atoms, exactly as
+any other heterogeneous union already may (`Mode::Read|Status::Active|int` is unusual but not disallowed —
+nothing about this ADR restricts what a union may contain beyond what [ADR 0007](0007-explicit-type-system.md)
+§ 3 already allows).
+
+### 4. Assignability and conversion
+
+| direction | behaviour |
+|---|---|
+| a literal type → its base type (`"a"` → `string`, `1` → `int`) | **total, free** — same representation, same as `true`/`false` → `bool` already was |
+| an enum-case type → its enum (`Mode::Read` → `Mode`) | **total, free** — same tag, same as any case already is |
+| a literal union → its base type (`"a"\|"b"` → `string`) | **total, free** — a strict widening |
+| a case-subset union → its enum (`Mode::Read\|Mode::Write` → `Mode`) | **total, free** — a strict widening |
+| base type / `mixed` → a literal or literal-union type | **checked.** Throws unless the value equals one of the named literals — the same shape `as uint` already has |
+| an enum / `mixed` → a case-subset type | **checked.** Throws unless the value's case is one of the named cases — a further-restricted version of [ADR 0010](0010-enums-are-a-value-type.md) § 5's existing `EnumName` conversion, not a new conversion kind |
+| a wider literal/case-subset union → a narrower one | needs a guard (`match`, `===`) or a checked `as` — [ADR 0007](0007-explicit-type-system.md) § 6's existing narrowing rule, unchanged |
+
+```php
+"a"|"b"|"c" $mode = Core\Request::query('mode') as "a"|"b"|"c";   // throws on anything else — never a silent default
+Mode::Read|Mode::Write $m = someMode as Mode::Read|Mode::Write;    // throws if someMode is Mode::Admin
+```
+
+A `tainted` or `secret` value reaching either conversion needs the same laundering
+([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) or `Core\Secret::reveal()`
+([ADR 0033](0033-secret-qualifier-for-confidential-values.md)) it would need to leave `mixed` for any other
+typed binding — neither qualifier gets a new rule here.
+
+### 5. Zero additional runtime representation
+
+A literal type shares its base type's tag and payload exactly — `"a"` is represented identically to any
+other `string`, the singleton-ness is enforced only by the checker, wherever the static type is known. An
+enum-case type shares its enum's existing zero-byte tag ([ADR 0010](0010-enums-are-a-value-type.md) § 6)
+outright — there is no second representation to build. The only place either type costs anything at runtime
+is the same place `uint`/enum conversion already does: a value arriving through `mixed` or an isolate
+boundary, where the checked conversion in *4* runs a membership test against the (small, closed, compile-time-known)
+set of literals or cases the type names.
+
+### 6. Diagnostics
+
+A failed conversion names the accepted set directly, generated from the type itself rather than hand-
+written per call site:
+
+```php
+"a"|"b"|"c" $mode = "z" as "a"|"b"|"c";
+// E_LITERAL_TYPE_MISMATCH (code assigned at implementation):
+// "z" is not one of "a", "b", "c"
+
+Mode::Read|Mode::Write $m = Mode::Admin as Mode::Read|Mode::Write;
+// E_ENUM_CASE_SUBSET_MISMATCH (code assigned at implementation):
+// Mode::Admin is not one of Mode::Read, Mode::Write
+```
+
+### 7. Deliberate scope limits
+
+- **No `float` literal type.** Float equality is imprecise enough (`NaN`, rounding) that "the singleton type
+  inhabited by exactly `0.1`" is a footgun waiting to be built; deferred, see *Revisiting*.
+- **No wildcard/glob matching over constant or case names** (`Foo::TYPE_*`). Rejected outright, not
+  deferred — see *Alternatives rejected*. The whole point of *2* and *3* is that the accepted set is spelled
+  out, not pattern-matched.
+- **A class constant backed by `array`, `object`, or `float` is not eligible for § 2's folding.** Using one
+  in type position is a diagnostic naming the eligible scalar types.
+
+## Consequences
+
+**Positive**
+
+- Solves the motivating request as a real, compiler-enforced, priority-1-respecting feature: untrusted input
+  validated against an explicit set is exactly the same reviewable, throwing `as` every other conversion in
+  [ADR 0007](0007-explicit-type-system.md) already gets — no third-party IDE annotation, no convention.
+- Costs nothing beyond the base type at runtime (*5*) — a rare case of buying priority 1 (a narrower,
+  checked type) without spending priority 5 (memory) at all, let alone trading it against priority 3
+  (latency): the compile-time-known case is exactly as fast as the base type already was.
+- Reuses three already-accepted mechanisms — [ADR 0007](0007-explicit-type-system.md)'s union/conversion
+  machinery, [ADR 0010](0010-enums-are-a-value-type.md)'s constant-folding pass, and the generalisation of
+  `true`/`false` that was already sitting in the grammar unadvertised — rather than adding a fourth kind of
+  thing to the language, the same restraint [ADR 0046](0046-attributes-shape-literal-metadata.md) exercised
+  for attributes.
+- Explicitly rejecting the wildcard form (*7*) keeps every accepted set visible at its use site, consistent
+  with the project's existing "state a fact once, visibly" instinct.
+
+**Negative**
+
+- **Two atom kinds, not one, and they behave differently on purpose** (*2* folds, *3* never does). This is a
+  real teaching cost — "why does `Foo::TYPE_A` fold to a plain string but `Mode::A` doesn't" needs the
+  explanation *Decision § 3* gives, not just a syntax rule.
+- **No `float` literal type** (*7*) — anyone wanting "one of these three floats" still has no first-class
+  answer, only a hand-written guard.
+- **`get<T>`-shaped ambiguity has no equivalent safety net here.** Unlike [ADR 0046](0046-attributes-shape-literal-metadata.md)
+  § 5's compile-time ambiguity diagnostic, a literal/case-subset conversion failure is discovered at the
+  specific call site that runs it, not summarised across every use — acceptable because every failure is
+  still a compile-time-checked-or-throws conversion, never a silent wrong answer, but a smaller guarantee
+  than that ADR's.
+- **Diagnostic message generation (*6*) needs the checker to enumerate a type's members**, a small new
+  capability that neither a plain union nor an enum type needed before (an ordinary union's diagnostic never
+  had to print "one of these N exact values").
+
+## Alternatives rejected
+
+- **Glob/wildcard matching over constant or case names** (`Foo::TYPE_*`), the original motivating idea for
+  the "subset of an existing group" case. Rejected outright: the accepted set is not visible at the call
+  site without reading `Foo`'s source, and it silently grows the day a new `TYPE_*` constant is added —
+  exactly the implicit, drifting-surface shape the project already argues against
+  ([ADR 0021](0021-single-file-inclusion-construct.md), [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
+  Naming the exact constants or cases (*2*, *3*) gives the same ergonomic win — "reuse an existing group of
+  values" — without either problem.
+- **An `#[ExpectedValues(...)]`-style attribute**, now that [ADR 0046](0046-attributes-shape-literal-metadata.md)
+  gives MWL a real attribute mechanism. Rejected: ADR 0046's attributes are inert, retained metadata with no
+  enforcement of their own — building a real "one of these values" check on top of one would mean writing an
+  entirely new compiler-recognised-attribute enforcement pass (checking every assignment/call against a
+  payload) that duplicates what the ordinary type checker already does for a declared type, as a second,
+  parallel mechanism instead of an extension of the first. It would also lose everything a real type gets
+  for free: flow narrowing (*4*'s guard rule), the checked-`as` shape every other conversion already has,
+  and static confidence for codegen. Attributes stay reserved for genuinely descriptive metadata that isn't
+  a value constraint at all (routes, DI hints, cache TTLs) — exactly [ADR 0046](0046-attributes-shape-literal-metadata.md)'s
+  own stated use cases.
+- **Folding an enum case to its backing value for union purposes, matching § 2's constant handling exactly.**
+  Rejected in *Decision § 3*: reopens the raw-int-accepted-where-enum-required hole
+  [ADR 0010](0010-enums-are-a-value-type.md) § 5 closed.
+- **A dedicated `oneof(...)` or `literal(...)` type-constructor keyword**, instead of reusing `|` union
+  syntax for literal atoms. Rejected: the union syntax and its canonicalisation already exist, and literal
+  atoms compose with it for free; a separate keyword would be a second spelling for "this is a closed set of
+  values," the exact shape [ADR 0015](0015-no-name-aliasing.md)/[ADR 0021](0021-single-file-inclusion-construct.md)/
+  [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md) already argue against elsewhere.
+- **A runtime-only validator function instead of a type** (`Core\Validate::oneOf($x, ["a","b","c"])`).
+  Rejected: it would not be visible in a parameter's declared type the way [ADR 0007](0007-explicit-type-system.md)
+  already requires everything to be, and would sit alongside the real type system as a second, weaker
+  mechanism rather than extending it.
+
+## Revisiting
+
+Deferred deliberately, each needing its own argument:
+
+- **`float` literal types.** Wants a real answer to floating-point equality before it can be trusted; see
+  *Decision § 7*.
+- **Collapsing a case-subset union that names every one of an enum's cases into that enum's own type.** Not
+  needed for this ADR — the two stay distinct in the checker for now — but worth revisiting once
+  [ADR 0010](0010-enums-are-a-value-type.md)'s own deferred `match` exhaustiveness checking is designed,
+  since the two questions are related.
+- **`match`/`switch` exhaustiveness over a case-subset type.** Stays [ADR 0010](0010-enums-are-a-value-type.md)'s
+  own deferred item; this ADR only creates a type a future exhaustiveness check could key off of.
+
+Verification, in the order it becomes possible:
+
+- **M1**: the grammar in *1* parses — `StringLiteral`/`IntLiteral` atoms, unions of them, `?"a"` sugar — and
+  a class-constant or enum-case reference parses in type position without needing a new production beyond
+  what [ADR 0010](0010-enums-are-a-value-type.md) § 4 already established for `ClassName`/`EnumName`
+  ambiguity.
+- **M2**: a corpus covering every row of *4*'s table — a literal/case-subset type widening for free; a
+  checked conversion both succeeding and throwing, for a literal union and a case-subset union alike; a
+  narrowing guard (`match`, `===`) required before reaching a member's own operations; an ineligible
+  constant (`array`/`object`/`float`-backed) rejected in type position naming the eligible types (*7*); a
+  `tainted`/`secret` value still requiring laundering/`reveal()` before satisfying either kind of type.
+- **M4**: codegen confirms *5*'s zero-cost claim — a statically-known literal or case-subset value compiles
+  identically to its base type, with no additional check emitted; the runtime membership check only appears
+  where the static type is not already known (a `mixed`-typed or isolate-crossing value).
