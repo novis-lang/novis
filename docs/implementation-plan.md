@@ -10,9 +10,10 @@
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy,
 > `crates/mwl-diagnostics`, `crates/mwl-syntax` (lexer, full recursive-descent parser, the ADR
 > 0029/0030/0032 identifier-casing check), `crates/mwl-hir` (name resolution), `crates/mwl-types` (the
-> type checker), `crates/mwl-cli` (`mwl ast`, `mwl check`), the `fuzz/` crate (`lex`/`parse` targets),
-> and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is created when
-> its milestone starts.
+> type checker), `crates/mwl-ir` (CFG/SSA IR — see the M2 paragraph below for exactly how much of it),
+> `crates/mwl-cli` (`mwl ast`, `mwl check`), the `fuzz/` crate (`lex`/`parse` targets), and
+> [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is created when its
+> milestone starts.
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
 > + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle, `cargo-fuzz`
@@ -29,7 +30,7 @@
 > out of scope) are tracked in `mwl-syntax`'s own module docs.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well
-> underway; IR lowering (`mwl-ir`) hasn't started. ADRs with checker-side rules landed so far: 0007
+> underway. ADRs with checker-side rules landed so far: 0007
 > (type table, definite assignment, arithmetic table), 0010 (enum/class atom split), 0013
 > (`Comparable`), 0014 (property-access resolution, no `__get`/`__set` fallback), 0015 (`type`-alias
 > substitution + cycle diagnostic), 0021 (`require` graph resolution), 0022 (constructor
@@ -38,7 +39,24 @@
 > §§2-4 (`secret` propagation/laundering/sinks), 0036 §§1,3-4 (`object` subtyping, shape structural
 > checks), 0037 (`var` local type inference), 0038 (`lateinit` placement checks, ADR 0022 § 2 exemption,
 > § 3's intraprocedural read-before-write check). Remaining for this milestone: ADR 0011/0024 §4/0033's
-> stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and `mwl-ir` itself.
+> stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and finishing `mwl-ir`.
+>
+> `mwl-ir` (CFG/SSA IR) has landed its **first slice**: `crates/mwl-ir/src/ids.rs` reserves the stable
+> `StmtId`/`EdgeId` numbering [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+> needs (assigned in one deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
+> `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, with `Terminator::Branch` and its
+> `EdgeId`-carrying edges already reserved though nothing constructs one yet; `lower.rs` lowers one
+> straight-line method (typed local declarations, plain `$x = expr;` reassignment, scalar
+> arithmetic/comparison/unary operators, `return`) end to end, with an `insta` snapshot test over its
+> printed form (`print.rs`). Deliberately out of scope for this slice, all documented in the crate's own
+> module docs: any control flow (`if`/`while`/`for`/`switch`/`match`/`try`), calls, `new`, non-scalar
+> types (`string`/`bytes`/arrays/objects) and therefore refcount operations, and safepoints (nothing yet
+> has a loop back-edge to put one at). The crate deliberately does not yet depend on `mwl-hir`/`mwl-types`
+> — every type this slice's lowering needs is read straight off the `mwl-syntax` AST, since ADR 0007 § 1
+> already requires it spelled out there for every shape in scope; widening past scalars will need to
+> settle how lowering gets at a call site's or `new`'s resolved type, which `mwl-types` computes today but
+> does not persist anywhere lowering can read it back from.
+>
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
 > `mwl-hir::{hierarchy,members,requires}` and `mwl-types::{expr,ctor_init,lib}` — read those directly
