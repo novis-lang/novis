@@ -36,15 +36,17 @@ Three things follow, and they are the whole design:
 | `NEXT_SESSION_PROMPT.md` | Live state, rewritten by each session under the 80-line contract. |
 | `.claude/loop-status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.claude/loop-log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
-| `.claude/loop-logs/NNNN.log` | Full transcript of session NNNN, for when the ledger line is not enough. |
+| `.claude/loop-logs/NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. Replay it with `Get-Content …\0001.log \| ConvertFrom-Json`. |
 | `.claude/loop-stop` | Create this file to halt the loop cleanly before the next session starts. |
 
 ## What the driver does, per iteration
 
     if .claude/loop-stop exists            -> stop
     record HEAD
-    run: claude -p <SESSION_PROMPT.md> --model opus --permission-mode bypassPermissions
-         (tee the transcript to .claude/loop-logs/NNNN.log)
+    run: claude -p <SESSION_PROMPT.md> --model opus --permission-mode <mode>
+              --output-format stream-json --verbose
+         (each NDJSON event is appended to .claude/loop-logs/NNNN.log and rendered live to the console
+          by Show-Event -- text, tool calls, tool errors, and the final turn/cost summary)
     if the CLI exited non-zero             -> exponential backoff, retry; give up after 3 in a row
     read .claude/loop-status.txt, diff HEAD, append one ledger line
     run the acceptance command from loop-goal.md
