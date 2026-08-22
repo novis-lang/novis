@@ -54,12 +54,14 @@
 > loop-header join are each a single hand-rolled two-predecessor (or pre-loop/back-edge) SSA merge, not a
 > general dominance-based phi-placement algorithm — sufficient since a structured `if`/`while` only ever has
 > that one join shape; a `while` header's phi is seeded before its body is lowered and patched with the
-> back-edge value afterwards, once the body's exit environment is known. Deliberately out of scope still,
+> back-edge value afterwards, once the body's exit environment is known. An inert `InstKind::Safepoint`
+> marker is now also reserved at function entry and on every `while` back edge — the two fixed sites the
+> project-start "safepoints from the first backend commit" decision names — but it lowers to nothing yet;
+> no codegen or guard test needs it functional before M3's backend exists. Deliberately out of scope still,
 > all documented in the crate's own module docs: `for`/`switch`/`match`/`try`, `break`/`continue`, a
 > non-`bool` `if`/`while` condition (ADR 0035's truthy conversion needs a runtime-helper call that doesn't
 > exist in the IR yet), calls, `new`, non-scalar types (`string`/`bytes`/arrays/objects) and therefore
-> refcount operations, and safepoints (a `while` back edge now exists structurally, but nothing marks it as
-> a poll site yet — no guard test needs that before M3). The crate deliberately does not yet depend on
+> refcount operations. The crate deliberately does not yet depend on
 > `mwl-hir`/`mwl-types` — every type this slice's lowering needs is read straight off the `mwl-syntax` AST,
 > since ADR 0007 § 1 already requires it spelled out there for every shape in scope; widening past scalars
 > will need to settle how lowering gets at a call site's or `new`'s resolved type, which `mwl-types`
