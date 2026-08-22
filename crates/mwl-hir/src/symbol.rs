@@ -1,5 +1,5 @@
-//! The symbol table: one entry per declared class/interface/trait/enum/type
-//! alias, keyed by its fully-qualified [`QName`].
+//! The symbol table: one entry per declared class/interface/enum/type alias,
+//! keyed by its fully-qualified [`QName`].
 
 use std::collections::hash_map::Entry;
 
@@ -15,8 +15,6 @@ pub enum SymbolKind {
     Class,
     /// An `interface` declaration.
     Interface,
-    /// A `trait` declaration.
-    Trait,
     /// An `enum` declaration ([ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)).
     Enum,
     /// A `type Name = TypeExpr;` declaration
@@ -31,7 +29,6 @@ impl SymbolKind {
         match self {
             Self::Class => "a class",
             Self::Interface => "an interface",
-            Self::Trait => "a trait",
             Self::Enum => "an enum",
             Self::TypeAlias => "a type alias",
         }

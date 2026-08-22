@@ -32,9 +32,9 @@
 //! *within* the case it falls into — each case is still checked starting
 //! fresh from what was live before the whole `switch`, same as a `case`
 //! reached by a direct jump would see (documented at the `Switch` arm below);
-//! a nested class/interface/trait/enum declaration inside a function body is
-//! not descended into at all (its own methods go unchecked, same as a
-//! closure's body — see `crate::expr`'s docs for the latter).
+//! a nested class/interface/enum declaration inside a function body is not
+//! descended into at all (its own methods go unchecked, same as a closure's
+//! body — see `crate::expr`'s docs for the latter).
 
 use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
@@ -436,7 +436,6 @@ fn check_stmt(
         }
         StmtKind::ClassDecl(_)
         | StmtKind::InterfaceDecl(_)
-        | StmtKind::TraitDecl(_)
         | StmtKind::EnumDecl(_)
         | StmtKind::NamespaceDecl(_)
         | StmtKind::UseDecl(_)

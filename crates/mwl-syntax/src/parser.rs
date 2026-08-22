@@ -18,15 +18,21 @@
 //! statement-shaped rejects (`global`, `goto`, function-scope `static`) are
 //! also here.
 //!
-//! M1's last chunk is also here: classes, interfaces, traits and enums
+//! M1's last chunk is also here: classes, interfaces and enums
 //! ([`Parser::parse_class_decl`]/[`Parser::parse_interface_decl`]/
-//! [`Parser::parse_trait_decl`]/[`Parser::parse_enum_decl`]), their members
-//! (properties with PHP 8.4's hooks, consts, methods, trait `use` and its
-//! `insteadof`/`as` adaptations), attributes (`#[...]`,
+//! [`Parser::parse_enum_decl`]), their members (properties with PHP 8.4's
+//! hooks, consts, methods), attributes (`#[...]`,
 //! [`Parser::parse_attribute_groups`]), and the file-scope declarations that
 //! sit alongside them rather than being executable statements —
 //! `namespace`, `use`, and the `type`-alias declaration. See
 //! [`crate::ast`]'s module docs for the node shapes.
+//!
+//! `trait`, class-body `use TraitName, ...;`, and `insteadof` are all
+//! parse-time rejected (`E_TRAIT_NOT_SUPPORTED`,
+//! [`Parser::report_trait_not_supported`]) rather than built into any AST
+//! node — ADR 0043 § 1. A class's `implements` list instead grows an
+//! optional `by $field` suffix per entry
+//! ([`Parser::parse_implements_clause`], ADR 0043 § 4).
 //!
 //! # Backtracking
 //!
@@ -79,11 +85,11 @@ use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AssignOp, Attribute, AttributeGroup, BinaryOp, Block, CallArgs,
     CatchClause, ClassDecl, ClassMember, ClassMemberKind, ConstMember, DestructureElement,
     DestructureTarget, EnumCase, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
-    IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name, NamespaceDecl,
-    NewTarget, ObjectLiteralField, Param, PropertyHook, PropertyHookBody, PropertyHookKind,
-    PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart,
-    SwitchCase, TraitAdaptation, TraitAdaptationKind, TraitDecl, TraitMethodRef, Type,
-    TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, UseTraitMember, Visibility,
+    ImplementsClause, IncDecOp, InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name,
+    NamespaceDecl, NewTarget, ObjectLiteralField, Param, PropertyHook, PropertyHookBody,
+    PropertyHookKind, PropertyMember, ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt,
+    StmtKind, StringPart, SwitchCase, Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl,
+    Visibility,
 };
 use crate::lexer::Lexer;
 use crate::token::{Keyword, Token, TokenKind};
@@ -3805,7 +3811,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Classes, interfaces, traits (ADR 0011 §§ 1/4, ADR 0015 § 3)
+    // Classes, interfaces, traits (ADR 0011 §§ 1/4, ADR 0043)
     // ========================================================================
 
     fn parse_class_decl(&mut self, start: Span) -> Stmt {
@@ -3822,7 +3828,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             None
         };
         let implements = if self.eat_keyword(Keyword::Implements).is_some() {
-            self.parse_name_list()
+            self.parse_implements_list()
         } else {
             Vec::new()
         };
@@ -3840,6 +3846,36 @@ impl<'src, 'd> Parser<'src, 'd> {
                 members,
             }),
         }
+    }
+
+    /// `implements`'s comma-separated list, each entry optionally suffixed
+    /// with `by $field` (ADR 0043 § 4) — the class-only extension of
+    /// [`Self::parse_name_list`], which every other `extends`/`implements`
+    /// list (an interface's `extends`, an enum's rejected `implements`, an
+    /// anonymous class's `implements`) still uses unchanged, since
+    /// delegation is meaningless without a constructor to assign the target
+    /// field.
+    fn parse_implements_list(&mut self) -> Vec<ImplementsClause> {
+        let mut clauses = vec![self.parse_implements_clause()];
+        while self.eat(TokenKind::Comma).is_some() {
+            clauses.push(self.parse_implements_clause());
+        }
+        clauses
+    }
+
+    /// `Name ('by' '$'field)?`. `by` is a contextual keyword, the same shape
+    /// [`Self::parse_type_alias_decl`]'s `type` already is — it has no other
+    /// meaning as a bare identifier immediately after an `implements` name,
+    /// so no reserved word was needed for it.
+    fn parse_implements_clause(&mut self) -> ImplementsClause {
+        let name = self.parse_name();
+        let by_field = if self.at_contextual("by") {
+            self.bump();
+            Some(self.expect(TokenKind::Variable, "the delegated-to property, `$field`"))
+        } else {
+            None
+        };
+        ImplementsClause { name, by_field }
     }
 
     fn parse_interface_decl(&mut self, start: Span) -> Stmt {
@@ -3872,20 +3908,40 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.finish_trait_decl(start, Vec::new())
     }
 
+    /// `trait Name { ... }` — rejected outright (ADR 0043 § 1): there is no
+    /// `TraitDecl` AST node left to build, so this still consumes the whole
+    /// declaration (name through the closing brace, via
+    /// [`Self::parse_class_body`], its members discarded) so a malformed
+    /// trait body cannot desynchronize the parser, then reports
+    /// [`Self::report_trait_not_supported`] and produces a plain
+    /// [`StmtKind::Error`].
     fn finish_trait_decl(&mut self, start: Span, attributes: Vec<AttributeGroup>) -> Stmt {
+        let _ = attributes;
         self.bump(); // 'trait'
-        let name = self.parse_decl_name("a trait name");
-        let members = self.parse_class_body();
+        self.parse_decl_name("a trait name");
+        self.parse_class_body();
         let span = start.to(self.last_span);
+        self.report_trait_not_supported(span);
         Stmt {
             span,
-            kind: StmtKind::TraitDecl(TraitDecl {
-                span,
-                attributes,
-                name,
-                members,
-            }),
+            kind: StmtKind::Error,
         }
+    }
+
+    /// ADR 0043 §§ 1, 7: `E_TRAIT_NOT_SUPPORTED` for any of the three
+    /// removed constructs — a `trait` declaration, a class-body
+    /// `use TraitName, ...;`, or an `insteadof` adaptation (which, with the
+    /// whole adaptation-block grammar gone, can now only ever be encountered
+    /// as part of the `use` block this same diagnostic already covers).
+    fn report_trait_not_supported(&mut self, span: Span) {
+        self.diags.report(
+            Diagnostic::error(code::E_TRAIT_NOT_SUPPORTED, "traits do not exist")
+                .with_primary(span, "not supported")
+                .with_help(
+                    "use an interface default/private method for shared behavior, or \
+                     `implements Interface by $field;` for shared state (ADR 0043)",
+                ),
+        );
     }
 
     /// A `{ ... }` class/interface/trait body. Mirrors [`Self::parse_block`]'s
@@ -4180,10 +4236,17 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `use Trait, Trait2 (';' | '{' adaptations '}')` inside a class/trait
-    /// body. Nothing in PHP's grammar, or any ADR, gives this an attribute
-    /// position, so `attributes` (parsed uniformly by the caller before
-    /// dispatching on `use`) is simply unused here.
+    /// `use TraitName, ...; (';' | '{' ... '}')` inside a class body —
+    /// rejected outright (ADR 0043 § 1), same shape as
+    /// [`Self::finish_trait_decl`]: there is no `UseTraitMember` AST node
+    /// left to build. The trait names and, if written, the whole `{ ... }`
+    /// adaptation block (which is where an `insteadof`/`as` clause could
+    /// ever appear) are consumed via [`Self::skip_balanced_braces`] without
+    /// being interpreted, then this reports
+    /// [`Self::report_trait_not_supported`] and produces a plain
+    /// [`ClassMemberKind::Error`]. Nothing in PHP's grammar, or any ADR,
+    /// gives this an attribute position, so `attributes` (parsed uniformly
+    /// by the caller before dispatching on `use`) is simply unused here.
     fn parse_use_trait_member(
         &mut self,
         start: Span,
@@ -4191,134 +4254,36 @@ impl<'src, 'd> Parser<'src, 'd> {
     ) -> ClassMember {
         let _ = attributes;
         self.bump(); // 'use'
-        let traits = self.parse_name_list();
-        let adaptations = if self.at(TokenKind::LBrace) {
-            self.parse_trait_adaptations()
+        self.parse_name_list();
+        if self.at(TokenKind::LBrace) {
+            self.skip_balanced_braces();
         } else {
             self.expect(TokenKind::Semicolon, "`;`");
-            Vec::new()
-        };
+        }
         let span = start.to(self.last_span);
+        self.report_trait_not_supported(span);
         ClassMember {
             span,
-            kind: ClassMemberKind::UseTrait(UseTraitMember {
-                traits,
-                adaptations,
-            }),
+            kind: ClassMemberKind::Error,
         }
     }
 
-    fn parse_trait_adaptations(&mut self) -> Vec<TraitAdaptation> {
+    /// Consumes a `{ ... }` block without interpreting its contents, tracking
+    /// nested braces so a well-formed skip still lands past the matching
+    /// close — used only where ADR 0043 has removed a construct's grammar
+    /// (a trait `use` block's `insteadof`/`as` adaptations) but a bare
+    /// "consume tokens until this closes" is still needed to keep the parser
+    /// from desynchronizing.
+    fn skip_balanced_braces(&mut self) {
         self.expect(TokenKind::LBrace, "`{`");
-        let mut adaptations = Vec::new();
-        while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
-            let before = self.peek().span;
-            adaptations.push(self.parse_trait_adaptation());
-            if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
-            {
-                self.bump();
+        let mut depth = 1usize;
+        while depth > 0 && !self.at(TokenKind::Eof) {
+            match self.peek().kind {
+                TokenKind::LBrace => depth += 1,
+                TokenKind::RBrace => depth -= 1,
+                _ => {}
             }
-        }
-        self.expect(TokenKind::RBrace, "`}`");
-        adaptations
-    }
-
-    /// `(Trait '::')? method` — the `Trait::` qualifier is required for
-    /// `insteadof` (it names which trait's method wins) but optional for a
-    /// visibility-only `as` clause, where a single trait already makes the
-    /// method unambiguous.
-    fn parse_trait_method_ref(&mut self) -> TraitMethodRef {
-        let first = self.parse_name();
-        if self.eat(TokenKind::DoubleColon).is_some() {
-            let method = self.expect_name_segment();
-            TraitMethodRef {
-                trait_name: Some(first),
-                method,
-            }
-        } else {
-            TraitMethodRef {
-                trait_name: None,
-                method: first.span,
-            }
-        }
-    }
-
-    fn parse_trait_adaptation(&mut self) -> TraitAdaptation {
-        let start = self.peek().span;
-        let method = self.parse_trait_method_ref();
-        let kind = if self.eat_keyword(Keyword::Insteadof).is_some() {
-            let over = self.parse_name_list();
-            TraitAdaptationKind::InsteadOf { method, over }
-        } else {
-            self.expect_keyword(Keyword::As, "`insteadof` or `as`");
-            let visibility = match self.peek().kind {
-                TokenKind::Keyword(Keyword::Public) => {
-                    self.bump();
-                    Some(Modifier::Public)
-                }
-                TokenKind::Keyword(Keyword::Protected) => {
-                    self.bump();
-                    Some(Modifier::Protected)
-                }
-                TokenKind::Keyword(Keyword::Private) => {
-                    self.bump();
-                    Some(Modifier::Private)
-                }
-                _ => None,
-            };
-            let new_name = if Self::is_name_segment(self.peek().kind) {
-                Some(self.bump().span)
-            } else {
-                None
-            };
-            TraitAdaptationKind::As {
-                method,
-                visibility,
-                new_name,
-            }
-        };
-        self.expect(TokenKind::Semicolon, "`;`");
-        let span = start.to(self.last_span);
-        if let TraitAdaptationKind::As {
-            visibility,
-            new_name,
-            ..
-        } = &kind
-        {
-            self.report_trait_as_rejection(span, visibility.is_some(), new_name.is_some());
-        }
-        TraitAdaptation { kind, span }
-    }
-
-    /// ADR 0015 § 3: both forms of a trait `use` block's `as` clause are
-    /// rejected — renaming a method, and changing its visibility alone —
-    /// while `insteadof` is kept. A rename takes priority in the message
-    /// when both parts are written at once.
-    fn report_trait_as_rejection(&mut self, span: Span, has_visibility: bool, has_rename: bool) {
-        if has_rename {
-            self.diags.report(
-                Diagnostic::error(
-                    code::E_TRAIT_METHOD_RENAME_UNSUPPORTED,
-                    "a trait method cannot be renamed",
-                )
-                .with_primary(span, "rename not supported")
-                .with_help(
-                    "give the class its own method with the new name, calling the trait's \
-                     method explicitly (ADR 0015 § 3)",
-                ),
-            );
-        } else if has_visibility {
-            self.diags.report(
-                Diagnostic::error(
-                    code::E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED,
-                    "a trait method's visibility cannot be changed by `as`",
-                )
-                .with_primary(span, "visibility change not supported")
-                .with_help(
-                    "override the method in the class with the visibility you want \
-                     (ADR 0015 § 3)",
-                ),
-            );
+            self.bump();
         }
     }
 
@@ -6309,41 +6274,96 @@ mod tests {
     }
 
     #[test]
-    fn trait_use_insteadof_is_kept() {
-        let s = parse_stmt_ok(
+    fn trait_declaration_is_rejected() {
+        // ADR 0043 § 1: `trait` does not exist — this still consumes the
+        // whole declaration (so the parser doesn't desynchronize) and
+        // produces a plain `Error` statement, with no `TraitDecl` AST node.
+        let (s, diags) = parse_stmt_with_diags("trait Greets { function hello(): void {} }");
+        assert!(matches!(s.kind, StmtKind::Error));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TRAIT_NOT_SUPPORTED))
+        );
+    }
+
+    #[test]
+    fn class_body_use_trait_is_rejected() {
+        // ADR 0043 § 1: a class-body `use Trait, ...;` — adaptation block,
+        // `insteadof`, and all — is rejected the same way, down to a plain
+        // `Error` member with no `UseTraitMember` node.
+        let (s, diags) = parse_stmt_with_diags(
             "class Greeter { use Greets, Announces { Greets::hello insteadof Announces; } }",
         );
         let StmtKind::ClassDecl(class) = s.kind else {
             panic!("expected a class decl: {s:?}");
         };
-        let ClassMemberKind::UseTrait(u) = &class.members[0].kind else {
-            panic!("expected a trait use: {:?}", class.members[0]);
-        };
-        assert_eq!(u.traits.len(), 2);
-        assert_eq!(u.adaptations.len(), 1);
-        assert!(matches!(
-            u.adaptations[0].kind,
-            TraitAdaptationKind::InsteadOf { .. }
-        ));
+        assert!(matches!(class.members[0].kind, ClassMemberKind::Error));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TRAIT_NOT_SUPPORTED))
+        );
     }
 
     #[test]
-    fn trait_use_as_rename_and_visibility_are_rejected() {
-        let (_, diags) =
-            parse_stmt_with_diags("class Greeter { use Greets { Greets::hello as sayHello; } }");
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_TRAIT_METHOD_RENAME_UNSUPPORTED))
+    fn implements_by_field_delegation_parses() {
+        // ADR 0043 § 4: `by $field` is an optional suffix on one
+        // `implements` entry, recorded but not yet resolved (that's
+        // `mwl-hir`'s follow-up job).
+        let s = parse_stmt_ok(
+            "class Post implements Timestamped by $timestamps { \
+             private TimestampTracker $timestamps; \
+             }",
         );
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        assert_eq!(class.implements.len(), 1);
+        assert!(class.implements[0].by_field.is_some());
+    }
 
-        let (_, diags) =
-            parse_stmt_with_diags("class Greeter { use Greets { Greets::hello as protected; } }");
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED))
+    #[test]
+    fn implements_without_by_field_has_no_delegation() {
+        let s = parse_stmt_ok("class Foo implements Comparable {}");
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        assert_eq!(class.implements.len(), 1);
+        assert!(class.implements[0].by_field.is_none());
+    }
+
+    #[test]
+    fn interface_default_and_private_methods_parse() {
+        // ADR 0043 §§ 2-3: an interface method may carry a body — `public`
+        // makes it a default method, `private` an internal-only helper. Both
+        // already fall out of the existing shared class-body grammar with no
+        // parser change needed; this test locks that in.
+        let s = parse_stmt_ok(
+            "interface Greets { \
+             public function name(): string; \
+             public function greet(): string { return $this->name(); } \
+             private function helper(): void {} \
+             }",
         );
+        let StmtKind::InterfaceDecl(iface) = s.kind else {
+            panic!("expected an interface decl: {s:?}");
+        };
+        assert_eq!(iface.members.len(), 3);
+        let ClassMemberKind::Method(abstract_method) = &iface.members[0].kind else {
+            panic!("expected a method: {:?}", iface.members[0]);
+        };
+        assert!(abstract_method.body.is_none());
+        let ClassMemberKind::Method(default_method) = &iface.members[1].kind else {
+            panic!("expected a method: {:?}", iface.members[1]);
+        };
+        assert!(default_method.body.is_some());
+        assert!(default_method.modifiers.contains(&Modifier::Public));
+        let ClassMemberKind::Method(private_method) = &iface.members[2].kind else {
+            panic!("expected a method: {:?}", iface.members[2]);
+        };
+        assert!(private_method.body.is_some());
+        assert!(private_method.modifiers.contains(&Modifier::Private));
     }
 
     #[test]

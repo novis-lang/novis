@@ -20,9 +20,9 @@
 //!   bound.
 //! - [`signatures`] — [`signatures::build_signatures`]/
 //!   [`signatures::resolve_property`]/[`signatures::resolve_method`]: every
-//!   class/interface/trait/enum's own declared property types and method
+//!   class/interface/enum's own declared property types and method
 //!   signatures, built once ahead of body-checking, plus the ancestor walk
-//!   that looks one up through `extends`/`implements`/trait-use.
+//!   that looks one up through `extends`/`implements`.
 //! - [`locals`] — [`locals::LocalScope`]/[`locals::check_block`]: per-body
 //!   local-variable declare-once checking and flow-sensitive definite
 //!   assignment.
@@ -198,12 +198,12 @@ pub(crate) struct Ctx<'a> {
 pub(crate) struct Env<'a> {
     pub symbols: &'a SymbolTable,
     pub aliases: &'a AliasTable,
-    /// Every class/interface/trait's resolved `extends`/`implements`/
-    /// trait-use links — needed to walk ancestors when resolving `parent` or
-    /// looking up an inherited property/method signature.
+    /// Every class/interface's resolved `extends`/`implements` links —
+    /// needed to walk ancestors when resolving `parent` or looking up an
+    /// inherited property/method signature.
     pub graph: &'a ClassGraph,
-    /// Every class/interface/trait/enum's own declared property types and
-    /// method signatures ([`signatures::build_signatures`]). During the
+    /// Every class/interface/enum's own declared property types and method
+    /// signatures ([`signatures::build_signatures`]). During the
     /// signature-collection pass itself this points at an unrelated, empty
     /// placeholder table — collection never reads it, only writes to its own
     /// separate `&mut SignatureTable` parameter — see

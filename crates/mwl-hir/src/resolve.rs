@@ -31,23 +31,21 @@ pub struct Import {
 }
 
 /// Everything `mwl-hir` resolves out of one or more parsed files, for this
-/// slice of M2: every declared class/interface/trait/enum/type alias under
-/// its fully-qualified name, every `use` import checked against that set, and
-/// the class hierarchy (`extends`/`implements`/trait-use) resolved to real
-/// symbols.
+/// slice of M2: every declared class/interface/enum/type alias under its
+/// fully-qualified name, every `use` import checked against that set, and the
+/// class hierarchy (`extends`/`implements`) resolved to real symbols.
 ///
 /// Not yet built — see the crate's module docs for the rest of M2's name
 /// resolution this will grow into.
 #[derive(Debug, Default)]
 pub struct Module {
-    /// Every class/interface/trait/enum/type-alias declaration collected.
+    /// Every class/interface/enum/type-alias declaration collected.
     pub symbols: SymbolTable,
     /// Every `use` import seen, resolved or not.
     pub imports: Vec<Import>,
-    /// Every class/interface/trait's resolved `extends`/`implements`/
-    /// trait-use links.
+    /// Every class/interface's resolved `extends`/`implements` links.
     pub graph: crate::hierarchy::ClassGraph,
-    /// Every class/interface/trait/enum's own directly-declared members
+    /// Every class/interface/enum's own directly-declared members
     /// (M2 item 2 — see [`crate::members`]).
     pub members: crate::members::MemberTable,
     /// Every `type` alias's fully-substituted expansion (M2 item 3 — see
@@ -143,9 +141,6 @@ impl Resolver {
                 StmtKind::InterfaceDecl(decl) => {
                     self.declare(SymbolKind::Interface, &current_ns, &decl.name, src, diags);
                 }
-                StmtKind::TraitDecl(decl) => {
-                    self.declare(SymbolKind::Trait, &current_ns, &decl.name, src, diags);
-                }
                 StmtKind::EnumDecl(decl) => {
                     self.declare(SymbolKind::Enum, &current_ns, &decl.name, src, diags);
                 }
@@ -203,10 +198,7 @@ impl Resolver {
                         code::E_UNRESOLVED_IMPORT,
                         format!("`{}` does not resolve to any declaration", import.target),
                     )
-                    .with_primary(
-                        import.span,
-                        "no matching class, interface, trait or enum declared",
-                    ),
+                    .with_primary(import.span, "no matching class, interface or enum declared"),
                 );
             }
         }

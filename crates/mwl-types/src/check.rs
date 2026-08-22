@@ -5,23 +5,22 @@
 //! Mirrors [`mwl_hir::members`]'s own walk shape: [`check_stmts`] tracks
 //! namespace/`use` scope the same way (there is no enclosing-class scope to
 //! track at this level — a fresh [`Ctx`] naming the class is built right at
-//! each declaration site instead), recursing into each class/interface/
-//! trait/enum's methods via [`check_members`]. A method with no body
-//! (abstract, or an interface signature) has nothing to check.
-//! [`check_method`] seeds a fresh [`crate::locals::LocalScope`] from the
-//! method's own lowered parameters (already definitely assigned), lowers its
-//! return type once, and hands the body to [`crate::locals::check_block`].
-//! Right after a `ClassDecl`'s members are checked this way,
-//! [`crate::ctor_init::check_class_init`] runs its own, separate
-//! constructor-only pass over the same declaration for ADR 0022 § 2, and
-//! [`crate::lateinit::check_class_lateinit_reads`] runs ADR 0038 § 3's
-//! sibling pass over every one of that declaration's *other* methods too —
-//! interfaces/traits/enums never get either call, since only a class is ever
-//! instantiated through a constructor.
+//! each declaration site instead), recursing into each class/interface's
+//! methods via [`check_members`]. A method with no body (abstract, or an
+//! interface signature) has nothing to check. [`check_method`] seeds a fresh
+//! [`crate::locals::LocalScope`] from the method's own lowered parameters
+//! (already definitely assigned), lowers its return type once, and hands the
+//! body to [`crate::locals::check_block`]. Right after a `ClassDecl`'s
+//! members are checked this way, [`crate::ctor_init::check_class_init`] runs
+//! its own, separate constructor-only pass over the same declaration for
+//! ADR 0022 § 2, and [`crate::lateinit::check_class_lateinit_reads`] runs
+//! ADR 0038 § 3's sibling pass over every one of that declaration's *other*
+//! methods too — interfaces/enums never get either call, since only a class
+//! is ever instantiated through a constructor.
 //!
-//! **Known gap:** a class/interface/trait/enum declared *inside* a method
-//! body is not descended into here at all — only top-level declarations (and
-//! ones nested in a `namespace { ... }` block) are found by [`check_stmts`].
+//! **Known gap:** a class/interface/enum declared *inside* a method body is
+//! not descended into here at all — only top-level declarations (and ones
+//! nested in a `namespace { ... }` block) are found by [`check_stmts`].
 
 use mwl_diagnostics::{Diagnostics, SourceFile};
 use mwl_hir::{Module, QName};
@@ -123,15 +122,6 @@ fn check_stmts(
                 check_class_lateinit_reads(decl, &qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
-                let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
-                let ctx = Ctx {
-                    namespace: &current_ns,
-                    imports: &current_imports,
-                    current_class: Some(&qname),
-                };
-                check_members(&decl.members, &ctx, env);
-            }
-            StmtKind::TraitDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
                 let ctx = Ctx {
                     namespace: &current_ns,

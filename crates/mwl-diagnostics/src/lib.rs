@@ -174,13 +174,6 @@ pub mod code {
     /// `use Path\To\Name as Other;`: an import cannot be renamed — see
     /// ADR 0015 § 2.
     pub const E_IMPORT_ALIAS_UNSUPPORTED: Code = Code::new("E0212");
-    /// `Trait::method as newName;` inside a trait `use` block: a trait method
-    /// cannot be renamed — see ADR 0015 § 3.
-    pub const E_TRAIT_METHOD_RENAME_UNSUPPORTED: Code = Code::new("E0213");
-    /// `Trait::method as public;` (or `protected`/`private`) inside a trait
-    /// `use` block: a trait method's visibility cannot be changed by `as` —
-    /// see ADR 0015 § 3.
-    pub const E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED: Code = Code::new("E0214");
     /// `function foo() { ... }` outside any class: a function must be a
     /// method — see ADR 0011 § 1.
     pub const E_TOPLEVEL_FUNCTION_UNSUPPORTED: Code = Code::new("E0215");
@@ -218,17 +211,31 @@ pub mod code {
     /// PHP's `and`/`or`/`xor` keyword operators — `&&`/`||` are the only
     /// logical connectives. See ADR 0045 §§ 1-2.
     pub const E_LOGICAL_KEYWORD_UNSUPPORTED: Code = Code::new("E0226");
+    /// `trait Name { … }`, `use TraitName, ...;` inside a class body, or
+    /// `insteadof` anywhere: traits do not exist — an interface
+    /// default/private method replaces shared behavior, and
+    /// `implements Interface by $field;` replaces shared state. See
+    /// ADR 0043 §§ 1, 7. Replaces the narrower
+    /// `E_TRAIT_METHOD_RENAME_UNSUPPORTED`/`E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED`
+    /// (both ADR 0015 § 3), now retired: there is no trait `use { ... }`
+    /// adaptation grammar left to diagnose that finely, since traits do not
+    /// exist at all. `E_TRAIT_METHOD_CONFLICT` (also ADR 0015 § 3) is
+    /// retired for the same reason; the new default-method/delegation
+    /// conflict diagnostic (`E_INTERFACE_MEMBER_CONFLICT`, ADR 0043 § 7)
+    /// arrives with `mwl-hir`'s follow-up resolution work, not with this
+    /// diagnostic.
+    pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
     pub const E_UNDEFINED_VARIABLE: Code = Code::new("E0301");
     /// A call to a function that does not exist.
     pub const E_UNDEFINED_FUNCTION: Code = Code::new("E0302");
-    /// A reference to a class, interface, trait or enum that does not exist.
+    /// A reference to a class, interface or enum that does not exist.
     pub const E_UNDEFINED_CLASS: Code = Code::new("E0303");
     /// Two declarations with the same name in the same scope.
     pub const E_DUPLICATE_DECLARATION: Code = Code::new("E0304");
-    /// A class hierarchy or trait use that forms a cycle.
+    /// A class hierarchy (`extends`/`implements`) that forms a cycle.
     pub const E_CIRCULAR_INHERITANCE: Code = Code::new("E0305");
     /// A `use` statement that resolves to nothing.
     pub const E_UNRESOLVED_IMPORT: Code = Code::new("E0306");
@@ -236,14 +243,11 @@ pub mod code {
     /// interface or enum atom — `use … as …` in disguise; see
     /// ADR 0015 § 6.
     pub const E_TYPE_ALIAS_ALIASES_CLASS: Code = Code::new("E0307");
-    /// Two traits used by the same class/trait declare the same method name,
-    /// and no `insteadof` names a winner; see ADR 0015 § 3.
-    pub const E_TRAIT_METHOD_CONFLICT: Code = Code::new("E0308");
     /// A `Class::member` reference (a static call, a class constant, an
     /// enum case, or a static property) names nothing declared on that class
-    /// or any of its `extends`/`implements`/trait-use ancestors — ADR 0011's
-    /// "every callable and constant is a class member" has no bare-name
-    /// fallback to fall into instead.
+    /// or any of its `extends`/`implements` ancestors — ADR 0011's "every
+    /// callable and constant is a class member" has no bare-name fallback to
+    /// fall into instead.
     pub const E_UNDEFINED_MEMBER: Code = Code::new("E0309");
     /// A `type` alias whose expansion, followed far enough, refers back to
     /// itself — `type A = B; type B = A;` or any longer cycle; see

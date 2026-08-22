@@ -14,9 +14,9 @@
 //! already shares — then checks [`mwl_hir::AliasTable`] first (an alias is
 //! "resolved eagerly," per ADR 0015 § 5, so its expansion is substituted
 //! in and lowered recursively rather than kept as a name), falling back to
-//! [`mwl_hir::SymbolTable`] to decide between a class-shaped atom (a class,
-//! interface or trait — the type grammar does not distinguish them) and an
-//! enum. A name that resolves to neither, and is not trusted as a `Core`
+//! [`mwl_hir::SymbolTable`] to decide between a class-shaped atom (a class or
+//! interface — the type grammar does not distinguish them) and an enum. A
+//! name that resolves to neither, and is not trusted as a `Core`
 //! reference or one of `Throwable`/`Exception`/`Error`
 //! ([`mwl_hir::QName::is_reserved_global_class`] — ADR 0020 § 0's global,
 //! undeclared exception classes), is `E_UNDEFINED_CLASS`.

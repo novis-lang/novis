@@ -21,7 +21,7 @@
 //! # What is, and isn't, walked
 //!
 //! Every category ADR 0029's own scope names gets checked: class/interface/
-//! trait/enum/enum-case/namespace-segment names (`PascalCase`), method names
+//! enum/enum-case/namespace-segment names (`PascalCase`), method names
 //! (`camelCase`), property/parameter/local-variable names (`camelCase`,
 //! `$`-sigil stripped before the pattern check), and class constant names
 //! (`SCREAMING_SNAKE_CASE`). A closure's optional self-name
@@ -30,9 +30,9 @@
 //! `$` sigil.
 //!
 //! Only a *declaration* site is checked, never a reference: `Class::method`,
-//! `$obj->prop`, a `use Trait;` name and an `extends`/`implements` target all
-//! name something declared elsewhere, which was (or will be) checked once,
-//! at that other site.
+//! `$obj->prop`, and an `extends`/`implements` target all name something
+//! declared elsewhere, which was (or will be) checked once, at that other
+//! site.
 //!
 //! **Known gaps, left out deliberately:**
 //! - A `type` alias's own name is not checked — ADR 0029's scope table does
@@ -360,10 +360,6 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
             check_type_name(decl.name.span, src, "interface", diags);
             check_members(&decl.members, src, diags);
         }
-        StmtKind::TraitDecl(decl) => {
-            check_type_name(decl.name.span, src, "trait", diags);
-            check_members(&decl.members, src, diags);
-        }
         StmtKind::EnumDecl(decl) => check_enum_decl(decl, src, diags),
         StmtKind::Block(b) => check_stmts(&b.stmts, src, diags),
         StmtKind::If { cond, then, else_ } => {
@@ -486,7 +482,7 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
                 check_expr(&c.value, src, diags);
             }
             ClassMemberKind::Method(m) => check_method(m, src, diags),
-            ClassMemberKind::UseTrait(_) | ClassMemberKind::Error => {}
+            ClassMemberKind::Error => {}
         }
     }
 }
@@ -782,18 +778,6 @@ mod tests {
     }
 
     #[test]
-    fn a_correctly_cased_trait_is_clean() {
-        let diags = check("<?mwl\ntrait Greets {}\n");
-        assert!(diags.is_empty(), "{diags:?}");
-    }
-
-    #[test]
-    fn a_mis_cased_trait_is_diagnosed() {
-        let diags = check("<?mwl\ntrait greets {}\n");
-        assert_eq!(only_code(&diags), code::E_BAD_TYPE_CASING);
-    }
-
-    #[test]
     fn a_correctly_cased_enum_and_case_is_clean() {
         let diags = check("<?mwl\nenum Status { Active, Banned }\n");
         assert!(diags.is_empty(), "{diags:?}");
@@ -1015,19 +999,6 @@ mod tests {
             diags
                 .iter()
                 .any(|d| d.code == Some(code::E_BAD_MEMBER_CASING))
-        );
-    }
-
-    #[test]
-    fn a_use_trait_reference_is_not_checked() {
-        let diags =
-            check("<?mwl\ntrait snake_case_trait {}\nclass Foo { use snake_case_trait; }\n");
-        assert_eq!(
-            diags
-                .iter()
-                .filter(|d| d.code == Some(code::E_BAD_TYPE_CASING))
-                .count(),
-            1
         );
     }
 

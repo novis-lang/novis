@@ -34,14 +34,14 @@
 //! **Known gaps**, deliberately out of scope for this slice, same standard
 //! as every other gap in this crate — reject or stay silent, never wrongly
 //! accept and never wrongly flag:
-//! - Only a class's *own* `lateinit` properties (plus any pulled in through
-//!   a used trait — see [`crate::signatures::own_lateinit_properties`]) are
-//!   tracked here. A property declared `lateinit` on a parent class, read
-//!   through `$this` in a *subclass*'s own method, is not checked by this
-//!   pass at all — it relies entirely on ADR 0038 § 2's runtime throw. This
-//!   mirrors `crate::signatures::own_required_properties`'s own choice to
-//!   exclude `extends`, for the same reason: the property is checked when
-//!   its own declaring class's methods are checked, not re-derived here.
+//! - Only a class's *own* `lateinit` properties (see
+//!   [`crate::signatures::own_lateinit_properties`]) are tracked here. A
+//!   property declared `lateinit` on a parent class, read through `$this` in
+//!   a *subclass*'s own method, is not checked by this pass at all — it
+//!   relies entirely on ADR 0038 § 2's runtime throw. This mirrors
+//!   `crate::signatures::own_required_properties`'s own choice to exclude
+//!   `extends`, for the same reason: the property is checked when its own
+//!   declaring class's methods are checked, not re-derived here.
 //! - [`scan_expr`] only descends into the same handful of common composite
 //!   expression forms `crate::ctor_init::scan_expr` does. A read buried
 //!   inside a closure body, a `match` arm, or another form this module
@@ -67,7 +67,7 @@ use crate::{Env, span_text, strip_sigil};
 /// for each of `qname`'s own `lateinit` properties. A class with none of its
 /// own does nothing — there is nothing to track.
 pub(crate) fn check_class_lateinit_reads(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
-    let tracked = own_lateinit_properties(qname, env.signatures, env.graph);
+    let tracked = own_lateinit_properties(qname, env.signatures);
     if tracked.is_empty() {
         return;
     }

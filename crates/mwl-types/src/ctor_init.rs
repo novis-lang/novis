@@ -1,8 +1,8 @@
 //! ADR 0022 § 2 — definite property initialization: every constructor a
 //! class declares must assign, on every path out of it, every property the
-//! class declares itself or pulls in through a used trait
-//! ([`crate::signatures::own_required_properties`]), and — when the class
-//! `extends` another — call `parent::constructor(...)` on every path too,
+//! class declares itself ([`crate::signatures::own_required_properties`]),
+//! and — when the class `extends` another — call `parent::constructor(...)`
+//! on every path too,
 //! discharging the inherited properties without re-deriving what the
 //! parent's own constructor already assigns (the parent was checked against
 //! this same rule when it was compiled, exactly as an ordinary call's callee
@@ -97,12 +97,12 @@ impl InitState {
     }
 }
 
-/// Checks one class declaration against ADR 0022 § 2. Interfaces, traits and
-/// enums are never called here — only [`crate::check::check_stmts`]'s
-/// `ClassDecl` arm calls this, since only a class is ever instantiated
-/// through a constructor.
+/// Checks one class declaration against ADR 0022 § 2. Interfaces and enums
+/// are never called here — only [`crate::check::check_stmts`]'s `ClassDecl`
+/// arm calls this, since only a class is ever instantiated through a
+/// constructor.
 pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
-    let required = own_required_properties(qname, env.signatures, env.graph);
+    let required = own_required_properties(qname, env.signatures);
 
     let ctor = decl.members.iter().find_map(|m| match &m.kind {
         ClassMemberKind::Method(method) if span_text(env.src, method.name) == "constructor" => {
@@ -562,19 +562,6 @@ mod tests {
             "<?mwl\nclass Base {\n  public int $id;\n  function constructor(int $id) {\n    $this->id = $id;\n  }\n}\nclass Sub extends Base {\n  function constructor(int $id) {\n    parent::constructor($id);\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
-    }
-
-    #[test]
-    fn a_trait_contributed_property_must_be_assigned_too() {
-        let diags = check_src(
-            "<?mwl\ntrait HasCount {\n  public int $count;\n}\nclass Foo {\n  use HasCount;\n  function constructor() {\n  }\n}\n",
-        );
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
-            "{diags:?}"
-        );
     }
 
     #[test]

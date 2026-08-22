@@ -38,8 +38,13 @@
 > checks), 0028 (`Stringable`, `unset()` refusal), 0029/0030/0032 (casing — lives in `mwl-syntax`), 0033
 > §§2-4 (`secret` propagation/laundering/sinks), 0036 §§1,3-4 (`object` subtyping, shape structural
 > checks), 0037 (`var` local type inference), 0038 (`lateinit` placement checks, ADR 0022 § 2 exemption,
-> § 3's intraprocedural read-before-write check). Remaining for this milestone: ADR 0011/0024 §4/0033's
-> stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and finishing `mwl-ir`.
+> § 3's intraprocedural read-before-write check). ADR 0043's `mwl-syntax` slice has also landed: `trait`/
+> class-body `use`/`insteadof` are gone, rejected via `E_TRAIT_NOT_SUPPORTED`; `implements ... by $field`
+> parses. Remaining for this milestone: ADR 0011/0024 §4/0033's stdlib-dependent sinks (wait on `Core`
+> classes that don't exist until M7/M8), ADR 0043's `mwl-hir` default/private-method and `by`-delegation
+> resolution (its stale trait-flattening code is already removed, not yet replaced), 0047's literal/enum-
+> case types and their checked-conversion rules (docs only so far — see
+> [ADR 0047](adr/0047-literal-and-enum-case-types.md)), and finishing `mwl-ir`.
 >
 > `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, **`new`/a static call**, **an
 > instance method call and a compile-time-known property access**, **`var` locals and multi-base
@@ -674,15 +679,19 @@ ambiguity: parenthesize to force the expression reading, diagnosed by name at bo
 non-empty literal is attempted without the parentheses. Parsing and this disambiguation are this
 milestone's job; `object`'s real subtyping and the shape's structural check are M2's.
 
-**Added after that, a fourth time — not yet implemented:**
+**Added after that, a fourth time — implemented in a follow-up session:**
 [ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) removes `trait`, class-body
-`use TraitName, ...;`, and `insteadof` from the grammar entirely (each becomes a parse-time diagnostic naming
-the replacement) and adds two small extensions in their place: an interface method may carry a body (a
-`public` default or a `private` helper), and one entry in a class's `implements` list may carry an optional
-`by $field` delegation suffix. This retroactively narrows the "classes, interfaces, traits, enums" grammar
-line above — `mwl-syntax`'s already-shipped `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/`TraitMethodRef`
-AST nodes and their parser/casing support are superseded and still need removing, tracked in that ADR's own
-*Consequences* and *Verification* rather than reopening this "done" milestone's checkbox.
+`use TraitName, ...;`, and `insteadof` from the grammar entirely (each is now a parse-time
+`E_TRAIT_NOT_SUPPORTED` diagnostic naming the replacement) and adds two small extensions in their place: an
+interface method may carry a body (a `public` default or a `private` helper — this fell out of the existing
+shared class-body grammar with no parser change needed), and one entry in a class's `implements` list may
+carry an optional `by $field` delegation suffix (a new `ImplementsClause` AST node). This retroactively
+narrows the "classes, interfaces, traits, enums" grammar line above — `mwl-syntax`'s originally-shipped
+`TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/`TraitMethodRef` AST nodes and their parser/casing support
+are gone, not merely superseded. `mwl-hir`/`mwl-types`'s own now-stale trait-flattening code was removed in
+the same session, just to keep the workspace building — the new default/private-method and `by`-delegation
+*resolution* those crates still need is unrelated follow-up work, tracked in that ADR's own *Consequences*
+and *Verification* rather than reopening this "done" milestone's checkbox.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing (they will

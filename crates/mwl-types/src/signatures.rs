@@ -11,7 +11,7 @@
 //! `check::check_method` lowers a method body's own parameters, into a
 //! [`SignatureTable`] every method body is then checked against.
 //! [`resolve_property`]/[`resolve_method`] look a name up on a class and,
-//! failing that, walk its `extends`/`implements`/trait-use ancestors via
+//! failing that, walk its `extends`/`implements` ancestors via
 //! [`mwl_hir::ClassGraph`] — the same ancestor walk
 //! `mwl_hir::members::member_declared` already does for existence-only
 //! checking.
@@ -41,8 +41,8 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 
 /// One method's own declared shape: its parameters' types, in declaration
 /// order, and its return type. Never includes an inherited override —
-/// walking through `extends`/`implements`/trait-use to find one is
-/// [`resolve_method`]'s job, not this type's.
+/// walking through `extends`/`implements` to find one is [`resolve_method`]'s
+/// job, not this type's.
 #[derive(Clone, Debug)]
 pub struct MethodSig {
     /// Each parameter's declared type (`mixed` for one written with none —
@@ -56,10 +56,10 @@ pub struct MethodSig {
     pub return_ty: TypeId,
 }
 
-/// One class/interface/trait/enum's own directly-declared property types and
-/// method signatures — never anything pulled in via
-/// `extends`/`implements`/trait-use; walking those is [`resolve_property`]/
-/// [`resolve_method`]'s job, done at check time.
+/// One class/interface/enum's own directly-declared property types and
+/// method signatures — never anything pulled in via `extends`/`implements`;
+/// walking those is [`resolve_property`]/[`resolve_method`]'s job, done at
+/// check time.
 #[derive(Clone, Debug, Default)]
 pub struct ClassSignature {
     /// Instance property types, keyed by name with the `$` sigil stripped.
@@ -76,9 +76,8 @@ pub struct ClassSignature {
     /// declaration order.
     pub required_properties: Vec<(String, Span)>,
     /// This declaration's own properties declared `lateinit` (ADR 0038 § 1),
-    /// by name. Never includes one pulled in from a used trait or an
-    /// `extends`/`implements` ancestor — [`own_lateinit_properties`]
-    /// flattens those in.
+    /// by name. Never includes one pulled in from an `extends`/`implements`
+    /// ancestor — [`own_lateinit_properties`] flattens those in.
     pub lateinit_properties: FxHashSet<String>,
 }
 
@@ -107,8 +106,8 @@ impl SignatureTable {
     }
 }
 
-/// Builds a [`SignatureTable`] for every class/interface/trait/enum declared
-/// in `stmts`, lowering every property/parameter/return type through the
+/// Builds a [`SignatureTable`] for every class/interface/enum declared in
+/// `stmts`, lowering every property/parameter/return type through the
 /// same [`AliasTable`]/[`SymbolTable`] a method body's own types go through.
 ///
 /// This writes into its own `table` return value rather than `env.signatures`
@@ -199,15 +198,6 @@ fn collect_stmts(
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
-            StmtKind::TraitDecl(decl) => {
-                let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
-                let ctx = Ctx {
-                    namespace: &current_ns,
-                    imports: &current_imports,
-                    current_class: Some(&qname),
-                };
-                collect_members(&decl.members, &qname, &ctx, table, env);
-            }
             StmtKind::EnumDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
                 let ctx = Ctx {
@@ -285,7 +275,7 @@ fn collect_members(
                     },
                 );
             }
-            ClassMemberKind::Const(_) | ClassMemberKind::UseTrait(_) | ClassMemberKind::Error => {}
+            ClassMemberKind::Const(_) | ClassMemberKind::Error => {}
             _ => {}
         }
     }
@@ -333,7 +323,7 @@ fn check_lateinit_property(p: &PropertyMember, ty: TypeId, env: &mut Env<'_>) {
 }
 
 /// Looks `name` up as a property on `qname`, falling back to walking its
-/// `extends`/`implements`/trait-use ancestors — the same shape
+/// `extends`/`implements` ancestors — the same shape
 /// `mwl_hir::members::member_declared` already walks for existence-only
 /// checking, generalised to return the type found rather than a bool.
 #[must_use]
@@ -367,7 +357,6 @@ fn resolve_property_rec(
         .extends
         .iter()
         .chain(links.implements.iter())
-        .chain(links.traits.iter())
         .find_map(|parent| resolve_property_rec(parent, name, table, graph, seen))
 }
 
@@ -406,105 +395,48 @@ fn resolve_method_rec(
         .extends
         .iter()
         .chain(links.implements.iter())
-        .chain(links.traits.iter())
         .find_map(|parent| resolve_method_rec(parent, name, table, graph, seen))
 }
 
 /// Every property `qname`'s own constructor must definitely assign per
-/// ADR 0022 § 2: `qname`'s own [`ClassSignature::required_properties`],
-/// plus every used trait's own (recursively, through nested trait-use — the
-/// same flattening [`resolve_property`]/[`resolve_method`] walk, but
-/// restricted to `traits` alone). Deliberately excludes `extends`/
-/// `implements`: an inherited property is discharged by calling
-/// `parent::constructor(...)`, not by assigning it a second time — see
-/// `crate::ctor_init`. A name already collected from `qname` itself (or an
-/// earlier trait) is not collected again from a later trait, since it is the
-/// same storage location either way.
+/// ADR 0022 § 2: exactly `qname`'s own [`ClassSignature::required_properties`].
+/// Deliberately excludes `extends`/`implements`: an inherited property is
+/// discharged by calling `parent::constructor(...)`, not by assigning it a
+/// second time — see `crate::ctor_init`.
+///
+/// Before [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md),
+/// this also flattened in every used trait's own required properties
+/// (recursively, through nested trait-use); that ancestor walk is gone along
+/// with traits themselves — a `by`-target field used for delegation is an
+/// ordinary declared property of `qname` itself, already covered by
+/// `required_properties` with no special case needed (ADR 0043's own
+/// amendment to ADR 0022 § 2).
 #[must_use]
-pub fn own_required_properties(
-    qname: &QName,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-) -> Vec<(String, Span)> {
-    let mut seen_classes = FxHashSet::default();
-    let mut seen_names = FxHashSet::default();
-    let mut out = Vec::new();
-    collect_own_required(
-        qname,
-        table,
-        graph,
-        &mut seen_classes,
-        &mut seen_names,
-        &mut out,
-    );
-    out
-}
-
-fn collect_own_required(
-    qname: &QName,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-    seen_classes: &mut FxHashSet<QName>,
-    seen_names: &mut FxHashSet<String>,
-    out: &mut Vec<(String, Span)>,
-) {
-    if !seen_classes.insert(qname.clone()) {
-        return;
-    }
-    if let Some(sig) = table.get(qname) {
-        for (name, span) in &sig.required_properties {
-            if seen_names.insert(name.clone()) {
-                out.push((name.clone(), *span));
-            }
-        }
-    }
-    if let Some(links) = graph.get(qname) {
-        for trait_q in &links.traits {
-            collect_own_required(trait_q, table, graph, seen_classes, seen_names, out);
-        }
-    }
+pub fn own_required_properties(qname: &QName, table: &SignatureTable) -> Vec<(String, Span)> {
+    table
+        .get(qname)
+        .map(|sig| sig.required_properties.clone())
+        .unwrap_or_default()
 }
 
 /// Every `lateinit` property `$this` can read anywhere in `qname`'s own
-/// methods per ADR 0038 § 3: `qname`'s own
-/// [`ClassSignature::lateinit_properties`], plus every used trait's own
-/// (recursively, through nested trait-use) — the same trait-only flattening
-/// [`own_required_properties`] does, for the same reason: an inherited
-/// (`extends`) `lateinit` property is checked when *its own* declaring
-/// class's methods are checked, not re-checked here. See
-/// `crate::lateinit`'s module docs for the resulting known gap (a subclass
-/// method reading an inherited `lateinit` property through `$this` is not
-/// covered by this intraprocedural pass).
+/// methods per ADR 0038 § 3: exactly `qname`'s own
+/// [`ClassSignature::lateinit_properties`] — an inherited (`extends`)
+/// `lateinit` property is checked when *its own* declaring class's methods
+/// are checked, not re-checked here. See `crate::lateinit`'s module docs for
+/// the resulting known gap (a subclass method reading an inherited
+/// `lateinit` property through `$this` is not covered by this
+/// intraprocedural pass).
+///
+/// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+/// retired this function's former trait-flattening role the same way it did
+/// [`own_required_properties`]'s.
 #[must_use]
-pub fn own_lateinit_properties(
-    qname: &QName,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-) -> FxHashSet<String> {
-    let mut seen_classes = FxHashSet::default();
-    let mut out = FxHashSet::default();
-    collect_own_lateinit(qname, table, graph, &mut seen_classes, &mut out);
-    out
-}
-
-fn collect_own_lateinit(
-    qname: &QName,
-    table: &SignatureTable,
-    graph: &ClassGraph,
-    seen_classes: &mut FxHashSet<QName>,
-    out: &mut FxHashSet<String>,
-) {
-    if !seen_classes.insert(qname.clone()) {
-        return;
-    }
-    if let Some(sig) = table.get(qname) {
-        out.extend(sig.lateinit_properties.iter().cloned());
-    }
-    if let Some(links) = graph.get(qname) {
-        for trait_q in &links.traits {
-            collect_own_lateinit(trait_q, table, graph, seen_classes, out);
-        }
-    }
+pub fn own_lateinit_properties(qname: &QName, table: &SignatureTable) -> FxHashSet<String> {
+    table
+        .get(qname)
+        .map(|sig| sig.lateinit_properties.clone())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -571,12 +503,12 @@ mod tests {
     }
 
     #[test]
-    fn a_method_is_resolved_through_a_trait() {
+    fn a_method_is_resolved_through_an_ancestor() {
         let (table, module, interner, _diags) = build(
-            "<?mwl\ntrait Greets { function hello(): int { return 1; } }\nclass Foo { use Greets; }\n",
+            "<?mwl\nclass Base { function hello(): int { return 1; } }\nclass Sub extends Base {}\n",
         );
-        let sig = resolve_method(&QName::parse("Foo"), "hello", &table, &module.graph)
-            .expect("trait method resolves");
+        let sig = resolve_method(&QName::parse("Sub"), "hello", &table, &module.graph)
+            .expect("inherited method resolves");
         assert_eq!(interner.describe(sig.return_ty), "int");
     }
 

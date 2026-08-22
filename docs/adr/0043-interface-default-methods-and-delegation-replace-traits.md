@@ -299,14 +299,15 @@ human decision, named honestly rather than silently attempted:
   pointer, replaces PHP's per-class-*copied* trait property, which is not free either; this is not a net-new
   cost class, just an explicit and inspectable one instead of an implicit one.
 - **Existing `mwl-hir`/`mwl-syntax` code implementing ADR 0015 § 3's narrower design is now superseded, not
-  merely re-cited** — `crates/mwl-syntax/src/ast.rs`'s `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/
+  merely re-cited.** `crates/mwl-syntax/src/ast.rs`'s `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/
   `TraitMethodRef`, its parser production and casing rules in `parser.rs`/`casing.rs`/`token.rs`;
   `crates/mwl-hir`'s `SymbolKind::Trait` (`symbol.rs`), the `TraitDecl` arms and trait-use flattening in
   `resolve.rs`/`members.rs`/`requires.rs`, and `hierarchy.rs`'s entire trait-use/`insteadof` resolution
-  (`trait_refs`, `trait_methods`, `check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`) all need removal, and
-  the new default-method/private-method/`by`-delegation resolution (§§ 2–5) needs building in their place.
-  This ADR is docs-only as written — deliberately deferred to a dedicated follow-up coding session rather
-  than attempted alongside this decision, given M2 is already mid-flight.
+  (`trait_refs`, `trait_methods`, `check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`) — all of that has now
+  been removed (a follow-up session; see the M1 *Verification* bullet below), along with the matching
+  trait-ancestor flattening `crates/mwl-types/src/signatures.rs` had grown for ADR 0022 §2's constructor
+  check. The new default-method/private-method/`by`-delegation *resolution* (§§ 2–5) — as opposed to the
+  grammar that merely parses it — still needs building; that is M2's follow-up below, not yet started.
 - One more grammar extension to an existing call form (§ 5's `InterfaceName::method()`), a small addition to
   what a reader has to know `Identifier::method()` can mean, alongside `parent::`/`self::`/`static::`.
 - § 6.5's gap is real, not cosmetic: a trait that leans on PHP's implicit, unbounded `$this` to reach
@@ -348,14 +349,22 @@ human decision, named honestly rather than silently attempted:
 
 Verification, in the order it becomes possible:
 
-- **M1 (follow-up — not yet implemented):** the parser rejects `trait`, class-body `use TraitName, ...;`, and
+- **M1 (follow-up — implemented):** the parser rejects `trait`, class-body `use TraitName, ...;`, and
   `insteadof` with `E_TRAIT_NOT_SUPPORTED` naming this ADR; `mwl-syntax`'s AST drops `TraitDecl`,
   `UseTraitMember`, `TraitAdaptation`/`TraitAdaptationKind`, `TraitMethodRef`. New grammar parses: an
-  interface method with a body (`public` or `private`), and `by $field` as an optional suffix on one
-  `implements` entry.
+  interface method with a body (`public` or `private` — already fell out of the existing shared class-body
+  grammar with no parser change needed), and `by $field` as an optional suffix on one `implements` entry
+  (a new `ImplementsClause` AST node, recorded but not yet resolved). `mwl-hir`/`mwl-types`'s own
+  now-stale trait-flattening code (`hierarchy.rs`'s trait-use/`insteadof` resolution,
+  `signatures.rs`'s trait-ancestor flattening in `own_required_properties`/`own_lateinit_properties`, and
+  every `StmtKind::TraitDecl`/`ClassMemberKind::UseTrait` match arm) was removed alongside the AST nodes,
+  since the workspace has to build — but no *new* default/private-method or `by`-delegation resolution was
+  added; that is still M2's job below.
 - **M2 (follow-up — not yet implemented):** `crates/mwl-hir`'s trait-specific code (§ *Consequences,
-  Negative* names every file) is removed; name resolution instead resolves default methods, private-method
-  visibility, and `by`-delegation type-matching; `E_INTERFACE_MEMBER_CONFLICT`,
+  Negative* names every file) is already removed, done as part of the M1 slice above rather than held back
+  for this one — the workspace has to build once the AST nodes are gone. What is still outstanding here:
+  name resolution actually resolves default methods, private-method visibility, and `by`-delegation
+  type-matching; `E_INTERFACE_MEMBER_CONFLICT`,
   `E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE`, and `E_DELEGATE_TYPE_MISMATCH` are all reachable with a fixture
   each; `$this` inside an interface's own method body resolves only against that interface's (and its
   `extends` ancestors') own declared members; a `by`-target field's definite-assignment obligation is

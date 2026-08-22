@@ -2,8 +2,8 @@
 //! reference — a static call, a class constant (an enum case counts as one),
 //! `Class::class`, or a static property — must name something actually
 //! declared on that class or reached transitively through the
-//! [`ClassGraph`] built in [`crate::hierarchy`] (`extends`/`implements`/
-//! trait-use). [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+//! [`ClassGraph`] built in [`crate::hierarchy`] (`extends`/`implements`).
+//! [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
 //! gives a callable/constant no bare-name fallback to fall into instead, so
 //! there is nothing else a `Class::member` reference could mean.
 //!
@@ -17,7 +17,7 @@
 //!
 //! [`MemberResolver::collect_members`] walks a file's declarations, same
 //! shape as [`crate::hierarchy::HierarchyResolver::collect_links`], recording
-//! each class/interface/trait/enum's own directly-declared method, constant
+//! each class/interface/enum's own directly-declared method, constant
 //! (enum cases included), instance-property and static-property names into a
 //! [`MemberTable`]. [`MemberResolver::check`] then walks the same file's
 //! statements a second time — this time descending into every method body,
@@ -30,15 +30,8 @@
 //! silently skipped, same as everywhere else this milestone only reports
 //! what it can be sure of.
 //!
-//! **Known gaps**, both narrower versions of gaps [`crate::hierarchy`]
-//! already documents:
-//! - `self::`/`static::` inside a *trait*'s own method body resolves against
-//!   the trait's own members plus whatever it itself pulls in via `use` —
-//!   never against the class that ends up composing it, since that isn't
-//!   known at the trait's declaration site. A trait method that calls
-//!   `self::helper()` expecting the *using* class to supply `helper` is not
-//!   caught as an error here, matching PHP's own dynamic binding for this
-//!   case.
+//! **Known gaps**, narrower versions of gaps [`crate::hierarchy`] already
+//! documents:
 //! - `new Foo(...)`/`new self(...)`/etc. does not have its target checked
 //!   here — instantiation resolution is a distinct concern from a
 //!   callable/constant reference and is left for later.
@@ -181,10 +174,6 @@ impl MemberResolver {
                     let qname = QName::join(&current_ns, name_text(src, &decl.name));
                     self.collect_class_members(&decl.members, src, qname);
                 }
-                StmtKind::TraitDecl(decl) => {
-                    let qname = QName::join(&current_ns, name_text(src, &decl.name));
-                    self.collect_class_members(&decl.members, src, qname);
-                }
                 StmtKind::EnumDecl(decl) => {
                     let qname = QName::join(&current_ns, name_text(src, &decl.name));
                     {
@@ -223,7 +212,7 @@ impl MemberResolver {
                         entry.props.insert(name);
                     }
                 }
-                ClassMemberKind::UseTrait(_) | ClassMemberKind::Error => {}
+                ClassMemberKind::Error => {}
                 _ => {}
             }
         }
@@ -327,15 +316,6 @@ fn check_stmts(
                 };
                 check_members(&decl.members, src, &ctx, env);
             }
-            StmtKind::TraitDecl(decl) => {
-                let qname = QName::join(&current_ns, name_text(src, &decl.name));
-                let ctx = Ctx {
-                    current_class: Some(&qname),
-                    namespace: &current_ns,
-                    imports: &current_imports,
-                };
-                check_members(&decl.members, src, &ctx, env);
-            }
             StmtKind::EnumDecl(decl) => {
                 let qname = QName::join(&current_ns, name_text(src, &decl.name));
                 let ctx = Ctx {
@@ -388,7 +368,7 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
                     walk_expr(default, src, ctx, env);
                 }
             }
-            ClassMemberKind::UseTrait(_) | ClassMemberKind::Error => {}
+            ClassMemberKind::Error => {}
             _ => {}
         }
     }
@@ -867,7 +847,6 @@ fn member_declared_rec(
         .extends
         .iter()
         .chain(links.implements.iter())
-        .chain(links.traits.iter())
         .any(|parent| member_declared_rec(parent, name, kind, table, graph, seen))
 }
 
@@ -933,16 +912,6 @@ mod tests {
                 .iter()
                 .any(|d| d.code == Some(code::E_UNDEFINED_CLASS))
         );
-    }
-
-    #[test]
-    fn a_trait_method_is_visible_through_use() {
-        let diags = check(
-            "<?mwl\n\
-             trait Greets { function hello(): void {} }\n\
-             class Foo { use Greets; function a(): void { self::hello(); } }\n",
-        );
-        assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]

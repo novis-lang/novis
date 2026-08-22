@@ -304,7 +304,6 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Vec<(String, Span)>) {
         }
         StmtKind::ClassDecl(decl) => walk_class_members(&decl.members, src, out),
         StmtKind::InterfaceDecl(decl) => walk_class_members(&decl.members, src, out),
-        StmtKind::TraitDecl(decl) => walk_class_members(&decl.members, src, out),
         StmtKind::EnumDecl(decl) => {
             for case in &decl.cases {
                 if let Some(value) = &case.value {
@@ -339,7 +338,7 @@ fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Vec<(
                     walk_expr(default, src, out);
                 }
             }
-            ClassMemberKind::UseTrait(_) | ClassMemberKind::Error => {}
+            ClassMemberKind::Error => {}
             _ => {}
         }
     }

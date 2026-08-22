@@ -74,7 +74,7 @@ pub enum Ty {
     Iterable,
     /// `callable`
     Callable,
-    /// A resolved class, interface or trait name — the type grammar does not
+    /// A resolved class or interface name — the type grammar does not
     /// distinguish them (ADR 0007 § 3); which one `QName` names is a
     /// question for [`mwl_hir::SymbolTable`], not this representation.
     Class(QName),
@@ -365,7 +365,7 @@ impl TypeInterner {
         self.intern(Ty::Array(elem))
     }
 
-    /// Interns a resolved class/interface/trait name.
+    /// Interns a resolved class/interface name.
     #[must_use]
     pub fn class(&mut self, qname: QName) -> TypeId {
         self.intern(Ty::Class(qname))

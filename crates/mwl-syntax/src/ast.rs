@@ -11,13 +11,17 @@
 //! mandatory typed bindings, `switch`, `break`/`continue`, `try`/`catch`/
 //! `finally`), `echo`, `unset`, ADR 0007 § 3.1's typed local declaration,
 //! § 3.3's destructuring statement, and the statement-shaped rejects
-//! (`global`, `goto`, function-scope `static`). Classes, interfaces, traits
-//! and enums ([`ClassDecl`]/[`InterfaceDecl`]/[`TraitDecl`]/[`EnumDecl`]),
-//! their members ([`ClassMember`]: properties with PHP 8.4's hooks, consts,
-//! methods, trait `use`), attributes ([`AttributeGroup`]), and the
-//! file-scope declarations that sit alongside them
-//! ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) round out M1's last
-//! chunk.
+//! (`global`, `goto`, function-scope `static`). Classes, interfaces and
+//! enums ([`ClassDecl`]/[`InterfaceDecl`]/[`EnumDecl`]), their members
+//! ([`ClassMember`]: properties with PHP 8.4's hooks, consts, methods),
+//! attributes ([`AttributeGroup`]), and the file-scope declarations that sit
+//! alongside them ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) round out
+//! M1's last chunk. There is no `trait` declaration and no class-body
+//! `use Trait, ...;` — ADR 0043 replaces both with an `interface` method that
+//! carries a body (§§ 2-3) and `by $field` delegation on an
+//! [`ImplementsClause`] (§ 4); `trait`/class-body `use`/`insteadof` are all
+//! parse-time-rejected instead (`E_TRAIT_NOT_SUPPORTED`), with no AST node
+//! left to carry them.
 //!
 //! # Conventions
 //!
@@ -1049,8 +1053,6 @@ pub enum StmtKind {
     ClassDecl(ClassDecl),
     /// An interface declaration.
     InterfaceDecl(InterfaceDecl),
-    /// A trait declaration.
-    TraitDecl(TraitDecl),
     /// An enum declaration (ADR 0010).
     EnumDecl(EnumDecl),
     /// A `namespace` declaration, either form.
@@ -1094,10 +1096,25 @@ pub struct ClassDecl {
     pub name: Name,
     /// The single superclass, if any.
     pub extends: Option<Name>,
-    /// The implemented interfaces, in source order.
-    pub implements: Vec<Name>,
+    /// The implemented interfaces, in source order, each with its optional
+    /// `by $field` delegation suffix (ADR 0043 § 4).
+    pub implements: Vec<ImplementsClause>,
     /// The class body's members, in source order.
     pub members: Vec<ClassMember>,
+}
+
+/// One entry of a class's `implements` list (ADR 0043 § 4): the interface
+/// named, plus its optional `by $field` delegation suffix. `by_field` is
+/// recorded but not yet resolved — checking that `$field`'s declared type
+/// actually satisfies `name` (`E_DELEGATE_TYPE_MISMATCH`) is `mwl-hir`'s job,
+/// not the parser's.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImplementsClause {
+    /// The interface named.
+    pub name: Name,
+    /// `by $field`, if written — the property every method `name` requires
+    /// is forwarded to.
+    pub by_field: Option<Span>,
 }
 
 /// `interface Name (extends Base, ...)? { ... }`. PHP allows an interface to
@@ -1114,19 +1131,6 @@ pub struct InterfaceDecl {
     pub extends: Vec<Name>,
     /// The interface body's members (method signatures, consts, and PHP
     /// 8.4's abstract property hooks), in source order.
-    pub members: Vec<ClassMember>,
-}
-
-/// `trait Name { ... }`.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TraitDecl {
-    /// The whole declaration, `trait` through the closing brace.
-    pub span: Span,
-    /// `#[...]` attribute groups, if any.
-    pub attributes: Vec<AttributeGroup>,
-    /// The declared name.
-    pub name: Name,
-    /// The trait body's members, in source order.
     pub members: Vec<ClassMember>,
 }
 
@@ -1190,9 +1194,9 @@ pub enum ClassMemberKind {
     Const(ConstMember),
     /// A method declaration, abstract (`body: None`) or concrete.
     Method(MethodMember),
-    /// A trait `use` clause, with its adaptations if any.
-    UseTrait(UseTraitMember),
-    /// A placeholder produced during error recovery.
+    /// A placeholder produced during error recovery — also what a rejected
+    /// class-body `use TraitName, ...;` becomes, since ADR 0043 § 1 leaves no
+    /// AST node to carry it.
     Error,
 }
 
@@ -1305,60 +1309,6 @@ pub struct MethodMember {
     /// The method's body; `None` for an abstract method or an interface's
     /// method signature, both of which end in `;` instead.
     pub body: Option<Block>,
-}
-
-/// `use Trait, Trait2 (';' | '{' adaptations '}')` inside a class/trait
-/// body.
-#[derive(Clone, Debug, PartialEq)]
-pub struct UseTraitMember {
-    /// The traits named, in source order.
-    pub traits: Vec<Name>,
-    /// The `{ ... }` adaptation block's entries, if a block was written.
-    pub adaptations: Vec<TraitAdaptation>,
-}
-
-/// One `Trait::method` reference inside a trait adaptation.
-#[derive(Clone, Debug, PartialEq)]
-pub struct TraitMethodRef {
-    /// The trait named, if the `Trait::` qualifier was written — omitted
-    /// only when a single unqualified method name is enough to be
-    /// unambiguous.
-    pub trait_name: Option<Name>,
-    /// The method's name.
-    pub method: Span,
-}
-
-/// One entry of a trait `use { ... }` adaptation block (ADR 0015 § 3).
-#[derive(Clone, Debug, PartialEq)]
-pub struct TraitAdaptation {
-    /// What this adaptation does.
-    pub kind: TraitAdaptationKind,
-    /// The whole adaptation, method reference through the trailing `;`.
-    pub span: Span,
-}
-
-/// The shape of a [`TraitAdaptation`].
-#[derive(Clone, Debug, PartialEq)]
-pub enum TraitAdaptationKind {
-    /// `Trait::method insteadof Other, ...;` — kept, and the only trait
-    /// adaptation that is (ADR 0015 § 3): picks a winner on a collision.
-    InsteadOf {
-        /// The method being kept.
-        method: TraitMethodRef,
-        /// The traits it is kept over, in source order.
-        over: Vec<Name>,
-    },
-    /// `Trait::method as (visibility)? (name)?;` — always rejected
-    /// (ADR 0015 § 3), whether it renames, changes visibility, or both.
-    /// Parsed in full so the diagnostic can say which part is the problem.
-    As {
-        /// The method being adapted.
-        method: TraitMethodRef,
-        /// The visibility-only part, if written.
-        visibility: Option<Modifier>,
-        /// The new name, if written.
-        new_name: Option<Span>,
-    },
 }
 
 /// `namespace Name;` or `namespace Name? { ... }`.
