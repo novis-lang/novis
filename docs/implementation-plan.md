@@ -42,19 +42,23 @@
 > stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and finishing `mwl-ir`.
 >
 > `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, **`new`/a static call**, **an
-> instance method call and a compile-time-known property access**, and now **`var` locals and multi-base
-> integer-literal cooking**: `crates/mwl-ir/src/ids.rs`
+> instance method call and a compile-time-known property access**, **`var` locals and multi-base
+> integer-literal cooking**, and now **`string` locals with refcount retain/release operations** — the
+> milestone text's first non-scalar *data* representation and the first refcount operations of any kind:
+> `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
 > `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
-> `InstKind::Call`, `InstKind::New` and `InstKind::FieldGet`; `lower.rs` lowers a method body of typed local
+> `InstKind::Call`, `InstKind::New`, `InstKind::FieldGet`, `InstKind::ConstStr`, `InstKind::Retain` and
+> `InstKind::Release`; `lower.rs` lowers a method body of typed local
 > declarations, an ADR 0037 `var $x = expr;` inferred-type declaration, plain `$x = expr;` reassignment,
 > scalar arithmetic/comparison/unary operators, `return`,
 > nested `{}` blocks, `if`/`while`, `new Target(...)`, a static call
 > (`self::method(...)`/`Class::method(...)`), an instance method call (`$obj->method(...)`, including
-> `$this->…`), and a property access through a receiver whose declaring class is statically known
-> (`$obj->prop`, including `$this->prop`) end to end, with `insta` snapshot tests over the printed form
+> `$this->…`), a property access through a receiver whose declaring class is statically known
+> (`$obj->prop`, including `$this->prop`), and now a `string`-typed local/parameter/return value
+> initialized or reassigned from a literal, end to end, with `insta` snapshot tests over the printed form
 > (`print.rs`). A bare integer literal now cooks correctly in all four bases `mwl-syntax`'s lexer
 > accepts (decimal, `0x`, `0o`, `0b`), not just decimal. Every lowered method's `Function::params` now
 > carries an implicit receiver at index 0
@@ -67,6 +71,21 @@
 > join shape. An inert `InstKind::Safepoint` marker is reserved at function entry and on every `while` back
 > edge — the two fixed sites the project-start "safepoints from the first backend commit" decision names —
 > but it lowers to nothing yet; no codegen or guard test needs it functional before M3's backend exists.
+>
+> The refcount insertion policy chosen is naive and syntactic rather than a liveness/move analysis:
+> `Lowering::bind_local` retains a value copied out of an existing `$name` binding into a second durable
+> slot (a fresh literal needs no retain — it already has exactly one natural owner), releases a slot's
+> previous value on overwrite, and `Lowering::release_all_locals` releases every refcounted local still
+> live at a `return`/implicit-`void` fallthrough except the one slot whose value transfers out directly
+> (a bare `return $name;`). This stays exactly balanced today because a `string` value currently has only
+> two possible producers (a fresh literal or a bare-variable copy); `docs/implementation-plan.md`'s own
+> optimizer feature list already names "refcount elision" as separate, later work, so emitting
+> unconditionally now and optimizing later — rather than a harder move analysis up front — matches
+> CLAUDE.md's priority ordering (correctness/simplicity before memory/latency). `string` is a
+> local/parameter/return-*type* representation only so far: a call argument, a resolved call's return
+> type, and a property field's type all still panic naming `string` unsupported (`lower_checked_ty` has
+> no `CheckedTy::String` arm yet) — extending past a local's own lifecycle needs the same aliasing
+> judgment applied to a property read and to whatever calling convention a call/return boundary picks.
 >
 > Widening past scalars needed an architecture decision the plan flagged as open for two sessions: whether
 > `mwl-ir` should depend on `mwl-types`/`mwl-hir` directly and re-derive a call's/`new`'s resolved target
@@ -90,8 +109,12 @@
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
 > from), array access, virtual dispatch (every call/access lowered so far has its receiver's static type
-> equal to its runtime class), variadic/named/spread call arguments, and non-scalar *data* types
-> (`string`/`bytes`/`array<T>`) and therefore refcount operations on them.
+> equal to its runtime class), variadic/named/spread call arguments, string concatenation (`.`) and
+> interpolated/heredoc/nowdoc string literals (only a plain single/double-quoted literal with no
+> interpolation cooks today, and only the common escapes — a numeric escape passes through uncooked), a
+> `string` value crossing a call-argument/return/property-field boundary (see the paragraph above), and
+> `bytes`/`array<T>` (no representation exists yet at all; `Ty::Object` also still has no refcount
+> operations of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —
