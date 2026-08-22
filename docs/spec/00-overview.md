@@ -15,8 +15,8 @@
   file grows, and later spec files (`01-…`, `02-…`) are expected — it is not meant to be read as the whole
   language on its own.
 
-> **In short:** a `.mwl` file opens code mode with `<?mwl`, `<?php` (accepted, same grammar), or the short
-> echo tag `<?=`; everything else is inline HTML emitted verbatim, exactly like PHP. `require` shares
+> **In short:** a `.mwl` file opens code mode with `<?mwl` or the short echo tag `<?=`; everything else is
+> inline HTML emitted verbatim, exactly like PHP. `require` shares
 > everything with the calling frame and `spawn script` shares nothing but compiled code — the two are
 > defined next to each other below so the difference cannot be missed the way
 > [ADR 0006](../adr/0006-isolated-script-execution.md) predicts it will be. Every declaration slot ADR 0007
@@ -35,19 +35,21 @@ in one of two modes, exactly as PHP is:
 
 - **HTML mode**, the default at the start of a file and after a closing `?>`. Every byte is emitted verbatim
   as output, with no escaping, until the lexer sees an opening tag.
-- **Code mode**, entered by one of three opening spellings and left by `?>`:
+- **Code mode**, entered by one of two opening spellings and left by `?>`:
 
   | opens | leaves | meaning |
   |---|---|---|
-  | `<?mwl` | `?>` | ordinary code mode |
-  | `<?php` | `?>` | accepted as a second spelling of `<?mwl`, identical parse — the pragmatic-superset
-    promise applies to the tag itself, not only to what is inside it |
+  | `<?mwl` | `?>` | ordinary code mode — the only code-mode open tag MWL keeps |
   | `<?=` `expr` | `?>` | short-echo: exactly `<?mwl echo expr; ?>`, one expression, `;` optional before `?>` |
+
+  `<?php` is diagnosed rather than accepted: [ADR 0049](../adr/0049-single-open-tag-and-single-exit-keyword.md)
+  withdraws its earlier acceptance as a second spelling of `<?mwl`, now that a PHP file needs `mwl convert`
+  regardless and a plain tag rename costs that tool nothing extra.
 
   A `?>` immediately followed by a single newline consumes that newline (PHP's rule, kept so a template line
   ending in `?>` does not emit a blank line). There is no closing-tag omission rule beyond that: an unclosed
-  `<?mwl`/`<?php` block simply runs to end of file, which is legal and is how a pure-code `.mwl` file with no
-  inline HTML is written.
+  `<?mwl` block simply runs to end of file, which is legal and is how a pure-code `.mwl` file with no inline
+  HTML is written.
 
 There is no dual short-open-tag ambiguity to resolve (PHP's long-deprecated bare `<?`): MWL never had it, so
 there is nothing to accept or reject.

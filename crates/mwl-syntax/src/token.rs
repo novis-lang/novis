@@ -55,8 +55,9 @@ pub enum TokenKind {
     InlineHtml,
     /// `<?mwl`
     OpenTagMwl,
-    /// `<?php` — accepted as a second spelling of `<?mwl`, identical parse
-    /// ([`docs/spec/00-overview.md` § 1](../../../docs/spec/00-overview.md)).
+    /// `<?php` — lexed like `<?mwl` so the parser can diagnose it by name
+    /// rather than misreading it as inline HTML; rejected at parse time,
+    /// `<?mwl` is the only code-mode open tag MWL keeps (ADR 0049 § 2).
     OpenTagPhp,
     /// `<?=` — short-echo, exactly `<?mwl echo`.
     OpenTagEcho,

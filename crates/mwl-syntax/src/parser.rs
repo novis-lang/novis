@@ -2429,7 +2429,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
+    /// `exit`, optionally with a status/message argument. `die` reaches here
+    /// too (both keywords dispatch to this method) but is rejected — MWL
+    /// keeps exactly one process-termination keyword. See ADR 0049 § 1.
     fn parse_exit(&mut self) -> Expr {
+        let is_die = self.at_keyword(Keyword::Die);
         let start = self.bump().span;
         let arg = if self.eat(TokenKind::LParen).is_some() {
             let e = if self.at(TokenKind::RParen) {
@@ -2443,9 +2447,25 @@ impl<'src, 'd> Parser<'src, 'd> {
             None
         };
         let span = start.to(self.last_span);
+        if is_die {
+            self.diags.report(
+                Diagnostic::error(code::E_DIE_UNSUPPORTED, "`die` is not supported")
+                    .with_primary(
+                        span,
+                        "use `exit` instead — it is the only process-termination keyword MWL keeps",
+                    )
+                    .with_help(
+                        "`exit` accepts the same optional status/message argument `die` did",
+                    ),
+            );
+            return Expr {
+                span,
+                kind: ExprKind::Error,
+            };
+        }
         Expr {
             span,
-            kind: ExprKind::ExitOrDie(arg),
+            kind: ExprKind::Exit(arg),
         }
     }
 
@@ -2789,17 +2809,35 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     fn parse_statement_inner(&mut self) -> Stmt {
         // --- HTML-mode round trip, spec 00-overview.md § 1 ---------------------
-        // `?>`/`<?php`/`<?mwl` can reopen or reclose code mode anywhere a
-        // statement is expected, not just at file scope — e.g.
-        // `if ($x) { ?>html<?php }` is legal, exactly as in PHP. Skip every
-        // bare tag token here; stop at the first token that is either real
-        // inline HTML (one `InlineHtml` statement) or ordinary code. Nothing
-        // here recurses into `self.parse_statement()`, so a tag run can't
-        // loop forever even when the file ends right after `?>`.
+        // `?>`/`<?mwl` can reopen or reclose code mode anywhere a statement is
+        // expected, not just at file scope — e.g. `if ($x) { ?>html<?mwl }` is
+        // legal, exactly as in PHP. Skip every bare tag token here; stop at
+        // the first token that is either real inline HTML (one `InlineHtml`
+        // statement) or ordinary code. Nothing here recurses into
+        // `self.parse_statement()`, so a tag run can't loop forever even when
+        // the file ends right after `?>`.
         loop {
             match self.peek().kind {
-                TokenKind::CloseTag | TokenKind::OpenTagMwl | TokenKind::OpenTagPhp => {
+                TokenKind::CloseTag | TokenKind::OpenTagMwl => {
                     self.bump();
+                }
+                TokenKind::OpenTagPhp => {
+                    // ADR 0049 § 2: `<?mwl` is the only code-mode open tag —
+                    // the lexer still recognizes `<?php` (same reason `eval`
+                    // still lexes as a keyword) purely so this can name the
+                    // fix instead of misreading it as inline HTML.
+                    let span = self.bump().span;
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_PHP_OPEN_TAG_UNSUPPORTED,
+                            "`<?php` is not supported",
+                        )
+                        .with_primary(
+                            span,
+                            "use `<?mwl` instead — it is the only code-mode open tag MWL keeps",
+                        )
+                        .with_help("`<?mwl` accepts exactly the same code that followed `<?php`"),
+                    );
                 }
                 TokenKind::InlineHtml => {
                     let span = self.bump().span;
@@ -6152,6 +6190,37 @@ mod tests {
     }
 
     #[test]
+    fn die_is_diagnosed_naming_exit() {
+        for src in ["die;", "die();", "die('bye');"] {
+            let (s, diags) = parse_stmt_with_diags(src);
+            assert!(diags.has_errors(), "expected a diagnostic for {src:?}");
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_DIE_UNSUPPORTED)),
+                "expected E_DIE_UNSUPPORTED for {src:?}, got {diags:?}"
+            );
+            let StmtKind::Expr(e) = s.kind else {
+                panic!("expected an expression statement: {s:?}");
+            };
+            assert!(matches!(e.kind, ExprKind::Error));
+        }
+
+        // `exit` in every one of the same shapes is unaffected.
+        for src in ["exit;", "exit();", "exit('bye');", "exit(1);"] {
+            let (s, diags) = parse_stmt_with_diags(src);
+            assert!(
+                !diags.has_errors(),
+                "unexpected diagnostics for {src:?}: {diags:?}"
+            );
+            let StmtKind::Expr(e) = s.kind else {
+                panic!("expected an expression statement: {s:?}");
+            };
+            assert!(matches!(e.kind, ExprKind::Exit(_)));
+        }
+    }
+
+    #[test]
     fn require_is_an_expression() {
         let s = parse_stmt_ok("$x = require 'a.mwl';");
         let StmtKind::Expr(e) = s.kind else {
@@ -6610,6 +6679,23 @@ mod tests {
         assert!(matches!(stmts[1].kind, StmtKind::Echo(_)));
     }
 
+    #[test]
+    fn php_open_tag_is_diagnosed_naming_mwl_tag() {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", "<?php echo 1; ?>".to_string());
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(id), &mut diags);
+        assert!(diags.has_errors());
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PHP_OPEN_TAG_UNSUPPORTED))
+        );
+        // The tag is rejected, but the code after it still parses as code —
+        // not misread as inline HTML.
+        assert!(matches!(stmts[0].kind, StmtKind::Echo(_)));
+    }
+
     /// `cargo fuzz run parse` found this exact byte sequence — minimized to
     /// a `switch` keyword followed by nothing resembling `case`/`default`/
     /// `}` — spinning forever and growing `cases`/`body` without bound
@@ -6703,9 +6789,9 @@ mod tests {
 
     #[test]
     fn closing_and_reopening_a_tag_mid_block_is_legal() {
-        // `if ($x) { ?>html<?php }` — PHP allows leaving code mode inside a
+        // `if ($x) { ?>html<?mwl }` — PHP allows leaving code mode inside a
         // block; the `}` that closes the `if` is itself back in code mode.
-        let stmts = parse_file_ok("<?mwl if ($x) { ?>html<?php } ?>tail");
+        let stmts = parse_file_ok("<?mwl if ($x) { ?>html<?mwl } ?>tail");
         let StmtKind::If { then, .. } = &stmts[0].kind else {
             panic!("expected an if: {:?}", stmts[0]);
         };

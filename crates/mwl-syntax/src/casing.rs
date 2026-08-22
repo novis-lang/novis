@@ -689,7 +689,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
                 check_expr(value, src, diags);
             }
         }
-        ExprKind::ExitOrDie(Some(x)) => check_expr(x, src, diags),
+        ExprKind::Exit(Some(x)) => check_expr(x, src, diags),
         ExprKind::Isset(xs) => {
             for x in xs {
                 check_expr(x, src, diags);

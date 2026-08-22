@@ -81,6 +81,7 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0046](0046-attributes-shape-literal-metadata.md) | `#[...]` attributes are shape-literal metadata, checked structurally, retrieved via `Core\Attributes::get<T>`/`::all<T>` | Accepted |
 | [0047](0047-literal-and-enum-case-types.md) | A scalar literal or a named enum case is itself a type; unioning them declares an explicit closed set, checked like any other conversion | Accepted |
 | [0048](0048-portable-single-file-executables.md) | A portable single-file executable appends source to the host binary; rebundling is a build-time CLI step, not a runtime one | Accepted |
+| [0049](0049-single-open-tag-and-single-exit-keyword.md) | `<?php` and `die` are rejected; `<?mwl` and `exit` are the only spellings kept | Accepted |
 
 ## Decisions taken at project start
 

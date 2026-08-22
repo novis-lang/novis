@@ -90,9 +90,10 @@ only the surviving syntax changes.
   already performs. Purely mechanical — the cast's operand and target type are both already known at the
   syntax level — so it costs the converter a rule, not a design.
 - **A further, small subtraction from the "pragmatic superset" promise.** Namable exactly: a PHP file with a
-  legacy cast anywhere no longer parses without that one rewrite. Every other PHP syntax this project has
-  kept-but-reinterpreted (`<?php`, `list(...)`) stays; this is the first case where keeping the spelling was
-  deliberately un-done once its only remaining argument was habit.
+  legacy cast anywhere no longer parses without that one rewrite. Other kept-but-reinterpreted PHP syntax
+  (`list(...)`) stays; this is the first case where keeping the spelling was deliberately un-done once its
+  only remaining argument was habit. (`<?php` itself was withdrawn later, by
+  [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md), for the identical reason.)
 
 ## Alternatives rejected
 

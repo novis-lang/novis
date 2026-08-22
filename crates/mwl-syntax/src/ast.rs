@@ -748,8 +748,9 @@ pub enum ExprKind {
     Isset(Vec<Expr>),
     /// `empty(expr)`
     Empty(Box<Expr>),
-    /// `exit`/`die`, optionally with a status/message expression.
-    ExitOrDie(Option<Box<Expr>>),
+    /// `exit`, optionally with a status/message expression. `die` is a
+    /// rejected synonym (ADR 0049 § 1) and never reaches this variant.
+    Exit(Option<Box<Expr>>),
     /// `spawn script path with(...)`
     /// ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)).
     SpawnScript {
@@ -917,16 +918,17 @@ pub enum StmtKind {
     Block(Block),
     /// An empty statement, a lone `;` — most often a loop's empty body
     /// (`while ($more_work());`), and also the marker the parser emits for a
-    /// bare code-tag token (`<?mwl`, `<?php`, `?>`) encountered where a
-    /// statement was expected — see [`Self::InlineHtml`]'s doc for why that
-    /// token, and not this one, is where the interesting span lives.
+    /// bare code-tag token (`<?mwl`, `?>`, or the rejected `<?php` — see
+    /// ADR 0049 § 2) encountered where a statement was expected — see
+    /// [`Self::InlineHtml`]'s doc for why that token, and not this one, is
+    /// where the interesting span lives.
     Empty,
     /// A run of literal HTML/text between two code tags, emitted verbatim —
     /// spec `00-overview.md` § 1. Unlike [`Self::Echo`], this text is never
     /// escaped or interpreted: the span points straight at the source bytes.
     /// Reachable anywhere a statement is expected, not just at file scope,
-    /// because `?>`/`<?php` can appear inside a block
-    /// (`if ($x) { ?>html<?php }` is legal, exactly as in PHP).
+    /// because `?>`/`<?mwl` can appear inside a block
+    /// (`if ($x) { ?>html<?mwl }` is legal, exactly as in PHP).
     InlineHtml(Span),
     /// `if (cond) then (elseif (cond2) then2)* (else else_)?`. An `elseif`
     /// or an `else if` both collapse to the same shape: a nested `If` inside

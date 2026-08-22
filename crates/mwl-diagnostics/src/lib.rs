@@ -225,6 +225,12 @@ pub mod code {
     /// arrives with `mwl-hir`'s follow-up resolution work, not with this
     /// diagnostic.
     pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227");
+    /// `die`, in any position `exit` is also accepted: MWL keeps exactly one
+    /// process-termination keyword. See ADR 0049 § 1.
+    pub const E_DIE_UNSUPPORTED: Code = Code::new("E0228");
+    /// The `<?php` open tag: MWL keeps exactly one code-mode open tag,
+    /// `<?mwl` (plus the short-echo `<?=`). See ADR 0049 § 2.
+    pub const E_PHP_OPEN_TAG_UNSUPPORTED: Code = Code::new("E0229");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

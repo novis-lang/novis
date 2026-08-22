@@ -5,7 +5,8 @@
 //! # Mode model
 //!
 //! `modes[0]` is always the *outer* state — [`Mode::Html`] or [`Mode::Code`]
-//! with `interpolation: false` — and a `<?mwl`/`<?php`/`<?=` tag or a `?>`
+//! with `interpolation: false` — and a `<?mwl`/`<?=` tag (or the rejected-
+//! but-still-lexed `<?php`) or a `?>`
 //! toggles it **in place**, never by pushing: there is exactly one outer state
 //! at a time, so `modes.len() == 1` is the precise condition for "an unclosed
 //! tag is legal to run to end of file"
@@ -1080,7 +1081,12 @@ mod tests {
     }
 
     #[test]
-    fn php_tag_is_accepted_like_mwl_tag() {
+    fn php_tag_still_lexes_as_its_own_token() {
+        // The lexer keeps recognizing `<?php` and switches to code mode on
+        // it, same as `<?mwl` — purely so `mwl-syntax`'s parser can produce a
+        // diagnostic naming `<?mwl` (ADR 0049 § 2) instead of misreading it
+        // as inline HTML. This is a lex-only test; the rejection itself is a
+        // parser-level diagnostic, asserted in `parser.rs`.
         assert_eq!(
             kinds_ok("<?php echo 1; ?>"),
             vec![

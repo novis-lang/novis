@@ -25,9 +25,12 @@
 > item from ADRs 0024 (`tainted`), 0031 (`fn`-only closures), 0033 (`secret`), 0034 (legacy casts
 > rejected), 0035 (truthy conditions, checker-only), 0036 (object literals/shape types) and 0037 (`var`
 > inference). Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
-> checkout clean, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics (478,073 /
-> 45,861 executions). Known parser gaps (`goto` labels, PHP's alternative colon syntax — deliberately
-> out of scope) are tracked in `mwl-syntax`'s own module docs.
+> checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics
+> (478,073 / 45,861 executions). The "clean" (zero-diagnostic) file count that test reports predates
+> ADR 0049: every corpus file opens with `<?php`, so every file now also trips exactly one `E0229`
+> (`<?php` rejected in favor of `<?mwl`) — expected, not re-measured here since the corpus isn't
+> checked in. Known parser gaps (`goto` labels, PHP's alternative colon syntax — deliberately out of
+> scope) are tracked in `mwl-syntax`'s own module docs.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well
 > underway. ADRs with checker-side rules landed so far: 0007

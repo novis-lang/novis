@@ -45,6 +45,7 @@ the row below for whatever you're touching to get that.
 | PHP's `(int)$x`/`(string)$x` legacy cast syntax, why it doesn't parse | [ADR 0034](docs/adr/0034-legacy-cast-syntax-rejected.md). Holds the only copy of the rule that `as` is the sole conversion spelling — the legacy cast keywords are diagnosed at parse time naming the equivalent `as` expression, with no alias kept. |
 | Whether an `if`/`while`/`for`/`?:`/`&&`/`\|\|`/`!` condition needs an explicit `as bool`, PHP truthiness | [ADR 0035](docs/adr/0035-truthy-boolean-context.md). Holds the only copy of the truthy table and the exact six syntax positions it applies to; every other `bool` position (a parameter, property, `==`/`===`) is untouched and still needs `as bool`. |
 | PHP's `and`/`or`/`xor` keyword operators, why they don't parse, "why does PHP have two ways to write AND/OR" | [ADR 0045](docs/adr/0045-and-or-xor-keyword-operators-rejected.md). Holds the only copy of the rule that `&&`/`\|\|` are the sole logical connectives — `and`/`or` are diagnosed naming that replacement, `xor` is diagnosed with no one-token replacement at all. |
+| `<?php` as an open tag, PHP's `die` keyword, "why does MWL keep only one exit keyword"/"only one open tag" | [ADR 0049](docs/adr/0049-single-open-tag-and-single-exit-keyword.md). Holds the only copy of the rule that `<?mwl` is the sole code-mode open tag and `exit` is the sole process-termination keyword — `<?php` and `die` are each diagnosed at parse time naming the survivor, since neither ever differed in behavior from the spelling kept. |
 | Restricting a parameter/property to one of a fixed set of values (PhpStorm's `#[ExpectedValues]`), `"a"\|"b"\|"c"` literal types, a subset of a class's constants, or a subset of an enum's cases (`Mode::A\|Mode::B`) | [ADR 0047](docs/adr/0047-literal-and-enum-case-types.md). Holds the only copy of the rule that a `string`/`int` literal and a named enum case are each their own type, unioned to declare a closed set; a class constant folds to its own literal type in that position, but an enum case never folds to its backing value — and why the wildcard/glob spelling (`Foo::TYPE_*`) was rejected outright rather than deferred. |
 | `#[Attribute]`-style metadata, PHP doc-comment-as-config, annotations, `Core\Attributes`, why there's no attribute base class to declare | [ADR 0046](docs/adr/0046-attributes-shape-literal-metadata.md). Holds the only copy of the `#[Name(...)]`/`#[{...}]` shape-literal attribute syntax, the compile-time-constant-only payload rule, and the `Core\Attributes::get<T>`/`::all<T>` structural retrieval API — deliberately not part of `Core\Reflect`. |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion | [ADR 0009](docs/adr/0009-string-and-bytes.md) — **Proposed**, not yet Accepted: the default length/indexing granularity awaits a cost measurement (see its *Revisiting*). Holds the only copy of the `string`/`bytes` split and the conversion rule between them. |
@@ -280,6 +281,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   artifacts** — `mwl build --compile` reuses the existing artifact cache and ADR 0025's static-`require`-graph
   rule unchanged, is CLI-only, and does not extend to bundling a web-serving deployment
   ([ADR 0048](docs/adr/0048-portable-single-file-executables.md)).
+- **`<?mwl` is the only code-mode open tag, and `exit` is the only process-termination keyword** — `<?php`
+  and `die` are each diagnosed at parse time naming the survivor; the lexer still recognizes both purely so
+  the diagnostic can point at the fix, and neither reaches the AST as anything but a rejected construct
+  ([ADR 0049](docs/adr/0049-single-open-tag-and-single-exit-keyword.md)).
 
 ## Commands
 

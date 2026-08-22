@@ -916,7 +916,7 @@ fn infer(
             env.interner.never()
         }
         ExprKind::Isset(_) | ExprKind::Empty(_) => env.interner.bool_ty(),
-        ExprKind::ExitOrDie(opt) => {
+        ExprKind::Exit(opt) => {
             if let Some(e) = opt {
                 check_expr(e, None, live, scope, ctx, env);
             }

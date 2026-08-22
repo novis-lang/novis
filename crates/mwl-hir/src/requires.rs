@@ -518,7 +518,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
                 e!(value);
             }
         }
-        ExprKind::ExitOrDie(Some(x)) => e!(x),
+        ExprKind::Exit(Some(x)) => e!(x),
         ExprKind::Isset(xs) => {
             for x in xs {
                 e!(x);
