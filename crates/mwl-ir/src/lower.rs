@@ -292,6 +292,17 @@ impl<'a> Lowering<'a> {
         });
     }
 
+    /// Appends an [`InstKind::ArraySet`] to `b` — see
+    /// [`Self::lower_reassignment`]'s `Index`-target arm for the retain
+    /// policy wrapped around this.
+    fn emit_array_set(&mut self, b: BlockId, array: ValueId, key: ValueId, value: ValueId) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::ArraySet { array, key, value },
+        });
+    }
+
     /// Binds `name` to `(v, ty)` in `env` — every `var`/typed local
     /// declaration and every plain reassignment goes through here, `source`
     /// being the already-lowered right-hand-side expression. This is the
@@ -592,9 +603,52 @@ impl<'a> Lowering<'a> {
                 }
                 self.emit_field_set(cur, object_v, class_label, field_name, v);
             }
+            // `$arr[$i] = expr;` — the element's declared type comes from
+            // `self.exprs`, exactly like the read side above (`check_assign`'s
+            // general arm routes the target back through the same
+            // `check_expr`/`ExprKind::Index` path, so it records the same
+            // `ExprInfo::Index` entry a read would, keyed by `target.span`).
+            // Unlike a property write, there is no previous value to read
+            // back and release here — see `InstKind::ArraySet`'s own doc
+            // comment for why an array key may or may not already be
+            // present, so this bundles the whole replace-or-insert into one
+            // instruction rather than a get/release pair. `base[] = expr;`
+            // (`index` is `None`) — PHP's append syntax — still panics: it
+            // needs its own "next available integer key" counter this crate
+            // has no representation for yet.
+            ExprKind::Index { base, index } => {
+                let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(target.span) else {
+                    panic!(
+                        "mwl-ir: an array-index assignment target at {:?} has no resolved \
+                         element type recorded in the typed-expression table — either it wasn't \
+                         checked with the same table, or its base erased to `mixed` (an \
+                         unresolved array), which this crate does not yet lower (see the crate \
+                         docs' known gaps)",
+                        target.span
+                    );
+                };
+                let elem_ty = lower_checked_ty(*elem_ty, self.checked_types);
+                let Some(index) = index else {
+                    panic!(
+                        "mwl-ir does not yet lower `$a[] = expr;` append syntax; see the crate \
+                         docs' known gaps"
+                    );
+                };
+                let (array_v, _) = self.lower_expr(base, None, env, cur);
+                let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+                if key_aliasing {
+                    self.emit_retain(cur, key_v);
+                }
+                let (v, _) = self.lower_expr(value, Some(elem_ty), env, cur);
+                if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
+                    self.emit_retain(cur, v);
+                }
+                self.emit_array_set(cur, array_v, key_v, v);
+            }
             other => panic!(
-                "mwl-ir's control-flow slice only lowers reassignment to a plain local or a \
-                 compile-time-known property, not {other:?}"
+                "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \
+                 compile-time-known property, or a compile-time-known array element, not \
+                 {other:?}"
             ),
         }
     }
@@ -1211,10 +1265,52 @@ impl<'a> Lowering<'a> {
                 }
                 self.emit(cur, Ty::Array, InstKind::ArrayNew { entries })
             }
+            // `$arr[$i]` — the element's declared type comes from
+            // `self.exprs`, exactly like a property access's declaring
+            // class: a base that erased to `mixed` (ADR 0007 § 5's own
+            // "nothing compile-time-known to read" case for an unresolved
+            // array) has no `ExprInfo::Index` entry at all, so this panics
+            // naming that case rather than lowering it. `base[]` (`index`
+            // is `None`) has no meaning as a read at all — it is PHP's
+            // append syntax, assignment-target-only — so it panics too.
+            ExprKind::Index { base, index } => {
+                let Some(index) = index else {
+                    panic!(
+                        "mwl-ir does not lower `$a[]` as a read expression — append syntax \
+                         (`index` is `None`) is assignment-target-only; see the crate docs' \
+                         known gaps"
+                    );
+                };
+                let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(expr.span) else {
+                    panic!(
+                        "mwl-ir: an array-index read at {:?} has no resolved element type \
+                         recorded in the typed-expression table — either it wasn't checked with \
+                         the same table, or its base erased to `mixed` (an unresolved array), \
+                         which this crate does not yet lower (see the crate docs' known gaps)",
+                        expr.span
+                    );
+                };
+                let result_ty = lower_checked_ty(*elem_ty, self.checked_types);
+                let (array_v, _) = self.lower_expr(base, None, env, cur);
+                let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+                let result = self.emit(
+                    cur,
+                    result_ty,
+                    InstKind::ArrayGet {
+                        array: array_v,
+                        key: key_v,
+                    },
+                );
+                if !key_aliasing {
+                    self.emit_release(cur, key_v);
+                }
+                result
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
-                 operators, `new`, a static or instance method call, property access, and an \
-                 array literal — got {other:?}; see the crate docs' known gaps"
+                 operators, `new`, a static or instance method call, property access, an array \
+                 literal, and an array-element read — got {other:?}; see the crate docs' known \
+                 gaps"
             ),
         }
     }
@@ -1264,6 +1360,54 @@ impl<'a> Lowering<'a> {
                 "mwl-ir only converts a scalar operand to `string` for `.` so far — got \
                  {other:?}; a `Stringable`-object operand needs a resolved `toString` call this \
                  crate can't synthesize yet, see the crate docs' known gaps"
+            ),
+        }
+    }
+
+    /// Lowers `expr` — an `ExprKind::Index`'s subscript — and normalizes it
+    /// to a [`Ty::Str`] key: ADR 0007 § 5's "every key is a `string`" rule,
+    /// with an `int`/`uint` subscript normalized to its decimal-string form
+    /// (`$a[8]` is `$a["8"]`) via the exact [`Helper::IntToString`]/
+    /// [`Helper::UintToString`] conversion [`Self::concat_operand`] already
+    /// uses for `.`'s scalar operand — reused verbatim rather than a new
+    /// policy. A `float`, `bool`, or `null` subscript is a compile-time
+    /// rejection ADR 0007 § 5 also names, but `mwl_types::expr::check_expr`'s
+    /// `Index` arm doesn't enforce it yet — the same known gap
+    /// [`ir::InstKind::ArrayNew`]'s own doc comment already names for an
+    /// array literal's explicit `key =>` — so this panics naming the case
+    /// rather than guessing at a conversion PHP itself doesn't define for
+    /// those types.
+    ///
+    /// Returns the resulting `Ty::Str` value together with whether it
+    /// [`is_aliasing_read`]s storage a durable slot still owns — exactly the
+    /// same second half [`Self::concat_operand`] returns, for the same
+    /// reason: a plain `string` subscript passed through unchanged may still
+    /// be a bare local/property/array read, while a freshly converted
+    /// `int`/`uint` key is always a brand new buffer with exactly one owner.
+    fn lower_array_key(&mut self, expr: &Expr, env: &Env, cur: BlockId) -> (ValueId, bool) {
+        let (v, ty) = self.lower_expr(expr, None, env, cur);
+        match ty {
+            Ty::Str => (v, is_aliasing_read(&expr.kind)),
+            Ty::Int | Ty::Uint => {
+                let helper = if ty == Ty::Int {
+                    Helper::IntToString
+                } else {
+                    Helper::UintToString
+                };
+                let (sv, _) = self.emit(
+                    cur,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper,
+                        args: vec![v],
+                    },
+                );
+                (sv, false)
+            }
+            other => panic!(
+                "mwl-ir only lowers an int/uint/string array-subscript key — got {other:?}; \
+                 mwl_types doesn't yet reject a float/bool/null subscript (ADR 0007 § 5), so \
+                 this crate can't trust it was rejected upstream; see the crate docs' known gaps"
             ),
         }
     }
@@ -1504,16 +1648,18 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
 /// judgment [`Lowering::bind_local`]'s own doc comment already describes for
 /// a bare variable read, now shared with a call argument
 /// ([`Lowering::lower_call_args`]) and a returned expression
-/// (`StmtKind::Return`'s own arm). A plain local (`ExprKind::Variable`) and a
-/// compile-time-known property read (`ExprKind::PropertyAccess`) both borrow
+/// (`StmtKind::Return`'s own arm). A plain local (`ExprKind::Variable`), a
+/// compile-time-known property read (`ExprKind::PropertyAccess`), and a
+/// compile-time-known array-element read (`ExprKind::Index`) all borrow
 /// storage that keeps its own reference after this read — a local's own slot,
-/// or the object's field — so copying either into a new durable slot needs a
+/// the object's field, or the array's own entry (ADR 0007 § 5's copy-on-write
+/// value semantics) — so copying any of them into a new durable slot needs a
 /// retain. A fresh literal, `new`, or a call's own result already has exactly
 /// one natural owner and needs none.
 fn is_aliasing_read(kind: &ExprKind) -> bool {
     matches!(
         kind,
-        ExprKind::Variable(_) | ExprKind::PropertyAccess { .. }
+        ExprKind::Variable(_) | ExprKind::PropertyAccess { .. } | ExprKind::Index { .. }
     )
 }
 
@@ -2278,5 +2424,103 @@ class T {
             "<?mwl\nclass Foo {\n  public array $data;\n  function constructor(array $data) {\n    $this->data = $data;\n  }\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo([1]);\n    array $other = [2];\n    $obj->data = $other;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a[0]` through an `array<int>` parameter — the simplest array-access
+    /// read: a fresh, non-refcounted `int` element, and a literal `int` key
+    /// normalized to its decimal-string form through
+    /// `Helper::IntToString` before `InstKind::ArrayGet` reads it. The
+    /// converted key is a fresh, non-aliasing buffer nothing else will ever
+    /// release, so `Lowering::lower_expr`'s `Index` arm releases it right
+    /// after the read — the same "release a fresh value once its one and
+    /// only use is done" policy `concat_operand`'s caller already applies.
+    #[test]
+    fn reading_an_int_element_through_a_literal_key_normalizes_it_to_a_string() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a): int {\n    return $a[0];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a[$k]` where both the array's element and the key are `string`
+    /// locals — the key is already `Ty::Str` and is a bare variable read
+    /// (`is_aliasing_read`), so it needs no conversion and, unlike the
+    /// literal-key case above, is *not* released after the read (`$k`'s own
+    /// slot still owns it). Binding the `array<string>` element itself to
+    /// `$s` retains it first, since `ExprKind::Index` is now one of
+    /// `is_aliasing_read`'s recognized shapes — exactly the same policy a
+    /// property read already gets.
+    #[test]
+    fn reading_a_string_element_through_a_string_local_key_retains_the_result() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<string> $a, string $k): void {\n    var $s = $a[$k];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a[]` is legal to *parse* in any expression position (`mwl-syntax`'s
+    /// postfix-index parsing doesn't restrict an empty subscript to an
+    /// assignment target), and `mwl_types::expr::check_expr`'s `Index` arm
+    /// doesn't reject it as a read either — it simply skips checking a
+    /// subscript that isn't there and still resolves the element type from
+    /// the base. So this reaches `Lowering::lower_expr`'s own `Index` arm,
+    /// which is the one that draws the "append is assignment-target-only"
+    /// line and panics naming it.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn reading_base_append_syntax_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a): int {\n    return $a[];\n  }\n}\n",
+        );
+    }
+
+    /// `$a[0] = 5;` through an `array<int>` parameter — the simplest
+    /// array-element write: a fresh, non-refcounted `int` value (no retain)
+    /// and a literal `int` key normalized the same way the read side is,
+    /// with no old-value get/release pair at all (`InstKind::ArraySet`'s own
+    /// doc comment explains why an ordinary new-or-existing-key write bundles
+    /// that into one instruction rather than splitting it like `FieldSet`
+    /// does).
+    #[test]
+    fn writing_an_int_element_through_a_literal_key_normalizes_it_to_a_string() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[0] = 5;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a[$k] = $v;` where the array's element, the key, and the new value
+    /// are all `string` locals — both the key and the value are aliasing
+    /// reads of their own slots, so both get retained before
+    /// `InstKind::ArraySet` runs; `$a`/`$k`/`$v` each still get their
+    /// ordinary release at `m`'s exit sweep.
+    #[test]
+    fn writing_a_string_element_through_a_string_local_key_retains_both_key_and_value() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<string> $a, string $k, string $v): void {\n    $a[$k] = $v;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn writing_base_append_syntax_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[] = 1;\n  }\n}\n",
+        );
+    }
+
+    /// A `bool` subscript isn't one of ADR 0007 § 5's three legal key
+    /// source types (`int`/`uint`/`string`) — `mwl_types` doesn't reject it
+    /// at check time yet (the same known gap `InstKind::ArrayNew`'s own doc
+    /// comment already names for an array literal's explicit `key =>`), so
+    /// `Lowering::lower_array_key` is the one that panics naming it, rather
+    /// than guessing at a conversion PHP itself doesn't define for that type.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn a_bool_subscript_key_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a, bool $b): void {\n    $a[$b] = 1;\n  }\n}\n",
+        );
     }
 }

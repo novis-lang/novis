@@ -336,6 +336,63 @@ pub enum InstKind {
         /// "iteration order is insertion order, always."
         entries: Vec<(String, ValueId)>,
     },
+    /// Reads the element at `key` off `array` — `$arr[$i]`, whose base
+    /// statically resolved to a known `array<T>` element type (an
+    /// `mwl_types::expr_table::ExprInfo::Index` entry exists for it; see
+    /// `crate::lower::Lowering::lower_expr`'s `Index` arm). `key` is already
+    /// [`crate::ty::Ty::Str`] by the time this instruction sees it —
+    /// `crate::lower::Lowering::lower_array_key` normalizes an `int`/`uint`
+    /// subscript to its decimal-string form first (ADR 0007 § 5's key
+    /// normalization, `$a[8]` is `$a["8"]`), reusing the exact
+    /// [`Helper::IntToString`]/[`Helper::UintToString`] conversion
+    /// [`Lowering::concat_operand`](crate::lower::Lowering::concat_operand)
+    /// already gives `.`'s scalar operand rather than a new policy. Like
+    /// [`InstKind::FieldGet`], this does not model what happens when `key`
+    /// isn't actually present at runtime — PHP's own warning-and-`null`
+    /// read — since no `try`/`throw` lowering exists yet to express a checked
+    /// outcome (see the crate docs' known gaps); this instruction only
+    /// models the happy path where the key is present. Reads `array` without
+    /// retaining it, the same way `FieldGet` reads its `object` receiver — a
+    /// caller copying the result into a second durable slot retains it
+    /// there instead (`crate::lower::is_aliasing_read` now also matches
+    /// `ExprKind::Index`, so the existing `bind_local`/`lower_call_args`/
+    /// `StmtKind::Return` insertion points already do this with no new
+    /// call site).
+    ArrayGet {
+        /// The array, already lowered.
+        array: ValueId,
+        /// The lookup key, already lowered and already `Ty::Str`.
+        key: ValueId,
+    },
+    /// Writes `value` at `key` into `array` — `$arr[$i] = expr;`, inserting a
+    /// fresh entry when `key` isn't already present and overwriting (per ADR
+    /// 0007 § 5's copy-on-write value semantics, releasing whatever it
+    /// already held) otherwise. Unlike [`InstKind::FieldSet`], which reads
+    /// the field's *previous* value back with a [`InstKind::FieldGet`] before
+    /// releasing it — safe there because a declared field always exists on a
+    /// definitely-initialized instance (ADR 0022) — an array key may or may
+    /// not already be present, so this instruction bundles the entire
+    /// replace-or-insert operation rather than splitting it into a get/
+    /// release pair the way `FieldSet` does: no codegen exists yet to make
+    /// that split observable, and modeling a conditional get here would mean
+    /// guessing at PHP's own missing-key behavior at the one place — an
+    /// *ordinary* new-key insert — where nothing should be missing to begin
+    /// with. `key` is already `Ty::Str`, normalized the same way
+    /// [`InstKind::ArrayGet`]'s own doc comment describes.
+    /// `crate::lower::Lowering::lower_reassignment`'s `Index`-target arm
+    /// retains `key`/`value` first when either is
+    /// [`crate::ty::Ty::is_refcounted`] and an aliasing read (the same
+    /// caller-side retain a call argument/array-literal element already
+    /// gets) — `array` durably owns both after this instruction runs.
+    /// Defines no value; operates on `array` in place.
+    ArraySet {
+        /// The array, already lowered.
+        array: ValueId,
+        /// The key to write, already lowered and already `Ty::Str`.
+        key: ValueId,
+        /// The new value, already lowered.
+        value: ValueId,
+    },
 }
 
 /// One member of the closed set of engine-owned runtime conversions
@@ -344,8 +401,11 @@ pub enum InstKind {
 /// closed, and known entirely to this crate and `mwl-codegen`, never
 /// user-extensible, so a string name would only trade compile-time
 /// exhaustiveness for nothing. Every variant here today converts one scalar
-/// to [`crate::ty::Ty::Str`] for `.` concatenation — see
-/// `crate::lower::Lowering::concat_operand`.
+/// to [`crate::ty::Ty::Str`] — for `.` concatenation
+/// (`crate::lower::Lowering::concat_operand`), and `IntToString`/
+/// `UintToString` are reused verbatim by
+/// `crate::lower::Lowering::lower_array_key` to normalize an `int`/`uint`
+/// array subscript to its decimal-string key form (ADR 0007 § 5).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum Helper {

@@ -24,9 +24,11 @@
 //! concatenation, including a scalar (`int`/`uint`/`float`/`bool`) operand
 //! converted through this crate's first runtime-helper-call shape, and now a
 //! positional `array<T>` literal (`[...]`/legacy `array(...)`, refcounted
-//! like `string`/`bytes`) — [`lower::lower_method`] is the entry point. No
-//! `for`/`switch`/`try`, no `break`/`continue`, no array access (`$arr[$i]`),
-//! no explicit `key =>`/`...spread`/`&value` array-literal element, no
+//! like `string`/`bytes`), and now an array-element read and write through a
+//! known `int`/`uint`/`string` key (`$arr[$i]`, `$arr[$i] = expr;`) —
+//! [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
+//! `break`/`continue`, no `$a[]` append syntax on either side, no explicit
+//! `key =>`/`...spread`/`&value` array-literal element, no
 //! concatenation of a `Stringable`-object operand (a class/enum value itself
 //! also has a representation, [`ty::Ty::Object`], just not a way to refcount
 //! one yet, nor a way to invoke its `toString()` from here). The straight-line
@@ -149,9 +151,58 @@
 //! [`lower::Lowering::lower_call_args`] already gives a refcounted, aliasing
 //! call argument to each element that [`lower::is_aliasing_read`]s existing
 //! storage — no new policy, only a new call site for the existing one. An
-//! explicit `key =>` entry, a `...spread` element, a `&value` element, and
-//! reading/writing an existing array by index (`$arr[$i]`) are all still
-//! unsupported — see the known gaps below.
+//! explicit `key =>` entry, a `...spread` element, and a `&value` element are
+//! all still unsupported — see the known gaps below.
+//!
+//! Array-element access (`$arr[$i]`, both read and write) is the fifteenth
+//! slice, and the natural pickup once `ir::InstKind::ArrayNew` existed to
+//! give an array a representation at all. The design question this slice
+//! actually had to answer was narrower than "how does a missing key
+//! behave": `mwl_types::expr::check_expr`'s own `ExprKind::Index` arm has no
+//! concept of key *presence* at compile time at all — it resolves the same
+//! element type regardless of whether a given key exists at runtime, exactly
+//! the way `check_property_access`'s shape/`object`-erasure case already
+//! does for a field — so the missing-key runtime behavior (PHP's own
+//! warning-and-`null` read, autovivification on write) was never actually in
+//! scope to decide; it is deferred wholesale, the same way every other
+//! checked-throw is (no `try`/`throw` lowering exists in this crate yet —
+//! see the design-choices section's `HelperCall` bullet for the identical
+//! reasoning already applied to `Call`/`New`). What this slice *did* land: a
+//! new `mwl_types::expr_table::ExprInfo::Index { elem_ty }` entry — recorded
+//! by `check_expr`'s `Index` arm exactly when the base statically resolved
+//! to a known `array<T>` element type, and left unrecorded when it erased to
+//! `mixed`, mirroring `ExprInfo::Property`'s own split — which
+//! [`lower::Lowering::lower_expr`]'s new `Index` arm reads back to type a
+//! new [`ir::InstKind::ArrayGet`], and
+//! [`lower::Lowering::lower_reassignment`]'s new `Index`-target arm reads
+//! back the same way to emit a new [`ir::InstKind::ArraySet`]. Both need a
+//! `Ty::Str` key, so a new [`lower::Lowering::lower_array_key`] normalizes an
+//! `int`/`uint` subscript to its decimal-string form (ADR 0007 § 5, `$a[8]`
+//! is `$a["8"]`) by reusing [`ir::Helper::IntToString`]/
+//! [`ir::Helper::UintToString`] verbatim — the exact conversion
+//! `concat_operand` already had, needing no new `Helper` variant. `ArraySet`
+//! deliberately does *not* mirror `FieldSet`'s read-old-value-then-release
+//! shape: a class field always exists once its instance is definitely
+//! initialized (ADR 0022), but an array key may or may not already be
+//! present, so a conditional get here would model exactly the question this
+//! slice already deferred — see that variant's own doc comment for why the
+//! whole replace-or-insert stays bundled into one instruction instead,
+//! deferred to whatever `mwl-codegen`'s own array-mutation primitive does
+//! with a repeated key. [`lower::is_aliasing_read`] gained `ExprKind::Index`
+//! alongside `ExprKind::PropertyAccess` — an array read borrows the same
+//! "storage some other binding still owns" reference a property read does
+//! (ADR 0007 § 5's copy-on-write semantics), so every existing retain call
+//! site (`bind_local`, `lower_call_args`, `StmtKind::Return`) picked this up
+//! with no new insertion point, the same "extend the judgment, not the call
+//! sites" pattern the thirteenth/fourteenth slices already established for
+//! `bytes`/`array<T>` themselves. `$a[]`/`$a[] = expr;` (PHP's append
+//! syntax, `index` is `None`) is unsupported on both sides — it needs a
+//! "next available integer key" counter this crate has no representation
+//! for yet — and a non-`int`/`uint`/`string` subscript (a `float`/`bool`/
+//! `null` key ADR 0007 § 5 itself rejects, which `mwl_types` doesn't yet
+//! enforce either — the same known gap `ArrayNew`'s own doc comment already
+//! names for an array literal's explicit `key =>`) still panics in
+//! `lower_array_key` naming the case.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -242,8 +293,9 @@
 //!   that to ordinary lowering here would be scope creep beyond what any ADR
 //!   asks for, not a mechanical extension of it. Concretely: reading a value
 //!   out of storage some other binding still owns — [`lower::is_aliasing_read`]
-//!   names exactly two such shapes today, a bare `ExprKind::Variable` and a
-//!   compile-time-known `ExprKind::PropertyAccess` — and copying it into
+//!   names exactly three such shapes today, a bare `ExprKind::Variable`, a
+//!   compile-time-known `ExprKind::PropertyAccess`, and (as of the fifteenth
+//!   slice) a compile-time-known `ExprKind::Index` — and copying it into
 //!   another durable slot needs a retain first; a freshly constructed value
 //!   (a string literal, `new`, or a call's own result) needs none, since it
 //!   already has exactly one natural owner and the copy just gives that
@@ -336,12 +388,30 @@
 //!   the outer binding — not observable for any program in scope today (no
 //!   shape here can declare a same-named local in a narrower scope in a way
 //!   that matters), but worth knowing before trusting `Env` further.
-//! - **No array access, and only a positional literal.** `$arr[$i]` (read or
-//!   write) is unsupported; lowering panics naming the expression. A literal
-//!   with an explicit `key =>`, a `...spread` element, or a `&value` element
-//!   is equally unsupported — `crate::ir::InstKind::ArrayNew`'s own doc
-//!   comment explains why (`mwl_types::expr::check_array_literal` itself has
-//!   no key-normalization/rejection logic yet either, so lowering an explicit
+//! - **Array-element access is happy-path-only, and only through an
+//!   `int`/`uint`/`string` key.** `$arr[$i]`/`$arr[$i] = expr;` lower to
+//!   [`ir::InstKind::ArrayGet`]/[`ir::InstKind::ArraySet`] whenever the base
+//!   statically resolved to a known `array<T>` element type (an
+//!   `mwl_types::expr_table::ExprInfo::Index` entry exists for it) — a base
+//!   that erased to `mixed` has no such entry, so lowering panics naming it,
+//!   the same split `ExprInfo::Property` already draws for a shape/plain-
+//!   `object` receiver. Neither instruction models what happens when the key
+//!   is actually absent at runtime (PHP's own warning-and-`null` read,
+//!   autovivification on write) — that question is deferred wholesale, the
+//!   same way every other checked-throw is (no `try`/`throw` lowering exists
+//!   yet), not something this slice had to weigh a design against (see the
+//!   fifteenth-slice paragraph above for why `mwl_types` itself has no
+//!   compile-time "is this key present" concept to consult in the first
+//!   place). `$a[]`/`$a[] = expr;` (append syntax, `index` is `None`) is
+//!   unsupported on either side — it needs a "next available integer key"
+//!   counter this crate has no representation for yet. A `float`/`bool`/
+//!   `null` subscript — the three source types ADR 0007 § 5 itself rejects
+//!   as a key, which `mwl_types` doesn't yet enforce either — still panics
+//!   in `lower::Lowering::lower_array_key` naming the case. A literal with
+//!   an explicit `key =>`, a `...spread` element, or a `&value` element is
+//!   equally unsupported — `crate::ir::InstKind::ArrayNew`'s own doc comment
+//!   explains why (`mwl_types::expr::check_array_literal` itself has no
+//!   key-normalization/rejection logic yet either, so lowering an explicit
 //!   key would mean guessing at a runtime conversion this crate can't yet
 //!   synthesize).
 //! - **Property access, read or write, is compile-time-known-field-only.** A
@@ -364,10 +434,11 @@
 //!   read or write (`$obj->prop`/`$obj->prop = expr;`) all lower for
 //!   `array<T>` too, with the same retain policy a local already had; no new
 //!   insertion point was needed, the same way `bytes` needed none (see the
-//!   design-choices section above). `array<T>` has no way to *read back* an
-//!   already-lowered array's own element yet (`$arr[$i]`) — see the
-//!   array-access bullet above. Every representation here still only covers
-//!   the plain, unqualified `string`/`bytes` type:
+//!   design-choices section above). `array<T>` can now read back an
+//!   already-lowered array's own element too (`$arr[$i]`, both read and
+//!   write) — see the array-access bullet above for its own, narrower known
+//!   gaps. Every representation here still only covers the plain,
+//!   unqualified `string`/`bytes` type:
 //!   `lower_checked_ty` has no arm for any of the eight qualified
 //!   `CheckedTy::TaintedString`/`SecretString`/`SecretTaintedString`/
 //!   `TaintedBytes`/`SecretBytes`/`SecretTaintedBytes` variants (ADR

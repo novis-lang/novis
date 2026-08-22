@@ -80,16 +80,29 @@
 > whichever is used. Crossing a call-argument/return/compile-time-known-property boundary needed no new
 > insertion point at all, the same way `bytes` needed none: `lower_checked_ty` gained a
 > `CheckedTy::Array(_) => Ty::Array` arm beside its existing `String`/`Bytes` ones, so every existing
-> `Ty::is_refcounted`/`is_aliasing_read`-keyed site inherited the retain/release policy for free. `mwl-ir`
-> is now at 55 tests.
+> `Ty::is_refcounted`/`is_aliasing_read`-keyed site inherited the retain/release policy for free.
+> **Array-element access** (`$arr[$i]`, read and write) has landed too, through a known `int`/`uint`/
+> `string` key: new `InstKind::ArrayGet`/`InstKind::ArraySet` instructions, typed off a new
+> `mwl_types::expr_table::ExprInfo::Index { elem_ty }` entry the checker records exactly when an
+> `Index` expression's base resolved to a known `array<T>` element type (unrecorded, same as
+> `ExprInfo::Property`, when it erased to `mixed`). The checker itself has no compile-time notion of key
+> *presence* at all — it resolves the same element type whether or not a given key exists at runtime — so
+> the missing-key runtime behavior (PHP's warning-and-`null` read, autovivification on write) was never in
+> scope to design around; it is deferred wholesale, the same way every other checked-throw is until `try`/
+> `throw` lowering exists. An `int`/`uint` subscript normalizes to its decimal-string key form (ADR 0007
+> § 5) by reusing the existing `IntToString`/`UintToString` helpers verbatim. `ArraySet` does not mirror
+> `FieldSet`'s read-old-value-then-release shape — an array key may not already exist, unlike a
+> definitely-initialized class field — so it bundles the whole replace-or-insert into one instruction
+> instead of a conditional get/release pair. `$a[]`/`$a[] = expr;` (append syntax) and a `float`/`bool`/
+> `null` subscript key both still panic naming the case. `mwl-ir` is now at 62 tests.
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
 > `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
 > `InstKind::Call`, `InstKind::New`, `InstKind::FieldGet`, `InstKind::FieldSet`, `InstKind::ConstStr`,
-> `InstKind::Concat`, `InstKind::HelperCall`, `InstKind::ArrayNew`, `InstKind::Retain` and
-> `InstKind::Release`; `lower.rs` lowers a
+> `InstKind::Concat`, `InstKind::HelperCall`, `InstKind::ArrayNew`, `InstKind::ArrayGet`,
+> `InstKind::ArraySet`, `InstKind::Retain` and `InstKind::Release`; `lower.rs` lowers a
 > method body of typed local declarations, an ADR 0037 `var $x = expr;` inferred-type declaration, plain
 > `$x = expr;` reassignment,
 > scalar arithmetic/comparison/unary operators, `return`,
@@ -99,7 +112,8 @@
 > (`$obj->prop`) or written (`$obj->prop = expr;`), including through `$this`, a `string`/`bytes`/`array<T>`-
 > typed local/parameter/return value/call-argument/property-field initialized, reassigned, passed,
 > returned, read or written from a literal (`array<T>`'s own literal is positional-only — see above),
-> another local, a compile-time-known property or a resolved call's own result, and
+> another local, a compile-time-known property or a resolved call's own result, an array-element read
+> (`$arr[$i]`) or write (`$arr[$i] = expr;`) through a known `int`/`uint`/`string` key, and
 > `.` concatenation between two operands each either already `string` or a converted scalar, end
 > to end, with `insta` snapshot tests over the printed form (`print.rs`). A bare integer literal now cooks
 > correctly in all four bases `mwl-syntax`'s lexer accepts (decimal, `0x`, `0o`, `0b`), not just decimal.
@@ -127,8 +141,9 @@
 > so a resolved call's/`new`'s `string`/`bytes`/`array<T>` parameter, a call's `string`/`bytes`/`array<T>`
 > return type, and a compile-time-known `string`/`bytes`/`array<T>`-typed property read or write all lower
 > too — the aliasing
-> judgment generalized into a shared `is_aliasing_read` helper (a bare variable read or a property read,
-> either of which borrows storage some other binding still owns) that gates a call argument (retained by
+> judgment generalized into a shared `is_aliasing_read` helper (a bare variable read, a property read, or
+> (as of the array-access slice) a compile-time-known array-element read, each of which borrows storage
+> some other binding still owns) that gates a call argument (retained by
 > the caller before the call, released by the callee at its own exit — the same local declare/drop
 > symmetry, just across a call frame), a returned expression (a property read has no local slot for
 > `release_all_locals`'s exclusion mechanism to skip, so `Return`'s own arm retains it explicitly instead),
@@ -158,7 +173,8 @@
 > `HelperCall` shape now that one exists), a nullsafe access of either kind (`?->`), a
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
-> from, and applies on both the read and write side), array access (`$arr[$i]`, read or write), an
+> from, and applies on both the read and write side), array-element access through a `mixed`-erased base or
+> a non-`int`/`uint`/`string` key, `$a[]`/`$a[] = expr;` append syntax, an
 > array-literal element with an explicit `key =>`, a `...spread`, or a `&value` (the checker's own
 > `check_array_literal` has no key-normalization/rejection logic yet either, so lowering an explicit key
 > would mean guessing at a runtime conversion this crate can't yet synthesize), virtual dispatch (every

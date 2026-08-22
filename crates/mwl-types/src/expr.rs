@@ -570,14 +570,31 @@ fn infer(
             check_expr(class, None, live, scope, ctx, env);
             env.interner.mixed()
         }
+        // `mwl-ir` needs the element's declared type to lower an eventual
+        // indexed read/write instruction — see `crate::expr_table`'s own
+        // module docs. Recorded only when `base_ty` statically resolved to a
+        // known `Ty::Array` element type, never when it erased to `mixed`
+        // (an untyped/unresolved array) — the same "nothing compile-time-
+        // known to read" split `check_property_access` already draws for a
+        // shape/plain-`object` receiver. `check_assign`'s general (non-plain-
+        // local) arm routes an assignment target back through this same
+        // function, so a write records exactly the entry a read would, keyed
+        // by this `Index` expression's own span either way.
         ExprKind::Index { base, index } => {
             let base_ty = check_expr(base, None, live, scope, ctx, env);
             if let Some(index) = index {
                 check_expr(index, None, live, scope, ctx, env);
             }
-            match env.interner.get(base_ty) {
-                Ty::Array(elem) => *elem,
-                _ => env.interner.mixed(),
+            let elem_ty = match env.interner.get(base_ty) {
+                Ty::Array(elem) => Some(*elem),
+                _ => None,
+            };
+            match elem_ty {
+                Some(elem_ty) => {
+                    env.exprs.record(expr.span, ExprInfo::Index { elem_ty });
+                    elem_ty
+                }
+                None => env.interner.mixed(),
             }
         }
         ExprKind::New { target, args } => {

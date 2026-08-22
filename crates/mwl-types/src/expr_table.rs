@@ -134,6 +134,22 @@ pub enum ExprInfo {
         /// The property's declared type.
         ty: TypeId,
     },
+    /// A resolved array-element access (`$arr[$expr]`, read or write) whose
+    /// base statically resolved to a known `Ty::Array` element type — never
+    /// recorded when the base erased to `mixed` (an untyped/unresolved
+    /// array), mirroring [`ExprInfo::Property`]'s own "nothing compile-time-
+    /// known to read" treatment of a shape/plain-`object` receiver. Recorded
+    /// for a read exactly like a write: `check_assign`'s general (non-plain-
+    /// local) arm routes an assignment target back through the same
+    /// [`crate::expr::check_expr`]/`ExprKind::Index` path a bare read takes,
+    /// so both are keyed by the `Index` expression's own span, the same "one
+    /// resolution, read or write" shape [`ExprInfo::Property`] already has.
+    /// Unlike `Property`, no receiver identity needs recording alongside the
+    /// type — an array has no declaring class for a consumer to name.
+    Index {
+        /// The element's declared type.
+        elem_ty: TypeId,
+    },
 }
 
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
@@ -363,6 +379,31 @@ mod tests {
     fn a_property_access_through_a_plain_object_receiver_records_nothing() {
         let (exprs, span) = check_and_find_expr_span(
             "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
+        );
+        assert!(exprs.lookup(span).is_none());
+    }
+
+    #[test]
+    fn an_array_index_through_a_known_element_type_records_the_element_type() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass T {\n  function m(array<int> $a): int {\n    return $a[0];\n  }\n}\n",
+        );
+        // The recorded `elem_ty` is a `TypeId` from `check_and_find_expr_span`'s
+        // own internal interner, which it doesn't hand back — same reason the
+        // `Property` test just above doesn't inspect its own `ty` field
+        // either, only `class`/`name`. Matching the variant at all is what
+        // proves `check_expr`'s `Index` arm actually resolved and recorded
+        // something, rather than falling through to the `mixed`-erased case.
+        assert!(matches!(exprs.lookup(span), Some(ExprInfo::Index { .. })));
+    }
+
+    /// An array subscript through a `mixed`-erased base records nothing —
+    /// mirroring [`ExprInfo::Property`]'s own "nothing compile-time-known to
+    /// read" treatment of a shape/plain-`object` receiver.
+    #[test]
+    fn an_array_index_through_a_mixed_base_records_nothing() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass T {\n  function m(): mixed {\n    return T::UNTYPED[0];\n  }\n  const UNTYPED = 1;\n}\n",
         );
         assert!(exprs.lookup(span).is_none());
     }
