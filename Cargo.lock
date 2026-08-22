@@ -1067,7 +1067,9 @@ version = "0.0.1"
 dependencies = [
  "insta",
  "mwl-diagnostics",
+ "mwl-hir",
  "mwl-syntax",
+ "mwl-types",
  "rustc-hash",
 ]
 

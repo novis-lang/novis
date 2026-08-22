@@ -127,6 +127,41 @@ pub enum InstKind {
         /// `(predecessor block, incoming value)` pairs.
         incoming: Vec<(BlockId, ValueId)>,
     },
+    /// A statically resolved call — a static method call today; an instance
+    /// method call once one lowers (see `receiver`'s own doc comment). The
+    /// target is already fully resolved by
+    /// `mwl_types::expr_table::ExprTypeTable` before lowering ever sees it —
+    /// there is no virtual dispatch to model here, only "which function does
+    /// this invoke."
+    Call {
+        /// The resolved target, rendered `"Class::method"` — a label for
+        /// `crate::print`/a future codegen symbol table, not itself
+        /// resolvable back to a `QName` (this crate never depends on
+        /// `mwl-hir`; see `crate::lower`'s module docs).
+        target: String,
+        /// The receiver value, for an instance method call. Always `None`
+        /// today — no expression shape lowered so far produces an instance
+        /// call (see the crate docs' known gaps); reserved now so adding one
+        /// later needs no second `InstKind` variant, the same "cheap now,
+        /// expensive to retrofit" reasoning `crate::ids` already documents
+        /// for `StmtId`/`EdgeId`.
+        receiver: Option<ValueId>,
+        /// Each positional argument, already lowered.
+        args: Vec<ValueId>,
+    },
+    /// `new Target(...)`: allocates an instance of `class` and, if it
+    /// declares one, invokes its resolved `constructor` with `args` —
+    /// bundled into one instruction rather than a separate allocation plus
+    /// `InstKind::Call`, since no codegen exists yet to make that split
+    /// observable (M3's backend work, once real object layout exists) and
+    /// splitting it now would be a distinction with nothing to attach it to.
+    New {
+        /// The constructed class, rendered the same way `Call::target` is.
+        class: String,
+        /// Each constructor argument, already lowered — empty when `class`
+        /// declares no explicit `constructor`.
+        args: Vec<ValueId>,
+    },
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

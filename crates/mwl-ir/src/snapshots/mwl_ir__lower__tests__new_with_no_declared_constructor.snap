@@ -1,0 +1,11 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn make() -> object {
+  bb0:
+    safepoint
+    ; stmt s0 @5:5-5:22
+    v0 = new Foo()  ; object
+    return v0
+}

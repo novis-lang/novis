@@ -41,31 +41,42 @@
 > § 3's intraprocedural read-before-write check). Remaining for this milestone: ADR 0011/0024 §4/0033's
 > stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and finishing `mwl-ir`.
 >
-> `mwl-ir` (CFG/SSA IR) has landed its straight-line slice plus **control flow**: `crates/mwl-ir/src/ids.rs`
-> reserves the stable `StmtId`/`EdgeId` numbering
+> `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, and now **`new`/a static
+> call**: `crates/mwl-ir/src/ids.rs` reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
 > deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
-> `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including an `InstKind::Phi`
-> instruction; `lower.rs` lowers a method body of typed local declarations, plain `$x = expr;`
-> reassignment, scalar arithmetic/comparison/unary operators, `return`, nested `{}` blocks, and `if`/`while`
-> end to end, with `insta` snapshot tests over the printed form (`print.rs`) covering both control-flow
-> shapes (an `if`/`else` merge needing a real phi, an `if` with no `else`, both branches of an `if` always
-> `return`ing, and a `while` loop carrying two locals through a loop-header phi). `if`'s join and `while`'s
-> loop-header join are each a single hand-rolled two-predecessor (or pre-loop/back-edge) SSA merge, not a
-> general dominance-based phi-placement algorithm — sufficient since a structured `if`/`while` only ever has
-> that one join shape; a `while` header's phi is seeded before its body is lowered and patched with the
-> back-edge value afterwards, once the body's exit environment is known. An inert `InstKind::Safepoint`
-> marker is now also reserved at function entry and on every `while` back edge — the two fixed sites the
-> project-start "safepoints from the first backend commit" decision names — but it lowers to nothing yet;
-> no codegen or guard test needs it functional before M3's backend exists. Deliberately out of scope still,
-> all documented in the crate's own module docs: `for`/`switch`/`match`/`try`, `break`/`continue`, a
-> non-`bool` `if`/`while` condition (ADR 0035's truthy conversion needs a runtime-helper call that doesn't
-> exist in the IR yet), calls, `new`, non-scalar types (`string`/`bytes`/arrays/objects) and therefore
-> refcount operations. The crate deliberately does not yet depend on
-> `mwl-hir`/`mwl-types` — every type this slice's lowering needs is read straight off the `mwl-syntax` AST,
-> since ADR 0007 § 1 already requires it spelled out there for every shape in scope; widening past scalars
-> will need to settle how lowering gets at a call site's or `new`'s resolved type, which `mwl-types`
-> computes today but does not persist anywhere lowering can read it back from.
+> `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
+> `InstKind::Call` and `InstKind::New`; `lower.rs` lowers a method body of typed local declarations, plain
+> `$x = expr;` reassignment, scalar arithmetic/comparison/unary operators, `return`, nested `{}` blocks,
+> `if`/`while`, `new Target(...)`, and a static call (`self::method(...)`/`Class::method(...)`) end to end,
+> with `insta` snapshot tests over the printed form (`print.rs`). `if`'s join and `while`'s loop-header join
+> are each a single hand-rolled two-predecessor (or pre-loop/back-edge) SSA merge, not a general
+> dominance-based phi-placement algorithm — sufficient since a structured `if`/`while` only ever has that one
+> join shape. An inert `InstKind::Safepoint` marker is reserved at function entry and on every `while` back
+> edge — the two fixed sites the project-start "safepoints from the first backend commit" decision names —
+> but it lowers to nothing yet; no codegen or guard test needs it functional before M3's backend exists.
+>
+> Widening past scalars needed an architecture decision the plan flagged as open for two sessions: whether
+> `mwl-ir` should depend on `mwl-types`/`mwl-hir` directly and re-derive a call's/`new`'s resolved target
+> itself, or whether `mwl-types` should publish a persisted result `mwl-ir` reads back. The user decided in
+> favor of the latter: `mwl-types` grew `crate::expr_table::ExprTypeTable`, a narrow, purpose-built table —
+> one `ExprInfo::Call`/`ExprInfo::New` entry per resolved method/static call or `new`, keyed by the
+> expression's own source span rather than an independently-numbered id (the two crates' AST walks aren't
+> guaranteed to visit expressions in the same order, so a span is the only key both agree on without
+> coordinating) — that `check_program` now populates and hands back alongside its type interner. `mwl-ir`
+> depends on `mwl-types` for exactly this table plus the interner needed to translate a recorded `TypeId`
+> into its own `Ty`; it still never depends on `mwl-hir`, `mwl_types::signatures`, or `mwl_types::ClassGraph`
+> directly. `mwl-ir`'s own `Ty` gained one non-scalar variant, `Ty::Object` — an opaque class/enum reference
+> with no identity carried in the IR (a call's/`new`'s target is already resolved to a concrete label before
+> lowering sees it) and no refcount operations yet, reserved the same "shape now, functional later" way
+> `InstKind::Safepoint` was.
+>
+> Deliberately out of scope still, all documented in the crate's own module docs: `for`/`switch`/`match`/
+> `try`, `break`/`continue`, a non-`bool` `if`/`while` condition (ADR 0035's truthy conversion needs a
+> runtime-helper call that doesn't exist in the IR yet), an **instance** method call (needs `$this`/an
+> arbitrary receiver represented as a real value — `InstKind::Call` already reserves a `receiver` field for
+> it), property/array access, virtual dispatch, variadic/named/spread call arguments, and non-scalar *data*
+> types (`string`/`bytes`/`array<T>`) and therefore refcount operations on them.
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —

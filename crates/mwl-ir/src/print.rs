@@ -89,6 +89,22 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                 .collect();
             format!("phi [{}]", parts.join(", "))
         }
+        InstKind::Call {
+            target,
+            receiver,
+            args,
+        } => {
+            let mut parts: Vec<String> = receiver
+                .iter()
+                .map(|r| format!("this: v{}", r.index()))
+                .collect();
+            parts.extend(args.iter().map(|a| format!("v{}", a.index())));
+            format!("call {target}({})", parts.join(", "))
+        }
+        InstKind::New { class, args } => {
+            let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
+            format!("new {class}({})", parts.join(", "))
+        }
         InstKind::StmtMarker(_) | InstKind::Safepoint => unreachable!("returned above"),
     };
     let _ = writeln!(out, "    v{} = {rhs}  ; {}", v.index(), ty_name(ty));
@@ -142,6 +158,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Uint => "uint",
         Ty::Float => "float",
         Ty::Void => "void",
+        Ty::Object => "object",
     }
 }
 

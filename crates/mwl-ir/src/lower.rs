@@ -46,9 +46,11 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    AssignOp, BinaryOp, Expr, ExprKind, MethodMember, Stmt, StmtKind, Type, TypeAtom, TypeKind,
-    UnaryOp as AstUnaryOp,
+    AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MethodMember, Stmt, StmtKind, Type, TypeAtom,
+    TypeKind, UnaryOp as AstUnaryOp,
 };
+use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
+use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, IdGen, ValueId};
@@ -62,18 +64,28 @@ type Env = FxHashMap<String, (ValueId, Ty)>;
 
 /// Lowers `m` — which must have a body, and whose body must stay within this
 /// slice's supported statement/expression shapes (see the crate docs) — to a
-/// [`Function`] named `name`.
+/// [`Function`] named `name`. `exprs`/`checked_types` are the
+/// `mwl_types::check_program` run's own typed-expression table and type
+/// interner — the source of truth for a call's/`new`'s resolved target (see
+/// [`ExprInfo`] and the crate docs' "design choices" section).
 ///
 /// # Panics
 ///
 /// Panics, naming the unsupported shape, if `m` has no body or its body
 /// leaves this slice's scope. This is not a diagnostic: callers are expected
-/// to have already run `mwl_types::check_program` and to only route programs
-/// within scope through this function until lowering widens.
+/// to have already run `mwl_types::check_program` — with the very `exprs`/
+/// `checked_types` passed here — and to only route programs within scope
+/// through this function until lowering widens.
 #[must_use]
-pub fn lower_method(name: &str, m: &MethodMember, src: &SourceFile) -> Function {
-    let ret_ty = m.return_type.as_ref().map_or(Ty::Void, lower_scalar_type);
-    let mut low = Lowering::new(src, ret_ty);
+pub fn lower_method(
+    name: &str,
+    m: &MethodMember,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Function {
+    let ret_ty = m.return_type.as_ref().map_or(Ty::Void, lower_decl_type);
+    let mut low = Lowering::new(src, ret_ty, exprs, checked_types);
     let entry = low.new_block();
     let mut cur = entry;
     let mut env = Env::default();
@@ -88,7 +100,7 @@ pub fn lower_method(name: &str, m: &MethodMember, src: &SourceFile) -> Function 
         let decl_ty =
             p.ty.as_ref()
                 .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
-        let ty = lower_scalar_type(decl_ty);
+        let ty = lower_decl_type(decl_ty);
         let index = u32::try_from(i).expect("far more parameters than a call could ever take");
         let (v, _) = low.emit(entry, ty, InstKind::Param(index));
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
@@ -123,6 +135,13 @@ struct Lowering<'a> {
     ids: IdGen,
     src: &'a SourceFile,
     ret_ty: Ty,
+    /// Where a call's/`new`'s resolved target is read back from — see
+    /// [`ExprInfo`] and the crate docs' "design choices" section.
+    exprs: &'a ExprTypeTable,
+    /// The same `mwl_types::check_program` run's type interner — needed to
+    /// translate a [`TypeId`] recorded in `exprs` into this crate's own
+    /// [`Ty`] via [`lower_checked_ty`].
+    checked_types: &'a TypeInterner,
     /// Parallel to `block_insts`/`block_terms`: the [`BlockId`] each was
     /// created with, in creation order. [`IdGen::next_block`] hands out ids
     /// sequentially from zero, so a block's id and its position in these
@@ -135,9 +154,16 @@ struct Lowering<'a> {
 }
 
 impl<'a> Lowering<'a> {
-    fn new(src: &'a SourceFile, ret_ty: Ty) -> Self {
+    fn new(
+        src: &'a SourceFile,
+        ret_ty: Ty,
+        exprs: &'a ExprTypeTable,
+        checked_types: &'a TypeInterner,
+    ) -> Self {
         Self {
             ids: IdGen::new(),
+            exprs,
+            checked_types,
             src,
             ret_ty,
             block_ids: Vec::new(),
@@ -250,7 +276,7 @@ impl<'a> Lowering<'a> {
                 name: local_name,
                 value: Some(value),
             } => {
-                let expected = lower_scalar_type(decl_ty);
+                let expected = lower_decl_type(decl_ty);
                 let (v, _) = self.lower_expr(value, Some(expected), env, *cur);
                 env.insert(
                     strip_sigil(span_text(self.src, *local_name)).to_owned(),
@@ -689,11 +715,143 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // `new Target(...)` — the constructed class and its resolved
+            // constructor (if any) come from `self.exprs`, not from `target`
+            // itself: `target` may be `self`/`static`/`parent`, which this
+            // crate has no enclosing-class context to resolve on its own
+            // (see `lower_decl_type`'s doc comment).
+            ExprKind::New { args, .. } => {
+                let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
+                    panic!(
+                        "mwl-ir: `new` at {:?} has no resolved class recorded in the \
+                         typed-expression table — did this program pass \
+                         mwl_types::check_program with the same table?",
+                        expr.span
+                    );
+                };
+                let target_label = class.to_string();
+                let arg_values = match ctor {
+                    Some(call) => {
+                        let param_tys = call.param_tys.clone();
+                        let variadic = call.variadic;
+                        let checked_types = self.checked_types;
+                        self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur)
+                    }
+                    None => {
+                        let CallArgs::List(list) = args else {
+                            panic!(
+                                "mwl-ir: `new {target_label}(...)` has no resolved constructor \
+                                 but wasn't called with a plain argument list — {args:?}"
+                            );
+                        };
+                        assert!(
+                            list.is_empty(),
+                            "mwl-ir: `new {target_label}(...)` has no resolved constructor but \
+                             was called with arguments — mwl_types doesn't yet enforce a \
+                             zero-arity check here (see its own known gaps), so this crate \
+                             cannot trust it was rejected upstream"
+                        );
+                        Vec::new()
+                    }
+                };
+                self.emit(
+                    cur,
+                    Ty::Object,
+                    InstKind::New {
+                        class: target_label,
+                        args: arg_values,
+                    },
+                )
+            }
+            // `self::method(...)`/`Class::method(...)` — no receiver value:
+            // an instance `$obj->method(...)` call is still out of scope
+            // (see the crate docs' known gaps), since it needs `$this`/an
+            // arbitrary receiver represented as a real value first.
+            ExprKind::StaticCall { args, .. } => {
+                let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
+                    panic!(
+                        "mwl-ir: a static call at {:?} has no resolved target recorded in the \
+                         typed-expression table — did this program pass \
+                         mwl_types::check_program with the same table?",
+                        expr.span
+                    );
+                };
+                let target_label = format!("{}::{}", call.class, call.method);
+                let param_tys = call.param_tys.clone();
+                let variadic = call.variadic;
+                let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+                let checked_types = self.checked_types;
+                let arg_values =
+                    self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur);
+                self.emit(
+                    cur,
+                    return_ty,
+                    InstKind::Call {
+                        target: target_label,
+                        receiver: None,
+                        args: arg_values,
+                    },
+                )
+            }
             other => panic!(
-                "mwl-ir's control-flow slice only lowers literals, locals, and unary/binary \
-                 operators over them — got {other:?}; see the crate docs' known gaps"
+                "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
+                 operators, `new`, and a static call — got {other:?}; see the crate docs' known \
+                 gaps"
             ),
         }
+    }
+
+    /// Lowers a resolved call's/`new`'s positional argument list against
+    /// `param_tys` — the already-resolved parameter types from
+    /// `mwl_types::expr_table::ResolvedCall`.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the unsupported shape for anything outside this slice's
+    /// scope: `variadic`, a named or spread argument (`mwl_types` itself
+    /// doesn't fully positionally type-check these against a signature yet —
+    /// see its own known gaps), or an argument count that doesn't exactly
+    /// match `param_tys`' length (this crate trusts
+    /// `mwl_types::check_program` already enforced arity for a non-variadic
+    /// signature).
+    fn lower_call_args(
+        &mut self,
+        args: &CallArgs,
+        param_tys: &[TypeId],
+        variadic: bool,
+        checked_types: &TypeInterner,
+        env: &Env,
+        cur: BlockId,
+    ) -> Vec<ValueId> {
+        assert!(
+            !variadic,
+            "mwl-ir does not yet lower a call to a variadic signature; see the crate docs' \
+             known gaps"
+        );
+        let CallArgs::List(list) = args else {
+            panic!(
+                "mwl-ir only lowers a plain positional argument list for a resolved call/`new` \
+                 — got {args:?}; see the crate docs' known gaps"
+            );
+        };
+        assert!(
+            list.iter().all(|a| a.name.is_none() && !a.spread),
+            "mwl-ir does not yet lower a named or spread call argument; see the crate docs' \
+             known gaps"
+        );
+        assert_eq!(
+            list.len(),
+            param_tys.len(),
+            "mwl-ir: a resolved call's argument count doesn't match its signature — this crate \
+             trusts mwl_types::check_program already enforced this"
+        );
+        let mut out = Vec::with_capacity(list.len());
+        for (arg, &pty) in list.iter().zip(param_tys) {
+            let expected = lower_checked_ty(pty, checked_types);
+            let (v, _) = self.lower_expr(&arg.value, Some(expected), env, cur);
+            out.push(v);
+        }
+        out
     }
 }
 
@@ -702,17 +860,62 @@ fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
     span_text(src, span).chars().filter(|&c| c != '_').collect()
 }
 
-fn lower_scalar_type(ty: &Type) -> Ty {
+/// Lowers a *declared* type straight off the AST — every scalar atom, plus
+/// `TypeAtom::Name(_)` (a plain class/interface/enum name) as
+/// [`Ty::Object`]. A plain name needs no resolution to lower this way: ADR
+/// 0007 § 1 already requires it to be spelled out in full, and this crate
+/// erases class identity entirely (see [`Ty::Object`]'s own doc comment), so
+/// "is this atom a class name at all" is the only question that matters here
+/// — which class doesn't need answering until a call/`new` on it does, via
+/// [`lower_checked_ty`] instead. `self`/`static`/`parent` are not handled:
+/// resolving those needs the enclosing class, which this crate's straight-off-
+/// the-AST design (see the crate docs) has never needed to track before now.
+fn lower_decl_type(ty: &Type) -> Ty {
     match &ty.kind {
         TypeKind::Atom(TypeAtom::Bool) => Ty::Bool,
         TypeKind::Atom(TypeAtom::Int) => Ty::Int,
         TypeKind::Atom(TypeAtom::Uint) => Ty::Uint,
         TypeKind::Atom(TypeAtom::Float) => Ty::Float,
         TypeKind::Atom(TypeAtom::Void) => Ty::Void,
-        TypeKind::Paren(inner) => lower_scalar_type(inner),
+        TypeKind::Atom(TypeAtom::Name(_)) => Ty::Object,
+        TypeKind::Paren(inner) => lower_decl_type(inner),
         other => panic!(
-            "mwl-ir's first slice only lowers bool/int/uint/float/void types — got {other:?}; \
-             see the crate docs' known gaps"
+            "mwl-ir only lowers bool/int/uint/float/void/a plain class name as a declared type \
+             — got {other:?}; see the crate docs' known gaps"
+        ),
+    }
+}
+
+/// Translates an already-*checked* type — a [`TypeId`] recorded in an
+/// [`ExprInfo::Call`]/[`ExprInfo::New`] entry, naming a call's resolved
+/// parameter/return type — into this crate's own [`Ty`]. Distinct from
+/// [`lower_decl_type`], which reads a type straight off the AST instead: this
+/// one exists because a resolved call's parameter/return types come from
+/// `mwl_types`' own interner, not from a `Type` AST node this crate can lower
+/// directly (there may be no local `Type` node at all, e.g. an inherited
+/// method's parameter declared on a different class's source). `Class`/`Enum`
+/// both erase to [`Ty::Object`], same as [`lower_decl_type`]'s `Name` case —
+/// see that variant's own doc comment for why identity doesn't need to
+/// survive this translation.
+///
+/// # Panics
+///
+/// Panics naming the unsupported shape for anything outside this slice's
+/// scope: `string`/`bytes` (any qualifier), `array<T>`, `object`, a shape, a
+/// union/intersection, or any of `mixed`/`never`/`true`/`false`/`iterable`/
+/// `callable`/`null` — none of these have an IR representation yet (see the
+/// crate docs' known gaps).
+fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
+    match checked_types.get(id) {
+        CheckedTy::Bool => Ty::Bool,
+        CheckedTy::Int => Ty::Int,
+        CheckedTy::Uint => Ty::Uint,
+        CheckedTy::Float => Ty::Float,
+        CheckedTy::Void => Ty::Void,
+        CheckedTy::Class(_) | CheckedTy::Enum(_) => Ty::Object,
+        other => panic!(
+            "mwl-ir only lowers a resolved call's bool/int/uint/float/void/class/enum \
+             parameter or return type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -727,23 +930,42 @@ mod tests {
     use super::*;
     use crate::print::print_function;
 
-    /// Parses `src`, pulls out `T`'s first method, and lowers it —
-    /// `src` is expected to already be a program `mwl_types::check_program`
-    /// would accept with no errors (this crate does not re-check it).
+    /// Parses `src`, actually runs it through `mwl_hir::resolve_file` and
+    /// `mwl_types::check_program` (unlike this crate's earlier slices, which
+    /// only trusted a fixture *would* pass — now that lowering a call/`new`
+    /// needs a real [`ExprTypeTable`], a fixture needs a real check run to
+    /// produce one), pulls out `T`'s first method, and lowers it.
     fn lower_first_method(src: &str) -> (Function, SourceMap, SourceId) {
         let mut map = SourceMap::new();
         let file = map.add("t.mwl", src);
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        let mut checked_types = TypeInterner::new();
+        let mut exprs = ExprTypeTable::new();
+        mwl_types::check_program(
+            &stmts,
+            map.file(file),
+            &module,
+            &mut checked_types,
+            &mut exprs,
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
         let decl = stmts
             .iter()
             .find_map(|s| match &s.kind {
-                TopStmtKind::ClassDecl(decl) => Some(decl),
+                TopStmtKind::ClassDecl(decl)
+                    if span_text(map.file(file), decl.name.span) == "T" =>
+                {
+                    Some(decl)
+                }
                 _ => None,
             })
-            .expect("fixture must declare a class");
+            .expect("fixture must declare a class `T`");
         let method = decl
             .members
             .iter()
@@ -754,7 +976,7 @@ mod tests {
             .expect("fixture class must declare a method");
 
         let name = span_text(map.file(file), method.name).to_owned();
-        let f = lower_method(&name, method, map.file(file));
+        let f = lower_method(&name, method, map.file(file), &exprs, &checked_types);
         (f, map, file)
     }
 
@@ -845,5 +1067,53 @@ mod tests {
         lower_first_method(
             "<?mwl\nclass T {\n  function m(): int {\n    int $i = 0;\n    for ($i = 0; $i < 1; $i = $i + 1) {}\n    return 0;\n  }\n}\n",
         );
+    }
+
+    /// `new Foo(1)` with a resolved one-parameter constructor — the class's
+    /// own resolved target and the constructor's argument both come from the
+    /// typed-expression table (`ExprInfo::New`), not from re-deriving `Foo`'s
+    /// signature by hand.
+    #[test]
+    fn new_with_a_resolved_constructor() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  function constructor(int $x) {}\n}\nclass T {\n  function make(): Foo {\n    return new Foo(1);\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `new Foo()` against a class with no explicit `constructor` — the
+    /// `ExprInfo::New` entry's `ctor` is `None`, so lowering emits an empty
+    /// argument list rather than looking one up.
+    #[test]
+    fn new_with_no_declared_constructor() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {}\nclass T {\n  function make(): Foo {\n    return new Foo();\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `self::make()` — a static call with no receiver, resolved to `T`'s own
+    /// method via the typed-expression table.
+    #[test]
+    fn a_self_static_call_with_a_scalar_return() {
+        // `m` declared first, forward-referencing `make` — `lower_first_method`
+        // lowers `T`'s *first* method, and MWL resolves a same-class method
+        // call regardless of declaration order (its signature table is built
+        // in a pass ahead of body-checking; see `mwl_types::signatures`).
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): int {\n    return self::make(1);\n  }\n  static function make(int $n): int {\n    return $n;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A local declared with a class type, initialized from `new` and
+    /// returned — exercises `lower_decl_type`'s `TypeAtom::Name` arm
+    /// alongside `ExprInfo::New`.
+    #[test]
+    fn a_class_typed_local_initialized_from_new() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {}\nclass T {\n  function make(): Foo {\n    Foo $x = new Foo();\n    return $x;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 }

@@ -11,10 +11,12 @@ repository.workspace = true
 [dependencies]
 mwl-diagnostics.workspace = true
 mwl-syntax.workspace = true
+mwl-types.workspace = true
 rustc-hash.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
+mwl-hir.workspace = true
 
 [lints]
 workspace = true
