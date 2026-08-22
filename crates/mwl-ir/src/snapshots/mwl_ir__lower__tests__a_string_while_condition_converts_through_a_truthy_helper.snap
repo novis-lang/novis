@@ -1,0 +1,26 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, string) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    ; stmt s0 @4:5-6:6
+    jump bb1
+  bb1:
+    v2 = phi [bb0: v1, bb2: v4]  ; string
+    v3 = helper.str_truthy v2  ; bool
+    branch v3 -> bb2 (e0), bb3 (e1)
+  bb2:
+    ; stmt s1 @4:16-6:6
+    ; stmt s2 @5:7-5:15
+    v4 = const.str ""  ; string
+    release v2
+    safepoint
+    jump bb1
+  bb3:
+    release v2
+    return
+}

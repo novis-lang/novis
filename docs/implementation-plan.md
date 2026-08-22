@@ -107,7 +107,16 @@
 > the positional auto-increment counter — a positional element still numbers from "how many positional
 > elements came before it," a documented simplification left for whenever the append-syntax counter gap
 > above is tackled. A `...spread` element and a `&value` element are both still unsupported either way.
-> `mwl-ir` is now at 72 tests.
+> **An `if`/`while` condition that isn't already `bool`** now converts through ADR 0035's truthy table too,
+> for a scalar or `array<T>` operand: five new `Helper` variants (`IntTruthy`/`UintTruthy`/`FloatTruthy`/
+> `StrTruthy`/`ArrayTruthy`) reuse the same `InstKind::HelperCall` shape the `.`-conversion helpers already
+> established, via a new `Lowering::lower_truthy_cond` both `lower_if`/`lower_while` now call instead of
+> asserting the condition is already `bool`. A class-instance or enum-case (`Ty::Object`) condition needs no
+> helper at all — ADR 0035 § 4 makes either always truthy — so it folds straight to a fresh `const.bool
+> true`. `null`/`mixed`/a union are still out of scope: neither a nullable-type nor a `Ty::Mixed` IR
+> representation exists yet to convert *from*. `&&`/`||`/`!` and the ternary/elvis condition (ADR 0035's
+> other four truthy positions) are unaffected — this crate doesn't lower any of the three yet.
+> `mwl-ir` is now at 77 tests.
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
@@ -185,18 +194,17 @@
 > `InstKind::Safepoint` was.
 >
 > Deliberately out of scope still, all documented in the crate's own module docs: `for`/`switch`/`match`/
-> `try`, `break`/`continue`, a non-`bool` `if`/`while` condition (ADR 0035's truthy conversion differs by
-> source type — PHP's own truthy table — and most of those source types, an array or a nullable value, have
-> no IR representation to convert *from* yet, so this waits on them rather than being purely a missing
-> `HelperCall` shape now that one exists), a nullsafe access of either kind (`?->`), a
+> `try`, `break`/`continue`, the `null`/`mixed`/union half of ADR 0035's `if`/`while` truthy conversion
+> (neither a nullable-type nor a `Ty::Mixed` IR representation exists yet to convert *from* — the `bool`/
+> scalar/`array<T>`/`Ty::Object` half is landed, see above) and `&&`/`||`/`!`/the ternary-elvis condition
+> (ADR 0035's other four truthy positions, none of which this crate lowers at all yet), a nullsafe access of
+> either kind (`?->`), a
 > property access through a receiver that erased to a shape or plain `object` (ADR 0036 § 4 — the
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
 > from, and applies on both the read and write side), array-element access through a `mixed`-erased base or
-> a non-`int`/`uint`/`string` key, `$a[]`/`$a[] = expr;` append syntax, an
-> array-literal element with an explicit `key =>`, a `...spread`, or a `&value` (the checker's own
-> `check_array_literal` has no key-normalization/rejection logic yet either, so lowering an explicit key
-> would mean guessing at a runtime conversion this crate can't yet synthesize), virtual dispatch (every
-> call/access lowered so far has its receiver's static type equal to its runtime class),
+> a non-`int`/`uint`/`string` key, `$a[]`/`$a[] = expr;` append syntax, and an
+> array-literal `...spread` or `&value` element (an explicit `key =>` element is landed, see above), virtual
+> dispatch (every call/access lowered so far has its receiver's static type equal to its runtime class),
 > variadic/named/spread call
 > arguments, and `.` concatenation of a `Stringable`-object operand (needs a resolved `toString` call `.`
 > has no way to synthesize from a bare operand — see `mwl-ir`'s own module docs for why that's more than a

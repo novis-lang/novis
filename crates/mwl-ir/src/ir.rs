@@ -413,12 +413,18 @@ pub enum InstKind {
 /// the same reason [`BinOp`]/[`UnOp`] already are one: the set is small,
 /// closed, and known entirely to this crate and `mwl-codegen`, never
 /// user-extensible, so a string name would only trade compile-time
-/// exhaustiveness for nothing. Every variant here today converts one scalar
-/// to [`crate::ty::Ty::Str`] — for `.` concatenation
-/// (`crate::lower::Lowering::concat_operand`), and `IntToString`/
-/// `UintToString` are reused verbatim by
+/// exhaustiveness for nothing. Two families exist so far: a scalar-to-
+/// [`crate::ty::Ty::Str`] conversion — for `.` concatenation
+/// (`crate::lower::Lowering::concat_operand`), with `IntToString`/
+/// `UintToString` reused verbatim by
 /// `crate::lower::Lowering::lower_array_key` to normalize an `int`/`uint`
-/// array subscript to its decimal-string key form (ADR 0007 § 5).
+/// array subscript to its decimal-string key form (ADR 0007 § 5) — and a
+/// scalar-or-`Ty::Array`-to-[`crate::ty::Ty::Bool`] truthiness test, ADR
+/// 0035's table, used by `crate::lower::Lowering::lower_truthy_cond` for an
+/// `if`/`while` condition whose static type isn't already `bool` (a
+/// `Ty::Object` condition needs none of these: ADR 0035 § 4 makes it always
+/// truthy with nothing to inspect at runtime, so that case lowers straight to
+/// a fresh [`InstKind::ConstBool`] instead).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum Helper {
@@ -430,6 +436,18 @@ pub enum Helper {
     FloatToString,
     /// `bool` to `"1"`/`""`, PHP's own bool-to-string rule.
     BoolToString,
+    /// `int` truthiness: falsy iff `0`.
+    IntTruthy,
+    /// `uint` truthiness: falsy iff `0`.
+    UintTruthy,
+    /// `float` truthiness: falsy iff `0.0` (including `-0.0`; `NAN` is
+    /// truthy).
+    FloatTruthy,
+    /// `string` truthiness: falsy iff `""` or exactly the one-character
+    /// string `"0"` — PHP's own rule, so `"0.0"`/`"false"` are truthy.
+    StrTruthy,
+    /// `array<T>` truthiness: falsy iff empty, for any `T`.
+    ArrayTruthy,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

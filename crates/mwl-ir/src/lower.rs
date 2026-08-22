@@ -658,9 +658,10 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics if `cond` isn't statically `bool` — ADR 0035's full truthy
-    /// conversion for a non-`bool` condition needs a runtime-helper call,
-    /// which doesn't exist in the IR yet (see the crate docs' known gaps).
+    /// Panics naming the case for a `cond` whose static type
+    /// [`Self::lower_truthy_cond`] doesn't yet convert — see that method's
+    /// own doc comment for exactly what's covered and what still isn't
+    /// (`null`/`mixed`/a union).
     fn lower_if(
         &mut self,
         cond: &Expr,
@@ -669,12 +670,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         env: &mut Env,
     ) {
-        let (cond_v, cond_ty) = self.lower_expr(cond, Some(Ty::Bool), env, *cur);
-        assert!(
-            cond_ty == Ty::Bool,
-            "mwl-ir's control-flow slice only lowers a `bool`-typed `if`/`while` condition — a \
-             truthy conversion of a non-`bool` value needs a runtime-helper call, a known gap"
-        );
+        let cond_v = self.lower_truthy_cond(cond, env, *cur);
 
         let merge_block = self.new_block();
         let then_block = self.new_block();
@@ -735,7 +731,8 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics if `cond` isn't statically `bool` — see [`Self::lower_if`]'s
+    /// Panics naming the case for a `cond` whose static type
+    /// [`Self::lower_truthy_cond`] doesn't yet convert — see [`Self::lower_if`]'s
     /// panic doc, the same restriction applies here.
     fn lower_while(&mut self, cond: &Expr, body: &Stmt, cur: &mut BlockId, env: &mut Env) {
         let mut seen = FxHashSet::default();
@@ -768,12 +765,7 @@ impl<'a> Lowering<'a> {
             phi_slots.push((name.clone(), inst_index));
         }
 
-        let (cond_v, cond_ty) = self.lower_expr(cond, Some(Ty::Bool), &header_env, header_block);
-        assert!(
-            cond_ty == Ty::Bool,
-            "mwl-ir's control-flow slice only lowers a `bool`-typed `if`/`while` condition — a \
-             truthy conversion of a non-`bool` value needs a runtime-helper call, a known gap"
-        );
+        let cond_v = self.lower_truthy_cond(cond, &header_env, header_block);
 
         let body_block = self.new_block();
         let after_block = self.new_block();
@@ -1432,6 +1424,88 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// Lowers `cond` — an `if`/`while` condition — for ADR 0035's truthy
+    /// table rather than requiring it already be [`Ty::Bool`]: a `Ty::Bool`
+    /// value passes straight through; `Ty::Int`/`Ty::Uint`/`Ty::Float`/
+    /// `Ty::Str` each convert through their own new [`Helper`] variant
+    /// (`IntTruthy`/`UintTruthy`/`FloatTruthy`/`StrTruthy`); [`Ty::Array`]
+    /// converts through [`Helper::ArrayTruthy`] (falsy iff empty, ADR 0035's
+    /// table); and [`Ty::Object`] — a class instance or an enum case — needs
+    /// no helper at all, since ADR 0035 § 4 makes either always truthy: this
+    /// folds straight to a fresh [`InstKind::ConstBool`] `true` rather than
+    /// emitting a call with nothing to inspect at runtime. A refcounted
+    /// operand (`Ty::Str`/`Ty::Array`) that isn't [`is_aliasing_read`] — a
+    /// fresh call/`new`/literal result whose only use is this truthy test —
+    /// is released right after the helper reads it, the same "release a
+    /// fresh value once its one and only use is done" precedent
+    /// [`Self::concat_operand`]'s own caller already sets for `.`
+    /// concatenation; an aliasing read (a bare variable, a compile-time-known
+    /// property or array-element read) still durably belongs to whatever
+    /// slot it came from and needs no release here.
+    ///
+    /// Returns the resulting [`Ty::Bool`] value.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the case for anything outside this table: `Ty::Bytes`
+    /// (no truthy row is named for it — ADR 0035's table only covers
+    /// `string`, not the separate `bytes` type) or `Ty::Void`. The `null`
+    /// case (a nullable type) and `mixed`/a union are likewise still
+    /// out of scope — neither has an IR representation to convert *from*
+    /// yet — but can't actually reach this method for any program in scope
+    /// today (see the crate docs' known gaps), so they fall into the same
+    /// panic arm rather than a dedicated message.
+    fn lower_truthy_cond(&mut self, cond: &Expr, env: &Env, cur: BlockId) -> ValueId {
+        let (v, ty) = self.lower_expr(cond, None, env, cur);
+        let cond_v = match ty {
+            Ty::Bool => v,
+            Ty::Int | Ty::Uint | Ty::Float | Ty::Str => {
+                let helper = match ty {
+                    Ty::Int => Helper::IntTruthy,
+                    Ty::Uint => Helper::UintTruthy,
+                    Ty::Float => Helper::FloatTruthy,
+                    Ty::Str => Helper::StrTruthy,
+                    Ty::Bool | Ty::Void | Ty::Object | Ty::Array | Ty::Bytes => {
+                        unreachable!("matched above")
+                    }
+                };
+                self.emit(
+                    cur,
+                    Ty::Bool,
+                    InstKind::HelperCall {
+                        helper,
+                        args: vec![v],
+                    },
+                )
+                .0
+            }
+            Ty::Array => {
+                self.emit(
+                    cur,
+                    Ty::Bool,
+                    InstKind::HelperCall {
+                        helper: Helper::ArrayTruthy,
+                        args: vec![v],
+                    },
+                )
+                .0
+            }
+            // A class instance or an enum case — ADR 0035 § 4, always
+            // truthy, nothing to inspect at runtime.
+            Ty::Object => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
+            other => panic!(
+                "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `Ty::Array` \
+                 or `Ty::Object` `if`/`while` condition — got {other:?}; a `null`/`mixed`/union \
+                 condition needs an IR representation this crate doesn't have yet, see the \
+                 crate docs' known gaps"
+            ),
+        };
+        if ty.is_refcounted() && !is_aliasing_read(&cond.kind) {
+            self.emit_release(cur, v);
+        }
+        cond_v
+    }
+
     /// Lowers `ExprKind::Interpolated`'s parts into the single [`Ty::Str`]
     /// value they denote — a left-to-right fold of [`InstKind::Concat`],
     /// reusing [`Self::concat_operand`] per `StringPart::Expr` piece exactly
@@ -2020,6 +2094,67 @@ mod tests {
     fn while_loop_carries_locals_through_a_header_phi() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function sum(int $n): int {\n    int $total = 0;\n    int $i = 0;\n    while ($i < $n) {\n      $total = $total + $i;\n      $i = $i + 1;\n    }\n    return $total;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `if ($n)` with an `int` parameter — ADR 0035's truthy table for a
+    /// scalar condition, converted through the new `Helper::IntTruthy`
+    /// rather than requiring `$n` already be `bool`.
+    #[test]
+    fn an_int_condition_converts_through_a_truthy_helper() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(int $n): bool {\n    if ($n) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `while ($s)` with a `string` parameter — the same table's `string`
+    /// row (`Helper::StrTruthy`), exercised through `while` rather than
+    /// `if` to confirm `Lowering::lower_while` routes through the same
+    /// `Lowering::lower_truthy_cond` helper.
+    #[test]
+    fn a_string_while_condition_converts_through_a_truthy_helper() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(string $s): void {\n    while ($s) {\n      $s = \"\";\n    }\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `if ($a)` with an `array<int>` parameter — ADR 0035's "empty is
+    /// falsy, regardless of element type" row, via `Helper::ArrayTruthy`.
+    /// `$a` is a bare variable read (`is_aliasing_read`), so no release
+    /// follows the helper call — the array is still the parameter's own
+    /// slot, released normally at scope exit.
+    #[test]
+    fn an_array_condition_converts_through_a_truthy_helper() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a): bool {\n    if ($a) {\n      return true;\n    }\n    return false;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `if (self::make())` where `make` returns a fresh `array<int>` — unlike
+    /// the parameter case above, this array has no other owner once the
+    /// truthy check reads it, so `Lowering::lower_truthy_cond` must release
+    /// it right after, the same "release a fresh value once its one and only
+    /// use is done" precedent `Self::concat_operand`'s own caller already
+    /// sets for `.` concatenation.
+    #[test]
+    fn a_fresh_array_condition_is_released_after_the_truthy_check() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): bool {\n    if (self::make()) {\n      return true;\n    }\n    return false;\n  }\n  static function make(): array<int> {\n    return [1];\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `if ($f)` with a class-typed parameter — ADR 0035 § 4 makes a class
+    /// instance always truthy, so this needs no `HelperCall` at all: it
+    /// folds straight to a fresh `const.bool true`.
+    #[test]
+    fn an_object_condition_is_always_truthy() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    if ($f) {\n      return true;\n    }\n    return false;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

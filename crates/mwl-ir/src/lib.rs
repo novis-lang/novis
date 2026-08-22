@@ -25,7 +25,10 @@
 //! converted through this crate's first runtime-helper-call shape, and now a
 //! positional `array<T>` literal (`[...]`/legacy `array(...)`, refcounted
 //! like `string`/`bytes`), and now an array-element read and write through a
-//! known `int`/`uint`/`string` key (`$arr[$i]`, `$arr[$i] = expr;`) —
+//! known `int`/`uint`/`string` key (`$arr[$i]`, `$arr[$i] = expr;`), and now
+//! an `if`/`while` condition that isn't already `bool` — a scalar or
+//! `array<T>` converts through ADR 0035's truthy table (a class instance or
+//! enum case folds straight to a constant `true`, always truthy) —
 //! [`lower::lower_method`] is the entry point. No `for`/`switch`/`try`, no
 //! `break`/`continue`, no `$a[]` append syntax on either side, no explicit
 //! `key =>`/`...spread`/`&value` array-literal element, no
@@ -226,6 +229,35 @@
 //! explicit key actually appears. `...spread` and `&value` elements remain
 //! exactly as unsupported as before this slice.
 //!
+//! ADR 0035's truthy-table conversion for a non-`bool` `if`/`while` condition
+//! is the seventeenth slice, and a deliberately partial one, exactly as the
+//! plan called for: a `bool` condition passes straight through as before,
+//! and a scalar (`int`/`uint`/`float`/`string`) or [`ty::Ty::Array`] condition
+//! now converts through five new [`ir::Helper`] variants (`IntTruthy`/
+//! `UintTruthy`/`FloatTruthy`/`StrTruthy`/`ArrayTruthy`) reusing the exact
+//! [`ir::InstKind::HelperCall`] shape the twelfth slice already introduced —
+//! [`lower::Lowering::lower_if`]/[`lower::Lowering::lower_while`] both now
+//! call a new [`lower::Lowering::lower_truthy_cond`] instead of asserting the
+//! condition is already `bool`. A [`ty::Ty::Object`] condition (a class
+//! instance or an enum case) needs no helper at all: ADR 0035 § 4 makes
+//! either always truthy, so this folds straight to a fresh
+//! [`ir::InstKind::ConstBool`] `true` rather than emitting a call with
+//! nothing to inspect at runtime. A refcounted condition
+//! (`Ty::Str`/`Ty::Array`) that isn't [`lower::is_aliasing_read`] — a fresh
+//! call/`new`/literal result whose only use is the truthy test — is released
+//! right after the helper reads it, the same precedent
+//! [`lower::Lowering::concat_operand`]'s own caller already set for `.`
+//! concatenation; an aliasing read (a bare variable, a compile-time-known
+//! property or array-element read) needs no extra release here, since its
+//! owning slot already releases it normally at reassignment or scope exit.
+//! What's still out of scope, deliberately: `null` (no nullable-type IR
+//! representation exists yet to convert *from*) and `mixed`/a union (the same
+//! `Ty::Mixed` gap the runtime-helper-calls known gap below already names) —
+//! both wait on those representations landing first, not on a new `Helper`
+//! variant. `&&`/`||`/`!` and the ternary/elvis condition (ADR 0035's other
+//! four truthy positions) are unaffected: this crate doesn't lower any of the
+//! three yet at all, so only `if`/`while`'s own condition changed this slice.
+//!
 //! # Design choices worth knowing before widening this further
 //!
 //! - **SSA, not a plain CFG.** `docs/implementation-plan.md`'s M2 paragraph
@@ -394,15 +426,18 @@
 //!   [`ir::Terminator::Branch`] and [`ids::EdgeId`] are both already
 //!   exercised by `if`/`while`, so widening to the rest is expected to reuse
 //!   the same shapes rather than add new ones — see [`lower`]'s module docs.
-//! - An `if`/`while` condition must already be statically `bool` — ADR
-//!   0035's full truthy-table conversion for a non-`bool` condition needs a
-//!   `bool`-producing runtime helper per source type (PHP's truthy rule
-//!   differs by type: `0`/`0.0`/`""`/`"0"`/an empty array/`null` are all
-//!   falsy, everything else truthy), most of which have no IR representation
-//!   to convert *from* yet (no `array<T>`, no nullable type) — so this is
-//!   naturally sequenced after those land, not purely a "no `HelperCall`
-//!   shape" gap now that one exists (see the design-choices section above).
-//!   Lowering panics naming this.
+//! - **An `if`/`while` condition converts through ADR 0035's truthy table for
+//!   a `bool`, scalar, or `Ty::Array` operand; a `Ty::Object` operand (a
+//!   class instance or an enum case) is always truthy and needs no helper at
+//!   all (ADR 0035 § 4).** See the seventeenth-slice paragraph above for the
+//!   `Helper` variants this added and the release policy for a fresh
+//!   `Ty::Array` condition. What's still out of scope: `null`/`mixed`/a
+//!   union, since neither a nullable-type nor a `Ty::Mixed` IR representation
+//!   exists yet to convert *from* — lowering panics naming this, though
+//!   nothing in scope today can actually reach that arm (see the runtime-
+//!   helper-calls known gap below). `&&`/`||`/`!` and the ternary/elvis
+//!   condition — ADR 0035's other four truthy positions — are unaffected:
+//!   this crate doesn't lower any of the three yet at all.
 //! - No block-scoped shadowing: the environment `crate::lower` threads
 //!   through is one flat, function-wide map, exactly like the straight-line
 //!   slice's `locals` was. A nested `{}` declaring a local that shadows an
@@ -499,15 +534,18 @@
 //!   no guard test needs it functional before M3's backend does. `for`
 //!   loops will need the same back-edge marker once they land.
 //! - **Runtime-helper calls (the milestone's third named ingredient) now
-//!   exist, but only for `.`'s scalar-to-`string` conversion.**
-//!   [`ir::InstKind::HelperCall`]/[`ir::Helper`] are landed and used by
-//!   [`lower::Lowering::concat_operand`] — see the twelfth-slice paragraph
-//!   above and the design-choices section for the shape this took. Ordinary
-//!   arithmetic still lowers directly to [`ir::InstKind::BinOp`]/
+//!   cover `.`'s scalar-to-`string` conversion and ADR 0035's truthy
+//!   conversion for a scalar or `Ty::Array` `if`/`while` condition.**
+//!   [`ir::InstKind::HelperCall`]/[`ir::Helper`] are used by both
+//!   [`lower::Lowering::concat_operand`] (the twelfth slice) and
+//!   [`lower::Lowering::lower_truthy_cond`] (the seventeenth slice, above).
+//!   Ordinary arithmetic still lowers directly to [`ir::InstKind::BinOp`]/
 //!   [`ir::InstKind::UnOp`] with no helper fallback, since a `mixed`/union
-//!   operand has no IR representation to dispatch on yet — that, and ADR
-//!   0035's truthy conversion above, are expected to add new [`ir::Helper`]
-//!   variants to the same enum rather than a second call-shaped instruction.
+//!   operand has no IR representation to dispatch on yet — that gap, and the
+//!   `null`/`mixed` half of ADR 0035's own truthy conversion left open above,
+//!   are both expected to add new [`ir::Helper`] variants to the same enum
+//!   once [`ty::Ty`] gains a `Mixed`/nullable representation, rather than a
+//!   second call-shaped instruction.
 //! - ~~Integer literal magnitude range-checking.~~ **Done**, at check time:
 //!   `mwl_types::expr::infer`'s own `ExprKind::Int` arm now enforces ADR 0007
 //!   § 4's exact rule — a literal too large for `int` is legal only where a

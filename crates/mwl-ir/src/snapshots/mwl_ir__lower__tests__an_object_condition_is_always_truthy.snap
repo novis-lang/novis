@@ -1,0 +1,22 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, object) -> bool {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; object
+    ; stmt s0 @5:5-7:6
+    v2 = const.bool true  ; bool
+    branch v2 -> bb2 (e0), bb1 (e1)
+  bb1:
+    ; stmt s3 @8:5-8:18
+    v4 = const.bool false  ; bool
+    return v4
+  bb2:
+    ; stmt s1 @5:13-7:6
+    ; stmt s2 @6:7-6:19
+    v3 = const.bool true  ; bool
+    return v3
+}
