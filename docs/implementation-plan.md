@@ -41,21 +41,29 @@
 > § 3's intraprocedural read-before-write check). Remaining for this milestone: ADR 0011/0024 §4/0033's
 > stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), and finishing `mwl-ir`.
 >
-> `mwl-ir` (CFG/SSA IR) has landed its **first slice**: `crates/mwl-ir/src/ids.rs` reserves the stable
-> `StmtId`/`EdgeId` numbering [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-> needs (assigned in one deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
-> `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, with `Terminator::Branch` and its
-> `EdgeId`-carrying edges already reserved though nothing constructs one yet; `lower.rs` lowers one
-> straight-line method (typed local declarations, plain `$x = expr;` reassignment, scalar
-> arithmetic/comparison/unary operators, `return`) end to end, with an `insta` snapshot test over its
-> printed form (`print.rs`). Deliberately out of scope for this slice, all documented in the crate's own
-> module docs: any control flow (`if`/`while`/`for`/`switch`/`match`/`try`), calls, `new`, non-scalar
-> types (`string`/`bytes`/arrays/objects) and therefore refcount operations, and safepoints (nothing yet
-> has a loop back-edge to put one at). The crate deliberately does not yet depend on `mwl-hir`/`mwl-types`
-> — every type this slice's lowering needs is read straight off the `mwl-syntax` AST, since ADR 0007 § 1
-> already requires it spelled out there for every shape in scope; widening past scalars will need to
-> settle how lowering gets at a call site's or `new`'s resolved type, which `mwl-types` computes today but
-> does not persist anywhere lowering can read it back from.
+> `mwl-ir` (CFG/SSA IR) has landed its straight-line slice plus **control flow**: `crates/mwl-ir/src/ids.rs`
+> reserves the stable `StmtId`/`EdgeId` numbering
+> [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
+> deterministic pre-order lowering walk, scoped per function); `ir.rs` defines the
+> `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including an `InstKind::Phi`
+> instruction; `lower.rs` lowers a method body of typed local declarations, plain `$x = expr;`
+> reassignment, scalar arithmetic/comparison/unary operators, `return`, nested `{}` blocks, and `if`/`while`
+> end to end, with `insta` snapshot tests over the printed form (`print.rs`) covering both control-flow
+> shapes (an `if`/`else` merge needing a real phi, an `if` with no `else`, both branches of an `if` always
+> `return`ing, and a `while` loop carrying two locals through a loop-header phi). `if`'s join and `while`'s
+> loop-header join are each a single hand-rolled two-predecessor (or pre-loop/back-edge) SSA merge, not a
+> general dominance-based phi-placement algorithm — sufficient since a structured `if`/`while` only ever has
+> that one join shape; a `while` header's phi is seeded before its body is lowered and patched with the
+> back-edge value afterwards, once the body's exit environment is known. Deliberately out of scope still,
+> all documented in the crate's own module docs: `for`/`switch`/`match`/`try`, `break`/`continue`, a
+> non-`bool` `if`/`while` condition (ADR 0035's truthy conversion needs a runtime-helper call that doesn't
+> exist in the IR yet), calls, `new`, non-scalar types (`string`/`bytes`/arrays/objects) and therefore
+> refcount operations, and safepoints (a `while` back edge now exists structurally, but nothing marks it as
+> a poll site yet — no guard test needs that before M3). The crate deliberately does not yet depend on
+> `mwl-hir`/`mwl-types` — every type this slice's lowering needs is read straight off the `mwl-syntax` AST,
+> since ADR 0007 § 1 already requires it spelled out there for every shape in scope; widening past scalars
+> will need to settle how lowering gets at a call site's or `new`'s resolved type, which `mwl-types`
+> computes today but does not persist anywhere lowering can read it back from.
 >
 > Per-crate known gaps (what a
 > receiver/expression shape isn't checked yet) are documented in each module's own doc comment —

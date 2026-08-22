@@ -5,78 +5,82 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Also landed this session, independent of the `mwl-ir` thread below: [ADR 0039](docs/adr/0039-canonical-code-formatting.md)**
+**Also landed a couple of sessions back, independent of the `mwl-ir` thread below: [ADR 0039](docs/adr/0039-canonical-code-formatting.md)**
 decides `mwl fmt`'s actual formatting rules — PER as the base style, explicit rules for the MWL-only
 constructs PER never saw (`fn` closures, `tainted`/`secret`, `lateinit`, shape types, `match`), a
 gofmt-style no-reflow model (never wraps/collapses an expression by width), zero configuration ever, and a
 hard separation from the compiler (`mwl fmt --check` warns; `mwl check` never does). Docs only — `mwl-fmt`
-itself doesn't exist until M10, so there is nothing to build from this yet; it's there so M10 starts from a
-decided style instead of an open question.
+itself doesn't exist until M10, so there is nothing to build from this yet.
 
-**Last session stood up the `mwl-ir` crate and lowered its first slice** — M2's last named deliverable,
-"lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls, with
-a stable per-statement/per-edge id" (the milestone text already committed to "CFG/**SSA**", so that part
-was a mechanical follow-through, not a fresh decision):
+**Last session landed `mwl-ir`'s control-flow slice** — `if`/`while`, the first item in the widening order
+the previous prompt laid out. This is where SSA's real join/phi question got answered:
 
-- **`crates/mwl-ir/src/ids.rs`** — `StmtId`/`EdgeId`/`BlockId`/`ValueId` newtypes and an `IdGen` that hands
-  them out in one deterministic pre-order lowering walk, scoped per function (not process-wide). `StmtId`/
-  `EdgeId` each carry the source `Span` that produced them, recorded for later lookup — this is the stable
-  id [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s coverage/
-  branch probes need, reserved now per the milestone's own "cheap now, expensive to retrofit" framing.
-- **`crates/mwl-ir/src/ty.rs`** — a small, flat, representation-level `Ty` (`Bool`/`Int`/`Uint`/`Float`/
-  `Void` so far), deliberately **not** `mwl_types::ty::Ty`: the checker's type exists to reject the wrong
-  program (qualifiers, nominal identity, unions); by the time a function reaches this crate it has already
-  been proven to type-check, so the IR only needs to know how a value is *represented* for codegen. See the
-  module's own docs for the full reasoning — this is the kind of split worth knowing about before adding to
-  either enum.
-- **`crates/mwl-ir/src/ir.rs`** — the data model: `Program` of `Function`s, each a `Vec<BasicBlock>` (this
-  slice only ever produces one) of SSA `Inst`ructions ending in one `Terminator`. `Terminator::Branch`
-  already carries the `EdgeId`-tagged pair of outgoing edges ADR 0018 will need, and `Terminator::Jump`
-  exists too — neither is constructed yet, both reserved for when control flow lands.
-- **`crates/mwl-ir/src/print.rs`** — a text pretty-printer (`fn add(int, int) -> int { bb0: v0 = param 0 ;
-  int ... }`) used by snapshot tests today, intended for a future `mwl run --dump-ir`-shaped CLI flag once
-  one exists (M3, alongside `--dump-asm`).
-- **`crates/mwl-ir/src/lower.rs`** — `lower_method()`, the actual lowering, scoped to exactly one program
-  shape: a method body of typed local declarations, plain `$x = expr;` reassignment, scalar unary/binary
-  arithmetic and comparison operators over `bool`/`int`/`uint`/`float`, and `return`. No control flow at
-  all (no phi nodes needed yet — a straight-line body has exactly one predecessor for every use, which is
-  why this was the first slice). **Trusts its input already passed `mwl_types::check_program`** rather than
-  re-checking it — panics, naming the unsupported shape, for anything outside scope. Five unit tests with
-  `insta` snapshots cover straight-line arithmetic, reassignment producing a fresh SSA value (a bare
-  `$y = $x;` needs no new instruction at all — SSA value-numbering falls out for free), unary/comparison
-  operators, ADR 0007 § 4's uint-literal defaulting, and a `should_panic` proving control flow is refused.
-- **Deliberately no dependency on `mwl-hir`/`mwl-types` yet.** Every type this slice's lowering needs
-  (a parameter's, a local's, a method's return type) is read straight off the `mwl-syntax` AST, since ADR
-  0007 § 1 already requires it spelled out there in full for every shape in scope — no name resolution or
-  persisted checked-expression type is needed to answer "what type is this" *for this slice*. Widening past
-  scalars will need one of: (a) `mwl-ir` depending on `mwl-hir`/`mwl-types` and re-deriving types itself
-  (duplicating logic `mwl_types::expr` already has, currently all `pub(crate)`), or (b) `mwl-types` growing
-  a published, persisted typed-expression table (e.g. keyed by `Span` or by a stable per-expression id)
-  that lowering reads back rather than recomputes. **This is a real design decision for whoever picks up
-  widening — it wasn't forced this session because straight-line scalar code never needed it, but property
-  access/calls/`new` all will.** Flag it and decide deliberately rather than drifting into whichever shape
-  the first widening PR happens to need.
-
-`cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole
-workspace (mwl-types still at 154 tests, untouched; mwl-ir adds 5). Landed in three commits: crate
-skeleton (ids/ty/ir/print), the lowering slice + snapshot tests, and the M2 status-block update.
+- **`crates/mwl-ir/src/lower.rs`** now has a `Lowering` builder that threads a `cur: &mut BlockId` through
+  the recursive lowering calls: lowering a plain statement appends to that block; lowering `if`/`while`
+  seals it with a real `Terminator::Branch`, lowers each arm into its own block, and hands back a new
+  current block (the merge point for `if`, the loop's exit for `while`) for whatever comes next. Every
+  block created is guaranteed to eventually get sealed — either by a `return` inside it, by an explicit
+  `Jump` back to a merge/loop point, or, for the one block still open at the very end of the method body,
+  by `lower_method`'s existing fallback `return;`.
+- **`if`'s join and `while`'s loop-header join are each a single, hand-rolled two-predecessor (or
+  pre-loop/back-edge) SSA merge** — not a general dominance-based phi-placement algorithm, since a
+  structured `if`/`while` only ever produces that one join shape. A local keeping the same `ValueId` on
+  every incoming edge needs no phi (SSA value numbering falls out for free, same as the straight-line
+  slice); one that differs gets a fresh `ir::InstKind::Phi` (new variant, this session). A `while` header's
+  phi is seeded with only its pre-loop incoming edge before the body is lowered (the back-edge value isn't
+  known yet), then patched with the body's exit value afterwards — see `Lowering::lower_while`'s own doc
+  comment. Which locals need a header phi at all comes from a syntactic pre-scan
+  (`Lowering::collect_reassigned_locals`), not a second type-check — it only has to safely
+  over-approximate "might be reassigned in the loop body", since a spurious phi is redundant, never wrong.
+- **A name missing from some incoming environment at a join point is silently dropped from the merged one**
+  rather than treated as an error: per `mwl_types::check_program`'s existing definite-assignment rule, any
+  local actually used after the join must already be assigned on every path reaching it, so if it's really
+  needed it will be present in every incoming environment by construction.
+- **Determinism fix worth knowing about:** both merge sites originally iterated an `FxHashMap`/`FxHashSet`
+  in its own bucket order, which would have made phi/id assignment depend on hash-table internals rather
+  than source order alone — a real conflict with `ids.rs`'s own "an id is stable across recompiles of the
+  *same* source" contract. Fixed before committing: `merge_envs` sorts local names before deciding which
+  need a phi, and `collect_reassigned_locals` now collects into a `Vec` in first-occurrence source order
+  (with an `FxHashSet` alongside only for O(1) dedup), not a hash set's iteration order.
+- **An `if`/`while` condition must already be statically `bool`** — lowering panics naming this if not.
+  ADR 0035's full truthy-table conversion for a non-`bool` condition needs a runtime-helper call, which
+  doesn't exist in the IR yet (item 5 below).
+- Six new snapshot tests (`crates/mwl-ir/src/lower.rs`'s `tests` module): an `if`/`else` merge needing a
+  real phi, an `if` with no `else` (the implicit false edge lands straight on the merge block), both
+  branches of an `if` always `return`ing (the merge block is dead but still needs a well-formed
+  terminator — handled by falling back to the pre-branch environment rather than adding a dedicated
+  "unreachable" terminator), a `while` loop carrying two pre-existing locals through header phis, and a
+  `should_panic` proving `for` is still out of scope. `mwl-ir` is now at 9 tests (was 5); mwl-types stays at
+  154, untouched. `cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across
+  the whole workspace.
+- **Known, documented gap, not fixed this session:** a nested `{}` `LocalDecl` that shadows an outer local
+  of the same name is not distinguished from a reassignment of the outer binding — the environment is one
+  flat, function-wide map with no notion of nested lexical scopes. Not observable for any program in scope
+  today, but worth fixing (or at least re-checking) before this crate's `Env` is trusted with more shapes.
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
 
-1. **Control flow.** `if`/`while` first (the two structures that need exactly one join point each), then
-   `for`/`switch`/`try`. This is where SSA's real question — the join/phi-node algorithm — actually gets
-   answered; the first slice deliberately dodged it. `Terminator::Branch`'s `EdgeId`s should get their
-   first real construction here, and `crate::ir` may need a `Phi` instruction kind added.
-2. **Safepoints.** Belong at a loop back-edge and at function entry (recursion) — neither exists until (1)
-   lands loops. Reserve the instruction/marker shape when you get there; no guard test needs it until M3.
+1. ~~Control flow (`if`/`while`).~~ **Done.** `for`/`switch`/`try`, plus `break`/`continue` of any kind, are
+   still out of scope — reuse `merge_envs`/the seed-then-patch phi dance rather than inventing a new
+   algorithm; `switch`'s fallthrough-by-omitted-`break` shape and `try`/`catch`'s exceptional edges are the
+   two likely to need something beyond a straight port.
+2. **Safepoints.** Belong at a loop back-edge and at function entry (recursion). `while` now lowers a real
+   back edge (`Terminator::Jump` from the loop body to its header) — reserve the instruction/marker shape
+   there and at function entry. No guard test needs this until M3, so this is a good next slice: small,
+   self-contained, and doesn't need the design decision in (3) below.
 3. **Calls, `new`, property/array access.** This is where the "does `mwl-ir` depend on `mwl-types`, or does
-   `mwl-types` publish a typed-expression table" decision above has to be made — resolve it before writing
-   the lowering code, not after.
+   `mwl-types` publish a typed-expression table" decision (carried forward from two sessions ago, still
+   unresolved because nothing so far has forced it) has to actually be made — resolve it before writing the
+   lowering code, not after. Not a session-ending blocker on its own, but flag it explicitly if you reach
+   it: it's a real design choice between "duplicate a chunk of `mwl_types::expr`'s (currently `pub(crate)`)
+   type-inference logic inside `mwl-ir`" and "give `mwl-types` a new, deliberately-designed public
+   typed-expression table" — worth deciding once, not drifting into.
 4. **Non-scalar values (`string`/`bytes`, arrays, objects) and refcount operations.** The milestone text's
    third named ingredient; has nowhere to attach until a reference-counted value exists in `ir::Ty`.
 5. **Runtime-helper calls** — the milestone's fourth named ingredient, for `mixed`/union operands once they
-   exist in the IR (this slice's arithmetic lowers directly to native-shaped `BinOp`/`UnOp` with no helper
+   exist in the IR, and also what a non-`bool` `if`/`while` condition's ADR 0035 truthy conversion needs
+   (this slice's arithmetic/conditions lower directly to native-shaped instructions with no helper
    fallback, since every operand type is a single scalar by construction).
 6. `var` locals (ADR 0037) and full-magnitude/multi-base integer-literal cooking (hex/octal/binary) are
    smaller, independent gaps that can land whenever convenient.
