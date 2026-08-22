@@ -4,63 +4,54 @@ Continue MWL. M1 (front end) is done. M2 (HIR/types/IR) is in progress — run `
 then read `docs/implementation-plan.md`'s M2 paragraph for exactly what landed and how (this file only
 points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact once").
 
-**Last session closed the M2 queue's item 1 — `switch`/`try` definite-assignment precision, and `parent` as
-a type atom — both entirely inside `mwl-types` (plus one new diagnostic code in `mwl-diagnostics`):**
+**Last session was docs-only: [ADR 0038](docs/adr/0038-lateinit-property-modifier.md), the `lateinit`
+property modifier.** It resolves ADR 0022's deferred "opt-in lateinit-equivalent" item — the user hit a real
+design gap (a non-nullable class-typed property that a DI container/ORM populates after `new`, not inside
+the constructor) and walked through the options rather than defaulting to PHP's implicit-uninitialized
+state. Decided, in order: `lateinit` is restricted to non-nullable **class/interface types only** (a scalar
+already has a free real default, so it gets no benefit); once written it's **freely reassignable**, same as
+Kotlin's `lateinit var` (incompatible with `readonly`, which is the opposite promise); checking is
+**runtime-only** by default, reusing ADR 0022 §3's existing "never written" tag/throw rather than a new
+mechanism, **plus** one free intraprocedural compile-time check (same definite-assignment dataflow ADR 0022
+already runs, extended to run inside every method, not just constructors) that only fires on a
+call-free read-before-write in the same function — deliberately built to never produce a false positive,
+because a real cross-method/cross-object interprocedural version was considered and rejected: it would need
+whole-program analysis that fights ADR 0017's per-file hot-reload model. No code changed this session —
+`CLAUDE.md`, `docs/adr/README.md`'s index, and ADR 0022's own cross-references were updated; ADR 0038 is the
+only new file.
 
-- `locals.rs`'s and `ctor_init.rs`'s `Switch`/`Try` arms no longer conservatively contribute nothing to what's
-  live/assigned afterward. Both now join every branch that can actually finish normally, mirroring the
-  existing `if`/`else` join: a `switch` case contributes only when it definitely exits there (a trailing
-  `break`/`continue`, or being the last case and falling off the end), excluding one that always
-  returns/throws; a `try`'s `body`/each `catch` each start fresh from the pre-`try` state (an exception can
-  interrupt `body` before any of its own assignments run, so a `catch` can never assume more) and each
-  contributes only when it finishes normally; `finally` — checked from that same pre-`try` state, for the
-  same reason — has its own assignments *unioned* into the joined result afterward rather than discarding it,
-  since `finally` runs on top of whichever candidate path actually happened. A new shared predicate,
-  `locals::ends_in_break_or_continue` (`pub(crate)`, reused from `ctor_init.rs`), tells "this case explicitly
-  exits the switch here" from "this case silently falls through to the next one" — the latter still
-  contributes nothing, since carrying a fallen-through case's own live set into the next case isn't modeled
-  (documented remaining simplification, safe: it can only cause a spurious diagnostic, never a missed one).
-  10 new tests across `check.rs` (end-to-end, via `check_program`) and `ctor_init.rs`.
-- `parent` as a type atom (`parent $x` in a parameter/property/return position) now resolves against
-  `Ctx::current_class`'s first `extends` link via `env.graph`, the same hop `expr::resolve_class_expr`'s
-  `ParentExpr` arm and `check_new_target`'s `NewTarget::ParentTy` arm already use for the expression side —
-  `lower.rs`'s `resolve_parent`. Unlike those two (which silently fall back to `mixed` for an unresolvable
-  `parent`, matching the rest of `resolve_class_expr`'s "no statically knowable class → silent `mixed`"
-  convention), a *type* position gets a diagnostic instead, the same way an out-of-class `self`/`static`
-  already does: a new code, `E_NO_PARENT_CLASS` (`E0423`), for a class with no `extends` at all; the existing
-  `E_UNDEFINED_CLASS` "used outside any class" path for no enclosing class (mirrors `self`/`static`, currently
-  unreachable through `check.rs`'s pipeline the same way theirs is, since top-level functions aren't
-  descended into yet — not a new gap, just inherited). 2 new tests in `check.rs`.
-- `cargo build`/`test`/`clippy --all-targets -D warnings`/`fmt --check` all clean across the whole workspace;
-  `mwl-types` alone now has 143 passing tests (was 131 before this session).
+**This session's first job: implement ADR 0038 in the checker, mirroring how ADR 0022 §2 already landed**
+(`ctor_init.rs`, `signatures.rs`'s `required_properties`/`own_required_properties`, `E_UNINITIALIZED_PROPERTY`
+`E0409`, `E_MISSING_PARENT_CONSTRUCTOR_CALL` `E0410` — read that module before starting, it's the template):
 
-**The M2 work queue below is renumbered from before this session — the old item 1 is done and removed;
-items 2 and 3 shift up to 1 and 2:**
+1. **Parser**: a `lateinit` modifier token on a property declaration (`mwl-syntax`), positioned alongside
+   `public`/`static`/`readonly`. Needs its own lexer/parser test coverage the same way other modifiers have.
+2. **`signatures.rs`**: a `lateinit` property must be excluded from `required_properties` (it has no
+   constructor-must-assign obligation per ADR 0038 §1) — likely a new flag alongside the existing
+   non-nullable/no-default/non-hooked criteria that already gate `required_properties` membership.
+3. **New diagnostics**, per ADR 0038 §1 — pick real codes following the `E04xx` sequence `ctor_init.rs`'s
+   session used (`E0409`/`E0410` were the last two added):
+   - `E_LATEINIT_NOT_OBJECT_TYPE` — `lateinit` on a scalar/enum-typed property.
+   - `E_LATEINIT_NULLABLE` — `lateinit` on a `?T` property.
+   - `E_LATEINIT_PROMOTED_PARAM` — `lateinit` on a promoted constructor parameter.
+   - `E_LATEINIT_READONLY_CONFLICT` — `lateinit` combined with `readonly`.
+4. **`ctor_init.rs`** (or a sibling pass): the § 3 intraprocedural check — a `lateinit` property enters
+   *every* method body (not just constructors) in "not yet proven written" state; any call to another
+   method/function conservatively moves it to "assumed written" (never flag past a call — no false
+   positives is the explicit design constraint in the ADR); a read reached with no intervening write and no
+   intervening call on that path is `E_LATEINIT_READ_BEFORE_WRITE_LOCAL`. This likely reuses `locals.rs`'s
+   existing dataflow-join machinery (`if`/`else`/`switch`/`try` handling from the immediately preceding
+   session) rather than writing new control-flow plumbing.
+5. Runtime throw itself (ADR 0038 §2, reusing ADR 0022 §3's "never written" tag) is **M4** work, same as ADR
+   0022's own residual case — no backend exists yet, nothing to do there this session.
 
-**Next, in the order that makes sense to attempt — independent, can land in any order or be split across
-sessions:**
-
-1. **Smaller independent polish**, any one a quick follow-up: a class constant's type (`Class::CONST` is
-   always `mixed`, including a *non-enum* class — enum case access was fixed several sessions ago); a
-   promoted constructor-parameter property (tracked as neither a property nor a definite-assignment
-   obligation — mirrors a `mwl_hir::members` gap, likely fix both together); a named/spread call argument
-   disables all per-argument checking for that call; a class with no explicit `constructor` isn't held to a
-   zero-arg arity check on `new`, nor to the `parent::constructor(...)` obligation; a `set`-hooked property
-   is exempted from ADR 0022's check entirely rather than verified against the hook's body; `implements
-   Comparable`/`Stringable` is never checked for actually declaring `compareTo`/`toString` (needs general
-   interface-method-completeness checking, which doesn't exist yet — likely its own small design decision
-   first); `==`/`===` between two different enum types (wants a general equality-operand-compatibility
-   pass, not an enum-only special case).
-2. **ADR 0035's runtime side** — no code yet, and none is expected until M3's first backend exists.
-
-Also worth a quick pass sometime, low priority: re-check the rest of the docs tree for the same
-"`__foo` compiles as an ordinary method" phrasing pattern a previous session found stale in ADR 0014 § 6
-and ADR 0028 §§ 2/5 — every double-underscore magic-method name is unconditionally rejected by ADR 0029's
-method-casing rule before any resolution logic ever runs, so any ADR describing one as "compiling, just
-never invoked" needs the same correction. A `grep -rn "compiles as an ordinary method" docs/adr/` came back
-clean as of that session, but the same idea may be phrased differently elsewhere.
+Also still open from before (independent, low priority, pick up if there's time left over): a `set`-hooked
+property is exempted from ADR 0022's check entirely rather than verified against the hook's body — same
+open item now applies to whether a `lateinit` + hooked property should discharge on the hook's first commit
+(ADR 0038's own *Revisiting* names this, deferred to `docs/spec/`).
 
 M2's *Verify* line (in the plan, right after its paragraph) names the exact corpus this milestone needs.
 ADR 0007, 0010, 0013, 0014, 0022, 0024, 0027, 0028, 0033 (its M2-reachable entries), 0036, and 0037's own
-entries are satisfied; the rest (0033's `Core\Log`/`var_dump`/`serialize` entries, plus IR snapshot tests)
-depends on the work above, on later milestones, or on `mwl-ir`, unstarted.
+entries are satisfied; ADR 0038 joins the list once the work above lands. The rest (0033's
+`Core\Log`/`var_dump`/`serialize` entries, plus IR snapshot tests) depends on later milestones or on
+`mwl-ir`, unstarted.
