@@ -879,8 +879,10 @@ storm against one hot, `mtime`-validated file is bounded by `revalidate_freq`, n
 ### M8 — Stdlib and databases (~16 weeks)
 Two-tier regex with the `preg_*` layer; JSON; hashing and crypto (RustCrypto: sha2, blake3, argon2,
 bcrypt, aes-gcm); date/time with PHP-compatible formatting; filesystem and stream abstractions; process
-execution behind the capability gate — an argv array with no shell in between, per
-[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md); sessions; a PDO-like DB API with pure-Rust
+execution behind the `process.exec` capability gate — `Core\Process::run()`/`::spawn()`, argv-only with no
+shell-string form at all, a Windows batch/PowerShell-target refusal, and coroutine-suspending waits, per
+[ADR 0044](adr/0044-core-process-argv-only-no-shell.md) (which supersedes ADR 0024 §4's original
+placeholder bullet); sessions; a PDO-like DB API with pure-Rust
 MySQL/MariaDB, PostgreSQL and MS SQL Server drivers plus SQLite (documenting `rusqlite`'s C dependency as an
 explicit, audited exception to the pure-Rust rule) — its query-text parameter requires the plain,
 unqualified `string` while bound parameters stay tainted-friendly, and `Core\Html::escape`/`Markup` and the
@@ -915,7 +917,11 @@ call; `Core\Ast::parse()` fuzzed with the same corpus as M1's lexer/parser targe
 verified per [ADR 0020](adr/0020-error-escalation-ladder.md)'s own M7/M8 list — `onUncaughtThrow` receives
 the real `Throwable`; the configured handler script runs charged to the engine's own reserve and still
 fires when the reporting request is at its own memory ceiling; application code and the engine floor
-produce schema-identical log records for the same error.
+produce schema-identical log records for the same error. `Core\Process` verified per
+[ADR 0044](adr/0044-core-process-argv-only-no-shell.md)'s own M8 list — a tainted `$path`/`$argv` element is
+a compile-time diagnostic, a Windows batch/PowerShell target is refused, the `process.exec` capability is
+deny-by-default, and a concurrent-spawn scheduler guard sits alongside `benches/abi-probe`'s existing
+coroutine-suspension tests.
 
 ### M9 — Extension system (~6 weeks)
 `mwl-ext`: `.mwlx` loading (wasm component + `mwl.manifest` custom section), manifest parsing and
