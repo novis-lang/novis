@@ -12,9 +12,9 @@ On disk: `mwl-diagnostics`, `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl
 do not exist yet — create them at M3 with their **own** `[lints]` block (`unsafe_code = "deny"`, narrow
 reasoned allows), never `lints.workspace = true`, which is `forbid`.
 
-**ADRs 0051–0060 landed** — the standard-library scoping set, decided in full and already wired into
-CLAUDE.md, `docs/adr/README.md`, the plan and the spec. No code implements any of them yet. Three carry
-obligations that land **before** M8 and therefore concern the work in front of you:
+**ADRs 0051–0061 are decided and wired** into CLAUDE.md, `docs/adr/README.md`, the plan and the spec. No
+code implements any of them yet. Four carry obligations that land **before** M8 and therefore concern the
+work in front of you:
 
 - [ADR 0053](docs/adr/0053-iteration-and-generators.md) — `Iterable`/`Iterator` are the only iteration
   interfaces (`ArrayAccess`/`Countable` do not exist), and generators lower to an explicit **state
@@ -23,6 +23,12 @@ obligations that land **before** M8 and therefore concern the work in front of y
   `mwl-syntax`, conversion/arithmetic rows in `mwl-types`, and i128 lowering at M4.
 - [ADR 0055](docs/adr/0055-extension-qualifier-declarations.md) — the WIT world must carry a
   `tainted`/`secret` axis. Nothing to do now; it constrains M8/M9 and is recorded so it is not forgotten.
+- [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md) — **new.** `autoload` is a
+  top-level declaration resolving names to files at compile time, with paths relative to the declaring
+  file; `Core\Program::implementing<T>()` enumerates classes nothing references by name. The M2 half is
+  `mwl-syntax` grammar plus a fixpoint over `mwl-hir::requires`' existing worklist; M6/M7 add the cache
+  and revalidation edges, M8 the `Core\Program` name. See that ADR's *Verification* section, which is the
+  one home for the split.
 
 Nothing is blocked. The three gaps sitting directly on the acceptance command's path are spelled out, with
 their already-decided designs, in `.claude/loop-goal.md` § *The three gaps that actually sit on the path* —
@@ -60,11 +66,18 @@ ADR 0018's probe ids.
   pre-authorized.
 - A `set`-hooked property is exempted from ADR 0022's constructor check rather than verified against the
   hook's own writes.
-- **New, from this session's ADRs, all small and independently landable:**
-  [0054](docs/adr/0054-decimal-scalar-type.md)'s `m` literal suffix and untyped-until-placed fractional
+- [0054](docs/adr/0054-decimal-scalar-type.md)'s `m` literal suffix and untyped-until-placed fractional
   literals in `mwl-syntax`; [0053](docs/adr/0053-iteration-and-generators.md)'s `Iterable`/`Iterator` as
   reserved interface names alongside `Comparable`/`PropertyObserver`/`Stringable`, and `$obj[$k]` on a
   non-array refused with a diagnostic naming that ADR.
+- **New, from [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md), independently
+  landable and off the `Hello, World!` path:** the `autoload` keyword and its two statement forms in
+  `mwl-syntax` (grammar in [`docs/spec/00-overview.md`](docs/spec/00-overview.md) § 2), then the resolver
+  half in `mwl-hir` — probe on an unresolved `QName`, load, `collect_*`, repeat, and only then report
+  `E_UNDECLARED`, which is a fixpoint over the worklist `requires.rs` already owns rather than a new walk.
+  Three new `E03xx` codes to allocate in `mwl-diagnostics` (duplicate prefix, `autoload` inside an
+  autoloaded file, and the one-declaration-per-autoloaded-file rule). Do the parser half first; it is
+  testable alone.
 
 ## Standing rules for this repo
 
