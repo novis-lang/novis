@@ -6,7 +6,7 @@ ordinary work session exactly as a human-driven session would (per `CLAUDE.md`),
 
 ## The loop
 
-Ask the user how long the loop should run. Make sure the target goal can be reached without interaction by the user. If the road to the target goal have any decisions that need be made along the way, ask beforehand, so the loops can work autonomously. Warn the user if the loops goal is to far ahead. Give the user a good entry point of what goal is optimal for this kind of loop.
+Ask the user how long the loop should run. Make sure the target goal can be reached without interaction by the user. If the road to the target goal have any decisions that need be made along the way, ask beforehand, so the loops can work autonomously. Warn the user if the loops goal is to far ahead. Give the user a good entry point of what goal is optimal for this kind of loop. Only stop a loop if you find out mid loop that you really require a decision that you didnt catched beforehand. Skip the step if it easy possible to skip without interferring with the next job. Better safe than sorry, if you are unsure.
 
 
 1. Read `NEXT_SESSION_PROMPT.md` in the repo root.
