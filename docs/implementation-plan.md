@@ -185,11 +185,12 @@
 > would mean guessing at a runtime conversion this crate can't yet synthesize), virtual dispatch (every
 > call/access lowered so far has its receiver's static type equal to its runtime class),
 > variadic/named/spread call
-> arguments, `.` concatenation of a `Stringable`-object operand (needs a resolved `toString` call `.` has
-> no way to synthesize from a bare operand — see `mwl-ir`'s own module docs for why that's more than a new
-> IR shape) and interpolated/heredoc/nowdoc string literals (only a plain
-> single/double-quoted literal with no interpolation cooks today, and only the common escapes — a numeric
-> escape passes through uncooked), and any of the eight `tainted`/`secret`-qualified string/bytes variants
+> arguments, and `.` concatenation of a `Stringable`-object operand (needs a resolved `toString` call `.`
+> has no way to synthesize from a bare operand — see `mwl-ir`'s own module docs for why that's more than a
+> new IR shape). Every string-literal shape now cooks and lowers, including numeric escapes and
+> interpolation/heredoc/nowdoc (PHP 7.3's flexible-heredoc indentation strip included) — see
+> `mwl-ir`'s own module docs for the escape grammar/dedent split. Still open: any of the eight
+> `tainted`/`secret`-qualified string/bytes variants
 > (`string`/`bytes` themselves are landed, unqualified only; `Ty::Object` also still has no refcount
 > operations of its own, deferred the same "shape now, functional later" way `InstKind::Safepoint` was).
 >

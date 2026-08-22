@@ -843,10 +843,10 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consumes a heredoc/nowdoc terminator already confirmed by
-    /// [`Self::heredoc_terminator_here`] and returns its span. Whether to
-    /// strip its leading whitespace from the body's content lines (PHP
-    /// 7.3+ "flexible heredoc") is left to whoever later cooks the token
-    /// stream into a value -- see the module docs.
+    /// [`Self::heredoc_terminator_here`] and returns its span. Stripping its
+    /// leading whitespace from the body's content lines (PHP 7.3+ "flexible
+    /// heredoc") happens later, once the parser has assembled the whole
+    /// literal's span -- see `mwl_types::string_lit::heredoc_shape`.
     fn consume_heredoc_terminator(&mut self, label: &str) -> Span {
         let start = self.pos;
         while matches!(self.peek(), Some(' ' | '\t')) {

@@ -376,6 +376,10 @@ fn inner_quoted_span(span: Span) -> Span {
 /// (one shared implementation) rather than a second, divergent one.
 fn check_double_quoted_text_issues(span: Span, env: &mut Env<'_>) {
     let (_, issues) = crate::string_lit::cook_double_quoted_text(env.src, span);
+    report_cook_issues(issues, env);
+}
+
+fn report_cook_issues(issues: Vec<crate::string_lit::CookIssue>, env: &mut Env<'_>) {
     for issue in issues {
         match issue {
             crate::string_lit::CookIssue::InvalidUnicodeEscape(span) => {
@@ -398,6 +402,68 @@ fn check_double_quoted_text_issues(span: Span, env: &mut Env<'_>) {
                 );
             }
         }
+    }
+}
+
+fn report_heredoc_indent_issues(
+    issues: Vec<crate::string_lit::HeredocIndentIssue>,
+    env: &mut Env<'_>,
+) {
+    for issue in issues {
+        match issue {
+            crate::string_lit::HeredocIndentIssue::MixedIndentWhitespace(span) => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_HEREDOC_MIXED_INDENT,
+                        "this heredoc/nowdoc's closing marker mixes spaces and tabs in its \
+                         indentation",
+                    )
+                    .with_primary(span, "must be all spaces or all tabs, not both"),
+                );
+            }
+            crate::string_lit::HeredocIndentIssue::InsufficientIndent(span) => {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_HEREDOC_INSUFFICIENT_INDENT,
+                        "this line has less leading whitespace than the heredoc/nowdoc's \
+                         closing marker",
+                    )
+                    .with_primary(
+                        span,
+                        "does not start with the closing marker's own indentation",
+                    ),
+                );
+            }
+        }
+    }
+}
+
+/// Cooks one heredoc/nowdoc body run — [`crate::string_lit::HeredocShape::body`]'s whole span for
+/// a `Str`-collapsed literal, or one `StringPart::Text` span inside an `Interpolated` one —
+/// reporting both indentation and (for a heredoc, never a nowdoc) escape-cooking issues found
+/// along the way. The cooked `String` itself is discarded, same as [`check_double_quoted_text_issues`]:
+/// `mwl-ir` re-cooks it from the same inputs when it actually lowers the literal.
+fn check_heredoc_run_issues(
+    indent: &str,
+    span: Span,
+    body_start: bool,
+    is_last_run: bool,
+    run_escapes: bool,
+    env: &mut Env<'_>,
+) {
+    let mut issues = Vec::new();
+    let dedented = crate::string_lit::dedent_heredoc_run(
+        env.src,
+        indent,
+        span,
+        body_start,
+        is_last_run,
+        &mut issues,
+    );
+    report_heredoc_indent_issues(issues, env);
+    if run_escapes {
+        let (_, cook_issues) = crate::string_lit::cook_double_quoted_text_str(&dedented, span);
+        report_cook_issues(cook_issues, env);
     }
 }
 
@@ -467,22 +533,47 @@ fn infer(
         }
         ExprKind::Float(_) => env.interner.float(),
         ExprKind::Str(span) => {
-            // Only a double-quoted literal runs the richer escape grammar
-            // `check_double_quoted_text_issues` cooks — a single-quoted
-            // literal's own two escapes (`\\`/`\'`) can never produce invalid
-            // UTF-8, and a heredoc/nowdoc-sourced `Str` (whose span opens
-            // with `<`, not a quote) is a separate, still-open `mwl-ir`
-            // lowering gap this checker doesn't validate ahead of yet — see
-            // `crate::string_lit`'s own module docs.
-            if span_text(env.src, *span).starts_with('"') {
+            // A single-quoted literal's own two escapes (`\\`/`\'`) can
+            // never produce invalid UTF-8, so it gets no cooking-diagnostic
+            // pass at all. A double-quoted literal runs the richer escape
+            // grammar `check_double_quoted_text_issues` cooks. A
+            // heredoc/nowdoc-sourced `Str` (whose span opens with `<`, not a
+            // quote) runs `crate::string_lit`'s flexible-indentation check
+            // first, then the same escape grammar too — unless it's a
+            // nowdoc, which (like PHP's) applies no escapes at all.
+            let raw = span_text(env.src, *span);
+            if raw.starts_with('"') {
                 check_double_quoted_text_issues(inner_quoted_span(*span), env);
+            } else if raw.starts_with("<<<") {
+                let (shape, indent_issues) = crate::string_lit::heredoc_shape(env.src, *span);
+                report_heredoc_indent_issues(indent_issues, env);
+                let run_escapes = !crate::string_lit::heredoc_is_nowdoc(raw);
+                check_heredoc_run_issues(&shape.indent, shape.body, true, true, run_escapes, env);
             }
             env.interner.string()
         }
         ExprKind::Interpolated(parts) => {
+            // Only a heredoc/nowdoc can ever reach this arm with the
+            // opening `<<<`-only span it needs its own flexible-indentation
+            // strip (`mwl_syntax::parser::collapse_string_parts` never
+            // produces a nowdoc `Interpolated` at all: a nowdoc has no
+            // interpolation syntax by construction, so it always collapses
+            // to `ExprKind::Str`, whose arm above already handles it).
+            let raw = span_text(env.src, expr.span);
+            let is_heredoc = raw.starts_with("<<<");
+            let indent = if is_heredoc {
+                let (shape, indent_issues) = crate::string_lit::heredoc_shape(env.src, expr.span);
+                report_heredoc_indent_issues(indent_issues, env);
+                shape.indent
+            } else {
+                String::new()
+            };
+            let last_text_idx = is_heredoc
+                .then(|| parts.iter().rposition(|p| matches!(p, StringPart::Text(_))))
+                .flatten();
             let mut tainted = false;
             let mut secret = false;
-            for part in parts {
+            for (i, part) in parts.iter().enumerate() {
                 match part {
                     StringPart::Expr(e) => {
                         let ty = check_expr(e, None, live, scope, ctx, env);
@@ -498,8 +589,24 @@ fn infer(
                     // character (`mwl_syntax::parser::parse_string_body`
                     // never emits one as part of a `Text` token), so no
                     // quote-kind check is needed here the way `Str` above
-                    // needs one.
-                    StringPart::Text(span) => check_double_quoted_text_issues(*span, env),
+                    // needs one — except a heredoc's own flexible
+                    // indentation, which has to be stripped from each run
+                    // first (`is_heredoc`'s own doc comment above: this
+                    // literal is never a nowdoc, so escapes always run).
+                    StringPart::Text(span) => {
+                        if is_heredoc {
+                            check_heredoc_run_issues(
+                                &indent,
+                                *span,
+                                i == 0,
+                                Some(i) == last_text_idx,
+                                true,
+                                env,
+                            );
+                        } else {
+                            check_double_quoted_text_issues(*span, env);
+                        }
+                    }
                 }
             }
             qualified_scalar(false, tainted, secret, env.interner)

@@ -95,10 +95,11 @@ pub enum TokenKind {
     /// with no interpolation, exactly like a single-quoted string's content.
     NowdocOpen,
     /// The closing label line of a heredoc/nowdoc (leading whitespace plus the
-    /// label). The lexer records only where this token is — whether to strip
-    /// that leading whitespace from the body's content lines (PHP 7.3+
-    /// "flexible heredoc") is left to the stage that turns tokens into a final
-    /// string value, not decided during tokenization.
+    /// label). The lexer records only where this token is — stripping that
+    /// leading whitespace from the body's content lines (PHP 7.3+ "flexible
+    /// heredoc") happens later, once the parser has assembled the whole
+    /// literal's span: see `mwl_types::string_lit::heredoc_shape`/
+    /// `dedent_heredoc_run`, not tokenization.
     HeredocClose,
     /// A run of literal text inside a double-quoted string, heredoc or nowdoc,
     /// between its delimiters and/or interpolation sites. May contain escape

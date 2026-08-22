@@ -31,9 +31,18 @@
 //! (`\\`/`\'` only) can never produce invalid UTF-8 — it copies source
 //! characters through unchanged aside from those two escapes, both already
 //! ASCII — so it has no cooking routine of its own to share; `mwl-ir`'s
-//! `cook_str_literal` keeps that tiny case inline. A heredoc/nowdoc-sourced
-//! `ExprKind::Str` is a separate, still-open gap (PHP's "flexible heredoc"
-//! indentation stripping) — see `mwl-ir`'s own crate docs.
+//! `cook_str_literal` keeps that tiny case inline.
+//!
+//! This module also cooks a heredoc/nowdoc's body: PHP 7.3's "flexible
+//! heredoc" rule, which lets the closing marker itself be indented and
+//! strips that same indentation off every line of the body
+//! ([`heredoc_shape`], [`dedent_heredoc_run`]). A heredoc's interpolated
+//! text runs still cook through this module's own double-quoted escape
+//! grammar afterward ([`cook_double_quoted_text_str`], the owned-`&str`
+//! sibling of [`cook_double_quoted_text`] needed once dedenting has already
+//! broken the byte-for-byte correspondence to a single source span); a
+//! nowdoc's body applies no escapes at all, exactly like `mwl-ir`'s own
+//! single-quoted case — dedenting is the *only* transformation it gets.
 
 use mwl_diagnostics::{SourceFile, Span};
 
@@ -77,6 +86,36 @@ pub enum CookIssue {
 #[must_use]
 pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
     let text = src.span_text(span).unwrap_or_default();
+    cook_double_quoted_chars(text, span, |s, e| {
+        Span::new(
+            span.file,
+            span.start + off_as_u32(s),
+            span.start + off_as_u32(e),
+        )
+    })
+}
+
+/// [`cook_double_quoted_text`]'s sibling for text that no longer corresponds
+/// byte-for-byte to any single contiguous span in the source file — a
+/// heredoc/nowdoc body run once [`dedent_heredoc_run`] has stripped its
+/// per-line indentation, which shifts every offset past the first stripped
+/// line. Cooks the identical escape grammar, but every [`CookIssue`] it
+/// finds is attributed to the whole `attribute_to` span rather than a
+/// precise sub-span — a deliberate, narrow loss of diagnostic precision
+/// (never of the cooked *value*, which is exact either way) that only
+/// applies once a heredoc/nowdoc's closing marker is itself indented; a
+/// marker with no indentation never reaches this function at all, see
+/// `mwl-ir`'s `cook_str_literal`/`Lowering::lower_interpolated_parts`.
+#[must_use]
+pub fn cook_double_quoted_text_str(text: &str, attribute_to: Span) -> (String, Vec<CookIssue>) {
+    cook_double_quoted_chars(text, attribute_to, |_, _| attribute_to)
+}
+
+fn cook_double_quoted_chars(
+    text: &str,
+    whole_span_for_utf8_issue: Span,
+    escape_span: impl Fn(usize, usize) -> Span,
+) -> (String, Vec<CookIssue>) {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let n = chars.len();
     let mut bytes: Vec<u8> = Vec::with_capacity(text.len());
@@ -177,15 +216,12 @@ pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<Coo
                 if j > hex_start && chars.get(j).map(|&(_, c)| c) == Some('}') {
                     let hex: String = chars[hex_start..j].iter().map(|&(_, c)| c).collect();
                     let value = u32::from_str_radix(&hex, 16).unwrap_or(u32::MAX);
-                    let escape_end = chars
-                        .get(j + 1)
-                        .map_or(span.end, |&(off, _)| span.start + off_as_u32(off));
+                    let escape_end_off = chars.get(j + 1).map_or(text.len(), |&(off, _)| off);
                     match char::from_u32(value) {
                         Some(ch) => bytes.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes()),
-                        None => issues.push(CookIssue::InvalidUnicodeEscape(Span::new(
-                            span.file,
-                            span.start + off_as_u32(chars[i].0),
-                            escape_end,
+                        None => issues.push(CookIssue::InvalidUnicodeEscape(escape_span(
+                            chars[i].0,
+                            escape_end_off,
                         ))),
                     }
                     i = j + 1;
@@ -209,7 +245,7 @@ pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<Coo
     match String::from_utf8(bytes) {
         Ok(s) => (s, issues),
         Err(e) => {
-            issues.push(CookIssue::InvalidUtf8(span));
+            issues.push(CookIssue::InvalidUtf8(whole_span_for_utf8_issue));
             (String::from_utf8_lossy(e.as_bytes()).into_owned(), issues)
         }
     }
@@ -219,6 +255,212 @@ pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<Coo
 /// `u32`), so a byte offset within one always fits back into a `u32`.
 fn off_as_u32(off: usize) -> u32 {
     u32::try_from(off).expect("a byte offset within one source file fits u32 (BytePos's own type)")
+}
+
+// --- heredoc/nowdoc flexible-indentation stripping (PHP 7.3+) --------------
+
+/// One way validating a heredoc/nowdoc's flexible-indentation strip went
+/// wrong — [`heredoc_shape`]'s closing-marker check
+/// (`MixedIndentWhitespace`, reported at most once per literal), or
+/// [`dedent_heredoc_run`]'s per-line check (`InsufficientIndent`, reported
+/// once per offending line).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeredocIndentIssue {
+    /// The closing marker's own leading whitespace mixes spaces and tabs —
+    /// PHP requires it to be one or the other so a body line's leading
+    /// whitespace can be compared to it byte-for-byte.
+    MixedIndentWhitespace(Span),
+    /// A non-blank body line's leading whitespace does not start with the
+    /// closing marker's own indentation. A line that is entirely empty is
+    /// exempt (PHP's own carve-out): there is nothing to check, and nothing
+    /// to strip either.
+    InsufficientIndent(Span),
+}
+
+/// The parts of a heredoc/nowdoc literal PHP 7.3's "flexible heredoc" rule
+/// needs: the closing marker's own indentation text (spaces or tabs, never
+/// both — see [`HeredocIndentIssue::MixedIndentWhitespace`]; empty when the
+/// marker isn't indented at all, the common case, which makes every
+/// [`dedent_heredoc_run`] call downstream a no-op) and the body's own span
+/// — the text strictly between the opening line's terminating `\n` and the
+/// closing marker's leading whitespace, *inclusive* of the one trailing
+/// newline PHP always drops rather than treats as content.
+#[derive(Debug, Clone)]
+pub struct HeredocShape {
+    /// The closing marker's own leading indentation, copied verbatim off its
+    /// source line.
+    pub indent: String,
+    /// The body's span, opening-line newline through the closing marker's
+    /// own leading whitespace (exclusive) — see the struct's own doc
+    /// comment for why its *trailing* edge still includes one newline
+    /// character (`dedent_heredoc_run` is what actually drops it).
+    pub body: Span,
+}
+
+/// Computes a heredoc/nowdoc literal's [`HeredocShape`] from `whole_span` —
+/// the entire literal exactly as `mwl_syntax::ast::ExprKind::Str`/
+/// `Interpolated` carry it: `<<<LABEL` (or `<<<'LABEL'`/`<<<"LABEL"`)
+/// through the closing marker's own last character, inclusive. No separate
+/// span for the closing marker needs to be threaded through from the parser
+/// for this: `mwl_syntax::parser::parse_heredoc_string` never leaves
+/// anything after the marker inside this span, so the marker's own line is
+/// always exactly the text after `whole_span`'s *last* `\n` — even in the
+/// degenerate empty-body case, where that last `\n` is the same one that
+/// ends the opening line.
+///
+/// Returns `(shape, issues)` rather than reporting through `Diagnostics`
+/// directly, the same shape [`cook_double_quoted_text`] already uses, so a
+/// checker call site can attribute a code/message to each issue and
+/// `mwl-ir` can discard them, trusting the checker already ran.
+#[must_use]
+pub fn heredoc_shape(
+    src: &SourceFile,
+    whole_span: Span,
+) -> (HeredocShape, Vec<HeredocIndentIssue>) {
+    let raw = src.span_text(whole_span).unwrap_or_default();
+    let Some(last_nl) = raw.rfind('\n') else {
+        // No newline at all inside the whole literal -- a malformed heredoc
+        // header `mwl-syntax` already reported `E_BAD_HEREDOC` for. Fall
+        // back to an empty body rather than guessing at a shape.
+        let empty = Span::new(whole_span.file, whole_span.end, whole_span.end);
+        return (
+            HeredocShape {
+                indent: String::new(),
+                body: empty,
+            },
+            Vec::new(),
+        );
+    };
+    let first_nl = raw.find('\n').expect("rfind above already found one");
+    let marker = &raw[last_nl + 1..];
+    let indent_len = marker
+        .chars()
+        .take_while(|&c| c == ' ' || c == '\t')
+        .count();
+    let indent = &marker[..indent_len];
+    let mut issues = Vec::new();
+    let indent = if indent.contains(' ') && indent.contains('\t') {
+        let marker_start = whole_span.start + off_as_u32(last_nl + 1);
+        issues.push(HeredocIndentIssue::MixedIndentWhitespace(Span::new(
+            whole_span.file,
+            marker_start,
+            marker_start + off_as_u32(indent_len),
+        )));
+        String::new()
+    } else {
+        indent.to_owned()
+    };
+    let body = Span::new(
+        whole_span.file,
+        whole_span.start + off_as_u32(first_nl + 1),
+        whole_span.start + off_as_u32(last_nl + 1),
+    );
+    (HeredocShape { indent, body }, issues)
+}
+
+/// Whether a heredoc/nowdoc literal's own opening (`raw`, starting with
+/// `<<<`) is a nowdoc (`<<<'LABEL'`) rather than a heredoc (`<<<LABEL` or
+/// `<<<"LABEL"`) — the one distinction that decides whether its body runs
+/// any escape grammar at all (a nowdoc runs none, exactly like a
+/// single-quoted literal minus even `\\`/`\'`; see this module's own docs).
+/// Shared between the checker and `mwl-ir` for the same reason every other
+/// function in this module is: getting this wrong silently would mean the
+/// two disagree on whether an escape sequence is even live.
+#[must_use]
+pub fn heredoc_is_nowdoc(raw: &str) -> bool {
+    raw.strip_prefix("<<<")
+        .map(str::trim_start)
+        .is_some_and(|rest| rest.starts_with('\''))
+}
+
+/// Strips `indent` from the start of one heredoc/nowdoc body line's raw text
+/// (`line`, containing no `\n` of its own). A blank line (zero characters)
+/// is exempt from the check and returned unchanged, matching PHP; anything
+/// else must start with `indent` exactly, or the mismatch is reported
+/// against `line_span` and `line` itself is returned unstripped — a
+/// best-effort recovery value so a caller keeps cooking the rest of the
+/// literal rather than aborting on the first bad line.
+fn strip_line_indent<'a>(
+    indent: &str,
+    line: &'a str,
+    line_span: Span,
+    issues: &mut Vec<HeredocIndentIssue>,
+) -> &'a str {
+    if line.is_empty() {
+        return line;
+    }
+    match line.strip_prefix(indent) {
+        Some(rest) => rest,
+        None => {
+            issues.push(HeredocIndentIssue::InsufficientIndent(line_span));
+            line
+        }
+    }
+}
+
+/// Dedents one raw heredoc/nowdoc body run — [`HeredocShape::body`]'s whole
+/// span for a heredoc/nowdoc that collapsed to `ExprKind::Str` (no
+/// interpolation site anywhere in the body), or one
+/// `StringPart::Text` span for an `ExprKind::Interpolated` heredoc — against
+/// `indent` (from [`heredoc_shape`]), applying [`strip_line_indent`] to
+/// every line this run *starts*.
+///
+/// `body_start` must be `true` only for the very first run of the whole
+/// body: its own first line is a fresh line needing a dedent check only
+/// then, since every other run picks up wherever the previous run or
+/// interpolation site left off, which is never a line start on its own (an
+/// interpolation site never itself carries leading whitespace — any
+/// indentation before one is always literal text already captured by the
+/// preceding run, see `mwl-ir`'s own module docs on this point). Every
+/// *embedded* `\n` inside `line`'s own text always starts a fresh line
+/// regardless of `body_start`, since a literal newline can only ever appear
+/// inside a `Text` run.
+///
+/// `is_last_run` must be `true` only for the run immediately before the
+/// closing marker: it strips the exact one trailing newline (`\r\n` or
+/// `\n`) PHP always drops rather than keeps as content, before any line
+/// splitting happens. Every *other* embedded newline in the body — CRLF or
+/// LF — is left as literal content unchanged; a heredoc does not otherwise
+/// normalize line endings.
+#[must_use]
+pub fn dedent_heredoc_run(
+    src: &SourceFile,
+    indent: &str,
+    span: Span,
+    body_start: bool,
+    is_last_run: bool,
+    issues: &mut Vec<HeredocIndentIssue>,
+) -> String {
+    let raw = src.span_text(span).unwrap_or_default();
+    let text = if is_last_run {
+        raw.strip_suffix("\r\n")
+            .or_else(|| raw.strip_suffix('\n'))
+            .unwrap_or(raw)
+    } else {
+        raw
+    };
+    if indent.is_empty() {
+        return text.to_owned();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut offset: u32 = 0;
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        let line_span = Span::new(
+            span.file,
+            span.start + offset,
+            span.start + offset + off_as_u32(line.len()),
+        );
+        if i > 0 || body_start {
+            out.push_str(strip_line_indent(indent, line, line_span, issues));
+        } else {
+            out.push_str(line);
+        }
+        offset += off_as_u32(line.len()) + 1;
+    }
+    out
 }
 
 #[cfg(test)]
@@ -338,5 +580,145 @@ mod tests {
         let (s, issues) = cook(r"\q");
         assert!(issues.is_empty());
         assert_eq!(s, "\\q");
+    }
+
+    // --- heredoc/nowdoc flexible-indentation stripping ---------------------
+
+    fn shape_of(src_text: &str) -> (HeredocShape, Vec<HeredocIndentIssue>) {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src_text);
+        let span = Span::new(file, 0, u32::try_from(src_text.len()).unwrap());
+        heredoc_shape(map.file(file), span)
+    }
+
+    #[test]
+    fn heredoc_shape_finds_no_indent_on_a_flush_left_marker() {
+        let (shape, issues) = shape_of("<<<EOT\nhello\nEOT");
+        assert!(issues.is_empty());
+        assert_eq!(shape.indent, "");
+    }
+
+    #[test]
+    fn heredoc_shape_extracts_the_closing_markers_indentation() {
+        let (shape, issues) = shape_of("<<<EOT\n    hello\n    EOT");
+        assert!(issues.is_empty());
+        assert_eq!(shape.indent, "    ");
+    }
+
+    #[test]
+    fn heredoc_shape_flags_mixed_space_and_tab_indentation() {
+        let (shape, issues) = shape_of("<<<EOT\n\t hello\n\t EOT");
+        assert_eq!(issues.len(), 1);
+        assert!(matches!(
+            issues[0],
+            HeredocIndentIssue::MixedIndentWhitespace(_)
+        ));
+        // Recovery: treat the marker as unindented rather than guess.
+        assert_eq!(shape.indent, "");
+    }
+
+    #[test]
+    fn heredoc_shape_handles_an_empty_body() {
+        // The closing marker line immediately follows the opening line, so
+        // the single '\n' in the whole span both ends the header and starts
+        // the marker line.
+        let (shape, issues) = shape_of("<<<EOT\nEOT");
+        assert!(issues.is_empty());
+        assert_eq!(shape.indent, "");
+    }
+
+    fn dedent(
+        indent: &str,
+        src_text: &str,
+        body_start: bool,
+        is_last_run: bool,
+    ) -> (String, Vec<HeredocIndentIssue>) {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src_text);
+        let span = Span::new(file, 0, u32::try_from(src_text.len()).unwrap());
+        let mut issues = Vec::new();
+        let s = dedent_heredoc_run(
+            map.file(file),
+            indent,
+            span,
+            body_start,
+            is_last_run,
+            &mut issues,
+        );
+        (s, issues)
+    }
+
+    #[test]
+    fn dedent_is_a_no_op_with_no_indent() {
+        let (s, issues) = dedent("", "  line one\n  line two\n", true, false);
+        assert!(issues.is_empty());
+        assert_eq!(s, "  line one\n  line two\n");
+    }
+
+    #[test]
+    fn dedent_strips_matching_indentation_from_every_line() {
+        let (s, issues) = dedent("    ", "    line one\n    line two\n", true, false);
+        assert!(issues.is_empty());
+        assert_eq!(s, "line one\nline two\n");
+    }
+
+    #[test]
+    fn dedent_strips_the_one_trailing_newline_before_the_closing_marker() {
+        let (s, issues) = dedent("    ", "    hello\n", true, true);
+        assert!(issues.is_empty());
+        assert_eq!(s, "hello");
+    }
+
+    #[test]
+    fn dedent_strips_a_trailing_crlf_before_the_closing_marker() {
+        let (s, issues) = dedent("    ", "    hello\r\n", true, true);
+        assert!(issues.is_empty());
+        assert_eq!(s, "hello");
+    }
+
+    #[test]
+    fn dedent_exempts_a_truly_blank_line_from_the_indentation_check() {
+        let (s, issues) = dedent("    ", "    a\n\n    b\n", true, false);
+        assert!(issues.is_empty());
+        assert_eq!(s, "a\n\nb\n");
+    }
+
+    #[test]
+    fn dedent_flags_a_non_blank_line_with_insufficient_indentation() {
+        let (s, issues) = dedent("    ", "    a\n  b\n", true, false);
+        assert_eq!(issues.len(), 1);
+        assert!(matches!(
+            issues[0],
+            HeredocIndentIssue::InsufficientIndent(_)
+        ));
+        // Recovery: the offending line is left unstripped.
+        assert_eq!(s, "a\n  b\n");
+    }
+
+    #[test]
+    fn dedent_does_not_check_the_very_first_line_of_a_non_body_start_run() {
+        // Simulates the run right after an interpolation site: its own
+        // first "line" is really a continuation of the previous run's line,
+        // so it must not be dedented even though it has no indentation.
+        let (s, issues) = dedent("    ", "rest of line\n    next line\n", false, false);
+        assert!(issues.is_empty());
+        assert_eq!(s, "rest of line\nnext line\n");
+    }
+
+    #[test]
+    fn heredoc_is_nowdoc_detects_the_single_quoted_label() {
+        assert!(heredoc_is_nowdoc("<<<'EOT'\nraw\nEOT"));
+        assert!(!heredoc_is_nowdoc("<<<EOT\nplain\nEOT"));
+        assert!(!heredoc_is_nowdoc("<<<\"EOT\"\nplain\nEOT"));
+    }
+
+    #[test]
+    fn cook_double_quoted_text_str_cooks_the_same_grammar_from_an_owned_string() {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", "whatever");
+        let attribute_to = Span::new(file, 0, 8);
+        let (s, issues) = cook_double_quoted_text_str(r"a\nb", attribute_to);
+        assert!(issues.is_empty());
+        assert_eq!(s, "a\nb");
     }
 }

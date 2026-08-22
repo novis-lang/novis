@@ -394,6 +394,19 @@ pub mod code {
     /// UTF-8 — `string` is guaranteed-valid UTF-8 (ADR 0009), so a byte
     /// escape's raw output has to actually decode, not just fit in a byte.
     pub const E_STRING_LITERAL_INVALID_UTF8: Code = Code::new("E0431");
+    /// A heredoc/nowdoc's closing marker is indented with a mix of spaces and
+    /// tabs — PHP 7.3's "flexible heredoc" rule (which this qualifier
+    /// mirrors) requires the marker's own indentation to be one or the
+    /// other, never both, since a body line's leading whitespace must match
+    /// it byte-for-byte to be stripped. See
+    /// `mwl_types::string_lit::heredoc_shape`.
+    pub const E_HEREDOC_MIXED_INDENT: Code = Code::new("E0432");
+    /// A non-blank heredoc/nowdoc body line has less leading whitespace than
+    /// its own closing marker — PHP 7.3's "flexible heredoc" rule requires
+    /// every body line to start with at least the marker's own indentation
+    /// so it can be stripped uniformly. A line that is entirely empty is
+    /// exempt from this check. See `mwl_types::string_lit::dedent_heredoc_run`.
+    pub const E_HEREDOC_INSUFFICIENT_INDENT: Code = Code::new("E0433");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

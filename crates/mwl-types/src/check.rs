@@ -582,6 +582,90 @@ mod tests {
         );
     }
 
+    // --- heredoc/nowdoc flexible-indentation stripping ---------------------
+
+    /// A heredoc whose closing marker is indented, and whose body lines
+    /// carry exactly that much indentation, is fine — the common,
+    /// well-formed shape PHP 7.3's "flexible heredoc" rule exists for.
+    #[test]
+    fn a_consistently_indented_heredoc_is_not_diagnosed() {
+        let diags = check_in_method("string $s = <<<EOT\n    hello\n    world\n    EOT;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The closing marker's own indentation mixing spaces and tabs is
+    /// `E_HEREDOC_MIXED_INDENT` — PHP requires one or the other so a body
+    /// line's leading whitespace can be compared byte-for-byte.
+    #[test]
+    fn a_heredoc_closing_marker_mixing_tabs_and_spaces_is_diagnosed() {
+        let diags = check_in_method("string $s = <<<EOT\n\thello\n\t EOT;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_HEREDOC_MIXED_INDENT)),
+            "{diags:?}"
+        );
+    }
+
+    /// A body line with less leading whitespace than the closing marker is
+    /// `E_HEREDOC_INSUFFICIENT_INDENT`.
+    #[test]
+    fn a_heredoc_body_line_with_insufficient_indentation_is_diagnosed() {
+        let diags = check_in_method("string $s = <<<EOT\n    hello\n  world\n    EOT;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_HEREDOC_INSUFFICIENT_INDENT)),
+            "{diags:?}"
+        );
+    }
+
+    /// A truly empty body line is exempt from the indentation check, even
+    /// between two consistently indented lines.
+    #[test]
+    fn a_blank_heredoc_body_line_is_not_diagnosed() {
+        let diags = check_in_method("string $s = <<<EOT\n    hello\n\n    world\n    EOT;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// A nowdoc applies no escape grammar at all (unlike a heredoc, which
+    /// still cooks `\n`/`\t`/etc.), but still gets indentation-checked —
+    /// `\n` here must stay two literal characters, and the check above it
+    /// runs regardless of whether escapes do.
+    #[test]
+    fn a_nowdoc_skips_escape_cooking_but_still_checks_indentation() {
+        let diags = check_in_method("string $s = <<<'EOT'\n    raw \\n text\n    EOT;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// An interpolated heredoc's own indentation check applies per body run,
+    /// not just to a plain `Str`-collapsed one — this line becomes its own
+    /// `StringPart::Text` run picking up right after `$y`'s interpolation
+    /// site, so it has to be recognized as a fresh line on its own.
+    #[test]
+    fn an_interpolated_heredoc_body_line_after_interpolation_is_still_checked() {
+        let diags = check_in_method(
+            "string $y = \"z\";\nstring $s = <<<EOT\n    pre $y\n  post\n    EOT;\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_HEREDOC_INSUFFICIENT_INDENT)),
+            "{diags:?}"
+        );
+    }
+
+    /// The same interpolated-heredoc shape, consistently indented, is fine —
+    /// confirms the indentation check doesn't false-positive on a
+    /// well-formed interpolation site.
+    #[test]
+    fn a_consistently_indented_interpolated_heredoc_is_not_diagnosed() {
+        let diags = check_in_method(
+            "string $y = \"z\";\nstring $s = <<<EOT\n    pre $y\n    post\n    EOT;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
     #[test]
     fn integer_division_into_a_plain_int_is_diagnosed() {
         let diags = check_in_method("int $n = 7 / 2;\n");

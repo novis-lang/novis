@@ -993,25 +993,23 @@ impl<'a> Lowering<'a> {
                 let s = cook_str_literal(self.src, *span);
                 self.emit(cur, Ty::Str, InstKind::ConstStr(s))
             }
-            // A double-quoted-sourced `Interpolated` lowers to the same
-            // `InstKind::Concat` chain a written-out `.` expression already
-            // does — see `Self::lower_interpolated_parts`'s own doc comment
-            // for the one subtlety plain N-ary `.`-folding wouldn't force
-            // into the open on its own. A heredoc-sourced `Interpolated`
-            // (whose span opens with `<`, not `"`) shares `ExprKind::Str`'s
-            // own heredoc/nowdoc gap above — not lowered here either, since
-            // this crate has no flexible-heredoc indentation-stripping story
-            // yet, so panic naming that instead of emitting text with the
-            // wrong leading whitespace still baked in.
+            // A double-quoted- or heredoc-sourced `Interpolated` both lower
+            // to the same `InstKind::Concat` chain a written-out `.`
+            // expression already does — see `Self::lower_interpolated_parts`'s
+            // own doc comment for the one subtlety plain N-ary `.`-folding
+            // wouldn't force into the open on its own, and for how a heredoc's
+            // own flexible-indentation strip fits into that fold. Never a
+            // nowdoc: `mwl_syntax::parser::collapse_string_parts` only ever
+            // reaches `Interpolated` when at least one interpolation site
+            // was used, which a nowdoc's body can never contain.
             ExprKind::Interpolated(parts) => {
                 let raw = span_text(self.src, expr.span);
                 assert!(
-                    raw.starts_with('"'),
-                    "mwl-ir does not yet lower a heredoc/nowdoc-sourced Interpolated string \
-                     (its span doesn't open with `\"`) — got {raw:?}; see the crate docs' known \
-                     gaps"
+                    raw.starts_with('"') || raw.starts_with("<<<"),
+                    "mwl-ir only lowers a double-quoted or heredoc-sourced Interpolated string — \
+                     got {raw:?}; see the crate docs' known gaps"
                 );
-                self.lower_interpolated_parts(parts, env, cur)
+                self.lower_interpolated_parts(parts, expr.span, env, cur)
             }
             ExprKind::Variable(span) => {
                 let name = strip_sigil(span_text(self.src, *span));
@@ -1404,7 +1402,16 @@ impl<'a> Lowering<'a> {
     /// [`mwl_types::string_lit::cook_double_quoted_text`] — the same routine
     /// [`cook_str_literal`] delegates to for a plain double-quoted `Str`,
     /// since a `Text` run's escape grammar is identical either way (see that
-    /// function's own doc comment).
+    /// function's own doc comment) — unless `whole_span` opens with `<<<`
+    /// (a heredoc; never a nowdoc, see this function's caller), in which
+    /// case each `Text` run first goes through
+    /// [`mwl_types::string_lit::dedent_heredoc_run`] against the one
+    /// [`mwl_types::string_lit::heredoc_shape`] computed for the whole
+    /// literal, exactly the way [`cook_heredoc_str`] dedents a `Str`-collapsed
+    /// heredoc's own single run — `body_start` is true only for `parts`'
+    /// own first entry, and `is_last_run` only for the last `StringPart::Text`
+    /// entry (never an `Expr`: the body always ends in literal text, at
+    /// minimum the one newline before the closing marker).
     ///
     /// The one shape plain N-ary `.`-folding wouldn't otherwise force into
     /// the open: an `Interpolated` with exactly one part that is itself an
@@ -1426,6 +1433,7 @@ impl<'a> Lowering<'a> {
     fn lower_interpolated_parts(
         &mut self,
         parts: &[StringPart],
+        whole_span: mwl_diagnostics::Span,
         env: &Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
@@ -1434,11 +1442,35 @@ impl<'a> Lowering<'a> {
             "mwl-syntax's collapse_string_parts only ever produces ExprKind::Interpolated for a \
              non-empty parts vec"
         );
+        let is_heredoc = span_text(self.src, whole_span).starts_with("<<<");
+        let indent = if is_heredoc {
+            mwl_types::string_lit::heredoc_shape(self.src, whole_span)
+                .0
+                .indent
+        } else {
+            String::new()
+        };
+        let last_text_idx = is_heredoc
+            .then(|| parts.iter().rposition(|p| matches!(p, StringPart::Text(_))))
+            .flatten();
         let mut acc: Option<(ValueId, bool)> = None;
-        for part in parts {
+        for (i, part) in parts.iter().enumerate() {
             let piece = match part {
                 StringPart::Text(span) => {
-                    let s = mwl_types::string_lit::cook_double_quoted_text(self.src, *span).0;
+                    let s = if is_heredoc {
+                        let mut issues = Vec::new(); // discarded: mwl_types::check_program already reported these
+                        let dedented = mwl_types::string_lit::dedent_heredoc_run(
+                            self.src,
+                            &indent,
+                            *span,
+                            i == 0,
+                            Some(i) == last_text_idx,
+                            &mut issues,
+                        );
+                        mwl_types::string_lit::cook_double_quoted_text_str(&dedented, *span).0
+                    } else {
+                        mwl_types::string_lit::cook_double_quoted_text(self.src, *span).0
+                    };
                     (self.emit(cur, Ty::Str, InstKind::ConstStr(s)).0, false)
                 }
                 StringPart::Expr(e) => self.concat_operand(e, env, cur),
@@ -1607,20 +1639,28 @@ fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
 /// function performs — see that module's own docs for why the routine is shared rather than
 /// duplicated the way [`int_literal_digits`] is. This function discards the returned issues:
 /// `mwl_types::check_program` already reported them, the same "checker diagnoses, `mwl-ir` trusts"
-/// split every other panic in this crate relies on. A heredoc/nowdoc-sourced `Str` — whose span
-/// doesn't open with a quote character at all — isn't handled here either: this crate has no
-/// lowered fixture reaching one yet, so it panics naming the gap rather than guessing a
-/// representation.
+/// split every other panic in this crate relies on.
+///
+/// A heredoc/nowdoc-sourced `Str` (a body with no interpolation site used at all — its span opens
+/// with `<`, not a quote) instead delegates to [`cook_heredoc_str`]: PHP 7.3's "flexible heredoc"
+/// indentation strip
+/// ([`mwl_types::string_lit::heredoc_shape`]/[`mwl_types::string_lit::dedent_heredoc_run`]) runs
+/// first, then the same double-quoted escape grammar as above — unless it's a nowdoc
+/// (`mwl_types::string_lit::heredoc_is_nowdoc`), which applies no escapes at all, exactly like a
+/// single-quoted literal minus even `\\`/`\'`.
 fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
     let raw = span_text(src, span);
+    if raw.starts_with("<<<") {
+        return cook_heredoc_str(src, span, raw);
+    }
     let quote = raw
         .chars()
         .next()
         .unwrap_or_else(|| panic!("mwl-ir: an empty string literal span at {span:?} — lexer bug?"));
     assert!(
         quote == '\'' || quote == '"',
-        "mwl-ir does not yet cook a heredoc/nowdoc string literal (its span doesn't open with a \
-         quote character) — got {raw:?}; see the crate docs' known gaps"
+        "mwl-ir only cooks a single-quoted, double-quoted or heredoc/nowdoc string literal — got \
+         {raw:?}; see the crate docs' known gaps"
     );
     let inner_span = mwl_diagnostics::Span::new(span.file, span.start + 1, span.end - 1);
     if quote == '"' {
@@ -1645,6 +1685,30 @@ fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
         }
     }
     out
+}
+
+/// Cooks a heredoc/nowdoc literal collapsed to `ExprKind::Str` (no interpolation site anywhere in
+/// its body) — `cook_str_literal`'s own doc comment for the shape this covers. `raw` is `span`'s
+/// own text, already confirmed to start with `<<<` by the caller. Trusts
+/// `mwl_types::check_program` already reported any `HeredocIndentIssue` this literal has, the same
+/// way [`cook_str_literal`]'s own double-quoted branch trusts `CookIssue`s were already reported —
+/// this function discards both.
+fn cook_heredoc_str(src: &SourceFile, span: mwl_diagnostics::Span, raw: &str) -> String {
+    let (shape, _issues) = mwl_types::string_lit::heredoc_shape(src, span);
+    let mut issues = Vec::new();
+    let dedented = mwl_types::string_lit::dedent_heredoc_run(
+        src,
+        &shape.indent,
+        shape.body,
+        true,
+        true,
+        &mut issues,
+    );
+    if mwl_types::string_lit::heredoc_is_nowdoc(raw) {
+        dedented
+    } else {
+        mwl_types::string_lit::cook_double_quoted_text_str(&dedented, span).0
+    }
 }
 
 /// Splits a cooked integer-literal span into the radix its prefix names and
@@ -2164,16 +2228,60 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// A heredoc-sourced `Interpolated` string shares `ExprKind::Str`'s own
-    /// heredoc/nowdoc gap: this crate has no flexible-heredoc
-    /// indentation-stripping story yet, so lowering panics naming the case
-    /// rather than emitting text with the wrong leading whitespace baked in.
+    /// A heredoc with no interpolation site used at all collapses to a plain
+    /// `ExprKind::Str` (`mwl_syntax::parser::collapse_string_parts`), just
+    /// like a double-quoted literal — the same `InstKind::ConstStr` shape,
+    /// cooked through `cook_heredoc_str` instead of the quote-delimited
+    /// branch. Its closing marker is flush left, so PHP 7.3's
+    /// flexible-indentation strip is a no-op here; the numeric escape still
+    /// cooks, since a heredoc runs the same escape grammar a double-quoted
+    /// literal does.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn heredoc_sourced_interpolated_string_is_still_out_of_scope() {
-        lower_first_method(
-            "<?mwl\nclass T {\n  function m(): void {\n    string $x = \"hi\";\n    string $s = <<<EOT\nvalue: $x\nEOT;\n  }\n}\n",
+    fn a_flush_left_heredoc_cooks_like_a_double_quoted_literal() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $s = <<<EOT\nline1\\nline2\nEOT;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The closing marker's own indentation is stripped from every body
+    /// line — PHP 7.3's "flexible heredoc" rule. The cooked `ConstStr`
+    /// should show `"hello\nworld"` with no leading spaces baked in, even
+    /// though the source itself indents both body lines and the marker to
+    /// match this function's own brace nesting.
+    #[test]
+    fn an_indented_heredoc_strips_the_closing_markers_indentation() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $s = <<<EOT\n        hello\n        world\n        EOT;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A nowdoc (`<<<'EOT'`) applies no escape grammar at all — unlike the
+    /// flush-left heredoc fixture above, `\n` here must cook to two literal
+    /// characters, backslash and `n`, not a newline — while still getting
+    /// its closing marker's indentation stripped exactly like a heredoc
+    /// does.
+    #[test]
+    fn a_nowdoc_strips_indentation_but_applies_no_escapes() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $s = <<<'EOT'\n        raw \\n text\n        EOT;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A heredoc with an interpolation site lowers through the exact same
+    /// `InstKind::Concat` fold `lower_interpolated_parts` already builds for
+    /// a double-quoted literal — the only difference is each `Text` run
+    /// getting dedented first. The middle line picks up right after `$x`'s
+    /// interpolation site, so it has to be recognized as a fresh line of
+    /// its own for the indentation strip to apply to it at all.
+    #[test]
+    fn an_indented_interpolated_heredoc_strips_indentation_from_every_run() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(): void {\n    string $x = \"hi\";\n    string $s = <<<EOT\n        pre $x\n        post\n        EOT;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// `string $b = $a;` aliases `$a`'s already-owned value rather than
