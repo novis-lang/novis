@@ -406,6 +406,35 @@ pub enum InstKind {
         /// The new value, already lowered.
         value: ValueId,
     },
+    /// Appends `value` to `array` at PHP's own "next available integer key"
+    /// — `$a[] = expr;`, ADR 0007 § 5's append syntax
+    /// (`crate::lower::Lowering::lower_reassignment`'s `Index`-target arm,
+    /// reached when the target's subscript is `None`). Unlike
+    /// [`InstKind::ArraySet`], no key is lowered or carried here at all: PHP's
+    /// real rule tracks "the highest `int` key ever used, plus one" as part of
+    /// the array's own runtime state (surviving explicit `int`-keyed inserts,
+    /// removals, and earlier appends alike), which is genuinely a property of
+    /// the array value itself, not something a lowering pass can compute from
+    /// the source text the way a literal's positional index or an explicit
+    /// key already can. This instruction leaves that counter's storage and
+    /// increment entirely to whatever `mwl-codegen`'s own array representation
+    /// does with it — the same "shape now, functional once a backend exists"
+    /// deferral [`InstKind::Safepoint`] already gets, not a design this crate
+    /// itself had to make. `crate::lower::Lowering::lower_reassignment`
+    /// retains `value` first when it [`crate::ty::Ty::is_refcounted`] and
+    /// [`crate::lower::is_aliasing_read`]s existing storage — `array` durably
+    /// owns it once this instruction runs, the same policy `ArraySet` already
+    /// gives an explicit key's value. `$a[]` as a *read* (no subscript, no
+    /// assignment) has no PHP meaning at all and stays a permanent panic in
+    /// [`crate::lower::Lowering::lower_expr`]'s `Index` arm — unrelated to
+    /// this instruction, which only ever appears on the write side. Defines
+    /// no value; operates on `array` in place.
+    ArrayAppend {
+        /// The array, already lowered.
+        array: ValueId,
+        /// The value to append, already lowered.
+        value: ValueId,
+    },
 }
 
 /// One member of the closed set of engine-owned runtime conversions

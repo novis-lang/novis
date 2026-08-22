@@ -303,6 +303,17 @@ impl<'a> Lowering<'a> {
         });
     }
 
+    /// Appends an [`InstKind::ArrayAppend`] to `b` — see
+    /// [`Self::lower_reassignment`]'s `Index`-target arm (the `index: None`
+    /// case) for the retain policy wrapped around this.
+    fn emit_array_append(&mut self, b: BlockId, array: ValueId, value: ValueId) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::ArrayAppend { array, value },
+        });
+    }
+
     /// Binds `name` to `(v, ty)` in `env` — every `var`/typed local
     /// declaration and every plain reassignment goes through here, `source`
     /// being the already-lowered right-hand-side expression. This is the
@@ -617,9 +628,10 @@ impl<'a> Lowering<'a> {
             // comment for why an array key may or may not already be
             // present, so this bundles the whole replace-or-insert into one
             // instruction rather than a get/release pair. `base[] = expr;`
-            // (`index` is `None`) — PHP's append syntax — still panics: it
-            // needs its own "next available integer key" counter this crate
-            // has no representation for yet.
+            // (`index` is `None`) — PHP's append syntax — lowers to
+            // `InstKind::ArrayAppend` instead: see that variant's own doc
+            // comment for why no key is lowered or even computed here at all,
+            // unlike every other `Index`-target write.
             ExprKind::Index { base, index } => {
                 let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(target.span) else {
                     panic!(
@@ -632,22 +644,27 @@ impl<'a> Lowering<'a> {
                     );
                 };
                 let elem_ty = lower_checked_ty(*elem_ty, self.checked_types);
-                let Some(index) = index else {
-                    panic!(
-                        "mwl-ir does not yet lower `$a[] = expr;` append syntax; see the crate \
-                         docs' known gaps"
-                    );
-                };
                 let (array_v, _) = self.lower_expr(base, None, env, *cur);
-                let (key_v, key_aliasing) = self.lower_array_key(index, env, *cur);
-                if key_aliasing {
-                    self.emit_retain(*cur, key_v);
+                match index {
+                    None => {
+                        let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
+                        if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
+                            self.emit_retain(*cur, v);
+                        }
+                        self.emit_array_append(*cur, array_v, v);
+                    }
+                    Some(index) => {
+                        let (key_v, key_aliasing) = self.lower_array_key(index, env, *cur);
+                        if key_aliasing {
+                            self.emit_retain(*cur, key_v);
+                        }
+                        let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
+                        if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
+                            self.emit_retain(*cur, v);
+                        }
+                        self.emit_array_set(*cur, array_v, key_v, v);
+                    }
                 }
-                let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
-                if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
-                    self.emit_retain(*cur, v);
-                }
-                self.emit_array_set(*cur, array_v, key_v, v);
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \
@@ -1574,10 +1591,9 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_or`], ADR 0035's short-circuit truthy positions), `!`
     /// ([`Self::lower_not`], which recurses through here for its own operand
     /// so `!($a && $b)` composes), or a ternary/elvis branch
-    /// ([`Self::lower_ternary`]). PHP's low-precedence `and`/`or`/`xor`
-    /// keyword operators are deliberately **not** included — ADR 0035 names
-    /// only `&&`/`||`/`!`, not their keyword siblings, so those still fall
-    /// through to [`Self::lower_expr`]'s existing panic.
+    /// ([`Self::lower_ternary`]). PHP's `and`/`or`/`xor` keyword operators
+    /// have no lowering here because they no longer exist in the AST at
+    /// all — ADR 0045 rejects them at parse time.
     ///
     /// Everywhere else `lower_expr` is called directly instead — a call
     /// argument, an array-literal element, a `.`-operand, a nested
@@ -3449,12 +3465,32 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// `$a[] = 1;` — PHP's append syntax lowers to `InstKind::ArrayAppend`
+    /// with no key at all, unlike every other `Index`-target write: a fresh,
+    /// non-refcounted `int` value needs no retain, mirroring
+    /// `writing_an_int_element_through_a_literal_key_normalizes_it_to_a_string`
+    /// but with no `lower_array_key`/`helper.int_to_string` conversion in the
+    /// output at all, since there is no key to normalize.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn writing_base_append_syntax_is_still_out_of_scope() {
-        lower_first_method(
+    fn appending_a_fresh_int_value_needs_no_retain() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[] = 1;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$a[] = $v;` where the appended value is a `string` local — an
+    /// aliasing read of `$v`'s own slot, so it is retained before
+    /// `InstKind::ArrayAppend` runs, the same policy
+    /// `writing_a_string_element_through_a_string_local_key_retains_both_key_and_value`
+    /// already gives an explicit key's value; `$a`/`$v` each still get their
+    /// ordinary release at `m`'s exit sweep.
+    #[test]
+    fn appending_an_aliasing_string_value_retains_it() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<string> $a, string $v): void {\n    $a[] = $v;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A `bool` subscript isn't one of ADR 0007 § 5's three legal key source

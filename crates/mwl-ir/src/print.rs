@@ -101,6 +101,15 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         );
         return;
     }
+    if let InstKind::ArrayAppend { array, value } = inst.kind {
+        let _ = writeln!(
+            out,
+            "    array.append v{}, v{}",
+            array.index(),
+            value.index()
+        );
+        return;
+    }
     let v = inst
         .result
         .expect("every non-marker instruction defines a value");
@@ -164,7 +173,8 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         | InstKind::Retain { .. }
         | InstKind::Release { .. }
         | InstKind::FieldSet { .. }
-        | InstKind::ArraySet { .. } => {
+        | InstKind::ArraySet { .. }
+        | InstKind::ArrayAppend { .. } => {
             unreachable!("returned above")
         }
     };

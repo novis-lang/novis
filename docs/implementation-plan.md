@@ -93,8 +93,13 @@
 > § 5) by reusing the existing `IntToString`/`UintToString` helpers verbatim. `ArraySet` does not mirror
 > `FieldSet`'s read-old-value-then-release shape — an array key may not already exist, unlike a
 > definitely-initialized class field — so it bundles the whole replace-or-insert into one instruction
-> instead of a conditional get/release pair. `$a[]`/`$a[] = expr;` (append syntax) still panics naming the
-> case — it needs a "next available integer key" counter this crate has no representation for yet. A
+> instead of a conditional get/release pair. **`$a[] = expr;` append syntax** (the write side) has since
+> landed too: a new `InstKind::ArrayAppend` instruction carries no key at all, unlike `ArraySet` — PHP's
+> real "next available integer key" rule tracks the highest `int` key ever used as part of the array's own
+> runtime state, which a lowering pass can't compute from the source text the way a literal's positional
+> index or an explicit key can, so its storage/increment is left entirely to `mwl-codegen`'s own array
+> representation, the same "shape now, functional later" deferral `InstKind::Safepoint` already gets. `$a[]`
+> as a *read* has no PHP meaning at all (PHP itself rejects it) and stays a permanent panic, not a gap. A
 > `float`/`bool`/`null` array key — a subscript or an array-literal explicit `key =>` alike — is now
 > rejected at check time by a new `mwl_types::expr::check_array_key_type` helper and
 > `E_ARRAY_KEY_INVALID_TYPE` diagnostic (ADR 0007 § 5), called from both `check_expr`'s `Index` arm and
@@ -146,11 +151,13 @@
 > plus its own retain-on-alias handling — the same ownership question every `then`/`else` branch turned out
 > to need too (caught by a dedicated test, not assumed correct by inspection). A `then`/`else` pair lowering
 > to two different `Ty` representations, or any of the four nested where only a fixed `cur: BlockId` is
-> available, still panics naming the gap; PHP's low-precedence `and`/`or`/`xor` keyword operators are out of
-> scope by design (ADR 0035 names only `&&`/`||`/`!`). This session also surfaced and fixed a pre-existing,
+> available, still panics naming the gap. PHP's low-precedence `and`/`or`/`xor` keyword operators need no
+> lowering at all — a later session (ADR 0045) removed them from the language entirely, so `mwl-syntax`
+> never produces the AST shape that would reach this crate. This session also surfaced and fixed a pre-existing,
 > previously-invisible gap: `ExprKind::Paren` (a parenthesized `(expr)`) was never unwrapped anywhere in
 > expression lowering at all — needed now since `!($a && $b)` requires the explicit parens (`!` binds
-> tighter than `&&`/`||`). `mwl-ir` is now at 94 tests (was 82).
+> tighter than `&&`/`||`). `$a[] = expr;` append syntax (the write side) has since landed too, see above —
+> `mwl-ir` is now at 95 tests (was 82).
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
@@ -158,7 +165,8 @@
 > `Program`/`Function`/`BasicBlock`/`Inst`/`Terminator` SSA data model, now including `InstKind::Phi`,
 > `InstKind::Call`, `InstKind::New`, `InstKind::FieldGet`, `InstKind::FieldSet`, `InstKind::ConstStr`,
 > `InstKind::Concat`, `InstKind::HelperCall`, `InstKind::ArrayNew`, `InstKind::ArrayGet`,
-> `InstKind::ArraySet`, `InstKind::Retain` and `InstKind::Release`; `lower.rs` lowers a
+> `InstKind::ArraySet`, `InstKind::ArrayAppend`, `InstKind::Retain` and `InstKind::Release`; `lower.rs`
+> lowers a
 > method body of typed local declarations, an ADR 0037 `var $x = expr;` inferred-type declaration, plain
 > `$x = expr;` reassignment,
 > scalar arithmetic/comparison/unary operators, `return`,
@@ -240,7 +248,8 @@
 > checker's own runtime-checked fallback for that case is deferred to M4, with no IR/codegen yet to throw
 > from, and applies on both the read and write side), array-element access through a `mixed`-erased base
 > (`Ty::Mixed` gives this a representation to fall back *to*, not yet a wired fallback) or
-> a non-`int`/`uint`/`string` key, `$a[]`/`$a[] = expr;` append syntax, and an
+> a non-`int`/`uint`/`string` key, `$a[]` as a *read* (no PHP meaning at all, a permanent panic rather than a
+> gap — `$a[] = expr;`'s write side has since landed, see above), and an
 > array-literal `...spread` or `&value` element (an explicit `key =>` element is landed, see above), virtual
 > dispatch (every call/access lowered so far has its receiver's static type equal to its runtime class),
 > variadic/named/spread call

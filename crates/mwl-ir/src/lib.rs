@@ -32,10 +32,11 @@
 //! `mixed`-typed local/parameter/return value/call-argument, which exists as
 //! an IR representation and round-trips, though nothing yet converts one
 //! through arithmetic, `.` concatenation, ADR 0035's truthy table or an
-//! array-element access — [`lower::lower_method`] is the entry point. No
-//! `for`/`switch`/`try`, no `break`/`continue`, no `$a[]` append syntax on
-//! either side, no explicit `key =>`/`...spread`/`&value` array-literal
-//! element, no concatenation of a `Stringable`-object operand (a class/enum
+//! array-element access, and now `$a[] = expr;` append syntax on the write
+//! side (`$a[]` as a read has no PHP meaning at all, so it stays unsupported
+//! by design, not by gap) — [`lower::lower_method`] is the entry point. No
+//! `for`/`switch`/`try`, no `break`/`continue`, no `...spread`/`&value`
+//! array-literal element, no concatenation of a `Stringable`-object operand (a class/enum
 //! value itself also has a representation, [`ty::Ty::Object`], just not a
 //! way to refcount one yet, nor a way to invoke its `toString()` from here).
 //! The straight-line
@@ -303,8 +304,10 @@
 //! `cond ?: else`) — the recommended pick left at the end of the eighteenth
 //! slice's own session, since none of the four were lowered by this crate at
 //! all before it, not even for a plain `bool` operand. PHP's low-precedence
-//! `and`/`or`/`xor` keyword operators are deliberately **not** included —
-//! ADR 0035 names only `&&`/`||`/`!`, not their keyword siblings.
+//! `and`/`or`/`xor` keyword operators were deliberately left out of this
+//! slice's scope — ADR 0035 names only `&&`/`||`/`!`, not their keyword
+//! siblings — and ADR 0045 later removed them from the language entirely, so
+//! no lowering for them was ever needed.
 //!
 //! `&&`/`||` need genuine short-circuit control flow, not just a value
 //! computation: [`lower::Lowering::lower_and`]/[`lower::Lowering::lower_or`]
@@ -380,6 +383,39 @@
 //! [`lower::Lowering::lower_expr`] and [`lower::Lowering::lower_expr_top`]
 //! now have their own transparent `Paren` arm, recursing back into
 //! themselves respectively.
+//!
+//! The twentieth slice lowers `$a[] = expr;` — PHP's array append syntax on
+//! its write side, the recommended pick left at the end of the nineteenth
+//! slice's own session. A new [`ir::InstKind::ArrayAppend`] instruction
+//! deliberately carries no key at all, unlike [`ir::InstKind::ArraySet`]:
+//! PHP's real "next available integer key" rule tracks the highest `int` key
+//! ever used as part of the array's own runtime state (surviving earlier
+//! explicit-`int`-keyed inserts, removals and appends alike), which is
+//! genuinely not something a lowering pass can compute from the source text
+//! the way a literal's positional index or an explicit key already can — see
+//! that variant's own doc comment for why its storage and increment are left
+//! entirely to whatever `mwl-codegen`'s own array representation does with
+//! them, the same "shape now, functional once a backend exists" deferral
+//! [`ir::InstKind::Safepoint`] already gets. [`lower::Lowering::lower_reassignment`]'s
+//! `Index`-target arm now matches on the subscript itself: `None` lowers the
+//! base and the new value only (no [`lower::Lowering::lower_array_key`] call
+//! at all, since there is no key to normalize) and emits `ArrayAppend`,
+//! retaining the value first under the exact same
+//! [`ty::Ty::is_refcounted`]/[`lower::is_aliasing_read`] policy
+//! [`ir::InstKind::ArraySet`]'s own value already gets; `Some(index)` is the
+//! unchanged pre-existing `ArraySet` path. `$a[]` as a *read* (no subscript,
+//! no assignment) is unaffected by this slice and stays a permanent panic in
+//! [`lower::Lowering::lower_expr`]'s `Index` arm — it has no PHP meaning at
+//! all (PHP itself rejects it as "cannot use `[]` for reading"), a closed
+//! question rather than a gap this crate is waiting to fill, even though
+//! `mwl-syntax` parses it in any expression position and
+//! `mwl_types::expr::check_expr`'s `Index` arm doesn't reject it as a read
+//! either (see that test's own doc comment). With this, the array-access
+//! shape started in the fifteenth slice is complete for every combination of
+//! `int`/`uint`/`string` key, explicit `key =>`, and append syntax — what
+//! remains of item 3 in the crate's own known-gap list is only a
+//! `mixed`-erased base, still blocked on the runtime type-tag design
+//! question the eighteenth slice's own paragraph names.
 //!
 //! # Design choices worth knowing before widening this further
 //!
@@ -581,8 +617,9 @@
 //!   different [`ty::Ty`] representations also still panics — folding the
 //!   checker's own union into this crate's flatter `Ty` lattice is its own
 //!   decision, the same open question `Ty::Mixed`'s own doc comment names.
-//!   PHP's low-precedence `and`/`or`/`xor` keyword operators are out of
-//!   scope by design, not oversight — ADR 0035 names only `&&`/`||`/`!`.
+//!   PHP's low-precedence `and`/`or`/`xor` keyword operators need no lowering
+//!   at all — ADR 0045 removed them from the language, so `mwl-syntax` never
+//!   produces the AST shape that would have reached this crate.
 //! - No block-scoped shadowing: the environment `crate::lower` threads
 //!   through is one flat, function-wide map, exactly like the straight-line
 //!   slice's `locals` was. A nested `{}` declaring a local that shadows an
@@ -611,9 +648,10 @@
 //!   yet), not something this slice had to weigh a design against (see the
 //!   fifteenth-slice paragraph above for why `mwl_types` itself has no
 //!   compile-time "is this key present" concept to consult in the first
-//!   place). `$a[]`/`$a[] = expr;` (append syntax, `index` is `None`) is
-//!   unsupported on either side — it needs a "next available integer key"
-//!   counter this crate has no representation for yet. A `float`/`bool`/
+//!   place). `$a[] = expr;` (append syntax, `index` is `None`) lowers too, as
+//!   of the twentieth slice — see that paragraph above for
+//!   [`ir::InstKind::ArrayAppend`]'s no-key shape. `$a[]` as a *read* has no
+//!   PHP meaning at all and stays a permanent panic, not a gap. A `float`/`bool`/
 //!   `null` subscript is rejected by `mwl_types::expr::check_array_key_type`
 //!   at check time as of the sixteenth slice, so `lower::Lowering::
 //!   lower_array_key`'s `other` panic arm is unreachable for it now, not a
