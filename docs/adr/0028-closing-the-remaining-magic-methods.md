@@ -10,7 +10,9 @@
   said "an object needs `__toString`, or it throws"; it now names `Stringable` instead. Also
   [implementation-plan.md](../implementation-plan.md) M4 — the `var_dump`/`print_r`/`json_encode` line item
   gains this ADR's citation for what those two no longer do.
-- **Amended by:** [0030](0030-no-leading-underscores-constructor-spelling.md) — adds the `__construct`
+- **Amended by:** [0061](0061-compile-time-autoload-and-program-discovery.md) — § 6 closed `__autoload`
+  as moot but never named what replaces `spl_autoload_register`; that ADR does, and § 6 now points at it.
+  [0030](0030-no-leading-underscores-constructor-spelling.md) — adds the `__construct`
   disposition this ADR's own magic-method table never carried: kept, not closed, but respelled
   `constructor`.
   [0033](0033-secret-qualifier-for-confidential-values.md) — § 4's "`var_dump()`/`print_r()` always show a
@@ -64,7 +66,7 @@ PHP declares seventeen-ish magic methods; four of the ADR-worthy ones are alread
 | `__isset` / `__unset` | no replacement needed; `unset()` on an object property is refused | **this ADR, § 3** |
 | `__debugInfo` | rejected outright, no replacement | **this ADR, § 4** |
 | `__set_state` | rejected outright, no replacement | **this ADR, § 5** |
-| `__autoload` | moot — removed by PHP itself, and by static resolution | **this ADR, § 6** |
+| `__autoload` | moot — removed by PHP itself, and by static resolution | **this ADR, § 6**; what replaces `spl_autoload_register` is [0061](0061-compile-time-autoload-and-program-discovery.md) |
 
 - Every closed row above shares one argument already made in full by
   [0011](0011-functions-and-constants-are-class-members.md), [0012](0012-no-superglobals.md),
@@ -203,6 +205,11 @@ resolves every class/interface/enum reference statically at compile time
 ([implementation-plan.md](../implementation-plan.md) M2, `mwl-hir`'s `SymbolTable`), so there is no runtime
 moment at which an unresolved class name could trigger a loader callback in the first place. This is a
 consequence of the static-resolution architecture already being built, not a new decision.
+
+What this section does *not* answer is what replaces the mechanism PHP actually uses,
+`spl_autoload_register()` — how a name reaches its file at all without a hand-written `require` for every
+declaration. That is a decision rather than a consequence, and it is
+[ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s.
 
 ## Consequences
 

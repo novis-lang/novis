@@ -75,6 +75,32 @@ declared before it (there is nothing to hide), while a variable invisible inside
 expected and the diagnostic at the child's use site should name the isolate boundary as the reason, not
 report a plain undefined-variable error.
 
+### Reaching a declaration without naming its file: `autoload`
+
+`require` names a file. `autoload` names a *rule* for finding files, so ordinary code never names one at
+all — [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) owns the semantics (including
+why there is no manifest file and no runtime loader), this owns the grammar.
+
+```
+autoload-decl := "autoload" prefix "from" path-list ";"
+               | "autoload" "discover" glob ";"
+
+prefix        := string-literal   // a namespace prefix, backslash-terminated: 'App'
+path-list     := string-literal ("," string-literal)*
+glob          := string-literal   // exactly one "*", occupying a whole path segment
+```
+
+```php
+autoload 'Framework' from './';
+autoload 'Acme\Legacy' from '../vendor/acme/lib', '../vendor/acme/compat';
+autoload discover '../../*/src';
+```
+
+Every path is a plain string literal — no interpolation, no concatenation, the same restriction `require`'s
+static resolution carries — and resolves **relative to the directory of the file the declaration appears
+in**, never relative to the entry point. The statement is valid only at a file's top level, and only in a
+file reachable by `require` from the entry point; the effective map is the union of every such declaration.
+
 ### `spawn script` grammar
 
 ```

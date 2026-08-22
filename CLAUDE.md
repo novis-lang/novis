@@ -38,6 +38,7 @@ the row below for whatever you're touching to get that.
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
 | Caching between requests, APCu, `Core\Cache`, why a cached value is copied, what cache memory is charged to | [ADR 0059](docs/adr/0059-cross-request-state-is-explicit.md). Holds the only copy of the local/shared tier split, the copy-in/copy-out rule, and the O(cores × working set) cost statement. |
 | `include`/`require`, loading another file into the current frame | [ADR 0021](docs/adr/0021-single-file-inclusion-construct.md). Holds the only copy of the rule that `require` is the one surviving spelling — `include`, `include_once` and `require_once` are all rejected with a diagnostic naming it. |
+| Autoloading, `spl_autoload_register`, PSR-4, Composer's `vendor/autoload.php`, "do I have to `require` every file", or enumerating plugin/module classes nothing references by name | [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md). Holds the only copy of the `autoload` declaration's two forms and their relative-to-the-declaring-file rule, the one-declaration-per-autoloaded-file rule, `Core\Program::implementing<T>()`, and what each adds to the two caches' invalidation sets. |
 | Uninitialized properties, `undefined`, why a typed property can't silently be `null`/zero/`undefined` | [ADR 0022](docs/adr/0022-definite-property-initialization.md). Holds the only copy of the rule that every constructor must definitely assign every property it declares, with no new type and no silent per-type default; the one residual runtime throw is scoped to `Core\Reflect`-bypassed construction. |
 | `clone`, `serialize`/`unserialize`, `__clone`, `__serialize`/`__unserialize`/`__sleep`/`__wakeup`, or how a value crosses the `spawn`/`spawn worker`/`spawn script` boundary | [ADR 0023](docs/adr/0023-clone-serialize-and-cross-boundary-copy.md). Holds the only copy of the rule that `clone` stays PHP's shallow, same-heap, single-level copy while `serialize()`/`unserialize()` share one recursive graph-copy operation with the isolate boundary; none of the four magic hooks exist, and `unserialize()` accepts only MWL's own closed format. |
 | The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [ADR 0017](docs/adr/0017-hot-reload-without-restart.md). Holds the only copy of the path-pointer-swap mechanism, why it needs no filesystem watcher, and why a request-serving core is never blocked on a recompile. |
@@ -189,6 +190,11 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   `require_once` are all rejected with a diagnostic naming `require`; it already throws on a missing file
   and runs every time it is reached, so no second spelling was needed for either axis
   ([ADR 0021](docs/adr/0021-single-file-inclusion-construct.md)).
+- **A name reaches its file through a compile-time `autoload` declaration, never a runtime loader** — paths
+  resolve relative to the file that declares it, so no manifest, walk-up search or `mwl.ini` directive is
+  involved; a file reached that way declares exactly one thing, and `Core\Program::implementing<T>()` is the
+  one query answering what nothing references by name — the only thing in MWL that makes a compiled unit
+  depend on a directory's contents ([ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md)).
 - **Every constructor must definitely assign every property it declares** — the same flow analysis that
   checks local variables, extended to a second binding kind; there is no new `undefined` type and no
   per-type silent default, and the one residual runtime throw is scoped to a `Core\Reflect`-constructed

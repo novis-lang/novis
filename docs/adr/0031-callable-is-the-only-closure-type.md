@@ -228,6 +228,10 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 - **Typed closure signatures** (`callable(int): string`) stay exactly where
   [ADR 0007](0007-explicit-type-system.md) § 3 already left them, deferred rather than decided; this ADR's
   rename of `Closure` to `callable` does not need that question answered and does not reopen it.
+  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 3 is a second concrete forcing case for
+  that deferral: with a typed signature, `Core\Program::implementing<T>()` could return constructor
+  references and an attributed static method could replace its marker interface outright; without one, the
+  interface is what supplies a type to call through.
 
 Verification, in the order it becomes possible:
 
