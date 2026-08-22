@@ -955,8 +955,16 @@ impl<'a> Lowering<'a> {
             ExprKind::Bool(b) => self.emit(cur, Ty::Bool, InstKind::ConstBool(*b)),
             // ADR 0007 § 4, mirroring `mwl_types::expr::infer`'s own rule: a
             // bare integer literal means `uint` exactly where that's the
-            // expected type, `int` otherwise. Magnitude range-checking is a
-            // known gap here, same as it already is there.
+            // expected type, `int` otherwise. `mwl_types::expr::infer`'s own
+            // `ExprKind::Int` arm now enforces ADR 0007 § 4's magnitude rule
+            // at check time — too large for `int` is only legal where `uint`
+            // is expected, and too large even for `uint`'s full `u64` range
+            // is a diagnostic regardless — so `lower_method`'s usual "trusts
+            // its input already passed `mwl_types::check_program`" contract
+            // (see the crate docs) covers this too: the `unwrap_or_else`
+            // panics below are unreachable for anything the checker accepted,
+            // the same defensive-invariant shape as `Env::get`'s own panic on
+            // an undeclared local just above.
             ExprKind::Int(span) => {
                 let (radix, digits) = int_literal_digits(self.src, *span);
                 if expected == Some(Ty::Uint) {
@@ -1494,8 +1502,9 @@ fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
 /// additionally cooks the common named escapes (`\n`, `\t`, `\r`, `\\`, `\"`, `\$`, `\0`). Any
 /// other backslash sequence (a numeric escape like `\xHH`/`\u{...}`/octal, or any escape not
 /// meaningful for the quote kind in play) is passed through literally rather than cooked — a
-/// known gap, mirroring [`int_literal_digits`]'s own "not modeled this slice" magnitude gap for
-/// integer literals. A heredoc/nowdoc-sourced `Str` — whose span doesn't open with a quote
+/// known gap (see the crate docs' known-gaps section; integer-literal magnitude range-checking,
+/// which used to be [`int_literal_digits`]'s own equivalent gap, is closed now — see that
+/// function's own doc comment). A heredoc/nowdoc-sourced `Str` — whose span doesn't open with a quote
 /// character at all — isn't handled here either: this crate has no lowered fixture reaching one
 /// yet, so it panics naming the gap rather than guessing a representation.
 fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
@@ -1541,11 +1550,12 @@ fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
 /// decimal run; a legacy leading-zero octal spelling like PHP's `0755` is
 /// deliberately *not* one of them, so `0755` lexes as decimal 755 with no
 /// prefix to strip), and this is the one place that distinction has to be
-/// undone before `str::from_str_radix` can parse the value. Full-magnitude
-/// range-checking stays a known gap here, same as it already is in
-/// `mwl_types::expr::infer`'s own doc comment for the decimal case — this
-/// only widens which *bases* get cooked, not how large a value either arm
-/// accepts.
+/// undone before `str::from_str_radix` can parse the value. `mwl_types::expr::infer`'s own
+/// `ExprKind::Int` arm now range-checks the same digits (mirroring this function to do so, since
+/// this crate has no reverse dependency on that one) and reports ADR 0007 § 4's diagnostic before
+/// lowering ever runs — see that arm's doc comment — so `lower_expr`'s `ExprKind::Int` arm can
+/// treat an out-of-range literal as unreachable input, the same "trusts `mwl_types::check_program`
+/// already ran" contract every other panic in this crate relies on.
 fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, String) {
     let digits = clean_digits(src, span);
     for (prefix, radix) in [

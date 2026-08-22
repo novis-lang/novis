@@ -373,6 +373,12 @@ pub mod code {
     /// § 3 proves at compile time; every other case relies entirely on the
     /// § 2 runtime throw.
     pub const E_LATEINIT_READ_BEFORE_WRITE_LOCAL: Code = Code::new("E0428");
+    /// An integer literal whose magnitude doesn't fit the width it's being
+    /// checked against — too large for `int`/`uint` outright, or exactly the
+    /// one magnitude `uint` can never represent regardless of width: a
+    /// negative value, since an integer literal's digits are never signed and
+    /// the sign comes from a wrapping unary `-`. See ADR 0007 § 4.
+    pub const E_INT_LITERAL_OUT_OF_RANGE: Code = Code::new("E0429");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

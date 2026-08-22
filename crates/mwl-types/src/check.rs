@@ -430,6 +430,84 @@ mod tests {
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
+    /// ADR 0007 § 4: a literal larger than `i64::MAX` (`9223372036854775807`)
+    /// but still within `uint`'s `u64` range is legal exactly where `uint` is
+    /// expected.
+    #[test]
+    fn a_literal_too_large_for_int_assigned_into_a_uint_local_is_fine() {
+        let diags = check_in_method("uint $n = 9223372036854775808;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The same literal has no legal home as a plain `int` — ADR 0007 § 4's
+    /// "otherwise a diagnostic saying exactly that."
+    #[test]
+    fn a_literal_too_large_for_int_assigned_into_an_int_local_is_diagnosed() {
+        let diags = check_in_method("int $n = 9223372036854775808;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INT_LITERAL_OUT_OF_RANGE)),
+            "{diags:?}"
+        );
+    }
+
+    /// Even a bare, un-targeted literal with no `uint` in sight still gets
+    /// range-checked against `int`'s own half of the range.
+    #[test]
+    fn a_literal_too_large_for_int_with_no_expected_type_is_diagnosed() {
+        let diags = check_in_method("echo 9223372036854775808;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INT_LITERAL_OUT_OF_RANGE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A literal past even `uint`'s full `u64` range is always out of range,
+    /// regardless of what's expected.
+    #[test]
+    fn a_literal_too_large_for_uint_is_diagnosed_even_where_uint_is_expected() {
+        let diags = check_in_method("uint $n = 99999999999999999999999999;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INT_LITERAL_OUT_OF_RANGE)),
+            "{diags:?}"
+        );
+    }
+
+    /// The magnitude check applies to every base `mwl-syntax`'s lexer cooks,
+    /// not just decimal — a hex literal one bit past `uint`'s 64-bit range.
+    #[test]
+    fn a_hex_literal_too_large_for_uint_is_diagnosed() {
+        let diags = check_in_method("uint $n = 0x1_0000_0000_0000_0000;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INT_LITERAL_OUT_OF_RANGE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A negative literal (`-5`) needs no magnitude-specific diagnostic at
+    /// all: the inner literal always types as plain `int` (the wrapping
+    /// `Unary::Neg` node checks it with no expected type), so assigning that
+    /// `int` into a `uint` target is the ordinary `int`-vs-`uint`
+    /// `E_TYPE_MISMATCH`, not `E_INT_LITERAL_OUT_OF_RANGE`.
+    #[test]
+    fn a_negative_literal_into_a_uint_local_is_an_ordinary_type_mismatch() {
+        let diags = check_in_method("uint $n = -5;\n");
+        assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
+        assert!(
+            !diags
+                .iter()
+                .any(|d| d.code == Some(code::E_INT_LITERAL_OUT_OF_RANGE)),
+            "{diags:?}"
+        );
+    }
+
     #[test]
     fn integer_division_into_a_plain_int_is_diagnosed() {
         let diags = check_in_method("int $n = 7 / 2;\n");

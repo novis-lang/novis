@@ -104,7 +104,7 @@
 //! which needs M4's IR/codegen to actually throw from and so has no code
 //! yet.
 
-use mwl_diagnostics::{Diagnostic, Span, code};
+use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MemberName, NewTarget,
@@ -329,6 +329,35 @@ fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'
     );
 }
 
+/// Splits an integer-literal span's cooked text into the radix its prefix
+/// names and the digit run to parse against it — the same job
+/// `mwl_ir::lower::int_literal_digits` does for lowering, duplicated here
+/// rather than shared: this crate has no dependency on `mwl-ir` (the
+/// dependency runs the other way), and the magnitude has to be known here,
+/// at check time, so [`infer`]'s `ExprKind::Int` arm can report ADR 0007 § 4's
+/// diagnostic itself rather than let an out-of-range literal surface only as
+/// a lowering-time panic once `mwl-ir` tries to cook the same span. Strips
+/// `_` digit separators the same way; a legacy leading-zero octal spelling
+/// like PHP's `0755` is deliberately not one of the recognized prefixes (see
+/// `mwl_ir`'s own copy of this function for why), so it falls through to the
+/// decimal case, matching `mwl-syntax`'s lexer.
+fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) {
+    let cleaned: String = span_text(src, span).chars().filter(|&c| c != '_').collect();
+    for (prefix, radix) in [
+        ("0x", 16),
+        ("0X", 16),
+        ("0o", 8),
+        ("0O", 8),
+        ("0b", 2),
+        ("0B", 2),
+    ] {
+        if let Some(rest) = cleaned.strip_prefix(prefix) {
+            return (radix, rest.to_owned());
+        }
+    }
+    (10, cleaned)
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one match arm per AST expression variant, each a couple of lines"
@@ -344,18 +373,53 @@ fn infer(
     match &expr.kind {
         ExprKind::Null => env.interner.null(),
         ExprKind::Bool(_) => env.interner.bool_ty(),
-        // ADR 0007 § 4: "An integer literal ... is legal only where a `uint`
-        // is expected" — the same digits mean `int` ordinarily and `uint`
-        // exactly where that's the target, so a literal is one of the few
-        // expressions checked against `expected` rather than inferred blind.
-        // Magnitude range-checking (negative-into-`uint`, too-large-for-
-        // either) is not modeled this slice.
-        ExprKind::Int(_) => {
+        // ADR 0007 § 4: "An integer literal that does not fit `int` is legal
+        // only where a `uint` is expected, and is otherwise a diagnostic
+        // saying exactly that." The literal's own digits are never negative —
+        // a leading `-` is a separate, wrapping `ExprKind::Unary` node (see
+        // that arm below), which already produces an ordinary `int`/`uint`
+        // type mismatch on its own when negated and assigned into a `uint`
+        // target, with no magnitude check needed for that half. What *does*
+        // need one: whether the bare digit run fits `int`'s `0..=i64::MAX`
+        // half, `uint`'s full `0..=u64::MAX` range, or neither at all.
+        ExprKind::Int(span) => {
             let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
-            if wants_uint {
-                env.interner.uint()
-            } else {
-                env.interner.int()
+            let (radix, digits) = int_literal_digits(env.src, *span);
+            match u64::from_str_radix(&digits, radix) {
+                Ok(n) if i64::try_from(n).is_ok() => {
+                    if wants_uint {
+                        env.interner.uint()
+                    } else {
+                        env.interner.int()
+                    }
+                }
+                Ok(_) if wants_uint => env.interner.uint(),
+                Ok(_) => {
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_INT_LITERAL_OUT_OF_RANGE,
+                            "this integer literal is too large for `int`; it is only legal \
+                             where a `uint` is expected",
+                        )
+                        .with_primary(expr.span, "does not fit `int`"),
+                    );
+                    env.interner.int()
+                }
+                Err(_) => {
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_INT_LITERAL_OUT_OF_RANGE,
+                            "this integer literal is too large to represent in either `int` or \
+                             `uint`",
+                        )
+                        .with_primary(expr.span, "too large for a 64-bit integer"),
+                    );
+                    if wants_uint {
+                        env.interner.uint()
+                    } else {
+                        env.interner.int()
+                    }
+                }
             }
         }
         ExprKind::Float(_) => env.interner.float(),

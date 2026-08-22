@@ -116,7 +116,12 @@
 > (`$arr[$i]`) or write (`$arr[$i] = expr;`) through a known `int`/`uint`/`string` key, and
 > `.` concatenation between two operands each either already `string` or a converted scalar, end
 > to end, with `insta` snapshot tests over the printed form (`print.rs`). A bare integer literal now cooks
-> correctly in all four bases `mwl-syntax`'s lexer accepts (decimal, `0x`, `0o`, `0b`), not just decimal.
+> correctly in all four bases `mwl-syntax`'s lexer accepts (decimal, `0x`, `0o`, `0b`), not just decimal, and
+> `mwl_types::expr::infer` now range-checks its magnitude against ADR 0007 § 4's own rule (too large for
+> `int` is legal only where `uint` is expected; too large even for `uint`'s `u64` range is always
+> `E_INT_LITERAL_OUT_OF_RANGE`) — closing that gap at check time means `mwl-ir`'s own literal-cooking panic
+> is now unreachable input, the same "trusts a prior clean `check_program` run" contract every other panic
+> in that crate already relies on.
 > Every lowered method's `Function::params` now carries an implicit receiver at index 0
 > (`$this`, or an unused slot for a method that never reads it) ahead of its explicit parameters — the
 > shape an instance call needed to represent `$this`/an arbitrary receiver as a real SSA value, mirroring

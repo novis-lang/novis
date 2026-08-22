@@ -485,11 +485,32 @@
 //!   operand has no IR representation to dispatch on yet — that, and ADR
 //!   0035's truthy conversion above, are expected to add new [`ir::Helper`]
 //!   variants to the same enum rather than a second call-shaped instruction.
-//! - Integer literal magnitude range-checking is still not implemented
-//!   (mirroring `mwl_types::expr`'s own documented "not modeled this slice"
-//!   gap) — cooking now handles all four bases `mwl-syntax`'s lexer accepts
-//!   (decimal, `0x`, `0o`, `0b`), just not whether a literal overflows the
-//!   target width.
+//! - ~~Integer literal magnitude range-checking.~~ **Done**, at check time:
+//!   `mwl_types::expr::infer`'s own `ExprKind::Int` arm now enforces ADR 0007
+//!   § 4's exact rule — a literal too large for `int` is legal only where a
+//!   `uint` is expected, and one too large even for `uint`'s full `u64` range
+//!   is a diagnostic regardless — so [`lower::Lowering::lower_expr`]'s
+//!   `ExprKind::Int` arm treats an out-of-range literal as unreachable input,
+//!   the same "trusts `mwl_types::check_program` already ran" contract every
+//!   other panic in this crate already relies on. A negative literal (`-5`)
+//!   needed no new check at all: it's a separate, wrapping `ExprKind::Unary`
+//!   node whose inner literal is checked with no expected type, so `-5`
+//!   always types as plain `int`, and assigning that `int` into a `uint`
+//!   target already reports the ordinary `E_TYPE_MISMATCH` `is_assignable`
+//!   gives any other `int`-into-`uint` mismatch — no magnitude-specific
+//!   diagnostic was needed for that half. One asymmetry deliberately left
+//!   unhandled: a literal that overflows `int` by exactly one (a bare
+//!   `9223372036854775808` immediately negated) is reported as "too large for
+//!   `int`" even though `-9223372036854775808` is `i64::MIN`, a perfectly
+//!   representable value — recognizing that one specific
+//!   `ExprKind::Unary { op: UnaryOp::Neg, expr: Int(_) }` shape as a signed
+//!   literal rather than an unsigned one negated would be a second, narrower
+//!   rule ADR 0007 § 4's own text doesn't ask for (and `as int` is not itself
+//!   a workaround: `ExprKind::Conversion`'s own inner-expression check also
+//!   passes `expected: None` down to the literal, so `9223372036854775808 as
+//!   int` reports the identical diagnostic) — left as a real, if narrow,
+//!   MWL/PHP divergence for whoever picks up `Core`'s integer-limit constants
+//!   to note.
 //! - **String-literal cooking is escape-incomplete, and interpolation isn't
 //!   lowered at all.** `lower::cook_str_literal` handles the two escapes a
 //!   single-quoted literal actually has (`\\`, `\'`) and the common named
