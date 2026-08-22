@@ -1,7 +1,7 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-> **Status — 2026-08-22.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
-> Nothing runs yet; `Hello World` is M3.
+> **Status — 2026-08-23.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
+> Nothing runs yet; `Hello, World!` is M3.
 >
 > *This block is a bounded snapshot, not a changelog — overwrite it each session rather than appending a*
 > *new paragraph. Session-by-session history lives in `git log`; per-file known-gap detail lives in each*
@@ -30,7 +30,9 @@
 > ADR 0049: every corpus file opens with `<?php`, so every file now also trips exactly one `E0229`
 > (`<?php` rejected in favor of `<?mwl`) — expected, not re-measured here since the corpus isn't
 > checked in. Known parser gaps (`goto` labels, PHP's alternative colon syntax — deliberately out of
-> scope) are tracked in `mwl-syntax`'s own module docs.
+> scope) are tracked in `mwl-syntax`'s own module docs. [ADR 0050](adr/0050-list-destructuring-spelling-rejected.md)
+> has since removed `list(...)` on the same grounds ADR 0049 removed `<?php`, so a corpus file using it
+> trips `E0230` too.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well
 > underway. ADRs with checker-side rules landed so far: 0007
@@ -50,7 +52,14 @@
 > stdlib-dependent sinks (wait on `Core` classes that don't exist until M7/M8), ADR 0043's `by`-delegation
 > type-matching/forwarding synthesis and its `E_INTERFACE_MEMBER_CONFLICT`/`E_DELEGATE_TYPE_MISMATCH`
 > diagnostics, 0047's literal/enum-case types and their checked-conversion rules (docs only so far — see
-> [ADR 0047](adr/0047-literal-and-enum-case-types.md)), and finishing `mwl-ir`.
+> [ADR 0047](adr/0047-literal-and-enum-case-types.md)), and finishing `mwl-ir`. One further gap, found by
+> inspection rather than by a failing test and not visible from the milestone text above: **`check_stmts`
+> walks declarations only**, so a file's top-level statements are never type-checked at all
+> (`echo $undefinedThing;` at file scope passes `mwl check` clean; the same line in a method reports
+> `E0301`). `mwl-ir` has the mirror-image gap — only `lower_method` exists. Both are the same fix, and
+> [ADR 0008](adr/0008-static-and-global.md) § 2 already decides it: the script body is a function, so its
+> statements are one synthesized frame whose variables are locals. It is on M3's critical path, since the
+> `Hello, World!` acceptance program is exactly that shape.
 >
 > `mwl-ir` (CFG/SSA IR) has landed its straight-line slice, **control flow**, **`new`/a static call**, **an
 > instance method call and a compile-time-known property access**, **`var` locals and multi-base
@@ -756,7 +765,9 @@ baseline tier emits a native instruction wherever the static type is a single sc
 generic helper only for `mixed`, unions and dynamic calls. That is a chunk of what M12 was for, arriving
 with the first backend.
 
-**Verify:** `mwl run hello.mwl` prints `Hello World` from natively compiled code on all three platforms. A
+**Verify:** `mwl run examples/hello.mwl` prints `Hello, World!` from natively compiled code on all three
+platforms (that exact string is the unattended loop's machine-checked acceptance — see
+`.claude/loop-goal.md`). A
 throw crosses several JIT frames and is caught; a helper panic terminates the script with a `FATAL` status
 and leaves the process able to run the next one. An MWL-level backtrace names the right functions, resolved
 from MWL's own frame chain rather than from the platform unwinder. `mwl run --dump-asm` shows generated
