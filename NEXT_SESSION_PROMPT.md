@@ -12,91 +12,61 @@ gofmt-style no-reflow model (never wraps/collapses an expression by width), zero
 hard separation from the compiler (`mwl fmt --check` warns; `mwl check` never does). Docs only — `mwl-fmt`
 itself doesn't exist until M10, so there is nothing to build from this yet.
 
-**Last session resolved the `mwl-ir`/`mwl-types` coupling question and landed `new`/a static call —
-item 3 in the widening order below, first half.** The architecture decision (flagged open for two prior
-sessions) is settled: `mwl-types` grew `crate::expr_table::ExprTypeTable` (see
-`crates/mwl-types/src/expr_table.rs`'s own module docs for the full design), a narrow, purpose-built table
-of `ExprInfo::Call`/`ExprInfo::New` entries — the declaring class, method name, and resolved
-parameter/return `TypeId`s — that `mwl_types::check_program` now populates once (via a new `exprs: &mut
-ExprTypeTable` parameter, threaded through `Env`) and hands back for a later pass to read. The lookup key is
-the expression's own source `Span`, not an independently-assigned id: `mwl-ir`'s lowering walk and
-`mwl-types`' checking walk are two separately-ordered traversals of the same AST, so a span is the only
-thing both crates can agree on without coordinating walk order (see the module's "Why a lookup is keyed by
-Span" section). `mwl-ir` now depends on `mwl-types`, but only for this table plus `TypeInterner` — never for
-`mwl-hir`, `mwl_types::signatures`, or `mwl_types::ClassGraph` directly.
+**Last session landed the second half of item 3 below — an instance method call, plus a
+compile-time-known property access.** Both reuse `mwl-types`' `ExprTypeTable` exactly the way `new`/a
+static call already did: `ExprInfo::Call` for `$obj->method(...)`/`$this->…` (the producer side was
+already tested from the session before), and a new `ExprInfo::Property { class, name, ty }` variant for
+`$obj->prop`/`$this->prop`, recorded by `mwl_types::expr::check_property_access` and keyed by the
+`PropertyAccess` expression's own span (derived in-function as `object.span.to(*name_span)` — provably
+identical to the parser's own span construction, so no extra parameter needed to thread it through; see
+that function's comment).
 
-On the `mwl-ir` side: `ir::Ty` gained one non-scalar variant, `Ty::Object` — an opaque class/enum reference
-with no identity carried in the IR at all (a call's/`new`'s target is already resolved to a concrete
-`"Class::method"` label by `ExprTypeTable` before lowering ever sees it) and no refcount operations yet,
-reserved the same "shape now, functional later" way `InstKind::Safepoint` already was. `ir::InstKind` gained
-`Call { target, receiver, args }` (`receiver` is always `None` today — reserved for an eventual instance
-call, so landing one needs no new `InstKind` variant) and `New { class, args }`. `lower::lower_scalar_type`
-was renamed `lower_decl_type` and widened to erase a plain class-name AST atom (`TypeAtom::Name(_)`) to
-`Ty::Object` — needs no resolution, since ADR 0007 § 1 already requires it spelled out in full, same as a
-scalar atom always did. A new `lower_checked_ty` translates a `TypeId` recorded in the table (a resolved
-call's declared parameter/return type) into `Ty` the same way, for the cases `lower_decl_type` can't reach
-(there may be no local `Type` AST node at all — an inherited method's parameter is declared on a different
-class's source). `Lowering::lower_call_args` lowers a resolved call's/`new`'s positional argument list,
-panicking on anything variadic/named/spread (both known gaps, and `mwl_types` doesn't fully positionally
-type-check those against a signature yet either).
+On the `mwl-ir` side: every lowered method's `Function::params` now carries an implicit receiver at index
+0 (`$this`; index 0 whether or not the body reads it) ahead of every explicit parameter — the design
+question flagged open last session, settled in favor of the "implicit first parameter" shape (mirroring
+`mwl_types::check.rs`'s `check_method`, which already seeds `$this` unconditionally) over a
+receiver-only special case, because the latter would duplicate `ExprKind::Variable`'s `Env`-lookup path
+for a value that behaves like an ordinary parameter in every other respect. This changed every existing
+snapshot's function signature line (regenerated via `cargo insta test --accept -p mwl-ir`). `InstKind::Call`
+now sets `receiver: Some(v)` for an instance call; a new `InstKind::FieldGet { object, class, field }`
+reads a compile-time-known field — `class`/`field` are labels for a future codegen layout pass, the same
+"resolved identity, not yet a machine offset" shape `Call`/`New` already use. A receiver that erased to a
+shape or plain `object` (ADR 0036 § 4) has no `ExprInfo::Property` entry at all — lowering panics naming
+that case, since the checker itself defers the runtime-checked fallback to M4 with no IR/codegen yet to
+throw from. A nullsafe access of either kind (`?->`) is equally out of scope today.
 
-Four new `insta` snapshot tests in `crates/mwl-ir/src/lower.rs` cover: `new` with a resolved
-one-parameter constructor, `new` against a class with no declared constructor (empty arg list, no
-lookup), a `self::` static call with a scalar argument/return, and a class-typed local initialized from
-`new`. The test harness (`lower_first_method`) now actually runs a fixture through
-`mwl_hir::resolve_file` + `mwl_types::check_program` instead of only trusting it would pass — lowering a
-call/`new` needs a real `ExprTypeTable` to read from, so a hand-waved "would pass" fixture is no longer
-enough. `mwl-types` is now at 160 tests (was 154; +6 for `expr_table`'s own producer/consumer tests),
-`mwl-ir` is now at 13 (was 9). `cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all
-clean across the whole workspace.
+Four new tests landed: two `insta` snapshots (`a_this_property_access`, `a_property_access_through_a_local_receiver`)
+plus two `#[should_panic]` tests for the nullsafe and shape/`object`-erasure refusals, alongside the
+instance-call tests from the producer session before. `mwl-types` is now at 162 tests, `mwl-ir` at 20.
+`cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole
+workspace.
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
 
 1. ~~Control flow (`if`/`while`).~~ **Done.**
 2. ~~Safepoints.~~ **Done** (reserved shape only). Revisit once M3's codegen exists.
-3. ~~`new`/a static call, and the `mwl-ir`/`mwl-types` coupling decision.~~ **Done, first half — the
-   instance-call half is next:**
-   - **An instance method call (`$obj->method(...)`, including `$this->…`) is still unsupported.**
-     `ExprTypeTable::record` already stores an `ExprInfo::Call` entry for a resolved `MethodCall`, not just
-     `StaticCall` — the *producer* side is done and tested
-     (`expr_table::tests::an_instance_method_call_records_the_resolved_call`). What's missing is entirely on
-     the `mwl-ir` consumer side: `$this` (and any other receiver) needs to become a real `ValueId` first.
-     Today `lower_method` seeds `Env` only from `m.params` — `$this` has no binding at all. The cleanest fix
-     is almost certainly an implicit receiver parameter threaded the same way `mwl_types::check.rs`'s
-     `check_method` already seeds `$this` into its own `LocalScope` (see that function for the precedent) —
-     but doing this changes `Function::params`'/every lowered method's shape (whether it references `$this`
-     or not), which is why last session scoped it out rather than rushing it. `InstKind::Call` already
-     reserves a `receiver: Option<ValueId>` field for exactly this, so landing it needs no new `InstKind`
-     shape — only: (a) deciding how `$this`/a receiver becomes a value in `Env` (an implicit first
-     parameter is the leading candidate; weigh it against the alternative of a receiver-only special case
-     that doesn't touch `Function::params` at all), and (b) wiring the `ExprKind::MethodCall` arm in
-     `lower_expr` to look up its `ExprInfo::Call` entry (same shape as `StaticCall`'s arm, just with
-     `receiver: Some(lowered_object)` instead of `None`). This is a real design question worth 1-2
-     paragraphs before writing lowering code — CLAUDE.md's "ask about tradeoffs" bar is arguably met here
-     (it changes every existing snapshot's function signature line), so a session picking this up should
-     settle it explicitly rather than picking silently, though the direction is fairly clear from the
-     `check_method` precedent.
-   - **Property access (`$obj->prop`) and array access (`$arr[$i]`)** are unrelated to the instance-call
-     question and can land independently, in either order. Both are harder than `new`/a static call was:
-     ADR 0036 § 4's shape/`object`-erasure semantics (a field a shape type names is proven present at
-     compile time and never throws; a name it doesn't list, or a plain `object` receiver, is erased to
-     `mixed` with the actual runtime-checked throw deferred to M4) need an actual decision at the IR level —
-     is there a compile-time-known-field-offset instruction now, a placeholder/panic until M4, or something
-     else? `ExprTypeTable` does **not** yet have a `Property`/`Index` variant — that's new design work for
-     this slice, following the same "narrow, purpose-built, span-keyed" shape `Call`/`New` already
-     established, not a reason to revisit the table's overall design.
+3. ~~`new`/a static call, an instance method call, and a compile-time-known property access.~~ **Done.**
+   Two shapes remain, independent of each other and of everything above:
+   - **Array access (`$arr[$i]`)** is still unsupported; lowering panics naming the expression. No
+     non-scalar *data* representation exists yet either (see item 4), so this may naturally land together
+     with that slice rather than alone — worth deciding at the start of whichever session picks it up.
+   - **A property access through a shape or plain-`object` receiver** (ADR 0036 § 4's erasure case) has no
+     `ExprTypeTable` entry to read and no IR representation decided — is there a checked-throw instruction
+     now, a placeholder/panic until M4, or something else? This is the same kind of IR-level design
+     question the instance-call session flagged for its own slice; worth 1-2 paragraphs before writing
+     lowering code, per CLAUDE.md's "ask about tradeoffs" bar.
 4. **Non-scalar *data* values (`string`/`bytes`, arrays) and refcount operations.** The milestone text's
-   third named ingredient; `Ty::Object` (landed last session) covers the object-reference case but carries
-   no refcount operations yet either — still nothing to attach one to until this lands.
+   third named ingredient; `Ty::Object` (landed two sessions back) covers the object-reference case but
+   carries no refcount operations yet either — still nothing to attach one to until this lands.
 5. **Runtime-helper calls** — the milestone's fourth named ingredient, for `mixed`/union operands once they
    exist in the IR, and also what a non-`bool` `if`/`while` condition's ADR 0035 truthy conversion needs.
-6. **Virtual dispatch** — every call lowered so far (`new`'s constructor, a static call) is statically
-   resolved with no dispatch question at all. Whether a real vtable/interface-dispatch lookup belongs at
-   this IR level (as opposed to purely at codegen, once M3 exists) is an open question for whichever session
-   first lowers a call through an interface-typed or overridden-method receiver — likely the instance-call
-   session above, since that's the first shape where the receiver's *static* type and its *runtime* class
-   can actually differ.
+6. **Virtual dispatch** — every call/access lowered so far (`new`'s constructor, a static call, an instance
+   call, a property access) has its receiver's *static* type equal to its *runtime* class — none has gone
+   through an interface-typed or overridden-method/property receiver yet, which is the first place the two
+   could actually differ. Whether a real vtable/interface-dispatch lookup belongs at this IR level (as
+   opposed to purely at codegen, once M3 exists) is an open question for whichever session first hits that
+   shape.
 7. `var` locals (ADR 0037) and full-magnitude/multi-base integer-literal cooking (hex/octal/binary) are
    smaller, independent gaps that can land whenever convenient.
 
