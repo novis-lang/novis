@@ -1,0 +1,11 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m() -> uint {
+  bb0:
+    ; stmt s0 @4:5-4:17
+    v0 = const.uint 1  ; uint
+    ; stmt s1 @5:5-5:15
+    return v0
+}

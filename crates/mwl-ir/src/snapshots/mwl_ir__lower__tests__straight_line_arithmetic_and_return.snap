@@ -1,0 +1,13 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn add(int, int) -> int {
+  bb0:
+    v0 = param 0  ; int
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-4:24
+    v2 = add v0, v1  ; int
+    ; stmt s1 @5:5-5:17
+    return v2
+}
