@@ -12,51 +12,33 @@ gofmt-style no-reflow model (never wraps/collapses an expression by width), zero
 hard separation from the compiler (`mwl fmt --check` warns; `mwl check` never does). Docs only — `mwl-fmt`
 itself doesn't exist until M10, so there is nothing to build from this yet.
 
-**Last session landed `mwl-ir`'s control-flow slice** — `if`/`while`, the first item in the widening order
-the previous prompt laid out. This is where SSA's real join/phi question got answered:
+**Last session landed `mwl-ir`'s reserved safepoint markers** — item 2 in the widening order below, small
+and self-contained as planned:
 
-- **`crates/mwl-ir/src/lower.rs`** now has a `Lowering` builder that threads a `cur: &mut BlockId` through
-  the recursive lowering calls: lowering a plain statement appends to that block; lowering `if`/`while`
-  seals it with a real `Terminator::Branch`, lowers each arm into its own block, and hands back a new
-  current block (the merge point for `if`, the loop's exit for `while`) for whatever comes next. Every
-  block created is guaranteed to eventually get sealed — either by a `return` inside it, by an explicit
-  `Jump` back to a merge/loop point, or, for the one block still open at the very end of the method body,
-  by `lower_method`'s existing fallback `return;`.
-- **`if`'s join and `while`'s loop-header join are each a single, hand-rolled two-predecessor (or
-  pre-loop/back-edge) SSA merge** — not a general dominance-based phi-placement algorithm, since a
-  structured `if`/`while` only ever produces that one join shape. A local keeping the same `ValueId` on
-  every incoming edge needs no phi (SSA value numbering falls out for free, same as the straight-line
-  slice); one that differs gets a fresh `ir::InstKind::Phi` (new variant, this session). A `while` header's
-  phi is seeded with only its pre-loop incoming edge before the body is lowered (the back-edge value isn't
-  known yet), then patched with the body's exit value afterwards — see `Lowering::lower_while`'s own doc
-  comment. Which locals need a header phi at all comes from a syntactic pre-scan
-  (`Lowering::collect_reassigned_locals`), not a second type-check — it only has to safely
-  over-approximate "might be reassigned in the loop body", since a spurious phi is redundant, never wrong.
-- **A name missing from some incoming environment at a join point is silently dropped from the merged one**
-  rather than treated as an error: per `mwl_types::check_program`'s existing definite-assignment rule, any
-  local actually used after the join must already be assigned on every path reaching it, so if it's really
-  needed it will be present in every incoming environment by construction.
-- **Determinism fix worth knowing about:** both merge sites originally iterated an `FxHashMap`/`FxHashSet`
-  in its own bucket order, which would have made phi/id assignment depend on hash-table internals rather
-  than source order alone — a real conflict with `ids.rs`'s own "an id is stable across recompiles of the
-  *same* source" contract. Fixed before committing: `merge_envs` sorts local names before deciding which
-  need a phi, and `collect_reassigned_locals` now collects into a `Vec` in first-occurrence source order
-  (with an `FxHashSet` alongside only for O(1) dedup), not a hash set's iteration order.
-- **An `if`/`while` condition must already be statically `bool`** — lowering panics naming this if not.
-  ADR 0035's full truthy-table conversion for a non-`bool` condition needs a runtime-helper call, which
-  doesn't exist in the IR yet (item 5 below).
-- Six new snapshot tests (`crates/mwl-ir/src/lower.rs`'s `tests` module): an `if`/`else` merge needing a
-  real phi, an `if` with no `else` (the implicit false edge lands straight on the merge block), both
-  branches of an `if` always `return`ing (the merge block is dead but still needs a well-formed
-  terminator — handled by falling back to the pre-branch environment rather than adding a dedicated
-  "unreachable" terminator), a `while` loop carrying two pre-existing locals through header phis, and a
-  `should_panic` proving `for` is still out of scope. `mwl-ir` is now at 9 tests (was 5); mwl-types stays at
-  154, untouched. `cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across
-  the whole workspace.
-- **Known, documented gap, not fixed this session:** a nested `{}` `LocalDecl` that shadows an outer local
-  of the same name is not distinguished from a reassignment of the outer binding — the environment is one
-  flat, function-wide map with no notion of nested lexical scopes. Not observable for any program in scope
-  today, but worth fixing (or at least re-checking) before this crate's `Env` is trusted with more shapes.
+- **`crates/mwl-ir/src/ir.rs`** gained `InstKind::Safepoint`: a marker instruction, like `StmtMarker`,
+  that defines no value and is inert — it lowers to nothing today. Its doc comment names the two fixed
+  sites the project-start "safepoints from the first backend commit" decision calls for (function entry,
+  a loop's back edge) and why the shape is reserved now rather than retrofitted once M3's codegen exists,
+  mirroring `ids.rs`'s own "cheap now, expensive to retrofit" framing for `StmtId`/`EdgeId`.
+- **`crates/mwl-ir/src/lower.rs`** emits one via a new `Lowering::emit_safepoint(&mut self, b: BlockId)`
+  helper: once as the very first instruction in a function's entry block (`lower_method`), and once in
+  `lower_while`, on the loop body's actual back edge — the last instruction appended to `body_cur` before
+  it's sealed with `Terminator::Jump(header_block)`. Placed on the back edge itself, not the header, so a
+  body that never reaches it (e.g. it always `return`s) polls zero times for that path, same as a
+  functional poll would.
+- **`crates/mwl-ir/src/print.rs`** renders it as a bare `safepoint` line, matching `StmtMarker`'s
+  early-return shape in `print_inst`.
+- All 8 existing snapshot tests were regenerated via `cargo insta test --accept -p mwl-ir` (every function
+  now shows a leading `safepoint` line; `while_loop_carries_locals_through_a_header_phi`'s snapshot also
+  shows one right before its `jump bb1` back edge). No new test was added — the existing control-flow
+  snapshots already exercise both emission sites; a `for` loop is still out of scope so it gets no back-edge
+  marker yet. `mwl-ir` stays at 9 tests; mwl-types stays at 154. `cargo build`/`test`/
+  `clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole workspace.
+- `docs/implementation-plan.md`'s M2 paragraph updated to describe this instead of the old "nothing marks
+  it as a poll site yet" gap note.
+- **Not done, and deliberately out of scope this slice:** the marker does nothing — no CPU-limit check, no
+  cancellation check, no cycle-collector hook. That's M3's backend work, once Cranelift codegen exists to
+  lower it to an actual poll. No guard test needs it functional before then.
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
@@ -64,18 +46,26 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
 1. ~~Control flow (`if`/`while`).~~ **Done.** `for`/`switch`/`try`, plus `break`/`continue` of any kind, are
    still out of scope — reuse `merge_envs`/the seed-then-patch phi dance rather than inventing a new
    algorithm; `switch`'s fallthrough-by-omitted-`break` shape and `try`/`catch`'s exceptional edges are the
-   two likely to need something beyond a straight port.
-2. **Safepoints.** Belong at a loop back-edge and at function entry (recursion). `while` now lowers a real
-   back edge (`Terminator::Jump` from the loop body to its header) — reserve the instruction/marker shape
-   there and at function entry. No guard test needs this until M3, so this is a good next slice: small,
-   self-contained, and doesn't need the design decision in (3) below.
-3. **Calls, `new`, property/array access.** This is where the "does `mwl-ir` depend on `mwl-types`, or does
-   `mwl-types` publish a typed-expression table" decision (carried forward from two sessions ago, still
-   unresolved because nothing so far has forced it) has to actually be made — resolve it before writing the
-   lowering code, not after. Not a session-ending blocker on its own, but flag it explicitly if you reach
-   it: it's a real design choice between "duplicate a chunk of `mwl_types::expr`'s (currently `pub(crate)`)
-   type-inference logic inside `mwl-ir`" and "give `mwl-types` a new, deliberately-designed public
-   typed-expression table" — worth deciding once, not drifting into.
+   two likely to need something beyond a straight port. `for` will also need its own back-edge
+   `emit_safepoint` call, mirroring `lower_while`'s.
+2. ~~Safepoints.~~ **Done** (reserved shape only — see above). Revisit once M3's codegen exists to give the
+   marker an actual lowering; no action needed in `mwl-ir` itself until then.
+3. **Calls, `new`, property/array access — the next slice, and it starts with a decision only a dedicated
+   session should make, not one made under time pressure mid-slice.** `mwl-ir` needs to know a call's or
+   `new`'s resolved type (the callee's return type, the constructed class), which `mwl_types::expr` already
+   computes but keeps `pub(crate)` rather than persisting anywhere `mwl-ir` can read it back from. Two ways
+   to resolve this, unchanged from the last two sessions' carry-forward because nothing has forced the
+   choice yet:
+   - **(a) `mwl-ir` depends on `mwl-types`** and duplicates/reuses a chunk of `mwl_types::expr`'s
+     inference logic (would need loosening some `pub(crate)` visibility, or a second inference pass).
+   - **(b) `mwl-types` grows a new, deliberately-designed public typed-expression table** that
+     `check_program` populates once and `mwl-ir` reads afterward, keeping the two crates' concerns separate
+     but adding a new persisted data shape `mwl-types` has to maintain.
+   This is a real architecture tradeoff (crate coupling and duplicate logic vs. a new public surface and
+   the memory/maintenance cost of persisting a typed-expression table per compilation) — per CLAUDE.md's
+   "ask about tradeoffs" rule, a session picking this up should present both options and their
+   performance/memory/simplicity tradeoffs explicitly before writing any lowering code for calls, `new`, or
+   property/array access, rather than picking one silently.
 4. **Non-scalar values (`string`/`bytes`, arrays, objects) and refcount operations.** The milestone text's
    third named ingredient; has nowhere to attach until a reference-counted value exists in `ir::Ty`.
 5. **Runtime-helper calls** — the milestone's fourth named ingredient, for `mixed`/union operands once they
