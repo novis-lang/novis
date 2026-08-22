@@ -724,8 +724,10 @@ measured.
 
 ### M10 — Developer tooling and IDE integration (~14 weeks)
 `mwl fmt` (canonical, idempotent — the **only** formatting implementation; neither editor client below gets
-its own); `mwl lsp` over `tower-lsp` reusing the front end with incremental reparse (completion,
-go-to-definition, hover types, diagnostics, rename); `mwl dap` using safepoints for breakpoints plus
+its own; its PER-based, unconfigurable, no-reflow style and `--check`/`--diff` surface are
+[ADR 0039](adr/0039-canonical-code-formatting.md)); `mwl lsp` over `tower-lsp` reusing the front end with
+incremental reparse (completion, go-to-definition, hover types, diagnostics, rename); `mwl dap` using
+safepoints for breakpoints plus
 deopt-to-debug in codegen; a sampling profiler emitting flamegraphs; `mwl pkg` with lockfile, semver
 resolution and a registry. Also here: `Core\Debug`, the `[debug]` `mwl.ini` section and
 `debug.trace`/`debug.profile` capabilities, and the Clover/lcov/Callgrind exporters wired to `mwl test
