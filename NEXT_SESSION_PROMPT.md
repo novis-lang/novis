@@ -5,59 +5,49 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Also landed a couple of sessions back, independent of the `mwl-ir` thread below: [ADR 0039](docs/adr/0039-canonical-code-formatting.md)**
-decides `mwl fmt`'s actual formatting rules — PER as the base style, explicit rules for the MWL-only
-constructs PER never saw (`fn` closures, `tainted`/`secret`, `lateinit`, shape types, `match`), a
-gofmt-style no-reflow model (never wraps/collapses an expression by width), zero configuration ever, and a
-hard separation from the compiler (`mwl fmt --check` warns; `mwl check` never does). Docs only — `mwl-fmt`
-itself doesn't exist until M10, so there is nothing to build from this yet.
+**Last session landed item 7 from the list below — `var` locals (ADR 0037) and multi-base integer-literal
+cooking.** Both were small, mechanical widenings with no new IR shape needed:
 
-**Last session landed the second half of item 3 below — an instance method call, plus a
-compile-time-known property access.** Both reuse `mwl-types`' `ExprTypeTable` exactly the way `new`/a
-static call already did: `ExprInfo::Call` for `$obj->method(...)`/`$this->…` (the producer side was
-already tested from the session before), and a new `ExprInfo::Property { class, name, ty }` variant for
-`$obj->prop`/`$this->prop`, recorded by `mwl_types::expr::check_property_access` and keyed by the
-`PropertyAccess` expression's own span (derived in-function as `object.span.to(*name_span)` — provably
-identical to the parser's own span construction, so no extra parameter needed to thread it through; see
-that function's comment).
+- `StmtKind::LocalDecl { ty: None, .. }` (`var $x = expr;`) now lowers by calling
+  `Lowering::lower_expr(value, None, env, cur)` — the same `expected: None` inference path every other
+  caller already used for things like an `echo` argument — and binding the local to whatever `Ty` comes
+  back, exactly mirroring `mwl_types::locals::check_stmt`'s own `None` arm. No new code path; this only
+  needed a second `match` arm alongside the existing `ty: Some(decl_ty)` one.
+- A bare integer literal now cooks correctly in all four bases `mwl-syntax`'s lexer accepts, not just
+  decimal: a new `lower::int_literal_digits` helper strips a `0x`/`0X`/`0o`/`0O`/`0b`/`0B` prefix (if
+  present) and returns `(radix, digits)`, and `ExprKind::Int`'s lowering now calls
+  `{i64,u64}::from_str_radix` against that instead of assuming base 10. `mwl-syntax`'s lexer already
+  tokenized these forms as one `IntLiteral` (see `lexer.rs`'s `lex_number`); mwl-ir just wasn't parsing
+  the digits correctly. Full-magnitude range-checking stays an explicit, documented gap, same as
+  `mwl_types::expr::infer`'s own decimal case — this only widened *which bases* get cooked.
 
-On the `mwl-ir` side: every lowered method's `Function::params` now carries an implicit receiver at index
-0 (`$this`; index 0 whether or not the body reads it) ahead of every explicit parameter — the design
-question flagged open last session, settled in favor of the "implicit first parameter" shape (mirroring
-`mwl_types::check.rs`'s `check_method`, which already seeds `$this` unconditionally) over a
-receiver-only special case, because the latter would duplicate `ExprKind::Variable`'s `Env`-lookup path
-for a value that behaves like an ordinary parameter in every other respect. This changed every existing
-snapshot's function signature line (regenerated via `cargo insta test --accept -p mwl-ir`). `InstKind::Call`
-now sets `receiver: Some(v)` for an instance call; a new `InstKind::FieldGet { object, class, field }`
-reads a compile-time-known field — `class`/`field` are labels for a future codegen layout pass, the same
-"resolved identity, not yet a machine offset" shape `Call`/`New` already use. A receiver that erased to a
-shape or plain `object` (ADR 0036 § 4) has no `ExprInfo::Property` entry at all — lowering panics naming
-that case, since the checker itself defers the runtime-checked fallback to M4 with no IR/codegen yet to
-throw from. A nullsafe access of either kind (`?->`) is equally out of scope today.
+Two new `insta` snapshot tests landed: `a_var_local_infers_its_type_from_the_initializer` (confirms a bare
+`1` in `var $n = 1;` still defaults to `int`, not `uint`, per ADR 0007 § 4) and
+`multi_base_integer_literals_cook_to_the_same_value` (`0x1F` + `0o17` + `0b101` cooks to `31 + 15 + 5`).
+`mwl-ir` is now at 22 tests (`mwl-types` unchanged at 162). `cargo build`/`test`/
+`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole workspace.
 
-Four new tests landed: two `insta` snapshots (`a_this_property_access`, `a_property_access_through_a_local_receiver`)
-plus two `#[should_panic]` tests for the nullsafe and shape/`object`-erasure refusals, alongside the
-instance-call tests from the producer session before. `mwl-types` is now at 162 tests, `mwl-ir` at 20.
-`cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole
-workspace.
+**Also worth knowing: item 3's "property access through a shape/plain-`object` receiver" sub-bullet in the
+previous version of this file was stale.** That design question was actually already settled and landed in
+the *instance-call* session two sessions back (commit `c13fc53`) — `mwl_types::expr::check_property_access`
+records no `ExprInfo::Property` entry for that erasure case (ADR 0036 § 4), and `mwl-ir`'s
+`ExprKind::PropertyAccess` lowering already panics naming it, with a `#[should_panic]` test
+(`a_property_access_through_a_plain_object_receiver_is_still_out_of_scope`) covering it. Nothing to do
+there; it only remains open in the sense that the *real* checked-throw representation is still M4 work.
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
 
 1. ~~Control flow (`if`/`while`).~~ **Done.**
 2. ~~Safepoints.~~ **Done** (reserved shape only). Revisit once M3's codegen exists.
-3. ~~`new`/a static call, an instance method call, and a compile-time-known property access.~~ **Done.**
-   Two shapes remain, independent of each other and of everything above:
+3. ~~`new`/a static call, an instance method call, and a compile-time-known property access (including the
+   shape/`object`-erasure panic case).~~ **Done.** One shape remains:
    - **Array access (`$arr[$i]`)** is still unsupported; lowering panics naming the expression. No
-     non-scalar *data* representation exists yet either (see item 4), so this may naturally land together
-     with that slice rather than alone — worth deciding at the start of whichever session picks it up.
-   - **A property access through a shape or plain-`object` receiver** (ADR 0036 § 4's erasure case) has no
-     `ExprTypeTable` entry to read and no IR representation decided — is there a checked-throw instruction
-     now, a placeholder/panic until M4, or something else? This is the same kind of IR-level design
-     question the instance-call session flagged for its own slice; worth 1-2 paragraphs before writing
-     lowering code, per CLAUDE.md's "ask about tradeoffs" bar.
+     non-scalar *data* representation exists yet either (see item 4 below), so this may naturally land
+     together with that slice rather than alone — worth deciding at the start of whichever session picks
+     it up.
 4. **Non-scalar *data* values (`string`/`bytes`, arrays) and refcount operations.** The milestone text's
-   third named ingredient; `Ty::Object` (landed two sessions back) covers the object-reference case but
+   third named ingredient; `Ty::Object` (landed several sessions back) covers the object-reference case but
    carries no refcount operations yet either — still nothing to attach one to until this lands.
 5. **Runtime-helper calls** — the milestone's fourth named ingredient, for `mixed`/union operands once they
    exist in the IR, and also what a non-`bool` `if`/`while` condition's ADR 0035 truthy conversion needs.
@@ -67,8 +57,10 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
    could actually differ. Whether a real vtable/interface-dispatch lookup belongs at this IR level (as
    opposed to purely at codegen, once M3 exists) is an open question for whichever session first hits that
    shape.
-7. `var` locals (ADR 0037) and full-magnitude/multi-base integer-literal cooking (hex/octal/binary) are
-   smaller, independent gaps that can land whenever convenient.
+7. ~~`var` locals (ADR 0037) and multi-base integer-literal cooking (hex/octal/binary).~~ **Done.** Full
+   integer-literal *magnitude* range-checking (negative-into-`uint`, too-large-for-either) is still not
+   modeled, mirroring `mwl_types::expr::infer`'s own documented gap for the same case — small and
+   independent, land whenever convenient.
 
 Once control flow, calls, and property/array access all lower, M2's own *Verify* bullet ("IR snapshot
 tests; no program in the corpus produces an `Unknown` type") is worth revisiting for a real corpus-driven
