@@ -156,8 +156,17 @@
 > never produces the AST shape that would reach this crate. This session also surfaced and fixed a pre-existing,
 > previously-invisible gap: `ExprKind::Paren` (a parenthesized `(expr)`) was never unwrapped anywhere in
 > expression lowering at all — needed now since `!($a && $b)` requires the explicit parens (`!` binds
-> tighter than `&&`/`||`). `$a[] = expr;` append syntax (the write side) has since landed too, see above —
-> `mwl-ir` is now at 95 tests (was 82).
+> tighter than `&&`/`||`). `$a[] = expr;` append syntax (the write side) has since landed too, see above.
+> **`break`/`continue` for a `while` loop** have since landed too, level 1 only: a new `Lowering::LoopFrame`
+> (pushed/popped around a `while`'s own body lowering) records each `break`'s/`continue`'s `(block, env)`
+> pair, and `lower_while` folds a `continue`'s edge into its existing header-phi patch (widened from "the
+> one fall-through edge" to "every back edge") and a `break`'s edge into a new `merge_envs` call at the
+> after-block (previously always a plain clone of the header environment, since the condition's false edge
+> was the loop's only exit) — no new `Terminator`/`InstKind` shape needed either way. `break N`/`continue N`
+> for `N > 1`, a non-literal level, and either keyword inside a `for`/`switch` body (neither of which lowers
+> yet) all still panic naming the gap; so does either keyword with no enclosing loop at all, since
+> `mwl_types` doesn't yet check loop nesting itself.
+> `mwl-ir` is now at 102 tests (was 95).
 > `crates/mwl-ir/src/ids.rs`
 > reserves the stable `StmtId`/`EdgeId` numbering
 > [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) needs (assigned in one
