@@ -5,40 +5,43 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session landed the first bullet of item 4 below — a `string`-typed property *write* — closing the
-read/write asymmetry the property-read slice had left open.** This was already scoped in detail two
-sessions ago; one new `InstKind` was needed:
+**Last session landed `.` string concatenation between two already-`string` operands — the item flagged as
+the most natural next pickup two sessions ago.** One new `InstKind` was needed:
 
-- `crate::ir::InstKind::FieldSet { object, class, field, value }` — mirrors `FieldGet`, but writes rather
-  than reads and defines no value (like `Retain`/`Release`/`Safepoint`). `crate::print::print_inst` renders
-  it as `field.set v{object}, {class}::{field}, v{value}`.
-- `Lowering::lower_reassignment` now matches on the assignment *target* instead of only accepting a plain
-  local: `ExprKind::Variable` still binds into `Env` exactly as before; a new `ExprKind::PropertyAccess`
-  arm handles `$obj->prop = expr;` (including `$this->prop = expr;`, which needs nothing special — the
-  receiver is just another `Env` lookup). It looks up `ExprInfo::Property` from `self.exprs` keyed by
-  `target.span` (the `PropertyAccess` expression's own span) — confirmed by reading `mwl_types::expr::
-  check_assign`'s general (non-plain-local) arm: it routes the target through the ordinary `check_expr` →
-  `check_property_access`, which records the *same* `ExprInfo::Property` entry a read would, so no checker
-  changes were needed. Refcounting mirrors `bind_local`'s local-slot policy, adapted to a field with no
-  `Env` entry to consult before the overwrite: retain the new value first if it's an aliasing read (reusing
-  `is_aliasing_read` unchanged), *then* read the field's previous value back with a `FieldGet` and release
-  it — retain before release, same order `bind_local` already uses, so a self-assignment
-  (`$obj->prop = $obj->prop;`) never observes a transient zero refcount. Anything else reaching
-  `lower_reassignment`'s target match (an array element, a static-property target, ...) still panics naming
-  the shape.
-- A nullsafe property-assignment target (`$obj?->prop = expr;`) asserts out, same as a nullsafe read/method
-  call; a receiver that erased to a shape or plain `object` (ADR 0036 § 4) panics the same way the read side
-  already did, since `check_property_access` never records an entry for either.
-- Four new `insta` snapshot tests in `crates/mwl-ir/src/lower.rs`'s `tests` module:
-  `writing_a_fresh_string_literal_to_a_property_releases_its_previous_value` (a literal RHS — `FieldGet` +
-  `release` of the old value, `field.set`, no retain, since a literal is a fresh producer),
-  `writing_a_string_local_to_a_property_retains_it_before_releasing_the_old_value` (an aliasing local RHS —
-  `retain` first, *then* `FieldGet` + `release` of the old value, then `field.set`, confirming the ordering),
-  `writing_through_this_lowers_too` (`$this->name = "new";`, the implicit-receiver path), and
-  `writing_through_a_plain_object_receiver_is_still_out_of_scope` (`#[should_panic]`, the erased-receiver
-  case). Read the actual snapshot output before trusting the design holds: it does (verified this session,
-  all four checked by hand) — `mwl-ir` is now at 37 tests (`mwl-types` unchanged at 162). `cargo build`/
-  `test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole workspace.
+- `crate::ir::InstKind::Concat { lhs, rhs }` — builds a fresh `Ty::Str` value from two already-lowered
+  `Ty::Str` operands. Modeled as a dedicated instruction rather than a runtime-helper call: no
+  runtime-helper-call shape exists in the IR yet (that's still item 5 below, unstarted), and `.` only ever
+  needs this one fixed two-operand shape, the same "native instruction over already-typed operands"
+  treatment `InstKind::BinOp` already gives scalar arithmetic. `crate::print::print_inst` renders it as
+  `concat v{lhs}, v{rhs}`.
+- `Lowering::lower_expr`'s `ExprKind::Binary` match gained a dedicated arm for `BinaryOp::Concat`, ahead of
+  the existing scalar-operator table, so it never reaches that table's catch-all panic. Both operands lower
+  with `expected: Some(Ty::Str)`; if either doesn't come back `Ty::Str` (a bare `int`/`uint`/`float`/`bool`
+  literal, or any other operand shape), lowering panics naming the mismatch rather than guessing a
+  conversion — confirmed against `mwl_types::expr::check_expr`'s own `BinaryOp::Concat` handling
+  (`require_stringable`), which *does* accept a scalar or a `Stringable`-implementing object on either side
+  (PHP-style implicit stringification) and resolves the result to a plain `string` (poisoned `tainted`/
+  `secret` if either operand already was, per ADR 0024 §2/0033 §2) — so the checker is strictly more
+  permissive here than this slice's lowering; a scalar/`Stringable` operand is a known, named gap, not a
+  checker/lowering mismatch bug.
+- **No retain of either operand, and no retain of the result.** Concatenation only *reads* each operand to
+  build a new buffer — it never becomes a second durable owner of either, the same reasoning
+  `InstKind::FieldGet` already uses for not retaining its `object` receiver. The result is a fresh value
+  with exactly one natural owner, same as `ConstStr`/`New`/a call's result — `Lowering::is_aliasing_read`
+  needed no new arm for `ExprKind::Binary` (it was already `false` by omission). Verified by hand in the new
+  snapshots: two string locals concatenated and immediately discarded produce exactly one release per
+  original local plus one release for the concat's own result — three releases, zero retains, for a
+  function with three `string`-typed bindings.
+- Two new `insta` snapshot tests in `crates/mwl-ir/src/lower.rs`'s `tests` module:
+  `concatenating_two_string_literals_needs_no_retain_of_either_operand` (`return "a" . "b";` — two
+  `const.str` values feeding one `concat`, returned with no retain at all) and
+  `concatenating_two_string_locals_reads_them_without_retaining` (`string $a = "x"; string $b = "y"; string
+  $c = $a . $b;` — confirms no retain on the way into `concat`, and exactly one release per slot at the exit
+  sweep). A third test, `concatenating_a_non_string_operand_is_still_out_of_scope` (`#[should_panic]`, `1 .
+  "x"`), pins the scalar-operand panic. Read the actual snapshot output before trusting the design holds: it
+  does (verified this session, both non-panic snapshots checked by hand) — `mwl-ir` is now at 40 tests
+  (`mwl-types` unchanged at 162). `cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check`
+  all clean across the whole workspace.
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
@@ -51,13 +54,7 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
      `array<T>` *data* representation exists yet either (see item 4 below), so this may naturally land
      together with that slice rather than alone.
 4. **Non-scalar *data* values and refcount operations — `string` locals, the call/return/property-read-and-
-   write boundary, and a bare call/`new` statement are all landed; four pieces remain:**
-   - **String concatenation (`.`).** `ExprKind::Binary`'s arm only accepts the scalar
-     arithmetic/equality/ordering operators; `BinaryOp::Concat` on two `string` operands panics there.
-     Lowering this needs a runtime-helper call (see item 5) or a dedicated `InstKind`, since concatenation
-     allocates a new buffer rather than being a native scalar instruction. The result is a fresh value (one
-     natural owner, same as a literal) — `is_aliasing_read` should *not* need to grow a `Binary` arm for it.
-     This is the most natural next pickup: small, independent, and already scoped in detail.
+   write boundary, and `.` concatenation between two `string` operands are all landed; three pieces remain:**
    - **`bytes`.** Expected to be a mechanical repeat of `Ty::Str`'s shape (same refcounted-heap-value
      treatment, different content, same `bind_local`/`lower_call_args`/`release_all_locals`/`lower_expr_stmt`/
      `lower_reassignment` insertion points, same `is_aliasing_read` reuse) — extend `Ty::is_refcounted`,
@@ -76,8 +73,11 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
      lands) still panic. These likely want to wait for ADR 0024 §4/0033's stdlib-dependent sinks anyway
      (M7/M8), since a qualifier with nothing to launder against isn't very actionable yet.
 5. **Runtime-helper calls** — the milestone's fourth named ingredient, needed for a `mixed`/union operand,
-   for ADR 0035's truthy conversion on a non-`bool` `if`/`while` condition, and now also for string
-   concatenation (see item 4).
+   for ADR 0035's truthy conversion on a non-`bool` `if`/`while` condition, and for converting a scalar or
+   `Stringable`-object operand to `string` for `.` concatenation (`mwl_types::expr::check_expr`'s
+   `require_stringable` already accepts either; only the two-`string`-operand case lowers today — see item
+   4's now-closed bullet above). This is probably the next high-leverage pickup: it's named by three
+   separate gaps now, all blocked on the same missing IR shape.
 6. **Virtual dispatch** — every call/access lowered so far (`new`'s constructor, a static call, an
    instance call, a property access) has its receiver's *static* type equal to its *runtime* class — none
    has gone through an interface-typed or overridden-method/property receiver yet, which is the first
@@ -92,8 +92,9 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
    double-quoted literal passes through uncooked rather than resolving to the byte/codepoint it names;
    `ExprKind::Interpolated` (a double-quoted string/heredoc with an interpolation site) and a
    heredoc/nowdoc-sourced `ExprKind::Str` are both entirely unsupported. Small and independent, land
-   whenever convenient — likely wants to happen alongside string concatenation (item 4) since
-   interpolation desugars to concatenation-like codegen anyway.
+   whenever convenient — interpolation is expected to desugar to the same `InstKind::Concat` chain a
+   written-out `.` expression now already lowers to (item 4/this session's landing), so this pairs
+   naturally with that, not with a separate mechanism.
 
 Once control flow, calls, and property/array access all lower, M2's own *Verify* bullet ("IR snapshot
 tests; no program in the corpus produces an `Unknown` type") is worth revisiting for a real corpus-driven
@@ -104,12 +105,3 @@ Also still open from before (independent, low priority, unrelated to `mwl-ir`): 
 exempted from ADR 0022's constructor check entirely rather than verified against the hook's body; the
 identical question now also applies to whether a `lateinit` + hooked property should discharge on the
 hook's first commit (ADR 0038's own *Revisiting* names this, deferred to `docs/spec/`).
-
----
-
-Pick the best-scoped next item and land it end to end (design decision if needed → implementation → tests
-→ verification → docs → commits). If you pick up `array<T>`'s element-layout decision (flagged above as a
-real tradeoff), work out the design question explicitly (1-2 paragraphs weighing the options against
-CLAUDE.md's priority ordering: security > correctness > latency > simplicity > memory) before writing
-code, and stop to report back if it's genuinely a decision only the user should make rather than a
-mechanical extension of an existing pattern. Good luck.
