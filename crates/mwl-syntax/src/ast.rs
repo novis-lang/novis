@@ -385,6 +385,12 @@ pub enum Modifier {
     /// visibility: a separate, always-at-least-as-strict visibility for
     /// writes.
     SetVisibility(Visibility),
+    /// `lateinit` — ADR 0038: defers a non-nullable, class/interface-typed
+    /// property's first assignment past the constructor. Which
+    /// types/positions actually accept it (a scalar, `?T`, a promoted
+    /// parameter, `readonly`) is `mwl-types`' job, same discipline as every
+    /// other modifier here.
+    Lateinit,
 }
 
 /// One of the three visibility levels, as named by

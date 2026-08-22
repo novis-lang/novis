@@ -351,6 +351,28 @@ pub mod code {
     /// position — distinct from `new parent(...)`, which silently falls back
     /// to `mixed` for the same shape) used in a class with no `extends`.
     pub const E_NO_PARENT_CLASS: Code = Code::new("E0423");
+    /// `lateinit` on a scalar-, enum-, or shape-typed property — only a
+    /// class/interface (`object`-subtyped) property has no free real default
+    /// for `lateinit` to defer past. See ADR 0038 § 1.
+    pub const E_LATEINIT_NOT_OBJECT_TYPE: Code = Code::new("E0424");
+    /// `lateinit` on a `?T` property — nullability already spells "may
+    /// legitimately hold no value," so there is no second "not yet written"
+    /// state left for `lateinit` to add. See ADR 0038 § 1.
+    pub const E_LATEINIT_NULLABLE: Code = Code::new("E0425");
+    /// `lateinit` on a promoted constructor parameter — binding the
+    /// parameter is already the assignment ADR 0022 § 2 requires, so there is
+    /// nothing left to defer. See ADR 0038 § 1.
+    pub const E_LATEINIT_PROMOTED_PARAM: Code = Code::new("E0426");
+    /// `lateinit` combined with `readonly` on the same property — opposite
+    /// promises about when the one allowed assignment happens. See ADR 0038
+    /// § 1.
+    pub const E_LATEINIT_READONLY_CONFLICT: Code = Code::new("E0427");
+    /// A `lateinit` property read inside a method body with no intervening
+    /// write to it and no intervening call on that path since the method's
+    /// entry — the one intraprocedural, false-positive-free case ADR 0038
+    /// § 3 proves at compile time; every other case relies entirely on the
+    /// § 2 runtime throw.
+    pub const E_LATEINIT_READ_BEFORE_WRITE_LOCAL: Code = Code::new("E0428");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

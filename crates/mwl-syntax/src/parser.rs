@@ -3611,6 +3611,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                     self.bump();
                     Modifier::Readonly
                 }
+                TokenKind::Keyword(Keyword::Lateinit) => {
+                    self.bump();
+                    Modifier::Lateinit
+                }
                 TokenKind::Keyword(Keyword::Static) => {
                     self.bump();
                     Modifier::Static
@@ -6186,6 +6190,22 @@ mod tests {
         assert!(m.params[0].modifiers.contains(&Modifier::Public));
         assert!(m.params[0].modifiers.contains(&Modifier::Readonly));
         assert!(m.body.is_some());
+    }
+
+    #[test]
+    fn lateinit_property_modifier_parses() {
+        // ADR 0038 § 1: `lateinit` is a property modifier like `readonly` —
+        // which non-nullable/scalar/promoted-parameter combinations it's
+        // actually legal on is `mwl-types`' job, not the parser's.
+        let s = parse_stmt_ok("class Container { public lateinit Logger $logger; }");
+        let StmtKind::ClassDecl(class) = s.kind else {
+            panic!("expected a class decl: {s:?}");
+        };
+        let ClassMemberKind::Property(prop) = &class.members[0].kind else {
+            panic!("expected a property: {:?}", class.members[0]);
+        };
+        assert!(prop.modifiers.contains(&Modifier::Lateinit));
+        assert!(prop.modifiers.contains(&Modifier::Public));
     }
 
     #[test]

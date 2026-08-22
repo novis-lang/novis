@@ -1198,6 +1198,16 @@ mod tests {
     }
 
     #[test]
+    fn lateinit_is_a_keyword() {
+        // ADR 0038 § 1: `lateinit` is a new reserved property modifier,
+        // alongside `readonly`'s own keyword.
+        assert_eq!(
+            kinds_ok("<?mwl lateinit"),
+            vec![OpenTagMwl, Keyword(super::Keyword::Lateinit), Eof]
+        );
+    }
+
+    #[test]
     fn spawn_script_with_are_contextual_not_reserved() {
         // These must lex as plain identifiers -- the grammar recognises them
         // by text only at the one position each is meaningful, per
