@@ -1062,6 +1062,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mwl-ir"
+version = "0.0.1"
+dependencies = [
+ "insta",
+ "mwl-diagnostics",
+ "mwl-syntax",
+ "rustc-hash",
+]
+
+[[package]]
 name = "mwl-syntax"
 version = "0.0.1"
 dependencies = [
