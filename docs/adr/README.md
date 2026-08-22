@@ -74,6 +74,7 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0039](0039-canonical-code-formatting.md) | `mwl fmt` is one canonical, unconfigurable, PER-based formatting style with no reflow; it is never wired into the compiler | Accepted |
 | [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) | The VS Code extension goes deep (inspections, refactorings, Test Explorer, debugger UI) on a schedule pulled ahead of M10; `mwl-syntax` gains a resilient parse mode | Accepted |
 | [0041](0041-timeline-export-and-gc-spawn-trace-events.md) | Trace events gain a `call`/`gc`/`spawn` kind and a speedscope-evented export, so a request's timeline shows GC pauses and isolate boundaries, not just calls | Accepted |
+| [0042](0042-on-disk-artifact-cache-format.md) | The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable | Accepted |
 
 ## Decisions taken at project start
 

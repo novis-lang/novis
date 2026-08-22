@@ -245,7 +245,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Implementation language | Rust (stable, pinned via `rust-toolchain.toml`) |
 | Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap ([ADR 0004](adr/0004-memory-for-simplicity.md)) |
 | Execution | Cranelift JIT from day one, no interpreter tier; baseline codegen first, optimising tier later |
-| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart ([ADR 0017](adr/0017-hot-reload-without-restart.md)) |
+| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart ([ADR 0017](adr/0017-hot-reload-without-restart.md)); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are [ADR 0042](adr/0042-on-disk-artifact-cache-format.md) |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
 | Isolated execution | `spawn script 'file.mwl'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](adr/0006-isolated-script-execution.md)) |
@@ -773,7 +773,9 @@ or that name a class whose declared properties no longer match, are refused rath
 Directive registry with changeability classes, boot config parsing, per-request overlay, `ini_set`
 semantics, capability enforcement at every syscall-touching stdlib entry point, safepoint-driven limit
 enforcement, content-addressed artifact cache with integrity verification and a refusal to use a
-world-writable cache directory. Isolates get their governance here: the `script.spawn` capability with
+world-writable cache directory — the exact file layout, header format, mmap-verify-then-execute read path
+and probabilistic eviction sweep are already decided in [ADR 0042](adr/0042-on-disk-artifact-cache-format.md);
+this milestone builds exactly what that ADR specifies, not a fresh design. Isolates get their governance here: the `script.spawn` capability with
 canonicalise-then-prefix path resolution, `max_script_depth`, per-tree accounting of every `[limits]` value,
 spawn-site sub-caps, and derivation of a child's overlay from its parent's effective config. **Also here:**
 the `fatal_reserve_memory`/`fatal_reserve_time` directives and `Core\Fatal::onLimit` registration

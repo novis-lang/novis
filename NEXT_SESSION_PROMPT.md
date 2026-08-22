@@ -5,64 +5,37 @@ first, then read `docs/implementation-plan.md`'s M2 paragraph for exactly what l
 only points at what's next; the plan is the one home for status detail, per CLAUDE.md's "state a fact
 once").
 
-**Last session closed out the remaining piece of known-gap item 7: integer-literal magnitude
-range-checking (ADR 0007 § 4).** The gap note going in named two sub-cases, "negative-into-`uint`" and
-"too-large-for-either." Both turned out to already be exactly specified by ADR 0007 § 4's own text — "An
-integer literal that does not fit `int` is legal only where a `uint` is expected, and is otherwise a
-diagnostic saying exactly that" — so this was a mechanical implementation of an already-decided rule, not a
-new design call. Investigating "negative-into-`uint`" first showed it needed **no new check at all**:
-`mwl_types::expr::infer`'s `ExprKind::Unary` arm already checks its inner expression with `expected: None`
-(not the outer target type), so `-5` assigned into a `uint` local already types the inner literal as plain
-`int` and reports the ordinary `int`-vs-`uint` `E_TYPE_MISMATCH` `is_assignable` gives for any other
-mismatched pair — nothing magnitude-specific was missing there. What *was* genuinely unimplemented:
-"too-large-for-either" — a literal whose digits alone overflow `i64`/`u64`. `mwl-ir`'s own lowering already
-silently relied on this never happening (a raw `unwrap_or_else(|| panic!(...))` on the `from_str_radix`
-call), so an out-of-range literal would have surfaced as an ugly internal panic instead of a compiler
-diagnostic.
+**Last session was ADR-only — no code changed.** The user asked how the compiled-code cache works for a
+long-running HTTP server versus a one-off CLI invocation, specifically whether a one-shot `mwl run` has to
+recompile every process start. Answer: no — the plan already committed to a content-addressed on-disk cache
+(BLAKE3) alongside the in-process cache [ADR 0017](docs/adr/0017-hot-reload-without-restart.md) covers, and
+M6 already named "integrity verification" and "refusal to use a world-writable cache directory" as
+requirements — but nothing had ever specified the file format, the read/write mechanics, or the eviction
+policy. That gap is now closed: **[ADR 0042](docs/adr/0042-on-disk-artifact-cache-format.md)** decides it.
+Headline: one immutable file per compiled unit, addressed by `BLAKE3(source ‖ target triple ‖ CPU features
+‖ compiler version hash)` — folding the environment into the *address* so a wrong-environment artifact is a
+plain miss, never an open-then-reject. A reader `mmap`s read-only, hashes the mapped bytes, and only then
+`mprotect`s to executable (W^X, extended one step earlier). A writer compiles to a temp file, `fsync`s it,
+and does one atomic rename — no lock file anywhere. Eviction rides the already-expensive cold-compile path
+at a small probability (PHP's own `session.gc_probability`/`gc_divisor` shape), so a warm hit never pays for
+it. One point stated explicitly rather than left implied: the payload checksum defends against corruption,
+never against a hostile co-resident writer — that threat is closed only by the world-writable/wrong-owner
+directory refusal, a permission check, not a hash. `docs/adr/README.md`, `CLAUDE.md`'s "Where to look" table
+and ground-rules list, and `docs/implementation-plan.md`'s Code-cache row and M6 paragraph were all updated
+to point at it, per the ADR-README's own "touch exactly these" checklist.
 
-**What landed, concretely:**
-
-- `mwl_diagnostics::code::E_INT_LITERAL_OUT_OF_RANGE` (`E0429`, `crates/mwl-diagnostics/src/lib.rs`) — a new
-  diagnostic code in the E04xx (types) range, documented with the exact ADR 0007 § 4 rule it enforces.
-- `mwl_types::expr::infer`'s `ExprKind::Int` arm (`crates/mwl-types/src/expr.rs`) now parses the literal's
-  own digits (via a new private `int_literal_digits` helper, cooking all four bases `mwl-syntax`'s lexer
-  accepts — decimal/`0x`/`0o`/`0b` — and stripping `_` separators, a deliberate duplicate of
-  `mwl_ir::lower::int_literal_digits` since this crate has no dependency on `mwl-ir`, which depends on it
-  the other way) as `u64`, then applies ADR 0007 § 4's exact rule: fits `i64` → `int` or `uint` per
-  `expected` as before; doesn't fit `i64` but fits `u64` → `uint` only if `uint` is expected, else
-  `E_INT_LITERAL_OUT_OF_RANGE`; doesn't even fit `u64` → `E_INT_LITERAL_OUT_OF_RANGE` regardless of
-  `expected`. Each error path still returns a best-effort type (matching every other diagnostic in this
-  checker, which reports and keeps going rather than aborting the walk).
-- `crates/mwl-ir/src/lower.rs`'s `ExprKind::Int` lowering arm and its `int_literal_digits` helper's doc
-  comments are updated to say the magnitude check now happens in `mwl_types` before lowering ever runs, so
-  the `unwrap_or_else` panics there are unreachable input under this crate's existing "trusts a prior clean
-  `check_program` run" contract — the same defensive-invariant shape `Env::get`'s undeclared-local panic
-  already has, not a new kind of gap.
-- One deliberately-named, un-fixed asymmetry, documented in `mwl-ir`'s crate docs rather than silently
-  left implicit: a bare literal `9223372036854775808` (one past `i64::MAX`) immediately negated is reported
-  as "too large for `int`," even though `-9223372036854775808` is `i64::MIN`, a perfectly representable
-  value — PHP's own lexer special-cases exactly this shape, but ADR 0007 § 4's text doesn't ask for it, and
-  recognizing `ExprKind::Unary { op: Neg, expr: Int(_) }` as a signed literal rather than an unsigned one
-  negated would be a second, narrower rule this session didn't decide to add on its own. `as int` is *not*
-  a workaround either (confirmed, not assumed): `ExprKind::Conversion` also checks its inner expression with
-  `expected: None`, so `9223372036854775808 as int` hits the identical diagnostic. Left as a real, narrow
-  MWL/PHP divergence for whoever picks up `Core`'s integer-limit constants to note or revisit.
-
-**Six new tests**, all in `crates/mwl-types/src/check.rs`'s `tests` module, next to the existing
-`int`/`uint` literal tests — `mwl-types` is now at 170 tests: a literal too large for `int` but not `uint`
-is fine into a `uint` target and diagnosed into an `int` target and with no expected type at all; a literal
-too large even for `uint` is diagnosed regardless of target; the same check applies through a hex literal
-(`0x1_0000_0000_0000_0000`, one bit past 64); and a negative literal into a `uint` target gets the ordinary
-`E_TYPE_MISMATCH`, explicitly *not* `E_INT_LITERAL_OUT_OF_RANGE`. `mwl-ir` needed no new tests — its own
-62 stay unchanged, since the crate's behavior for in-range input is unchanged and out-of-range input is now
-unreachable there by construction.
-
-`cargo build`/`test`/`clippy --all-targets -- -D warnings`/`fmt --check` all clean across the whole
-workspace. `crates/mwl-ir/src/lib.rs`'s known-gaps list and `docs/implementation-plan.md`'s M2 paragraph
-were both updated in place (not appended) — note that M2 paragraph was *already* over `.claude/brief.py`'s
-4000-byte budget before this session; the edit here was one short in-place addition, not a rewrite, so it
-grew only slightly more. Not fixed here — `DOC_CLEANUP_PROMPT.md`'s trim pass is the user-run remedy for
-that, unrelated to this session's own scope.
+**Separately, uncommitted M2 work from before this session was found sitting in the working tree and got
+folded into the same commit** (built, tested, clippy- and fmt-clean before committing): gap item 8,
+string-literal cooking completeness, is now **done for every double-quoted-sourced case** — a numeric
+escape (`\xHH` hex, `\NNN` octal, `\u{...}` Unicode) cooks to the byte/codepoint it names, and a
+non-heredoc `ExprKind::Interpolated` lowers to the same `InstKind::Concat` chain a written-out `.`
+expression already produces, sharing one escape-cooking routine (`mwl_types::string_lit::cook_double_quoted_text`,
+a new `mwl-types` module) between the checker and `mwl-ir` so the two can never silently disagree on what
+an escape means. `mwl-ir`'s own known-gaps doc (crate-level, in `lib.rs`) was updated in place to reflect
+this — read it there for the details, per CLAUDE.md's "per-file known-gap detail belongs in the crate's own
+module docs, not the plan." **Still open, still panicking naming the case:** a heredoc/nowdoc-sourced
+`ExprKind::Str`/`ExprKind::Interpolated` — no flexible-heredoc indentation-stripping story exists yet. The
+rest of the M2 gap list below is unchanged from before — pick up from here:
 
 **Known gaps, all named in `mwl-ir`'s own module docs — pick up widening from here, in roughly this
 order** (each is its own reasonably-sized slice; don't try all of them in one session):
@@ -135,13 +108,9 @@ order** (each is its own reasonably-sized slice; don't try all of them in one se
    architectural question — flag it rather than guessing if you reach it before M3 starts.
 7. ~~`var` locals (ADR 0037), multi-base integer-literal cooking (hex/octal/binary), and integer-literal
    magnitude range-checking.~~ **Done**, all three.
-8. **String-literal cooking completeness** — a numeric escape (`\xHH`, `\u{...}`, octal) inside a
-   double-quoted literal passes through uncooked rather than resolving to the byte/codepoint it names;
-   `ExprKind::Interpolated` (a double-quoted string/heredoc with an interpolation site) and a
-   heredoc/nowdoc-sourced `ExprKind::Str` are both entirely unsupported. Small and independent, land
-   whenever convenient — interpolation is expected to desugar to the same `InstKind::Concat` chain a
-   written-out `.` expression already lowers to, so this pairs naturally with that, not with a separate
-   mechanism.
+8. ~~String-literal cooking completeness (numeric escapes, non-heredoc interpolation).~~ **Done**, this
+   session. **Remaining, and independent:** a heredoc/nowdoc-sourced `ExprKind::Str`/`ExprKind::Interpolated`
+   — needs PHP's flexible-heredoc indentation-stripping rule designed first, not just wired up.
 
 Once control flow, calls, and property/array access all lower, M2's own *Verify* bullet ("IR snapshot
 tests; no program in the corpus produces an `Unknown` type") is worth revisiting for a real corpus-driven
@@ -161,3 +130,10 @@ in mind as M4 approaches its own "usable CLI language" exit criterion — M4B (m
 spawn-construct runtime routines its `spawn`-kind trace hook, and whenever the mark-sweep cycle collector's
 run routine is built, give it its `gc`-kind hook too — both per [ADR 0041](docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md),
 both instrumentation-only inside those already-rare routines, no change to the safepoint poll itself.
+
+**Separately, whenever M6 (config, limits, capabilities, disk cache) is underway:** build exactly what
+[ADR 0042](docs/adr/0042-on-disk-artifact-cache-format.md) specifies for the on-disk artifact cache — do not
+re-derive the file format or eviction policy from scratch. Its own *Revisiting* section leaves two things
+genuinely open for whoever implements it: the exact default values for `opcache.file_cache_max_size` and the
+GC-probability/divisor pair, and how many ancestor directories the ownership/permission check walks above
+the cache directory itself.
