@@ -13,10 +13,10 @@ Every member is `public static` on its domain class unless the entry shows a `$r
 instance method. The `public static function` prefix is omitted throughout; `Core\Str::length` is written
 `length(string $s): uint`.
 
-The **Replaces** column names the PHP built-ins an entry subsumes. It is the source for `mwl convert`'s
-mapping table (M11) and doubles as the audit trail for
-[ADR 0063 § 3](../adr/0063-core-api-conventions.md): a PHP name that appears nowhere in this column is
-either in that ADR's removal list or genuinely absent from PHP.
+The **Replaces** column names the PHP built-ins an entry subsumes. It is one of the two inputs to
+[02-php-migration.md](02-php-migration.md), which is the complete PHP-name → outcome table `mwl convert`
+(M11) is generated from and the only place that can answer "did we drop something real": this file states
+what MWL *has*, and that one accounts for every PHP name MWL does not.
 
 **Qualifier** is the [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)/[0033](../adr/0033-secret-qualifier-for-confidential-values.md)
 classification, and every member has one:
@@ -92,9 +92,13 @@ that ADR lands on.
 | `indexOf` | `indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint` | `strpos`, `stripos`, `mb_strpos`, `mb_stripos` | neutral |
 | `lastIndexOf` | `lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint` | `strrpos`, `strripos`, `mb_strrpos` | neutral |
 | `countOf` | `countOf(string $haystack, string $needle): uint` | `substr_count` | neutral |
-| `compare` | `compare(string $a, string $b): int` | `strcmp`, `strncmp`, `strnatcmp` | neutral |
-| `compareCaseless` | `compareCaseless(string $a, string $b): int` | `strcasecmp`, `strncasecmp`, `strnatcasecmp` | neutral |
-| `naturalOrder` | `naturalOrder({caseInsensitive?: bool}): callable` | the comparator behind `natsort`/`natcasesort` | neutral |
+| `compare` | `compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int` | `strcmp`, `strcasecmp`, `strnatcmp`, `strnatcasecmp`, and the comparator behind `natsort`/`natcasesort` | neutral |
+
+Case-insensitivity is an option here exactly as it is on `indexOf`, `replace` and the rest, rather than a
+second member name. `{natural: true}` selects a **different ordering**, not a variant of the same one —
+`compare("img12", "img2")` is negative and becomes positive under it — so a natural sort is
+`Arr::sort($a, {comparator: fn($x, $y) => Str::compare($x, $y, {natural: true})})`. `strncmp`'s
+length-limited form is `Str::slice` first.
 
 `strcoll` and every locale-sensitive comparison are **not** here: MWL has no ambient locale
 ([ADR 0051](../adr/0051-standard-library-tiers.md)), and locale-aware collation is the intl extension's
@@ -112,6 +116,10 @@ batch-shaped API.
 | `lines` | `lines(string $s): array<string>` | `explode(PHP_EOL, …)`, `file()`'s split half | |
 | `graphemes` | `graphemes(string $s): array<string>` | `grapheme_*` (intl, for the split case) | |
 | `codePoints` | `codePoints(string $s): array<uint>` | `mb_str_split` + `mb_ord`, `unpack("N*", …)` | neutral |
+
+`lines` splits on `\n`, `\r\n` and a lone `\r` alike, and a trailing terminator does **not** produce a final
+empty element — the platform's own line ending is never consulted, which is why there is no `PHP_EOL`
+equivalent to pass it.
 
 ### Transformation
 
@@ -136,12 +144,28 @@ batch-shaped API.
 | `fold` | `fold(string $s): string` | `mb_convert_case(…, MB_CASE_FOLD)` — for caseless comparison | |
 | `normalize` | `normalize(string $s, NormalForm $form): string` | `Normalizer::normalize` | |
 | `fromCodePoint` | `fromCodePoint(uint $codePoint): string` | `chr`, `mb_chr` | neutral |
+| `fromCodePoints` | `fromCodePoints(array<uint> $codePoints): string` | `implode(array_map("mb_chr", …))` | neutral |
 | `format` | `format(string $template, mixed ...$arguments): string` | `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf` | |
 
 `format` is an [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic: a literal template has its
 placeholder count and types checked against the argument list at compile time, which turns PHP's
-`printf`-argument-mismatch bug family into a diagnostic. `ucwords` and title casing are **not** here —
-word segmentation is locale-dependent and belongs to intl.
+`printf`-argument-mismatch bug family into a diagnostic. Its template grammar is **`printf`'s**, kept
+deliberately — a closed conversion list (`%s %d %u %f %e %g %x %X %o %b %%`) with `printf`'s flag, width,
+precision and `%1$s` positional syntax, minus everything that reads ambient state. It is a *grammar*, not a
+mode string, so R11 does not reach it; the same is true of `Core\Regex`'s patterns, `Core\Bytes::pack`'s
+format and CLDR date patterns, and those four are the only ones in the library.
+
+`ucwords` and title casing are **not** here — word segmentation is locale-dependent and belongs to intl;
+the mechanical rewrite for an ASCII-ish name is
+`Str::join(Arr::map(Str::split($s, " "), fn($w) => Str::upperFirst($w)), " ")`.
+
+PHP's `ctype_*` family has **no member and no replacement class**. Each one is a character-class question,
+which is what `Core\Regex` is for — `ctype_alpha($s)` is `Regex::matches($s, "^\\p{L}+$")` — except the two
+numeric ones, which are a *type* question and therefore an `as`: `ctype_digit($s)` is
+`$s as ?uint !== null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)). Adding them as members
+would import ASCII-only semantics into a type that guarantees UTF-8, which is the mistake
+[ADR 0009](../adr/0009-string-and-bytes.md) exists to prevent; `Core\Validate::isAscii` and `isPrintable`
+are here precisely because they *are* about the ASCII range and say so.
 
 Enums: `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`.
 
@@ -177,6 +201,11 @@ PHP's internal array pointer (`current`/`key`/`next`/`prev`/`reset`/`end`/`each`
 mutable cursor inside a copy-on-write *value* is incoherent, since copying the array would copy its
 iteration position. `foreach` and the four members above cover every use.
 
+Over an `array<?T>`, the `?T` returned by `first`, `last`, `find`, `min`, `max` and `Random::pick` cannot
+distinguish "absent" from "present and null". That is accepted rather than patched with a second return
+shape: `isEmpty` and `hasKey` answer the question directly, and every alternative costs a union at every
+call site to serve a case a program rarely has.
+
 ### Structure
 
 | Member | Signature | Replaces | Q |
@@ -192,17 +221,21 @@ iteration position. `foreach` and the four members above cover every use.
 | `padEnd` | `padEnd(array<T> $a, uint $size, T $value): array<T>` | `array_pad` | |
 | `reverse` | `reverse(array<T> $a, {preserveKeys?: bool}): array<T>` | `array_reverse` | |
 | `flip` | `flip(array<int\|string> $a): array<string>` | `array_flip` | |
-| `flatten` | `flatten(array<T> $a, {depth?: uint}): array<T>` | `iterator_to_array` on a recursive iterator, a hand-written recursive walk | |
+| `flatten` | `flatten(array<T> $a): array<T>` | one level of a hand-written recursive walk | |
+| `flattenDeep` | `flattenDeep(array<T> $a): array<T>` | `iterator_to_array` on a recursive iterator, a hand-written recursive walk | |
 | `fill` | `fill(uint $count, T $value): array<T>` | `array_fill` | |
 | `fillKeys` | `fillKeys(array<int\|string> $keys, T $value): array<T>` | `array_fill_keys` | |
 | `range` | `range(int $start, int $end, {step?: int}): array<int>` | `range` | neutral |
 | `fromKeysAndValues` | `fromKeysAndValues(array<int\|string> $keys, array<T> $values): array<T>` | `array_combine` | |
-| `toPairs` | `toPairs(array<T> $a): array<array<string\|T>>` | manual `foreach` | |
-| `fromPairs` | `fromPairs(array<array<int\|string\|T>> $pairs): array<T>` | manual `foreach` | |
+| `from` | `from(Iterable<T>\|Iterator<T> $items, {limit?: uint}): array<T>` | `iterator_to_array`, `iterator_count`'s materialising half | |
 | `column` | `column(array<array<T>> $a, int\|string $column, {indexBy?: int\|string}): array<T>` | `array_column` | |
 
 `fromKeysAndValues` throws when the two arrays differ in length (R4). `flip` collapses duplicate values,
-the last occurrence winning. **`{preserveKeys: false}` — the default wherever it appears — discards *every*
+the last occurrence winning. `from` drains its argument once and always returns a list — a generator yields
+no keys ([ADR 0053](../adr/0053-iteration-and-generators.md) § 5) — and `{limit: n}` stops after `n`
+elements, which is the only guard against materialising an unbounded generator. `flatten` unwraps one
+level and `flattenDeep` recurses, the same pairing as `overlay`/`overlayDeep`; neither takes a depth count,
+because every real call means one of those two. **`{preserveKeys: false}` — the default wherever it appears — discards *every*
 key and renumbers from `"0"`**; `true` keeps every key. PHP renumbers integer keys and silently keeps string
 ones, which is the key-type-dependent behaviour
 [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 3 removes.
@@ -252,9 +285,14 @@ Every callback receives `($value, $key)` and may declare fewer parameters (R9), 
 | `groupBy` | `groupBy(array<T> $a, callable $key): array<array<T>>` | nothing — the most-written PHP userland helper | |
 | `sum` | `sum(array<int\|float\|decimal> $a): int\|float\|decimal` | `array_sum` | neutral |
 | `product` | `product(array<int\|float\|decimal> $a): int\|float\|decimal` | `array_product` | neutral |
-| `average` | `average(array<int\|float\|decimal> $a): ?float\|?decimal` | `array_sum($a)/count($a)`, with the empty case answered | neutral |
+| `average` | `average(array<int\|float\|decimal> $a): ?(float\|decimal)` | `array_sum($a)/count($a)`, with the empty case answered | neutral |
 | `min` | `min(array<T> $a): ?T` | `min` with an array argument | |
 | `max` | `max(array<T> $a): ?T` | `max` with an array argument | |
+
+**`map` and `filter` preserve every key**; `mapKeys` is the only member that changes one, and `values`
+renumbers. PHP's multi-array `array_map($fn, $a, $b)` and its `array_map(null, $a, $b)` zip have no member:
+they are a `foreach` over `Arr::keys`, and a zip whose element type is `array<T|U>` would defeat the
+element typing that makes the rest of this class checkable.
 
 `array_walk` and `array_walk_recursive` have no member: `foreach` is the language's own spelling, and R3
 removes the by-reference mutation that was their only reason to exist
@@ -269,7 +307,13 @@ removes the by-reference mutation that was their only reason to exist
 
 Eleven sort functions plus `array_multisort` become two members. Descending is `{order: Order::Desc}`,
 key-preservation is an option rather than a letter in the name, and `by` — a key-extractor closure — is
-the thing `usort` callbacks are written to emulate.
+the thing `usort` callbacks are written to emulate. Both sorts are stable.
+
+`by` and `comparator` are **mutually exclusive**, and so are `by` and `comparator` on `diff`/`intersect`:
+naming both is a compile error, not a precedence rule to remember. Because the options bag is a shape
+literal ([ADR 0036](../adr/0036-anonymous-object-shapes.md)), the checker sees both keys and says so. On
+`diff`/`intersect`, `on` chooses *what* is compared and `by`/`comparator` chooses *how*, so `on` composes
+with either.
 
 Enums: `Order { Asc, Desc }`, `SetOn { Values, Keys, Both }`.
 
@@ -298,7 +342,7 @@ becoming a `float` ([ADR 0007](../adr/0007-explicit-type-system.md)).
 | `cbrt` | `cbrt(float $n): float` | `pow($n, 1/3)` | neutral |
 | `hypot` | `hypot(float $a, float $b): float` | `hypot` | neutral |
 | `exp` | `exp(float $n): float` | `exp` | neutral |
-| `log` | `log(float $n, {base?: float}): float` | `log`, `log10`, `log2`, `log1p` | neutral |
+| `log` | `log(float $n, {base?: float}): float` | `log`, `log10`, `log2` | neutral |
 | `sin` `cos` `tan` | `sin(float $radians): float` (and the rest) | `sin`, `cos`, `tan` | neutral |
 | `asin` `acos` `atan` | `asin(float $n): float` (and the rest) | `asin`, `acos`, `atan` | neutral |
 | `atan2` | `atan2(float $y, float $x): float` | `atan2` | neutral |
@@ -318,6 +362,10 @@ constants ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md))
 `Math::format` takes explicit separators because MWL has no ambient locale; locale-correct number
 formatting is intl's `NumberFormatter` equivalent, at Tier 1.
 
+`log1p` and `expm1` are **not** folded into `log`/`exp`: they exist for precision near zero, which an
+argument or a base cannot express, and neither is common enough in web or CLI code to earn a member. Their
+rewrite is the naive form, with the precision loss stated rather than hidden.
+
 Enums: `RoundMode { HalfUp, HalfDown, HalfEven, HalfOdd, Up, Down }`.
 
 ## 4. `Core\Time`
@@ -326,6 +374,14 @@ PHP has ~40 `date_*` procedural functions that are aliases of `DateTime` methods
 `DateTime`/`DateTimeImmutable` mutable/immutable pair. Both duplications are gone (R17, R20): there are
 objects only, and every one is immutable. There is **no ambient timezone** — no process default, no
 per-request default — so a `Zone` is an explicit argument at every instant↔calendar conversion.
+
+**Two arithmetics, and the type says which one you get.** An `Instant` moves by a `Duration`, which is an
+exact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is a calendar step that a DST
+boundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and
+`Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `"+3 days"` is ambiguous
+between them. There is no relative-expression string anywhere in this class: everything `strtotime` spells
+is a typed call, and [ADR 0070](../adr/0070-duration-literals.md)'s `72h`/`30d` literal is what keeps them
+short.
 
 ### Entry points on `Core\Time`
 
@@ -340,8 +396,28 @@ per-request default — so a `Zone` is an explicit argument at every instant↔c
 | `at` | `at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime` | `mktime`, `gmmktime`, `DateTime::setDate` | neutral |
 
 `Core\Time::parse` is an [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic — a literal format
-string is validated and its plan prepared at compile time. PHP's free-form `strtotime` is **not**
-implemented; see `DateTime::shift` below for what replaces its relative half.
+string is validated and its plan prepared at compile time. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
+`EEEE, d MMMM yyyy`), not PHP's `date()` letters: both grammars are closed and the argument is almost
+always a literal, so `mwl convert` rewrites one into the other mechanically, and the intl extension needs
+CLDR anyway. The same patterns serve `DateTime::format`.
+
+PHP's free-form `strtotime` is **not** implemented, in either half. Every expression it accepts is a typed
+call:
+
+| PHP | MWL |
+|---|---|
+| `strtotime("now")` | `Time::now()->in($z)` |
+| `strtotime("+3 days")` | `Time::now()->in($z)->plus(3, Unit::Day)` — or `Time::now()->plus(72h)` for an exact offset |
+| `strtotime("today")` | `Time::now()->in($z)->startOf(Unit::Day)` |
+| `strtotime("next monday")` | `Time::now()->in($z)->next(Weekday::Monday)` |
+| `strtotime("first day of next month")` | `Time::now()->in($z)->startOf(Unit::Month)->plus(1, Unit::Month)` |
+| `strtotime("last day of this month")` | `Time::now()->in($z)->endOf(Unit::Month)` |
+| `strtotime("2024-03-01")` | `Time::parse($t, "yyyy-MM-dd", $z)` |
+| `strtotime($userSuppliedRelativeString)` | `Duration::parse($s)`, for the exact-duration subset only |
+
+A relative expression arriving at run time — a `retention = "30d"` in config, a `--since=7d` flag — is a
+`Duration`, never a calendar step, because a count and a unit that are not known until run time are exactly
+what `Duration::parse` takes. "Next monday" is not a value a config file supplies.
 
 ### `Core\Time\Instant` — an absolute point on the timeline
 
@@ -349,7 +425,7 @@ implemented; see `DateTime::shift` below for what replaces its relative half.
 |---|---|---|
 | `in` | `$i->in(Zone $zone): DateTime` | the only instant→calendar conversion; a zone is never implicit |
 | `toEpochSeconds` | `$i->toEpochSeconds(): int` | replaces `getTimestamp`, `date("U")` |
-| `toEpochMillis` | `$i->toEpochMillis(): int` | |
+| `toEpochMillis` | `$i->toEpochMillis(): int` | plus `toEpochMicros`, replacing `microtime(true)`'s two halves |
 | `plus` / `minus` | `$i->plus(Duration $d): Instant` | replaces `date_add`, `date_sub`, `modify` |
 | `since` | `$i->since(Instant $earlier): Duration` | replaces `date_diff`, `DateInterval` arithmetic |
 | `compareTo` | `$i->compareTo(Instant $other): int` | `Instant` implements `Comparable` ([ADR 0013](../adr/0013-comparable-interface.md)), so `<`/`>` work directly |
@@ -359,11 +435,13 @@ implemented; see `DateTime::shift` below for what replaces its relative half.
 
 | Member | Signature | Notes |
 |---|---|---|
-| `format` | `$d->format(string $pattern): string` | [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format` |
-| `shift` | `$d->shift(string $expression): DateTime` | the closed relative grammar — `"+2 weeks"`, `"next monday"`, `"start of month"`. Folded at compile time for a literal, parsed at run time otherwise, one implementation for both ([ADR 0063 § 4](../adr/0063-core-api-conventions.md)). Throws on anything the grammar does not accept, so it launders a `tainted` argument |
-| `plus` / `minus` | `$d->plus(Duration $d): DateTime` | the computed-offset spelling; `shift` is the literal one |
+| `format` | `$d->format(string $pattern): string` | [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format` |
+| `plus` / `minus` | `$d->plus(int $count, Unit $unit): DateTime` | calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half |
+| `next` / `previous` | `$d->next(Weekday $w): DateTime` | the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime("next monday")` |
 | `with` | `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime` | replaces `setDate`, `setTime`, `setISODate` |
+| `withTime` | `$d->withTime(TimeOfDay $t): DateTime` | the common half of `with`, spelled as the operation it is |
 | `startOf` / `endOf` | `$d->startOf(Unit $u): DateTime` | distinct operations at a DST boundary, which is why both exist |
+| `difference` | `$d->difference(DateTime $other, Unit $unit): int` | whole units between two civil times — an age in years, a term in months. Replaces `date_diff` + `DateInterval`'s `y`/`m`/`d` fields |
 | `toInstant` | `$d->toInstant(): Instant` | |
 | `date` / `timeOfDay` / `zone` | `$d->date(): Date` | component views |
 | `weekday` | `$d->weekday(): Weekday` | replaces `date("N")` |
@@ -371,22 +449,32 @@ implemented; see `DateTime::shift` below for what replaces its relative half.
 | `isLeapYear` | `$d->isLeapYear(): bool` | replaces `date("L")`, `checkdate`'s year half |
 
 `Core\Time\Date` and `Core\Time\TimeOfDay` are the zone-free component types, with the same `plus`/`minus`/
-`with`/`compareTo`/`format` shape. `checkdate` has no equivalent because constructing an invalid date
-throws.
+`with`/`compareTo`/`format` shape and the constructors `Date::at(int $y, uint $m, uint $d)` and
+`TimeOfDay::at(uint $hour, uint $minute, {second?: uint, nanos?: uint})`. `checkdate` has no equivalent
+because constructing an invalid date throws.
 
 ### `Core\Time\Duration` and `Core\Time\Zone`
 
 | Member | Signature | Notes |
 |---|---|---|
-| `Duration::seconds` | `seconds(int $n): Duration` | plus `nanos`, `millis`, `minutes`, `hours`, `days`, `weeks` |
-| `$d->toSeconds` | `$d->toSeconds(): int` | plus `toMillis`, `toNanos` |
-| `$d->plus` / `minus` / `multipliedBy` / `negated` | | `Duration` is `Comparable` |
+| `Duration::seconds` | `seconds(int $n): Duration` | plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is [ADR 0070](../adr/0070-duration-literals.md)'s `30s` |
+| `Duration::parse` | `parse(string $text): Duration` | the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it **launders** a `tainted` config value |
+| `$d->toSeconds` | `$d->toSeconds(): int` | plus `toMilliseconds`, `toMicroseconds`, `toNanoseconds` |
+| `$d->plus` / `minus` / `multipliedBy` / `negated` | | `Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse` |
 | `Zone::of` | `of(string $id): Zone` | IANA identifier; throws on an unknown one. Replaces `DateTimeZone` |
+| `Zone::fixed` | `fixed(Duration $offset): Zone` | a fixed offset from UTC, for a timestamp that carries one instead of a region |
+| `Zone::system` | `system(): Zone` | the host's configured zone, read once at boot. Replaces `date_default_timezone_get` |
 | `Zone::UTC` | constant | the only zone that is ever a default, and only where written explicitly |
 | `$z->offsetAt` | `$z->offsetAt(Instant $i): Duration` | replaces `getOffset` |
 
+`Zone::system()` is **not** an ambient default: it is an ordinary value a program asks for and then passes
+explicitly, so a call site still names the zone it converts in. What has no equivalent is
+`date_default_timezone_set` — nothing installs a zone that a later conversion silently picks up, which is
+the unsoundness [ADR 0051](../adr/0051-standard-library-tiers.md) rejects `setlocale` for.
+
 Enums: `Weekday { Monday … Sunday }`, `Month { January … December }`,
-`Unit { Nanos, Millis, Second, Minute, Hour, Day, Week, Month, Quarter, Year }`.
+`Unit { Nanosecond, Microsecond, Millisecond, Second, Minute, Hour, Day, Week, Month, Quarter, Year }` —
+full words, because R7's closed abbreviation list does not reach enum cases either.
 
 PHP's `calendar` extension (`cal_days_in_month`, `easter_date`, the Julian/Jewish/French converters) is
 dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)); `cal_days_in_month` is
@@ -410,19 +498,26 @@ are [ADR 0056](../adr/0056-regex-engine-policy.md). `preg_match`'s `$matches` ou
 | `quote` | `quote(string $literal): string` | `preg_quote` | **launder** (for the pattern sink) |
 
 `$match->group(int\|string)`, `$match->groups()`, `$match->offset()` and `$match->text()` replace the
-positional-array shape. `preg_last_error` has no equivalent: a failure throws (R4).
+positional-array shape. `preg_last_error` has no equivalent: a failure throws (R4). `replaceWith`'s
+callback is `callable(Match): string` — the one place a `Core` callback does not receive `($value, $key)`,
+because a match is one value with named parts rather than a pair. `preg_grep` has no member:
+`Arr::filter($a, fn($v) => Regex::matches($v, $p))` is the same thing in the same number of characters.
 
 ## 6. `Core\Json`
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `encode` | `encode(mixed $value, {pretty?: bool, escapeUnicode?: bool}): string` | `json_encode` and its 15 `JSON_*` flags | |
-| `decode` | `decode(string $json): mixed` | `json_decode`, `json_last_error`, `json_last_error_msg` | |
-| `decodeAs` | `decodeAs<T>(string $json): T` | hand-written hydration | |
+| `decode` | `decode(string $json, {maxDepth?: uint}): mixed` | `json_decode`, `json_last_error`, `json_last_error_msg`, `$depth` | |
+| `decodeAs` | `decodeAs<T>(string $json, {maxDepth?: uint}): T` | hand-written hydration | |
 | `isValid` | `isValid(string $json): bool` | `json_validate` | neutral |
 
 `decode` throws `ParseError` on malformed input — there is no flag to choose between throwing and
-returning `null`, and no error-code accessor (R4). A class participates by implementing
+returning `null`, and no error-code accessor (R4). **`maxDepth` defaults to 512 and exceeding it throws**:
+nesting depth is the one JSON input that costs unbounded work before any value exists, so the cap is on by
+default rather than opt-in, exactly as PHP's `$depth` is. An integer literal too large for `int` throws
+rather than degrading to `float`, because silent precision loss on a wire format is the bug
+`JSON_BIGINT_AS_STRING` exists to work around. A class participates by implementing
 `Core\Json\Codec`, which declares `toJson(): mixed` and a static `fromJson(mixed $value): static`; there is
 no magic hook and no structural encoding of public properties
 ([ADR 0063 § 4](../adr/0063-core-api-conventions.md)). A `secret` value cannot be encoded at all
@@ -446,12 +541,20 @@ honestly fail ([ADR 0009](../adr/0009-string-and-bytes.md)).
 `quoted_printable_encode`/`_decode` and `convert_uuencode`/`_decode` are dropped; quoted-printable survives
 only inside `Core\Mail`, which is the one thing that ever needed it.
 
-`Core\Bytes` is the binary counterpart of `Core\Str`, with the same subject-first shape: `length`, `at`,
-`slice`, `concat`, `indexOf`, `compare`, `fill`, `repeat`, plus `pack(string $format, mixed ...$values)`
-and `unpack(bytes $b, string $format): array<mixed>` (replacing `pack`/`unpack`, with the format string an
-ADR 0057 intrinsic). There is no `bytes` literal — see [00-overview § 5](00-overview.md).
+`Core\Bytes` is the binary counterpart of `Core\Str`, with the same subject-first shape and the same member
+names wherever the operation is the same: `length`, `at`, `slice`, `indexOf`, `compare`, `contains`,
+`startsWith`, `endsWith`, `join(array<bytes> $parts, bytes $separator = "")`, `fill`, `repeat`, plus
+`pack(string $format, mixed ...$values)` and `unpack(bytes $b, string $format): array<mixed>` (replacing
+`pack`/`unpack`, with the format string an ADR 0057 intrinsic). The three predicates are what magic-byte
+sniffing needs, and `join` rather than a `concat` of its own keeps R6's pairing with `Core\Str`. There is
+no `bytes` literal — see [00-overview § 5](00-overview.md).
 
-Enums: `Charset { Utf8, Utf16Le, Utf16Be, Latin1, Windows1252, Ascii, … }`.
+Enums: `Charset` — one case per encoding in the **WHATWG Encoding Standard**, which is what `encoding_rs`
+implements, named in MWL casing: `Utf8`, `Utf16Le`, `Utf16Be`, `Latin1`, `Windows1252`, `Ascii`,
+`ShiftJis`, `EucJp`, `Gbk`, `Big5`, `EucKr`, and the rest of that document's index. The roster is that
+standard's, not a list this file curates, so adding an encoding is a dependency update rather than a design
+decision — and `iconv`'s open-ended `//TRANSLIT` and `//IGNORE` suffixes have no equivalent, since a
+conversion that cannot be exact throws (R4).
 
 ## 8. `Core\Path`
 
@@ -471,6 +574,10 @@ reads or writes is `Core\IO` (§ 14) — that split is the point.
 | `isAbsolute` | `isAbsolute(string $path): bool` | manual checks | neutral |
 | `relativeTo` | `relativeTo(string $path, string $base): ?string` | nothing | |
 
+Every member accepts `/` and `\` alike as a separator on every platform and emits `Path::SEPARATOR`, so a
+path written with forward slashes in source is correct on Windows — the reverse of PHP, where
+`DIRECTORY_SEPARATOR` string-building is the portability burden.
+
 Constant: `Path::SEPARATOR` (replacing `DIRECTORY_SEPARATOR`). `Path::normalize` is **not** a launderer:
 `../` removal is not path-traversal safety, because the base directory is not part of the input. The
 launderer is `Core\IO::within`, in § 14, which is where the base is known.
@@ -484,9 +591,14 @@ because an insertion-ordered `int|string`-keyed hash cannot express them
 
 | Type | Members | Replaces |
 |---|---|---|
-| `ObjectMap<K, V>` | `set`, `get`, `has`, `remove`, `count`, `keys`, `values`, `clear`; `Iterable` | `SplObjectStorage` used as a map, `spl_object_id` side tables |
-| `ObjectSet<T>` | `add`, `has`, `remove`, `count`, `union`, `intersect`, `difference`, `clear`; `Iterable` | `SplObjectStorage` used as a set |
+| `ObjectMap<K, V>` | `set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable` | `SplObjectStorage` used as a map, `spl_object_id` side tables |
+| `ObjectSet<T>` | `add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable` | `SplObjectStorage` used as a set |
 | `Heap<T>` | `push`, `peek`, `pop`, `count`, `isEmpty` | `SplPriorityQueue`, `SplMinHeap`, `SplMaxHeap` |
+
+**`ObjectMap::get` returns `?V`**, not a throwing read: these types have no subscript
+([ADR 0053](../adr/0053-iteration-and-generators.md) rejects `ArrayAccess`), so they cannot offer the
+`$a[$k]` / `$a[$k] ?? $d` pair that `array<T>` does, and R5 bans a `getOrNull` twin. `diff` is spelled as
+it is on `Core\Arr` rather than `difference`, because one operation gets one name.
 
 `ObjectMap`/`ObjectSet` key on identity. `Heap` orders by [ADR 0013](../adr/0013-comparable-interface.md)'s
 `Comparable`, or by a comparator given at construction. These are the only mutable `Core` types, because a
@@ -510,8 +622,11 @@ Throwable                     // the root; user classes extend it directly
   └─ ArithmeticError          // overflow (ADR 0007), division by zero
 ```
 
+Every one is constructed the same way — `new RuntimeError("could not reach the host", {previous: $e})` —
+one required message and one options shape, which is R2 applied to a constructor like any other member.
 Members are readonly properties, not `getX()` accessors: `$e->message`, `$e->previous`, `$e->backtrace`,
-`$e->location`. `Throwable`'s message is a `secret` sink
+`$e->location`. There is no `getCode()`: an `int` code with no declared meaning is what a user-defined
+subclass with a typed property does properly. `Throwable`'s message is a `secret` sink
 ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)). Resource-limit reports are **not**
 `Throwable` at all and never reach a `catch` ([ADR 0020](../adr/0020-error-escalation-ladder.md)).
 Domain-specific errors are user-defined classes; `Core` does not attempt to enumerate them. The one
@@ -527,6 +642,7 @@ under any name.
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `Random::int` | `int(int $min, int $max): int` | `rand`, `mt_rand`, `random_int` | neutral |
+| `Random::float` | `float(): float` | `lcg_value`, `mt_rand()/mt_getrandmax()` — uniform in `[0, 1)` | neutral |
 | `Random::bytes` | `bytes(uint $count): bytes` | `random_bytes`, `openssl_random_pseudo_bytes` | neutral |
 | `Random::token` | `token(uint $bytes = 32): string` | `bin2hex(random_bytes(…))` idiom | neutral |
 | `Random::pick` | `pick(array<T> $a): ?T` | `array_rand` | |
@@ -571,14 +687,23 @@ the reason. Password hashing takes no algorithm argument at all and is in § 16.
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
 ([ADR 0058](../adr/0058-outbound-request-policy.md)).
 
+**Open:** how `parseQuery`/`buildQuery` treat PHP's bracket convention (`a[]=1&a[]=2`, `a[b]=c`) is not
+settled here. It is not a URL-spec feature, but it is how every PHP form posts, and the same answer has to
+serve `Core\Request::query` — so it is decided with `Core\Request` in M8, and the flat `array<string>`
+above is the placeholder, not the resolution.
+
 `Core\Validate` is what survives of `filter`: the genuine validators only. Its *sanitizing* filters are
 dropped, because half-escaping produces exactly the false confidence
 [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists to prevent — **no `Validate` member
 launders anything.**
 
-`isEmail`, `isUrl`, `isIp`, `isIpV4`, `isIpV6`, `isMac`, `isDomain`, `isAscii`, `isPrintable`,
-`oneOf(mixed $value, array<mixed> $allowed): bool` — all `(subject, …): bool`, all neutral. Replaces
-`filter_var`'s validate half and its 20 `FILTER_*` constants.
+`isEmail`, `isIp(string $s, {version?: 4|6})`, `isMac`, `isDomain`, `isAscii`, `isPrintable` — all
+`(subject, …): bool`, all neutral. Replaces `filter_var`'s validate half and its 20 `FILTER_*` constants.
+
+Three members that were here are gone as duplicates, each with a one-line rewrite: `isUrl` is
+`Uri::isValid`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
+PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{version: 4}`/`{version: 6}`,
+a closed literal set ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) rather than two more names.
 
 **There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool !== null`
 ([ADR 0066](../adr/0066-nullable-conversion-operator.md)), and R17 forbids the second spelling. Every
@@ -589,12 +714,17 @@ is not.
 |---|---|---|---|
 | `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | `str_getcsv`, the parsing half of `fgetcsv` | |
 | `Csv::format` | `format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string` | `fputcsv`'s formatting half | |
-| `Out::capture` | `capture(callable $fn): string` | `ob_start`/`ob_get_clean` | |
-| `Out::filtered` | `filtered(callable $fn, callable $filter): string` | `ob_start($callback)` | |
+| `Out::capture` | `capture(callable $fn, {through?: callable}): string` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
 
-`Core\Out` has exactly these two members. A buffer is scoped to a closure and nests by call nesting, so
+`Core\Out` has exactly this one member. A buffer is scoped to a closure and nests by call nesting, so
 PHP's global `ob_*` stack — start in one function, end in another, ten functions to inspect the stack — has
-no equivalent, and neither does implicit flushing.
+no equivalent, and neither does implicit flushing. `capture` always **swallows**: `{through: $filter}`
+transforms what was captured, and re-emitting it is a visible `echo Out::capture(…)` rather than
+`ob_start($callback)`'s invisible pass-through.
+
+`Csv::parse`'s `{header: true}` consumes the first row as column names and keys every returned row by
+them — the return type is unchanged, because every array key is a `string` already — and the header row is
+not itself returned. `Csv::format`'s `{header: [...]}` writes those names as the first row.
 
 ## 13. Compiler-facing surfaces
 
@@ -608,10 +738,24 @@ same shape rules.
 | `Core\Attributes` | `get<T>`, `all<T>` — structural, not a `Reflect` walk | [0046](../adr/0046-attributes-shape-literal-metadata.md) |
 | `Core\Program` | `implementing<T>()` | [0061](../adr/0061-compile-time-autoload-and-program-discovery.md) |
 | `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | [0054](../adr/0054-decimal-scalar-type.md) |
+| `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md) |
 | `Core\Test` | `assert(bool, {message?})`, `assertEquals`, `assertThrows(callable, string $class)`, `assertMatches`. The runner is M10 tooling, not this surface | — |
 
 `Core\Reflect::typeOf` is the single replacement for PHP's 14 `is_*` predicates plus `gettype`: they are
 only meaningful on a `mixed`, and the checker already knows every other case.
+
+**`Core\Serialize::decode` is a `tainted` sink**, which is the whole reason the class is worth having
+rather than deferring to `Core\Json`. `unserialize()` on attacker-controlled bytes is PHP's most
+productive remote-code-execution class; MWL has already removed its gadget machinery — no `__wakeup`, no
+`__destruct`, no `__toString` hook ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md)) — and
+refusing the qualifier closes the input side structurally rather than by advice. What remains without the
+sink is not code execution but **type confusion** — a payload that reconstructs a `User` with
+`isAdmin: true`, bypassing the constructor — which is why contagion would be the wrong classification: the
+danger is the object graph itself, not a string that later reaches an output sink. Bytes the program
+serialized and stored are not `tainted` and decode normally; bytes that arrived from outside are refused,
+and no launderer exists for them today. The format is versioned, self-describing and MWL's own; it is not
+compatible with PHP's, and there is no hook to customise it
+([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)).
 
 ---
 

@@ -36,6 +36,8 @@ so you never have to open this file to route a topic.
 | `FFI`, `dl()`, native modules, stream wrappers, `php://`/`phar://`, `shmop`/`sysv*`/APCu, `eval`, `putenv`, `setlocale`, or "why can't userland do X at all" | [0052](0052-closed-doors.md) |
 | Whether a `.mwlx` can be an injection sink or source, `tainted`/`secret` at an extension call, what the manifest may declare | [0055](0055-extension-qualifier-declarations.md) |
 | What a `Core` member looks like — argument order, options, failure signalling, naming, mutation, callbacks; whether a PHP built-in survives at all | [0063](0063-core-api-conventions.md) for the shape rules; [docs/spec/01-core-library.md](../spec/01-core-library.md) for every signature |
+| "What happened to `<php_function>`?" — any PHP built-in by name, and whether it became a member, a construct or nothing | [docs/spec/02-php-migration.md](../spec/02-php-migration.md), one row per name; `python tools/check-migration.py --report` lists what is still undecided |
+| Durations and dates — `30s`/`1h30m` literals, `strtotime`, `DateTime` arithmetic, `sleep`, timeouts, why there is no `shift` | [0070](0070-duration-literals.md) for the literal; [docs/spec/01-core-library.md](../spec/01-core-library.md) § 4 for `Core\Time` |
 | Combining two arrays — `array_merge`, `array_replace`, `array_combine`, `$a + $b`, `array_merge_recursive`, why there is no `Arr::merge`, `preserveKeys`, `array_splice`, `array_pad`, `array_walk` | [0069](0069-array-combination-is-key-type-independent.md) |
 | Weighing memory against safety, speed or simplicity | [0004](0004-memory-for-simplicity.md) |
 | `mwl.toml` directives, `Core\Config::set`, limits, capabilities, changeability classes | [0005](0005-config-changeability.md) |
@@ -191,6 +193,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0067](0067-core-db.md) | One database API: connections are named in root-owned config, every statement is prepared, and a transaction is a closure | Accepted |
 | [0068](0068-dependency-currency-and-the-version-contract.md) | Dependencies stay current; a break in one is absorbed rather than forwarded, and only an enumerated user-facing surface can force a major | Accepted |
 | [0069](0069-array-combination-is-key-type-independent.md) | Arrays combine by the member's name, never by a key's type: `overlay`/`underlay`/`appendAll`, no `merge`, and `array + array` does not compile | Accepted |
+| [0070](0070-duration-literals.md) | A duration is a literal — `30s`, `1h30m` — typed `Duration` and folded to a constant, over one grammar shared with `Duration::parse` and `mwl.toml` | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

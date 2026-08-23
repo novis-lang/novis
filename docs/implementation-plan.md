@@ -7,18 +7,21 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-23. **M3 is done**, and the loop goal's Stages 1-2 plus `examples/report.mwl` are
+> **Status:** 2026-08-24. **M3 is done**, and the loop goal's Stages 1-2 plus `examples/report.mwl` are
 > green on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
 > array, and building that array without its only real consumer produces one that must be rebuilt. M4's
-> language surface is now driven by what Stage 3's `Core` work needs.
+> language surface is now driven by what Stage 3's `Core` work needs. The `Core` roster has just had a
+> full member-by-member review against ADR 0063: `Core\Time` lost its relative-date string for typed
+> calendar arithmetic, six duplicates went, eight gaps were filled, and every PHP name now needs a row in
+> `docs/spec/02-php-migration.md`.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
 > 0024/0031/0033/0036/0037/0043/0046/0049/0050/0066; `crates/mwl-syntax/tests/corpus_parse.rs` parses the
 > local `php-src` checkout and a 5-minute WSL `cargo fuzz run lex`/`parse` both find zero panics).
-> **M1 has since been re-opened for three grammar additions** — `decimal` (0054), literal/enum-case type
-> atoms (0047) and `autoload` (0061) — each accepted after it was reported done, none built, each
-> blocking its ADR's already-scheduled M2 slice. M1's own section lists them.
+> **M1 has since been re-opened for four grammar additions** — `decimal` (0054), literal/enum-case type
+> atoms (0047), `autoload` (0061) and the duration literal (0070) — each accepted after it was reported
+> done, none built, each blocking its ADR's already-scheduled M2 slice. M1's own section lists them.
 >
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
@@ -39,8 +42,10 @@
 > **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag, a union parameter,
 > a callback-bound result type, a `Core`-owned enum and an absent option all work end to end.
 > `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 § 2 granularity. Then
-> `crates/mwl-test`/`mwl test`. Ahead of that, three re-opened M1 grammar slices (`decimal`, literal type
-> atoms, `autoload`) — see M1. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
+> `crates/mwl-test`/`mwl test`. Ahead of that, four re-opened M1 grammar slices (`decimal`, literal type
+> atoms, `autoload`, the duration literal) — see M1. In docs: `docs/spec/02-php-migration.md` is 31%
+> classified (strings, arrays, numbers, conversions); the rest is one pass per PHP domain, reported by
+> `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
 >
 > **Blocking:** nothing external. **Stages 1, 2 and `report.mwl` are green on both legs** — byte for
 > byte on Windows and under WSL against a Linux build, `valgrind --leak-check=full` clean on all twelve
@@ -434,7 +439,7 @@ parentheses, diagnosed by name at both sites ([ADR 0036](adr/0036-anonymous-obje
 TraitName`/`insteadof` grammar that is now a parse-time `E_TRAIT_NOT_SUPPORTED`
 ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)).
 
-**Still owed — three ADRs accepted after this milestone was reported done add grammar it owns, and none
+**Still owed — four ADRs accepted after this milestone was reported done add grammar it owns, and none
 of it is built.** Each is parser-and-lexer work that M2's checker slice is already scheduled against, so
 each blocks its ADR rather than being optional:
 
@@ -449,6 +454,11 @@ each blocks its ADR rather than being optional:
    file-scope declaration forms whose grammar
    [`docs/spec/00-overview.md`](spec/00-overview.md) § 2 already fixes. M2's name-to-file fixpoint has
    nothing to resolve until this parses.
+4. **The duration literal** ([ADR 0070](adr/0070-duration-literals.md)) — one `DurationLiteral` token over
+   `( DEC_INT unit )+`, recognised only after a plain decimal integer, units strictly descending and
+   unrepeated, lower case only, no sign. It interacts with item 1 at the lexer: `decimal`'s rejected `m`
+   suffix and this grammar's `m`-for-minutes are the same character in the same position, so build them in
+   this order and the second's fixtures pin the boundary.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing
@@ -589,9 +599,11 @@ Part II of the spec file (anything capability-bearing) stays at M8 and merely co
 contract. `crates/mwl-stdlib` starts here — the Tier 0 crate
 [ADR 0003](adr/0003-extension-system.md) § *Tier 0* already names, and the workspace manifest already
 declares; `Core\Regex` binds the engine [ADR 0056](adr/0056-regex-engine-policy.md)
-picks, and `Core\Time`'s `format`/`parse`/`shift` plus `Core\Str::format` land as
-[ADR 0057](adr/0057-intrinsic-literal-folding.md) intrinsics with the compile-time half wired into
-`mwl-types`.
+picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
+`Core\Str::format` land as [ADR 0057](adr/0057-intrinsic-literal-folding.md) intrinsics with the
+compile-time half wired into `mwl-types`. `Duration::parse` shares its grammar and its implementation with
+M1's duration literal ([ADR 0070](adr/0070-duration-literals.md)), so build the literal first and this is
+the same parser reached from a second entry point.
 
 **Verify:** every member in the spec file has a conformance test, and a mechanical check over that file
 enforces the rules that can be checked mechanically — [ADR 0063](adr/0063-core-api-conventions.md)'s
@@ -601,7 +613,10 @@ deliberate divergence is a named fixture rather than a failing comparison. A `ta
 sink and cannot be laundered except by the members the spec marks **launder**. `Core\Arr` mutates in place
 when its argument's refcount is 1 — measured, since it is the whole cost argument for
 [ADR 0063](adr/0063-core-api-conventions.md) R3 — and allocates a copy when it is not. The M4 CLI program
-is rewritten against `Core` and gets shorter.
+is rewritten against `Core` and gets shorter. `python tools/check-migration.py` reports full coverage of
+every PHP name this milestone's classes replace, which is the point at which
+[docs/spec/02-php-migration.md](spec/02-php-migration.md)'s string, array, number and date rows stop being
+a plan and become a tested claim.
 
 ### M4B — Minimal `mwl-lsp` and the VS Code extension (~3 weeks)
 Pulled ahead of M10 by [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
@@ -921,8 +936,10 @@ the source relied on PHP's silent `(int)"abc"` → `0` now that the rewritten `a
 what the construct provides, a backed enum's case declarations and `->value` reads → an MWL `enum` and
 an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call or reference to a PHP
 built-in global function or constant (`strlen`, `array_map`, `PHP_EOL`, …) → the matching `Core`
-class-and-member, `Core\Str::length`, `Core\Arr::map`, `Core\Env::EOL`, via a maintained PHP-name → `Core`
-table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) —
+class-and-member, `Core\Str::length`, `Core\Arr::map`, `Core\Env::EOL`, generated from
+[docs/spec/02-php-migration.md](spec/02-php-migration.md) — which is written and CI-checked long before
+this milestone, so a name PHP has and MWL dropped produces that row's stated reason rather than an
+unresolved call ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) —
 except the array-combining calls no name table can carry, `array_merge` and `$a + $b`, which are picked by
 the argument's static type and left as a diagnostic where none can be proven
 ([ADR 0069](adr/0069-array-combination-is-key-type-independent.md) § 2 owns that table and the report it

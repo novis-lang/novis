@@ -18,6 +18,8 @@
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Path`, `Core\Out`, `Core\Bytes`
   and `Core\Error`, all split out of entries it already lists.
 - **Amended by:** 0069 — § 3's removal item 4 gains the array-combining entries, applied below.
+  0070 — a `Duration` constant is a literal, which is what makes R12's "units are types" affordable at
+  every call site; § 4's relative-date resolution is rewritten below in consequence.
 - **Relates to:** 0004, 0024, 0033, 0036, 0047, 0053
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
@@ -68,13 +70,13 @@ Every `Core` member obeys all twenty. A proposed member that cannot is a design 
 | **R2** | Then required arguments in dataflow order, then **at most one trailing optional shape literal** ([ADR 0036](0036-anonymous-object-shapes.md)) declared as a `type` alias. No `bool` flag parameters, no `int` bitmasks, no positional optional tails longer than one. | Named, order-free, structurally checked, and a compile-time-constant bag folds to a constant. |
 | **R3** | **Nothing mutates and nothing takes a reference.** No `&$out`, no out-parameters, no in-place variants. The result is the return value. | COW makes it free: a refcount-1 argument is mutated in place by the implementation, exactly as PHP's own `sort()` does after a copy-on-write check. |
 | **R4** | **Failure throws; absence is `?T`.** `false` is never returned to signal failure, no member returns an error code, and there are no error globals (`json_last_error`, `error_get_last`). A `?T` return means the absence is an ordinary, expected outcome. | `strpos()` returning `0\|false` is PHP's most productive bug source; unions make it unnecessary. |
-| **R5** | A **fixed verb lexicon**: `is…`/`has…`/`contains`/`startsWith` → `bool`; `find…` → `?T`; `indexOf`/`keyOf` → `?uint`/`?K`; `count…` → `uint`; `to…`/`from…` for conversion and static construction. `try…`, `…OrNull`, `…Safe`, `…Ex` are **banned** — R4 already covers them. | One verb per meaning, so a name predicts a return type. |
-| **R6** | **Symmetric operations get symmetric names**: `encode`/`decode`, `split`/`join`, `pack`/`unpack`, `escape`/`unescape`, `trimStart`/`trimEnd`, `startsWith`/`endsWith`, `indexOf`/`lastIndexOf`, `first`/`last`. If one half exists, the other's spelling is decided by rule. | |
+| **R5** | A **fixed verb lexicon**: `is…`/`has…`/`contains`/`startsWith` → `bool`; `find…` → `?T`; `indexOf`/`keyOf` → `?uint`/`?K`; `count…` → `uint`; `to…`/`from…` for conversion and static construction. Two constructor spellings join them: **the unit or component it is built from** (`Duration::seconds`, `TimeOfDay::at`) and **`of`, for a canonical identifier** (`Zone::of`, `Hash::of`). A **stateful** object — a response, a session, a config overlay — may use `set…`/`add…`, which is not a mutation of a value and so not an R3 question. `try…`, `…OrNull`, `…Safe`, `…Ex` are **banned** — R4 already covers them. | One verb per meaning, so a name predicts a return type. |
+| **R6** | **Symmetric operations get symmetric names**: `encode`/`decode`, `split`/`join`, `pack`/`unpack`, `escape`/`unescape`, `trimStart`/`trimEnd`, `startsWith`/`endsWith`, `indexOf`/`lastIndexOf`, `first`/`last`. If one half exists, the other's spelling is decided by rule. Which *pair* to reach for is also a rule, not taste: **`encode`/`decode` when the other side is a machine format** (`Json`, `Serialize`, base64), **`parse`/`format` when a human writes or reads it** (`Time`, `Csv`, `Uri`). | |
 | **R7** | **Members are full words.** Class names may abbreviate from a closed list (`Str`, `Arr`, `Fs`, `Io`, `Uri`, `Db`, `Id`); members may not, except the conventional mathematical spellings `abs`, `min`, `max`, `sqrt`. So `Core\Str::length`, not `::len`. | Removes a per-name judgement call that PHP made differently every time. |
 | **R8** | **One range convention**, shared by `Core\Str` and `Core\Arr`: `(offset, ?length)`, negative offset counts from the end, negative length stops that many from the end, `null` length runs to the end. | Stated once, never varies. |
 | **R9** | **Callbacks always receive `($value, $key)`, in that order**, and a closure may declare fewer parameters than the call site passes. | Kills the whole `ARRAY_FILTER_USE_KEY`/`USE_BOTH` flag family and the need for `map`/`mapWithKey` pairs. |
 | **R10** | **Haystack before needle, subject before pattern.** A corollary of R1, stated because PHP violates it in `in_array`, `str_replace` and `preg_match` simultaneously. | |
-| **R11** | **No mode strings.** No `fopen($p, "r+b")`, no `hash("sha256", …)`, no `MB_CASE_TITLE`. Enums ([ADR 0010](0010-enums-are-a-value-type.md)), always. | Typo-proof, completable, and [ADR 0047](0047-literal-and-enum-case-types.md) lets a parameter accept a closed subset of cases. |
+| **R11** | **No mode strings.** No `fopen($p, "r+b")`, no `hash("sha256", …)`, no `MB_CASE_TITLE`. Enums ([ADR 0010](0010-enums-are-a-value-type.md)), always. A *grammar* is not a mode string and is not covered: a regex pattern, a `printf` template, a CLDR date pattern and a `pack` format each express something no enum can, and all four are [ADR 0057](0057-intrinsic-literal-folding.md) intrinsics checked at compile time. There are exactly four. | Typo-proof, completable, and [ADR 0047](0047-literal-and-enum-case-types.md) lets a parameter accept a closed subset of cases. |
 | **R12** | **Units are types.** Durations are a `Duration`, never "seconds here, microseconds there". Byte sizes are `uint` bytes. | PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting to happen. |
 | **R13** | **A `string` member never takes an encoding argument.** UTF-8 is the type's guarantee ([ADR 0009](0009-string-and-bytes.md)); all conversion happens at the `bytes`↔`string` boundary in `Core\Encoding`, where it can fail honestly. | This is what removes the entire `mb_*` twin set. |
 | **R14** | **Anything with a lifetime is an object.** No `resource`, no integer handles, no `$link`-first convention. `Core` never exposes the `resource` atom at all; it survives in [ADR 0007](0007-explicit-type-system.md) § 3's grammar only for extension-supplied opaque handles ([ADR 0003](0003-extension-system.md)). | A handle has nowhere to enforce a capability and no methods; an object has both. |
@@ -111,8 +113,12 @@ The twin sets these rules retire, with their replacements:
 
 ### 3. What is removed, and why
 
-Four standing reasons. The member-by-member list is in
-[docs/spec/01-core-library.md](../spec/01-core-library.md); this is the rule that generated it.
+Four standing reasons. This is the rule; the members that survive are in
+[docs/spec/01-core-library.md](../spec/01-core-library.md), and **every PHP name that does not** is
+accounted for one by one in [docs/spec/02-php-migration.md](../spec/02-php-migration.md). That file exists
+because a reason cannot be audited: prose saying "~120 functions follow from ADR 0007" leaves no way to
+notice the twelfth one nobody thought about, which is how `ctype_*`, `iterator_to_array` and
+`serialize`/`unserialize` each reached a full spec review with no home.
 
 1. **Pure aliases** — `sizeof`, `join`, `chop`, `key_exists`, `pos`, `fputs`, `is_integer`, `is_long`,
    `is_double`, `is_real`, `doubleval`, `ini_alter`. [ADR 0051](0051-standard-library-tiers.md) test 6.
@@ -139,8 +145,8 @@ Four standing reasons. The member-by-member list is in
    `htmlentities` and the rest of the half-escapers ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)
    exists to prevent the false confidence they create); `settype`/`gettype`/`strval`/`intval`
    ([ADR 0034](0034-legacy-cast-syntax-rejected.md): `as` is the only conversion spelling); `soundex`,
-   `metaphone`, `similar_text`, `str_word_count`, `chunk_split` (ASCII-only algorithms that are wrong on
-   UTF-8); `uniqid` (`Core\Uuid`).
+   `metaphone`, `similar_text`, `str_word_count` (ASCII-only algorithms that are wrong on UTF-8);
+   `uniqid` (`Core\Uuid`).
 
 The 14 `is_*` predicates collapse to one `Core\Reflect::typeOf($mixed)` returning an enum, because they are
 only meaningful on a `mixed` and the checker already knows every other case.
@@ -157,23 +163,28 @@ Each was a live design question; each is now a rule the spec file applies.
   signature and password members declare a narrower closed subset via
   [ADR 0047](0047-literal-and-enum-case-types.md), so `Hash::hmac($m, $k, Digest::Md5)` is a compile error
   naming the reason. `Password::hash()` takes no algorithm argument at all.
-- **Relative dates are a closed grammar with one implementation.** `$t->shift("+2 weeks")` is validated and
-  folded at compile time for a literal argument ([ADR 0057](0057-intrinsic-literal-folding.md)) and parsed
-  at runtime otherwise, sharing one implementation exactly as that ADR already requires of every intrinsic,
-  so the two paths cannot diverge. Malformed input throws (R4). PHP's free-form `strtotime` is **not**
-  implemented: the grammar is closed and unambiguous, with no locale-shaped date-order guessing. Parsing a
-  `tainted` string through it yields a typed value and no qualifier, since a closed grammar that throws on
-  anything it does not recognise is a launderer in exactly the sense
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 defines.
+- **Relative dates are typed calls, not a grammar.** There is no `strtotime` and no `shift("+2 weeks")`:
+  a `DateTime` moves by `plus(int $count, Unit $unit)`, `next(Weekday)`, `startOf(Unit)` and `with(…)`,
+  while an `Instant` moves by an exact `Duration`. Every expression `strtotime` accepts maps to one of
+  those, and the mapping table is in the spec file. This replaces an earlier decision to keep the relative
+  grammar as a compile-time-folded intrinsic: `shift("start of month")` was a second spelling of
+  `startOf(Unit::Month)` (R17) and a mode string (R11), and it hid the calendar-versus-exact distinction
+  that the `DateTime`/`Instant` split exists to make visible. What genuinely needs a runtime string — a
+  duration in config or on a command line — is `Duration::parse`, whose grammar is
+  [ADR 0070](0070-duration-literals.md)'s literal grammar, shares its implementation, throws on anything
+  else, and therefore launders a `tainted` argument in exactly the sense
+  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 defines. "Next monday" is not something a
+  config file supplies, which is why the runtime path needs no more than a duration.
 - **`Core\Path` is pure; `Core\IO` touches the disk.** Path algebra (`basename`, `dirname`, `extension`,
   `join`, `isAbsolute`) needs no capability, is safe in the wasm browser target
   ([ADR 0025](0025-wasm-browser-target.md)), and is constant-foldable. Everything that reads or writes —
   including `realpath`, which is `IO::canonicalize` — needs an `fs.*` capability and is an ADR 0024 sink.
   PHP conflates the two, which hides the boundary that matters.
-- **Output capture is scoped.** `Core\Out::capture(fn)` runs a closure and returns what it echoed; nesting
-  is call nesting. A transform over outgoing output is likewise scoped (`Out::filtered(fn, filter)`), never
-  a globally installed handler — PHP's `ob_*` stack carries its complexity in exactly the part that can be
-  entered from one function and left from another.
+- **Output capture is scoped.** `Core\Out::capture(fn, {through?})` runs a closure, returns what it echoed
+  and optionally transforms it on the way out; nesting is call nesting, and there is no globally installed
+  handler — PHP's `ob_*` stack carries its complexity in exactly the part that can be entered from one
+  function and left from another. Capture always swallows, so re-emitting is a visible `echo`, never
+  `ob_start($callback)`'s invisible pass-through.
 - **Collections.** `array<T>` is list, stack, queue and dictionary; SPL's restatements of it
   (`SplStack`, `SplQueue`, `SplDoublyLinkedList`, `SplFixedArray`, `ArrayObject`, `ArrayIterator`) are
   dropped. Exactly three structures survive, each expressing something an ordered `int|string`-keyed hash
@@ -265,5 +276,10 @@ member added without one is an incomplete member.
   collides with an instance method on a type its own class constructs (R18).
 - **M8:** the capability-bearing half of the roster is added under the same rules and the same checks;
   nothing about them is M4S-specific.
-- **M11:** `mwl convert`'s PHP-name → `Core`-member table is generated against the spec file, so a name PHP
-  has and MWL removed produces a diagnostic naming the replacement rather than an unresolved call.
+- **Now, in CI:** `tools/check-migration.py` asserts that
+  [docs/spec/02-php-migration.md](../spec/02-php-migration.md) carries a row for every function in the PHP
+  built-in list it vendors, that every row names exactly one outcome, and that every `Core` member a row
+  names exists in [01-core-library.md](../spec/01-core-library.md). A new PHP release adds rows; a member
+  renamed in the spec breaks the build here rather than at M11.
+- **M11:** `mwl convert`'s rewrite table is generated from that file, so a name PHP has and MWL removed
+  produces a diagnostic naming the replacement rather than an unresolved call.

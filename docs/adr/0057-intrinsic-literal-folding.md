@@ -52,8 +52,8 @@ The initial list:
 |---|---|---|
 | `Core\Regex::compile` | pattern syntax; engine tier ([ADR 0056](0056-regex-engine-policy.md) § 3) | the compiled program |
 | `Core\Uri::parse` | RFC/WHATWG well-formedness | the parsed components |
-| `Core\Time\DateTime::format` / `Core\Time::parse` | format-string syntax | the parsed format plan |
-| `Core\Time\DateTime::shift` | the closed relative-expression grammar ([ADR 0063](0063-core-api-conventions.md) § 4) | the resolved shift plan |
+| `Core\Time\DateTime::format` / `Core\Time::parse` | CLDR pattern syntax | the parsed format plan |
+| `Core\Time\Duration::parse` | the duration grammar ([ADR 0070](0070-duration-literals.md)) | the resolved nanosecond count |
 | `Core\Str::format` | format-string syntax; placeholder count and types against the argument list | the parsed format plan |
 
 The type check on `Core\Str::format`'s placeholders is worth naming separately: it turns

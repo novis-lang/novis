@@ -147,6 +147,24 @@ jobs:
       - name: THIRD-PARTY-LICENSES.txt matches Cargo.lock
         run: python tools/gen-attribution.py --check
 
+  # ---------------------------------------------------------------------------
+  # Every PHP built-in has exactly one recorded outcome, and every Core member a
+  # row names still exists. Catches the case a review cannot: a member renamed
+  # in docs/spec/01-core-library.md while the migration table still points at
+  # the old name. Coverage is reported, not enforced, until the table's header
+  # says Complete: yes. See ADR 0063 § 3.
+  # ---------------------------------------------------------------------------
+  migration-table:
+    name: php migration table
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Every PHP name is accounted for
+        run: python tools/check-migration.py
+
   unsafe-audit:
     name: unsafe audit
     runs-on: ubuntu-latest

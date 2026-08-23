@@ -11,7 +11,7 @@
   nothing about what crosses, what refuses, or how the budget/capability rules work changes.
   [ADR 0012](0012-no-superglobals.md) — `Core\Script::args()`'s "deep-copied" now names this ADR's
   graph-copy operation explicitly, rather than an unnamed mechanism.
-- **Relates to:** 0004, 0007, 0014, 0022
+- **Relates to:** 0004, 0007, 0014, 0022, 0024
 
 > **In short:** MWL keeps two copy depths, not one, because PHP already drew that line and it is a real
 > distinction, not an accident. **`clone`** is PHP's shallow, same-heap, single-level copy: it duplicates an
@@ -111,10 +111,13 @@ sharing no mutable heap state with its source.
   ([ADR 0006](0006-isolated-script-execution.md)): the graph copy moves directly from the source arena into
   the destination arena (or is moved rather than copied when the refcount is 1), with no intervening byte
   representation. This ADR changes no behavior here — it names the mechanism ADR 0006 already specified.
-- **Externalized, to bytes and back** — `serialize($x): bytes` runs the same graph copy and encodes the
-  result into MWL's own binary format; `unserialize($b: bytes): mixed` decodes it back into a live value by
-  running the identical operation in reverse. The wire format is private to MWL (see § 3) — this is a
-  round-trip pair, not a PHP-wire-format encoder.
+- **Externalized, to bytes and back** — spelled `Core\Serialize::encode($x): bytes`, which runs the same
+  graph copy and encodes the result into MWL's own binary format, and `Core\Serialize::decode($b): mixed`,
+  which decodes it back into a live value by running the identical operation in reverse. They are class
+  members like everything else ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and take
+  [ADR 0063](0063-core-api-conventions.md) R6's `encode`/`decode` pairing; PHP's bare `serialize`/
+  `unserialize` spellings do not exist. The wire format is private to MWL (see § 3) — this is a round-trip
+  pair, not a PHP-wire-format encoder.
 
 ### 3. `unserialize()` accepts only MWL's own `serialize()` output
 
@@ -130,7 +133,14 @@ is versioned and self-describing enough to be checked before any object is built
   never coerced, never filled with a type default. This is what keeps § 4 true: `unserialize()` cannot hand
   back a partially-initialized object, because the one case it does not refuse is the one where every
   declared property has a recorded value.
-- No capability grant is required to call `serialize()`/`unserialize()`. The closed format plus the
+- **`decode` is an [ADR 0024](0024-taint-tracking-for-injection-sinks.md) `tainted` sink**, and no
+  launderer exists for it. The rules above close the code-execution class, but not type confusion: a
+  payload that reconstructs a `User` with `isAdmin: true` bypasses the constructor while satisfying every
+  check in this section. Bytes the program itself produced and stored carry no qualifier and decode
+  normally; bytes that arrived from outside the process are refused at compile time. Contagion would be the
+  wrong classification, because the danger is the reconstructed graph rather than a string that later
+  reaches an output sink.
+- No capability grant is required to call `Core\Serialize`. The closed format plus the
   no-hook rule already remove the two things a new grant would exist to contain — arbitrary code execution
   during reconstruction, and reading a class that does not exist — and the resource cost of a hostile
   payload (a huge or deeply nested graph) is already bounded by the same `[limits] memory`/`cpu_time`

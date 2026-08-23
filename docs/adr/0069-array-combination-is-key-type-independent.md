@@ -133,8 +133,8 @@ duplicate values, last occurrence winning**, its result typed `array<string>`.
 ### 5. A key comes back as a `string`
 
 [ADR 0007](0007-explicit-type-system.md) § 5 states it and names `Core\Arr::keys(): array<string>`, so
-every key-valued **return** in the spec is `string`: `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey`,
-`flip`, and the key half of `toPairs`. A key **parameter** stays `int|string` — that is the subscript
+every key-valued **return** in the spec is `string`: `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey` and
+`flip`. A key **parameter** stays `int|string` — that is the subscript
 normalisation rule of the same section, where `$a[8]` and `$a["8"]` are one key.
 
 ## Consequences

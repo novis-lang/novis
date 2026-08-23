@@ -1,0 +1,182 @@
+# ADR 0070 — A duration is a literal: `30s`, `1h30m`
+
+- **Status:** Accepted
+- **Date:** 2026-08-24
+- **Scope:** the lexical form `30s`/`1h30m`, its type, its constant-folding, and the one grammar it shares
+  with `Core\Time\Duration::parse` and `mwl.toml`. Not in scope: `Core\Time`'s member list, which is
+  [docs/spec/01-core-library.md](../spec/01-core-library.md) § 4, and the calendar-versus-exact arithmetic
+  split, which that section owns.
+- **Amends:** [0063](0063-core-api-conventions.md) — R12's "units are types" is what makes a `Duration`
+  parameter correct, and this is what makes it affordable; § 4's relative-date resolution is rewritten there
+  in consequence, since the literal is what pays for removing `shift`.
+  [0057](0057-intrinsic-literal-folding.md) — `Core\Time\Duration::parse` joins the intrinsic list, in the
+  row `Core\Time\DateTime::shift` used to occupy.
+  [0064](0064-configuration-file-format.md) — a duration-valued directive in `mwl.toml` is written in this
+  grammar rather than as a bare integer of unstated units.
+- **Relates to:** 0007, 0009, 0037, 0054, 0062
+
+> **In short:** MWL declares durations as a type, never as an `int` of unstated units — which is right, and
+> which costs `Duration::seconds(30)` at every timeout, sleep, retry and cache TTL a program writes. That
+> is the pressure under which `int $seconds` parameters and ambient defaults grow back. So a duration gets
+> a **literal**: `30s`, `500ms`, `1h30m`, lexed as one token, typed `Core\Time\Duration`, folded to a
+> constant with no allocation. The grammar is **Go's `ParseDuration`** with `d` and `w` added, and it is
+> used in exactly three places — the literal, `Duration::parse` for a string that arrives at run time, and
+> `mwl.toml` — from one implementation, so they cannot drift.
+
+## Context
+
+- [ADR 0063](0063-core-api-conventions.md) R12 makes units a type, which removes PHP's
+  `sleep`/`usleep`/`time_nanosleep` family and every `int $timeout` whose unit lives in a doc comment. The
+  bill arrives at the call site: `{timeout: Duration::seconds(30)}` where PHP wrote `30`.
+- That bill is not paid once. Timeouts appear across `Core\Db`, `Core\Http`, `Core\Process` and `Core\Net`;
+  TTLs across `Core\Cache`; `Time::sleep` and every retry backoff take one. A convention that is tedious in
+  the common case is a convention that gets an escape hatch added later, and the escape hatch is always an
+  untyped integer.
+- Removing `DateTime::shift` ([ADR 0063](0063-core-api-conventions.md) § 4) removed the short spelling for
+  `"+2 weeks"`. Its typed replacement must not read as a penalty, or the removal will not hold.
+- **Scalars cannot carry the ergonomic**: [ADR 0063](0063-core-api-conventions.md) R19 forbids methods on
+  scalars, so Kotlin's `3.days` and Scala's `3.seconds` — the workaround every library-only language reaches
+  for — are unavailable here. A literal is the only remaining lever.
+- The feature is not novel. **C++11** standardises `1h`, `500ms`, `2min` in `std::chrono`; **PromQL**
+  (`rate(x[5m])`), **Flux** (`1h30m`) and **CSS** (`300ms`) all carry duration literals in the grammar
+  itself. Suffix-typed literals generally are ordinary — Rust's `3u8`, F#'s `1.0<s>`. And the specific
+  grammar chosen here is **Go's**, which `time.ParseDuration` accepts and `Duration.String()` emits, and
+  which Kubernetes, Docker, Prometheus and Caddy configuration have already made the industry default.
+
+## Decision
+
+### 1. The grammar
+
+```
+duration := ( DEC_INT unit )+
+unit     := ns | us | ms | s | m | h | d | w
+```
+
+- **One token.** `1h30m` lexes as a single `DurationLiteral`, not as three tokens; maximal munch.
+- **Units strictly descend and may not repeat.** `1h30m` is accepted; `30m1h` and `1h1h` are lexer errors
+  naming this rule. There is exactly one spelling of any given constant, up to a coarser unit's value.
+- **Only after a plain decimal integer.** Never after `0x…`, `0b…`, a float, or an exponent, so `0x1d`
+  stays a hex literal and `1.5s` is an error rather than a rounded duration.
+- **Lower case only**, per [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md); `30S` is a
+  diagnostic naming that ADR, not a second spelling.
+- **No sign.** `-7d` does not parse; a backwards step is `->minus(7d)`. The parser therefore never has to
+  decide whether the `-` in `$a -7d` is binary or part of a literal.
+- `d` is exactly 24 h and `w` exactly 168 h. Go stops at `h` for this reason, and Prometheus and Flux do
+  not; MWL keeps them because retention and cutoff windows are the common case, and because the ambiguity
+  Go is avoiding is already handled by a stronger rule — **a calendar day is `Unit::Day` on a `DateTime`,
+  and never a `Duration` at all** ([01-core-library § 4](../spec/01-core-library.md)).
+
+### 2. The type is `Core\Time\Duration`, always
+
+There is nothing untyped-until-placed about it, unlike [ADR 0054](0054-decimal-scalar-type.md)'s fractional
+literal: the suffix *is* the type.
+
+```php
+Core\Time\Duration $x = 1h30m;   // explicit, per ADR 0007
+var $y = 1h30m;                  // ADR 0037 infers Duration, fixed forever
+Time::sleep(500ms);
+$db->query($sql, $params, {timeout: 30s});
+$cutoff = Time::now()->minus(7d);
+```
+
+`Duration` is an ordinary immutable `Core` object — `Comparable`, `Stringable`, with the members
+[01-core-library § 4](../spec/01-core-library.md) lists. This ADR adds no member and changes none.
+
+### 3. It is a constant, so it costs nothing
+
+A duration literal is a compile-time constant under
+[ADR 0046](0046-attributes-shape-literal-metadata.md)'s existing definition, folded to a single nanosecond
+count and emitted into the compiled unit's constant pool
+([ADR 0042](0042-on-disk-artifact-cache-format.md)) as an immortal value. `{timeout: 30s}` allocates
+nothing at run time; only a computed `Duration::seconds($n)` does. A literal whose value exceeds
+`Duration`'s range is a compile error, not a wrap.
+
+### 4. What it is not
+
+| Written | Result |
+|---|---|
+| `1h + 30m` | does not compile — MWL has no operator overloading. Write `1h30m`, or `$a->plus($b)` |
+| `-7d` | does not parse. Write `->minus(7d)` |
+| `1h30m as int` | does not compile. Write `->toSeconds()` |
+| `$n s` | not a literal. A computed count is `Duration::seconds($n)` |
+| `1.5h` | a lexer error. Write `90m` |
+
+`mwl fmt` ([ADR 0039](0039-canonical-code-formatting.md)) never rewrites one: `90m` and `1h30m` are the
+same value, and choosing between them is the author's, exactly as `0x10` versus `16` already is.
+
+### 5. One grammar, three places, one implementation
+
+| Where | Form | Checked |
+|---|---|---|
+| source | `30d` | at compile time, by the lexer |
+| a run-time string | `Duration::parse($s)` | at run time; throws (R4), which makes it an [ADR 0024](0024-taint-tracking-for-injection-sinks.md) launderer |
+| `mwl.toml` | `request_timeout = "30s"` | at boot, by the same parser |
+
+The three share one parser, so a grammar change cannot land in one and miss the others — the property
+[ADR 0057](0057-intrinsic-literal-folding.md) already requires of every intrinsic. `Duration`'s
+`Stringable` form emits this grammar too, so a value round-trips through `parse`.
+
+## Consequences
+
+**Positive**
+
+- **R12 stops costing anything at the call site.** `{timeout: 30s}` is shorter than PHP's `30` was
+  informative, and the unit is in the source rather than in a doc comment.
+- **The typed replacement for `strtotime` reads well.** `Time::now()->minus(7d)` against
+  `strtotime("-7 days")` — shorter, checked, and unambiguous about whether a calendar or an exact offset was
+  meant.
+- **Config and code agree.** An operator reading `request_timeout = "30s"` and a developer reading
+  `{timeout: 30s}` are reading the same grammar.
+- **Zero run-time cost**, and a constant in the artifact rather than a call.
+
+**Negative**
+
+- **A language-surface addition**, which is the thing this project spends most carefully: one token, one
+  lexer production, one folding case, and a keyword-adjacent set of unit spellings that can never be reused.
+- **No PHP developer has seen it.** PHP, JavaScript, Python, Java and C# all lack duration literals. It is
+  self-evident on sight, and `mwl convert` emits it mechanically from `sleep(30)` and `strtotime("+7 days")`,
+  but it is unfamiliarity spent.
+- **`d` and `w` invite the calendar reading.** `7d` is 168 hours, not seven calendar days across a DST
+  boundary. The type system keeps a program correct — a `Duration` cannot reach `DateTime::plus` — but the
+  documentation has to keep saying it.
+- **Two ways to write a constant duration** (`30s` and `Duration::seconds(30)`), in the same sense that
+  `"abc"` and a built-up string are two ways to write a constant string. R15 is about members, not literals,
+  so this is not an exception to it — but it is one more thing to explain.
+
+## Alternatives rejected
+
+- **Library only: `Duration::seconds(30)` and nothing else.** No language change at all. Rejected: the
+  verbosity is paid at every timeout, TTL, sleep and retry in every program, and it is exactly the pressure
+  that reintroduces untyped integer parameters — which is what R12 exists to remove.
+- **ISO-8601 durations (`PT30S`, `P7D`).** Standards-aligned, already what a JSON or XML payload carries.
+  Rejected for the source and config forms: `PT1H30M` is markedly less readable inline than `1h30m` and
+  unfamiliar to the audience MWL is for. Nothing stops `Core\Time` gaining an ISO reader later for wire
+  formats; that is a different job from a literal.
+- **`3.days`, as Kotlin and Scala spell it.** Rejected mechanically, not aesthetically:
+  [ADR 0063](0063-core-api-conventions.md) R19 forbids methods on scalars, and creating an exception for
+  one type is how the "twin problem" R19 exists to prevent regrows.
+- **A general units-of-measure system** (F#'s `1.0<s>`, `9.81<m/s^2>`). Far more powerful and genuinely
+  attractive. Rejected on [ADR 0004](0004-memory-for-simplicity.md)'s simplicity priority: it is a type-system
+  feature of its own — dimensional analysis, unit algebra in signatures, inference through arithmetic — for
+  a language whose domain is web requests and CLI programs, where time is the only unit that recurs.
+- **Allowing `1h + 30m` via operator overloading on `Duration`.** What C++ does. Rejected: operator
+  overloading is a language feature MWL does not have and is not adding for one type, and token
+  concatenation already covers the case it would serve.
+- **Keeping `DateTime::shift("+2 weeks")` instead**, so the short spelling stays a string. Rejected in
+  [ADR 0063](0063-core-api-conventions.md) § 4: it duplicates `startOf`/`plus`/`next`, it is a mode string
+  under R11, and it hides the calendar-versus-exact distinction. This ADR is what makes that removal
+  affordable.
+
+## Verification
+
+- **M1:** lexer fixtures for `30s`, `1h30m`, `500ms`, `1w`; diagnostics for `30m1h` (out of order), `1h1h`
+  (repeated unit), `1.5s` (fractional), `30S` (casing, naming ADR 0062) and `-7d` (sign); a fixture
+  asserting `0x1d` still lexes as one hex literal and `3 d` as two tokens. The `lex` fuzz target covers the
+  new production.
+- **M2:** a duration literal types as `Core\Time\Duration` with no placement inference; `var $x = 1h30m;`
+  infers it; an out-of-range literal is a compile error.
+- **M4S:** `1h30m`, `Duration::parse("1h30m")` and `mwl.toml`'s `"1h30m"` produce the same value through the
+  same parser — one conformance case asserting all three, so a divergence cannot land. `Duration`'s
+  `Stringable` output re-parses to the original value.
+- **M4S:** an IR or codegen fixture asserting a literal in an options shape allocates nothing — it is a
+  constant-pool reference, not a constructor call.

@@ -254,7 +254,7 @@ Mode::Read|Mode::Write $m = Mode::Admin as Mode::Read|Mode::Write;
   atoms compose with it for free; a separate keyword would be a second spelling for "this is a closed set of
   values," the exact shape [ADR 0015](0015-no-name-aliasing.md)/[ADR 0021](0021-single-file-inclusion-construct.md)/
   [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md) already argue against elsewhere.
-- **A runtime-only validator function instead of a type** (`Core\Validate::oneOf($x, ["a","b","c"])`).
+- **A runtime-only validator call instead of a type** (`Arr::contains(["a","b","c"], $x)`).
   Rejected: it would not be visible in a parameter's declared type the way [ADR 0007](0007-explicit-type-system.md)
   already requires everything to be, and would sit alongside the real type system as a second, weaker
   mechanism rather than extending it.

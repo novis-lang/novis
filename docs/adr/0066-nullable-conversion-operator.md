@@ -104,9 +104,10 @@ those ADRs name.
 `Validate::isInteger($s)` and `$s as ?int !== null` are the same predicate, which R17 forbids.
 `isInteger`, `isFloat` and `isBoolean` are struck from [spec § 13](../spec/01-core-library.md), along with
 the sentence defining them against `as`, which this ADR makes unnecessary — one implementation now exists
-because there is one operation, not because two were required to agree. `isEmail`, `isUrl`, `isIp`,
-`isIpV4`, `isIpV6`, `isMac`, `isDomain`, `isAscii`, `isPrintable` and `oneOf` are unaffected: none has an
-`as` equivalent, because none names a type.
+because there is one operation, not because two were required to agree. `isEmail`, `isIp`, `isMac`,
+`isDomain`, `isAscii` and `isPrintable` — the roster that survived a later duplicate sweep — are
+unaffected: none has an `as` equivalent, because none names a type. `ctype_digit` is not among them for
+the same reason `isInteger` is not: it is `$s as ?uint !== null`.
 
 ### 6. A bare `?T` condition is a lint, not an error
 

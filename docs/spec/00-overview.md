@@ -25,8 +25,8 @@
 > `[int $a, string $b] = $pair;`, `type Row = array<string, int|string>;`. The conversion operator's
 > provisional spelling in ADR 0007 is hereby finalised: `expr as Type`, no other spelling, none planned.
 > There is no `bytes` literal token: `"…" as bytes` covers valid-UTF-8 payloads for free, and
-> `Core\Bytes::fromHex()`/`::fromBase64()` cover binary constants that are not valid UTF-8 — a lexer with one
-> fewer token shape than a dedicated `b"…"` prefix would have needed.
+> `Core\Encoding::fromHex()`/`::fromBase64()` cover binary constants that are not valid UTF-8 — a lexer with
+> one fewer token shape than a dedicated `b"…"` prefix would have needed.
 
 ## 1. File modes and inline HTML
 
@@ -255,12 +255,13 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
   for free: `"MWL1" as bytes`. [ADR 0009 § 3](../adr/0009-string-and-bytes.md) already makes `string as
   bytes` total and free, so this is not a new conversion rule, only its first literal-adjacent use.
 - For a byte sequence that is **not** valid UTF-8 — a raw binary constant, a fixed hash or key material
-  written inline — the spelling is a `Core\Bytes` constructor, following
+  written inline — the spelling is a `Core\Encoding` decoder, following
   [ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)'s "every callable is a class member"
-  rule exactly as every other domain class does: `Core\Bytes::fromHex('deadbeef')`,
-  `Core\Bytes::fromBase64('...')`. `Core\Bytes` joins the domain-class roster ADR 0011's summary names as
-  examples, not as a closed list; building the class itself is ordinary M8 stdlib work, not part of this
-  spec.
+  rule exactly as every other domain class does: `Core\Encoding::fromHex('deadbeef')`,
+  `Core\Encoding::fromBase64('...')`. That class, not `Core\Bytes`, because
+  [01-core-library § 7](01-core-library.md) sites every `bytes`↔`string` conversion there, and each of
+  these is one. Both join the domain-class roster ADR 0011's summary names as examples, not as a closed list; building
+  them is ordinary M4S stdlib work, not part of this spec.
 
 This resolves the open item in [ADR 0009 *Revisiting*](../adr/0009-string-and-bytes.md); that ADR's own
 status (Accepted, with § 2's granularity pending the grapheme-cost guard test) is unaffected — this
