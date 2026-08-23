@@ -19,8 +19,8 @@
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir` (+ `errors`, `interfaces`), `mwl-types` (+ `layout`, `core_lib`, `error_lib`,
-> `iter_lib`, `generics`, `conformance`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`), `mwl-stdlib`
-> (registry + `Core\Arr::count`/`isEmpty`), `mwl-codegen`, `mwl-cli`, `fuzz/`, `benches/abi-probe`.
+> `iter_lib`, `generics`, `conformance`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`,
+> `closure`), `mwl-stdlib` (`Core\Arr` × 3), `mwl-codegen`, `mwl-cli`, `fuzz/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -28,18 +28,18 @@
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
-> slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4 and **0053 in full**. Each
-> ADR's own *Verification* section says what its slice covers; do not look for the rule here.
+> slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2 and **0053 in
+> full**. Each ADR's own *Verification* section says what its slice covers, not this field.
 >
-> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows, plus the closures and shape
-> literals `examples/core.mwl` calls them through. Then `crates/mwl-test` and `mwl test`. Language gaps
-> off that path: `for`/`switch`, integer `/`/`%`, ADR 0043's `by`-delegation, virtual dispatch through a
-> base-typed local, ADR 0014's `PropertyObserver`, an integer *into* an enum, ADR 0009's measurement.
+> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. `examples/core.mwl` still needs
+> integer `%`, an options-shape argument and every `Core\Str` row. Then `crates/mwl-test`/`mwl test`.
+> Off that path: `for`/`switch`, ADR 0043's `by`-delegation, virtual dispatch through a base-typed
+> local, ADR 0014's `PropertyObserver`, an integer *into* an enum, ADR 0009's measurement.
 >
 > **Blocking:** nothing external. **Stages 1 and 2 are green on both legs**: every command, byte for
 > byte, on Windows and under WSL against a Linux build, and `valgrind --leak-check=full` clean on all
-> eleven runnable fixtures. Stage 3 is next and needs `Core` itself: `examples/core.mwl` fails only
-> because every `Core\Arr`/`Core\Str` member it calls is still an unregistered row.
+> eleven runnable fixtures. `examples/core.mwl` now stops at its first line — `Core\Arr::range` is
+> unregistered, because its `{step?: int}` bag is a shape the registry's type enum cannot express yet.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

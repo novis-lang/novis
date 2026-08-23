@@ -243,12 +243,26 @@ Verification, in the order it becomes possible:
   `function(...) use (...) {...}` are rejected with a diagnostic naming `fn` (`E0222`); `use (&$y)`/
   `use ($y)` on a closure literal is rejected with its own diagnostic distinguishing the by-reference case
   (`E0223`/`E0224`). `ClosureExpr`/`ClosureUse`/`ArrowFnExpr` no longer exist anywhere in the crate.
-- **M2** (checker/resolver): a corpus entry for each rejected spelling in § 6; `callable` accepted everywhere
-  the checker currently reads `Closure`, and `Closure` named as a type is refused with the diagnostic naming
-  `callable`; a self-named closure resolves its own name only inside its own body and produces a resolver
-  error if referenced anywhere else; a closure with a self-name that shadows an outer variable of the same
-  name resolves to the self-reference inside the body without a diagnostic, the same shadowing rule ordinary
-  nested scopes already use.
-- **M4** (stdlib): `Closure::fromCallable`, `call_user_func`, `call_user_func_array` are not implemented;
-  `Core\Arr::map`/`filter`/similar accept a `callable` argument exactly as before, with the name updated in
-  their signatures.
+- **M2** (checker/resolver) — **done for §§ 1-2**: `mwl_types::expr::check_fn_literal` checks the body in a
+  scope of its own and offers every outer binding to it as a *capture*, recorded at
+  `mwl_types::locals::LocalScope::declared_ty` — the one lookup a read or a write already goes through, so
+  the recorded set is § 2's "exactly the outer variables its body reads" and cannot drift from what the
+  checker counts as a read. `$this` is in that set like any other name, which is how ADR 0008 § 4's
+  bind-only-where-used rule is satisfied with no code of its own. A parameter shadows an outer local rather
+  than capturing it. One decision taken alongside, about the checker rather than about this surface: a
+  **block-bodied** `fn` must declare its return type (`E0450`), since inferring one would be whole-body
+  return-type inference, which [ADR 0007](0007-explicit-type-system.md) does not ask for.
+  **Still open:** § 3's self-name is parsed and ignored, so a recursive call inside the body reports an
+  undefined name.
+- **M4** (lowering and stdlib) — **done for §§ 1-2**: `mwl_ir::lower::lower_closure` turns a literal into an
+  object of a synthesized class — one field per capture, one `invoke` method — so a closure needs no new
+  runtime representation, no new calling convention and no second refcounted heap shape; that function's own
+  doc comment states the cost. `mwl_runtime::call_closure` is how native `Core` code reaches one, and
+  `Core\Arr::filter` is the first member that does. `mwl-codegen`'s five `a_closure_*` fixtures run it end
+  to end, including a capture snapshot that survives the outer local being reassigned and a closure that
+  throws out of the `Core` member calling it; a closure-heavy script is `valgrind --leak-check=full` clean.
+  `Closure::fromCallable`, `call_user_func` and `call_user_func_array` are not implemented, and nothing in
+  the registry names them. **Still open:** `$fn(...)` direct invocation has no lowering at all — native
+  `Core` code is the only caller today — and a closure capturing, or declaring, a `&$x` binding panics
+  naming itself, since the cell it addresses is the caller's and a closure may outlive the call that staged
+  it.
