@@ -22,7 +22,7 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Bool => types::I8,
         Ty::Int | Ty::Uint => types::I64,
         Ty::Float => types::F64,
-        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed => types::I64,
+        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Throwable | Ty::Mixed => types::I64,
         Ty::Void => return None,
         _ => types::I64,
     })
@@ -54,6 +54,14 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
             return Err(CodegenError::Unsupported(
                 "a `mixed` value crossing a call boundary — its runtime type \
                  tag is still an open representation question"
+                    .to_owned(),
+            ));
+        }
+        Ty::Throwable => {
+            return Err(CodegenError::Unsupported(
+                "an exception crossing an MWL call boundary — it is the \
+                 runtime's own opaque value, with no `Tag` to borrow until M4 \
+                 gives objects a representation"
                     .to_owned(),
             ));
         }

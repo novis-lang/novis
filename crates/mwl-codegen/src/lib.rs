@@ -16,11 +16,29 @@
 //! extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32
 //! ```
 //!
-//! Nothing unwinds. Every call — a runtime helper, the safepoint slow path —
-//! is followed by a compare-and-branch on the returned status, and a non-[`OK`]
-//! status is returned onward unchanged. That pair of instructions is what
-//! replaces a landing pad; `benches/abi-probe`'s `compile_chain` has measured
-//! its cost since M0.
+//! Nothing unwinds. Every call — a runtime helper, an MWL method, the
+//! safepoint slow path — is followed by a compare-and-branch on the returned
+//! status. That pair of instructions is what replaces a landing pad;
+//! `benches/abi-probe`'s `compile_chain` has measured its cost since M0.
+//!
+//! ## Where a failing status goes
+//!
+//! Onward, but not blindly: [`mwl_ir::ir::Inst::on_error`] names a *landing
+//! block* per call site, and the branch enters it carrying the status as a
+//! block parameter. The landing block holds the frame's refcount cleanup and
+//! ends in [`mwl_ir::ir::Terminator::Propagate`] (record this frame on the
+//! exception's backtrace, then return the status) or
+//! [`mwl_ir::ir::Terminator::Catch`] (on `THROWN`, enter the handler; anything
+//! else returns onward). A `throw` reaches the same block through
+//! [`mwl_ir::ir::Terminator::Throw`], which raises the exception and jumps
+//! with a constant `THROWN`.
+//!
+//! **The backtrace is built on the error path, never the success path.** Each
+//! frame's landing block passes a static label from the unit's own data
+//! section to [`mwl_runtime::mwl_trace_push`]. The alternative — a push/pop
+//! frame record around every call — would move that cost onto the path that
+//! actually runs, which is precisely what ADR 0002 exists to avoid. See
+//! `mwl_runtime::throwable`'s own docs for the one observable consequence.
 //!
 //! ## Values are native, not tagged, wherever the type is known
 //!
@@ -59,6 +77,13 @@
 //! requires, and each gap below is a missing *lowering*, not a missing
 //! decision:
 //!
+//! 0. **No user exception class.** [`mwl_ir::Ty::Throwable`] is the runtime's
+//!    own opaque value, so it cannot be materialized into a 16-byte
+//!    [`mwl_runtime::Value`] — passing one to a compiled MWL method or
+//!    returning one is refused by [`ty::tag_of`] rather than given a
+//!    borrowed tag. A `catch` binding it to a local, reading its two
+//!    accessors and re-throwing it all work; everything wider waits on M4's
+//!    object representation, the same thing gap 1 below waits on.
 //! 1. **No object or array representation.** [`mwl_ir::ir::InstKind::New`]/
 //!    `FieldGet`/`FieldSet`/`ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend`
 //!    all report [`CodegenError::Unsupported`] naming the instruction, and an
@@ -70,11 +95,11 @@
 //!    at [`mwl_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe
 //!    and the call-site `TRACE`/`PROFILE` pair are both emitted.
-//! 3. **The error path leaks.** A non-`OK` status returns immediately without
-//!    releasing the refcounted locals still live in the frame.
-//!    [`mwl_ir`] itself does not model an error edge yet (see
-//!    `InstKind::HelperCall`'s own doc comment), so there is nothing to lower
-//!    a cleanup path *from*; both halves land together.
+//! 3. **A `FATAL` still leaks the frame's locals.** A `THROWN` does not: its
+//!    landing block releases them before the status travels on. The
+//!    asymmetry is `mwl_ir`'s, not this crate's — see
+//!    [`mwl_ir::ir::Inst::on_error`], which explains why an outcome no
+//!    cleanup path and no `catch` can act on gets no landing block at all.
 //! 4. **A string literal still allocates on every evaluation.** The literal's
 //!    bytes are emitted into the unit's data section, but
 //!    `InstKind::ConstStr` calls `mwl_str_new` over them rather than pointing
@@ -261,8 +286,15 @@ struct Signatures {
     str_new: Signature,
     /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`.
     str_concat: Signature,
-    /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`.
+    /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`, and the two
+    /// `mwl_throwable_*` counterparts.
     refcount: Signature,
+    /// `mwl_exception_new(ptr) -> ptr`, and every other exception primitive
+    /// with that one shape: `mwl_throwable_message`, `mwl_throwable_trace`,
+    /// `mwl_take_thrown`.
+    ptr_to_ptr: Signature,
+    /// `mwl_raise(ctx, throwable)`.
+    raise: Signature,
 }
 
 impl Jit {
@@ -463,6 +495,14 @@ impl Signatures {
         let mut refcount = module.make_signature();
         refcount.params.push(AbiParam::new(ptr));
 
+        let mut ptr_to_ptr = module.make_signature();
+        ptr_to_ptr.params.push(AbiParam::new(ptr));
+        ptr_to_ptr.returns.push(AbiParam::new(ptr));
+
+        let mut raise = module.make_signature();
+        raise.params.push(AbiParam::new(ptr));
+        raise.params.push(AbiParam::new(ptr));
+
         Self {
             helper,
             safepoint,
@@ -472,6 +512,8 @@ impl Signatures {
             str_new,
             str_concat,
             refcount,
+            ptr_to_ptr,
+            raise,
         }
     }
 }

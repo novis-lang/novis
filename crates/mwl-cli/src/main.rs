@@ -277,15 +277,25 @@ fn run_run(
             // The two spellings are the ladder's own tier names: an uncaught
             // throw is tier 2, a `FATAL` is tier 3 and above, and nothing
             // below the engine floor can catch either.
-            let kind = if status == mwl_runtime::THROWN {
-                "Uncaught Exception"
+            let thrown = ctx.take_thrown();
+            let message = thrown
+                .as_ref()
+                .map_or("no message was recorded", |t| t.message());
+            if status == mwl_runtime::THROWN {
+                eprintln!("Uncaught Exception: {message}");
+                // The frames the exception unwound out of, `#0` first —
+                // `mwl_runtime::throwable`'s own docs own the shape and why it
+                // is built on the error path rather than at construction.
+                // Empty for a `FATAL`, which has no backtrace by design
+                // (ADR 0020), so nothing is printed for one.
+                if let Some(trace) = thrown.as_ref().map(|t| t.trace_as_string())
+                    && !trace.is_empty()
+                {
+                    eprintln!("{trace}");
+                }
             } else {
-                "FATAL"
-            };
-            let message = ctx
-                .take_pending()
-                .unwrap_or(std::borrow::Cow::Borrowed("no message was recorded"));
-            eprintln!("{kind}: {message}");
+                eprintln!("FATAL: {message}");
+            }
             ExitCode::FAILURE
         }
     }

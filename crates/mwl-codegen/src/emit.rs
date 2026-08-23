@@ -30,8 +30,10 @@ use cranelift_jit::JITModule;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use mwl_ir::Ty;
 use mwl_ir::ids::{BlockId, ValueId};
-use mwl_ir::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
-use mwl_runtime::{DEBUG_FLAGS_OFFSET, OK, SAFEPOINT_OFFSET, Tag, Value as MwlValue};
+use mwl_ir::ir::{
+    BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, ThrowableOp, UnOp,
+};
+use mwl_runtime::{DEBUG_FLAGS_OFFSET, OK, SAFEPOINT_OFFSET, THROWN, Tag, Value as MwlValue};
 use rustc_hash::FxHashMap;
 
 use crate::ty::{clif_ty, tag_of};
@@ -98,6 +100,17 @@ pub(crate) fn emit_function(
             let clif_ty = clif_ty(ty).ok_or_else(|| internal("a phi of representation `void`"))?;
             b.append_block_param(clif, clif_ty);
         }
+        // A landing block is entered carrying the status that sent control
+        // there — from a call site's own compare-and-branch, or as the
+        // constant `THROWN` from a `Terminator::Throw`. It is a block
+        // parameter rather than a re-read of anything, because the two entry
+        // paths have nothing in common to re-read.
+        if is_landing(block) {
+            if phis > 0 {
+                return Err(internal("a landing block with phis"));
+            }
+            b.append_block_param(clif, types::I32);
+        }
         blocks.insert(block.id.index(), clif);
         phi_counts.insert(block.id.index(), phis);
     }
@@ -122,6 +135,7 @@ pub(crate) fn emit_function(
         ctx_p,
         args_p,
         out_p,
+        landing_status: None,
     };
     emitter.emit_blocks()?;
     emitter.b.seal_all_blocks();
@@ -146,6 +160,19 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
         ));
     }
     Ok(count)
+}
+
+/// Whether this block is one of `mwl_ir`'s landing blocks — the ones
+/// [`mwl_ir::ir::Inst::on_error`] and [`Terminator::Throw`] branch to.
+///
+/// Read off the terminator rather than carried as a flag: only a landing
+/// block ends in [`Terminator::Propagate`] or [`Terminator::Catch`], so the
+/// terminator already is the marker.
+fn is_landing(block: &BasicBlock) -> bool {
+    matches!(
+        block.term,
+        Terminator::Propagate { .. } | Terminator::Catch { .. }
+    )
 }
 
 fn internal(what: &str) -> CodegenError {
@@ -174,6 +201,9 @@ struct Emitter<'a, 'f> {
     ctx_p: Value,
     args_p: Value,
     out_p: Value,
+    /// The status parameter of the landing block currently being emitted, or
+    /// `None` for an ordinary block — see [`is_landing`].
+    landing_status: Option<Value>,
 }
 
 impl Emitter<'_, '_> {
@@ -196,6 +226,15 @@ impl Emitter<'_, '_> {
                 let param = self.b.block_params(start)[index];
                 self.values.insert(result.index(), (param, ty));
             }
+
+            self.landing_status =
+                if is_landing(block) {
+                    Some(*self.b.block_params(start).get(phis).ok_or_else(|| {
+                        internal("a landing block with no status parameter appended")
+                    })?)
+                } else {
+                    None
+                };
 
             let mut cur = start;
             for inst in &block.insts[phis..] {
@@ -292,11 +331,34 @@ impl Emitter<'_, '_> {
             }
             InstKind::Retain { operand } => {
                 let (value, ty) = self.value(*operand)?;
-                self.emit_refcount("mwl_str_retain", value, ty)?;
+                self.emit_refcount(true, value, ty)?;
             }
             InstKind::Release { operand } => {
                 let (value, ty) = self.value(*operand)?;
-                self.emit_refcount("mwl_str_release", value, ty)?;
+                self.emit_refcount(false, value, ty)?;
+            }
+            InstKind::TakeThrown => {
+                let callee = self.runtime_ref("mwl_take_thrown", RuntimeSig::PtrToPtr)?;
+                let call = self.b.ins().call(callee, &[self.ctx_p]);
+                let value = self.b.inst_results(call)[0];
+                self.define(inst, value)?;
+            }
+            InstKind::Throwable { op, operand } => {
+                let (value, _) = self.value(*operand)?;
+                let symbol = match op {
+                    ThrowableOp::New => "mwl_exception_new",
+                    ThrowableOp::Message => "mwl_throwable_message",
+                    ThrowableOp::TraceAsString => "mwl_throwable_trace",
+                    other => {
+                        return Err(CodegenError::Unsupported(format!(
+                            "the exception operation {other:?}"
+                        )));
+                    }
+                };
+                let callee = self.runtime_ref(symbol, RuntimeSig::PtrToPtr)?;
+                let call = self.b.ins().call(callee, &[value]);
+                let result = self.b.inst_results(call)[0];
+                self.define(inst, result)?;
             }
             InstKind::Phi { .. } => return Err(internal("a phi reached the instruction walk")),
             other => {
@@ -565,7 +627,7 @@ impl Emitter<'_, '_> {
         let callee = self.runtime_ref(symbol, RuntimeSig::Helper)?;
         let call = self.b.ins().call(callee, &[self.ctx_p, args_p, out_p]);
         let status = self.b.inst_results(call)[0];
-        let cont = self.emit_status_check(status)?;
+        let cont = self.emit_status_check(status, inst.on_error)?;
 
         if let Some(ty) = inst.ty {
             let value = self.load_value(out_p, 0, ty)?;
@@ -648,7 +710,7 @@ impl Emitter<'_, '_> {
             label,
             Some(status),
         )?;
-        let cont = self.emit_status_check(status)?;
+        let cont = self.emit_status_check(status, inst.on_error)?;
 
         if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
             let value = self.load_value(out_p, 0, ty)?;
@@ -758,42 +820,59 @@ impl Emitter<'_, '_> {
     /// they share the primitive. [`Ty::Array`] is [`mwl_ir::Ty::is_refcounted`]
     /// too, but has no runtime representation at all yet, so its refcount
     /// operation has nothing to call.
-    fn emit_refcount(
-        &mut self,
-        symbol: &'static str,
-        value: Value,
-        ty: Ty,
-    ) -> Result<(), CodegenError> {
-        match ty {
-            Ty::Str | Ty::Bytes => {
-                let callee = self.runtime_ref(symbol, RuntimeSig::Refcount)?;
-                self.b.ins().call(callee, &[value]);
-                Ok(())
+    fn emit_refcount(&mut self, retain: bool, value: Value, ty: Ty) -> Result<(), CodegenError> {
+        let symbol = match (ty, retain) {
+            (Ty::Str | Ty::Bytes, true) => "mwl_str_retain",
+            (Ty::Str | Ty::Bytes, false) => "mwl_str_release",
+            (Ty::Throwable, true) => "mwl_throwable_retain",
+            (Ty::Throwable, false) => "mwl_throwable_release",
+            (other, _) => {
+                return Err(CodegenError::Unsupported(format!(
+                    "a refcount operation on representation {other:?}"
+                )));
             }
-            other => Err(CodegenError::Unsupported(format!(
-                "a refcount operation on representation {other:?}"
-            ))),
-        }
+        };
+        let callee = self.runtime_ref(symbol, RuntimeSig::Refcount)?;
+        self.b.ins().call(callee, &[value]);
+        Ok(())
     }
 
-    /// ADR 0002's compare-and-branch: on a non-`OK` status, return it onward
-    /// unchanged; otherwise carry on in a fresh block.
+    /// ADR 0002's compare-and-branch: on a non-`OK` status, take the
+    /// instruction's error edge; otherwise carry on in a fresh block.
     ///
-    /// The error path does **not** release the frame's live refcounted locals
-    /// — see the crate docs' known gap 3 for why that lands with the IR's own
-    /// error edge rather than being guessed at here.
-    fn emit_status_check(&mut self, status: Value) -> Result<Block, CodegenError> {
+    /// `on_error` is [`mwl_ir::ir::Inst::on_error`] — the landing block the IR
+    /// built for this exact program point, carrying the frame's cleanup and
+    /// the decision between propagating and entering a `catch`. The status
+    /// travels there as that block's one parameter.
+    ///
+    /// `None` keeps the pre-error-edge shape: return the status onward from a
+    /// bare fail block, releasing nothing. That is reached only by the
+    /// instructions whose sole non-`OK` outcome is a `FATAL` — see
+    /// `Inst::on_error`'s own doc comment, which states that consequence
+    /// rather than hiding it.
+    fn emit_status_check(
+        &mut self,
+        status: Value,
+        on_error: Option<BlockId>,
+    ) -> Result<Block, CodegenError> {
         let failed = self
             .b
             .ins()
             .icmp_imm_s(IntCC::NotEqual, status, i64::from(OK));
-        let fail = self.b.create_block();
         let cont = self.b.create_block();
-        self.b.ins().brif(failed, fail, &[], cont, &[]);
-
-        self.b.switch_to_block(fail);
-        self.b.ins().return_(&[status]);
-
+        match on_error {
+            Some(landing) => {
+                let target = self.block(landing)?;
+                let args = [codegen::ir::BlockArg::Value(status)];
+                self.b.ins().brif(failed, target, &args, cont, &[]);
+            }
+            None => {
+                let fail = self.b.create_block();
+                self.b.ins().brif(failed, fail, &[], cont, &[]);
+                self.b.switch_to_block(fail);
+                self.b.ins().return_(&[status]);
+            }
+        }
         self.b.switch_to_block(cont);
         Ok(cont)
     }
@@ -833,6 +912,46 @@ impl Emitter<'_, '_> {
                     .ins()
                     .brif(cond, then_target, &then_args, else_target, &else_args);
             }
+            Terminator::Throw { value, landing } => {
+                let (thrown, ty) = self.value(*value)?;
+                if !matches!(ty, Ty::Throwable) {
+                    return Err(internal("a `throw` of something that is not an exception"));
+                }
+                // Ownership of the exception transfers to the context here —
+                // `mwl_ir::lower` already retained an aliasing operand.
+                let callee = self.runtime_ref("mwl_raise", RuntimeSig::Raise)?;
+                self.b.ins().call(callee, &[self.ctx_p, thrown]);
+                let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
+                let target = self.block(*landing)?;
+                self.b
+                    .ins()
+                    .jump(target, &[codegen::ir::BlockArg::Value(status)]);
+            }
+            Terminator::Propagate { frame } => {
+                let status = self.landing_status()?;
+                let (address, len) = self.emit_bytes(frame.as_bytes())?;
+                let callee = self.runtime_ref("mwl_trace_push", RuntimeSig::ProbeCallExit)?;
+                self.b
+                    .ins()
+                    .call(callee, &[self.ctx_p, address, len, status]);
+                self.b.ins().return_(&[status]);
+            }
+            Terminator::Catch { handler } => {
+                let status = self.landing_status()?;
+                // Only a `THROWN` is catchable: ADR 0020 keeps a `FATAL` out
+                // of every `catch`, at the type level in the language and by
+                // this comparison in the generated code.
+                let caught = self
+                    .b
+                    .ins()
+                    .icmp_imm_s(IntCC::Equal, status, i64::from(THROWN));
+                let args = self.phi_args(block.id, *handler)?;
+                let target = self.block(*handler)?;
+                let onward = self.b.create_block();
+                self.b.ins().brif(caught, target, &args, onward, &[]);
+                self.b.switch_to_block(onward);
+                self.b.ins().return_(&[status]);
+            }
             other => {
                 return Err(CodegenError::Unsupported(format!(
                     "the terminator {other:?}"
@@ -841,6 +960,12 @@ impl Emitter<'_, '_> {
         }
         let _ = cur;
         Ok(())
+    }
+
+    /// The status parameter of the landing block being emitted.
+    fn landing_status(&self) -> Result<Value, CodegenError> {
+        self.landing_status
+            .ok_or_else(|| internal("a landing terminator outside a landing block"))
     }
 
     /// The values `pred`'s jump into `succ` supplies for `succ`'s phis, in
@@ -968,6 +1093,8 @@ impl Emitter<'_, '_> {
             RuntimeSig::StrNew => &self.sigs.str_new,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::Refcount => &self.sigs.refcount,
+            RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
+            RuntimeSig::Raise => &self.sigs.raise,
         };
         let id = self
             .module
@@ -993,6 +1120,8 @@ enum RuntimeSig {
     StrNew,
     StrConcat,
     Refcount,
+    PtrToPtr,
+    Raise,
 }
 
 /// The symbol name `mwl-runtime` exports for one [`Helper`] tag.

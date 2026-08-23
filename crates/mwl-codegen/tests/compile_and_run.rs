@@ -11,7 +11,7 @@
 //! where instruction-level costs are held.
 
 use mwl_diagnostics::{Diagnostics, SourceMap};
-use mwl_runtime::{Ctx, DebugFlags, FATAL, FaultSite, OK, SafepointFlags, Value, call};
+use mwl_runtime::{Ctx, DebugFlags, FATAL, FaultSite, OK, SafepointFlags, THROWN, Value, call};
 
 /// Compiles a whole file, returning the unit or the first thing that refused
 /// it.
@@ -375,4 +375,104 @@ fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
         ),
         "abababab"
     );
+}
+
+/// The three-frame throw `examples/throw.mwl` runs, verbatim.
+const THROWS: &str = "<?mwl
+class Deep {
+    public static function level3(): void {
+        throw new Exception(\"boom\");
+    }
+
+    public static function level2(): void {
+        Deep::level3();
+    }
+
+    public static function level1(): void {
+        Deep::level2();
+    }
+}
+";
+
+#[test]
+fn a_throw_crosses_several_frames_and_is_caught() {
+    // ADR 0002's whole claim, end to end: no unwinder is involved, each frame
+    // returns `THROWN` and its caller branches on it, and the `catch` three
+    // frames up sees the message the `throw` built.
+    let source = format!(
+        "{THROWS}\ntry {{\n    Deep::level1();\n    echo \"not reached\";\n}} \
+         catch (Throwable $e) {{\n    echo \"caught: \" . $e->getMessage();\n}}\n"
+    );
+    assert_eq!(output_of(&source), "caught: boom");
+}
+
+#[test]
+fn an_uncaught_throw_leaves_the_status_and_the_message_on_the_context() {
+    let mut ctx = Ctx::buffered();
+    let source = format!("{THROWS}\nDeep::level1();\n");
+    assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
+    assert_eq!(ctx.pending(), Some("boom"));
+}
+
+#[test]
+fn the_backtrace_names_every_frame_the_throw_left_in_order() {
+    // Resolved from MWL's own frame chain — each frame's error path pushes its
+    // own label — never from the platform unwinder, which ADR 0002 makes
+    // unavailable through a JIT frame in the first place.
+    let mut ctx = Ctx::buffered();
+    let source = format!("{THROWS}\nDeep::level1();\n");
+    assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
+
+    let trace = ctx
+        .take_thrown()
+        .expect("an uncaught throw leaves its exception behind")
+        .trace_as_string();
+    let frames: Vec<&str> = trace.lines().collect();
+    assert_eq!(frames.len(), 4, "{trace}");
+    assert!(frames[0].starts_with("#0 Deep::level3() at "), "{trace}");
+    assert!(frames[1].starts_with("#1 Deep::level2() at "), "{trace}");
+    assert!(frames[2].starts_with("#2 Deep::level1() at "), "{trace}");
+    assert!(frames[3].starts_with("#3 <script>() at "), "{trace}");
+}
+
+#[test]
+fn a_caught_throw_stops_the_backtrace_at_the_frame_that_handled_it() {
+    // The trace holds the frames the exception actually unwound *out of*, so a
+    // `catch` in the calling frame never appears in it — `mwl_runtime::throwable`
+    // owns that rule and why it differs from PHP's construction-time snapshot.
+    let source = format!(
+        "{THROWS}\ntry {{\n    Deep::level3();\n}} catch (Throwable $e) {{\n    \
+         echo $e->getTraceAsString();\n}}\n"
+    );
+    let out = output_of(&source);
+    assert_eq!(out.lines().count(), 1, "{out}");
+    assert!(out.starts_with("#0 Deep::level3() at "), "{out}");
+}
+
+#[test]
+fn a_fatal_is_never_caught() {
+    // ADR 0020: a resource-limit stop is not a `Throwable`, so the `catch`
+    // this program wraps around it does not run and the status travels on out.
+    let mut ctx = Ctx::buffered();
+    ctx.request_safepoint(SafepointFlags::CPU_LIMIT);
+    let source = format!(
+        "{THROWS}\ntry {{\n    Deep::level1();\n}} catch (Throwable $e) {{\n    \
+         echo \"caught\";\n}}\n"
+    );
+    assert_eq!(run_with(&mut ctx, &source).unwrap_err(), FATAL);
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b""[..]));
+}
+
+#[test]
+fn a_frame_that_throws_releases_the_strings_it_still_held() {
+    // The error path's refcount cleanup, observed rather than assumed: the
+    // caught exception's message is the only allocation still alive once the
+    // dust settles, so a landing block that skipped its releases would leave
+    // the local's buffer behind. `mwl-ir`'s landing blocks are what put the
+    // releases there; this checks the backend actually emits them.
+    let source = format!(
+        "{THROWS}\ntry {{\n    string $held = \"kept alive\";\n    Deep::level1();\n    \
+         echo $held;\n}} catch (Throwable $e) {{\n    echo \"caught: \" . $e->getMessage();\n}}\n"
+    );
+    assert_eq!(output_of(&source), "caught: boom");
 }
