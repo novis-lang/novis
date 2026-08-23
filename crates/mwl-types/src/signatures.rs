@@ -717,6 +717,58 @@ pub fn resolve_iteration_element(
     resolve_iteration_rec(qname, table, graph, &mut seen, &mut cursor).or(cursor)
 }
 
+/// The concrete type arguments `qname` fixed for `target` — `Some(vec![])`
+/// when it reaches `target` at no arguments at all, `None` when it does not
+/// reach it.
+///
+/// [`mwl_hir::hierarchy::implements_interface`] answers the *reachability*
+/// half of the same question and is the right table for it; this one exists
+/// for [`ClassSignature::implements`]'s reason — the arguments need
+/// [`TypeId`]s `mwl-hir` has no interner for. So `Nums implements
+/// Iterator<int>` is reachable-from-`Iterator` there and `[int]` here, which
+/// is what lets [`crate::expr::is_assignable`] accept a `Nums` where an
+/// `Iterator<int>` is declared and refuse it where an `Iterator<string>` is.
+#[must_use]
+pub fn resolve_interface_args(
+    qname: &QName,
+    target: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Option<Vec<TypeId>> {
+    let mut seen = FxHashSet::default();
+    resolve_interface_args_rec(qname, target, table, graph, &mut seen)
+}
+
+fn resolve_interface_args_rec(
+    qname: &QName,
+    target: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+    seen: &mut FxHashSet<QName>,
+) -> Option<Vec<TypeId>> {
+    if !seen.insert(qname.clone()) {
+        return None;
+    }
+    if let Some(sig) = table.get(qname)
+        && let Some((_, args)) = sig.implements.iter().find(|(name, _)| name == target)
+    {
+        return Some(args.clone());
+    }
+    let links = graph.get(qname)?;
+    let parents: Vec<QName> = links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .cloned()
+        .collect();
+    parents.iter().find_map(|parent| {
+        if parent == target {
+            return Some(Vec::new());
+        }
+        resolve_interface_args_rec(parent, target, table, graph, seen)
+    })
+}
+
 /// The `Iterable` half of [`resolve_iteration_element`]; any `Iterator` found
 /// on the way is left in `cursor` as the fallback.
 fn resolve_iteration_rec(

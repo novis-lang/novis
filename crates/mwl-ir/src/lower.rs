@@ -50,7 +50,7 @@ use mwl_syntax::ast::{
     ForeachBinding, MethodMember, Modifier, NamespaceDecl, NewTarget, Stmt, StmtKind, StringPart,
     Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
-use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
+use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
 use mwl_types::layout::ClassLayoutTable;
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -2332,6 +2332,36 @@ impl<'a> Lowering<'a> {
              copy-on-write separation has to be told not to separate; see the crate docs' known \
              gaps"
         );
+        // ADR 0053 § 3's three shapes are three loops, and which one this is
+        // was decided by the checker — `mwl-ir` cannot re-derive it, because
+        // reaching `Iterable` through a base class needs the `ClassGraph`
+        // this crate deliberately does not depend on. See
+        // `mwl_types::ExprTypeTable::foreach_drive`.
+        let drive = self.exprs.foreach_drive(subject.span).unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: the `foreach` subject at {:?} has no recorded `ForeachDrive` — either \
+                 it erased to `mixed` (unsupported, see the crate docs' known gaps) or this \
+                 program did not pass mwl_types::check_program with the same table",
+                subject.span
+            )
+        });
+        if drive != ForeachDrive::Array {
+            assert!(
+                key.is_none(),
+                "mwl-ir: a `foreach` key binding over an `Iterable`/`Iterator` subject reached \
+                 lowering — ADR 0053 § 1 gives a cursor no key at all, and mwl_types reports \
+                 E0444 for one"
+            );
+            self.lower_foreach_cursor(
+                subject,
+                value,
+                drive == ForeachDrive::Iterable,
+                body,
+                cur,
+                env,
+            );
+            return;
+        }
         let value_ty = binding_ty(value, "value", self.exprs, self.checked_types);
         let key_binding = key.map(|k| {
             let ty = binding_ty(k, "key", self.exprs, self.checked_types);
@@ -2527,6 +2557,239 @@ impl<'a> Lowering<'a> {
         *env = self.merge_envs(after_block, &after_incoming, &exit_env);
         self.emit_release(after_block, array_v);
         *cur = after_block;
+    }
+
+    /// `foreach ($subject as $v) body` over ADR 0053 § 3's other two shapes —
+    /// an `Iterable<T>`, whose `iterate()` is called once for a fresh cursor,
+    /// and an `Iterator<T>`, which *is* the cursor.
+    ///
+    /// The two differ by exactly that one call, so they share everything
+    /// below it: `via_iterable` decides whether the value the loop drives is
+    /// the subject itself or `iterate()`'s result.
+    ///
+    /// Structurally [`Self::lower_while`] again, with `advance()` as the
+    /// condition — so the phi/`break`/`continue` machinery is unchanged from
+    /// [`Self::lower_foreach`], and only what the header and the body's first
+    /// instructions do is different:
+    ///
+    /// * **Both members are [`InstKind::CallVirtual`]**, never a static
+    ///   [`InstKind::Call`]. ADR 0053 § 1's interfaces declare `advance`,
+    ///   `current` and `iterate` without bodies, and `mwl_types::iter_lib`'s
+    ///   own docs own why that is the mechanism rather than an accident: a
+    ///   call resolving to a bodiless declaration names no compiled function,
+    ///   so it dispatches on the receiver's runtime class — which is exactly
+    ///   what driving a cursor whose concrete class the loop never knows
+    ///   needs. This method therefore emits the instructions itself instead
+    ///   of routing a synthesized AST node through [`Self::lower_expr`];
+    ///   there is no `$cursor->advance()` in the source to look up.
+    /// * **The loop owns one reference to the cursor**, released in the
+    ///   after-block, and *retains it again before each member call* — a
+    ///   receiver is parameter 0 and MWL transfers an argument's reference to
+    ///   the callee (see [`ArgOwnership::Transferred`]), so a call that did
+    ///   not retain first would consume the loop's own. It lives in the
+    ///   [`Env`] under a reserved `foreach#N$iter` name for
+    ///   [`Self::lower_foreach`]'s reason: that is what gets it swept by
+    ///   [`Self::release_all_locals`] on a throw out of the body, and hidden
+    ///   from everything after the loop by [`LoopFrame::loop_private`].
+    /// * **`iterate()` consumes the subject reference this frame is holding**
+    ///   rather than retaining a second one — the loop has no further use for
+    ///   the subject once it has a cursor. For an aliasing subject that is
+    ///   the retain taken just above; for a fresh one (`new Bag(4)`) it is
+    ///   the single reference `Self::lower_expr_top` produced, which is why
+    ///   that value is never entered into the `Env` and the after-block
+    ///   releases the *cursor* instead.
+    /// * **There is no cursor phi and no key.** The driven value never
+    ///   changes — the position it walks lives inside the cursor object, not
+    ///   in this frame — and ADR 0053 § 1 gives `Iterator<T>` no key member
+    ///   for a binding to read.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the subject did not lower to a [`Ty::Object`], which would
+    /// mean `mwl_types` classified something as a cursor that has no runtime
+    /// class to dispatch on.
+    fn lower_foreach_cursor(
+        &mut self,
+        subject: &Expr,
+        value: &ForeachBinding,
+        via_iterable: bool,
+        body: &'a Stmt,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        let value_ty = binding_ty(value, "value", self.exprs, self.checked_types);
+        let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
+
+        let (subject_v, subject_ty) = self.lower_expr_top(subject, None, env, cur);
+        assert!(
+            subject_ty == Ty::Object,
+            "mwl-ir: a `foreach` subject mwl_types classified as a cursor lowered to \
+             {subject_ty:?} rather than an object — ADR 0053 § 3's `Iterable`/`Iterator` shapes \
+             are both class types"
+        );
+        if self.aliasing_read(subject) {
+            self.emit_retain(*cur, subject_v);
+        }
+
+        let cursor_v = if via_iterable {
+            self.emit_iface_call(*cur, subject_v, false, "iterate", Ty::Object, env)
+        } else {
+            subject_v
+        };
+
+        let seq = self.foreach_seq;
+        self.foreach_seq += 1;
+        let cursor_name = format!("foreach#{seq}$iter");
+        env.insert(cursor_name.clone(), (cursor_v, Ty::Object));
+
+        let mut seen = FxHashSet::default();
+        let mut reassigned = Vec::new();
+        self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+
+        let pre_block = *cur;
+        let header_block = self.new_block();
+        self.seal(pre_block, Terminator::Jump(header_block));
+
+        let mut header_env = env.clone();
+        let mut phi_slots: Vec<(String, usize)> = Vec::new();
+        for name in &reassigned {
+            let Some(&(pre_v, ty)) = env.get(name) else {
+                continue;
+            };
+            // See `Self::lower_foreach`: a `&$x` parameter's binding is an
+            // address that never changes, so a header phi for one would carry
+            // the same value on both edges and describe nothing.
+            if ty == Ty::Ref {
+                continue;
+            }
+            let phi_v = self.ids.next_value();
+            let inst_index = self.block_insts[header_block.index() as usize].len();
+            self.block_insts[header_block.index() as usize].push(Inst {
+                result: Some(phi_v),
+                ty: Some(ty),
+                kind: InstKind::Phi {
+                    incoming: vec![(pre_block, pre_v)],
+                },
+                on_error: None,
+            });
+            header_env.insert(name.clone(), (phi_v, ty));
+            phi_slots.push((name.clone(), inst_index));
+        }
+
+        let more_v = self.emit_iface_call(
+            header_block,
+            cursor_v,
+            true,
+            "advance",
+            Ty::Bool,
+            &header_env,
+        );
+
+        let body_block = self.new_block();
+        let after_block = self.new_block();
+        let body_edge = self.ids.next_edge(body.span);
+        let after_edge = self.ids.next_edge(subject.span);
+        self.seal(
+            header_block,
+            Terminator::Branch {
+                cond: more_v,
+                then_block: body_block,
+                then_edge: body_edge,
+                else_block: after_block,
+                else_edge: after_edge,
+            },
+        );
+
+        self.loop_stack.push(LoopFrame {
+            header_block,
+            after_block,
+            continue_edges: Vec::new(),
+            break_edges: Vec::new(),
+            iteration_owned: vec![value_name.clone()],
+            loop_private: vec![cursor_name.clone()],
+        });
+
+        let mut body_env = header_env.clone();
+        let mut body_cur = body_block;
+        let v_v = self.emit_iface_call(body_cur, cursor_v, true, "current", value_ty, &body_env);
+        body_env.insert(value_name, (v_v, value_ty));
+
+        self.lower_stmt(body, &mut body_cur, &mut body_env);
+        let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
+        if !self.is_terminated(body_cur) {
+            self.end_iteration(body_cur, &mut body_env);
+            self.emit_safepoint(body_cur);
+            self.seal(body_cur, Terminator::Jump(header_block));
+            back_edges.push((body_cur, body_env));
+        }
+        let frame = self
+            .loop_stack
+            .pop()
+            .expect("just pushed this loop's own frame above");
+        back_edges.extend(frame.continue_edges);
+        for (name, inst_index) in &phi_slots {
+            for (block, back_env) in &back_edges {
+                let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
+                    panic!(
+                        "mwl-ir: `{name}` was reassigned in a foreach body per the syntactic \
+                         scan but is missing from a back edge's exit environment — bug in \
+                         collect_reassigned_locals"
+                    )
+                });
+                let inst = &mut self.block_insts[header_block.index() as usize][*inst_index];
+                let InstKind::Phi { incoming } = &mut inst.kind else {
+                    unreachable!("phi_slots only ever indexes a Phi instruction");
+                };
+                incoming.push((*block, back_v));
+            }
+        }
+
+        let mut exit_env = header_env.clone();
+        exit_env.remove(&cursor_name);
+        let mut after_incoming: Vec<(BlockId, Env)> = vec![(header_block, exit_env.clone())];
+        after_incoming.extend(frame.break_edges);
+        *env = self.merge_envs(after_block, &after_incoming, &exit_env);
+        self.emit_release(after_block, cursor_v);
+        *cur = after_block;
+    }
+
+    /// One ADR 0053 § 1 member call on `receiver`, emitted directly rather
+    /// than lowered from source — see [`Self::lower_foreach_cursor`] for why
+    /// there is no AST node to route through.
+    ///
+    /// `keep_receiver` says whether the caller still owns its reference
+    /// afterwards. A receiver is parameter 0 and MWL transfers an argument's
+    /// reference to the callee ([`ArgOwnership::Transferred`]), on the
+    /// callee's throw path as much as its return path, so keeping one means
+    /// retaining a second — which is what the loop's per-iteration
+    /// `advance()`/`current()` pair does, and what the once-only `iterate()`
+    /// deliberately does not.
+    fn emit_iface_call(
+        &mut self,
+        b: BlockId,
+        receiver: ValueId,
+        keep_receiver: bool,
+        method: &str,
+        ret: Ty,
+        env: &Env,
+    ) -> ValueId {
+        if keep_receiver {
+            self.emit_retain(b, receiver);
+        }
+        let (lsb, _) = self.emit(b, Ty::ClassDesc, InstKind::ClassDescOf { object: receiver });
+        let (v, _) = self.emit_fallible(
+            b,
+            ret,
+            InstKind::CallVirtual {
+                lsb,
+                method: method.to_owned(),
+                fallback: None,
+                receiver: Some(receiver),
+                args: Vec::new(),
+            },
+            env,
+        );
+        v
     }
 
     /// `unset($a[$k]);` — the one `unset` target ADR 0028 § 3 leaves
@@ -6974,6 +7237,48 @@ class T {
 class T {
   function m(array<string> $a): void {
     foreach ($a as string $v) {
+      echo $v;
+    }
+  }
+}
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `foreach` over an `Iterator<T>` — ADR 0053 § 3's third shape. Every
+    /// member call is a `call.virtual`, never a static `call`: the interface
+    /// declares both without a body, so there is no compiled function to
+    /// name. The cursor is retained before each one, since a receiver is
+    /// parameter 0 and MWL transfers an argument's reference to the callee.
+    #[test]
+    fn a_foreach_over_a_cursor_drives_advance_then_current_virtually() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class T {
+  function m(Iterator<int> $c): void {
+    foreach ($c as int $v) {
+      echo $v;
+    }
+  }
+}
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `foreach` over an `Iterable<T>` — the same loop with one `iterate()`
+    /// ahead of it. The subject's own reference is *transferred* into that
+    /// call rather than retained for it, which is why the subject never
+    /// enters the `Env` and the loop's after-block releases the cursor
+    /// instead.
+    #[test]
+    fn a_foreach_over_an_iterable_calls_iterate_once_before_the_loop() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class T {
+  function m(Iterable<int> $it): void {
+    foreach ($it as int $v) {
       echo $v;
     }
   }

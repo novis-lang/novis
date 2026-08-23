@@ -761,12 +761,13 @@
 //!   naming the statement. [`ir::Terminator::Branch`] and [`ids::EdgeId`]
 //!   are both already exercised by `if`/`while`, so widening to the rest is
 //!   expected to reuse the same shapes rather than add new ones — see
-//!   [`lower`]'s module docs. `foreach` *does* lower, over an `array<T>`
-//!   subject only — see [`lower::Lowering::lower_foreach`], which owns the
-//!   whole policy. Out of scope there, each panicking rather than
-//!   miscompiling: an ADR 0053 `Iterable`/`Iterator` subject, a `&$v`
-//!   by-reference value binding, and a key binding declared as anything but
-//!   `string`.
+//!   [`lower`]'s module docs. `foreach` *does* lower, over all three of
+//!   ADR 0053 § 3's subject shapes: an `array<T>` in
+//!   [`lower::Lowering::lower_foreach`] and an `Iterable<T>`/`Iterator<T>`
+//!   in [`lower::Lowering::lower_foreach_cursor`], each of which owns its
+//!   own policy. Out of scope in the array case, each panicking rather than
+//!   miscompiling: a `&$v` by-reference value binding, and a key binding
+//!   declared as anything but `string`.
 //! - **`break`/`continue` lower for a `while` or `foreach` loop, level 1
 //!   only.** See the twenty-first-slice paragraph above for
 //!   [`lower::LoopFrame`]'s shape and how a `continue`'s edge folds into the

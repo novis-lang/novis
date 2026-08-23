@@ -1,0 +1,55 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; object
+    ; stmt s0 @4:5-6:6
+    retain v1
+    v2 = class.of v1  ; classdesc
+    v3 = call.virtual v2::iterate else <abstract>(this: v1) ! bb1  ; object
+    jump bb2
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb2:
+    retain v3
+    v4 = class.of v3  ; classdesc
+    v5 = call.virtual v4::advance else <abstract>(this: v3) ! bb3  ; bool
+    branch v5 -> bb4 (e0), bb5 (e1)
+  bb3:
+    release v3
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb4:
+    retain v3
+    v6 = class.of v3  ; classdesc
+    v7 = call.virtual v6::current else <abstract>(this: v3) ! bb6  ; int
+    ; stmt s1 @4:29-6:6
+    ; stmt s2 @5:7-5:15
+    v8 = helper.int_to_string v7  ; string
+    helper.echo_str v8 ! bb7
+    release v8
+    safepoint
+    jump bb2
+  bb5:
+    release v3
+    release v1
+    release v0
+    return
+  bb6:
+    release v3
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+  bb7:
+    release v3
+    release v1
+    release v0
+    propagate "m() at t.mwl:5"
+}

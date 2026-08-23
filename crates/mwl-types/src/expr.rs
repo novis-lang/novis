@@ -112,7 +112,7 @@ use mwl_syntax::ast::{
 };
 use rustc_hash::FxHashSet;
 
-use crate::expr_table::{ExprInfo, ResolvedCall};
+use crate::expr_table::{ExprInfo, ForeachDrive, ResolvedCall};
 use crate::locals::LocalScope;
 use crate::lower::lower_type;
 use crate::signatures::{MethodSig, SignatureTable, resolve_method, resolve_property};
@@ -242,6 +242,10 @@ pub(crate) fn is_assignable(
     {
         return true;
     }
+    if let (Ty::Class(from_q, _), Ty::Class(to_q, to_args)) = (interner.get(from), interner.get(to))
+    {
+        return class_satisfied(from_q, to_q, to_args, graph, signatures);
+    }
     if let Ty::Shape(to_fields) = interner.get(to) {
         return shape_satisfied(from, to_fields, interner, graph, signatures);
     }
@@ -263,6 +267,39 @@ pub(crate) fn is_assignable(
         }
     }
     false
+}
+
+/// Whether a value of class `from_q` may be used where the class or
+/// interface `to_q` (at `to_args`) is declared — MWL's one nominal subtyping
+/// rule, and deliberately the whole of it.
+///
+/// `from_q` satisfies `to_q` when it reaches it through `extends`/
+/// `implements`; the two [`QName`]s being equal is already handled by
+/// [`is_assignable`]'s interning check, since a class type is interned
+/// structurally. There is **no variance**: a generic target (ADR 0053 § 2's
+/// `Iterable<T>`/`Iterator<T>`, which are the only generic names user code
+/// can write) additionally requires the arguments `from_q` fixed for it to
+/// equal `to_args` exactly, so `Iterator<int>` never satisfies
+/// `Iterator<mixed>`. Widening a cursor's element type is not obviously
+/// sound in either direction — `current()` returns `T` while a future
+/// `Sink<T>` would consume one — and nothing on ADR 0053's path needs it, so
+/// the invariant rule is what is committed to here rather than a covariant
+/// one that would be expensive to take back.
+fn class_satisfied(
+    from_q: &QName,
+    to_q: &QName,
+    to_args: &[TypeId],
+    graph: &ClassGraph,
+    signatures: &SignatureTable,
+) -> bool {
+    if !mwl_hir::hierarchy::implements_interface(from_q, to_q, graph) {
+        return false;
+    }
+    if to_args.is_empty() {
+        return true;
+    }
+    crate::signatures::resolve_interface_args(from_q, to_q, signatures, graph)
+        .is_some_and(|args| args == to_args)
 }
 
 /// ADR 0036 § 3's structural check for a shape target: `from` must have at
@@ -1233,7 +1270,14 @@ pub(crate) enum ForeachSource {
     /// An `Iterable<T>` or `Iterator<T>`, written as such or reached through
     /// a class that implements one. A cursor has no key: ADR 0053 § 1's
     /// member set is `advance`/`current` and nothing else.
-    Cursor { value: TypeId },
+    Cursor {
+        /// The element type `current()` yields.
+        value: TypeId,
+        /// Whether the subject reaches `Iterable<T>` — so `foreach` calls
+        /// `iterate()` once before driving — rather than being a cursor
+        /// already.
+        via_iterable: bool,
+    },
     /// `mixed`, or a subject already diagnosed as something else — check
     /// nothing further and let the written binding types stand, so one
     /// mistake produces one diagnostic.
@@ -1243,7 +1287,21 @@ pub(crate) enum ForeachSource {
 impl ForeachSource {
     fn value_ty(self) -> Option<TypeId> {
         match self {
-            Self::Array { value } | Self::Cursor { value } => Some(value),
+            Self::Array { value } | Self::Cursor { value, .. } => Some(value),
+            Self::Unchecked => None,
+        }
+    }
+
+    /// The [`ForeachDrive`] `mwl-ir` reads back off the subject's span, or
+    /// `None` for the shape that records nothing at all.
+    fn drive(self) -> Option<ForeachDrive> {
+        match self {
+            Self::Array { .. } => Some(ForeachDrive::Array),
+            Self::Cursor { via_iterable, .. } => Some(if via_iterable {
+                ForeachDrive::Iterable
+            } else {
+                ForeachDrive::Cursor
+            }),
             Self::Unchecked => None,
         }
     }
@@ -1252,6 +1310,14 @@ impl ForeachSource {
 /// Classifies a `foreach` subject, diagnosing one that is none of ADR 0053
 /// § 3's three shapes.
 pub(crate) fn foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) -> ForeachSource {
+    let source = classify_foreach_source(subject_ty, span, env);
+    if let Some(drive) = source.drive() {
+        env.exprs.record_foreach(span, drive);
+    }
+    source
+}
+
+fn classify_foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) -> ForeachSource {
     match env.interner.get(subject_ty).clone() {
         Ty::Array(elem) => ForeachSource::Array { value: elem },
         // `mixed` is the one unchecked position (ADR 0007 § 1) and `iterable`
@@ -1262,10 +1328,16 @@ pub(crate) fn foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) 
             if qname.is_reserved_global_interface()
                 && let Some(&value) = args.first()
             {
-                return ForeachSource::Cursor { value };
+                return ForeachSource::Cursor {
+                    value,
+                    via_iterable: qname.short_name() == mwl_hir::interfaces::ITERABLE,
+                };
             }
             match crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph) {
-                Some((_, value)) => ForeachSource::Cursor { value },
+                Some((interface, value)) => ForeachSource::Cursor {
+                    value,
+                    via_iterable: interface.short_name() == mwl_hir::interfaces::ITERABLE,
+                },
                 None => {
                     report_not_iterable(subject_ty, span, env);
                     ForeachSource::Unchecked

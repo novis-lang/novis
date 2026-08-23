@@ -183,7 +183,7 @@ pub mod ty;
 pub use check::{HOOK_VALUE_PARAM, check_program};
 pub use core_lib::symbol_of as core_symbol_of;
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
-pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ResolvedCall};
+pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 pub use ty::{Ty, TypeId, TypeInterner};
 

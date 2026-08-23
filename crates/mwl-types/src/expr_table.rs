@@ -255,6 +255,22 @@ pub enum ExprInfo {
     },
 }
 
+/// Which of ADR 0053 § 3's three subject shapes a `foreach` is walking, and
+/// therefore which loop `mwl-ir` emits.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ForeachDrive {
+    /// An `array<T>`: walked slot by slot with no interface call and no
+    /// allocation. The only shape with keys.
+    Array,
+    /// An `Iterable<T>`: `iterate()` is called once and the cursor it returns
+    /// is driven. Wins over [`Self::Cursor`] when a class reaches both — see
+    /// [`crate::signatures::resolve_iteration_element`] for why.
+    Iterable,
+    /// An `Iterator<T>`: driven directly, `advance()` then `current()`, with
+    /// no `iterate()` call at all.
+    Cursor,
+}
+
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
 /// looked up by the source span of the expression it describes. See the
 /// module docs for the full design and why a span is the lookup key.
@@ -264,6 +280,7 @@ pub struct ExprTypeTable {
     by_span: FxHashMap<Span, ExprId>,
     methods: FxHashMap<Span, String>,
     types: FxHashMap<Span, TypeId>,
+    foreach: FxHashMap<Span, ForeachDrive>,
 }
 
 impl ExprTypeTable {
@@ -327,6 +344,35 @@ impl ExprTypeTable {
     #[must_use]
     pub fn method_label(&self, span: Span) -> Option<&str> {
         self.methods.get(&span).map(String::as_str)
+    }
+
+    /// Records how the `foreach` whose subject sits at `span` reaches its
+    /// elements. See [`Self::foreach_drive`].
+    pub(crate) fn record_foreach(&mut self, span: Span, drive: ForeachDrive) {
+        self.foreach.insert(span, drive);
+    }
+
+    /// Which of ADR 0053 § 3's three shapes the `foreach` subject at `span`
+    /// turned out to be — `None` for a subject that erased to
+    /// `mixed`/`iterable` or was already diagnosed as none of the three,
+    /// which is the same "nothing compile-time-known" answer
+    /// [`ExprInfo::Property`] gives an erased receiver.
+    ///
+    /// Its own map rather than an [`ExprInfo`] variant, and deliberately: a
+    /// subject is an ordinary expression that has usually already recorded an
+    /// entry of its own under exactly this span (`foreach (new Nums(5) as …)`
+    /// records an [`ExprInfo::New`] there), and [`Self::record`] repoints
+    /// `by_span` at the most recent entry. Two independent facts about one
+    /// span need two maps; this is the same reason [`Self::record_method`]
+    /// and [`Self::record_type`] have theirs.
+    ///
+    /// Recorded rather than left to `mwl-ir` for [`ExprInfo::InstanceOf`]'s
+    /// reason: reaching `Iterable` through a base class is a
+    /// [`crate::signatures::resolve_iteration_element`] walk over
+    /// [`mwl_hir::ClassGraph`], which `mwl-ir` does not depend on.
+    #[must_use]
+    pub fn foreach_drive(&self, span: Span) -> Option<ForeachDrive> {
+        self.foreach.get(&span).copied()
     }
 
     /// Records the [`TypeId`] a *declared* type annotation at `span` resolved
