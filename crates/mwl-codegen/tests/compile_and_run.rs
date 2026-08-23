@@ -199,16 +199,40 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
 
 #[test]
 fn disassembling_an_unlowered_shape_reports_it_rather_than_printing_half_a_unit() {
-    let error = mwl_codegen::disassemble(&lower("<?mwl\necho \"a\" . \"b\";\n")).unwrap_err();
-    assert!(error.to_string().contains("concatenation"), "{error}");
+    let error = mwl_codegen::disassemble(&lower("<?mwl\narray<int> $a = [1, 2];\n")).unwrap_err();
+    assert!(error.to_string().contains("array literal"), "{error}");
 }
 
 #[test]
 fn an_unlowered_shape_is_an_error_naming_it_rather_than_a_panic() {
-    // `.` concatenation has no runtime primitive yet — the crate docs' known
-    // gap 1. What matters is that the backend *says so* instead of panicking
-    // or, worse, emitting something.
-    let error = compile("<?mwl\necho \"a\" . \"b\";\n").unwrap_err();
+    // An array has no runtime representation yet — the crate docs' known gap
+    // 1. What matters is that the backend *says so* instead of panicking or,
+    // worse, emitting something.
+    let error = compile("<?mwl\narray<int> $a = [1, 2];\n").unwrap_err();
     let message = error.to_string();
-    assert!(message.contains("concatenation"), "{message}");
+    assert!(message.contains("array literal"), "{message}");
+}
+
+#[test]
+fn concatenation_joins_its_operands_and_converts_a_scalar_one_first() {
+    // `.` over two strings is one `mwl_str_concat`; over a scalar it is the
+    // matching `…ToString` helper first, which `mwl-ir` inserts. Both halves
+    // are what every acceptance example past `hello.mwl` runs on.
+    assert_eq!(output_of("<?mwl\necho \"a\" . \"b\";\n"), "ab");
+    assert_eq!(output_of("<?mwl\necho \"\" . \"\";\n"), "");
+    assert_eq!(output_of("<?mwl\necho \"n = \" . 42 . \"!\";\n"), "n = 42!");
+    assert_eq!(output_of("<?mwl\necho \"f\" . 1.5 . true;\n"), "f1.51");
+}
+
+#[test]
+fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
+    // Each iteration's result is released once the local it was assigned to is
+    // overwritten, so a botched refcount here shows up as freed bytes rather
+    // than only as a leak. The leak half is what M4's Valgrind/ASAN run is for.
+    assert_eq!(
+        output_of(
+            "<?mwl\nstring $s = \"\";\nint $i = 0;\nwhile ($i < 4) {\n    $s = $s . \"ab\";\n    $i = $i + 1;\n}\necho $s;\n"
+        ),
+        "abababab"
+    );
 }

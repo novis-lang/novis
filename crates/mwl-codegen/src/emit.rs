@@ -270,6 +270,10 @@ impl Emitter<'_, '_> {
             InstKind::HelperCall { helper, args } => {
                 return self.emit_helper(cur, inst, *helper, args);
             }
+            InstKind::Concat { lhs, rhs } => {
+                let value = self.emit_concat(*lhs, *rhs)?;
+                self.define(inst, value)?;
+            }
             InstKind::Retain { operand } => {
                 let (value, ty) = self.value(*operand)?;
                 self.emit_refcount("mwl_str_retain", value, ty)?;
@@ -547,6 +551,30 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
+    /// `.` concatenation: one call to `mwl_str_concat`, which allocates the
+    /// joined buffer once.
+    ///
+    /// No status check and no `Value` materialization: like `mwl_str_new`,
+    /// this is a memory primitive over bare `StrHeader` pointers rather than
+    /// an ADR 0002 helper, because it cannot fail — see `mwl-runtime`'s
+    /// "primitives compiled code calls" section for that split. Neither
+    /// operand is retained or released here; `mwl_ir::ir::InstKind::Concat`'s
+    /// own doc comment owns that rule and `mwl-ir` emits the releases.
+    fn emit_concat(&mut self, lhs: ValueId, rhs: ValueId) -> Result<Value, CodegenError> {
+        let (l, lty) = self.value(lhs)?;
+        let (r, rty) = self.value(rhs)?;
+        for ty in [lty, rty] {
+            if !matches!(ty, Ty::Str | Ty::Bytes) {
+                return Err(internal(
+                    "a concatenation operand that lowering left unconverted",
+                ));
+            }
+        }
+        let callee = self.runtime_ref("mwl_str_concat", RuntimeSig::StrConcat)?;
+        let call = self.b.ins().call(callee, &[l, r]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
     /// A retain or release of one refcounted value.
     ///
     /// [`Ty::Str`] and [`Ty::Bytes`] share the `StrHeader` representation, so
@@ -759,6 +787,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::Safepoint => &self.sigs.safepoint,
             RuntimeSig::Probe => &self.sigs.probe,
             RuntimeSig::StrNew => &self.sigs.str_new,
+            RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::Refcount => &self.sigs.refcount,
         };
         let id = self
@@ -781,6 +810,7 @@ enum RuntimeSig {
     Safepoint,
     Probe,
     StrNew,
+    StrConcat,
     Refcount,
 }
 

@@ -101,7 +101,21 @@ impl MwlStr {
     /// allocator's own behaviour is the honest one.
     #[must_use]
     pub fn new(bytes: &[u8]) -> Self {
-        let layout = str_layout(bytes.len());
+        Self::from_pieces(&[bytes])
+    }
+
+    /// Allocates a fresh string holding `pieces` end to end, with a reference
+    /// count of one — **one** allocation regardless of how many pieces there
+    /// are, which is the whole reason concatenation does not simply build a
+    /// `Vec` and hand it to [`MwlStr::new`]. See [`MwlStr::new`] for the
+    /// allocation-failure behaviour, which is shared.
+    #[must_use]
+    pub fn from_pieces(pieces: &[&[u8]]) -> Self {
+        let len = pieces
+            .iter()
+            .try_fold(0_usize, |total, piece| total.checked_add(piece.len()))
+            .expect("an MWL string's length cannot overflow a usize");
+        let layout = str_layout(len);
         #[expect(
             unsafe_code,
             reason = "a flexible-array-member allocation cannot be expressed \
@@ -116,16 +130,21 @@ impl MwlStr {
             unsafe_code,
             reason = "`ptr` is a fresh, uninitialized, correctly aligned \
                       allocation of exactly `layout`, so writing the header \
-                      and then `bytes.len()` payload bytes behind it stays \
-                      inside it; the two regions cannot overlap because \
-                      `bytes` borrows a different allocation"
+                      and then `len` payload bytes behind it stays inside it; \
+                      the regions cannot overlap because each piece borrows a \
+                      different allocation, and the running offset never \
+                      exceeds `len` because that is their summed length"
         )]
         unsafe {
             ptr.as_ptr().write(StrHeader {
                 refcount: Cell::new(1),
-                len: bytes.len(),
+                len,
             });
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), raw.add(PAYLOAD_OFFSET), bytes.len());
+            let mut at = raw.add(PAYLOAD_OFFSET);
+            for piece in pieces {
+                std::ptr::copy_nonoverlapping(piece.as_ptr(), at, piece.len());
+                at = at.add(piece.len());
+            }
         }
         Self { ptr }
     }
@@ -314,14 +333,14 @@ impl Eq for MwlStr {}
 //
 // These are `extern "C"` but deliberately *not* ADR 0002's checked-return
 // helper shape, and deliberately not written through `mwl_helper!`. That shape
-// exists to carry a failure back to the caller; none of these three can fail —
-// they take no MWL value, allocate at most once, and produce no status — so
-// giving them an unused `*const Value`/`*mut Value` pair and a `catch_unwind`
-// would cost the hottest operations in the runtime an ABI they never use. They
-// are panic-free by construction instead: the only fallible step is
-// allocation, which `handle_alloc_error` turns into an abort rather than an
-// unwind. All three are still `extern "C"` and never `extern "C-unwind"`, so
-// nothing can unwind through a JIT frame either way.
+// exists to carry a failure back to the caller; none of these can fail — they
+// take no MWL value, allocate at most once, and produce no status — so giving
+// them an unused `*const Value`/`*mut Value` pair and a `catch_unwind` would
+// cost the hottest operations in the runtime an ABI they never use. They are
+// panic-free by construction instead: the only fallible step is allocation,
+// which `handle_alloc_error` turns into an abort rather than an unwind. Every
+// one is still `extern "C"` and never `extern "C-unwind"`, so nothing can
+// unwind through a JIT frame either way.
 
 /// Allocates a fresh string from `len` bytes at `ptr`, with a reference count
 /// of one — `mwl_ir::InstKind::ConstStr`'s entry point.
@@ -350,6 +369,39 @@ pub unsafe extern "C" fn mwl_str_new(ptr: *const u8, len: usize) -> *mut StrHead
         }
     };
     MwlStr::new(bytes).into_raw()
+}
+
+/// Allocates a fresh string holding `lhs`'s bytes followed by `rhs`'s, with a
+/// reference count of one — `mwl_ir::InstKind::Concat`'s entry point.
+///
+/// Neither operand is retained or released: that instruction only *reads* its
+/// two operands to build the new buffer, and ownership of each stays wherever
+/// it already was. `mwl_ir::ir::InstKind::Concat`'s own doc comment is the one
+/// home for that rule.
+///
+/// # Safety
+///
+/// `lhs` and `rhs` must each refer to a live MWL string allocation. They may
+/// be the same allocation: the pieces are read before the destination is
+/// written, and the destination is a fresh allocation regardless.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes two raw string pointers whose liveness the \
+              signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_str_concat(
+    lhs: *const StrHeader,
+    rhs: *const StrHeader,
+) -> *mut StrHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees both pointees are live; the borrows \
+                  end before `from_pieces` returns, and it writes only into \
+                  the fresh allocation it made"
+    )]
+    let (left, right) = unsafe { (MwlStr::bytes_of(lhs), MwlStr::bytes_of(rhs)) };
+    MwlStr::from_pieces(&[left, right]).into_raw()
 }
 
 /// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Str` operand.
@@ -467,6 +519,50 @@ mod tests {
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
         let owned = unsafe { MwlStr::from_raw(mwl_str_new(std::ptr::null(), 0)) };
         assert!(owned.is_empty());
+    }
+
+    #[test]
+    fn concat_joins_two_strings_into_one_fresh_allocation() {
+        let lhs = MwlStr::new(b"quadruple(5) = ").into_raw();
+        let rhs = MwlStr::new(b"20").into_raw();
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let joined = mwl_str_concat(lhs, rhs);
+            assert_eq!(MwlStr::bytes_of(joined), b"quadruple(5) = 20");
+            assert_eq!(MwlStr::refcount_of(joined), 1);
+            // Neither operand is retained or released by the concatenation —
+            // see `mwl_str_concat`'s own doc comment.
+            assert_eq!(MwlStr::refcount_of(lhs), 1);
+            assert_eq!(MwlStr::refcount_of(rhs), 1);
+            mwl_str_release(joined);
+            mwl_str_release(lhs);
+            mwl_str_release(rhs);
+        }
+    }
+
+    #[test]
+    fn concat_handles_empty_operands_and_an_aliased_one() {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let empty = MwlStr::new(b"").into_raw();
+            let abc = MwlStr::new(b"abc").into_raw();
+
+            for (lhs, rhs, expected) in [
+                (empty, abc, &b"abc"[..]),
+                (abc, empty, &b"abc"[..]),
+                (empty, empty, &b""[..]),
+                // The same allocation on both sides: read twice, written
+                // nowhere but the fresh result.
+                (abc, abc, &b"abcabc"[..]),
+            ] {
+                let joined = mwl_str_concat(lhs, rhs);
+                assert_eq!(MwlStr::bytes_of(joined), expected);
+                mwl_str_release(joined);
+            }
+
+            mwl_str_release(empty);
+            mwl_str_release(abc);
+        }
     }
 
     #[test]

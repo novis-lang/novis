@@ -58,12 +58,10 @@
 //! decision:
 //!
 //! 1. **No MWL-level call.** [`mwl_ir::ir::InstKind::Call`]/`New`/`FieldGet`/
-//!    `FieldSet`/`Concat`/`ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` all
-//!    report [`CodegenError::Unsupported`] naming the instruction. `Call`
-//!    needs a symbol table over the unit's own functions plus an object/array
-//!    representation for its operands, neither of which exists; `Concat`
-//!    additionally needs a `mwl_str_concat` runtime primitive `mwl-runtime`
-//!    has not grown yet.
+//!    `FieldSet`/`ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` all report
+//!    [`CodegenError::Unsupported`] naming the instruction. `Call` needs a
+//!    symbol table over the unit's own functions; the rest need an
+//!    object/array representation for their operands, which does not exist.
 //! 2. **ADR 0018's call-site probe is not emitted**, because there is no
 //!    compiled call site to attach it to. Its `TRACE`/`PROFILE` entry/exit
 //!    pair lands in [`emit::Emitter::emit_call`]'s single path together with
@@ -222,14 +220,15 @@ struct Jit {
     disasm: Option<String>,
 }
 
-/// The four signatures the runtime exports, beyond the helper ABI itself.
+/// The signatures the runtime exports, beyond the helper ABI itself.
 ///
 /// `mwl-runtime`'s entry points are deliberately not all the same shape:
-/// `mwl_str_new`/`mwl_str_retain`/`mwl_str_release` operate on a raw
-/// `StrHeader` pointer with no context and no `Value`, because they are memory
-/// primitives rather than language operations, and `mwl_probe_stmt` returns
-/// nothing because a coverage probe cannot fail. Each therefore gets its own
-/// signature here rather than being forced through [`Signatures::helper`].
+/// `mwl_str_new`/`mwl_str_concat`/`mwl_str_retain`/`mwl_str_release` operate on
+/// raw `StrHeader` pointers with no context and no `Value`, because they are
+/// memory primitives rather than language operations, and `mwl_probe_stmt`
+/// returns nothing because a coverage probe cannot fail. Each therefore gets
+/// its own signature here rather than being forced through
+/// [`Signatures::helper`].
 struct Signatures {
     /// ADR 0002's calling convention — `(ctx, args, out) -> status`.
     helper: Signature,
@@ -239,6 +238,8 @@ struct Signatures {
     probe: Signature,
     /// `mwl_str_new(ptr, len) -> *mut StrHeader`.
     str_new: Signature,
+    /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`.
+    str_concat: Signature,
     /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`.
     refcount: Signature,
 }
@@ -400,6 +401,11 @@ impl Signatures {
         str_new.params.push(AbiParam::new(ptr));
         str_new.returns.push(AbiParam::new(ptr));
 
+        let mut str_concat = module.make_signature();
+        str_concat.params.push(AbiParam::new(ptr));
+        str_concat.params.push(AbiParam::new(ptr));
+        str_concat.returns.push(AbiParam::new(ptr));
+
         let mut refcount = module.make_signature();
         refcount.params.push(AbiParam::new(ptr));
 
@@ -408,6 +414,7 @@ impl Signatures {
             safepoint,
             probe,
             str_new,
+            str_concat,
             refcount,
         }
     }

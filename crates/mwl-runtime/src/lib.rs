@@ -41,8 +41,9 @@
 //!   [`MwlFn`], [`mwl_helper!`], and the safe [`call`] wrapper tests and
 //!   codegen tests both go through;
 //! * [`MwlStr`], the refcounted single-allocation string, with the
-//!   `mwl_str_new`/`mwl_str_retain`/`mwl_str_release` primitives backing
-//!   `mwl_ir::InstKind::ConstStr`/`Retain`/`Release`;
+//!   `mwl_str_new`/`mwl_str_concat`/`mwl_str_retain`/`mwl_str_release`
+//!   primitives backing `mwl_ir::InstKind::ConstStr`/`Concat`/`Retain`/
+//!   `Release`;
 //! * the [`SafepointFlags`] word and `mwl_safepoint` slow path backing
 //!   `mwl_ir::InstKind::Safepoint`, and the [`DebugFlags`] word
 //!   [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
@@ -98,7 +99,7 @@ pub use ctx::{
 pub use fmt::php_float_to_string;
 pub use helpers::symbols;
 pub use string::{
-    LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_new, mwl_str_release,
-    mwl_str_retain,
+    LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_concat, mwl_str_new,
+    mwl_str_release, mwl_str_retain,
 };
 pub use value::{Tag, Value};
