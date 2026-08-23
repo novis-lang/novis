@@ -1,0 +1,16 @@
+<?mwl
+class Deep {
+    public static function inner(): void {
+        throw new Exception("traced");
+    }
+
+    public static function outer(): void {
+        Deep::inner();
+    }
+}
+
+try {
+    Deep::outer();
+} catch (Throwable $e) {
+    echo $e->getTraceAsString() . "\n";
+}

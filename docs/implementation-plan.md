@@ -529,15 +529,16 @@ baseline tier emits a native instruction for any single-scalar static type and f
 helper only for `mixed`, unions and dynamic calls — a chunk of what M12 was for, arriving with the first
 backend.
 
-**Verify:** `mwl run examples/hello.mwl` prints `Hello, World!` from natively compiled code on all three
-platforms (that exact string is the unattended loop's machine-checked acceptance — see
-`.claude/loop-goal.md`). A
-throw crosses several JIT frames and is caught; a helper panic terminates the script with a `FATAL` status
-and leaves the process able to run the next one. An MWL-level backtrace names the right functions, resolved
-from MWL's own frame chain rather than from the platform unwinder. `mwl run --dump-asm` shows generated
-code. A typed arithmetic loop lowers to native instructions rather than helper calls, committed as a figure
-in `benches/` with a guard, so ADR 0007's claim that mandatory types pay for themselves on the request path
-is tested rather than asserted.
+**Verify:** every bullet below, machine-checked by the unattended loop against the frozen `examples/*.mwl`
+fixtures on Windows and Linux — `.claude/loop-goal.md` holds the one copy of that acceptance list and is
+authoritative for it. `mwl run` prints from natively compiled code. A throw crosses several JIT frames and
+is caught; a helper panic terminates the script with a `FATAL` status and leaves the process able to run the
+next one. An MWL-level backtrace names the right functions, resolved from MWL's own frame chain rather than
+from the platform unwinder, and is readable from MWL through `getTraceAsString()` — `getTrace()` returns an
+array and is a deliberate carry-over to M4, where arrays land. `mwl run --dump-asm` shows generated code. A
+typed arithmetic loop lowers to native instructions rather than helper calls, committed as a figure in
+`benches/` with a guard, so ADR 0007's claim that mandatory types pay for themselves on the request path is
+tested rather than asserted.
 
 ### M4 — Language completeness — a usable CLI language (~10 weeks)
 Full ordered-hash arrays with COW, `uint` arithmetic, and the conversion operator over every row of

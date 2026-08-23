@@ -1,0 +1,12 @@
+<?mwl
+class Math {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+
+    public static function quadruple(int $n): int {
+        return Math::double(Math::double($n));
+    }
+}
+
+echo "quadruple(5) = " . Math::quadruple(5) . "\n";

@@ -20,7 +20,7 @@ survives.
      Use this sparingly: prefer the safe option and note it in the handoff. Reserve `BLOCKED` for a
      decision that would be expensive to reverse.
 
-The driver stops the loop on `DONE` or `BLOCKED`, and on three consecutive sessions that produce no commit.
+The driver stops the loop on `DONE` or `BLOCKED`, and after `-MaxStalls` consecutive sessions with no commit.
 
 ## The goal
 

@@ -1,0 +1,12 @@
+<?mwl
+class Boom {
+    public static function inner(): void {
+        throw new Exception("unhandled");
+    }
+
+    public static function outer(): void {
+        Boom::inner();
+    }
+}
+
+Boom::outer();

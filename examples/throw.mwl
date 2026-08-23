@@ -1,0 +1,21 @@
+<?mwl
+class Deep {
+    public static function level3(): void {
+        throw new Exception("boom");
+    }
+
+    public static function level2(): void {
+        Deep::level3();
+    }
+
+    public static function level1(): void {
+        Deep::level2();
+    }
+}
+
+try {
+    Deep::level1();
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo "caught: " . $e->getMessage() . "\n";
+}
