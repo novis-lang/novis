@@ -120,6 +120,13 @@ where
                 },
             )
         };
+        // Inside `catch_unwind`, so an injected fault is contained exactly the
+        // way a real helper bug would be — which is the only thing this hook
+        // exists to demonstrate. See `crate::ctx::FaultSite`.
+        assert!(
+            !ctx.take_armed_helper_panic(),
+            "internal error: injected helper panic (--fault-inject=helper-panic)"
+        );
         body(ctx, args)
     }));
 

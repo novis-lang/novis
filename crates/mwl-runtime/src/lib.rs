@@ -49,7 +49,10 @@
 //!   [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's probe sites check, with [`mwl_probe_stmt`] as the
 //!   statement-boundary probe's slow path;
-//! * nine of the ten `mwl_ir::Helper` variants — see [`helpers`].
+//! * nine of the ten `mwl_ir::Helper` variants — see [`helpers`];
+//! * [`FaultSite`], the closed set of failures a run can be *asked* to
+//!   produce, so a contained engine panic — which has no user-facing trigger
+//!   by definition — is testable at all.
 //!
 //! ## Known gaps
 //!
@@ -93,8 +96,8 @@ mod value;
 
 pub use abi::{FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, call, run_helper};
 pub use ctx::{
-    Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, OutputSink, SAFEPOINT_OFFSET, SafepointFlags, TraceEvent,
-    mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint,
+    Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, FaultSite, OutputSink, SAFEPOINT_OFFSET, SafepointFlags,
+    TraceEvent, mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint,
 };
 pub use fmt::php_float_to_string;
 pub use helpers::symbols;

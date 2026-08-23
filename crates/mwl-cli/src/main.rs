@@ -66,7 +66,32 @@ enum Command {
         /// Print the generated machine code instead of running it.
         #[arg(long, conflicts_with = "dump_ir")]
         dump_asm: bool,
+        /// Provoke an engine failure at a named site, for testing containment.
+        ///
+        /// Deliberately scoped to `mwl run` and nothing else: a contained
+        /// engine panic has no user-facing trigger by definition, so it needs
+        /// a hook to be testable at all — and that hook must never be
+        /// reachable from a served request. `mwl serve` (M7) does not get one.
+        /// `mwl_runtime::FaultSite` documents each site.
+        #[arg(long, value_name = "SITE")]
+        fault_inject: Option<FaultSiteArg>,
     },
+}
+
+/// The closed set of sites `--fault-inject` accepts, one per
+/// [`mwl_runtime::FaultSite`].
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum FaultSiteArg {
+    /// The request's second runtime helper call panics.
+    HelperPanic,
+}
+
+impl From<FaultSiteArg> for mwl_runtime::FaultSite {
+    fn from(arg: FaultSiteArg) -> Self {
+        match arg {
+            FaultSiteArg::HelperPanic => Self::HelperPanic,
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -78,7 +103,8 @@ fn main() -> ExitCode {
             file,
             dump_ir,
             dump_asm,
-        } => run_run(&file, dump_ir, dump_asm),
+            fault_inject,
+        } => run_run(&file, dump_ir, dump_asm, fault_inject),
     }
 }
 
@@ -175,7 +201,12 @@ fn run_check(path: &std::path::Path) -> ExitCode {
 /// same spelling `mwl-ir`'s own snapshots use.
 const SCRIPT: &str = "<script>";
 
-fn run_run(path: &std::path::Path, dump_ir: bool, dump_asm: bool) -> ExitCode {
+fn run_run(
+    path: &std::path::Path,
+    dump_ir: bool,
+    dump_asm: bool,
+    fault_inject: Option<FaultSiteArg>,
+) -> ExitCode {
     let checked = match front_end(path) {
         Ok(checked) => checked,
         Err(code) => return code,
@@ -227,6 +258,9 @@ fn run_run(path: &std::path::Path, dump_ir: bool, dump_asm: bool) -> ExitCode {
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
     let mut ctx = mwl_runtime::Ctx::stdout();
+    if let Some(site) = fault_inject {
+        ctx.inject_fault(site.into());
+    }
     let outcome = mwl_runtime::call(entry, &mut ctx, &[]);
     // Flushed before anything is reported: Rust's standard output is
     // line-buffered, and `echo "Hello, World!"` has no trailing newline.
@@ -240,10 +274,13 @@ fn run_run(path: &std::path::Path, dump_ir: bool, dump_asm: bool) -> ExitCode {
         Err(status) => {
             // ADR 0020's ladder is not built yet; until it is, the honest
             // report is the status and whatever message the runtime recorded.
+            // The two spellings are the ladder's own tier names: an uncaught
+            // throw is tier 2, a `FATAL` is tier 3 and above, and nothing
+            // below the engine floor can catch either.
             let kind = if status == mwl_runtime::THROWN {
-                "uncaught exception"
+                "Uncaught Exception"
             } else {
-                "fatal error"
+                "FATAL"
             };
             let message = ctx
                 .take_pending()

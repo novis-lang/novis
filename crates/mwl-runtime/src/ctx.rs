@@ -141,6 +141,41 @@ pub struct Ctx {
     /// request. `PROFILE`'s self/inclusive timing shares these two sites and
     /// lands with that sink.
     trace: Vec<TraceEvent>,
+    /// The armed fault-injection site, if any. See [`FaultSite`].
+    ///
+    /// A request with nothing armed — every request that is not a
+    /// `mwl run --fault-inject=…` — pays one `Option` test per helper entry
+    /// and touches `helper_calls` never.
+    fault: Option<FaultSite>,
+    /// How many runtime helpers this request has entered, counted only while
+    /// `fault` is armed. See [`FaultSite::HelperPanic`].
+    helper_calls: u32,
+}
+
+/// A failure a run can be *asked* to produce, for a mode that by definition
+/// has no user-facing trigger.
+///
+/// The set is closed on purpose, and reachable only through `mwl run
+/// --fault-inject=<site>`: it must never be reachable from a served request
+/// (`mwl serve`, M7), and nothing in MWL source can arm one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FaultSite {
+    /// The request's **second** runtime helper call panics, which
+    /// [`crate::run_helper`]'s `catch_unwind` contains into a `FATAL`.
+    ///
+    /// Deliberately not the *first*: `echo` is itself a helper, so faulting
+    /// the very first call would give a run that produced no output at all —
+    /// and half of what containing an engine panic means is that what the
+    /// request already produced survives it. Two is the smallest count that
+    /// leaves room for a byte to have been written.
+    ///
+    /// It is a fixed count rather than a condition on the output for one
+    /// reason: an injected fault that can silently never fire is worse than
+    /// one whose site reads slightly arbitrarily. A request that enters fewer
+    /// than two helpers does nothing observable at all, so there is no
+    /// program this leaves un-faulted that anyone would want to fault.
+    HelperPanic,
 }
 
 /// One [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
@@ -178,6 +213,8 @@ impl Ctx {
             output,
             stmt_hits: Vec::new(),
             trace: Vec::new(),
+            fault: None,
+            helper_calls: 0,
         }
     }
 
@@ -252,6 +289,28 @@ impl Ctx {
     #[must_use]
     pub fn trace(&self) -> &[TraceEvent] {
         &self.trace
+    }
+
+    /// Arms a fault-injection site for this request — see [`FaultSite`] for
+    /// what each one does and why the set is closed.
+    pub fn inject_fault(&mut self, site: FaultSite) {
+        self.fault = Some(site);
+    }
+
+    /// Whether [`FaultSite::HelperPanic`] is armed *and* this is the helper
+    /// call it names, disarming it if so. Called once per helper entry from
+    /// [`crate::run_helper`]; a request with nothing armed pays one
+    /// already-loaded `Option` test and nothing else.
+    pub(crate) fn take_armed_helper_panic(&mut self) -> bool {
+        if self.fault != Some(FaultSite::HelperPanic) {
+            return false;
+        }
+        self.helper_calls += 1;
+        if self.helper_calls < 2 {
+            return false;
+        }
+        self.fault = None;
+        true
     }
 
     /// Records the message behind a `THROWN` or `FATAL` status.
@@ -591,6 +650,22 @@ mod tests {
         // unexecuted statement between two executed ones reads back as zero
         // rather than as absent.
         assert_eq!(ctx.stmt_hits(), [1, 0, 2]);
+    }
+
+    #[test]
+    fn nothing_is_armed_by_default_and_the_site_fires_exactly_once() {
+        let mut ctx = Ctx::buffered();
+        for _ in 0..4 {
+            assert!(!ctx.take_armed_helper_panic());
+        }
+
+        ctx.inject_fault(FaultSite::HelperPanic);
+        // The first call is let through; the second is the site. Nothing
+        // after it fires again — one injected fault, not a poisoned request.
+        assert!(!ctx.take_armed_helper_panic());
+        assert!(ctx.take_armed_helper_panic());
+        assert!(!ctx.take_armed_helper_panic());
+        assert!(!ctx.take_armed_helper_panic());
     }
 
     #[test]

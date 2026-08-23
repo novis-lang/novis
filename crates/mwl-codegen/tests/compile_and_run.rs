@@ -11,7 +11,7 @@
 //! where instruction-level costs are held.
 
 use mwl_diagnostics::{Diagnostics, SourceMap};
-use mwl_runtime::{Ctx, DebugFlags, FATAL, OK, SafepointFlags, Value, call};
+use mwl_runtime::{Ctx, DebugFlags, FATAL, FaultSite, OK, SafepointFlags, Value, call};
 
 /// Compiles a whole file, returning the unit or the first thing that refused
 /// it.
@@ -259,6 +259,39 @@ fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
 // the probe is emitted *before* ADR 0002's compare-and-branch — so a thrown
 // exit is traced rather than skipped along with the rest of the frame — gets
 // its end-to-end fixture with `throw`, which is the next slice.
+
+#[test]
+fn a_second_script_runs_after_a_contained_helper_panic() {
+    // M3's "leaves the process able to run the next one", which a one-shot
+    // `mwl run` cannot show: two compiles and two runs in *this* process, the
+    // first faulted deliberately. `benches/abi-probe`'s
+    // `the_jit_is_still_usable_after_a_contained_panic` is the ABI-level
+    // version of the same claim over hand-built frames; this is the compiler's.
+    // Three `echo`s, so the fault lands on the second one — see
+    // `FaultSite::HelperPanic` for why it is not the first.
+    let source = "<?mwl\necho \"start\\n\";\necho \"middle\\n\";\necho \"end\\n\";\n";
+
+    let mut faulted = Ctx::buffered();
+    faulted.inject_fault(FaultSite::HelperPanic);
+    let status = run_with(&mut faulted, source).unwrap_err();
+
+    assert_eq!(status, FATAL);
+    // Contained, and named: the panic became a status plus a message rather
+    // than taking the process down.
+    let message = faulted.take_pending().expect("a message was recorded");
+    assert!(message.contains("injected helper panic"), "{message}");
+    // What the request had already produced survives the fault, and nothing
+    // after it runs.
+    assert_eq!(
+        faulted.take_buffered_output().as_deref(),
+        Some(&b"start\n"[..])
+    );
+
+    // The second script is unaffected: same process, fresh unit, nothing
+    // sticky left behind by the first.
+    assert_eq!(output_of(source), "start\nmiddle\nend\n");
+    assert_eq!(output_of(CALLS), "quadruple(5) = 20\n");
+}
 
 #[test]
 fn a_callee_that_stops_the_request_stops_its_caller_too() {
