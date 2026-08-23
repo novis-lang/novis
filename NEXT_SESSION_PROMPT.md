@@ -7,48 +7,52 @@ Milestone **M2** (HIR/types/IR) is close to done; **M3** (baseline Cranelift bac
 then read `docs/implementation-plan.md`'s M2/M3 paragraphs — the plan is the one home for status
 detail, this file only points.
 
-On disk: `mwl-diagnostics`, `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-cli` (`ast`, `check`),
-`fuzz/`, `benches/abi-probe`, and the `examples/hello.mwl` the acceptance command names. Workspace is
-green (build/test/clippy/fmt). **`mwl-codegen` and `mwl-runtime` still do not exist.**
+On disk: `mwl-diagnostics`, `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, **`mwl-runtime`**,
+`mwl-cli` (`ast`, `check`), `fuzz/`, `benches/abi-probe`, and the `examples/hello.mwl` the acceptance
+command names. Workspace is green (build/test/clippy/fmt).
 
-**The front end now reaches the acceptance program end to end.** The two gaps
-`.claude/loop-goal.md` named first are closed: `mwl-types` checks a file's top-level statements as one
-synthesized frame ([ADR 0008](docs/adr/0008-static-and-global.md) § 2), and `mwl-ir`'s new
-`lower_script` lowers that same frame, with `echo` lowering beside it (`Helper::EchoStr`). A snapshot
-test in `crates/mwl-ir/src/lower.rs` lowers `examples/hello.mwl`'s exact shape. `mwl check
-examples/hello.mwl` is clean *because it is correct now*, not because nothing looked.
+**`mwl-runtime` landed this session** — the half of M3 testable without a backend. It owns
+[ADR 0002](docs/adr/0002-error-propagation.md)'s ABI and the `mwl_helper!` macro that supplies the
+mandatory `catch_unwind`, the 16-byte tagged `Value`, the refcounted `MwlStr`, the `Ctx` whose two hot
+words back the safepoint poll and ADR 0018's probe check, and nine of the ten `mwl_ir::Helper` entry
+points including `mwl_echo_str`. Read `crates/mwl-runtime/src/lib.rs`'s module docs before touching it —
+they hold the known-gap list (arrays/objects have no representation, so `Helper::ArrayTruthy` has no
+entry point; a string literal still allocates; no coroutine yielder; no panic hook) and each gap says
+what unblocks it.
 
-**Nothing is blocked.** Every remaining gap between here and the acceptance command is enumerated with
-its already-decided design in `.claude/loop-goal.md` § *The gaps that actually sit on the path*. Read
-that section before picking work; do not restate it here.
+**`mwl-codegen` still does not exist.** That is now the only crate between here and the acceptance
+command.
 
 **ADRs 0051-0061 are decided and wired** into CLAUDE.md, `docs/adr/README.md`, the plan and the spec. No
 code implements any of them yet. Four carry obligations landing **before** M8 — each ADR's own
-*Verification* section is the one home for its split. One of the four moved this session:
-[ADR 0053](docs/adr/0053-iteration-and-generators.md)'s "the IR must model a suspension point inside a
-loop body" is now discharged as a *representation* decision, recorded in `crates/mwl-ir/src/lib.rs`'s
-§ *Design choices worth knowing before widening this further*. Read that bullet before adding any
-`Terminator` variant — in particular, `switch` and the resumption dispatch must share **one** N-way
-terminator. The transform itself stays at M4.
+*Verification* section is the one home for its split. [ADR 0053](docs/adr/0053-iteration-and-generators.md)'s
+"the IR must model a suspension point inside a loop body" is already discharged as a *representation*
+decision in `crates/mwl-ir/src/lib.rs`'s § *Design choices worth knowing before widening this further* —
+read that bullet before adding any `Terminator` variant.
 
 ## Next
 
-**Create `mwl-runtime` and `mwl-codegen`, and add `mwl run`.** This is the whole remaining path to the
-acceptance command, and it is now the only thing on it. `.claude/loop-goal.md` holds the decided design
-for each; three points from it that are easy to miss:
+**Create `mwl-codegen`, and add `mwl run`.** This is the whole remaining path to the acceptance command.
+`.claude/loop-goal.md` holds the decided design; four points from it and from this session that are easy
+to miss:
 
-- Give each new crate its own `[lints]` block with `unsafe_code = "deny"` and narrow reasoned allows —
+- Give `mwl-codegen` its own `[lints]` block with `unsafe_code = "deny"` and narrow reasoned allows —
   **not** `lints.workspace = true`, which is `forbid` workspace-wide and makes a JIT unimplementable.
-  Both already have a `[workspace.dependencies]` entry, so creating the directory wires them in.
+  Copy `crates/mwl-runtime/Cargo.toml`'s block; it restates the whole workspace policy with only that one
+  line changed, and explains why in a comment. The `[workspace.dependencies]` entry already exists, so
+  creating the directory wires the crate in.
 - ADR 0018's debug-flags probe check lands **in the first `mwl-codegen` commit**, with the safepoint
   poll — the narrow-backend authorization does not extend to deferring it — and is not considered
   landed until the `benches/abi-probe` guard test holding its all-bits-off cost exists.
+  `mwl_runtime::{SAFEPOINT_OFFSET, DEBUG_FLAGS_OFFSET}` are the offsets to load from; use them rather
+  than restating a number.
 - `mwl run` checks first and, on any diagnostic, reports and exits non-zero exactly as `mwl check`
-  already does, rather than running anyway.
-
-The runtime surface the slice actually needs is small: whatever backs `Helper::EchoStr` (raw bytes to
-stdout, no escaping) plus the refcount retain/release and safepoint helpers `crates/mwl-ir/src/ir.rs`
-already names. Land the runtime half first — it is testable on its own, without a backend.
+  already does, rather than running anyway. It builds a `Ctx::stdout()`, calls the compiled script
+  frame through `mwl_runtime::call`, and calls `Ctx::flush_output` before returning — Rust's stdout is
+  line-buffered and `echo "Hello, World!"` has no trailing newline.
+- The runtime symbols to register with `cranelift_jit::JITBuilder::symbol` come from
+  `mwl_runtime::symbols()`. Mapping an `mwl_ir::Helper` tag to one of those names is `mwl-codegen`'s job
+  by design: `mwl-runtime` deliberately does not depend on `mwl-ir`.
 
 ## Backlog
 
@@ -58,11 +62,12 @@ already names. Land the runtime half first — it is testable on its own, withou
 - ADR 0043 `by`-delegation resolution + `E_DELEGATE_TYPE_MISMATCH`, then `E_INTERFACE_MEMBER_CONFLICT` —
   `ImplementsClause.by_field` has parsed since M1 and is still unread by `mwl-hir`/`mwl-types`
   ([ADR 0043](docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md) §§ 4-5).
-- `for` loops in `mwl-ir` (reuses `LoopFrame` verbatim), then `switch` — which per the new design-choices
+- `for` loops in `mwl-ir` (reuses `LoopFrame` verbatim), then `switch` — which per the design-choices
   bullet must introduce the N-way terminator the generator resumption dispatch will also use, not a
   `Branch` chain. `mwl-ir`'s own module docs hold the known-gap list.
-- The `mixed` runtime type-tag representation — `mwl-ir` known-gap item 5, real design work,
-  pre-authorized.
+- The `mixed` runtime type-tag representation — `mwl-ir` known-gap item 5. `mwl-runtime`'s `Tag` enum is
+  now the other half of that question: it already numbers all ten of the plan's tags, four with nothing
+  behind them.
 - A `set`-hooked property is exempted from ADR 0022's constructor check rather than verified against the
   hook's own writes.
 - [0054](docs/adr/0054-decimal-scalar-type.md)'s `m` literal suffix and untyped-until-placed fractional

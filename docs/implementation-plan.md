@@ -1,16 +1,16 @@
 # MWL — Modern Web Lang: Implementation Plan
 
 > **Status — 2026-08-23.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
-> Nothing runs yet; `Hello, World!` is M3.
+> M3 has started from the runtime end. Nothing runs yet; `Hello, World!` is M3.
 >
 > *This block is a bounded snapshot, not a changelog — overwrite it each session rather than appending a*
 > *new paragraph. Session-by-session history lives in `git log`; per-file known-gap detail lives in each*
 > *crate's own module docs, not here (see [CLAUDE.md](../CLAUDE.md)'s "Keep work small" section).*
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-cli` (`mwl ast`, `mwl check`), the `fuzz/` crate,
-> and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is created when its
-> milestone starts — `python .claude/brief.py` lists what is actually there.
+> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`, `mwl-cli` (`mwl ast`, `mwl check`), the
+> `fuzz/` crate, and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is
+> created when its milestone starts — `python .claude/brief.py` lists what is actually there.
 >
 > **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
 > + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle, `cargo-fuzz`
@@ -20,11 +20,8 @@
 > types, expressions, every control-flow statement, every declaration — plus the M1-scoped grammar of
 > ADRs 0024, 0031, 0033, 0034, 0035, 0036, 0037, 0049 and 0050. Each ADR states its own rule; do not
 > look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
-> checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics. That
-> test deliberately no longer measures a "clean" file count — see its own doc comment for why
-> ([ADR 0049](adr/0049-single-open-tag-and-single-exit-keyword.md) and
-> [ADR 0062](adr/0062-case-sensitivity-is-a-compiler-property.md) each widened it). Known parser gaps live
-> in `mwl-syntax`'s module docs.
+> checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics. What
+> that test does and does not measure, and every known parser gap, live in their own doc comments.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well underway;
 > `mwl-ir` is the remaining bulk. Checker-side rules landed for ADRs 0007, 0010, 0013, 0014, 0015, 0021,
@@ -41,12 +38,14 @@
 > IR without them. [ADR 0055](adr/0055-extension-qualifier-declarations.md) is the third: it must be
 > reflected in the `mwl:ext@1.0.0` WIT world M8 authors, because M9 freezes it.
 >
-> **The script body is a function** ([ADR 0008](adr/0008-static-and-global.md) § 2) in both crates now:
-> `mwl-types` checks a file's top-level statements as one synthesized frame, and `mwl-ir`'s `lower_script`
-> lowers the same frame, with `echo` lowering alongside it. That was the largest gap on the acceptance
-> program's path. What remains between here and `mwl run examples/hello.mwl` is entirely M3: the
-> `mwl-codegen` and `mwl-runtime` crates, which do not exist yet, and a `run` subcommand.
-> `.claude/loop-goal.md` enumerates each with its already-decided design.
+> **M3 — started, from the runtime end.** `mwl-runtime` exists: [ADR 0002](adr/0002-error-propagation.md)'s
+> calling convention and its `mwl_helper!`/`catch_unwind` corollary, the § *Value representation* tagged
+> value, the refcounted string, the `Ctx` backing the safepoint poll and
+> [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) § 1's probe check, and
+> nine of ten `mwl_ir::Helper` entry points including `echo`'s — landed first because it is the half
+> testable without a backend. Its own module docs hold its known gaps. What remains between here and
+> `mwl run examples/hello.mwl` is `mwl-codegen` and a `run` subcommand; `.claude/loop-goal.md` holds the
+> decided design for each.
 >
 > Per-crate detail — `mwl-ir`'s lowering history, refcount policy, table dependency and known gaps, and
 > the same for `mwl-hir` and `mwl-types` — lives in each crate's own module doc, which stays more current
