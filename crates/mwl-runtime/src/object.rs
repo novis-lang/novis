@@ -669,7 +669,7 @@ fn bump(ptr: *mut ObjHeader) {
 /// Drops one reference to the object at `ptr`, reporting whether that was the
 /// last.
 ///
-/// Does **not** free: [`release_graph`] owns that step, so a nested field's
+/// Does **not** free: [`crate::release`] owns that step, so a nested field's
 /// release never recurses.
 ///
 /// # Safety
@@ -680,7 +680,7 @@ fn bump(ptr: *mut ObjHeader) {
     unsafe_code,
     reason = "owning the reference is the caller's obligation to state"
 )]
-unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
+pub(crate) unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
     let header = unsafe { &*ptr };
     let remaining = header.refcount.get() - 1;
@@ -690,9 +690,9 @@ unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
 
 /// Drops one reference to `root`, freeing it and everything it solely owns.
 ///
-/// Iterative by construction — see this module's docs for why the depth of a
-/// user's data structure must not decide whether the process survives freeing
-/// it.
+/// Iterative by construction — [`crate::release`] owns the worklist, and its
+/// own docs are the one home for why the depth of a user's data structure must
+/// not decide whether the process survives freeing it.
 ///
 /// # Safety
 ///
@@ -708,31 +708,41 @@ pub unsafe fn release_graph(root: *mut ObjHeader) {
     }
     #[expect(
         unsafe_code,
-        reason = "the caller guarantees it owns `root`'s reference; every \
-                  pointer pushed onto `dying` reached zero in `drop_one`, so \
-                  nothing else can observe it, and each is freed exactly once \
-                  because it is popped exactly once"
+        reason = "the caller guarantees it owns `root`'s reference"
     )]
     unsafe {
-        if !drop_one(root) {
-            return;
-        }
-        let mut dying = vec![root];
-        while let Some(object) = dying.pop() {
-            let field_count = (*MwlObj::class_of(object)).field_count;
-            for index in 0..field_count {
-                let value = *field_ptr(object, index);
-                match value.obj_ptr() {
-                    Some(nested) => {
-                        if drop_one(nested) {
-                            dying.push(nested);
-                        }
-                    }
-                    None => value.release(),
-                }
+        crate::release::release_value(Value::from_obj_ptr(root));
+    }
+}
+
+/// Frees an object allocation whose count reached zero, handing every field
+/// slot's value to `work` rather than releasing it here — see
+/// [`crate::release`].
+///
+/// # Safety
+///
+/// `ptr` must refer to an MWL object allocation whose reference count reached
+/// zero in [`drop_one`], and must be dismantled exactly once.
+#[expect(
+    unsafe_code,
+    reason = "reaching zero exactly once is the caller's obligation to state"
+)]
+pub(crate) unsafe fn dismantle(ptr: *mut ObjHeader, work: &mut Vec<crate::release::Dying>) {
+    #[expect(
+        unsafe_code,
+        reason = "the count reached zero, so nothing else can observe the \
+                  allocation; every slot was initialized by `new`, and the \
+                  layout is recomputed from the same field count `new` \
+                  allocated with, before the header is freed"
+    )]
+    unsafe {
+        let field_count = (*MwlObj::class_of(ptr)).field_count;
+        for index in 0..field_count {
+            if let Some(dying) = crate::release::step_field(*field_ptr(ptr, index)) {
+                work.push(dying);
             }
-            dealloc(object.cast::<u8>(), obj_layout(field_count));
         }
+        dealloc(ptr.cast::<u8>(), obj_layout(field_count));
     }
 }
 

@@ -23,6 +23,7 @@
 
 use std::fmt;
 
+use crate::array::{ArrayHeader, MwlArray};
 use crate::object::{MwlObj, ObjHeader};
 use crate::string::{MwlStr, StrHeader};
 
@@ -172,6 +173,25 @@ impl Value {
         Self::new(Tag::Object, value.into_raw() as usize as u64)
     }
 
+    /// An array, taking over the handle's reference.
+    #[must_use]
+    pub fn array(value: MwlArray) -> Self {
+        Self::new(Tag::Array, value.into_raw() as usize as u64)
+    }
+
+    /// Wraps a raw object pointer whose reference the new value takes over —
+    /// what a primitive that was handed a bare pointer uses to reach the one
+    /// release path in [`crate::release`].
+    pub(crate) fn from_obj_ptr(ptr: *mut ObjHeader) -> Self {
+        Self::new(Tag::Object, ptr as usize as u64)
+    }
+
+    /// Wraps a raw array pointer whose reference the new value takes over —
+    /// see [`Value::from_obj_ptr`].
+    pub(crate) fn from_array_ptr(ptr: *mut ArrayHeader) -> Self {
+        Self::new(Tag::Array, ptr as usize as u64)
+    }
+
     /// Reassembles a value from bits compiled code produced.
     ///
     /// # Safety
@@ -286,6 +306,19 @@ impl Value {
         }
     }
 
+    /// The array payload's header pointer, if this value is an array.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the payload of a Tag::Array value is a pointer that was widened to u64 by `Value::array`, so narrowing it back is exact on every target, including the 32-bit wasm32 one of ADR 0025"
+    )]
+    pub const fn array_ptr(self) -> Option<*mut ArrayHeader> {
+        match self.tag() {
+            Some(Tag::Array) => Some(self.bits as usize as *mut ArrayHeader),
+            _ => None,
+        }
+    }
+
     /// Adds a reference to a refcounted payload — `mwl_ir::InstKind::Retain`.
     ///
     /// A non-refcounted value is left alone, so callers need not branch on the
@@ -317,15 +350,26 @@ impl Value {
             unsafe {
                 crate::object::mwl_object_retain(ptr);
             }
+        } else if let Some(ptr) = self.array_ptr() {
+            #[expect(
+                unsafe_code,
+                reason = "the caller guarantees the payload is live; \
+                          `mwl_array_retain` only increments in place"
+            )]
+            unsafe {
+                crate::array::mwl_array_retain(ptr);
+            }
         }
     }
 
     /// Drops the reference a refcounted payload owns —
     /// `mwl_ir::InstKind::Release`.
     ///
-    /// A non-refcounted value is left alone. An `Array`/`Closure` payload is
-    /// *also* left alone today: those representations do not exist yet, so
-    /// nothing can construct one to leak (crate docs, known gap 1).
+    /// A non-refcounted value is left alone, and so is a `Closure`/`Resource`
+    /// payload: neither representation exists yet, so nothing can construct
+    /// one to leak (crate docs, known gap 1). Everything else goes through
+    /// [`crate::release`]'s one worklist, which is why an array of objects of
+    /// arrays frees without recursing.
     ///
     /// # Safety
     ///
@@ -336,24 +380,13 @@ impl Value {
         reason = "owning the reference is the caller's obligation to state"
     )]
     pub unsafe fn release(self) {
-        if let Some(ptr) = self.str_ptr() {
-            #[expect(
-                unsafe_code,
-                reason = "the caller guarantees this value owns exactly the \
-                          reference `mwl_str_release` drops"
-            )]
-            unsafe {
-                crate::string::mwl_str_release(ptr);
-            }
-        } else if let Some(ptr) = self.obj_ptr() {
-            #[expect(
-                unsafe_code,
-                reason = "the caller guarantees this value owns exactly the \
-                          reference `mwl_object_release` drops"
-            )]
-            unsafe {
-                crate::object::mwl_object_release(ptr);
-            }
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees this value owns exactly the \
+                      reference being dropped"
+        )]
+        unsafe {
+            crate::release::release_value(self);
         }
     }
 }

@@ -518,3 +518,61 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
          revisiting."
     );
 }
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_refcount_one_array_member_mutates_in_place() {
+    // Self-relative, per ADR 0026: the bound compares two writes measured on
+    // *this* machine, never an absolute figure quoted from another one.
+    //
+    // ADR 0063 R3 says no `Core` member mutates its subject — every one
+    // returns a fresh value. That is only affordable because a write into an
+    // array nothing else holds is done in place, with no copy at all: the
+    // `refcount == 1` fast path in `mwl_runtime::array`. This guard is what
+    // makes the claim checkable rather than remembered. It measures one write
+    // into a solely-owned thousand-entry array against the same write into an
+    // aliased one, which has to separate first and is therefore O(entries).
+    //
+    // Measured on x86_64-pc-windows-msvc: ~25 ns for the in-place write
+    // against ~34 us for the separating one, a ratio around 0.0007x. The
+    // guard sits two orders of magnitude above that, because what it exists to
+    // catch is a change of *kind* — the fast path being lost, which would put
+    // the two within a small constant factor of each other.
+    const MAX_RATIO: f64 = 0.05;
+    const ENTRIES: i64 = 1_000;
+
+    let mut array = mwl_runtime::MwlArray::new();
+    for index in 0..ENTRIES {
+        array.set(
+            mwl_runtime::MwlStr::new(index.to_string().as_bytes()),
+            mwl_runtime::Value::int(index),
+        );
+    }
+    let key = mwl_runtime::MwlStr::new(b"probe");
+
+    let in_place = ns_per_op(200_000, 5, || {
+        array.set(key.clone(), mwl_runtime::Value::int(1));
+    });
+    assert_eq!(array.refcount(), 1, "the in-place write never separated");
+
+    let separating = ns_per_op(300, 5, || {
+        let mut aliased = array.clone();
+        aliased.set(key.clone(), mwl_runtime::Value::int(1));
+        black_box(aliased.count());
+    });
+
+    let ratio = in_place / separating;
+    println!(
+        "array write: {in_place:.0} ns in place against {separating:.0} ns \
+         separating {ENTRIES} entries, ratio {ratio:.4}x"
+    );
+
+    assert!(
+        ratio < MAX_RATIO,
+        "a write into a solely-owned array now costs {ratio:.4}x one that has \
+         to separate ({in_place:.0} ns vs {separating:.0} ns), over the \
+         {MAX_RATIO}x guard. ADR 0063 R3's immutable `Core` API rests on that \
+         write being in place; if this is a real regression that argument \
+         needs revisiting."
+    );
+}

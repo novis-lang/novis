@@ -25,12 +25,7 @@
 //! branch on a tag byte is a cheap price for making that class of bug a
 //! `FATAL` with a message instead.
 //!
-//! # Known gap
-//!
-//! `mwl_ir::Helper::ArrayTruthy` has no entry point here: `Tag::Array` has no
-//! representation yet (crate docs, known gap 1). It lands with the array
-//! representation, and needs no new shape when it does — it is
-//! [`mwl_str_truthy`]'s structure with a different emptiness test.
+//! Every `mwl_ir::Helper` variant now has an entry point here.
 
 use crate::abi::{Fault, HelperFn};
 use crate::fmt::php_float_to_string;
@@ -122,6 +117,23 @@ crate::mwl_helper! {
 }
 
 crate::mwl_helper! {
+    /// `mwl_ir::Helper::ArrayTruthy` — falsy iff the array holds no entries,
+    /// for any element type. [`mwl_str_truthy`]'s structure with a different
+    /// emptiness test, as this module's own docs predicted it would be.
+    fn mwl_array_truthy(_ctx, args: [1]) {
+        let array = args[0]
+            .array_ptr()
+            .ok_or_else(|| wrong_tag("mwl_array_truthy", Tag::Array, args[0]))?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live                       allocation, so it is live for this read"
+        )]
+        let count = unsafe { crate::array::mwl_array_count(array) };
+        Ok(Value::bool(count != 0))
+    }
+}
+
+crate::mwl_helper! {
     /// `mwl_ir::Helper::EchoStr` — raw bytes to the request's own output, with
     /// no escaping. `.claude/loop-goal.md` records that decision and why
     /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
@@ -159,6 +171,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_uint_truthy", address(mwl_uint_truthy)),
         ("mwl_float_truthy", address(mwl_float_truthy)),
         ("mwl_str_truthy", address(mwl_str_truthy)),
+        ("mwl_array_truthy", address(mwl_array_truthy)),
         ("mwl_echo_str", address(mwl_echo_str)),
         (
             "mwl_str_new",
@@ -235,6 +248,54 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "mwl_object_field_set",
             (crate::object::mwl_object_field_set as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_new",
+            (crate::array::mwl_array_new as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_retain",
+            (crate::array::mwl_array_retain as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_release",
+            (crate::array::mwl_array_release as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_get",
+            (crate::array::mwl_array_get as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_has_key",
+            (crate::array::mwl_array_has_key as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_set",
+            (crate::array::mwl_array_set as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_append",
+            (crate::array::mwl_array_append as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_unset",
+            (crate::array::mwl_array_unset as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_count",
+            (crate::array::mwl_array_count as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_next_slot",
+            (crate::array::mwl_array_next_slot as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_key_at",
+            (crate::array::mwl_array_key_at as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_value_at",
+            (crate::array::mwl_array_value_at as *const ()).cast::<u8>(),
         ),
         (
             "mwl_safepoint",

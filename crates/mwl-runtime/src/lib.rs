@@ -32,7 +32,11 @@
 //!    representation to land, and the one the `Hello, World!` slice needs;
 //!    [`MwlObj`] is the second, and [`object`]'s own docs are the one home for
 //!    every decision behind it — the field-slot width, the subclass layout
-//!    rule, the opaque [`ClassDesc`], and why a release is iterative.
+//!    rule and the opaque [`ClassDesc`]; [`MwlArray`] is the third, and
+//!    [`mod@array`]'s own docs are the one home for its ordered hash, its
+//!    consume-one-reference-return-one mutation protocol, and the only place
+//!    "copy-on-write" is literally true today. [`release`] owns the single
+//!    worklist all three are freed through.
 //!
 //! # What is here, and what is deliberately not
 //!
@@ -70,23 +74,30 @@
 //!   `mwl_ir::InstKind::New`/`FieldGet`/`FieldSet` and an instance
 //!   `InstKind::Call`'s receiver. Landed before `mwl-codegen` can emit any of
 //!   them, for the same reason [`MwlStr`] was: it is testable without a
-//!   backend, and the layout is what codegen queries rather than restates.
+//!   backend, and the layout is what codegen queries rather than restates;
+//! * [`MwlArray`]/[`ArrayHeader`], M4's array representation, with the
+//!   `mwl_array_new`/`_retain`/`_release`/`_get`/`_set`/`_append`/`_unset`/
+//!   `_has_key`/`_count`/`_next_slot`/`_key_at`/`_value_at` primitives behind
+//!   `mwl_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the
+//!   `foreach` cursor. Landed ahead of the codegen that emits them, same as
+//!   the two above.
 //!
 //! ## Known gaps
 //!
 //! Each is a missing *representation*, not a missing decision, and each is
 //! named at the item it blocks:
 //!
-//! 1. **Arrays have no runtime representation yet**, so
-//!    `mwl_ir::Helper::ArrayTruthy` has no entry point, and
-//!    [`Value::release`] ignores the `Array`/`Closure`/`Resource` tags rather
-//!    than decrementing anything. Those tags exist in [`Tag`] because the
-//!    plan's § *Value representation* names them; nothing constructs one.
-//!    `Object` no longer belongs on this list — see [`object`].
-//! 2. **Copy-on-write is not implemented.** [`MwlStr`] is refcounted and
-//!    immutable — every producer allocates. Nothing in the language mutates a
-//!    string in place yet, so there is no observable difference; a
-//!    `refcount == 1` fast path is a widening of [`MwlStr`], not a redesign.
+//! 1. **`Closure` and `Resource` have no runtime representation yet**, so
+//!    [`Value::release`] ignores those two tags rather than decrementing
+//!    anything. They exist in [`Tag`] because the plan's § *Value
+//!    representation* names them; nothing constructs one. `Object` and `Array`
+//!    no longer belong on this list — see [`object`] and [`mod@array`].
+//! 2. **A string is refcounted but never mutated in place.** [`MwlArray`]
+//!    implements copy-on-write in full, including the `refcount == 1` in-place
+//!    fast path; [`MwlStr`] is immutable instead, so every producer allocates.
+//!    Nothing in the language mutates a string in place yet, so there is no
+//!    observable difference; the same fast path is a widening of [`MwlStr`],
+//!    not a redesign.
 //! 3. **A string literal allocates on every evaluation.** An immortal,
 //!    statically-allocated header (refcount pinned, never freed) would let
 //!    `ConstStr` be a constant pointer with no call at all. It needs codegen
@@ -104,16 +115,17 @@
 //! 6. **`mwl_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `mwl dap` exists.
-//! 7. **An exception carries a message and a backtrace and nothing else.** No
-//!    code, no previous-exception chain, no file/line pair of its own, and no
-//!    `backtrace` array — that last one is M4's explicit carry-over, since it
-//!    returns `array<…>` and nothing lowers an array yet. A user class
+//! 7. **An exception carries a message and a rendered backtrace and nothing
+//!    else.** No code, no previous-exception chain, no file/line pair of its
+//!    own, and no `backtrace` array — that last one is M4's explicit
+//!    carry-over, and now that [`mod@array`] exists it is a lowering decision
+//!    rather than a missing representation. A user class
 //!    extending `Throwable` still has no runtime shape: every exception is a
 //!    [`ThrowableHeader`], not an [`ObjHeader`]. Now that [`object`] exists,
 //!    joining the two is a lowering decision rather than a missing
 //!    representation — see `.claude/loop-goal.md`'s exception surface.
 //! 8. **There is no cycle collector, by decision rather than by omission.** A
-//!    cyclic object graph is retained until the process exits. The wholesale
+//!    cyclic object or array graph is retained until the process exits. The wholesale
 //!    request-heap drop makes cycles structurally unable to accumulate in the
 //!    server (`docs/implementation-plan.md` § *Architecture*), so the optional
 //!    mark-sweep collector belongs with M5/M6, where the stop-the-world path
@@ -121,12 +133,14 @@
 //!    cycles is the one shape that pays.
 
 mod abi;
+pub mod array;
 #[cfg(test)]
 mod counting_alloc;
 mod ctx;
 mod fmt;
 pub mod helpers;
 pub mod object;
+pub mod release;
 mod string;
 pub mod throwable;
 mod value;
@@ -140,6 +154,11 @@ mod value;
 static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
 pub use abi::{FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, call, run_helper};
+pub use array::{
+    ARRAY_REFCOUNT_OFFSET, ArrayHeader, MwlArray, mwl_array_append, mwl_array_count, mwl_array_get,
+    mwl_array_has_key, mwl_array_key_at, mwl_array_new, mwl_array_next_slot, mwl_array_release,
+    mwl_array_retain, mwl_array_set, mwl_array_unset, mwl_array_value_at,
+};
 pub use ctx::{
     Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, FaultSite, OutputSink, SAFEPOINT_OFFSET, SafepointFlags,
     TraceEvent, mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint,

@@ -327,6 +327,24 @@ impl PartialEq for MwlStr {
 
 impl Eq for MwlStr {}
 
+/// Hashes the payload, and only the payload — never the pointer.
+///
+/// Together with [`Borrow<[u8]>`](std::borrow::Borrow) below this is what lets
+/// [`crate::array`]'s index map be keyed by a handle and looked up by bytes:
+/// a key is stored twice as a pointer, never twice as bytes. The two impls
+/// must agree, which they do because both defer to `<[u8] as Hash>`.
+impl std::hash::Hash for MwlStr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_bytes().hash(state);
+    }
+}
+
+impl std::borrow::Borrow<[u8]> for MwlStr {
+    fn borrow(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The primitives compiled code calls
 // ---------------------------------------------------------------------------
