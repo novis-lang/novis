@@ -33,8 +33,8 @@
 >
 > **Open now:** M4's object representation, which most of what M3 refused is waiting on — an instance
 > method call, a user exception class, `getTrace()`, ADR 0043's `by`-delegation type-matching and its two
-> diagnostics. Alongside it: 0047 (docs only); 0011/0024/0033's stdlib-dependent sinks, blocked on `Core`
-> until M7/M8; and ADRs 0053/0054/0055, which owe obligations to M1–M3 and are cheaper now than later.
+> diagnostics. Alongside it: 0047 (docs only); 0011/0024/0033's sinks, blocked on `Core`
+> until the new M4S; and ADRs 0053/0054/0055, which owe obligations to M1–M3 and are cheaper now than later.
 >
 > **Blocking:** nothing on M3's path. M4's own first gate is the object representation: no field layout, no
 > instance dispatch, no array, so `mwl_ir::Ty::Object` is still opaque and refcounts nothing. Two smaller
@@ -572,6 +572,32 @@ divergence and gets its own case. Plus one fixture per rule in the *Verification
 own rule requires, including the "a class that does not implement `PropertyObserver` shows no measurable
 overhead" measurement. A non-trivial CLI program (an argument-parsing file-processing tool) runs correctly;
 no leaks under Valgrind/ASAN.
+
+### M4S — The `Core` API contract and its pure half (~5 weeks)
+The library the language has been compiling calls *against* since M2 without any of it existing. Its shape
+is [ADR 0063](adr/0063-core-api-conventions.md) and its member list is
+[docs/spec/01-core-library.md](spec/01-core-library.md), which is authoritative for every signature; this
+milestone implements Part I of that file — `Core\Str`, `Arr`, `Math`, `Time`, `Json`, `Regex`, `Encoding`,
+`Bytes`, `Path`, the three collection types, the exception types, `Random`, `Uuid`, `Hash`, `Uri`,
+`Validate`, `Csv`, `Out`. Every one is pure: no capability, no reactor, no driver, no open handle, so none
+of it is blocked on M5–M7. It is placed here rather than at M8 so that everything after it — the LSP's
+completion data, M5's concurrency tests, M9's extension conformance fixtures, M11's converter mapping
+table — is written against a real standard library instead of against fixtures that will need rewriting.
+Part II of the spec file (anything capability-bearing) stays at M8 and merely conforms to the same
+contract. `crates/mwl-core` starts here; `Core\Regex` binds the engine [ADR 0056](adr/0056-regex-engine-policy.md)
+picks, and `Core\Time`'s `format`/`parse`/`shift` plus `Core\Str::format` land as
+[ADR 0057](adr/0057-intrinsic-literal-folding.md) intrinsics with the compile-time half wired into
+`mwl-types`.
+
+**Verify:** every member in the spec file has a conformance test, and a mechanical check over that file
+enforces the rules that can be checked mechanically — [ADR 0063](adr/0063-core-api-conventions.md)'s
+*Verification* section is the one home for that list. PHP 8.5 is the differential oracle wherever a member
+claims PHP-compatible observable behaviour (`Core\Str`, `Core\Arr`, `Core\Math`, `Core\Regex`), and each
+deliberate divergence is a named fixture rather than a failing comparison. A `tainted` value cannot reach a
+sink and cannot be laundered except by the members the spec marks **launder**. `Core\Arr` mutates in place
+when its argument's refcount is 1 — measured, since it is the whole cost argument for
+[ADR 0063](adr/0063-core-api-conventions.md) R3 — and allocates a copy when it is not. The M4 CLI program
+is rewritten against `Core` and gets shorter.
 
 ### M4B — Minimal `mwl-lsp` and the VS Code extension (~3 weeks)
 Pulled ahead of M10 by [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world

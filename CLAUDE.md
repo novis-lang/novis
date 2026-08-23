@@ -98,7 +98,7 @@ the same command. A hit is a thirty-second local edit, never a signal that the d
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | Cross-machine/OS performance history, callgrind instruction counts, the perf dashboard, or why CI regression guards use wall-clock ratios instead of that history | [ADR 0026](docs/adr/0026-performance-measurement-methodology.md). Holds the only copy of the split between per-PR wall-clock regression guards (unchanged) and the merge-to-`main` callgrind-based historical dashboard, and why each metric was chosen. |
 | Concrete *spelling* an ADR left open — file modes and `<?=`, the declaration-slot grammar (typed locals, `foreach` bindings, destructuring), `as` as the final conversion operator, why there is no `bytes` literal | [docs/spec/00-overview.md](docs/spec/00-overview.md). The ADR owns the semantics, this file owns the syntax; where they disagree the ADR wins. |
-| What the language should *do* beyond that one file | unwritten. `docs/spec/` holds `00-overview.md` and nothing else — say so rather than inferring semantics. |
+| What the language should *do* beyond those two files | unwritten. `docs/spec/` holds `00-overview.md` and `01-core-library.md` and nothing else — say so rather than inferring semantics. |
 
 Each ADR opens with a metadata block and reaches `## Decision` within ~60 lines. Read those two. The
 `## Context`, `## Investigation` and `## Alternatives rejected` sections are for when you intend to
