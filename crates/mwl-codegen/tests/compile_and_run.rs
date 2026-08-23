@@ -1542,6 +1542,57 @@ echo $seen;
     assert_eq!(output_of(source), "30000");
 }
 
+/// `Core\Arr::values` renumbers from zero, and `Core\Arr::isList` reads the
+/// answer back — the pair together, so a wrong key on either side shows up as
+/// a `no` rather than as a passing test on each half.
+#[test]
+fn values_renumbers_an_associative_array_into_a_list() {
+    let source = "<?mwl
+array<string> $a = [\"x\" => \"a\", \"y\" => \"b\"];
+if (Core\\Arr::isList($a)) { echo \"yes\"; } else { echo \"no\"; }
+var $v = Core\\Arr::values($a);
+if (Core\\Arr::isList($v)) { echo \"|yes\"; } else { echo \"|no\"; }
+echo \"|\", Core\\Str::join($v, \",\");
+";
+    assert_eq!(output_of(source), "no|yes|a,b");
+}
+
+/// An `unset` leaves a hole rather than renumbering (ADR 0007 § 5), so the
+/// array stops being a list until `values` rebuilds it — PHP's own answer, and
+/// the reason `isList` compares key bytes rather than counting entries.
+#[test]
+fn a_hole_left_by_an_unset_stops_an_array_being_a_list() {
+    let source = "<?mwl
+array<int> $a = [10, 20, 30];
+if (Core\\Arr::isList($a)) { echo \"yes\"; } else { echo \"no\"; }
+unset($a[0]);
+if (Core\\Arr::isList($a)) { echo \"|yes\"; } else { echo \"|no\"; }
+if (Core\\Arr::isList(Core\\Arr::values($a))) { echo \"|yes\"; } else { echo \"|no\"; }
+echo \"|\", Core\\Arr::count($a);
+";
+    assert_eq!(output_of(source), "yes|no|yes|2");
+}
+
+/// `values` copies entries out of an array that outlives the call, so every
+/// one needs a reference of its own — ten thousand rounds is what makes a
+/// missing retain a crash and a spare one a leak, rather than either staying
+/// invisible.
+#[test]
+fn taking_values_in_a_loop_leaks_nothing() {
+    let source = "<?mwl
+var $i = 0;
+var $seen = 0;
+while ($i < 10000) {
+    array<string> $a = [\"x\" => \"t\" . $i, \"y\" => \"u\" . $i];
+    var $v = Core\\Arr::values($a);
+    $seen = $seen + Core\\Arr::count($v) as int;
+    $i = $i + 1;
+}
+echo $seen;
+";
+    assert_eq!(output_of(source), "20000");
+}
+
 #[test]
 fn a_core_str_member_runs_and_hands_its_result_back_as_a_string() {
     let source = "<?mwl

@@ -319,6 +319,89 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
+    /// `Core\Arr::isList(array<T> $a): bool` — whether the keys are exactly
+    /// `0, 1, …, n-1` in that order, replacing PHP's `array_is_list`. An empty
+    /// array is a list, as it is in PHP.
+    ///
+    /// ADR 0007 § 5 stores every key as a `string`, so "is this an integer key"
+    /// is a question about the *bytes*: the key must be the index's decimal
+    /// spelling exactly, which rules out `"01"` and `"+1"` the way PHP's
+    /// canonical-integer-key normalization already would. The expected spelling
+    /// is written into one reused buffer rather than a `String` per entry — the
+    /// member is O(n) and this keeps it one allocation rather than n.
+    fn mwl_core_arr_is_list(_ctx, args: [1]) {
+        use std::fmt::Write as _;
+
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::isList expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        let mut expected = String::new();
+        let mut from = 0usize;
+        let mut index = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            let key = subject
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+            expected.clear();
+            write!(expected, "{index}").expect("writing a usize into a String never fails");
+            if key.as_bytes() != expected.as_bytes() {
+                return Ok(Value::bool(false));
+            }
+            from = slot + 1;
+            index += 1;
+        }
+        Ok(Value::bool(true))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::values(array<T> $a): array<T>` — the values in insertion
+    /// order under fresh `0, 1, …` keys, replacing PHP's `array_values`.
+    ///
+    /// Each value belongs to the subject array, which outlives this call, so
+    /// the copy stored here takes a reference of its own — the opposite of
+    /// [`mwl_core_arr_map`], whose values are the callback's and are already
+    /// owned. `MwlArray::append` is what assigns the new keys, so this member
+    /// states no key rule of its own.
+    fn mwl_core_arr_values(_ctx, args: [1]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::values expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            let value = subject
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            out.append(value);
+            from = slot + 1;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
     /// `Core\Arr::range(int $start, int $end, {step?: int}): array<int>` — the
     /// integers from `$start` to `$end` inclusive, replacing PHP's `range`.
     ///
@@ -468,6 +551,111 @@ mod tests {
         let after =
             unsafe { MwlArray::from_raw(subject.array_ptr().expect("an array")) }.refcount();
         assert_eq!(after, before);
+    }
+
+    /// Every row verified against PHP 8.5's own `array_is_list`, including the
+    /// two ADR 0007 § 5 makes interesting: a canonical integer *string* key is
+    /// a list key (PHP normalizes it to an int), and a non-canonical one
+    /// (`"01"`) is not.
+    #[test]
+    fn is_list_matches_phps_answer_for_every_key_shape() {
+        let asked = |keys: &[&[u8]]| {
+            let mut array = MwlArray::new();
+            for key in keys {
+                array.set(MwlStr::new(key), Value::int(1));
+            }
+            let subject = Value::array(array);
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let answer = call(super::mwl_core_arr_is_list, &mut ctx, &[subject])
+                .expect("asking never fails")
+                .as_bool()
+                .expect("isList returns a bool");
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built above, and \
+                          the helper borrowed rather than consumed it"
+            )]
+            unsafe {
+                subject.release();
+            }
+            answer
+        };
+        assert!(asked(&[]));
+        assert!(asked(&[b"0", b"1", b"2"]));
+        assert!(!asked(&[b"x", b"y"]));
+        assert!(!asked(&[b"1", b"0"]));
+        assert!(!asked(&[b"0", b"2"]));
+        assert!(!asked(&[b"01"]));
+        // A hole left by an `unset` renumbers nothing, so the array stops
+        // being a list — the same answer PHP gives after `unset($a[0])`.
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"0"), Value::int(1));
+        array.set(MwlStr::new(b"1"), Value::int(2));
+        array.unset(b"0");
+        let subject = Value::array(array);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        assert_eq!(
+            call(super::mwl_core_arr_is_list, &mut ctx, &[subject])
+                .expect("asking never fails")
+                .as_bool(),
+            Some(false)
+        );
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and the \
+                      helper borrowed rather than consumed it"
+        )]
+        unsafe {
+            subject.release();
+        }
+    }
+
+    /// `values` renumbers from zero and keeps insertion order, and takes a
+    /// reference of its own for every value it copies — a missing retain is a
+    /// double free the moment either array is dropped.
+    #[test]
+    fn values_renumbers_from_zero_and_retains_what_it_copies() {
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"x"), Value::str(MwlStr::new(b"a")));
+        array.set(MwlStr::new(b"y"), Value::str(MwlStr::new(b"b")));
+        let subject = Value::array(array);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(super::mwl_core_arr_values, &mut ctx, &[subject])
+            .expect("taking values never fails");
+        #[expect(
+            unsafe_code,
+            reason = "the helper returned one fresh reference, which the handle \
+                      takes over and releases on drop"
+        )]
+        let out =
+            unsafe { MwlArray::from_raw(result.array_ptr().expect("values returns an array")) };
+        assert_eq!(out.keys(), vec![b"0".to_vec(), b"1".to_vec()]);
+        assert_eq!(
+            out.get(b"0")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"a".to_vec())
+        );
+        assert_eq!(
+            out.get(b"1")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"b".to_vec())
+        );
+        drop(out);
+
+        // The subject still holds its own values after the result is gone,
+        // which is what the retain bought.
+        #[expect(
+            unsafe_code,
+            reason = "this test still owns the one reference it built above"
+        )]
+        let still = unsafe { MwlArray::from_raw(subject.array_ptr().expect("an array")) };
+        assert_eq!(
+            still
+                .get(b"x")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"a".to_vec())
+        );
     }
 
     /// The values `range` produces, in order — read back through the array's

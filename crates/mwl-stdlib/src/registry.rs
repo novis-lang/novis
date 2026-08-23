@@ -436,6 +436,20 @@ pub const CLASSES: &[CoreClass] = &[
                 symbol: "mwl_core_arr_has_key",
             },
             CoreMethod {
+                name: "isList",
+                params: &[CoreTy::Array(&CoreTy::Var("T"))],
+                defaults: &[],
+                return_ty: CoreTy::Bool,
+                symbol: "mwl_core_arr_is_list",
+            },
+            CoreMethod {
+                name: "values",
+                params: &[CoreTy::Array(&CoreTy::Var("T"))],
+                defaults: &[],
+                return_ty: CoreTy::Array(&CoreTy::Var("T")),
+                symbol: "mwl_core_arr_values",
+            },
+            CoreMethod {
                 name: "range",
                 params: &[CoreTy::Int, CoreTy::Int, CoreTy::Options(RANGE_OPTIONS)],
                 defaults: &[],

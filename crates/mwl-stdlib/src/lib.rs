@@ -111,6 +111,8 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 "mwl_core_arr_map" => (arr::mwl_core_arr_map as *const ()).cast(),
                 "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
                 "mwl_core_arr_has_key" => (arr::mwl_core_arr_has_key as *const ()).cast(),
+                "mwl_core_arr_is_list" => (arr::mwl_core_arr_is_list as *const ()).cast(),
+                "mwl_core_arr_values" => (arr::mwl_core_arr_values as *const ()).cast(),
                 "mwl_core_arr_range" => (arr::mwl_core_arr_range as *const ()).cast(),
                 "mwl_core_str_is_empty" => (str::mwl_core_str_is_empty as *const ()).cast(),
                 "mwl_core_str_contains" => (str::mwl_core_str_contains as *const ()).cast(),

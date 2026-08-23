@@ -20,7 +20,7 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Core\Arr` × 6, `Core\Str` × 13), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
+> `mwl-stdlib` (`Core\Arr` × 8, `Core\Str` × 13), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
 > `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
