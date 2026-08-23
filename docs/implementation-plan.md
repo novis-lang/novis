@@ -21,11 +21,10 @@
 > ADRs 0024, 0031, 0033, 0034, 0035, 0036, 0037, 0049 and 0050. Each ADR states its own rule; do not
 > look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
 > checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics. That
-> test's "clean" file count is not re-measured: every corpus file opens with `<?php`, so every one now
-> also trips `E0229`, and — since
-> [ADR 0062](adr/0062-case-sensitivity-is-a-compiler-property.md) made keyword matching exact — every
-> corpus file's mixed-case keywords now lex as plain identifiers. Both widenings are deliberate. Known
-> parser gaps live in `mwl-syntax`'s module docs.
+> test deliberately no longer measures a "clean" file count — see its own doc comment for why
+> ([ADR 0049](adr/0049-single-open-tag-and-single-exit-keyword.md) and
+> [ADR 0062](adr/0062-case-sensitivity-is-a-compiler-property.md) each widened it). Known parser gaps live
+> in `mwl-syntax`'s module docs.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well underway;
 > `mwl-ir` is the remaining bulk. Checker-side rules landed for ADRs 0007, 0010, 0013, 0014, 0015, 0021,
@@ -42,13 +41,12 @@
 > IR without them. [ADR 0055](adr/0055-extension-qualifier-declarations.md) is the third: it must be
 > reflected in the `mwl:ext@1.0.0` WIT world M8 authors, because M9 freezes it.
 >
-> One gap is not visible from the milestone text below, found by inspection rather than a failing test:
-> **`check_stmts` walks declarations only**, so a file's top-level statements are never type-checked
-> (`echo $undefinedThing;` at file scope passes `mwl check` clean; the same line in a method reports
-> `E0301`), and `mwl-ir` has the mirror-image gap — only `lower_method` exists. Both are one fix, already
-> decided by [ADR 0008](adr/0008-static-and-global.md) § 2: the script body is a function, so its
-> statements are one synthesized frame whose variables are locals. On M3's critical path — the
-> `Hello, World!` acceptance program is exactly that shape.
+> **The script body is a function** ([ADR 0008](adr/0008-static-and-global.md) § 2) in both crates now:
+> `mwl-types` checks a file's top-level statements as one synthesized frame, and `mwl-ir`'s `lower_script`
+> lowers the same frame, with `echo` lowering alongside it. That was the largest gap on the acceptance
+> program's path. What remains between here and `mwl run examples/hello.mwl` is entirely M3: the
+> `mwl-codegen` and `mwl-runtime` crates, which do not exist yet, and a `run` subcommand.
+> `.claude/loop-goal.md` enumerates each with its already-decided design.
 >
 > Per-crate detail — `mwl-ir`'s lowering history, refcount policy, table dependency and known gaps, and
 > the same for `mwl-hir` and `mwl-types` — lives in each crate's own module doc, which stays more current

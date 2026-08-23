@@ -7,6 +7,17 @@
 //! entry) — point `MWL_PHP_CORPUS` at a directory of `.php` files, or drop one
 //! at `<workspace-root>/php-src`. Absent either, the test is skipped rather
 //! than failed, since CI has no corpus checked in.
+//!
+//! **What this test no longer measures, and why.** It used to report how many
+//! corpus files parsed with *zero* diagnostics. That number is meaningless
+//! now and is not tracked: every corpus file opens with `<?php`, which
+//! [ADR 0049](../../../docs/adr/0049-single-open-tag-and-single-exit-keyword.md)
+//! rejects in favour of `<?mwl`, so every one of them trips `E0229`; and
+//! [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//! made keyword matching exact, so a corpus file's mixed-case `IF`/`TRUE`
+//! now lex as ordinary identifiers. Both widenings are deliberate — the bar
+//! this test holds is "the parser does not panic," which is what M1's plan
+//! actually asked for.
 
 #![allow(
     clippy::print_stderr,
