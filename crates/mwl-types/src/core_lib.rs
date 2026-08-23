@@ -129,11 +129,29 @@ fn defaults_of(method: &mwl_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg
 /// translation [`lower`] performs for a type, and for the same reason.
 fn lower_const(value: &Const) -> ConstArg {
     match *value {
+        Const::Null => ConstArg::Null,
         Const::Bool(b) => ConstArg::Bool(b),
         Const::Int(v) => ConstArg::Int(v),
         Const::Uint(v) => ConstArg::Uint(v),
         Const::Float(v) => ConstArg::Float(v),
         Const::Str(s) => ConstArg::Str(s.to_owned()),
+        // ADR 0010 § 3: the case *is* its integer constant, so what a call
+        // site materializes is that constant — the same value the enum table
+        // hands `mwl-ir` for a written `Core\Order::Asc`. Resolved here rather
+        // than written into the row so the two cannot disagree.
+        Const::EnumCase(name, case) => ConstArg::Int(
+            mwl_stdlib::registry::core_enum(name)
+                .and_then(|found| {
+                    found
+                        .cases
+                        .iter()
+                        .find(|(candidate, _)| *candidate == case)
+                })
+                .map(|(_, value)| *value)
+                .unwrap_or_else(|| {
+                    panic!("mwl-stdlib defaults an option to `{name}::{case}`, which it does not register")
+                }),
+        ),
         // `Const` is `#[non_exhaustive]`: a variant this arm has not learned
         // yet has no safe `ConstArg` to become, so it fails loudly here rather
         // than silently defaulting a parameter to the wrong value. Both tables
@@ -160,6 +178,14 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         }
         CoreTy::Var(name) => interner.type_var(*name),
         CoreTy::Callable => interner.callable(),
+        // A `Core`-owned enum is interned exactly as a declared one is —
+        // `crate::enums` has already seeded the same name into its own table,
+        // so the backing type asked for here is the one every other consumer
+        // reads back.
+        CoreTy::Enum(name) => {
+            let qname = QName::parse(name);
+            interner.enum_(qname, crate::enums::EnumBacking::Int)
+        }
         CoreTy::CallableTo(name) => interner.callable_to(*name),
         // Canonicalized by the interner, unlike an options bag: a union has no
         // ABI order to preserve, so `int|string` and `string|int` are one type

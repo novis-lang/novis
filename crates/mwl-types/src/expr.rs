@@ -921,9 +921,15 @@ fn infer(
         // way — see the crate docs' known gaps.
         ExprKind::ClassConstAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
-            let enum_qname = resolve_class_expr(class, ctx, env).filter(
-                |qname| matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum),
-            );
+            // A `Core`-owned enum has no `SymbolKind::Enum` entry — nothing
+            // declared it — but it is in the same enum table, seeded from
+            // `mwl_stdlib::registry::ENUMS`, so asking that table is the one
+            // question that answers both. `crate::enums::seed_core` owns why
+            // there is one table rather than two.
+            let enum_qname = resolve_class_expr(class, ctx, env).filter(|qname| {
+                matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
+                    || (qname.is_core() && env.enums.get(qname).is_some())
+            });
             match enum_qname {
                 Some(qname) => {
                     // ADR 0010 § 3: the case *is* its integer constant, so
@@ -933,6 +939,16 @@ fn infer(
                     let case = span_text(env.src, *name).to_owned();
                     if let Some(value) = env.enums.case(&qname, &case) {
                         env.exprs.record(expr.span, ExprInfo::EnumCase { value });
+                    } else if qname.is_core() {
+                        // The one place `Core`'s blanket trust is *narrowed*
+                        // rather than relied on: `mwl_hir::members` waves a
+                        // `Core\…::Anything` through because nothing declares
+                        // it, but `mwl_stdlib::registry::ENUMS` states every
+                        // case a `Core` enum has, so a name that is not one is
+                        // knowably wrong here. Without this the mistake
+                        // reaches `mwl-ir` as a `Class::CONST` with no value
+                        // recorded, which panics.
+                        report_unknown_member(class.span, &qname, &case, "case", env);
                     }
                     let backing = env.enums.backing_of(&qname);
                     env.interner.enum_(qname, backing)

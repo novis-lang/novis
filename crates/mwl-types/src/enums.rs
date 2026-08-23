@@ -128,8 +128,40 @@ pub(crate) fn build_enum_table(
     diags: &mut mwl_diagnostics::Diagnostics,
 ) -> EnumTable {
     let mut table = EnumTable::default();
+    seed_core(&mut table);
     collect(stmts, src, &[], &mut table, diags);
     table
+}
+
+/// Adds every `mwl_stdlib::registry::ENUMS` entry, before any declaration is
+/// walked.
+///
+/// The same "seed a table rather than special-case `Core`" arrangement
+/// [`crate::core_lib`] uses for members, and it buys the same thing: nothing
+/// downstream — not [`EnumTable::case`], not `crate::expr`'s
+/// `ClassConstAccess` arm, not `mwl-ir` — learns that a `Core` enum is
+/// different from a declared one.
+///
+/// Seeded first so a *declared* `Core\Order` would overwrite it rather than
+/// the other way round. That cannot happen today: `Core` is the reserved
+/// namespace ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)),
+/// and a program declaring into it is a question for `mwl-hir`'s resolver,
+/// not something this table should answer by silently winning.
+fn seed_core(table: &mut EnumTable) {
+    for declared in mwl_stdlib::registry::ENUMS {
+        let cases = declared
+            .cases
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), EnumValue::Int(*value)))
+            .collect();
+        table.by_name.insert(
+            QName::parse(declared.name),
+            EnumInfo {
+                backing: EnumBacking::Int,
+                cases,
+            },
+        );
+    }
 }
 
 fn collect(

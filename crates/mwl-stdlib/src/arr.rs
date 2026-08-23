@@ -460,6 +460,405 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+/// One entry's `by`-extracted sort key, owned by the frame that extracted it.
+///
+/// `mwl_runtime::call_closure` hands back one fresh reference per call, so the
+/// extracted keys are this frame's to free — unlike the entries themselves,
+/// which belong to the subject array. Held in a guard rather than released at
+/// the end of [`mwl_core_arr_sort`] because a `by` closure, a comparator or a
+/// wrong tag can all leave part-way through, and a `Drop` is the only release
+/// every one of those paths runs.
+struct SortKeys(Vec<Value>);
+
+impl Drop for SortKeys {
+    fn drop(&mut self) {
+        for value in self.0.drain(..) {
+            #[expect(
+                unsafe_code,
+                reason = "each of these is exactly the one reference \
+                          `call_closure` returned to this frame"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>`
+    /// — the spec's § 2 *Ordering* member that replaces `sort`, `rsort`,
+    /// `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort` and
+    /// `array_multisort`.
+    ///
+    /// # The four options
+    ///
+    /// * **`by`** extracts the value each entry is *compared by*, receiving
+    ///   `($value, $key)` like every other `Core\Arr` callback. It is called
+    ///   exactly once per entry, before any comparison — decorate-sort-
+    ///   undecorate — so an expensive extractor costs `n` calls rather than
+    ///   the `n log n` a comparator doing the same work would.
+    /// * **`order`** is `Core\Order::Asc` (the default) or `Core\Order::Desc`.
+    ///   `Desc` reverses the *comparison*, not the result, so equal entries
+    ///   keep their original relative order either way.
+    /// * **`comparator`** replaces the natural ordering with `($a, $b): int`,
+    ///   negative/zero/positive — `usort`'s callback, unchanged.
+    /// * **`preserveKeys`** defaults to `false`, so the result is renumbered
+    ///   `0..n-1` (PHP's `sort`/`usort`); `true` keeps each entry's key (PHP's
+    ///   `asort`/`uasort`). That option is the whole of the difference the
+    ///   `a`-prefixed half of PHP's roster spelled into eight extra names.
+    ///
+    /// **`by` and `comparator` compose** rather than conflicting: `by` decides
+    /// *what* is compared and `comparator` decides *how*, so a comparator sees
+    /// the extracted keys when both are given. No combination of the four is
+    /// refused, which is one fewer rule than a caller would otherwise have to
+    /// remember and costs nothing to allow.
+    ///
+    /// # The sort is stable, and hand-written
+    ///
+    /// Stable, like every PHP 8 sort. A bottom-up merge sort over an index
+    /// permutation rather than `slice::sort_by`, for one reason: a comparison
+    /// here can **fail** — the callback can throw, and two values of
+    /// incomparable types are a throw of this member's own. Rust's sorts take
+    /// an infallible comparator, so the alternatives were swallowing the fault
+    /// until the sort finished (leaving a comparator that is no longer a total
+    /// order, which those sorts are documented to be allowed to panic on) or
+    /// this. It costs one `Vec<usize>` of scratch space, which
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s ordering
+    /// buys without discussion.
+    ///
+    /// # Natural ordering, and where it diverges from PHP
+    ///
+    /// [`compare_values`] owns the table. The one deliberate divergence:
+    /// **two `string`s always compare bytewise**, never numerically. PHP
+    /// compares `"10"` and `"9"` as numbers, which is the same
+    /// changes-type-by-itself behaviour
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) rejects
+    /// everywhere else; a caller who wants a numeric order over numeric
+    /// strings writes `{by: ...}` and says so.
+    ///
+    /// **Known gap:** an `array<T>` of objects has no natural order, and
+    /// [ADR 0013](../../../docs/adr/0013-comparable-interface.md) says what it
+    /// should be — `Comparable::compareTo`. Calling an *instance* method from
+    /// a helper is not reachable yet, so an object without a `comparator` is a
+    /// throw naming the interface rather than a wrong answer.
+    fn mwl_core_arr_sort(ctx, args: [5]) {
+        let subject = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::sort expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let by = optional_callback(&args[1], "by")?;
+        let descending = match args[2].as_int() {
+            Some(0) => false,
+            Some(1) => true,
+            _ => {
+                return Err(Fault::fatal(format!(
+                    "Core\\Arr::sort expected a `Core\\Order` case for `order`, got tag {} \
+                     value {}",
+                    args[2].tag_byte(),
+                    args[2].bits()
+                )));
+            }
+        };
+        let comparator = optional_callback(&args[3], "comparator")?;
+        let preserve_keys = args[4].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::sort expected {:?} for `preserveKeys`, got tag {}",
+                Tag::Bool,
+                args[4].tag_byte()
+            ))
+        })?;
+
+        // Every entry, in insertion order. Both halves are *borrowed* from the
+        // subject: the keys are released by their own `MwlStr` drops, and the
+        // values belong to the array, which outlives this call.
+        let mut keys: Vec<MwlStr> = Vec::new();
+        let mut values: Vec<Value> = Vec::new();
+        let mut from = 0usize;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array argument owns a reference to a live \
+                          allocation, so it is live for the length of this \
+                          call, and `from` only ever advances past a slot \
+                          this same cursor reported"
+            )]
+            let (slot, key, value) = unsafe {
+                let slot = mwl_runtime::mwl_array_next_slot(subject, from);
+                let Ok(slot) = usize::try_from(slot) else {
+                    break;
+                };
+                let key = MwlStr::from_raw(mwl_runtime::mwl_array_key_at(subject, slot));
+                let mut value = Value::null();
+                mwl_runtime::mwl_array_value_at(subject, slot, &raw mut value);
+                (slot, key, value)
+            };
+            from = slot + 1;
+            keys.push(key);
+            values.push(value);
+        }
+
+        // Decorate. Dropped by the guard on every exit path below, including
+        // a throw out of the extractor itself.
+        let mut sort_keys = SortKeys(Vec::new());
+        if let Some(by) = by {
+            for (index, value) in values.iter().enumerate() {
+                let key_arg = Value::str(keys[index].clone());
+                let extracted = mwl_runtime::call_closure(ctx, by, &[*value, key_arg]);
+                #[expect(
+                    unsafe_code,
+                    reason = "this frame owns exactly the reference \
+                              `keys[index].clone()` just produced"
+                )]
+                unsafe {
+                    key_arg.release();
+                }
+                sort_keys.0.push(extracted?);
+            }
+        }
+
+        // What the comparison actually reads: the extracted keys where `by`
+        // was given, the entries themselves otherwise.
+        let compared: &[Value] = if by.is_some() { &sort_keys.0 } else { &values };
+        let mut permutation: Vec<usize> = (0..values.len()).collect();
+        let mut compare = |left: usize, right: usize| -> Result<std::cmp::Ordering, Fault> {
+            let ordering = match comparator {
+                Some(comparator) => {
+                    let verdict = mwl_runtime::call_closure(
+                        ctx,
+                        comparator,
+                        &[compared[left], compared[right]],
+                    )?;
+                    let sign = comparator_sign(verdict);
+                    #[expect(
+                        unsafe_code,
+                        reason = "the verdict is a fresh value this frame \
+                                  owns; a comparator returning a heap value \
+                                  would otherwise leak one reference per \
+                                  comparison"
+                    )]
+                    unsafe {
+                        verdict.release();
+                    }
+                    sign?
+                }
+                None => compare_values(&compared[left], &compared[right])?,
+            };
+            Ok(if descending { ordering.reverse() } else { ordering })
+        };
+        merge_sort(&mut permutation, &mut compare)?;
+
+        let mut out = MwlArray::new();
+        for index in permutation {
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                values[index].retain();
+            }
+            if preserve_keys {
+                out.set(keys[index].clone(), values[index]);
+            } else {
+                out.append(values[index]);
+            }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+/// One optional callback option: the closure it names, or `None` for the
+/// `Tag::Null` an omitting call site passes.
+///
+/// `mwl_stdlib::registry::Const::Null` owns why "not given" is spelled that
+/// way rather than as a value of the option's own type.
+fn optional_callback(value: &Value, option: &str) -> Result<Option<Value>, Fault> {
+    match value.tag() {
+        Some(Tag::Null) => Ok(None),
+        Some(Tag::Object) => Ok(Some(*value)),
+        _ => Err(Fault::fatal(format!(
+            "Core\\Arr::sort expected a closure or nothing for `{option}`, got tag {}",
+            value.tag_byte()
+        ))),
+    }
+}
+
+/// A comparator's verdict as an [`std::cmp::Ordering`] — negative, zero or
+/// positive, exactly `usort`'s contract.
+///
+/// A `float` verdict is accepted for the same reason `int` is: the contract is
+/// about the *sign*, and a comparator written as a subtraction of two floats
+/// is the shape PHP code already has. A `NaN` has no sign, so it is a throw
+/// rather than a silent `Equal`.
+fn comparator_sign(verdict: Value) -> Result<std::cmp::Ordering, Fault> {
+    if let Some(int) = verdict.as_int() {
+        return Ok(int.cmp(&0));
+    }
+    if let Some(uint) = verdict.as_uint() {
+        return Ok(uint.cmp(&0));
+    }
+    if let Some(float) = verdict.as_float() {
+        return float.partial_cmp(&0.0).ok_or_else(|| {
+            Fault::thrown("Core\\Arr::sort's comparator returned NaN, which has no ordering")
+        });
+    }
+    Err(Fault::fatal(format!(
+        "Core\\Arr::sort's comparator returned tag {}, not a number",
+        verdict.tag_byte()
+    )))
+}
+
+/// The natural ordering of two values, or a throw for a pair that has none.
+///
+/// One row per representation, and nothing crosses between rows except the
+/// numeric ones:
+///
+/// * `null` — one value, so always equal.
+/// * `bool` — `false` before `true`.
+/// * `int`/`uint` — exactly, through `i128`, so no large `uint` is rounded.
+/// * `float` against anything numeric — `f64::total_cmp`, which is a real
+///   total order (unlike `partial_cmp`, which a `NaN` makes intransitive and
+///   therefore unusable by any sort at all). Its two visible consequences are
+///   that `-0.0` sorts before `0.0` and that `NaN` sorts at one end rather
+///   than throwing.
+/// * `string`/`bytes` — **bytewise**, never numerically. See
+///   [`mwl_core_arr_sort`], which owns that divergence from PHP.
+///
+/// Anything else — an object, an array, or two different rows above — is
+/// `THROWN`, naming both tags. An object is the one worth calling out: ADR
+/// 0013 makes `Comparable` the answer, and reaching an instance method from a
+/// helper is the thing that is not built yet.
+fn compare_values(left: &Value, right: &Value) -> Result<std::cmp::Ordering, Fault> {
+    use std::cmp::Ordering;
+
+    if let (Some(Tag::Null), Some(Tag::Null)) = (left.tag(), right.tag()) {
+        return Ok(Ordering::Equal);
+    }
+    if let (Some(a), Some(b)) = (left.as_bool(), right.as_bool()) {
+        return Ok(a.cmp(&b));
+    }
+    if let (Some(a), Some(b)) = (left.as_str_bytes(), right.as_str_bytes()) {
+        return Ok(a.cmp(b));
+    }
+    if let (Some(a), Some(b)) = (numeric(left), numeric(right)) {
+        return Ok(match (a, b) {
+            (Numeric::Integer(a), Numeric::Integer(b)) => a.cmp(&b),
+            (Numeric::Integer(a), Numeric::Real(b)) => real(a).total_cmp(&b),
+            (Numeric::Real(a), Numeric::Integer(b)) => a.total_cmp(&real(b)),
+            (Numeric::Real(a), Numeric::Real(b)) => a.total_cmp(&b),
+        });
+    }
+    Err(Fault::thrown(format!(
+        "Core\\Arr::sort has no natural order for tag {} against tag {}; pass \
+         `{{comparator: ...}}`, or implement `Comparable` and compare by that",
+        left.tag_byte(),
+        right.tag_byte()
+    )))
+}
+
+/// One value's numeric content, or `None` for a value that has none.
+#[derive(Clone, Copy)]
+enum Numeric {
+    /// An `int` or a `uint`, widened so the two compare exactly.
+    Integer(i128),
+    /// A `float`.
+    Real(f64),
+}
+
+fn numeric(value: &Value) -> Option<Numeric> {
+    if let Some(int) = value.as_int() {
+        return Some(Numeric::Integer(i128::from(int)));
+    }
+    if let Some(uint) = value.as_uint() {
+        return Some(Numeric::Integer(i128::from(uint)));
+    }
+    value.as_float().map(Numeric::Real)
+}
+
+/// An exact integer as the `f64` it is compared against.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "an integer past 2^53 loses low bits on the way to `f64`, which \
+              is the same rounding ADR 0007 § 4's int-to-float widening \
+              already allows; the alternative is a mixed int/float array \
+              having no order at all"
+)]
+fn real(value: i128) -> f64 {
+    value as f64
+}
+
+/// A stable, bottom-up merge sort over `permutation`, with a comparison that
+/// may fail.
+///
+/// Bottom-up rather than recursive so the scratch buffer is allocated once,
+/// and over an index permutation rather than the values so nothing is moved
+/// twice. [`mwl_core_arr_sort`] owns why this exists at all instead of
+/// `slice::sort_by`.
+fn merge_sort<F>(permutation: &mut [usize], compare: &mut F) -> Result<(), Fault>
+where
+    F: FnMut(usize, usize) -> Result<std::cmp::Ordering, Fault>,
+{
+    let len = permutation.len();
+    if len < 2 {
+        return Ok(());
+    }
+    let mut buffer = vec![0usize; len];
+    let mut width = 1;
+    while width < len {
+        let mut start = 0;
+        while start < len {
+            let middle = (start + width).min(len);
+            let end = (start + 2 * width).min(len);
+            merge(
+                &permutation[start..middle],
+                &permutation[middle..end],
+                &mut buffer[start..end],
+                compare,
+            )?;
+            start = end;
+        }
+        permutation.copy_from_slice(&buffer);
+        width *= 2;
+    }
+    Ok(())
+}
+
+/// Merges two already-sorted runs into `out`, taking from `left` on a tie —
+/// which is the whole of what makes the sort stable.
+fn merge<F>(
+    left: &[usize],
+    right: &[usize],
+    out: &mut [usize],
+    compare: &mut F,
+) -> Result<(), Fault>
+where
+    F: FnMut(usize, usize) -> Result<std::cmp::Ordering, Fault>,
+{
+    let (mut i, mut j, mut k) = (0usize, 0usize, 0usize);
+    while i < left.len() && j < right.len() {
+        if compare(left[i], right[j])? == std::cmp::Ordering::Greater {
+            out[k] = right[j];
+            j += 1;
+        } else {
+            out[k] = left[i];
+            i += 1;
+        }
+        k += 1;
+    }
+    // Exactly one of the two runs still has entries, but which one is not
+    // known here — so each remainder is copied into its own length rather than
+    // into "the rest of `out`".
+    let remaining = left.len() - i;
+    out[k..k + remaining].copy_from_slice(&left[i..]);
+    out[k + remaining..].copy_from_slice(&right[j..]);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use mwl_runtime::{Ctx, MwlArray, MwlStr, OutputSink, Value, call};
@@ -730,6 +1129,247 @@ mod tests {
     fn a_range_whose_next_step_would_overflow_stops() {
         assert_eq!(range_of(i64::MAX - 1, i64::MAX, 4), vec![i64::MAX - 1]);
         assert_eq!(range_of(i64::MIN + 1, i64::MIN, 4), vec![i64::MIN + 1]);
+    }
+
+    /// `sort`'s five ABI arguments, with the two callbacks absent — the shape
+    /// an options bag with nothing written flattens into.
+    ///
+    /// Written out here rather than hidden behind a builder because the
+    /// *order* is `SORT_OPTIONS`' own declared order, and a paste error that
+    /// swapped `order` and `preserveKeys` would otherwise be invisible.
+    fn sorted(entries: &[(&[u8], Value)], descending: bool, preserve_keys: bool) -> Vec<Vec<u8>> {
+        let mut array = MwlArray::new();
+        for (key, value) in entries {
+            array.set(MwlStr::new(key), *value);
+        }
+        let subject = Value::array(array);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::mwl_core_arr_sort,
+            &mut ctx,
+            &[
+                subject,
+                Value::null(),
+                Value::int(i64::from(descending)),
+                Value::null(),
+                Value::bool(preserve_keys),
+            ],
+        )
+        .expect("sorting comparable values never fails");
+        #[expect(
+            unsafe_code,
+            reason = "the helper returned one fresh reference, which the handle \
+                      takes over and releases on drop, and this test still owns \
+                      the subject it built"
+        )]
+        let out = unsafe {
+            let out = MwlArray::from_raw(result.array_ptr().expect("sort returns an array"));
+            subject.release();
+            out
+        };
+        let mut rendered = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = out.next_slot(from) {
+            let key = out.key_at(slot).expect("every slot has a key");
+            let value = out.value_at(slot).expect("every slot has a value");
+            let mut row = key.as_bytes().to_vec();
+            row.push(b'=');
+            row.extend_from_slice(&rendered_value(value));
+            rendered.push(row);
+            from = slot + 1;
+        }
+        rendered
+    }
+
+    /// One value as the bytes a test compares — a string's own, or an int's
+    /// decimal spelling.
+    fn rendered_value(value: Value) -> Vec<u8> {
+        value.as_str_bytes().map_or_else(
+            || {
+                value
+                    .as_int()
+                    .expect("a test value is a string or an int")
+                    .to_string()
+                    .into_bytes()
+            },
+            <[u8]>::to_vec,
+        )
+    }
+
+    /// Ascending with `preserveKeys` off is PHP's `sort`: renumbered from
+    /// zero, insertion order gone. Verified against PHP 8.5's own
+    /// `sort(["c" => 3, "a" => 1, "b" => 2])`.
+    #[test]
+    fn sorting_renumbers_by_default_and_keeps_keys_on_request() {
+        let entries: [(&[u8], Value); 3] = [
+            (b"c", Value::int(3)),
+            (b"a", Value::int(1)),
+            (b"b", Value::int(2)),
+        ];
+        assert_eq!(
+            sorted(&entries, false, false),
+            vec![b"0=1".to_vec(), b"1=2".to_vec(), b"2=3".to_vec()]
+        );
+        // PHP's `asort`.
+        assert_eq!(
+            sorted(&entries, false, true),
+            vec![b"a=1".to_vec(), b"b=2".to_vec(), b"c=3".to_vec()]
+        );
+        // PHP's `arsort`.
+        assert_eq!(
+            sorted(&entries, true, true),
+            vec![b"c=3".to_vec(), b"b=2".to_vec(), b"a=1".to_vec()]
+        );
+    }
+
+    /// Two strings compare **bytewise**, never numerically — the one
+    /// deliberate divergence from PHP's own `sort`, which answers
+    /// `["9", "10"]` here because it reads two numeric strings as numbers.
+    /// `mwl_core_arr_sort`'s own docs own the reasoning.
+    #[test]
+    fn two_strings_compare_bytewise_rather_than_numerically() {
+        let entries: [(&[u8], Value); 2] = [
+            (b"0", Value::str(MwlStr::new(b"9"))),
+            (b"1", Value::str(MwlStr::new(b"10"))),
+        ];
+        assert_eq!(
+            sorted(&entries, false, false),
+            vec![b"0=10".to_vec(), b"1=9".to_vec()]
+        );
+    }
+
+    /// The sort is stable: entries that compare equal come out in the order
+    /// they went in, ascending **and** descending, because `Desc` reverses the
+    /// comparison rather than the result. PHP 8's sorts are stable the same
+    /// way — its own `rsort(["bb", "aa", "cc"])` compared by a constant leaves
+    /// them untouched.
+    #[test]
+    fn equal_entries_keep_their_original_order_in_both_directions() {
+        let entries: [(&[u8], Value); 4] = [
+            (b"w", Value::int(7)),
+            (b"x", Value::int(7)),
+            (b"y", Value::int(7)),
+            (b"z", Value::int(7)),
+        ];
+        for descending in [false, true] {
+            assert_eq!(
+                sorted(&entries, descending, true),
+                vec![
+                    b"w=7".to_vec(),
+                    b"x=7".to_vec(),
+                    b"y=7".to_vec(),
+                    b"z=7".to_vec()
+                ]
+            );
+        }
+    }
+
+    /// An empty array and a one-entry array both come back unchanged rather
+    /// than reaching the merge at all — the two sizes a hand-written sort gets
+    /// wrong first.
+    #[test]
+    fn an_empty_and_a_single_entry_array_sort_to_themselves() {
+        assert_eq!(sorted(&[], false, true), Vec::<Vec<u8>>::new());
+        assert_eq!(
+            sorted(&[(b"k", Value::int(1))], true, true),
+            vec![b"k=1".to_vec()]
+        );
+    }
+
+    /// Every run length the bottom-up merge takes a different path through —
+    /// an odd tail, a power of two, and one either side — against the same
+    /// answer computed by Rust's own sort. This is the check a hand-written
+    /// merge actually owes: the `copy_from_slice` that pairs two runs of
+    /// unequal length is where it went wrong the first time.
+    #[test]
+    fn every_run_length_merges_to_the_same_answer_a_reference_sort_gives() {
+        for len in 0..40i64 {
+            // A shape with duplicates, a descending prefix and an ascending
+            // tail, so no length is accidentally already sorted.
+            let values: Vec<i64> = (0..len).map(|i| (len - i) % 7).collect();
+            let entries: Vec<(Vec<u8>, Value)> = values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| (index.to_string().into_bytes(), Value::int(*value)))
+                .collect();
+            let borrowed: Vec<(&[u8], Value)> = entries
+                .iter()
+                .map(|(key, value)| (key.as_slice(), *value))
+                .collect();
+
+            let mut expected = values.clone();
+            expected.sort_unstable();
+            let expected: Vec<Vec<u8>> = expected
+                .iter()
+                .enumerate()
+                .map(|(index, value)| format!("{index}={value}").into_bytes())
+                .collect();
+            assert_eq!(sorted(&borrowed, false, false), expected, "at length {len}");
+        }
+    }
+
+    /// Two values with no natural order between them are `THROWN`, not a
+    /// silent `Equal` — an array is the case that reaches this today, and an
+    /// object is the one ADR 0013's `Comparable` is the eventual answer for.
+    #[test]
+    fn a_pair_with_no_natural_order_throws() {
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"0"), Value::int(1));
+        array.set(MwlStr::new(b"1"), Value::array(MwlArray::new()));
+        let subject = Value::array(array);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(
+            super::mwl_core_arr_sort,
+            &mut ctx,
+            &[
+                subject,
+                Value::null(),
+                Value::int(0),
+                Value::null(),
+                Value::bool(false),
+            ],
+        )
+        .expect_err("an int and an array have no order");
+        assert_eq!(status, mwl_runtime::THROWN);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and the \
+                      helper borrowed rather than consumed it"
+        )]
+        unsafe {
+            subject.release();
+        }
+    }
+
+    /// An `order` argument that is not one of `Core\Order`'s two cases is a
+    /// contained `FATAL`: the checker refuses an `int` there
+    /// (`E_TYPE_MISMATCH`), so reaching this means the compiler let through a
+    /// call it should not have.
+    #[test]
+    fn an_order_outside_the_enum_is_a_contained_fault() {
+        let subject = Value::array(MwlArray::new());
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(
+            super::mwl_core_arr_sort,
+            &mut ctx,
+            &[
+                subject,
+                Value::null(),
+                Value::int(7),
+                Value::null(),
+                Value::bool(false),
+            ],
+        )
+        .expect_err("7 is not a Core\\Order case");
+        assert_eq!(status, mwl_runtime::FATAL);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and the \
+                      helper borrowed rather than consumed it"
+        )]
+        unsafe {
+            subject.release();
+        }
     }
 
     /// A wrong tag is a contained `FATAL`, not a panic that takes the process

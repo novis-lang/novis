@@ -63,16 +63,18 @@
 //!    [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s open
 //!    granularity question — which [`str`]'s own docs record as the one thing
 //!    that can still change an already-registered member's answer.
-//! 3. **`Const` has no `null` variant**, so a member whose spec signature
-//!    defaults to `null` — `Core\Str::slice`'s `?int $length = null` and the
-//!    rest of the spec's most common optional shape — waits on
-//!    `mwl_types::defaults` growing one, and on the IR constant under it. Two
-//!    things are *off* that list now: ADR 0063 R2's options bag, which
-//!    [`registry::CoreTy::Options`] expresses (`Core\Arr::range` was the first
-//!    member with one), and a union parameter, which
-//!    [`registry::CoreTy::Union`] expresses (`Core\Arr::hasKey` was the
-//!    first). A union *return* is not — that one is genuinely blocked, on the
-//!    same `mwl_ir::ty::Ty::Mixed` representation `?T` waits on, and
+//! 3. **A `?T` parameter still cannot be stated**, so a member whose spec
+//!    signature declares one — `Core\Str::slice`'s `?int $length = null`, and
+//!    the rest of the spec's most common optional shape — waits on the
+//!    `mwl_ir::ty::Ty::Mixed` representation question a type admitting both
+//!    `null` and a `T` runs into. Four things are *off* that list now: ADR
+//!    0063 R2's options bag ([`registry::CoreTy::Options`], first used by
+//!    `Core\Arr::range`), a union parameter ([`registry::CoreTy::Union`],
+//!    first used by `Core\Arr::hasKey`), a `Core`-owned enum
+//!    ([`registry::CoreTy::Enum`] over [`registry::ENUMS`], first used by
+//!    `Core\Arr::sort`), and an **absent** option
+//!    ([`registry::Const::Null`], the same member). A union *return* is not —
+//!    that one is genuinely blocked, on the same representation, and
 //!    `CoreTy::Union`'s own docs say why.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
 //!    *Revisiting* section and `.claude/loop-goal.md` both scope `<T>` to
@@ -113,6 +115,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 "mwl_core_arr_has_key" => (arr::mwl_core_arr_has_key as *const ()).cast(),
                 "mwl_core_arr_is_list" => (arr::mwl_core_arr_is_list as *const ()).cast(),
                 "mwl_core_arr_values" => (arr::mwl_core_arr_values as *const ()).cast(),
+                "mwl_core_arr_sort" => (arr::mwl_core_arr_sort as *const ()).cast(),
                 "mwl_core_arr_range" => (arr::mwl_core_arr_range as *const ()).cast(),
                 "mwl_core_str_is_empty" => (str::mwl_core_str_is_empty as *const ()).cast(),
                 "mwl_core_str_contains" => (str::mwl_core_str_contains as *const ()).cast(),

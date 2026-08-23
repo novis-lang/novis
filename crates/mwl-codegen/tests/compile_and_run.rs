@@ -1593,6 +1593,130 @@ echo $seen;
     assert_eq!(output_of(source), "20000");
 }
 
+/// `Core\Arr::sort` with nothing written: ascending, renumbered from zero.
+/// PHP 8.5's own `sort(["pear", "Apple", "fig", "banana"])` answers
+/// `Apple,banana,fig,pear`.
+#[test]
+fn sorting_with_no_options_is_ascending_and_renumbers() {
+    let source = "<?mwl
+array<string> $words = [\"pear\", \"Apple\", \"fig\", \"banana\"];
+echo Core\\Str::join(Core\\Arr::sort($words), \",\");
+";
+    assert_eq!(output_of(source), "Apple,banana,fig,pear");
+}
+
+/// `{order: Core\Order::Desc}` — the first `Core`-owned enum reaching a
+/// running program, and PHP's `rsort` in one option rather than a second
+/// member name.
+#[test]
+fn a_core_enum_case_selects_the_descending_order() {
+    let source = "<?mwl
+array<string> $words = [\"pear\", \"Apple\", \"fig\", \"banana\"];
+echo Core\\Str::join(Core\\Arr::sort($words, {order: Core\\Order::Desc}), \",\");
+";
+    assert_eq!(output_of(source), "pear,fig,banana,Apple");
+}
+
+/// `{by: ...}` decides *what* is compared. Sorting by the lower-cased word
+/// puts `apple` first, where the bytewise order the previous test checks puts
+/// `Zebra` first — so this fails if the extractor is ignored rather than
+/// merely mis-ordered.
+#[test]
+fn a_by_extractor_decides_what_is_compared() {
+    let source = "<?mwl
+array<string> $words = [\"Zebra\", \"apple\"];
+echo Core\\Str::join(Core\\Arr::sort($words), \",\");
+echo \"|\";
+echo Core\\Str::join(Core\\Arr::sort($words, {by: fn(string $w): string => Core\\Str::lower($w)}), \",\");
+";
+    assert_eq!(output_of(source), "Zebra,apple|apple,Zebra");
+}
+
+/// `{comparator: ...}` is `usort`'s callback, unchanged — PHP's
+/// `usort($nums, fn($a, $b) => $b - $a)` answers `9|5|3|1` for the same input.
+#[test]
+fn a_comparator_replaces_the_natural_ordering() {
+    let source = "<?mwl
+array<int> $nums = [5, 3, 9, 1];
+var $down = Core\\Arr::sort($nums, {comparator: fn(int $a, int $b): int => $b - $a});
+echo Core\\Str::join(Core\\Arr::map($down, fn(int $n): string => $n as string), \"|\");
+";
+    assert_eq!(output_of(source), "9|5|3|1");
+}
+
+/// `{preserveKeys: true}` is PHP's `asort`, and with `Core\Order::Desc` its
+/// `arsort` — the eight extra names that half of PHP's roster spends on this
+/// one option.
+#[test]
+fn preserve_keys_keeps_each_entrys_own_key() {
+    let source = "<?mwl
+class Show {
+    public static function render(array<int> $a): string {
+        var $out = \"\";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . \"=\" . $v . \";\";
+        }
+        return $out;
+    }
+}
+
+array<int> $scores = [\"c\" => 3, \"a\" => 1, \"b\" => 2];
+echo Show::render(Core\\Arr::sort($scores, {preserveKeys: true}));
+echo \"|\";
+echo Show::render(Core\\Arr::sort($scores, {preserveKeys: true, order: Core\\Order::Desc}));
+echo \"|\";
+echo Show::render(Core\\Arr::sort($scores));
+";
+    assert_eq!(output_of(source), "a=1;b=2;c=3;|c=3;b=2;a=1;|0=1;1=2;2=3;");
+}
+
+/// A comparator that throws stops the sort and propagates, rather than
+/// finishing on a half-ordered array — and the `catch` runs, which is what
+/// makes the hand-written merge's early return a real path rather than a
+/// claim.
+#[test]
+fn a_comparator_that_throws_propagates_out_of_the_sort() {
+    let source = "<?mwl
+class Boom {
+    public static function at(int $a, int $b): int {
+        if ($a > 3) { throw new RuntimeError(\"nope\"); }
+        return $a - $b;
+    }
+}
+
+array<int> $nums = [5, 3, 9, 1];
+var $cmp = fn(int $a, int $b): int => Boom::at($a, $b);
+try {
+    var $sorted = Core\\Arr::sort($nums, {comparator: $cmp});
+    echo \"unreachable\";
+} catch (RuntimeError $e) {
+    echo \"caught: \", $e->message;
+}
+";
+    assert_eq!(output_of(source), "caught: nope");
+}
+
+/// Sorting an array of heap values ten thousand times: the entries copied into
+/// the result each need a reference of their own, and every `by`-extracted key
+/// is one this frame owes a release for. A missing retain crashes here and a
+/// spare one leaks — neither is visible from a single call.
+#[test]
+fn sorting_in_a_loop_leaks_nothing() {
+    let source = "<?mwl
+var $i = 0;
+var $seen = 0;
+var $by = fn(string $s): string => Core\\Str::upper($s);
+while ($i < 10000) {
+    array<string> $a = [\"b\" . $i, \"a\" . $i, \"c\" . $i];
+    var $sorted = Core\\Arr::sort($a, {by: $by});
+    $seen = $seen + Core\\Arr::count($sorted) as int;
+    $i = $i + 1;
+}
+echo $seen;
+";
+    assert_eq!(output_of(source), "30000");
+}
+
 #[test]
 fn a_core_str_member_runs_and_hands_its_result_back_as_a_string() {
     let source = "<?mwl

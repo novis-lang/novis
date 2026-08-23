@@ -22,11 +22,18 @@
 //! # Known gap
 //!
 //! The enum covers exactly what the members registered so far need. §§ 1–12
-//! of the spec also use unions (`int|string`), nullables (`?T`) and `decimal`
-//! — each is a variant to add here plus a lowering arm in `mwl_types`, and
-//! none has a member registered yet that would exercise it. [`Const`] has the
-//! same shape of gap: no `null`, so a spec signature ending `= null` cannot be
-//! stated here until `mwl_types::defaults` can emit one.
+//! of the spec also use nullables (`?T`) and `decimal` — each is a variant to
+//! add here plus a lowering arm in `mwl_types`, and neither has a member
+//! registered yet that would exercise it.
+//!
+//! # A `Core` enum is declared here too
+//!
+//! The spec's own tables name enums as well as members — `Core\Order` at
+//! § 2's *Ordering* is the first — so [`ENUMS`] is a second roster beside
+//! [`CLASSES`], and [`CoreTy::Enum`] refers to one by name. Its own doc
+//! comment owns why the two are separate; what belongs here is that
+//! `mwl_types::enums` seeds them into the *same* table a declared `enum` goes
+//! into, so nothing downstream of that point can tell the two apart.
 //!
 //! # The options bag
 //!
@@ -135,6 +142,20 @@ pub enum CoreTy {
     /// comment records as still undecided, so no row states one —
     /// `a_union_is_only_ever_a_parameter` holds that.
     Union(&'static [CoreTy]),
+    /// A `Core`-owned enum, named by its fully-qualified name — `Core\Order`
+    /// in `sort(array<T> $a, {order?: Order, ...})`.
+    ///
+    /// The name is resolved against [`ENUMS`], not against the compiled
+    /// program: an enum the spec's own tables name is part of `Core`'s
+    /// surface exactly as a member is, so it is declared here and seeded into
+    /// the checker's enum table alongside the user's own — see
+    /// [`ENUMS`] for why that is one table rather than two.
+    ///
+    /// Carries no backing type. ADR 0010 § 2 makes `int` the default and
+    /// there is no reason for a `Core` enum to be anything else: nothing
+    /// stores one, so the only thing a `uint` backing could buy is a case
+    /// past `i64::MAX`.
+    Enum(&'static str),
     /// ADR 0063 R2's trailing options shape — `{step?: int}`, one
     /// [`CoreOption`] per declared option, in the order the ABI passes them.
     /// See this module's own docs for why it is its own type rather than a
@@ -182,6 +203,22 @@ pub struct CoreOption {
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum Const {
+    /// `null` — an option that was **not given**.
+    ///
+    /// ADR 0063 R2 makes every option optional, but the spec writes several
+    /// whose type has no "absent" value in it: `Core\Arr::sort`'s
+    /// `{by?: callable, comparator?: callable}` are the first two — a
+    /// `callable` cannot be a "no callback" callable, and inventing a
+    /// do-nothing one would silently change the answer. So the *declared*
+    /// type stays what a call site may write, and the default an omitting
+    /// call site passes is this: the helper reads `Tag::Null` and takes its
+    /// own not-given path.
+    ///
+    /// This is the only default whose value is not of its option's declared
+    /// type, and deliberately: `?callable` would be a union, and
+    /// `a_union_is_only_ever_a_parameter` records why an option cannot be
+    /// one.
+    Null,
     /// A `bool` default.
     Bool(bool),
     /// An `int` default.
@@ -193,6 +230,15 @@ pub enum Const {
     /// A `string` default, already cooked — a registry row writes the bytes it
     /// means, so there is no escape grammar here at all.
     Str(&'static str),
+    /// A [`CoreTy::Enum`] case, by enum name and case name — the default for
+    /// an option whose type is a `Core` enum.
+    ///
+    /// Named rather than written as the integer it is so that the default and
+    /// the case cannot drift apart: ADR 0010 § 3 makes a case an integer
+    /// constant, and [`ENUMS`] is the one place that constant is stated.
+    /// `mwl_types::core_lib` resolves it there; `every_enum_case_default_names_a_real_case`
+    /// holds that it resolves at all.
+    EnumCase(&'static str, &'static str),
 }
 
 /// One `Core` member.
@@ -450,6 +496,16 @@ pub const CLASSES: &[CoreClass] = &[
                 symbol: "mwl_core_arr_values",
             },
             CoreMethod {
+                name: "sort",
+                params: &[
+                    CoreTy::Array(&CoreTy::Var("T")),
+                    CoreTy::Options(SORT_OPTIONS),
+                ],
+                defaults: &[],
+                return_ty: CoreTy::Array(&CoreTy::Var("T")),
+                symbol: "mwl_core_arr_sort",
+            },
+            CoreMethod {
                 name: "range",
                 params: &[CoreTy::Int, CoreTy::Int, CoreTy::Options(RANGE_OPTIONS)],
                 defaults: &[],
@@ -515,10 +571,86 @@ const RANGE_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Int(1),
 }];
 
+/// `Core\Arr::sort`'s
+/// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
+/// — the eleven PHP sort functions plus `array_multisort` in one bag, which is
+/// what the spec's § 2 *Ordering* note means by "descending is
+/// `{order: Order::Desc}`, key-preservation is an option rather than a letter
+/// in the name."
+///
+/// `crate::arr::mwl_core_arr_sort`'s own docs own what each option does and
+/// which combinations are refused. Two things about the *declaration* belong
+/// here: `by` and `comparator` are the first options whose default is
+/// [`Const::Null`] (there is no "no callback" callable — see that variant),
+/// and `order` is the first use of [`CoreTy::Enum`].
+const SORT_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "by",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "order",
+        ty: CoreTy::Enum(r"Core\Order"),
+        default: Const::EnumCase(r"Core\Order", "Asc"),
+    },
+    CoreOption {
+        name: "comparator",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "preserveKeys",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
+/// closed, named integer type, declared here rather than in MWL source.
+#[derive(Clone, Copy, Debug)]
+pub struct CoreEnum {
+    /// The fully-qualified name, backslash-separated exactly as written in
+    /// source (`Core\Order`).
+    pub name: &'static str,
+    /// Its cases, in declaration order. The value is each case's own
+    /// constant, written out rather than auto-incremented: ADR 0010 § 1's
+    /// auto-increment is a *source* convenience, and a table read by the
+    /// compiler has nothing to gain from re-deriving what it could state.
+    pub cases: &'static [(&'static str, i64)],
+}
+
+/// Every enum `Core` owns.
+///
+/// A second roster beside [`CLASSES`] rather than a member of it, because an
+/// enum is not a class: [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+/// puts every *callable* on a class, and an enum has none. `mwl_types::enums`
+/// seeds its own table from this, so `Core\Order::Desc` resolves to an integer
+/// constant through exactly the machinery a user-declared `enum` already goes
+/// through — the same "seed a table rather than special-case `Core`" rule
+/// `mwl_types::core_lib` states for members.
+///
+/// The spec's § 2 names a second one, `SetOn { Values, Keys, Both }`. It is
+/// deliberately absent: no member that takes it is registered yet, and an
+/// entry here is reachable from source the moment it exists.
+pub const ENUMS: &[CoreEnum] = &[CoreEnum {
+    // docs/spec/01-core-library.md § 2 *Ordering*: "Enums: `Order { Asc, Desc
+    // }`". Ascending is `0` so that it is also the value a `{order: ...}` an
+    // author never writes ends up meaning.
+    name: r"Core\Order",
+    cases: &[("Asc", 0), ("Desc", 1)],
+}];
+
 /// Looks a class up by its fully-qualified name.
 #[must_use]
 pub fn class(name: &str) -> Option<&'static CoreClass> {
     CLASSES.iter().find(|class| class.name == name)
+}
+
+/// Looks a `Core`-owned enum up by its fully-qualified name.
+#[must_use]
+pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
+    ENUMS.iter().find(|found| found.name == name)
 }
 
 #[cfg(test)]
@@ -776,6 +908,106 @@ mod tests {
         assert_eq!(options.len(), 1);
         assert_eq!(options[0].name, "step");
         assert!(matches!(options[0].default, Const::Int(1)));
+    }
+
+    /// A `Core` enum's name and cases follow ADR 0029's casing rules too —
+    /// `PascalCase` for both, since a case is a type-level name (§ 1's
+    /// enum-case row), not a member.
+    #[test]
+    fn every_core_enum_name_and_case_follows_the_casing_rules() {
+        for declared in ENUMS {
+            assert!(
+                declared.name.starts_with(r"Core\"),
+                "{} is not under Core",
+                declared.name
+            );
+            assert!(!declared.cases.is_empty(), "{} has no cases", declared.name);
+            for (case, _) in declared.cases {
+                assert!(
+                    case.starts_with(|c: char| c.is_ascii_uppercase()),
+                    "{}::{case} is not PascalCase",
+                    declared.name
+                );
+            }
+        }
+    }
+
+    /// Every [`Const::EnumCase`] default names an enum this crate registers
+    /// and a case that enum actually has — the check that keeps a default and
+    /// its case from drifting apart, since `mwl_types::core_lib` resolves one
+    /// against the other and panics if it cannot.
+    #[test]
+    fn every_enum_case_default_names_a_real_case() {
+        for class in CLASSES {
+            for method in class.methods {
+                for option in method.options().unwrap_or(&[]) {
+                    let Const::EnumCase(name, case) = option.default else {
+                        continue;
+                    };
+                    let declared = core_enum(name).unwrap_or_else(|| {
+                        panic!(
+                            "{}::{} defaults `{}` to an unregistered enum `{name}`",
+                            class.name, method.name, option.name
+                        )
+                    });
+                    assert!(
+                        declared.cases.iter().any(|(found, _)| *found == case),
+                        "{}::{} defaults `{}` to `{name}::{case}`, which is not a case",
+                        class.name,
+                        method.name,
+                        option.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// An option typed as a `Core` enum names one this crate registers — the
+    /// name is resolved rather than declared, so a typo would otherwise intern
+    /// a type nothing can ever produce a value of.
+    #[test]
+    fn every_enum_typed_option_names_a_registered_enum() {
+        for class in CLASSES {
+            for method in class.methods {
+                for option in method.options().unwrap_or(&[]) {
+                    if let CoreTy::Enum(name) = option.ty {
+                        assert!(
+                            core_enum(name).is_some(),
+                            "{}::{}'s option `{}` is typed as the unregistered enum `{name}`",
+                            class.name,
+                            method.name,
+                            option.name
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// `sort`'s bag spelled out, in ABI order — the one member whose options
+    /// are all four kinds at once: two absent-by-default callbacks, an enum
+    /// and a `bool`. The order is what
+    /// `mwl_ir::lower::Lowering::lower_options_arg` flattens into, so a
+    /// reordering here is a silently wrong call rather than a build failure.
+    #[test]
+    fn sort_declares_its_four_options_in_abi_order() {
+        let sort = class(r"Core\Arr")
+            .expect(r"Core\Arr is registered")
+            .methods
+            .iter()
+            .find(|method| method.name == "sort")
+            .expect("sort is registered");
+        assert_eq!(sort.positional().len(), 1);
+        let options = sort.options().expect("sort takes an options bag");
+        let names: Vec<&str> = options.iter().map(|option| option.name).collect();
+        assert_eq!(names, vec!["by", "order", "comparator", "preserveKeys"]);
+        assert!(matches!(options[0].default, Const::Null));
+        assert!(matches!(
+            options[1].default,
+            Const::EnumCase(r"Core\Order", "Asc")
+        ));
+        assert!(matches!(options[2].default, Const::Null));
+        assert!(matches!(options[3].default, Const::Bool(false)));
     }
 
     #[test]
