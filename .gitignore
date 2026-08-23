@@ -58,3 +58,7 @@ Desktop.ini
 .claude/loop-logs/
 .claude/loop-status.txt
 .claude/loop-stop
+
+# Scratch commit-message file (CLAUDE.md: a multi-line message goes through a
+# file, never an inline `-m`); never part of the tree it describes.
+.claude/commitmsg.txt
