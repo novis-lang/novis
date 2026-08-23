@@ -2,85 +2,89 @@
 
 ## State
 
-**Read [`.claude/loop-goal.md`](.claude/loop-goal.md) in full before anything else** — it is the
-authoritative scope for this run and holds decisions the user already made, so nothing below re-opens
-them. The goal is **all of M3**: `docs/implementation-plan.md`'s M3 *Verify* bullet, machine-checked by
-an acceptance list that runs on Windows **and** WSL.
+**Milestone M3 is complete.** All eight of [`.claude/loop-goal.md`](.claude/loop-goal.md)'s acceptance
+commands pass, on Windows and under WSL against a Linux build, with byte-identical output on both:
 
-`examples/*.mwl` are the acceptance fixtures and are **frozen** — changing one is a `BLOCKED`, not an edit.
+| command | result |
+|---|---|
+| `mwl run examples/hello.mwl` | `Hello, World!` |
+| `mwl run examples/calls.mwl` | `quadruple(5) = 20` |
+| `mwl run examples/throw.mwl` | `caught: boom` |
+| `mwl run examples/arith.mwl` | `sum = 998000` |
+| `mwl run examples/trace.mwl` | `#0 Deep::inner() at …:4` then `#1 Deep::outer() at …:8` |
+| `mwl run examples/uncaught.mwl` | exit 1, `Uncaught Exception: unhandled` + three backtrace frames |
+| `mwl run --fault-inject=helper-panic examples/fatal.mwl` | exit 1, `FATAL`, `start` still on stdout |
+| `mwl run --dump-asm examples/arith.mwl` | ~8.9 KB of generated code |
 
-**Five of the eight `mwl run` acceptance commands now pass**, on Windows and — checked by hand this
-session, byte for byte — under WSL against a Linux build: `hello`, `calls`, `arith`,
-`--fault-inject=helper-panic fatal`, `--dump-asm arith`. Both `cargo test` legs the list names are green,
-including all three tests it requires by name. `cargo deny check` is green. Build, test, clippy and fmt
-are green.
+`cargo build`, `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`,
+`cargo deny check` and `cargo test --release -p mwl-abi-probe` are all green, the last including both
+typed-arithmetic guards. Re-run the Linux leg any time with
+`wsl.exe -- bash /mnt/<drive>/<repo>/.claude/wsl-acceptance.sh` from a **PowerShell** call (the Bash tool rewrites
+the `/mnt/…` path).
 
-Landed this session, one commit each: the paired wasmtime 41→48 / Cranelift 0.128→0.135 bump (three
-mechanical API changes, `benches/abi-probe` re-run including the wasm probes); `mwl run --dump-asm`;
-`.` concatenation on a new `mwl_str_concat` primitive; a compiled static MWL call end to end; ADR 0018's
-call-site `TRACE`/`PROFILE` probe pair; `--fault-inject`; and the two typed-arithmetic guards.
+The throw work that closed M3, in one commit each: the runtime `Throwable` and its primitives; `mwl-ir`'s
+error edge plus `throw`/`try`/`catch` lowering; `mwl-codegen`'s landing blocks and the CLI's backtrace
+report. Each crate's own module doc holds the design — do not re-derive it from the diff.
 
-## Next
+## Next: start M4
 
-**The three remaining acceptance commands — `throw.mwl`, `trace.mwl`, `uncaught.mwl` — are one piece of
-work, and it is all that is left of M3.** Nothing throws today: `mwl-ir` models no error edge,
-`try`/`catch`/`throw` are lowered nowhere, and there is no runtime `Throwable`. All three examples fail
-in `mwl-ir` lowering with *"only lowers a plain `$x = expr;` reassignment or a bare call/`new`"*.
+Read [`docs/implementation-plan.md`](docs/implementation-plan.md)'s **M4** paragraph for the scope. It is a
+~10-week milestone, so the first session's real job is to pick the one thing everything else waits on and
+land it.
 
-The goal file's standing decisions already settle the shape — read them rather than re-deciding — and the
-pieces are:
+**That thing is the object representation.** Almost every refusal M3 left behind names it:
 
-1. **`mwl-runtime`: the `Throwable` value.** Runtime-owned and opaque, not a user class:
-   `new Exception("…")` lowers to a runtime helper that allocates it, and `getMessage()`/
-   `getTraceAsString()` are runtime methods on it, never general field access. `Ctx::pending` already
-   carries a `Cow<str>` message for `THROWN`; decide whether the `Throwable` subsumes it or sits beside
-   it, and record that in `mwl-runtime`'s own module doc.
-2. **`mwl-ir`: the error edge.** The crate's module doc lists `try`/`catch` as absent alongside
-   `for`/`switch`; unlike those two it is on the path. Every call-shaped instruction (`Call`,
-   `HelperCall`, `Concat`'s helper operands) needs an edge to a cleanup/landing block. The goal file
-   makes `mwl-codegen`'s known gap 3 — releasing the frame's live refcounted locals before propagating —
-   land **with** this, not after.
-3. **`mwl-codegen`: `Throw`, `try`/`catch`, and the cleanup path.** `emit_status_check` today returns the
-   status onward from a bare `fail` block; that block becomes the site of both the refcount cleanup and,
-   inside a `try`, the branch to the `catch` landing block.
-4. **The backtrace.** Shape and source are fixed by the goal file: `#0 Class::method() at <file>:<line>`,
-   from MWL's own frame chain, positions from the per-statement ids already in the IR. **Suggested
-   mechanism, not yet decided:** build the trace *as the throw propagates* — each frame's error path calls
-   a `mwl_trace_push(ctx, ptr, len)` with a static `(name, file, line)` label emitted into the unit's data
-   section. That costs nothing on the success path, which is ADR 0002's whole point, and reuses the
-   pointer/length-into-the-data-section technique `emit_call_probe`/`emit_bytes` already established this
-   session. A push/pop frame record on every call would cost the success path instead — weigh it, pick
-   one, record it in the crate's own module doc.
-5. **`mwl-cli`** already spells `Uncaught Exception:` and `FATAL:` for the two statuses; it needs to print
-   the backtrace after the message for the uncaught case.
+- **An instance method call is refused** (`mwl-codegen` known gap 1). Argument slot 0 is the implicit
+  receiver every lowered method carries; a static call fills it with `null`, but a real receiver needs a
+  heap layout. `mwl_ir::lower::lower_file` skips interfaces and enums for the same reason.
+- **`mwl_ir::Ty::Object` refcounts nothing** — no allocation, no field offsets, no `Tag::Object` payload.
+- **A user class `extends Exception` has no runtime shape.** `mwl_ir::Ty::Throwable` is the runtime's own
+  opaque value; `mwl_ir::lower::is_global_throwable` accepts exactly `Throwable`/`Exception`/`Error`, and
+  `lower_try` refuses a `catch` on anything else because matching one needs `instanceof`.
+- **Arrays** are the same question one step on, and the plan pairs them with `Throwable::getTrace()`, which
+  M3 recorded as an explicit carry-over (the string form landed; the `array<…>` form did not).
 
-Once those land, run the WSL leg the same way this session did: build with `CARGO_TARGET_DIR=/tmp/mwl-linux`
-and run the eight commands through `wsl.exe -- bash <script>`. Note that a `wsl.exe -- bash -lc "…"`
-one-liner mangles under the Bash tool's quoting — write the script to a file and pass the path.
+A reasonable order: object layout and allocation in `mwl-runtime` → `FieldGet`/`FieldSet` and an instance
+`Call` in `mwl-codegen` → the ordered-hash array with COW → `getTrace()` and a second `catch` clause.
 
 ## Backlog
 
-- `for`/`switch` in `mwl-ir` (reuses `LoopFrame`; `switch` needs the N-way terminator generator
-  resumption will also use). Off-path — `examples/arith.mwl` uses `while` deliberately.
-- Integer `Div`/`Mod`, refused in `mwl-codegen` because `sdiv` traps the process on a zero divisor.
-  Fixable once exceptions work; not acceptance.
-- **An instance method call is refused** (`mwl-codegen` known gap 1): argument slot 0 is the implicit
-  receiver every lowered method carries, and a static call fills it with `null`, but a real receiver needs
-  M4's object representation. `lower_file` skips interfaces and enums for the same reason.
-- A `throw` must satisfy the return check — a method declared `: int` whose body always throws counts as
+Ordered roughly by how cheap each is next to M4's bulk.
+
+**Rides on the object representation:**
+
+- `finally`, and a second `catch` clause (`mwl_ir::lower::lower_try` panics naming both).
+- Integer `Div`/`Mod`, still refused in `mwl-codegen` because `sdiv` traps the process on a zero divisor.
+  The throw path now exists, so this is a checked divisor plus a `Terminator::Throw` — it just needs the
+  divisor check emitted before the division.
+- A `throw` satisfying the return check: a method declared `: int` whose body always throws counts as
   returning. The acceptance examples dodge it by declaring the throwing chain `void`.
+- ADR 0043 `by`-delegation resolution + `E_DELEGATE_TYPE_MISMATCH`, then `E_INTERFACE_MEMBER_CONFLICT`.
+
+**Independent of it:**
+
+- **A `FATAL` still leaks the frame's locals**, and a `THROWN` still leaks a temporary in flight inside the
+  expression that threw. Both are stated in `mwl_ir::ir::Inst::on_error` and
+  `mwl_ir::lower::Lowering::landing_block` rather than hidden. The second needs an owned-temporaries stack
+  threaded through `lower_expr`; the first is deliberate while a `FATAL` ends the request anyway, and
+  should be revisited when M5/M6 give a request an arena.
+- `for`/`switch` in `mwl-ir` (`for` reuses `LoopFrame`; `switch` needs the N-way terminator generator
+  resumption will also use).
+- ADR 0018's `BRANCH` probe — the last of that ADR's three sites still not emitted; it needs a per-edge
+  site at `Terminator::Branch`'s lowering.
 - A string literal still allocates per evaluation (`mwl-runtime` known gap 3 / `mwl-codegen` known gap 4).
 - The safepoint/debug-flags loads use `MemFlagsData::with_notrap()`; they must become atomic when M5
   introduces a watchdog thread. Named in `mwl-codegen`'s `emit::ctx_word`.
-- ADR 0043 `by`-delegation resolution + `E_DELEGATE_TYPE_MISMATCH`, then `E_INTERFACE_MEMBER_CONFLICT`.
 - [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md) parser half, then the `mwl-hir`
   resolver half. Three new `E03xx` codes, starting at **`E0315`**.
 - [0054](docs/adr/0054-decimal-scalar-type.md)'s `m` literal suffix;
   [0053](docs/adr/0053-iteration-and-generators.md)'s `Iterable`/`Iterator` as reserved interface names.
-- **Docs-only, optional:** `CLAUDE.md` is read in full every session, and most of it is two lists that
-  each grow one entry per ADR — the *Where to look* table and *Ground rules enforced elsewhere*. Putting
-  both under the same per-entity cap `brief.py --check` already enforces elsewhere would roughly halve the
-  per-ADR growth without deleting anything. Not started; not on M3's path.
+- **Docs-only:** `crates/mwl-ir/src/lib.rs`'s module doc has become a slice-by-slice changelog of exactly
+  the kind CLAUDE.md forbids. It is the one doc in the repo genuinely owed a trim pass.
+- **Docs-only, optional:** `CLAUDE.md` is read in full every session, and most of it is two lists that each
+  grow one entry per ADR — the *Where to look* table and *Ground rules enforced elsewhere*. Putting both
+  under the same per-entity cap `brief.py --check` already enforces elsewhere would roughly halve the
+  per-ADR growth without deleting anything.
 
 ## Standing rules for this repo
 
@@ -90,7 +94,11 @@ authoritative and the other is a bug — including this file, which is overwritt
 After editing any doc, run `python .claude/brief.py --check`: it enforces a per-entity cap and names the
 exact line and byte count to cut. That is a one-line fix, never a reason to run a trim pass.
 
-One tooling note worth keeping: **the Bash tool eats a backslash inside a heredoc**, so `\n` written into
-a Python or shell heredoc reaches the file as a real newline and breaks the Rust source. Use the Write and
-Edit tools for any content containing escapes — CLAUDE.md already says to, and this is the failure mode it
-is protecting against.
+Two tooling notes worth keeping:
+
+- **The Bash tool eats a backslash inside a heredoc**, so `\n` written into a Python or shell heredoc
+  reaches the file as a real newline and breaks the Rust source. Use the Write and Edit tools for any
+  content containing escapes. An em-dash in a match string fares no better — an `assert old in s` that
+  fails on text you can see in the file is usually this.
+- **`wsl.exe` paths need PowerShell, not the Bash tool**, which rewrites `/mnt/d/…` into a Git-Bash-relative
+  path before `wsl.exe` ever sees it.

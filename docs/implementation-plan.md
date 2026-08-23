@@ -6,9 +6,10 @@
      field is capped at 400 bytes. History lives in `git log`, per-crate gaps in each crate's module
      doc — see CLAUDE.md's "Keep work small" section. -->
 
-> **Status:** 2026-08-23. Current: **M3** — five of its eight acceptance commands pass (`.claude/loop-goal.md`
-> holds that list): `hello`, `calls`, `arith`, `--fault-inject`, `--dump-asm`. The three throw-based ones
-> do not, and that is the whole of what is left. Next: **M4**.
+> **Status:** 2026-08-23. **M3 is done**: all eight of `.claude/loop-goal.md`'s acceptance commands pass,
+> on Windows and under WSL against a Linux build, with the same bytes on both. `cargo build`/`test`/
+> `clippy`/`fmt`/`deny` are green, and `benches/abi-probe`'s guards including both typed-arithmetic ones.
+> Next: **M4**.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -30,15 +31,15 @@
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
 > slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** finish `mwl-ir` — the remaining bulk of M2; `mwl-hir` name resolution and the `mwl-types`
-> checker are well underway. Then ADR 0043's `by`-delegation type-matching and its two diagnostics; 0047
-> (docs only); 0011/0024/0033's stdlib-dependent sinks, blocked on `Core` until M7/M8; and ADRs
-> 0053/0054/0055, which owe obligations to M1–M3 rather than to M8 and are cheaper now than later.
+> **Open now:** M4's object representation, which most of what M3 refused is waiting on — an instance
+> method call, a user exception class, `getTrace()`, ADR 0043's `by`-delegation type-matching and its two
+> diagnostics. Alongside it: 0047 (docs only); 0011/0024/0033's stdlib-dependent sinks, blocked on `Core`
+> until M7/M8; and ADRs 0053/0054/0055, which owe obligations to M1–M3 and are cheaper now than later.
 >
-> **Blocking:** nothing throws. `mwl-ir` models no error edge, `try`/`catch`/`throw` are not lowered
-> anywhere, and there is no runtime `Throwable` — so M3's caught-throw, backtrace and uncaught-report
-> bullets all wait on one piece of work, which also carries the error path's refcount cleanup
-> (`mwl-codegen` known gap 3). Static calls, `.` concatenation and ADR 0018's call-site probe now compile.
+> **Blocking:** nothing on M3's path. M4's own first gate is the object representation: no field layout, no
+> instance dispatch, no array, so `mwl_ir::Ty::Object` is still opaque and refcounts nothing. Two smaller
+> consequences ride on it — integer `Div`/`Mod` (refused because `sdiv` traps rather than throws) and a
+> `throw` counting as a return in a non-`void` method — and neither is hard once it lands.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
