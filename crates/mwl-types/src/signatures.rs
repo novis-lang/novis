@@ -133,6 +133,68 @@ impl MethodSig {
     }
 }
 
+/// Which of a property's two ADR 0014 § 1 hooks a declaration actually
+/// writes with a body. A property with neither has no entry in
+/// [`ClassSignature::hooked_properties`] at all.
+///
+/// # Every hooked property is still *backed*
+///
+/// PHP 8.4 splits hooked properties into "backed" (some hook body mentions
+/// `$this->thatSameProperty`, so the slot is kept) and "virtual" (no hook
+/// mentions it, so the slot is dropped). MWL keeps the slot either way —
+/// [`crate::layout`] gives every declared property a slot, hooked or not —
+/// which is why nothing here records backedness. The trade is one machine
+/// word per instance for a property whose hooks never touch storage, bought
+/// against an AST walk over every hook body, a second layout rule, and a
+/// second legality rule for what a hook body may say. CLAUDE.md's priority
+/// ordering puts simplicity above footprint and names exactly this shape of
+/// trade; the word is per *instance* of a class that declares a virtual
+/// hooked property, so it is O(in-flight objects), not O(traffic).
+///
+/// The observable consequence is that ADR 0014 § 1's "same as PHP 8.4" holds
+/// for every program PHP accepts, and MWL additionally accepts one PHP
+/// rejects: writing to a property whose hooks never mention it stores into
+/// that slot instead of being refused.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PropertyHooks {
+    /// A `get` hook with a body is declared.
+    pub get: bool,
+    /// A `set` hook with a body is declared.
+    pub set: bool,
+}
+
+/// The label the compiled function for `class`'s `$name` property hook is
+/// emitted under — `Ns\Class::$prop::get`.
+///
+/// Spelled here rather than at either end so a hook's *definition* (recorded
+/// by [`crate::check`] through `ExprTypeTable::record_method`) and its *call*
+/// site (`ExprInfo::HookedProperty`) agree by construction, exactly the
+/// reason `ExprTypeTable::method_label` exists for an ordinary method. The
+/// `$` is what keeps a hook label out of any method's namespace: a class name
+/// never contains `::`, so `A::$b::get` can only ever be a hook.
+#[must_use]
+pub fn hook_label(class: &QName, name: &str, kind: mwl_syntax::ast::PropertyHookKind) -> String {
+    let accessor = match kind {
+        mwl_syntax::ast::PropertyHookKind::Get => "get",
+        mwl_syntax::ast::PropertyHookKind::Set => "set",
+    };
+    format!("{class}::${name}::{accessor}")
+}
+
+/// The declaring class's label back out of a [`hook_label`] — `Ns\Class` for
+/// `Ns\Class::$prop::get`. `None` for any string that is not a hook label.
+///
+/// The inverse lives beside the spelling for the same reason the spelling is
+/// centralised at all: `mwl-ir` has to name the field a `set => expr;` hook
+/// stores into, and it holds the hook's label but has no `QName` machinery of
+/// its own to rebuild one from. Splitting here keeps both halves of the
+/// format in one file, so a change to it cannot leave the two disagreeing.
+#[must_use]
+pub fn hook_label_class(label: &str) -> Option<&str> {
+    let (class, rest) = label.split_once("::$")?;
+    (rest.ends_with("::get") || rest.ends_with("::set")).then_some(class)
+}
+
 /// One class/interface/enum's own directly-declared property types and
 /// method signatures — never anything pulled in via `extends`/`implements`;
 /// walking those is [`resolve_property`]/[`resolve_method`]'s job, done at
@@ -141,6 +203,11 @@ impl MethodSig {
 pub struct ClassSignature {
     /// Instance property types, keyed by name with the `$` sigil stripped.
     pub properties: FxHashMap<String, TypeId>,
+    /// This declaration's own properties that carry an ADR 0014 § 1 hook
+    /// block, by name — see [`PropertyHooks`]. A property with no hooks, or
+    /// whose hooks are all bodiless (an abstract hook in an interface), is
+    /// absent.
+    pub hooked_properties: FxHashMap<String, PropertyHooks>,
     /// Method signatures, keyed by method name.
     pub methods: FxHashMap<String, MethodSig>,
     /// This declaration's own properties that ADR 0022 § 2 requires a
@@ -290,6 +357,7 @@ fn collect_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                     current_class: Some(&qname),
+                    current_hook: None,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -299,6 +367,7 @@ fn collect_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                     current_class: Some(&qname),
+                    current_hook: None,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -308,6 +377,7 @@ fn collect_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                     current_class: Some(&qname),
+                    current_hook: None,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -344,8 +414,12 @@ fn collect_members(
                     && p.hooks.is_none()
                     && !is_lateinit
                     && !env.interner.is_nullable(ty);
+                let hooks = declared_hooks(p);
                 let sig = table.entry(qname.clone());
                 sig.properties.insert(name.clone(), ty);
+                if hooks != PropertyHooks::default() {
+                    sig.hooked_properties.insert(name.clone(), hooks);
+                }
                 if required {
                     sig.required_properties.push((name.clone(), p.name));
                 }
@@ -395,6 +469,23 @@ fn collect_members(
             _ => {}
         }
     }
+}
+
+/// Which hooks `p` declares *with a body* — a bodiless `get;` in an
+/// interface or abstract class declares a requirement, not code to call, so
+/// it contributes nothing here.
+fn declared_hooks(p: &PropertyMember) -> PropertyHooks {
+    let mut out = PropertyHooks::default();
+    for hook in p.hooks.iter().flatten() {
+        if hook.body.is_none() {
+            continue;
+        }
+        match hook.kind {
+            mwl_syntax::ast::PropertyHookKind::Get => out.get = true,
+            mwl_syntax::ast::PropertyHookKind::Set => out.set = true,
+        }
+    }
+    out
 }
 
 /// Validates a `lateinit` property against ADR 0038 § 1's three rejected
@@ -449,6 +540,26 @@ pub fn resolve_property(
     table: &SignatureTable,
     graph: &ClassGraph,
 ) -> Option<TypeId> {
+    resolve_property_owned(qname, name, table, graph).map(|(_, ty)| ty)
+}
+
+/// [`resolve_property`], plus the [`QName`] that actually *declares* the
+/// property — the receiver's own class, or whichever ancestor it inherited
+/// the declaration from.
+///
+/// Separate from [`resolve_property`] because only one caller needs the
+/// owner: a hooked property's compiled hook is labelled with its declaring
+/// class ([`hook_label`]), the same way a method call names the class that
+/// declares the method rather than the one the call was written on. A field
+/// *slot* needs no such thing — [`crate::layout`] flattens an ancestor's
+/// slots into every subclass, so a `FieldGet` names the receiver's own class.
+#[must_use]
+pub fn resolve_property_owned(
+    qname: &QName,
+    name: &str,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Option<(QName, TypeId)> {
     let mut seen = FxHashSet::default();
     resolve_property_rec(qname, name, table, graph, &mut seen)
 }
@@ -459,14 +570,14 @@ fn resolve_property_rec(
     table: &SignatureTable,
     graph: &ClassGraph,
     seen: &mut FxHashSet<QName>,
-) -> Option<TypeId> {
+) -> Option<(QName, TypeId)> {
     if !seen.insert(qname.clone()) {
         return None;
     }
     if let Some(sig) = table.get(qname)
         && let Some(&ty) = sig.properties.get(name)
     {
-        return Some(ty);
+        return Some((qname.clone(), ty));
     }
     let links = graph.get(qname)?;
     links
@@ -474,6 +585,18 @@ fn resolve_property_rec(
         .iter()
         .chain(links.implements.iter())
         .find_map(|parent| resolve_property_rec(parent, name, table, graph, seen))
+}
+
+/// Which ADR 0014 § 1 hooks the property `owner::$name` declares — `owner`
+/// being the *declaring* class [`resolve_property_owned`] returned, not the
+/// class the access was written on. [`PropertyHooks::default`] (neither hook)
+/// for an ordinary stored property.
+#[must_use]
+pub fn hooks_of(owner: &QName, name: &str, table: &SignatureTable) -> PropertyHooks {
+    table
+        .get(owner)
+        .and_then(|sig| sig.hooked_properties.get(name).copied())
+        .unwrap_or_default()
 }
 
 /// Looks `name` up as a method on `qname`, falling back to walking ancestors

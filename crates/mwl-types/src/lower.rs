@@ -279,6 +279,7 @@ mod tests {
             namespace: &[],
             imports: &empty_imports,
             current_class: None,
+            current_hook: None,
         };
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();

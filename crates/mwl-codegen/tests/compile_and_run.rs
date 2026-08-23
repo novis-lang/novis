@@ -1165,3 +1165,63 @@ echo LeafRegistry::viaSelf() . \"/\" . LeafRegistry::viaName();
 ";
     assert_eq!(output_of(source), "leaf/base");
 }
+
+/// The whole of [ADR 0014](../../../docs/adr/0014-property-observer.md) § 1,
+/// end to end: a `get` hook produces the value a read yields, a `set` hook
+/// commits what a write hands it, the short `=> expr;` form means "return
+/// this" for `get` and "store this" for `set`, and inside a hook the property
+/// is its own backing slot — which is what lets `$n`'s pair round-trip
+/// without recursing.
+///
+/// Before this landed, every one of these read the slot nothing had written.
+#[test]
+fn a_property_hook_runs_on_every_read_and_write_of_its_property() {
+    let source = "<?mwl
+class Box {
+    public string $label;
+
+    public string $shout {
+        get => $this->label . \"!\";
+        set(string $v) { $this->label = $v . \"?\"; }
+    }
+
+    public int $n {
+        get => $this->n + 1;
+        set => $value * 2;
+    }
+
+    public function constructor(string $label) {
+        $this->label = $label;
+        $this->n = 5;
+    }
+}
+var $b = new Box(\"hi\");
+echo $b->shout, \"/\";
+$b->shout = \"yo\";
+echo $b->label, \"/\", $b->n, \"/\";
+$b->n = 10;
+echo $b->n;
+";
+    assert_eq!(output_of(source), "hi!/yo?/11/21");
+}
+
+/// A hooked property is reached through the ordinary `InstKind::Call`, so it
+/// is compiled under the same label `mwl_types::signatures::hook_label`
+/// spells and needs no dispatch-table entry of its own — the property that
+/// keeps a hooked access from costing a new calling convention.
+#[test]
+fn each_property_hook_is_compiled_under_its_own_label() {
+    let unit = compile(
+        "<?mwl
+class Box {
+    public int $n;
+    public int $doubled { get => $this->n * 2; }
+    public function constructor(int $n) { $this->n = $n; }
+}
+echo (new Box(2))->doubled;
+",
+    )
+    .expect("the fixture compiles");
+    assert!(unit.function("Box::$doubled::get").is_some());
+    assert!(unit.function("Box::$doubled::set").is_none());
+}

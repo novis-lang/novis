@@ -223,16 +223,42 @@ pub fn lower_file(
                 StmtKind::ClassDecl(mwl_syntax::ast::ClassDecl { members, .. })
                 | StmtKind::InterfaceDecl(mwl_syntax::ast::InterfaceDecl { members, .. }) => {
                     for member in members {
-                        let ClassMemberKind::Method(m) = &member.kind else {
-                            continue;
-                        };
-                        if m.body.is_none() {
-                            continue; // `abstract` — nothing to lower
+                        match &member.kind {
+                            ClassMemberKind::Method(m) => {
+                                if m.body.is_none() {
+                                    continue; // `abstract` — nothing to lower
+                                }
+                                let Some(label) = exprs.method_label(m.name) else {
+                                    continue;
+                                };
+                                out.push(lower_method(label, m, src, exprs, checked_types));
+                            }
+                            // ADR 0014 § 1's property hooks are compiled the
+                            // same way, under the label `mwl_types` recorded
+                            // for the hook itself — see
+                            // `lower_property_hook`. A bodiless hook (an
+                            // abstract `get;`) is skipped for exactly the
+                            // reason an `abstract` method is.
+                            ClassMemberKind::Property(p) => {
+                                for hook in p.hooks.iter().flatten() {
+                                    if hook.body.is_none() {
+                                        continue;
+                                    }
+                                    let Some(label) = exprs.method_label(hook.span) else {
+                                        continue;
+                                    };
+                                    out.push(lower_property_hook(
+                                        label,
+                                        p,
+                                        hook,
+                                        src,
+                                        exprs,
+                                        checked_types,
+                                    ));
+                                }
+                            }
+                            _ => {}
                         }
-                        let Some(label) = exprs.method_label(m.name) else {
-                            continue;
-                        };
-                        out.push(lower_method(label, m, src, exprs, checked_types));
                     }
                 }
                 _ => {}
@@ -364,6 +390,137 @@ pub fn lower_method(
     // Nothing transfers out on this path (there is no return value), so
     // every refcounted local still live here gets released, same as an
     // explicit `return;`.
+    if !low.is_terminated(cur) {
+        low.release_all_locals(cur, &env, None);
+        low.seal(cur, Terminator::Return(None));
+    }
+
+    let (blocks, stmt_spans, edge_spans) = low.finish();
+    Function {
+        name: name.to_owned(),
+        params: param_tys,
+        ret: ret_ty,
+        blocks,
+        entry,
+        stmt_spans,
+        edge_spans,
+    }
+}
+
+/// Lowers one of `p`'s [ADR 0014](../../../docs/adr/0014-property-observer.md)
+/// § 1 property hooks to a [`Function`] named `name` — which must be the
+/// label `mwl_types::signatures::hook_label` spelled for it, since a `set`
+/// hook's short form recovers the declaring class's own label back out of it.
+///
+/// A hook is an ordinary compiled function, deliberately: it takes the same
+/// implicit receiver in parameter slot 0 that [`lower_method`] gives every
+/// method, it releases that receiver at every exit under the same
+/// convention, and it is reached through the same [`InstKind::Call`]. That is
+/// the whole reason a hooked property access costs no new instruction, no new
+/// calling convention and no dispatch table entry — see
+/// [`ExprInfo::HookedProperty`], which is where a *read* or *write* turns
+/// into a call to one of these.
+///
+/// The two accessors differ in exactly three places:
+///
+/// - **`get`** returns the property's declared type; **`set`** returns
+///   nothing and takes the incoming value as parameter slot 1, named by the
+///   declaration or, left implicit, by `mwl_types::HOOK_VALUE_PARAM`.
+/// - **The short `=> expr;` body** means "return this" for `get` and "store
+///   this" for `set`, matching PHP 8.4. The store is emitted here rather than
+///   desugared into the AST, because there is no AST node to desugar into.
+/// - A `set` hook's store names the *backing slot* directly. Inside a hook,
+///   the property is always its own storage — `mwl_types::Ctx::current_hook`
+///   is what keeps the checker from recording a re-entrant
+///   [`ExprInfo::HookedProperty`] for it.
+///
+/// # Panics
+///
+/// The same way [`lower_method`] does, plus: if `name` is not a hook label
+/// and the hook needs the declaring class back out of it.
+#[must_use]
+pub fn lower_property_hook(
+    name: &str,
+    p: &mwl_syntax::ast::PropertyMember,
+    hook: &mwl_syntax::ast::PropertyHook,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Function {
+    use mwl_syntax::ast::{PropertyHookBody, PropertyHookKind};
+
+    let prop_ty = lower_decl_type(&p.ty, exprs, checked_types);
+    let is_set = hook.kind == PropertyHookKind::Set;
+    let ret_ty = if is_set { Ty::Void } else { prop_ty };
+    let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types);
+    let entry = low.new_block();
+    let mut cur = entry;
+    let mut env = Env::default();
+    let mut param_tys = vec![Ty::Object];
+
+    low.emit_safepoint(entry);
+    let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    env.insert("this".to_owned(), (this_v, Ty::Object));
+    low.this = Some(this_v);
+
+    if is_set {
+        let (pname, pty) = match &hook.param {
+            Some(param) => (
+                strip_sigil(span_text(src, param.name)).to_owned(),
+                param
+                    .ty
+                    .as_ref()
+                    .map_or(prop_ty, |t| lower_decl_type(t, exprs, checked_types)),
+            ),
+            None => (mwl_types::HOOK_VALUE_PARAM.to_owned(), prop_ty),
+        };
+        let (v, _) = low.emit(entry, pty, InstKind::Param(1));
+        env.insert(pname, (v, pty));
+        param_tys.push(pty);
+    }
+
+    match &hook.body {
+        Some(PropertyHookBody::Block(block)) => low.lower_stmts(&block.stmts, &mut cur, &mut env),
+        Some(PropertyHookBody::Expr(e)) if is_set => {
+            let class = mwl_types::signatures::hook_label_class(name)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "mwl-ir: `{name}` is not a hook label, so the class whose slot a \
+                         `set => expr;` hook stores into cannot be recovered from it"
+                    )
+                })
+                .to_owned();
+            let field = strip_sigil(span_text(src, p.name)).to_owned();
+            let (v, _) = low.lower_expr_top(e, Some(prop_ty), &env, &mut cur);
+            if prop_ty.is_refcounted() && low.aliasing_read(e) {
+                low.emit_retain(cur, v);
+            }
+            if prop_ty.is_refcounted() {
+                let (old_v, _) = low.emit(
+                    cur,
+                    prop_ty,
+                    InstKind::FieldGet {
+                        object: this_v,
+                        class: class.clone(),
+                        field: field.clone(),
+                    },
+                );
+                low.emit_release(cur, old_v);
+            }
+            low.emit_field_set(cur, this_v, class, field, v);
+        }
+        Some(PropertyHookBody::Expr(e)) => {
+            let (v, ty) = low.lower_expr_top(e, Some(ret_ty), &env, &mut cur);
+            if ty.is_refcounted() && low.aliasing_read(e) {
+                low.emit_retain(cur, v);
+            }
+            if !low.is_terminated(cur) {
+                low.release_all_locals(cur, &env, None);
+                low.seal(cur, Terminator::Return(Some(v)));
+            }
+        }
+        None => unreachable!("lower_property_hook is only called for a hook with a body"),
+    }
     if !low.is_terminated(cur) {
         low.release_all_locals(cur, &env, None);
         low.seal(cur, Terminator::Return(None));
@@ -793,7 +950,7 @@ impl<'a> Lowering<'a> {
         ty: Ty,
         source: &Expr,
     ) {
-        if ty.is_refcounted() && is_aliasing_read(&source.kind) {
+        if ty.is_refcounted() && self.aliasing_read(source) {
             self.emit_retain(cur, v);
         }
         if let Some(&(old_v, old_ty)) = env.get(&name)
@@ -830,6 +987,16 @@ impl<'a> Lowering<'a> {
                 env.insert(name, (written, Ty::Array));
             }
             ExprKind::PropertyAccess { object, .. } => {
+                assert!(
+                    !matches!(
+                        self.exprs.lookup(base.span),
+                        Some(ExprInfo::HookedProperty { .. })
+                    ),
+                    "mwl-ir does not lower an array-element write through an ADR 0014 § 1 hooked \
+                     property: the copy-on-write separation would have to be written back \
+                     through the property's `set` hook, which no PHP-compatible rule for \
+                     `$obj->hooked[0] = v` exists for yet; see the crate docs' known gaps"
+                );
                 let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(base.span)
                 else {
                     panic!(
@@ -853,6 +1020,28 @@ impl<'a> Lowering<'a> {
                  see the crate docs' known gaps"
             ),
         }
+    }
+
+    /// Whether `e` reads storage some durable slot still owns, so a value
+    /// taken from it needs a retain before anything else can own it too —
+    /// [`is_aliasing_read`]'s syntactic judgment, plus the one case that
+    /// judgment cannot make from syntax alone.
+    ///
+    /// `$obj->prop` *looks* like a slot read at every hooked and unhooked
+    /// property alike, but a property with an ADR 0014 § 1 `get` hook is a
+    /// **call**: its result is a fresh, already-owned value, exactly like any
+    /// other call's, and retaining it would leak one reference per read. Only
+    /// `mwl_types`' resolution can tell the two apart, which is why this is a
+    /// method on the lowering rather than a free function over the AST —
+    /// every retain decision in this file goes through it.
+    fn aliasing_read(&self, e: &Expr) -> bool {
+        if !is_aliasing_read(&e.kind) {
+            return false;
+        }
+        !matches!(
+            self.exprs.lookup(e.span),
+            Some(ExprInfo::HookedProperty { get: Some(_), .. })
+        )
     }
 
     /// Releases every refcounted local still live in `env`, in a fixed
@@ -1019,8 +1208,7 @@ impl<'a> Lowering<'a> {
                 let ret_ty = self.ret_ty;
                 let v = if let Some(value_expr) = value.as_ref() {
                     let (rv, rty) = self.lower_expr_top(value_expr, Some(ret_ty), env, cur);
-                    if except.is_none() && rty.is_refcounted() && is_aliasing_read(&value_expr.kind)
-                    {
+                    if except.is_none() && rty.is_refcounted() && self.aliasing_read(value_expr) {
                         self.emit_retain(*cur, rv);
                     }
                     Some(rv)
@@ -1142,7 +1330,7 @@ impl<'a> Lowering<'a> {
             "mwl-ir lowers `throw` only for an exception object — got representation {ty:?}; \
              see the crate docs' known gaps"
         );
-        if is_aliasing_read(&inner.kind) {
+        if self.aliasing_read(inner) {
             self.emit_retain(*cur, v);
         }
         self.write_throw_location(*cur, v);
@@ -1469,23 +1657,59 @@ impl<'a> Lowering<'a> {
                     "mwl-ir does not yet lower a nullsafe property assignment target (`?->`); \
                      see the crate docs' known gaps"
                 );
-                let Some(ExprInfo::Property { class, name, ty }) = self.exprs.lookup(target.span)
-                else {
-                    panic!(
+                // A `set` hook (ADR 0014 § 1) makes the write a call, exactly
+                // the way a `get` hook makes the read one — same receiver
+                // slot, same ownership convention, and the assigned value as
+                // the accessor's one ordinary argument. A property with only
+                // a `get` hook still writes its own slot: MWL's hooked
+                // properties are always backed, so there is a slot to write
+                // (`mwl_types::signatures::PropertyHooks` owns that
+                // decision).
+                let (class, name, ty, set) = match self.exprs.lookup(target.span) {
+                    Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
+                    Some(ExprInfo::HookedProperty {
+                        class,
+                        name,
+                        ty,
+                        set,
+                        ..
+                    }) => (class, name, *ty, set.clone()),
+                    _ => panic!(
                         "mwl-ir: a property assignment target at {:?} has no resolved declaring \
                          class recorded in the typed-expression table — either it wasn't checked \
                          with the same table, or its receiver erased to a shape/plain `object` \
                          (ADR 0036 § 4), which this crate does not yet lower (see the crate docs' \
                          known gaps)",
                         target.span
-                    );
+                    ),
                 };
-                let field_ty = lower_checked_ty(*ty, self.checked_types);
+                let field_ty = lower_checked_ty(ty, self.checked_types);
                 let class_label = class.to_string();
                 let field_name = name.clone();
+                if let Some(label) = set {
+                    let (object_v, receiver_ty) = self.lower_expr(object, None, env, *cur);
+                    if receiver_ty.is_refcounted() && self.aliasing_read(object) {
+                        self.emit_retain(*cur, object_v);
+                    }
+                    let (v, _) = self.lower_expr_top(value, Some(field_ty), env, cur);
+                    if field_ty.is_refcounted() && self.aliasing_read(value) {
+                        self.emit_retain(*cur, v);
+                    }
+                    self.emit_fallible(
+                        *cur,
+                        Ty::Void,
+                        InstKind::Call {
+                            target: label,
+                            receiver: Some(object_v),
+                            args: vec![v],
+                        },
+                        env,
+                    );
+                    return;
+                }
                 let (object_v, _) = self.lower_expr(object, None, env, *cur);
                 let (v, _) = self.lower_expr_top(value, Some(field_ty), env, cur);
-                if field_ty.is_refcounted() && is_aliasing_read(&value.kind) {
+                if field_ty.is_refcounted() && self.aliasing_read(value) {
                     self.emit_retain(*cur, v);
                 }
                 if field_ty.is_refcounted() {
@@ -1539,7 +1763,7 @@ impl<'a> Lowering<'a> {
                 let written = match index {
                     None => {
                         let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
-                        if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
+                        if elem_ty.is_refcounted() && self.aliasing_read(value) {
                             self.emit_retain(*cur, v);
                         }
                         self.emit_array_append(*cur, array_v, v)
@@ -1550,7 +1774,7 @@ impl<'a> Lowering<'a> {
                             self.emit_retain(*cur, key_v);
                         }
                         let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
-                        if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
+                        if elem_ty.is_refcounted() && self.aliasing_read(value) {
                             self.emit_retain(*cur, v);
                         }
                         self.emit_array_set(*cur, array_v, key_v, v)
@@ -1861,7 +2085,7 @@ impl<'a> Lowering<'a> {
              `Iterable`/`Iterator` subjects are their own lowering (see the crate docs' known \
              gaps)"
         );
-        if is_aliasing_read(&subject.kind) {
+        if self.aliasing_read(subject) {
             self.emit_retain(*cur, array_v);
         }
 
@@ -2476,7 +2700,7 @@ impl<'a> Lowering<'a> {
                 expr: inner,
             } => {
                 let (v, ty) = self.lower_expr(inner, None, env, cur);
-                let r = self.negate_truthy(v, ty, is_aliasing_read(&inner.kind), cur);
+                let r = self.negate_truthy(v, ty, self.aliasing_read(inner), cur);
                 (r, Ty::Bool)
             }
             ExprKind::Unary { op, expr: inner } => {
@@ -2588,10 +2812,10 @@ impl<'a> Lowering<'a> {
                     },
                 );
                 if lty.is_refcounted() {
-                    if !is_aliasing_read(&lhs.kind) {
+                    if !self.aliasing_read(lhs) {
                         self.emit_release(cur, lv);
                     }
-                    if !is_aliasing_read(&rhs.kind) {
+                    if !self.aliasing_read(rhs) {
                         self.emit_release(cur, rv);
                     }
                 }
@@ -2725,7 +2949,7 @@ impl<'a> Lowering<'a> {
                     // (see `Self::release_all_locals`). `$this->m()` and
                     // `$obj->m()` both read an existing slot, so both need the
                     // retain `Self::lower_call_args` already inserts for one.
-                    if receiver_ty.is_refcounted() && is_aliasing_read(&object.kind) {
+                    if receiver_ty.is_refcounted() && self.aliasing_read(object) {
                         self.emit_retain(cur, object_v);
                     }
                     object_v
@@ -2918,30 +3142,67 @@ impl<'a> Lowering<'a> {
                     "mwl-ir does not yet lower a nullsafe property access (`?->`); see the \
                      crate docs' known gaps"
                 );
-                let Some(ExprInfo::Property { class, name, ty }) = self.exprs.lookup(expr.span)
-                else {
-                    panic!(
+                // ADR 0014 § 1: a read of a property that declares a `get`
+                // hook is a call to that hook's compiled function, with the
+                // receiver in the ordinary parameter-0 slot — see
+                // `lower_property_hook`. A property with only a `set` hook
+                // still reads its own slot, since MWL's hooked properties are
+                // always backed (`mwl_types::signatures::PropertyHooks` owns
+                // that decision), so both shapes recover the same three
+                // fields and only the `get` label decides between them.
+                let (class, name, ty, get) = match self.exprs.lookup(expr.span) {
+                    Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
+                    Some(ExprInfo::HookedProperty {
+                        class,
+                        name,
+                        ty,
+                        get,
+                        ..
+                    }) => (class, name, *ty, get.clone()),
+                    _ => panic!(
                         "mwl-ir: a property access at {:?} has no resolved declaring class \
                          recorded in the typed-expression table — either it wasn't checked with \
                          the same table, or its receiver erased to a shape/plain `object` (ADR \
                          0036 § 4), which this crate does not yet lower (see the crate docs' \
                          known gaps)",
                         expr.span
-                    );
+                    ),
                 };
-                let field_ty = lower_checked_ty(*ty, self.checked_types);
+                let field_ty = lower_checked_ty(ty, self.checked_types);
                 let class_label = class.to_string();
                 let field_name = name.clone();
-                let (object_v, _) = self.lower_expr(object, None, env, cur);
-                self.emit(
-                    cur,
-                    field_ty,
-                    InstKind::FieldGet {
-                        object: object_v,
-                        class: class_label,
-                        field: field_name,
-                    },
-                )
+                let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                match get {
+                    Some(label) => {
+                        // The receiver is parameter 0, so it is an ordinary
+                        // argument for ownership purposes — the same retain
+                        // an explicit `$obj->m()` inserts, for the same reason
+                        // (the callee releases every refcounted parameter at
+                        // scope exit).
+                        if receiver_ty.is_refcounted() && self.aliasing_read(object) {
+                            self.emit_retain(cur, object_v);
+                        }
+                        self.emit_fallible(
+                            cur,
+                            field_ty,
+                            InstKind::Call {
+                                target: label,
+                                receiver: Some(object_v),
+                                args: Vec::new(),
+                            },
+                            env,
+                        )
+                    }
+                    None => self.emit(
+                        cur,
+                        field_ty,
+                        InstKind::FieldGet {
+                            object: object_v,
+                            class: class_label,
+                            field: field_name,
+                        },
+                    ),
+                }
             }
             // `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
             // doc comment for the full policy this mirrors and its known
@@ -2979,7 +3240,7 @@ impl<'a> Lowering<'a> {
                     let mut entries = Vec::with_capacity(items.len());
                     for (i, item) in items.iter().enumerate() {
                         let (v, ty) = self.lower_expr(&item.value, None, env, cur);
-                        if ty.is_refcounted() && is_aliasing_read(&item.value.kind) {
+                        if ty.is_refcounted() && self.aliasing_read(&item.value) {
                             self.emit_retain(cur, v);
                         }
                         entries.push((i.to_string(), v));
@@ -3013,7 +3274,7 @@ impl<'a> Lowering<'a> {
                             self.emit_retain(cur, key_v);
                         }
                         let (v, ty) = self.lower_expr(&item.value, None, env, cur);
-                        if ty.is_refcounted() && is_aliasing_read(&item.value.kind) {
+                        if ty.is_refcounted() && self.aliasing_read(&item.value) {
                             self.emit_retain(cur, v);
                         }
                         array_v = self.emit_array_set(cur, array_v, key_v, v);
@@ -3110,7 +3371,7 @@ impl<'a> Lowering<'a> {
                 // one nothing else owns is released right after, the same
                 // "release a fresh value once its one and only use is done"
                 // rule `Self::concat_operand`'s caller applies.
-                if !is_aliasing_read(&inner.kind) {
+                if !self.aliasing_read(inner) {
                     self.emit_release(cur, v);
                 }
                 result
@@ -3226,7 +3487,7 @@ impl<'a> Lowering<'a> {
     fn concat_operand(&mut self, expr: &Expr, env: &Env, cur: BlockId) -> (ValueId, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
-            Ty::Str => (v, is_aliasing_read(&expr.kind)),
+            Ty::Str => (v, self.aliasing_read(expr)),
             Ty::Bool | Ty::Int | Ty::Uint | Ty::Float => {
                 let helper = match ty {
                     Ty::Bool => Helper::BoolToString,
@@ -3304,7 +3565,7 @@ impl<'a> Lowering<'a> {
              whose operands lowered to {lty:?}/{rty:?} rather than two objects"
         );
         for (v, operand) in [(lv, lhs), (rv, rhs)] {
-            if is_aliasing_read(&operand.kind) {
+            if self.aliasing_read(operand) {
                 self.emit_retain(cur, v);
             }
         }
@@ -3389,7 +3650,7 @@ impl<'a> Lowering<'a> {
             }
             (_, Ty::Bool) => {
                 let b = self.truthy_convert(v, from, cur);
-                if from.is_refcounted() && !is_aliasing_read(&operand.kind) {
+                if from.is_refcounted() && !self.aliasing_read(operand) {
                     self.emit_release(cur, v);
                 }
                 (b, Ty::Bool)
@@ -3441,7 +3702,7 @@ impl<'a> Lowering<'a> {
                     },
                     env,
                 );
-                if from.is_refcounted() && !is_aliasing_read(&operand.kind) {
+                if from.is_refcounted() && !self.aliasing_read(operand) {
                     self.emit_release(cur, v);
                 }
                 out
@@ -3571,7 +3832,7 @@ impl<'a> Lowering<'a> {
     /// applies here.
     fn lower_truthy_cond(&mut self, cond: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
         let (v, ty) = self.lower_expr_top(cond, None, env, cur);
-        self.truthy_value(v, ty, is_aliasing_read(&cond.kind), *cur)
+        self.truthy_value(v, ty, self.aliasing_read(cond), *cur)
     }
 
     /// Lowers `expr` in a position that owns a mutable `cur` — a local
@@ -3633,7 +3894,7 @@ impl<'a> Lowering<'a> {
     /// same way a bare `&&`/`||`/ternary does at a top-level position.
     fn lower_not(&mut self, inner: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
         let (v, ty) = self.lower_expr_top(inner, None, env, cur);
-        self.negate_truthy(v, ty, is_aliasing_read(&inner.kind), *cur)
+        self.negate_truthy(v, ty, self.aliasing_read(inner), *cur)
     }
 
     /// Shared by [`Self::lower_not`] (a top-level `!`, whose operand may
@@ -3791,7 +4052,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (cond_v, cond_ty) = self.lower_expr_top(cond, None, env, cur);
-        let cond_is_alias = is_aliasing_read(&cond.kind);
+        let cond_is_alias = self.aliasing_read(cond);
         let truthy_v = self.truthy_convert(cond_v, cond_ty, *cur);
         let pre_block = *cur;
         if then.is_some() && cond_ty.is_refcounted() && !cond_is_alias {
@@ -3818,7 +4079,7 @@ impl<'a> Lowering<'a> {
             Some(then_expr) => {
                 let mut then_cur = then_block;
                 let (v, ty) = self.lower_expr_top(then_expr, None, env, &mut then_cur);
-                if ty.is_refcounted() && is_aliasing_read(&then_expr.kind) {
+                if ty.is_refcounted() && self.aliasing_read(then_expr) {
                     self.emit_retain(then_cur, v);
                 }
                 (v, ty, then_cur)
@@ -3834,7 +4095,7 @@ impl<'a> Lowering<'a> {
 
         let mut else_cur = else_block;
         let (else_v, else_ty) = self.lower_expr_top(else_, None, env, &mut else_cur);
-        if else_ty.is_refcounted() && is_aliasing_read(&else_.kind) {
+        if else_ty.is_refcounted() && self.aliasing_read(else_) {
             self.emit_retain(else_cur, else_v);
         }
         self.seal(else_cur, Terminator::Jump(merge_block));
@@ -3994,7 +4255,7 @@ impl<'a> Lowering<'a> {
     fn lower_array_key(&mut self, expr: &Expr, env: &Env, cur: BlockId) -> (ValueId, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
-            Ty::Str => (v, is_aliasing_read(&expr.kind)),
+            Ty::Str => (v, self.aliasing_read(expr)),
             Ty::Int | Ty::Uint => {
                 let helper = if ty == Ty::Int {
                     Helper::IntToString
@@ -4086,7 +4347,7 @@ impl<'a> Lowering<'a> {
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
             if ownership == ArgOwnership::Transferred
                 && ty.is_refcounted()
-                && is_aliasing_read(&arg.value.kind)
+                && self.aliasing_read(&arg.value)
             {
                 self.emit_retain(cur, v);
             }
@@ -6080,6 +6341,12 @@ class T {
     /// Runs the whole front end over `src` and lowers the file — every class
     /// method, the script frame, and the class table.
     fn lower_whole_file(src: &str) -> crate::ir::Program {
+        lower_whole_file_with_src(src).0
+    }
+
+    /// [`lower_whole_file`], keeping the source map so a test can render one
+    /// of the lowered functions with [`print_function`].
+    fn lower_whole_file_with_src(src: &str) -> (crate::ir::Program, SourceMap, SourceId) {
         let mut map = SourceMap::new();
         let file = map.add("t.mwl", src);
         let mut diags = Diagnostics::new();
@@ -6099,14 +6366,15 @@ class T {
         );
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
         let layouts = mwl_types::build_class_layouts(&stmts, map.file(file), &module.graph);
-        lower_file(
+        let program = lower_file(
             "<script>",
             &stmts,
             map.file(file),
             &exprs,
             &checked_types,
             &layouts,
-        )
+        );
+        (program, map, file)
     }
 
     /// The class table is carried straight through from `mwl-types`, sorted
@@ -6151,6 +6419,117 @@ class T {
         assert_eq!(dog.fields, ["legs", "name"]);
         assert_eq!(dog.conforms, ["Animal", "Greets"]);
         assert!(by_label("Greets").fields.is_empty());
+    }
+
+    /// Source with a `get`- and a `set`-hooked property, plus one ordinary
+    /// one — the shape every hook test below reads.
+    const HOOKED: &str = concat!(
+        "<?mwl\n",
+        "class Counter {\n",
+        "  public int $hits;\n",
+        "  public int $doubled {\n",
+        "    get => $this->hits * 2;\n",
+        "    set(int $v) { $this->hits = $v; }\n",
+        "  }\n",
+        "  function constructor(int $hits) { $this->hits = $hits; }\n",
+        "  public function read(): int { return $this->doubled; }\n",
+        "  public function write(int $n): void { $this->doubled = $n; }\n",
+        "}\n",
+    );
+
+    /// ADR 0014 § 1's hooks are ordinary compiled functions, each under the
+    /// label `mwl_types::signatures::hook_label` spells — the same one the
+    /// access site's `InstKind::Call` names, which is why nothing here needs a
+    /// dispatch table entry.
+    #[test]
+    fn each_property_hook_is_lowered_as_its_own_function() {
+        let program = lower_whole_file(HOOKED);
+        let names: Vec<&str> = program
+            .functions
+            .iter()
+            .map(|f| f.name.as_str())
+            .filter(|n| n.contains("$doubled"))
+            .collect();
+        assert_eq!(names, ["Counter::$doubled::get", "Counter::$doubled::set"]);
+
+        let by_name = |name: &str| {
+            program
+                .functions
+                .iter()
+                .find(|f| f.name == name)
+                .unwrap_or_else(|| panic!("{name} should have been lowered"))
+        };
+        // `get` takes only the receiver and returns the property's type;
+        // `set` takes the incoming value in slot 1 and returns nothing.
+        let get = by_name("Counter::$doubled::get");
+        assert_eq!(get.params, [Ty::Object]);
+        assert_eq!(get.ret, Ty::Int);
+        let set = by_name("Counter::$doubled::set");
+        assert_eq!(set.params, [Ty::Object, Ty::Int]);
+        assert_eq!(set.ret, Ty::Void);
+    }
+
+    /// The point of the whole slice: `$this->doubled` is a **call**, not a
+    /// field read. Before this landed it lowered to a `FieldGet` on a slot
+    /// nothing ever wrote, which is why `examples/hooks.mwl` printed `0`.
+    #[test]
+    fn reading_a_get_hooked_property_calls_the_hook_instead_of_reading_the_slot() {
+        let (program, map, file) = lower_whole_file_with_src(HOOKED);
+        let read = program
+            .functions
+            .iter()
+            .find(|f| f.name == "Counter::read")
+            .expect("`read` should have been lowered");
+        let text = print_function(read, map.file(file));
+        assert!(text.contains("Counter::$doubled::get"), "{text}");
+        assert!(!text.contains("field.get"), "{text}");
+    }
+
+    /// The write side, same shape: the assigned value is the accessor's one
+    /// ordinary argument.
+    #[test]
+    fn writing_a_set_hooked_property_calls_the_hook_instead_of_writing_the_slot() {
+        let (program, map, file) = lower_whole_file_with_src(HOOKED);
+        let write = program
+            .functions
+            .iter()
+            .find(|f| f.name == "Counter::write")
+            .expect("`write` should have been lowered");
+        let text = print_function(write, map.file(file));
+        assert!(text.contains("Counter::$doubled::set"), "{text}");
+        assert!(!text.contains("field.set"), "{text}");
+    }
+
+    /// Inside `$doubled`'s own hooks the property is its backing slot, never
+    /// a re-entrant call — that is what lets a hook transform a stored value
+    /// and still terminate. `mwl_types::Ctx::current_hook` is the rule; this
+    /// is the lowering that proves it, on the one hook that touches its own
+    /// property.
+    #[test]
+    fn a_hook_body_reaching_its_own_property_touches_the_slot_directly() {
+        let (program, map, file) = lower_whole_file_with_src(concat!(
+            "<?mwl\n",
+            "class Box {\n",
+            "  public int $n {\n",
+            "    get => $this->n + 1;\n",
+            "    set(int $v) { $this->n = $v * 2; }\n",
+            "  }\n",
+            "  function constructor() { $this->n = 1; }\n",
+            "}\n",
+        ));
+        for (name, expected) in [("Box::$n::get", "field.get"), ("Box::$n::set", "field.set")] {
+            let f = program
+                .functions
+                .iter()
+                .find(|f| f.name == name)
+                .unwrap_or_else(|| panic!("{name} should have been lowered"));
+            let text = print_function(f, map.file(file));
+            assert!(text.contains(expected), "{name}: {text}");
+            // The signature line names the function itself, so only the body
+            // can answer whether the hook called back into itself.
+            let body = text.split_once('\n').expect("a rendered function").1;
+            assert!(!body.contains(name), "{name} recursed into itself: {text}");
+        }
     }
 
     /// `foreach` over an `array<T>` with both bindings — the cursor's header

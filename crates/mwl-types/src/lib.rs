@@ -179,7 +179,7 @@ pub mod signatures;
 pub mod string_lit;
 pub mod ty;
 
-pub use check::check_program;
+pub use check::{HOOK_VALUE_PARAM, check_program};
 pub use core_lib::symbol_of as core_symbol_of;
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ResolvedCall};
@@ -201,6 +201,15 @@ pub(crate) struct Ctx<'a> {
     pub namespace: &'a [String],
     pub imports: &'a FxHashMap<String, QName>,
     pub current_class: Option<&'a QName>,
+    /// The name of the property whose ADR 0014 § 1 hook body is being
+    /// checked, if any — `$`-sigil not included.
+    ///
+    /// Exists for one rule: inside `$p`'s own `get`/`set` hooks,
+    /// `$this->p` is the backing slot rather than a re-entrant call to the
+    /// hook currently running. That is what makes a hook that transforms a
+    /// stored value terminate, and it is the only place the checker needs to
+    /// know *which* accessor it is inside.
+    pub current_hook: Option<&'a str>,
 }
 
 /// The read-only tables, the source text, the type interner and the

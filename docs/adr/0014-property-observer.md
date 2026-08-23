@@ -235,9 +235,12 @@ Deferred deliberately, each needing its own argument:
 - **Whether `onPropertySet` should also receive the property's previous value**, for change-detection use
   cases that want to compare old and new rather than only observe the new. Not decided here — adding it is a
   signature change to an interface with no implementations yet, so it costs nothing to defer.
-- **Per-property hook semantics themselves** — virtual vs. backed properties, hook visibility, interaction
-  with `readonly` and asymmetric visibility — belong to `docs/spec/`, unwritten as of this ADR. This document
-  fixes only where hooks sit relative to `PropertyObserver`, not their own internal rules.
+- **Per-property hook semantics themselves** — hook visibility and the interaction with `readonly` and
+  asymmetric visibility — belong to `docs/spec/`, unwritten as of this ADR. This document fixes only where
+  hooks sit relative to `PropertyObserver`, not their own internal rules. **Virtual vs. backed is no longer
+  among them:** MWL keeps the slot for every hooked property, so PHP 8.4's split does not exist here, and
+  `mwl_types::signatures::PropertyHooks`' own doc comment holds that decision, what it spends and what it
+  makes newly legal.
 - **`mwl convert`'s exact `TODO` wording** for PHP source that declares `__get`/`__set` (does the original
   logic look like observation, convertible to `PropertyObserver`, or computation, belonging in a per-property
   hook?) and for `__call`/`__callStatic` (no mechanical destination at all). Belongs with M11's own design,
@@ -255,6 +258,11 @@ Verification, in the order it becomes possible:
   [ADR 0007](0007-explicit-type-system.md)'s own M2 entry already builds; a method named `__call` or
   `__callStatic` never reaches any resolution logic at all, since `mwl-syntax`'s casing check
   ([ADR 0029](0029-identifier-casing-is-checked.md)) already refuses the name itself.
+- **M4**, § 1's half: each hook body compiles to its own function and a read/write of a hooked property is
+  a call to it rather than a slot touch, with the receiver in the ordinary parameter-0 slot — so a hooked
+  access costs no new instruction, no new calling convention and no dispatch-table entry. Inside a hook the
+  property is its own backing slot, which is what makes a hook that transforms a stored value terminate.
+  `mwl-codegen`'s `a_property_hook_runs_on_every_read_and_write_of_its_property` holds all of it end to end.
 - **M4**: a class implementing `PropertyObserver` runs its property's own hook (or storage) first and
   `onPropertyGet`/`onPropertySet` second, for both hooked and un-hooked properties, including a throwing
   observer method propagating correctly through [ADR 0002](0002-error-propagation.md)'s checked-return path;

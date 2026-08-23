@@ -161,6 +161,43 @@ pub enum ExprInfo {
         /// The property's declared type.
         ty: TypeId,
     },
+    /// A resolved access to a property that declares an ADR 0014 § 1 hook
+    /// block — recorded *instead of* [`ExprInfo::Property`] for exactly the
+    /// same `PropertyAccess` spans, read and write alike, so a consumer that
+    /// only knows `Property` cannot silently lower a hooked access as a plain
+    /// field touch.
+    ///
+    /// A hooked access is a **call**, not a field access: the accessor's body
+    /// is compiled as an ordinary function under
+    /// [`crate::signatures::hook_label`]'s label, and reading or writing the
+    /// property invokes it with the receiver as its implicit `$this`. The
+    /// two labels are carried rather than re-spelled by the consumer for
+    /// [`Self::method_label`]'s reason — they have to agree with the
+    /// definition side by construction.
+    ///
+    /// **Not** recorded for an access inside that property's own hook bodies:
+    /// there, `$this->thatProperty` is the backing slot, which is what lets a
+    /// `get` hook read what a `set` hook stored without recursing. Such an
+    /// access records an ordinary [`ExprInfo::Property`] entry.
+    HookedProperty {
+        /// The class the access was written on — the same value
+        /// [`ExprInfo::Property`] carries, and for the same reason: a field
+        /// slot is named by the receiver's own class.
+        class: QName,
+        /// The property's own name, `$`-sigil not included.
+        name: String,
+        /// The property's declared type — a `get` hook's return type and a
+        /// `set` hook's parameter type both.
+        ty: TypeId,
+        /// The compiled `get` hook's label, or `None` if the property
+        /// declares no `get` hook with a body — in which case a read is an
+        /// ordinary slot read after all.
+        get: Option<String>,
+        /// The compiled `set` hook's label, or `None` if the property
+        /// declares no `set` hook with a body — in which case a write is an
+        /// ordinary slot write.
+        set: Option<String>,
+    },
     /// A resolved array-element access (`$arr[$expr]`, read or write) whose
     /// base statically resolved to a known `Ty::Array` element type — never
     /// recorded when the base erased to `mixed` (an untyped/unresolved
@@ -513,6 +550,61 @@ mod tests {
         };
         assert_eq!(class.to_string(), "T");
         assert_eq!(name, "count");
+    }
+
+    /// ADR 0014 § 1: a property that declares a hook records
+    /// [`ExprInfo::HookedProperty`] *instead of* [`ExprInfo::Property`], so a
+    /// consumer that only knows the latter cannot lower a hooked access as a
+    /// plain field touch by accident. Both accessor labels ride along, since
+    /// the same entry answers a read and a write.
+    #[test]
+    fn a_hooked_property_access_records_its_accessors_instead_of_the_slot() {
+        let (exprs, span) = check_and_find_expr_span(concat!(
+            "<?mwl\nclass T {\n",
+            "  public int $hits;\n",
+            "  public int $doubled { get => $this->hits * 2; set(int $v) { $this->hits = $v; } }\n",
+            "  function constructor(int $hits) { $this->hits = $hits; }\n",
+            "  function m(): int { return $this->doubled; }\n}\n",
+        ));
+        let Some(ExprInfo::HookedProperty {
+            class,
+            name,
+            get,
+            set,
+            ..
+        }) = exprs.lookup(span)
+        else {
+            panic!("expected a recorded `HookedProperty` entry");
+        };
+        assert_eq!(class.to_string(), "T");
+        assert_eq!(name, "doubled");
+        assert_eq!(get.as_deref(), Some("T::$doubled::get"));
+        assert_eq!(set.as_deref(), Some("T::$doubled::set"));
+    }
+
+    /// The one place a hooked property is *not* a call: inside its own hooks,
+    /// where `$this->p` is the backing slot. Without this the `get` hook
+    /// below would call itself forever.
+    #[test]
+    fn a_hooked_property_read_inside_its_own_hook_records_the_plain_slot() {
+        let (exprs, _span) = check_and_find_expr_span(concat!(
+            "<?mwl\nclass T {\n",
+            "  public int $n { get => $this->n + 1; }\n",
+            "  function constructor() { }\n",
+            "  function m(): int { return 0; }\n}\n",
+        ));
+        // The hook body's own `$this->n` is the only access in the file.
+        let hooked = exprs
+            .entries
+            .iter()
+            .filter(|e| matches!(e, ExprInfo::HookedProperty { .. }))
+            .count();
+        let plain = exprs
+            .entries
+            .iter()
+            .filter(|e| matches!(e, ExprInfo::Property { name, .. } if name == "n"))
+            .count();
+        assert_eq!((hooked, plain), (0, 1));
     }
 
     /// A plain `object`-typed receiver erases per ADR 0036 § 4 — there is no

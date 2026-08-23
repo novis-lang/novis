@@ -139,6 +139,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                     current_class: Some(&qname),
+                    current_hook: None,
                 };
                 check_members(&decl.members, &ctx, env);
                 check_class_init(decl, &qname, env);
@@ -150,6 +151,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                     current_class: Some(&qname),
+                    current_hook: None,
                 };
                 check_members(&decl.members, &ctx, env);
             }
@@ -159,6 +161,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                     current_class: Some(&qname),
+                    current_hook: None,
                 };
                 check_members(&decl.members, &ctx, env);
             }
@@ -174,6 +177,7 @@ fn check_stmts(
                     namespace: &current_ns,
                     imports: &current_imports,
                     current_class: None,
+                    current_hook: None,
                 };
                 check_stmt(
                     stmt,
@@ -190,11 +194,85 @@ fn check_stmts(
 
 fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for member in members {
-        if let ClassMemberKind::Method(m) = &member.kind {
-            check_method(m, ctx, env);
+        match &member.kind {
+            ClassMemberKind::Method(m) => check_method(m, ctx, env),
+            ClassMemberKind::Property(p) => check_property_hooks(p, ctx, env),
+            _ => {}
         }
     }
 }
+
+/// Type-checks each of `p`'s ADR 0014 § 1 hook bodies as its own frame, and
+/// records the label the compiled accessor is emitted under.
+///
+/// A hook is an ordinary function in every respect that matters here: it has
+/// an implicit `$this`, its own locals, and a return type — the property's
+/// own type for `get`, `void` for `set`. `set`'s parameter is the one thing
+/// with no method equivalent: PHP 8.4 lets it be written explicitly
+/// (`set(string $v)`) or left implicit, in which case it is named `$value`
+/// and typed as the property. The short `=> expr;` body form differs by
+/// accessor the same way PHP's does — for `get` the expression is the value
+/// returned, for `set` it is the value stored — so only `get` checks it
+/// against the property's type here; `set`'s is checked at the assignment
+/// [`crate::expr::check_assign`] already performs for the desugared store.
+///
+/// [`Ctx::current_hook`] is what stops `$this->p` inside `$p`'s own hooks
+/// from resolving to a re-entrant call to the very accessor being checked.
+fn check_property_hooks(p: &mwl_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let Some(hooks) = &p.hooks else { return };
+    let Some(class) = ctx.current_class else {
+        return;
+    };
+    let name = strip_sigil(span_text(env.src, p.name)).to_owned();
+    let prop_ty = crate::lower::lower_type(&p.ty, ctx, env);
+    let inner = Ctx {
+        namespace: ctx.namespace,
+        imports: ctx.imports,
+        current_class: ctx.current_class,
+        current_hook: Some(&name),
+    };
+    for hook in hooks {
+        env.exprs.record_method(
+            hook.span,
+            crate::signatures::hook_label(class, &name, hook.kind),
+        );
+        let Some(body) = &hook.body else {
+            continue; // abstract hook — a requirement, not code
+        };
+        let mut scope = LocalScope::new();
+        let mut live: FxHashSet<String> = FxHashSet::default();
+        let this_ty = class_of_ctx(&inner, env);
+        scope.declare_param("this".to_owned(), this_ty, p.name);
+        live.insert("this".to_owned());
+        let is_set = hook.kind == mwl_syntax::ast::PropertyHookKind::Set;
+        if is_set {
+            let (pname, pspan, pty) = match &hook.param {
+                Some(param) => (
+                    strip_sigil(span_text(env.src, param.name)).to_owned(),
+                    param.name,
+                    lower_optional_type(param.ty.as_ref(), &inner, env),
+                ),
+                None => (HOOK_VALUE_PARAM.to_owned(), p.name, prop_ty),
+            };
+            scope.declare_param(pname.clone(), pty, pspan);
+            live.insert(pname);
+        }
+        let return_ty = if is_set { env.interner.void() } else { prop_ty };
+        match body {
+            mwl_syntax::ast::PropertyHookBody::Expr(e) => {
+                let expected = if is_set { prop_ty } else { return_ty };
+                crate::expr::check_expr(e, Some(expected), &mut live, &scope, &inner, env);
+            }
+            mwl_syntax::ast::PropertyHookBody::Block(block) => {
+                check_block(&block.stmts, &mut live, &mut scope, return_ty, &inner, env);
+            }
+        }
+    }
+}
+
+/// The name a `set` hook's parameter binds under when the declaration leaves
+/// it implicit (`set => $this->x = $value;`) — PHP 8.4's own spelling.
+pub const HOOK_VALUE_PARAM: &str = "value";
 
 fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // Recorded before the abstract/interface early return: a declaration with

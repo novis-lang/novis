@@ -1305,10 +1305,49 @@ fn check_property_access(
     }
 
     match class_qname_of(object_ty, env.interner) {
-        Some(qname) => match resolve_property(&qname, &name, env.signatures, env.graph) {
-            Some(ty) => {
+        Some(qname) => match crate::signatures::resolve_property_owned(
+            &qname,
+            &name,
+            env.signatures,
+            env.graph,
+        ) {
+            Some((owner, ty)) => {
                 if is_unset {
                     report_unset_on_property(object.span.to(*name_span), &qname, &name, env);
+                }
+                // ADR 0014 § 1: a hooked property's access is a call to its
+                // accessor, not a field touch — except inside that property's
+                // own hooks, where `$this->p` is the backing slot (see
+                // `Ctx::current_hook`). `is_unset` never reaches here with a
+                // hook in play without also having been refused above, so
+                // there is no third case.
+                let hooks = crate::signatures::hooks_of(&owner, &name, env.signatures);
+                let inside_own_hook =
+                    ctx.current_hook == Some(name.as_str()) && is_this_receiver(object, env.src);
+                if hooks != crate::signatures::PropertyHooks::default() && !inside_own_hook {
+                    env.exprs.record(
+                        object.span.to(*name_span),
+                        ExprInfo::HookedProperty {
+                            class: qname.clone(),
+                            name: name.clone(),
+                            ty,
+                            get: hooks.get.then(|| {
+                                crate::signatures::hook_label(
+                                    &owner,
+                                    &name,
+                                    mwl_syntax::ast::PropertyHookKind::Get,
+                                )
+                            }),
+                            set: hooks.set.then(|| {
+                                crate::signatures::hook_label(
+                                    &owner,
+                                    &name,
+                                    mwl_syntax::ast::PropertyHookKind::Set,
+                                )
+                            }),
+                        },
+                    );
+                    return ty;
                 }
                 // `mwl-ir` needs this access's resolved declaring class to
                 // lower an eventual field-read instruction — see

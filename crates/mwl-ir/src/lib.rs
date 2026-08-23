@@ -859,7 +859,13 @@
 //!   that case's runtime-checked fallback to M4, with no IR/codegen yet to
 //!   throw from, so lowering panics naming it rather than guessing a
 //!   representation. A nullsafe access (`?->`) is equally unsupported today
-//!   on either side, same as a nullsafe method call.
+//!   on either side, same as a nullsafe method call. A property that declares
+//!   an ADR 0014 § 1 hook takes the *call* path instead on whichever side its
+//!   accessor covers ([`lower::lower_property_hook`]); the one shape still
+//!   refused there is an array-element write through a hooked property
+//!   (`$obj->hooked[0] = v`), where the copy-on-write separation would have
+//!   to be written back through the `set` hook and no PHP-compatible rule for
+//!   that exists yet — it panics naming itself.
 //! - **`string`/`bytes`/`array<T>` all cross a local, call-argument,
 //!   resolved-return, and compile-time-known property-read *and write*
 //!   boundary.** [`lower::lower_checked_ty`] has a `CheckedTy::String =>
