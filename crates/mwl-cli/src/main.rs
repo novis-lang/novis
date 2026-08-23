@@ -1,12 +1,15 @@
 //! The `mwl` binary.
 //!
-//! Three subcommands so far, one per milestone that needed one:
+//! Four subcommands so far, one per milestone that needed one:
 //!
 //! * `mwl ast` (M1) — dump what the parser produced.
 //! * `mwl check` (M2) — parse, resolve, type-check, report every diagnostic.
 //! * `mwl run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
+//! * `mwl info` — build, host and third-party licensing facts, PHP's
+//!   `php -i` in shape and in purpose. Also spelled `mwl -i`, since that is
+//!   the spelling anyone arriving from PHP will try first; see [`info`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
@@ -36,11 +39,28 @@ use clap::{Parser as ClapParser, Subcommand};
 use mwl_diagnostics::{Diagnostics, Renderer, SourceMap};
 use mwl_syntax::parse_file;
 
+mod info;
+
 #[derive(ClapParser)]
-#[command(name = "mwl", version, about = "The MWL compiler and CLI")]
+#[command(
+    name = "mwl",
+    version,
+    about = "The MWL compiler and CLI",
+    arg_required_else_help = true
+)]
 struct Cli {
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
+
+    /// Print build, host and third-party licensing information.
+    ///
+    /// The same report as `mwl info`, under the spelling PHP uses.
+    #[arg(short = 'i', long)]
+    info: bool,
+
+    /// With `-i`: include every third-party license text in full.
+    #[arg(long, requires = "info")]
+    licenses: bool,
 }
 
 #[derive(Subcommand)]
@@ -76,6 +96,17 @@ enum Command {
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
     },
+    /// Print build, host and third-party licensing information.
+    ///
+    /// One call answers what this binary is and what is compiled into it,
+    /// including the complete third-party attribution MWL's MIT license and
+    /// its dependencies' licenses both require to be distributed with it.
+    /// See `docs/adr/0065-third-party-attribution-and-mwl-info.md`.
+    Info {
+        /// Also print every third-party license text in full.
+        #[arg(long)]
+        licenses: bool,
+    },
 }
 
 /// The closed set of sites `--fault-inject` accepts, one per
@@ -96,7 +127,24 @@ impl From<FaultSiteArg> for mwl_runtime::FaultSite {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    match cli.command {
+
+    // `-i` and a subcommand are two requests, and guessing which one was
+    // meant is worse than saying so. Clap cannot express this as a conflict
+    // — a subcommand is not an argument it can name — so it is checked here.
+    if cli.info && cli.command.is_some() {
+        eprintln!("error: `-i`/`--info` cannot be combined with a subcommand");
+        return ExitCode::FAILURE;
+    }
+    if cli.info {
+        return info::run(cli.licenses);
+    }
+
+    // Unreachable: `arg_required_else_help` makes a bare `mwl` print help.
+    let Some(command) = cli.command else {
+        return ExitCode::FAILURE;
+    };
+
+    match command {
         Command::Ast { file } => run_ast(&file),
         Command::Check { file } => run_check(&file),
         Command::Run {
@@ -105,6 +153,7 @@ fn main() -> ExitCode {
             dump_asm,
             fault_inject,
         } => run_run(&file, dump_ir, dump_asm, fault_inject),
+        Command::Info { licenses } => info::run(licenses),
     }
 }
 

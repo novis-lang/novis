@@ -1,0 +1,179 @@
+# ADR 0065 — Attribution is generated, committed and embedded; `mwl info` is the one call
+
+- **Status:** Accepted
+- **Date:** 2026-08-23
+- **Scope:** which third-party licenses MWL may ship under, how the notice satisfying them is produced
+  and kept current, where it is distributed, and the `mwl info` command that prints it alongside the
+  build and host facts. Not in scope: MWL's own license, which is MIT and stated in
+  [LICENSE](../../LICENSE); and not what a `.mwlx` extension's own dependencies oblige *its* author to,
+  which [ADR 0003](0003-extension-system.md) leaves to the extension.
+- **Amends:** none. It gives [deny.toml](../../deny.toml)'s existing `licenses.allow` list a second
+  reader — `tools/gen-attribution.py` fails if the two disagree — but does not change what it allows.
+- **Amended by:** none.
+- **Relates to:** [0051](0051-standard-library-tiers.md) § 4 (the two-question C-dependency test; this
+  is the licensing half of the same supply-chain discipline), [0048](0048-portable-single-file-executables.md)
+  (a bundled executable is built from the host binary, so it carries the notice unchanged),
+  [0003](0003-extension-system.md) (an extension is a separate artifact and is not covered here),
+  [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) (`mwl info` is not a probe
+  and reports no request state).
+
+> **In short:** MWL is MIT and links ~80 permissive components, every one of which asks the same thing
+> in return — reproduce the notice with the binary. That obligation is met by a **generated file**,
+> `THIRD-PARTY-LICENSES.txt`, produced by `tools/gen-attribution.py` from the resolved dependency graph,
+> **committed** so the repository carries it, and **`include_str!`d into the `mwl` binary** so a copy
+> handed to someone without the repository carries it too. CI regenerates and diffs it, so a dependency
+> added without its notice fails the build rather than shipping unattributed. One command prints all of
+> it: **`mwl info`** — build, host and component summary — and **`mwl info --licenses`** — every license
+> text in full, MWL's own included. `mwl -i` is the same command under PHP's spelling.
+
+## Context
+
+- MWL is distributed two ways that both trigger the obligation: as source on GitHub, and as a compiled
+  `mwl` binary — which [ADR 0048](0048-portable-single-file-executables.md) then lets a user append their
+  own program to and hand onwards. A notice that exists only in the repository covers the first and
+  neither of the others.
+- Every license in [deny.toml](../../deny.toml)'s allow list is permissive, and every one of them
+  conditions redistribution on reproducing something: MIT and BSD on the copyright notice **and** the
+  license text, Apache-2.0 additionally on the `NOTICE` file where one exists, Unicode-3.0 on its own
+  notice. None of them is satisfied by an SPDX identifier alone. A list of names is not attribution.
+- `deny.toml` already answers *may we link this?* on every CI run. It does not answer *did we ship the
+  notice?*, and the two questions fail differently: the first fails loudly at the moment a dependency is
+  added, the second fails silently and only at distribution.
+- A hand-maintained notice file is the same shape of problem this repository already documents in
+  CLAUDE.md — a second copy of a fact that goes stale without telling anyone. Cargo already holds the
+  authoritative dependency graph; anything derived from it should be derived, not transcribed.
+- PHP answers the "what is this build?" question with `phpinfo()` / `php -i`: one call, everything at
+  once, no hunting. That shape is worth copying, and licensing belongs in it — "what is in this binary,
+  and what may I do with it?" is one question asked by one person at one moment.
+
+## Decision
+
+### 1. The notice is generated from the dependency graph, never written by hand
+
+`tools/gen-attribution.py` produces `THIRD-PARTY-LICENSES.txt` at the repository root. It walks the
+normal and build dependencies reachable from `mwl-cli` — the package that actually ships — reads each
+component's own license file from its source, and emits a component table plus the license texts.
+
+Four properties are load-bearing:
+
+- **It fails closed.** An SPDX identifier the script has no policy for, a component whose source is not
+  fetched, a chosen license with no text anywhere in the tree, or an identifier missing from
+  `deny.toml`'s allow list is an **error**, never a silently omitted notice. Adding a license to the
+  tree is a decision someone makes in `PREFERENCE` and in `deny.toml`, not a line that appears in a
+  generated file.
+- **It is host-independent.** The component list is not filtered by target, so a Windows and a Linux
+  checkout produce identical bytes and CI's `--check` means something. That over-includes —
+  `windows-sys` is listed on Linux — which is the correct direction to err, and matches what the
+  repository ships to everyone.
+- **Texts are deduplicated by content, not by identifier.** MIT obliges us to reproduce each
+  component's *own* copyright line. Components whose text is byte-identical share one entry; components
+  whose copyright differs each keep theirs. This is why one identifier appears more than once.
+- **A dual license is resolved to one, and the choice is shown.** `PREFERENCE` orders the allowed
+  licenses with MIT first, so `MIT OR Apache-2.0` is taken as MIT; the table prints the full offer
+  beside it. An `AND` keeps every conjunct, because that is what "and" means.
+
+Dev-dependencies are excluded. `criterion`, `insta` and `proptest` are linked into nothing a user
+receives, and attributing them would overstate what MWL distributes.
+
+### 2. The generated file is committed, and CI diffs it
+
+`python tools/gen-attribution.py --check` regenerates and compares, failing if `Cargo.lock` has moved
+and the notice has not. It runs as the `attribution` job, beside `supply-chain`, which is the job it
+completes: `cargo deny` decides what may be linked, this decides what must be shipped.
+
+Committing a generated file is deliberate. It makes the notice reviewable in a diff at the moment a
+dependency changes, and it keeps the build from depending on network access or on Python.
+
+### 3. The notice is embedded in the binary
+
+`crates/mwl-cli/src/info.rs` embeds `THIRD-PARTY-LICENSES.txt` and `LICENSE` with `include_str!`, so
+the notice and the binary it describes are produced from one tree in one compile and cannot drift.
+MWL's own MIT text is embedded for the same reason the third-party texts are: a binary handed to
+someone without the repository is still a copy of the software, and MIT asks that its text accompany
+it.
+
+The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes. Under
+[ADR 0004](0004-memory-for-simplicity.md)'s ordering this is not a trade-off worth discussing — it is
+priority 5 spent on a legal obligation, and it never touches a request path.
+
+`mwl info` slices that one embedded file at its two section headings rather than re-formatting it, so
+there is exactly one rendering of the component table and it is the one a reader can also open in the
+repository. `crates/mwl-cli/src/info.rs` and `tools/gen-attribution.py` each carry the other half of
+that agreement, and a unit test fails if either is changed alone.
+
+### 4. `mwl info` is the one call, and `mwl -i` is its PHP spelling
+
+```
+mwl info                # build, host and licensing facts, plus the component table
+mwl info --licenses     # the same, plus every license text in full
+mwl -i / mwl -i --licenses
+```
+
+The default is the summary because the full texts are ~55 KB and a terminal is the wrong place to put
+them unasked; both are one call, and the second is the complete legal record. The report is plain
+two-column text with no colour and no paging, so it pipes.
+
+This is the one place in MWL where an operation is deliberately reachable two ways.
+[ADR 0063](0063-core-api-conventions.md) R-"no operation reachable two ways" governs the `Core` library
+API, not the CLI, and the reason for the exception is specific: `-i` is the spelling a PHP developer
+will try first, and the whole point of this command is that nobody should have to hunt for it.
+Combining `-i` with a subcommand is refused rather than guessed at.
+
+Fields that do not exist yet are not printed. `mwl info` grows a configuration section when
+[ADR 0005](0005-config-changeability.md)'s `mwl.toml` lands in M6, an artifact-cache section with
+[ADR 0042](0042-on-disk-artifact-cache-format.md) in the same milestone, and a loaded-extension section
+with [ADR 0003](0003-extension-system.md) in M9. It reports no per-request state, ever — that is
+[ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s territory and is
+flag-gated for reasons this command does not share.
+
+### 5. No build timestamp
+
+`build.rs` records the target, host, profile, `rustc --version`, the Cranelift version from
+`Cargo.lock`, and the commit — but no date. A build date makes two builds of the same commit differ for
+no gain: the commit already answers "which source is this?" exactly. `MWL_BUILD_COMMIT` lets a
+distribution packaging from a tarball supply the revision when no `.git` is present, and every fact
+that cannot be determined becomes `unknown` rather than failing the build.
+
+## Consequences
+
+- Adding a dependency now has a third gate after `cargo deny` and `cargo clippy`: regenerate the
+  notice. The failure is a one-line command and a committed diff.
+- A license outside `PREFERENCE` stops the build with a message naming the component and the
+  identifier. This is intended to be annoying — it is the moment the decision should be made.
+- The `mwl` binary grows ~55 KB. See § 3.
+- Python is now needed to *change* the dependency set, not to build MWL. This matches
+  `.claude/brief.py`, which CI already runs, and keeps a JSON/TOML parser out of the dependency tree
+  that this script exists to keep honest.
+- Attribution is over-inclusive by design (all platforms, plus build dependencies). A reader of the
+  notice may see a component their own build does not contain; the file says so.
+
+## Alternatives rejected
+
+- **`cargo-about`.** The off-the-shelf tool, and a reasonable choice. Rejected because its dedup is by
+  license identifier rather than by text, which loses per-component copyright lines — exactly the part
+  MIT asks for — and because it adds an installed tool plus a template file to CI for a script that is
+  ~350 lines of the repository's existing Python.
+- **A Rust `xtask` crate.** More idiomatic, but it needs `serde_json` to read `cargo metadata`, adding
+  a dependency to the one tool whose job is keeping the dependency set honest.
+- **Generating the notice at build time instead of committing it.** Makes every build depend on Python
+  and on fetched sources, and removes the reviewable diff that is the main reason a human notices a new
+  component at all.
+- **SPDX identifiers only, with a pointer to a website.** Not attribution. MIT, BSD and Apache-2.0 each
+  condition redistribution on reproducing text, and a URL is not a reproduction — it is a promise to
+  keep a server running.
+- **A separate `mwl licenses` command.** Splits one question across two commands. Rejected against the
+  `php -i` shape the request was for.
+- **Markdown for the notice.** A `.md` file either fences the license texts, putting stray `~~~` lines
+  in the binary's output, or lets a renderer reflow them. Plain text is displayed verbatim by GitHub
+  and printed verbatim by the binary, from one file with no transformation between them.
+
+## Verification
+
+- `cargo test -p mwl-cli` — four tests in `crates/mwl-cli/src/info.rs`: that the embedded notice carries
+  both section headings and that slicing it drops nothing, that the component table is populated and
+  names components that are certainly present, that `--licenses` adds MWL's own text and the
+  third-party texts while the default omits them, and that every `build.rs` fact reaches the report.
+- `python tools/gen-attribution.py --check` — the `attribution` CI job. Fails if `THIRD-PARTY-LICENSES.txt`
+  does not match the current `Cargo.lock`, and fails on an unknown license, an unfetched source, or a
+  disagreement with `deny.toml`.
+- `cargo deny check` — unchanged, and still the gate on what may be linked at all.
