@@ -280,6 +280,13 @@ pub const CLASSES: &[CoreClass] = &[
                 symbol: "mwl_core_str_join",
             },
             CoreMethod {
+                name: "split",
+                params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(SPLIT_OPTIONS)],
+                defaults: &[],
+                return_ty: CoreTy::Array(&CoreTy::Str),
+                symbol: "mwl_core_str_split",
+            },
+            CoreMethod {
                 name: "replace",
                 params: &[
                     CoreTy::Str,
@@ -304,6 +311,27 @@ pub const CLASSES: &[CoreClass] = &[
                 defaults: &[Const::Str(" ")],
                 return_ty: CoreTy::Str,
                 symbol: "mwl_core_str_pad_end",
+            },
+            CoreMethod {
+                name: "trim",
+                params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_trim",
+            },
+            CoreMethod {
+                name: "trimStart",
+                params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_trim_start",
+            },
+            CoreMethod {
+                name: "trimEnd",
+                params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_trim_end",
             },
             CoreMethod {
                 name: "repeat",
@@ -376,6 +404,28 @@ pub const CLASSES: &[CoreClass] = &[
         ],
     },
 ];
+
+/// `Core\Str::split`'s `{limit?: int}` — `crate::str::mwl_core_str_split`'s
+/// own docs own what each sign of it means and why the default is `int`'s
+/// maximum.
+const SPLIT_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "limit",
+    ty: CoreTy::Int,
+    default: Const::Int(i64::MAX),
+}];
+
+/// `Core\Str::trim`/`trimStart`/`trimEnd`'s `{characters?: string}`, shared by
+/// all three — one bag, so the three members cannot drift apart on either the
+/// option's name or its default.
+///
+/// The default is PHP's own `trim` set: space, tab, newline, carriage return,
+/// NUL and vertical tab. `crate::str::trimmed` owns the two places the match
+/// itself diverges from PHP's.
+const TRIM_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "characters",
+    ty: CoreTy::Str,
+    default: Const::Str(" \t\n\r\0\u{0b}"),
+}];
 
 /// `Core\Str::replace`'s `{caseInsensitive?: bool, limit?: uint}`.
 ///

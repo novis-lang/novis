@@ -34,7 +34,7 @@
 //! divergence, and the shape `.claude/loop-goal.md`'s `--ORACLE-DIVERGES--`
 //! section exists to record in the conformance suite.
 
-use mwl_runtime::{Fault, HelperResult, MwlStr, Tag, Value};
+use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
 /// One `string` argument's text.
 ///
@@ -64,6 +64,17 @@ fn unsigned(value: &Value, member: &str, position: &str) -> Result<u64, Fault> {
         Fault::fatal(format!(
             "Core\\Str::{member} expected {:?} for {position}, got tag {}",
             Tag::Uint,
+            value.tag_byte()
+        ))
+    })
+}
+
+/// One `int` argument.
+fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
+    value.as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Str::{member} expected {:?} for {position}, got tag {}",
+            Tag::Int,
             value.tag_byte()
         ))
     })
@@ -188,6 +199,111 @@ mwl_runtime::mwl_helper! {
             out.push_str(text(&value, "join", "an element")?);
         }
         produced(&out)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::split(string $s, string $separator, {limit?: int}): array<string>`
+    /// — replacing PHP's `explode`, whose third argument becomes the one
+    /// option here.
+    ///
+    /// `limit` keeps every one of `explode`'s three behaviours, because they
+    /// are three different questions and PHP answers all of them through one
+    /// integer:
+    ///
+    /// * **positive** — at most that many pieces, the last one holding the
+    ///   whole unsplit remainder.
+    /// * **negative** — every piece except the last `-limit` of them, which is
+    ///   an empty array when there are not that many.
+    /// * **zero** — one piece, i.e. the subject unsplit. PHP's own reading,
+    ///   and kept rather than "split nothing" so a computed limit behaves the
+    ///   same here as it does there.
+    ///
+    /// It defaults to `int`'s maximum, which is "no limit" — a subject that
+    /// fits in memory can never produce that many pieces. Same decision, and
+    /// the same reasons, as [`mwl_core_str_replace`]'s own `limit`.
+    ///
+    /// **An empty separator throws**, as PHP's `explode` does: there is no
+    /// sensible piece boundary, and returning the subject unsplit would hide
+    /// a computed separator that came out empty by mistake.
+    fn mwl_core_str_split(_ctx, args: [3]) {
+        let subject = text(&args[0], "split", "the subject")?;
+        let separator = text(&args[1], "split", "the separator")?;
+        let limit = integer(&args[2], "split", "the `limit` option")?;
+        if separator.is_empty() {
+            return Err(Fault::thrown(
+                "Core\\Str::split(): the separator must not be empty",
+            ));
+        }
+
+        let mut out = MwlArray::new();
+        if limit >= 0 {
+            // A limit of `0` means one piece, not none — see the docs above.
+            let pieces = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
+            for piece in subject.splitn(pieces, separator) {
+                out.append(Value::str(MwlStr::new(piece.as_bytes())));
+            }
+        } else {
+            let dropped = usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX);
+            let all: Vec<&str> = subject.split(separator).collect();
+            for piece in all.get(..all.len().saturating_sub(dropped)).unwrap_or(&[]) {
+                out.append(Value::str(MwlStr::new(piece.as_bytes())));
+            }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+/// `subject` with every leading and/or trailing character drawn from
+/// `characters` removed — the shared body of `trim`/`trimStart`/`trimEnd`.
+///
+/// Two deliberate divergences from PHP's `trim`, both consequences of ADR 0009
+/// making a `string` text rather than bytes, and of ADR 0063 R13 refusing a
+/// mini-language inside an argument:
+///
+/// * The set is matched by **character**, not by byte, so a multi-byte
+///   character can be trimmed and a lone continuation byte can never be.
+/// * PHP's `"a..z"` range syntax is **not** interpreted. A `.` in the set is a
+///   `.`, and nothing else.
+fn trimmed<'a>(subject: &'a str, characters: &str, start: bool, end: bool) -> &'a str {
+    let mut out = subject;
+    if start {
+        out = out.trim_start_matches(|c| characters.contains(c));
+    }
+    if end {
+        out = out.trim_end_matches(|c| characters.contains(c));
+    }
+    out
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::trim(string $s, {characters?: string}): string` — replacing
+    /// PHP's `trim`. [`trimmed`] owns the two divergences from it, and
+    /// `crate::registry`'s `TRIM_OPTIONS` owns the default set.
+    fn mwl_core_str_trim(_ctx, args: [2]) {
+        let subject = text(&args[0], "trim", "the subject")?;
+        let characters = text(&args[1], "trim", "the `characters` option")?;
+        produced(trimmed(subject, characters, true, true))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::trimStart(string $s, {characters?: string}): string` —
+    /// replacing PHP's `ltrim`. See [`mwl_core_str_trim`].
+    fn mwl_core_str_trim_start(_ctx, args: [2]) {
+        let subject = text(&args[0], "trimStart", "the subject")?;
+        let characters = text(&args[1], "trimStart", "the `characters` option")?;
+        produced(trimmed(subject, characters, true, false))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::trimEnd(string $s, {characters?: string}): string` —
+    /// replacing PHP's `rtrim`/`chop`. See [`mwl_core_str_trim`].
+    fn mwl_core_str_trim_end(_ctx, args: [2]) {
+        let subject = text(&args[0], "trimEnd", "the subject")?;
+        let characters = text(&args[1], "trimEnd", "the `characters` option")?;
+        produced(trimmed(subject, characters, false, true))
     }
 }
 
@@ -525,6 +641,91 @@ mod tests {
             ),
             "a|b|c"
         );
+    }
+
+    /// The pieces `split` produces, read back in order.
+    fn split_at(subject: &str, separator: &str, limit: i64) -> Vec<String> {
+        let result = run(
+            super::mwl_core_str_split,
+            &[s(subject), s(separator), Value::int(limit)],
+        )
+        .expect("a non-empty separator never fails");
+        #[expect(
+            unsafe_code,
+            reason = "the helper returned one fresh reference, which the \
+                      handle takes over and releases on drop"
+        )]
+        let array =
+            unsafe { MwlArray::from_raw(result.array_ptr().expect("split returns an array")) };
+        let mut out = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let piece = array.value_at(slot).expect("a live slot holds a value");
+            out.push(
+                String::from_utf8(
+                    piece
+                        .as_str_bytes()
+                        .expect("every piece is a string")
+                        .to_vec(),
+                )
+                .expect("every piece is UTF-8"),
+            );
+            from = slot + 1;
+        }
+        out
+    }
+
+    /// Every row verified against PHP 8.5's `explode`, whose third argument is
+    /// this member's one option.
+    #[test]
+    fn split_matches_phps_explode_at_every_sign_of_the_limit() {
+        assert_eq!(split_at("a b c", " ", i64::MAX), ["a", "b", "c"]);
+        assert_eq!(split_at("a b c", " ", 2), ["a", "b c"]);
+        // Zero means one piece, not none — PHP's own reading.
+        assert_eq!(split_at("a b c", " ", 0), ["a b c"]);
+        assert_eq!(split_at("a b c", " ", -1), ["a", "b"]);
+        assert!(split_at("a b c", " ", -9).is_empty());
+        // A separator that never occurs yields the subject, unsplit.
+        assert_eq!(split_at("abc", "x", i64::MAX), ["abc"]);
+        // An empty subject is one empty piece, not zero pieces.
+        assert_eq!(split_at("", " ", i64::MAX), [""]);
+    }
+
+    /// An empty separator has no piece boundary to find, so it throws rather
+    /// than quietly handing the subject back — PHP raises `ValueError` too.
+    #[test]
+    fn an_empty_split_separator_throws() {
+        let status = run(super::mwl_core_str_split, &[s("a b"), s(""), Value::int(9)])
+            .expect_err("an empty separator is refused");
+        assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    /// The three trims share one option bag, so they can only differ in which
+    /// end they strip. The default set is PHP's, and a written one replaces it
+    /// rather than adding to it.
+    #[test]
+    fn the_three_trims_strip_the_ends_they_name() {
+        let php_default = " \t\n\r\0\u{0b}";
+        let trim = |member, subject, characters| {
+            taken(run(member, &[s(subject), s(characters)]).expect("trimming never fails"))
+        };
+        assert_eq!(
+            trim(super::mwl_core_str_trim, " \thi\n ", php_default),
+            "hi"
+        );
+        assert_eq!(
+            trim(super::mwl_core_str_trim_start, "  hi  ", php_default),
+            "hi  "
+        );
+        assert_eq!(
+            trim(super::mwl_core_str_trim_end, "  hi  ", php_default),
+            "  hi"
+        );
+        assert_eq!(trim(super::mwl_core_str_trim, "xxhixx", "x"), "hi");
+        // Only the characters named: a written set replaces the default.
+        assert_eq!(trim(super::mwl_core_str_trim, " xhix ", "x"), " xhix ");
+        // ADR 0063 R13: `a..z` is three characters, not a range.
+        assert_eq!(trim(super::mwl_core_str_trim, "abc", "a..z"), "bc");
     }
 
     /// `replace` with both options at their defaults, which is what a call
