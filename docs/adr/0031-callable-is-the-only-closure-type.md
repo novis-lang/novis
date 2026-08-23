@@ -6,18 +6,13 @@
   `fn(...) => ...`); explicit capture (`use`, by value and by reference); whether `Closure` and `callable`
   are two type names or one; `Closure::fromCallable`, `call_user_func`, `call_user_func_array`;
   self-referencing recursion for an otherwise-anonymous closure
-- **Amends:** [0007](0007-explicit-type-system.md) § 3 — the `Closure` type atom is retired; `callable` is
-  the sole surviving spelling for the same value, so § 3's atom list and its opacity sentence both drop
-  `Closure`. [0008](0008-static-and-global.md) § 4 — the `$this`-binding rule is unchanged, but every
-  mention of `bindTo()`/`Closure::bind()` there now names a `callable` operation, not a `Closure` one; the
-  `use`-clause capture mechanism its prose assumed still exists is itself retired by this ADR.
-  [0027](0027-callable-is-closures-only.md) — every value that ADR calls "a `Closure`" is the same value
-  this ADR types `callable`; the string/array-spelling and `__invoke` rejections it records are unchanged
-  and stay recorded there, including its own diagnostics and verification list, just read with `callable`
-  substituted for `Closure` throughout. `Closure::fromCallable` is additionally dropped here, since after
-  0027 there is nothing left for it to convert *from*.
-- **Amended by:** [0063](0063-core-api-conventions.md) — the illustrative `Core\Arr::map` signature is
-  restated subject-first; nothing about the closure literal or the `callable` type changes.
+- **Amends:** [0007](0007-explicit-type-system.md) § 3 (the `Closure` type atom is retired; `callable` is
+  the sole spelling), [0008](0008-static-and-global.md) § 4 (`bindTo()` is a `callable` operation, and the
+  `use`-clause capture its prose assumed is retired here), [0027](0027-callable-is-closures-only.md) (which
+  values satisfy `callable` is unchanged; that ADR is spelled in `callable` terms throughout, and
+  `Closure::fromCallable` is dropped since nothing is left to convert from). All three folds are applied in
+  those files.
+- **Amended by:** 0063.
 - **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (why recursion is solved with a
   lexical self-name rather than a declared-method requirement — the self-name never becomes a free,
   globally-callable function, so it doesn't reopen that ADR's rule), [0015](0015-no-name-aliasing.md) (the

@@ -256,7 +256,7 @@ pub enum TokenKind {
 /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 /// § 2) — unlike PHP, which matches its own keywords case-insensitively.
 /// `IF` and `If` are therefore ordinary [`TokenKind::Ident`]s, not this
-/// token; nothing diagnoses them, because ADR 0029/0032 make both legal class
+/// token; nothing diagnoses them, because ADR 0029 makes both legal class
 /// names. Every variant's `name()` gives that one spelling.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]

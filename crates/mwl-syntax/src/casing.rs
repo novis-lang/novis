@@ -1,19 +1,12 @@
 //! Identifier casing ([ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md),
-//! tightened by [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md),
-//! narrowed by [ADR 0032](../../../docs/adr/0032-acronym-casing-rule-revoked.md)):
+//! tightened by [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)):
 //! every declared identifier's spelling is checked directly off the AST a
 //! declaration already produces — no name resolution needed, so this lives
 //! in `mwl-syntax` rather than waiting on `mwl-hir`/`mwl-types`.
 //!
-//! Two amendments landed before this module's first release: ADR 0030
-//! revokes § 2's one-leading-underscore allowance for properties/parameters/
-//! locals and its `__construct` reserved-word exception; ADR 0032 revokes
-//! § 1's "acronyms are one word, never kept all-caps" rule outright, so an
-//! identifier's internal capitalization is never checked, only its first
-//! character. What's implemented here is already the merged rule from both
-//! amendments — every category uses exactly the pattern in ADR 0029's table
-//! (leading-character case, alphanumeric rest) with no leading-underscore
-//! carve-out and no acronym restriction, and a method literally named
+//! Every category uses exactly the pattern in ADR 0029's table — the leading
+//! character's case, an alphanumeric rest — with no leading-underscore
+//! carve-out and no acronym restriction of any kind. A method literally named
 //! `__construct` gets [`mwl_diagnostics::code::E_LEGACY_CONSTRUCTOR_SPELLING`]
 //! (naming `constructor` as the fix) instead of the generic camelCase
 //! diagnostic.
@@ -72,11 +65,10 @@ fn span_text(src: &SourceFile, span: Span) -> &str {
 // Pattern checks — ADR 0029's table, ADR 0030's zero-exception tightening
 // ============================================================================
 
-/// [ADR 0032](../../../docs/adr/0032-acronym-casing-rule-revoked.md) narrows
-/// this to exactly the table's own pattern: only the first character's case
-/// is checked, and the rest need only be alphanumeric — no run-length or
-/// acronym check of any kind, so `HTTPClient` is accepted on equal footing
-/// with `HttpClient`.
+/// Exactly [ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md)
+/// § 1's rule: only the first character's case is checked, and the rest need
+/// only be alphanumeric — no run-length or acronym check of any kind, so
+/// `HTTPClient` is accepted on equal footing with `HttpClient`.
 fn is_pascal_case(s: &str) -> bool {
     let mut chars = s.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
@@ -753,8 +745,8 @@ mod tests {
 
     #[test]
     fn an_all_caps_acronym_is_accepted() {
-        // ADR 0032 revokes ADR 0029 § 1: only the leading character's case
-        // is checked, so a kept-all-caps acronym is no longer flagged.
+        // ADR 0029 § 1: only the leading character's case is checked, so a
+        // kept-all-caps acronym is not flagged.
         let diags = check("<?mwl\nclass HTTPClient {}\n");
         assert!(diags.is_empty(), "{diags:?}");
     }

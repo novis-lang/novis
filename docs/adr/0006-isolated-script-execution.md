@@ -127,11 +127,11 @@ bullets below are that ADR's rules, restated here because this is the boundary a
 
 - The copy is a **graph** copy, not a tree copy: shared substructure stays shared and cycles terminate, so
   `$a['self'] = $a` crosses instead of hanging.
-- **Closures, references (`&$x`) and resources cannot cross.** A closure captures a heap and a scope, a
-  reference is an alias, and a resource is a host handle; none of the three has a meaning in another heap.
-  **The idiom for a script that needs a live resource inside the child is to pass what identifies it, not the
-  handle itself** — a DSN, a path, a credential reference — as an ordinary `args:` value, and have the child
-  open its own resource from it. This is not a workaround; it is the isolation model's actual point (no
+- **Closures, references (`&$x`) and objects holding a host handle cannot cross.** A closure captures a heap
+  and a scope, a reference is an alias, and an open file or child process is a handle owned by this process;
+  none of the three has a meaning in another heap. **The idiom for a script that needs a live handle inside
+  the child is to pass what identifies it, not the handle itself** — a DSN, a path, a credential reference —
+  as an ordinary `args:` value, and have the child open its own. This is not a workaround; it is the isolation model's actual point (no
   ambient authority, no shared handle), the same reason a spawned isolate cannot see the parent's
   `Core\Request` either.
 - An object whose class the receiving side cannot resolve is **refused with a diagnostic naming the class**,
@@ -299,7 +299,7 @@ Verification, in the order it becomes possible:
   target is single-digit microseconds, and anything at millisecond scale means the arena or the globals are
   being built the expensive way. Plus: a child cannot see a parent variable, global or static, and a
   `Core\Request`/`Core\Server`/`Core\Session` call inside it throws rather than seeing the parent's request
-  ([ADR 0012](0012-no-superglobals.md)); a closure, reference or resource is refused at the boundary; a
+  ([ADR 0012](0012-no-superglobals.md)); a closure, reference or handle-holding object is refused at the boundary; a
   cyclic argument crosses; a child's uncaught
   throw and a child's contained panic both leave the parent running; a cancelled parent leaves no orphan.
 - **M6**, when limits and capabilities land: spawning without `script.spawn` fails; a path outside the

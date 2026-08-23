@@ -426,7 +426,7 @@ impl<'a> Lexer<'a> {
     /// A reserved word is matched **exactly**, in lower case only
     /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 2). `IF` is therefore an ordinary [`TokenKind::Ident`], not a
-    /// mis-cased `if`, and gets no diagnostic here: ADR 0029/0032 make `IF` a
+    /// mis-cased `if`, and gets no diagnostic here: ADR 0029 makes `IF` a
     /// perfectly legal class name, so nothing lexical distinguishes the two.
     /// It also means `Core\Bytes` needs no special handling — `Bytes` is an
     /// `Ident`, where PHP-style case-insensitive matching made it collide
@@ -1185,7 +1185,7 @@ mod tests {
     #[test]
     fn keywords_are_lower_case_only() {
         // ADR 0062 § 2. `ECHO` is an ordinary identifier, with no diagnostic
-        // of its own: ADR 0029/0032 make it a legal class name, so nothing
+        // of its own: ADR 0029 makes it a legal class name, so nothing
         // here can tell a mis-typed `echo` from a deliberate `ECHO`.
         assert_eq!(
             kinds_ok("<?mwl ECHO myVar"),

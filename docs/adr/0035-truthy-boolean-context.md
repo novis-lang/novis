@@ -21,7 +21,7 @@
 > "is this set/non-empty/non-zero." `if ($rows)`, `while ($line)`, `$s && $n`, and `!$user` all type-check
 > for any operand type, and at runtime resolve exactly PHP's own truthy table: `null`, `false`, `0`, `0.0`,
 > `""`, and the string `"0"` are falsy; an empty `array<T>` (of any `T`) is falsy; every other value —
-> including every object, callable, resource, and enum case, and every array with at least one element
+> including every object, callable and enum case, and every array with at least one element
 > regardless of its contents — is truthy. This is the **one** place MWL performs an implicit, PHP-shaped
 > conversion on a value's declared type; everywhere else — assigning into a `bool`-typed parameter, property,
 > return, or local; `==`/`===`/`match` — ADR 0007's rule is untouched: an explicit `as bool` or comparison is
@@ -46,7 +46,7 @@
 **Exactly six syntax positions test a value's truthiness instead of requiring it already be `bool`:**
 `if`/`elseif`'s condition, `while`/`do…while`'s condition, `for`'s middle clause, `?:`'s (ternary and elvis)
 condition, and `&&`/`||`/`!`'s operand(s). Every one of them accepts a value of **any** type — `mixed`, a
-union, a scalar, an array, an object, an enum case, `callable`, `resource` — with no diagnostic for not
+union, a scalar, an array, an object, an enum case, `callable` — with no diagnostic for not
 already being `bool`.
 
 ### 1. The one exception to ADR 0007 § 2, named precisely
@@ -70,7 +70,7 @@ Exactly PHP's own rule, applied to MWL's own type set:
 | `float` | `0.0` (including `-0.0`; `NAN` is truthy) | anything else |
 | `string` | `""` and exactly the one-character string `"0"` | every other string, including `"0.0"` and `"false"` |
 | `array<T>` | empty, for any `T` | one or more elements, regardless of their content |
-| class instance, `callable`, `resource` | never | always |
+| class instance, `callable` | never | always |
 | enum case | never | always — see *4* |
 | `mixed` / a union | resolved dynamically per this table, dispatching on the value's runtime type | — |
 
@@ -80,7 +80,7 @@ actually reach a condition.
 
 ### 3. Where the value is statically known, the check costs nothing at runtime
 
-When a condition's static type is a scalar, array, class, `callable`, `resource`, or enum — not `mixed` or a
+When a condition's static type is a scalar, array, class, `callable`, or enum — not `mixed` or a
 union — the compiler already knows which row of the table applies, and lowers straight to the matching
 native test (`x != 0`, `len != 0`, `true`, …) with no dispatch. Only a `mixed`/union-typed condition pays for
 a runtime helper that inspects the value's tag and applies the table dynamically — the same "the fast path

@@ -1,7 +1,10 @@
 # ADR 0009 — `string` is text; binary data is a distinct `bytes` type
 
-- **Status:** Proposed — the default length/indexing granularity in *Decision § 2* depends on a cost
-  measurement not yet taken. See *Revisiting*.
+- **Status:** Accepted, with one sub-question open — §§ 1, 3 and 4 are decided and shipped (`bytes` is
+  `mwl_types::ty::Ty::Bytes`, the lexer has the keyword, and
+  [`docs/spec/00-overview.md`](../spec/00-overview.md) § 5 fixes its literal spelling). Only § 2's default
+  length/indexing **granularity** — grapheme clusters or bytes — awaits the cost measurement in
+  *Revisiting*. Nothing else here is provisional.
 - **Date:** 2026-08-20
 - **Scope:** the `string` and `bytes` primitive types; the UTF-8 invariant on `string`; the conversion
   between them; the default granularity of `string` length, indexing and iteration
@@ -173,7 +176,7 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 
 ## Revisiting
 
-**This ADR cannot move from Proposed to Accepted until a guard test lands in
+**§ 2's granularity default is not settled until a guard test lands in
 [`benches/abi-probe`](../../benches/abi-probe/)** measuring the cost of extended-grapheme-cluster
 segmentation — both the first-touch cost of counting a fresh buffer and the incremental cost of maintaining
 the count across concatenation — against a stated threshold, in the same style

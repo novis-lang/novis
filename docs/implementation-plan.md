@@ -29,7 +29,7 @@
 > WSL nightly toolchain (AGENTS.md says why).
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
-> 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
+> 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
 > 0065, and **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this
 > field.
@@ -490,7 +490,7 @@ first-class-callable syntax or an `fn` literal, no `__invoke`
 ([ADR 0027](adr/0027-callable-is-closures-only.md), [ADR 0031](adr/0031-callable-is-the-only-closure-type.md));
 `Stringable`-gated string conversion and `unset()` refused on a declared property
 ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)); identifier casing
-([ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md)/[0032](adr/0032-acronym-casing-rule-revoked.md),
+([ADR 0029](adr/0029-identifier-casing-is-checked.md)/[0030](adr/0030-no-leading-underscores-constructor-spelling.md),
 lands in `mwl-syntax` directly since it needs no name resolution); `object` subtyping and shape-type
 structural checking ([ADR 0036](adr/0036-anonymous-object-shapes.md)); `foreach` accepted over exactly an
 `array<T>`, an `Iterable<T>` or an `Iterator<T>`, with `$obj[$k]` on a non-array refused

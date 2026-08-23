@@ -12,7 +12,7 @@
   [ADR 0012](0012-no-superglobals.md) — `Core\Script::args()`'s "deep-copied" now names this ADR's
   graph-copy operation explicitly, rather than an unnamed mechanism.
 - **Relates to:** [ADR 0004](0004-memory-for-simplicity.md) (what a copy spends — stated per operation
-  below), [ADR 0007](0007-explicit-type-system.md) (declared types make a closure/reference/resource
+  below), [ADR 0007](0007-explicit-type-system.md) (declared types make a closure/reference/handle
   rejection mostly a compile-time error at the copy site, the same story as the isolate boundary),
   [ADR 0014](0014-property-observer.md) (the precedent this ADR follows: a closed mechanism, not a
   class-overridable hook), [ADR 0022](0022-definite-property-initialization.md) (why neither copy depth
@@ -64,10 +64,10 @@ exactly PHP's existing rule for what "one level" means:
 - An object-typed property — held directly, or reachable through a cloned array/collection property —
   **keeps pointing at the same shared instance** as the original. Cloning a node does not clone what it
   points to.
-- A `resource`-typed property is copied as PHP already copies it: the same underlying handle, now reachable
-  from two objects. `clone` never crosses a heap, so [ADR 0006](0006-isolated-script-execution.md)'s
-  resource-refusal rule does not apply here — nothing is refused, because nothing is asked to leave the
-  arena it is already in.
+  A property holding a host handle — a `Core\IO\File`, a `Core\Process\Child` — is an object like any other
+  and is shared, not duplicated. `clone` never crosses a heap, so
+  [ADR 0006](0006-isolated-script-execution.md)'s handle-refusal rule does not apply: nothing is asked to
+  leave the arena it is already in.
 - `readonly` properties are written by the copy the same privileged path an ordinary constructor and
   `Core\Reflect` already use, never through ordinary property assignment — so `clone` is not treated as a
   second write and does not throw the way re-assigning a `readonly` property from user code would.
@@ -94,8 +94,8 @@ sharing no mutable heap state with its source.
   independent copies of it), and a cycle (`$a->self = $a`) terminates instead of recursing forever — the
   exact guarantee [ADR 0006](0006-isolated-script-execution.md) already stated for values crossing
   `spawn`/`spawn worker`.
-- **Refuses what has no meaning on the other side.** A `Closure` (captures a heap and a scope), a reference
-  `&$x` (an alias into a specific frame), or a `resource` (a host handle) is refused with a diagnostic
+- **Refuses what has no meaning on the other side.** A closure (captures a heap and a scope), a reference
+  `&$x` (an alias into a specific frame), or an object holding a host handle is refused with a diagnostic
   naming the offending value and its path in the graph — not degraded into a stub, not silently dropped.
   [ADR 0007](0007-explicit-type-system.md) already notes this is mostly a **compile-time** rejection at the
   copy site given declared types; a `mixed`-typed value carrying one of these is where the runtime check in
@@ -228,7 +228,7 @@ Verification, in the order it becomes possible:
   if one is declared (it is an ordinary, unrelated method by that name); a `readonly` property survives the
   clone without throwing.
 - **M5** (concurrency and script isolates land): `serialize()`/`unserialize()` round-trip a cyclic value
-  correctly; a `Closure`, a reference, or a `resource` inside the value is refused with a diagnostic naming
+  correctly; a closure, a reference, or a handle-holding object inside the value is refused with a diagnostic naming
   it, at the same site the isolate-boundary conformance suite already checks
   ([ADR 0006](0006-isolated-script-execution.md)); bytes that are not MWL's own format, or that name a class
   whose declared properties no longer match, are refused rather than partially accepted; the isolate-boundary

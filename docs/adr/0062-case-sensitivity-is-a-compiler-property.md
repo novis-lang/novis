@@ -17,8 +17,8 @@
 - **Relates to:** [0061](0061-compile-time-autoload-and-program-discovery.md) § 1 (already required an
   autoloaded file's on-disk name to match exactly, and already leaned on `QName` comparing
   case-sensitively — § 1 and § 3 below are that rule stated once, generally, instead of once per
-  construct), [0029](0029-identifier-casing-is-checked.md)/[0032](0032-acronym-casing-rule-revoked.md)
-  (one legal casing per identifier category, checking only the first character — together the reason § 2
+  construct), [0029](0029-identifier-casing-is-checked.md)
+  (one legal casing per identifier category, checking only the first character — the reason § 2
   can *not* diagnose a mis-cased keyword), [0049](0049-single-open-tag-and-single-exit-keyword.md) and
   [0034](0034-legacy-cast-syntax-rejected.md)/[0045](0045-and-or-xor-keyword-operators-rejected.md) (the
   same shape: one spelling survives, the rest are diagnosed naming it — applied here to casing rather than
@@ -80,8 +80,8 @@ keywords (`spawn`, `script`, `with`, `type`, `from`, `by`, `get`, `set`), for th
 literals, and for the `<?mwl` open tag.
 
 A mis-cased keyword gets **no diagnostic of its own**, and this is deliberate rather than an omission:
-[ADR 0029](0029-identifier-casing-is-checked.md) with [ADR 0032](0032-acronym-casing-rule-revoked.md)'s
-amendment makes `IF`, `ECHO` and `TRUE` all legal `PascalCase` class names, so there is nothing lexical
+[ADR 0029](0029-identifier-casing-is-checked.md) § 1 makes `IF`, `ECHO` and `TRUE` all legal
+`PascalCase` class names, so there is nothing lexical
 that distinguishes a mis-typed `if` from a deliberate reference to a class called `IF`. The lexer emits an
 ordinary `Ident`, and the program fails later as an undefined name or a parse error. Inventing a heuristic
 to guess which one the author meant would be the only place in the compiler that guesses; converting PHP

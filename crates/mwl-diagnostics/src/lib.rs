@@ -240,7 +240,7 @@ pub mod code {
     /// program's meaning never depends on the case a reserved word was typed
     /// in. See [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 2. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
-    /// own — it is simply an ordinary identifier, since ADR 0029/0032 make
+    /// own — it is simply an ordinary identifier, since ADR 0029 makes
     /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
     /// `if`.
     pub const E_RESERVED_SPELLING_CASE: Code = Code::new("E0231");
