@@ -1038,10 +1038,31 @@ name = "mwl-cli"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "mwl-codegen",
  "mwl-diagnostics",
  "mwl-hir",
+ "mwl-ir",
+ "mwl-runtime",
  "mwl-syntax",
  "mwl-types",
+]
+
+[[package]]
+name = "mwl-codegen"
+version = "0.0.1"
+dependencies = [
+ "cranelift",
+ "cranelift-jit",
+ "cranelift-module",
+ "cranelift-native",
+ "mwl-diagnostics",
+ "mwl-hir",
+ "mwl-ir",
+ "mwl-runtime",
+ "mwl-syntax",
+ "mwl-types",
+ "rustc-hash",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
