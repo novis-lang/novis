@@ -30,7 +30,7 @@
   behaviour worth preserving.
 - The status quo was already a half-built feature, not a working one: `mwl-syntax` parses `and`/`or`/`xor`
   into `BinaryOp::LowAnd`/`LowOr`/`LowXor`, and `mwl-types` type-checks them to `bool` — but `mwl-ir`
-  deliberately never lowers them ([`lower_expr_top`'s doc comment](../../crates/mwl-ir/src/lower.rs) names
+  deliberately never lowers them ([`lower_expr_top`'s doc comment](../../crates/mwl-ir/src/lower/expr.rs) names
   ADR 0035 as covering only `&&`/`||`/`!`, and the crate's own known-gaps list repeats this). Any program
   that reached one at codegen already hit `mwl-ir`'s "arithmetic/equality/ordering operators" panic. Nothing
   observable is lost by rejecting them outright; a category of previously-reachable panic is closed instead.
@@ -123,5 +123,5 @@ remain reserved purely to be diagnosed (ADR 0021 § 2).
   `crates/mwl-types/src/expr.rs` drops them from its `bool`-result match arm, relying on exhaustiveness
   checking (within `mwl-syntax` itself; `BinaryOp` is `#[non_exhaustive]` to every other crate, which already
   match it with a wildcard arm) to catch anything missed.
-- `crates/mwl-ir/src/lower.rs` and `crates/mwl-ir/src/lib.rs` drop the doc comments explaining `and`/`or`/
+- `crates/mwl-ir/src/lower/` and `crates/mwl-ir/src/lib.rs` drop the doc comments explaining `and`/`or`/
   `xor` as a deliberately-out-of-scope gap — there is no longer a gap, since the construct does not parse.

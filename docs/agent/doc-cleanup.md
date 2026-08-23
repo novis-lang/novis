@@ -32,25 +32,35 @@ over everything and clean it up:
   way" reasoning to a bare minimum everywhere it appears.
 - If we made specific decisions that have a amendment that overrides the previous decision, collapse the decisions so not all the history of an idea flow will be kept in the docs. We have git versioning, everything ever existed is still in the git history, we dont need it in the docs. At the current stage, we can accept to override the "Accepted" areas in an ADR, because we are still in early prototyping phase.
 
-## Standing rules for this pass (decided 2026-08-21, keep applying unless told otherwise)
+## Standing rules for this pass (revised 2026-08-23 — the 2026-08-21 set is superseded)
 
-**Merge policy: default to NOT merging.** This project amends a decision via a *new* ADR with
-`Amends`/`Amended by` cross-links rather than rewriting an existing `Accepted` ADR's `## Decision`
-section (see [feedback: ADR amend, don't rewrite] in memory, and `docs/adr/README.md`'s own "Adding a
-decision" section). Two ADRs reading as "one decision split across files" — even tightly coupled ones
-like 0029+0030 or 0027+0028 — is that convention working as intended, not fragmentation to fix. Only
-propose a merge when both halves are genuinely still `Proposed`/unreleased (nothing downstream depends
-on the split yet), or when a file has zero surviving unique content after later ADRs superseded it
-entirely. Always list merge candidates for human approval before touching files — never merge freely.
+**Fold, never overlay.** This project used to amend a decision by adding prose to the *amended* ADR's
+metadata block describing what a later one changed. That is retired: an ADR's body always states the
+current rule, `Amended by:` is a bare list of numbers, and the amending ADR's `Amends:` is one clause.
+`docs/adr/README.md` § *Adding a decision* holds the rule. When you find a body that still describes a
+superseded rule, fix the body — that is the whole job, not a merge question.
+
+**Merging is allowed, and so is rewriting an Accepted `## Decision`.** The project is in prototyping; git
+holds the history. Fold an ADR away when it has **zero surviving unique content** once the fold is
+applied — 0032 was exactly that, its entire content being "0029 § 1 is revoked" — and retire its number
+rather than renumbering anything. Do **not** fold one whose rule is genuinely its own even when it reads
+as coupled: 0027 and 0031 stayed separate because 0027 owns which values satisfy `callable` and 0031 owns
+the literal, and 0027 is referenced from sixteen code sites by section number. Check `grep -rn "00NN"
+crates/` before deciding: a file referenced from code costs more to retire than it saves.
+
+**A doc-vs-code disagreement outranks a status field.** If the code has shipped something an ADR still
+calls Proposed, or carries a type the ADR describes and the compiler has never had, say so and fix it —
+that is exactly what this pass is for. Flag the call to the user rather than making it silently.
 
 **Trim depth: cut rationale to bullet lines.** Every ADR already follows metadata block → `## Decision`
 (within ~60 lines) → optionally `## Context` / `## Investigation` / `## Alternatives rejected` →
 `## Consequences`. `AGENTS.md` already tells readers the sections after `## Decision` are skippable
 unless they intend to overturn the decision — so trim those sections hard:
-- Keep the metadata block exactly as-is (Status, Date, Amends/Amended-by links — these are load-bearing
-  for the README index and AGENTS.md's routing table).
-- Keep `## Decision` and `## Consequences` untouched in meaning; only tighten prose that's clearly
-  padding.
+- Keep the metadata block's *fields* (Status, Date, Scope, Amends/Amended-by, Validated by — load-bearing
+  for the README index), but not its prose: an `Amended by:` is numbers, a `Relates to:` longer than
+  three lines is numbers, and an `Amends:` is one clause per target.
+- Change `## Decision` and `## Consequences` only to make them state the current rule; otherwise tighten
+  padding and leave the meaning alone.
 - Compress `## Context` / `## Investigation` / `## Alternatives rejected` into short bullet lists: one
   bullet per alternative considered (name + one-phrase reason rejected), one or two bullets for "why we
   deviated from PHP" where applicable. Target roughly 5-15 lines per section, not 40-100 lines of prose.
@@ -59,16 +69,18 @@ unless they intend to overturn the decision — so trim those sections hard:
   otherwise cut it entirely.
 - If a section has nothing left worth keeping as a bullet, delete the heading too rather than leaving
   an empty stub.
-- Never touch `## Decision` content, diagnostic names/codes, or cross-reference links while trimming.
+- Never touch diagnostic names/codes or cross-reference links while trimming, and never change what a
+  `## Decision` *decides* — only what it *says the current rule is*.
 
 **Scope: everything.** ADRs, `docs/adr/README.md`, `docs/implementation-plan.md`, `docs/spec/`, and
 `AGENTS.md` are all in scope for this pass — not just the ADRs. Apply the same "one fact, one home, no
 padding" standard everywhere; if a doc restates something the ADR already owns, delete the restatement
 and link instead.
 
-**Proposed ADRs stay Proposed.** Don't resolve an open decision (e.g. ADR 0009's `string`/`bytes`
-question) as part of a cleanup pass — trim its prose like any other ADR, but leave its status and the
-open question itself alone. Cleanup is not the moment to make new calls.
+**Don't resolve an open decision.** A cleanup pass never answers a question an ADR left open — ADR 0009
+§ 2's granularity fork waits on its measurement, not on you. What a pass *may* do is narrow the status
+field to what is actually open: 0009 moved to Accepted here because §§ 1, 3 and 4 had shipped and only
+§ 2 was in question, and the index had been implying the whole `bytes` type was undecided.
 
 ## How to run this pass
 
@@ -90,8 +102,12 @@ open question itself alone. Cleanup is not the moment to make new calls.
 
 ## Open questions to ask if unclear next time
 
-- Has the "amend, don't rewrite" convention changed? (Check `docs/adr/README.md`'s own process section
-  and recent git history for ADR-add commits before assuming the answer above still holds.)
+- Is the fold-don't-overlay convention still what `docs/adr/README.md` § *Adding a decision* says? That
+  file is authoritative; this one restates it only so a pass run from here has the rule in hand.
+- **Not yet done, and the largest remaining target:** the `## Context` / `## Alternatives rejected` /
+  `## Revisiting` sections are still ~27% of the ADR corpus (~260 KB) at full prose length. The trim
+  depth above is written for exactly that pass; the 2026-08-23 run spent its budget on contradictions and
+  duplication instead and left this untouched.
 - Has the ADR count grown enough that `AGENTS.md`'s "Where to look" table itself needs restructuring
   (e.g. grouping several ADRs under one table row) rather than just trimming individual files?
 - Is `docs/spec/` still a stub, or has it grown enough to need its own cleanup pass with different

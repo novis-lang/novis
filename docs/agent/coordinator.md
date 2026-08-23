@@ -44,7 +44,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. |
-| `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` prints it loudly, and `refactor-split.md` refuses to start when it is there. Starting a second driver is refused unless you pass `--force`. |
+| `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` prints it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
 
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
 
@@ -132,3 +132,12 @@ tree and one handoff file; concurrent sessions race). Keep the coordinator's own
 re-read a diff, never re-derive the plan, never second-guess verified work. But stop at ~100k and restart —
 and understand that restarting is not a workaround for the context problem, it *is* the driver design,
 just done by hand.
+
+**Could a parallel `Core`-domain lane work now?** Partly. The hotspot splits removed the *file* collision
+that made it impossible: a new `Core` class is one line in `mwl_stdlib::registry`, one in `mwl_stdlib`'s
+`symbols`, and its own new module, so two sessions adding two domains no longer touch the same lines — and
+the same is true of the checker and end-to-end tests, now one file per rule area and per feature area.
+What is unchanged is everything above: **one working tree and one handoff file.** A second lane needs a
+git worktree of its own and a handoff of its own before any of that matters, and neither exists. So the
+splits are necessary and not sufficient — treat this as a smaller remaining problem than it was, not a
+solved one.

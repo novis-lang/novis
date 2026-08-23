@@ -527,7 +527,7 @@ def run_session(index, prompt_text, opts, renderer):
 # ------------------------------------------------------------------------- run marker
 #
 # `.loop/running` exists for exactly as long as a driver is driving this tree. It is what anything else
-# -- a person, an interactive session, docs/agent/refactor-split.md's own precondition -- checks before
+# -- a person, an interactive session, a by-hand refactoring pass -- checks before
 # touching files the loop's sessions edit on nearly every iteration. A file-existence test, on purpose:
 # asking the OS whether a pid is alive is a different answer on every platform, and getting it subtly
 # wrong here would be worse than a stale marker a human deletes.
