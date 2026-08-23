@@ -75,8 +75,7 @@ the other is a bug — including this file, overwritten never appended to, cappe
   — a `git add -A` swept an unrelated untracked file into one commit and had to be amended back out.
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles. The full leg is
   `wsl.exe -- bash /mnt/<drive>/<repo>/.claude/wsl-acceptance.sh`. For a narrower check write a one-off script plus
-  fixture under `target/` — that pattern caught this session's leak, and is worth repeating for **any**
-  hand-written retain/release.
+  fixture under `target/` — that caught this session's leak; repeat it for **any** hand-written refcount.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>` (note
   `test --accept`); a renamed test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe`
   takes over two minutes — run it in the background.
