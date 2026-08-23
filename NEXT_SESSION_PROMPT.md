@@ -16,6 +16,14 @@ merely missing files (`mwl run`, `examples/hello.mwl`) — is enumerated with it
 `.claude/loop-goal.md` § *The gaps that actually sit on the path*. Read that section before picking work;
 do not restate it here.
 
+**[ADR 0062](docs/adr/0062-case-sensitivity-is-a-compiler-property.md) is decided *and implemented*** —
+unlike 0051–0061 below, it landed with code. Nothing case-related is left open: names resolve
+case-sensitively, keywords/contextual keywords/`<?mwl` are lower case only, and `require`'s literal path is
+compared to the on-disk entry exactly (`E0314`), which closes for `require` the portability hole ADR 0061
+§ 1 had closed only for `autoload`. Two consequences worth knowing before touching the front end: `IF` is
+an ordinary `Ident` with **no** diagnostic of its own (ADR 0029/0032 make it a legal class name — see
+ADR 0062 § 2 before "fixing" this), and `Core\Bytes` no longer collides with the `bytes` type keyword.
+
 **ADRs 0051–0061 are decided and wired** into CLAUDE.md, `docs/adr/README.md`, the plan and the spec. No
 code implements any of them yet. Four carry obligations landing **before** M8, so they touch the work in
 front of you — each ADR's own *Verification* section is the one home for its split:
@@ -63,7 +71,9 @@ representation is the expensive mistake, exactly as it would have been for ADR 0
   and independently landable: the `autoload` keyword and its two statement forms in `mwl-syntax` (grammar
   in [`docs/spec/00-overview.md`](docs/spec/00-overview.md) § 2), then the `mwl-hir` resolver half — probe
   an unresolved `QName`, load, `collect_*`, repeat, report `E_UNDECLARED` only at the fixpoint. Three new
-  `E03xx` codes to allocate. Parser half first; it is testable alone.
+  `E03xx` codes to allocate, starting at **`E0315`** (`E0314` is now taken). Parser half first; it is
+  testable alone. Its exact-on-disk-name rule is ADR 0062 § 3's `check_path_case` in
+  `mwl-hir::requires` — reuse it rather than writing a second comparison.
 
 ## Standing rules for this repo
 
