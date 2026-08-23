@@ -5,16 +5,26 @@
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .claude\loop.ps1 -MaxSessions 300
+
+.EXAMPLE
+    # Same, but echo every tool call's full input and full result -- no truncation anywhere.
+    powershell -ExecutionPolicy Bypass -File .claude\loop.ps1 -MaxSessions 300 -FullOutput
 #>
 [CmdletBinding()]
 param(
     [int]    $MaxSessions    = 1,
     [string] $Model          = 'opus',
     [string] $PermissionMode = 'bypassPermissions',
-    [int]    $MaxStalls      = 3,      # consecutive no-commit sessions before giving up
+    [int]    $MaxStalls      = 10,      # consecutive no-commit sessions before giving up
     [int]    $MaxRetries     = 3,      # consecutive CLI failures (rate limit, crash) before giving up
-    [int]    $DelaySeconds   = 0       # pause between sessions
+    [int]    $DelaySeconds   = 0,      # pause between sessions
+    [int]    $MaxResultLines = 60,     # lines of a tool result echoed to the console; 0 = no cap
+    [int]    $MaxInputLines  = 40,     # lines of a single tool-call argument echoed;   0 = no cap
+    [int]    $MaxLineChars   = 500,    # per-line truncation;                           0 = no cap
+    [switch] $FullOutput               # echo every line of everything, no caps at all
 )
+
+if ($FullOutput) { $MaxResultLines = 0; $MaxInputLines = 0; $MaxLineChars = 0 }
 
 $ErrorActionPreference = 'Stop'
 $repo   = Split-Path -Parent $PSScriptRoot
@@ -39,9 +49,69 @@ function Write-Ledger([string]$line) {
     Write-Host $line
 }
 
-# Renders one NDJSON line from `claude --output-format stream-json` as a readable console line, so the
-# run is watchable live. A line that will not parse is printed raw rather than dropped -- nothing the
-# session emits should ever be invisible.
+# Renders the NDJSON from `claude --output-format stream-json` the way Claude Code's own transcript reads:
+# assistant text, thinking, every tool call with its full input, and the result each call came back with.
+# Truncation is per line and per block only, and a shortened block always says how much it hid, so nothing
+# is ever silently dropped; -FullOutput removes the caps. The raw NDJSON is in the session log regardless.
+$script:ToolNames = @{}
+
+# One text blob -> console lines, indented under $prefix. $maxLines of 0 means print all of it.
+function Write-Wrapped([string]$text, [string]$prefix, [System.ConsoleColor]$color, [int]$maxLines) {
+    if ($null -eq $text) { return }
+    $text = ($text -replace "`t", '    ').TrimEnd()
+    if (-not $text) { return }
+    $lines  = @($text -split "`r?`n")
+    $hidden = 0
+    if ($maxLines -gt 0 -and $lines.Count -gt $maxLines) {
+        $hidden = $lines.Count - $maxLines
+        $lines  = $lines[0..($maxLines - 1)]
+    }
+    foreach ($l in $lines) {
+        $t = $l
+        if ($MaxLineChars -gt 0 -and $t.Length -gt $MaxLineChars) {
+            $t = $t.Substring(0, $MaxLineChars) + ('  [+{0} chars]' -f ($t.Length - $MaxLineChars))
+        }
+        Write-Host ($prefix + $t) -ForegroundColor $color
+    }
+    if ($hidden -gt 0) {
+        Write-Host ($prefix + ('... {0} more line(s) -- full text in the session log' -f $hidden)) -ForegroundColor DarkGray
+    }
+}
+
+# A message `content` field is either a plain string or an array of blocks; flatten either to text.
+function Get-ContentText($content) {
+    if ($null -eq $content) { return '' }
+    if ($content -is [string]) { return $content }
+    $parts = @()
+    foreach ($c in @($content)) {
+        if ($c -is [string])                                  { $parts += $c;        continue }
+        if ($c.PSObject.Properties['text'] -and $c.text)      { $parts += [string]$c.text; continue }
+        if ($c.PSObject.Properties['type'] -and $c.type -eq 'image') { $parts += '[image]'; continue }
+        $parts += ($c | ConvertTo-Json -Depth 8 -Compress)
+    }
+    return ($parts -join "`n")
+}
+
+# Every argument of a tool call, not just the first one that looked interesting.
+function Show-ToolInput($inputObj) {
+    if ($null -eq $inputObj) { return }
+    foreach ($p in $inputObj.PSObject.Properties) {
+        $v = $p.Value
+        if ($null -eq $v) { continue }
+        if ($v -is [string]) { $s = $v }
+        elseif ($v -is [ValueType]) { $s = [string]$v }
+        else { $s = ($v | ConvertTo-Json -Depth 8) }
+        if (-not $s -or -not $s.Trim()) { continue }
+        if ($s -match "`n") {
+            Write-Host ('       {0}:' -f $p.Name) -ForegroundColor DarkCyan
+            Write-Wrapped $s '       | ' 'DarkCyan' $MaxInputLines
+        }
+        else {
+            Write-Wrapped ('{0}: {1}' -f $p.Name, $s) '       ' 'DarkCyan' 1
+        }
+    }
+}
+
 function Show-Event([string]$json) {
     if (-not $json -or -not $json.Trim()) { return }
     try { $e = $json | ConvertFrom-Json } catch { Write-Host "   $json" -ForegroundColor DarkGray; return }
@@ -49,40 +119,65 @@ function Show-Event([string]$json) {
     switch ($e.type) {
         'system' {
             if ($e.subtype -eq 'init') {
-                Write-Host "   [init] model=$($e.model)" -ForegroundColor DarkGray
+                Write-Host "   [init] model=$($e.model) cwd=$($e.cwd) session=$($e.session_id)" -ForegroundColor DarkGray
+                if ($e.PSObject.Properties['tools']) {
+                    Write-Wrapped ('tools: ' + (@($e.tools) -join ', ')) '   [init] ' 'DarkGray' 2
+                }
+            }
+            else {
+                Write-Wrapped ($e | ConvertTo-Json -Depth 8 -Compress) "   [$($e.subtype)] " 'DarkGray' 4
             }
         }
         'assistant' {
             foreach ($b in $e.message.content) {
-                if ($b.type -eq 'text' -and $b.text -and $b.text.Trim()) {
-                    Write-Host ('   ' + $b.text.Trim()) -ForegroundColor Gray
-                }
-                elseif ($b.type -eq 'tool_use') {
-                    $arg = ''
-                    if ($b.input) {
-                        foreach ($p in @('command', 'file_path', 'pattern', 'path', 'description')) {
-                            if ($b.input.PSObject.Properties[$p]) { $arg = [string]$b.input.$p; break }
-                        }
+                switch ($b.type) {
+                    'text'     { Write-Wrapped $b.text     '   '   'Gray'         0 }
+                    'thinking' { Write-Wrapped $b.thinking '   . ' 'DarkMagenta'  $MaxResultLines }
+                    'tool_use' {
+                        if ($b.PSObject.Properties['id']) { $script:ToolNames[[string]$b.id] = [string]$b.name }
+                        Write-Host "   > $($b.name)" -ForegroundColor Cyan
+                        Show-ToolInput $b.input
                     }
-                    $arg = ($arg -replace '\s+', ' ').Trim()
-                    if ($arg.Length -gt 100) { $arg = $arg.Substring(0, 100) + '...' }
-                    Write-Host "   > $($b.name) $arg" -ForegroundColor Cyan
                 }
             }
         }
         'user' {
             foreach ($b in $e.message.content) {
-                if ($b.type -eq 'tool_result' -and $b.is_error) {
-                    Write-Host '     ! tool error' -ForegroundColor Red
+                if ($b.type -eq 'tool_result') {
+                    $name = 'result'
+                    if ($b.PSObject.Properties['tool_use_id'] -and $script:ToolNames.ContainsKey([string]$b.tool_use_id)) {
+                        $name = $script:ToolNames[[string]$b.tool_use_id]
+                    }
+                    $text = Get-ContentText $b.content
+                    if ($b.is_error) {
+                        Write-Host "     ! $name failed" -ForegroundColor Red
+                        Write-Wrapped $text '     | ' 'Red' $MaxResultLines
+                    }
+                    else {
+                        Write-Host "     < $name" -ForegroundColor DarkGreen
+                        Write-Wrapped $text '     | ' 'DarkGray' $MaxResultLines
+                    }
+                }
+                elseif ($b.type -eq 'text') {
+                    Write-Wrapped $b.text '   + ' 'White' $MaxResultLines
                 }
             }
         }
         'result' {
-            $cost = ''
-            if ($e.PSObject.Properties['total_cost_usd']) {
-                $cost = ' $' + ([double]$e.total_cost_usd).ToString('F2', [cultureinfo]::InvariantCulture)
+            $bits = @("$($e.num_turns) turns")
+            if ($e.PSObject.Properties['duration_ms']) {
+                $bits += (([double]$e.duration_ms / 1000).ToString('F1', [cultureinfo]::InvariantCulture) + 's')
             }
-            Write-Host "   [$($e.subtype)] $($e.num_turns) turns$cost" -ForegroundColor Yellow
+            if ($e.PSObject.Properties['usage'] -and $e.usage) {
+                $bits += ('in {0} / out {1} tok' -f $e.usage.input_tokens, $e.usage.output_tokens)
+            }
+            if ($e.PSObject.Properties['total_cost_usd']) {
+                $bits += '$' + ([double]$e.total_cost_usd).ToString('F2', [cultureinfo]::InvariantCulture)
+            }
+            Write-Host ("   [$($e.subtype)] " + ($bits -join '  ')) -ForegroundColor Yellow
+            if ($e.PSObject.Properties['result'] -and $e.result) {
+                Write-Wrapped ([string]$e.result) '   ' 'Yellow' $MaxResultLines
+            }
         }
     }
 }
