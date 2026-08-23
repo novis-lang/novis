@@ -359,6 +359,20 @@ If you find yourself restating more than a sentence, that detail belongs in the 
 
 ## Commands
 
+**A shell runs programs; it never carries file content.** Read, search, create and edit files with the
+Read, Grep, Glob, Write and Edit tools — never `cat`, `head`, `tail`, `sed -n`, `grep`, or a heredoc that
+writes a file. This is not a style preference. A shell tool call is one `-c` string that the shell *parses*
+before it runs anything, so an apostrophe in a doc sentence, a backtick in a commit message or an unbalanced
+heredoc terminator fails the whole call with `unexpected EOF while looking for matching '` — the command
+never executed, and nothing tells you which quote was at fault. The dedicated tools pass content as JSON
+parameters with no shell in the path, so that failure cannot occur. This repo makes the problem worse than
+most: prose full of apostrophes, backtick-quoted identifiers everywhere, and two shells with incompatible
+quoting grammars (PowerShell primary, Git Bash for the Bash tool).
+
+Use a shell for what it is for — `cargo`, `git`, `python .claude/brief.py`, `wsl.exe`. When one of those
+needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
+<file>`, never an inline heredoc or a `-m` string spanning lines.
+
 ```sh
 cargo build                                                    # debug; deps still built at opt-level 2
 cargo test                                                     # unit + integration
