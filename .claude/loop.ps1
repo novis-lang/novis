@@ -142,6 +142,17 @@ for ($i = 1; $i -le $MaxSessions; $i++) {
     if (-not $shown) { $shown = '(no status written)' }
     Write-Ledger ('- {0:D4} {1} commit(s) | {2}' -f $i, $commits, $shown)
 
+    # The handoff file's 80-line cap (SESSION_PROMPT.md) is what keeps every future session's read cost
+    # constant. It has drifted over twice already, so report it -- never stop on it: a long handoff is a
+    # tidiness problem, and halting a 300-session run over one would cost far more than it saves.
+    $handoff = Join-Path $repo 'NEXT_SESSION_PROMPT.md'
+    if (Test-Path $handoff) {
+        $n = (Get-Content $handoff | Measure-Object -Line).Lines
+        if ($n -gt 80) {
+            Write-Ledger ('       ! NEXT_SESSION_PROMPT.md is {0} lines, over its 80-line cap' -f $n)
+        }
+    }
+
     # Deterministic goal check first -- it outranks whatever the session reported.
     if (Test-Goal) { $reason = 'GOAL REACHED: hello world runs'; break }
 

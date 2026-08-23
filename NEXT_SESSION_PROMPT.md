@@ -8,21 +8,17 @@ the loop's target, per `.claude/loop-goal.md`. Run `python .claude/brief.py` fir
 only points.
 
 On disk: `mwl-diagnostics`, `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-cli` (`ast`, `check`),
-`fuzz/`, `benches/abi-probe`. Workspace is green (build/test/clippy/fmt). `mwl-codegen`, `mwl-runtime` and
-`examples/` do not exist yet.
+`fuzz/`, `benches/abi-probe`, and the `examples/hello.mwl` the acceptance command names. Workspace is green
+(build/test/clippy/fmt). `mwl-codegen` and `mwl-runtime` do not exist yet.
 
-**Nothing is blocked.** Every gap between here and the acceptance command — including the two that are
-merely missing files (`mwl run`, `examples/hello.mwl`) — is enumerated with its already-decided design in
-`.claude/loop-goal.md` § *The gaps that actually sit on the path*. Read that section before picking work;
-do not restate it here.
+**Nothing is blocked.** Every gap between here and the acceptance command is enumerated with its
+already-decided design in `.claude/loop-goal.md` § *The gaps that actually sit on the path*. Read that
+section before picking work; do not restate it here.
 
 **[ADR 0062](docs/adr/0062-case-sensitivity-is-a-compiler-property.md) is decided *and implemented*** —
-unlike 0051–0061 below, it landed with code. Nothing case-related is left open: names resolve
-case-sensitively, keywords/contextual keywords/`<?mwl` are lower case only, and `require`'s literal path is
-compared to the on-disk entry exactly (`E0314`), which closes for `require` the portability hole ADR 0061
-§ 1 had closed only for `autoload`. Two consequences worth knowing before touching the front end: `IF` is
-an ordinary `Ident` with **no** diagnostic of its own (ADR 0029/0032 make it a legal class name — see
-ADR 0062 § 2 before "fixing" this), and `Core\Bytes` no longer collides with the `bytes` type keyword.
+unlike 0051–0061 below, it landed with code, so nothing case-related is open. One consequence to know
+before touching the front end: `IF` is an ordinary `Ident` with **no** diagnostic of its own, because
+ADR 0029/0032 make it a legal class name — read that ADR's § 2 before "fixing" it.
 
 **ADRs 0051–0061 are decided and wired** into CLAUDE.md, `docs/adr/README.md`, the plan and the spec. No
 code implements any of them yet. Four carry obligations landing **before** M8, so they touch the work in
@@ -79,5 +75,4 @@ representation is the expensive mistake, exactly as it would have been for ADR 0
 
 Read `CLAUDE.md` first and follow its *Where to look* table rather than reading `docs/` breadth-first.
 Every fact has exactly one home; if two documents state the same thing, the one CLAUDE.md names is
-authoritative and the other is a bug. Keep work small and commit each finished step. When a session ends,
-overwrite this file with the next prompt rather than appending to it.
+authoritative and the other is a bug — including this file, which is overwritten, never appended to.
