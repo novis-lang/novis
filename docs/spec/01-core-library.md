@@ -47,6 +47,7 @@ keeps the two from becoming two spellings of one thing:
 | write an element | `$a[$k] = $v` | |
 | remove an element | `unset($a[$k])` | permitted on an array element; refused on a declared object property ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md)) |
 | ask whether a key exists | `Arr::hasKey($a, $k)` | `isset()`/`array_key_exists` both collapse here |
+| combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does **not** compile ([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md)) |
 
 The same division applies elsewhere: `**` is exponentiation, so there is no `Math::pow`; `%` is integer
 modulo, so `Math::mod` exists only for the `float` case; `instanceof` is an operator, so `Core\Reflect` has
@@ -151,6 +152,10 @@ Enums: `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`.
 mutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —
 the stdlib is parametric where user code is not.
 
+Every key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is
+`int|string`, matching the subscript normalisation of that same section. How arrays combine, and why no
+member is named `merge`, is [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md).
+
 ### Inspection
 
 | Member | Signature | Replaces | Q |
@@ -160,13 +165,13 @@ the stdlib is parametric where user code is not.
 | `isList` | `isList(array<T> $a): bool` | `array_is_list` | neutral |
 | `hasKey` | `hasKey(array<T> $a, int\|string $key): bool` | `array_key_exists`, `isset` | neutral |
 | `contains` | `contains(array<T> $haystack, T $needle): bool` | `in_array` (always strict) | neutral |
-| `keyOf` | `keyOf(array<T> $haystack, T $needle): ?(int\|string)` | `array_search` | neutral |
-| `keys` | `keys(array<T> $a): array<int\|string>` | `array_keys` | |
+| `keyOf` | `keyOf(array<T> $haystack, T $needle): ?string` | `array_search` | neutral |
+| `keys` | `keys(array<T> $a): array<string>` | `array_keys` | |
 | `values` | `values(array<T> $a): array<T>` | `array_values` | |
 | `first` | `first(array<T> $a): ?T` | `reset`, `current`, `$a[array_key_first($a)]` | |
 | `last` | `last(array<T> $a): ?T` | `end`, `$a[array_key_last($a)]` | |
-| `firstKey` | `firstKey(array<T> $a): ?(int\|string)` | `array_key_first`, `key` | neutral |
-| `lastKey` | `lastKey(array<T> $a): ?(int\|string)` | `array_key_last` | neutral |
+| `firstKey` | `firstKey(array<T> $a): ?string` | `array_key_first`, `key` | neutral |
+| `lastKey` | `lastKey(array<T> $a): ?string` | `array_key_last` | neutral |
 
 PHP's internal array pointer (`current`/`key`/`next`/`prev`/`reset`/`end`/`each`) has no equivalent: a
 mutable cursor inside a copy-on-write *value* is incoherent, since copying the array would copy its
@@ -177,39 +182,57 @@ iteration position. `foreach` and the four members above cover every use.
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `slice` | `slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>` | `array_slice` | |
-| `splice` | `splice(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>` | `array_splice` (returning, not by-reference) | |
+| `replaceRange` | `replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>` | `array_splice` (returning, not by-reference) | |
 | `chunk` | `chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>` | `array_chunk` | |
 | `append` | `append(array<T> $a, T ...$values): array<T>` | `array_push`, `$a[] = $v` in expression position | |
 | `prepend` | `prepend(array<T> $a, T ...$values): array<T>` | `array_unshift` | |
 | `withoutFirst` | `withoutFirst(array<T> $a): array<T>` | `array_shift`'s remainder (`first` gets the element) | |
 | `withoutLast` | `withoutLast(array<T> $a): array<T>` | `array_pop`'s remainder (`last` gets the element) | |
-| `pad` | `pad(array<T> $a, int $size, T $value): array<T>` | `array_pad` | |
+| `padStart` | `padStart(array<T> $a, uint $size, T $value): array<T>` | `array_pad` with a negative size | |
+| `padEnd` | `padEnd(array<T> $a, uint $size, T $value): array<T>` | `array_pad` | |
 | `reverse` | `reverse(array<T> $a, {preserveKeys?: bool}): array<T>` | `array_reverse` | |
-| `flip` | `flip(array<T> $a): array<int\|string>` | `array_flip` | |
-| `flatten` | `flatten(array<T> $a, {depth?: uint}): array<T>` | `array_merge(...$a)`, `iterator_to_array` on a recursive iterator | |
+| `flip` | `flip(array<int\|string> $a): array<string>` | `array_flip` | |
+| `flatten` | `flatten(array<T> $a, {depth?: uint}): array<T>` | `iterator_to_array` on a recursive iterator, a hand-written recursive walk | |
 | `fill` | `fill(uint $count, T $value): array<T>` | `array_fill` | |
 | `fillKeys` | `fillKeys(array<int\|string> $keys, T $value): array<T>` | `array_fill_keys` | |
 | `range` | `range(int $start, int $end, {step?: int}): array<int>` | `range` | neutral |
-| `combine` | `combine(array<int\|string> $keys, array<T> $values): array<T>` | `array_combine` | |
-| `toPairs` | `toPairs(array<T> $a): array<array<int\|string\|T>>` | manual `foreach` | |
+| `fromKeysAndValues` | `fromKeysAndValues(array<int\|string> $keys, array<T> $values): array<T>` | `array_combine` | |
+| `toPairs` | `toPairs(array<T> $a): array<array<string\|T>>` | manual `foreach` | |
 | `fromPairs` | `fromPairs(array<array<int\|string\|T>> $pairs): array<T>` | manual `foreach` | |
 | `column` | `column(array<array<T>> $a, int\|string $column, {indexBy?: int\|string}): array<T>` | `array_column` | |
 
-### Set operations
+`fromKeysAndValues` throws when the two arrays differ in length (R4). `flip` collapses duplicate values,
+the last occurrence winning. **`{preserveKeys: false}` — the default wherever it appears — discards *every*
+key and renumbers from `"0"`**; `true` keeps every key. PHP renumbers integer keys and silently keeps string
+ones, which is the key-type-dependent behaviour
+[ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 3 removes.
+
+### Combining and set operations
+
+Three members combine arrays, and **each treats every key the same way** — there is no member named
+`merge`, and `array + array` does not compile. The rules, the key order each produces and `mwl convert`'s
+rewrite table are [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md).
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
-| `merge` | `merge(array<T> $a, array<U> ...$others): array<T\|U>` | `array_merge`, the `+` operator | |
-| `mergeRecursive` | `mergeRecursive(array<T> $a, array<U> ...$others): array<T\|U>` | `array_merge_recursive` | |
-| `replace` | `replace(array<T> $a, array<U> ...$others): array<T\|U>` | `array_replace` | |
-| `replaceRecursive` | `replaceRecursive(array<T> $a, array<U> ...$others): array<T\|U>` | `array_replace_recursive` | |
+| `overlay` | `overlay(array<T> $base, array<U> ...$layers): array<T\|U>` | `array_replace`, `array_merge` over maps | |
+| `overlayDeep` | `overlayDeep(array<T> $base, array<U> ...$layers): array<T\|U>` | `array_replace_recursive` | |
+| `underlay` | `underlay(array<T> $base, array<U> ...$layers): array<T\|U>` | the `+` operator | |
+| `appendAll` | `appendAll(array<T> $a, array<U> ...$others): array<T\|U>` | `array_merge` over lists, `array_merge(...$arrays)` | |
 | `diff` | `diff(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>` | `array_diff`, `array_udiff`, `array_diff_key`, `array_diff_assoc`, `array_diff_ukey`, `array_udiff_assoc` | |
 | `intersect` | `intersect(array<T> $a, array<T> $b, {on?: SetOn, by?: callable, comparator?: callable}): array<T>` | `array_intersect` and its five variants | |
 | `unique` | `unique(array<T> $a, {by?: callable}): array<T>` | `array_unique` | |
-| `countValues` | `countValues(array<T> $a): array<uint>` | `array_count_values` | neutral |
+| `countBy` | `countBy(array<T> $a, {by?: callable}): array<uint>` | `array_count_values`, the userland group-and-count | neutral |
 
-Twelve `array_diff*`/`array_intersect*` functions become two members plus a three-case enum. That single
-row is the largest reduction in the library.
+`overlay` keeps the right-hand value, `underlay` the left-hand one, and both keep an existing key in its
+existing position; `appendAll` discards keys and always returns a list. `overlayDeep` recurses only where
+both sides hold an array and neither is a list — a list is replaced wholesale.
+
+`unique`, `diff` and `intersect` compare by **strict identity**, as `contains` does; PHP's default
+string-cast comparison (`SORT_STRING`) is not reproduced. Twelve `array_diff*`/`array_intersect*` functions
+become two members plus a three-case enum, the largest single reduction in the library.
+`array_merge_recursive` has no replacement: promoting two colliding scalars into a two-element array is a
+data-shape change, not a merge.
 
 ### Iteration and aggregation
 
@@ -219,12 +242,11 @@ Every callback receives `($value, $key)` and may declare fewer parameters (R9), 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `map` | `map(array<T> $a, callable $fn): array<U>` | `array_map` | |
-| `mapKeys` | `mapKeys(array<T> $a, callable $fn): array<T>` | `array_combine(array_map(...), …)` | |
+| `mapKeys` | `mapKeys(array<T> $a, callable $fn): array<T>` | `array_combine(array_map(...), …)`, the `keyBy` idiom | |
 | `filter` | `filter(array<T> $a, callable $predicate): array<T>` | `array_filter` and its two flags | |
 | `reduce` | `reduce(array<T> $a, callable $fn, U $initial): U` | `array_reduce` | |
-| `each` | `each(array<T> $a, callable $fn): void` | `array_walk`, `array_walk_recursive` | |
 | `find` | `find(array<T> $a, callable $predicate): ?T` | `array_find` | |
-| `findKey` | `findKey(array<T> $a, callable $predicate): ?(int\|string)` | `array_find_key` | neutral |
+| `findKey` | `findKey(array<T> $a, callable $predicate): ?string` | `array_find_key` | neutral |
 | `any` | `any(array<T> $a, callable $predicate): bool` | `array_any` | neutral |
 | `all` | `all(array<T> $a, callable $predicate): bool` | `array_all` | neutral |
 | `groupBy` | `groupBy(array<T> $a, callable $key): array<array<T>>` | nothing — the most-written PHP userland helper | |
@@ -233,6 +255,10 @@ Every callback receives `($value, $key)` and may declare fewer parameters (R9), 
 | `average` | `average(array<int\|float\|decimal> $a): ?float\|?decimal` | `array_sum($a)/count($a)`, with the empty case answered | neutral |
 | `min` | `min(array<T> $a): ?T` | `min` with an array argument | |
 | `max` | `max(array<T> $a): ?T` | `max` with an array argument | |
+
+`array_walk` and `array_walk_recursive` have no member: `foreach` is the language's own spelling, and R3
+removes the by-reference mutation that was their only reason to exist
+([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 4).
 
 ### Ordering
 
@@ -773,6 +799,7 @@ Two `Throwable`s join § 10's tree, both under `Core\Db`:
 | Global functions / `Core` members | ~1,900 | ~450 |
 | Sort functions | 11 + `array_multisort` | 2 |
 | `array_diff`/`array_intersect` variants | 12 | 2 |
+| Array-combining rules | 5, chosen by a key's type | 4, chosen by the member's name |
 | `strpos` variants | 12 | 4 |
 | `printf` variants | 9 | 2 |
 | Date APIs | ~40 procedural + 2 mutable/immutable class trees | 1 immutable object tree |

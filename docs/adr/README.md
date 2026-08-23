@@ -36,6 +36,7 @@ so you never have to open this file to route a topic.
 | `FFI`, `dl()`, native modules, stream wrappers, `php://`/`phar://`, `shmop`/`sysv*`/APCu, `eval`, `putenv`, `setlocale`, or "why can't userland do X at all" | [0052](0052-closed-doors.md) |
 | Whether a `.mwlx` can be an injection sink or source, `tainted`/`secret` at an extension call, what the manifest may declare | [0055](0055-extension-qualifier-declarations.md) |
 | What a `Core` member looks like — argument order, options, failure signalling, naming, mutation, callbacks; whether a PHP built-in survives at all | [0063](0063-core-api-conventions.md) for the shape rules; [docs/spec/01-core-library.md](../spec/01-core-library.md) for every signature |
+| Combining two arrays — `array_merge`, `array_replace`, `array_combine`, `$a + $b`, `array_merge_recursive`, why there is no `Arr::merge`, `preserveKeys`, `array_splice`, `array_pad`, `array_walk` | [0069](0069-array-combination-is-key-type-independent.md) |
 | Weighing memory against safety, speed or simplicity | [0004](0004-memory-for-simplicity.md) |
 | `mwl.toml` directives, `Core\Config::set`, limits, capabilities, changeability classes | [0005](0005-config-changeability.md) |
 | The config file's *format* — why TOML, how a list/boolean/hash-pin is spelled, whether `mwl.toml` is a project manifest | [0064](0064-configuration-file-format.md) |
@@ -189,6 +190,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0066](0066-nullable-conversion-operator.md) | `expr as ?T` converts without throwing, yielding `null` on failure; `Core\Validate`'s three numeric predicates go | Accepted |
 | [0067](0067-core-db.md) | One database API: connections are named in root-owned config, every statement is prepared, and a transaction is a closure | Accepted |
 | [0068](0068-dependency-currency-and-the-version-contract.md) | Dependencies stay current; a break in one is absorbed rather than forwarded, and only an enumerated user-facing surface can force a major | Accepted |
+| [0069](0069-array-combination-is-key-type-independent.md) | Arrays combine by the member's name, never by a key's type: `overlay`/`underlay`/`appendAll`, no `merge`, and `array + array` does not compile | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

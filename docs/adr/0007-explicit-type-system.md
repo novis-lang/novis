@@ -6,7 +6,7 @@
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
 - **Amended by:** 0008, 0010, 0011, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036,
-  0037, 0047, 0053, 0054, 0066 — each fold is applied below, and each row another ADR owns outright names
+  0037, 0047, 0053, 0054, 0066, 0069 — each fold is applied below, and each row another ADR owns outright names
   it in place. This body states the current rule, never a prior one.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion throws, so it propagates as a
   checked status), [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -217,6 +217,10 @@ The container is unchanged — an insertion-ordered hash with copy-on-write valu
   and `null` to `""`; each is a silent conversion at the one place where a mistake becomes a missing row.
 - Iteration order is **insertion order, always**. Only the sort members reorder, and they say so in their
   names.
+- **Binary `+` and `+=` over two arrays are a diagnostic**, naming `Core\Arr::underlay`. PHP's array union
+  is a set operation wearing arithmetic notation, and — like `array_merge` — its rule is chosen by a key's
+  type, which is a distinction this section has just deleted
+  ([0069](0069-array-combination-is-key-type-independent.md)).
 - `Core\Json::encode` emits a JSON array iff the keys are exactly `"0" … "n−1"` in order, which is the test
   PHP already applies expressed over strings, so encoded output does not change.
 
@@ -257,7 +261,7 @@ One type parameter, not two, because the key type is fixed by the language.
 - The checker bounds descriptor nesting at depth 32 with a diagnostic, so a pathological type cannot make
   checking superlinear.
 - **The stdlib's array signatures are parametric in `T`** — `Core\Arr::map(array<T>, callable): array<U>`,
-  `Core\Arr::filter(array<T>, callable): array<T>`, `Core\Arr::merge(array<T>, array<U>): array<T|U>`
+  `Core\Arr::filter(array<T>, callable): array<T>`, `Core\Arr::overlay(array<T>, array<U>): array<T|U>`
   (subject-first per [0063](0063-core-api-conventions.md) R1). Type variables are available to declarations
   the compiler owns: the built-ins, from M9 the WIT-declared extension functions, and — at a concrete
   argument only — a user class implementing a compiler-owned generic interface

@@ -17,7 +17,7 @@
   `DateTime::format`, per R18; the folded argument is unchanged and so is everything else about it.
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Path`, `Core\Out`, `Core\Bytes`
   and `Core\Error`, all split out of entries it already lists.
-- **Amended by:** none.
+- **Amended by:** 0069 — § 3's removal item 4 gains the array-combining entries, applied below.
 - **Relates to:** 0004, 0024, 0033, 0036, 0047, 0053
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
@@ -130,7 +130,12 @@ Four standing reasons. The member-by-member list is in
    [0059](0059-cross-request-state-is-explicit.md) (`apcu_*`, `shmop`, `sysv*`).
 4. **Structurally wrong here** — the internal array pointer (`current`/`key`/`next`/`prev`/`reset`/`end`:
    a mutable cursor inside a COW *value* is incoherent, since copying an array would copy its iteration
-   position); every by-reference mutator (R3); `array_multisort`; `strip_tags`, `addslashes`,
+   position); every by-reference mutator (R3); `array_multisort`; `array_merge`, `array_merge_recursive`
+   and the `+` operator over two arrays, whose rule is chosen by a key's *type* in a language that has one
+   key type ([ADR 0069](0069-array-combination-is-key-type-independent.md)); `array_walk` and
+   `array_walk_recursive`, which restate `foreach` once R3 removes the mutation; `array_pad`'s negative-size
+   mode and the string-cast comparison inside `array_unique`/`array_diff`/`array_intersect`;
+   `strip_tags`, `addslashes`,
    `htmlentities` and the rest of the half-escapers ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)
    exists to prevent the false confidence they create); `settype`/`gettype`/`strval`/`intval`
    ([ADR 0034](0034-legacy-cast-syntax-rejected.md): `as` is the only conversion spelling); `soundex`,

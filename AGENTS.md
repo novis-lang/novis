@@ -190,6 +190,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0051](docs/adr/0051-standard-library-tiers.md)).
 - **Every `Core` member has the same shape: subject first, one trailing options shape, nothing mutates,
   failure throws, absence is `?T`** ([0063](docs/adr/0063-core-api-conventions.md)).
+- **Arrays combine by the member's name, never by a key's type** — `overlay`/`underlay`/`appendAll`, no
+  `merge`, and `array + array` does not compile
+  ([0069](docs/adr/0069-array-combination-is-key-type-independent.md)).
 - **The compiler validates a closed list of `Core` intrinsics' literal arguments during checking**
   ([0057](docs/adr/0057-intrinsic-literal-folding.md)).
 - **Reflection and AST parsing are built into `Core`, not left to extensions**

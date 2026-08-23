@@ -923,7 +923,7 @@ the source relied on PHP's silent `(int)"abc"` → `0` now that the rewritten `a
 what the construct provides, a backed enum's case declarations and `->value` reads → an MWL `enum` and
 an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call or reference to a PHP
 built-in global function or constant (`strlen`, `array_map`, `PHP_EOL`, …) → the matching `Core`
-class-and-member, `Core\Str::len`, `Core\Arr::map`, `Core\Env::EOL`, via a maintained PHP-name → `Core`
+class-and-member, `Core\Str::length`, `Core\Arr::map`, `Core\Env::EOL`, via a maintained PHP-name → `Core`
 table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
 `use Path\To\Name as Other;` → the local alias replaced with the real short name or the FQN at every use, a
 stateless PHP trait (methods only) → an `interface` with the same method bodies as defaults plus plain

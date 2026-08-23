@@ -11,16 +11,21 @@ plan's status block says what is on disk and what is open.
 parameter, a callback-bound result type, a `Core`-owned enum and an absent option. `examples/core.mwl` runs
 its line 11 sort and stops at `Core\Str::length`. **Nothing is blocked.**
 
-**The dependency-update policy just landed** — [ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md)
-plus the procedure in [`dependency-update.md`](dependency-update.md). Two things it says that change how you
-work: **we are still in the prototyping regime**, so updating any dependency is free and needs no
-classification until 0.1.0 ships; and **the sweep is a pass the user fires by hand** — never start it, and
-never bump a dependency as a side effect of unrelated work. If you notice something stale, say so and carry
-on. Nothing on disk changed, and no code work depends on it.
+**`Core\Arr`'s combining half was just redesigned with the user** —
+[ADR 0069](../adr/0069-array-combination-is-key-type-independent.md). It matters to the M4S rows you are
+about to write: **there is no `Arr::merge`**, `array + array` is a diagnostic naming `Arr::underlay`, and
+four members were renamed (`splice`→`replaceRange`, `pad`→`padStart`/`padEnd`,
+`combine`→`fromKeysAndValues`, `countValues`→`countBy`) while `Arr::each` was removed. None of it is on
+disk — `Arr` is still the same nine members — so it costs a spec read, not a migration. It folded into
+0007 § 5 and 0063 § 3.
 
-**M8's database design is settled and recorded** — [ADR 0067](../adr/0067-core-db.md) plus
-[spec § 18](../spec/01-core-library.md). It folded into 0024, 0041, 0051 and 0058, so those bodies moved;
-none of it touches M4/M4S work or anything on disk today. Do not re-open it.
+**The dependency-update policy** is [ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md)
+plus [`dependency-update.md`](dependency-update.md): we are in the **prototyping regime**, so a bump is free
+and needs no classification until 0.1.0 — but **the sweep is a pass the user fires by hand**. Never start
+it, and never bump a dependency as a side effect of unrelated work.
+
+**M8's database design is settled** — [ADR 0067](../adr/0067-core-db.md) plus
+[spec § 18](../spec/01-core-library.md). Nothing about it touches M4/M4S. Do not re-open it.
 
 **An earlier housekeeping pass split the three files sessions used to collide in** — `mwl-stdlib`'s registry
 is one line per class with each domain owning its own rows, `mwl-types`'s checker tests and `mwl-codegen`'s
@@ -65,6 +70,8 @@ rows (`Str::lines`/`chunk`/`replaceAll`, `Arr::reverse`/`fill`/`sortByKey`), the
 - **A `Core` helper cannot name the class it throws** — every `Fault::thrown` becomes `RuntimeError`, so
   spec § 10's `LogicError` is unreachable from `mwl-stdlib`. `mwl_runtime::mwl_raise_new` is the shape.
 - **`<`/`>` over two `string`s is unlowered** — `mwl-codegen` refuses a `Gt` over representation `Str`.
+- **`array + array` still has no diagnostic** — ADR 0069 § 2 requires one naming `Arr::underlay`, and M4's
+  arithmetic checking is where it belongs.
 - **Still-large files, deliberately not split yet** — `mwl-syntax`'s `parser.rs` (split it as the first
   step of ADR 0040's M4B resilient-parse work, so it happens once) and `mwl-types`'s `expr.rs`. Revisit
   `mwl-stdlib`'s `arr.rs` past ~2,500 lines.
@@ -81,9 +88,10 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **The Bash tool eats a backslash inside a heredoc**, and an apostrophe-heavy one can fail to parse at
   all. For a multi-line Rust edit, write the old and new blocks to files under `.agent-tmp/` with the
   Write tool, then `python tools/splice.py <target> <old> <new>`.
-- **Another agent may be editing this repo at the same time** — one overwrote this very file mid-session.
-  `brief.py` says so loudly when `.loop/running` exists. **Stage your own paths explicitly, check
-  `git show --stat` after committing, and re-read a shared doc immediately before rewriting it.**
+- **Another agent may be editing this repo at the same time** — one landed ADR 0068 mid-session, which is
+  why this ADR is 0069. **Check the ADR directory for the next free number immediately before writing one**,
+  stage your own paths explicitly, check `git show --stat` after committing, and re-read a shared doc
+  immediately before rewriting it.
 - **`cargo test` does not always relink `target/debug/mwl.exe`** — `cargo build -p mwl-cli` before running
   a fixture by hand, or a stale binary reports a member you just registered as `mixed`.
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles. Whole suite:
