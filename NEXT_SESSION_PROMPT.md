@@ -52,8 +52,7 @@ decided before it is useful. Then `crates/mwl-test` and `mwl test` (loop goal, S
   general precisely so `switch` reaches for it.
 - **ADR 0043's `by`-delegation is unimplemented**, and `mwl_types::conformance` exempts any class using
   one *whole* because of that — its doc comment owns why the two close together.
-- **ADR 0014's `PropertyObserver` half is untouched** — that ADR's §§ 2–3; nothing on the acceptance path
-  needs it.
+- **ADR 0014's `PropertyObserver` half is untouched** — §§ 2–3; nothing on the acceptance path needs it.
 - **A helper that fails leaks its borrowed temporaries** — `Lowering::release_call_temporaries`, the same
   owned-temporaries stack `Lowering::landing_block`'s gap already needs.
 - **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** CLAUDE.md forbids. Every other
