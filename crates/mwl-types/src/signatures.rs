@@ -253,6 +253,18 @@ pub struct ClassSignature {
     /// by name. Never includes one pulled in from an `extends`/`implements`
     /// ancestor — [`own_lateinit_properties`] flattens those in.
     pub lateinit_properties: FxHashSet<String>,
+    /// This declaration's own `implements` entries, in source order, each
+    /// with the concrete type arguments it fixed (ADR 0053 § 2). Empty
+    /// arguments for every interface but `Iterable`/`Iterator`, which is
+    /// every interface in the language today except those two.
+    ///
+    /// [`mwl_hir::ClassGraph`] already records *which* interfaces a class
+    /// implements, and is the right table for a reachability question. This
+    /// one exists because the arguments need [`TypeId`]s, which `mwl-hir` has
+    /// no interner for — so a question like "what does a `foreach` over a
+    /// `Counter` yield" is answered here and the plain "does `Counter` reach
+    /// `Iterable` at all" stays there.
+    pub implements: Vec<(QName, Vec<TypeId>)>,
 }
 
 /// Every declaration's own [`ClassSignature`], keyed by its [`QName`].
@@ -327,6 +339,7 @@ pub fn build_signatures(
     // the stdlib already owns without the later insertion being visible.
     crate::core_lib::seed(&mut table, interner);
     crate::error_lib::seed(&mut table, interner);
+    crate::iter_lib::seed(&mut table, interner);
     let placeholder = SignatureTable::default();
     // Same placeholder idea as `signatures` above: signature collection only
     // ever lowers property/parameter/return *type annotations*, never a call
@@ -389,6 +402,14 @@ fn collect_stmts(
                     current_class: Some(&qname),
                     current_hook: None,
                 };
+                // Before the members: ADR 0053 § 2's type arguments are part
+                // of the declaration's own shape, not of any one member's.
+                let implements: Vec<(QName, Vec<TypeId>)> = decl
+                    .implements
+                    .iter()
+                    .map(|clause| crate::lower::lower_implemented_interface(clause, &ctx, env))
+                    .collect();
+                table.entry(qname.clone()).implements = implements;
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
             StmtKind::InterfaceDecl(decl) => {
@@ -536,7 +557,7 @@ fn check_lateinit_property(p: &PropertyMember, ty: TypeId, env: &mut Env<'_>) {
                  `lateinit` or the `?`",
             ),
         );
-    } else if !matches!(env.interner.get(ty), Ty::Object | Ty::Class(_)) {
+    } else if !matches!(env.interner.get(ty), Ty::Object | Ty::Class(..)) {
         env.diags.report(
             Diagnostic::error(
                 code::E_LATEINIT_NOT_OBJECT_TYPE,

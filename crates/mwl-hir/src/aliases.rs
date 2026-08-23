@@ -202,8 +202,11 @@ fn record_names(ty: &Type, src: &SourceFile, out: &mut FxHashMap<Span, String>) 
             }
         }
         TypeKind::Atom(TypeAtom::Array(Some(inner))) => record_names(inner, src, out),
-        TypeKind::Atom(TypeAtom::Name(name)) => {
+        TypeKind::Atom(TypeAtom::Name(name, args)) => {
             out.insert(name.span, name_text(src, name).to_owned());
+            for arg in args {
+                record_names(arg, src, out);
+            }
         }
         _ => {}
     }
@@ -335,13 +338,29 @@ fn substitute(
             ))))),
             span: ty.span,
         },
-        TypeKind::Atom(TypeAtom::Name(name)) => {
+        TypeKind::Atom(TypeAtom::Name(name, args)) => {
             let text = ctx.names.get(&name.span).map(String::as_str).unwrap_or("");
             let qname = resolve_ref(text, namespace, imports);
-            if ctx.pending.contains_key(&qname) {
+            // A name *written with* type arguments is never an alias
+            // expansion site: ADR 0015 keeps a `type` alias a synonym for a
+            // whole type expression, with no parameters of its own, so
+            // `Alias<int>` is an error the checker reports rather than
+            // something to expand here. Its arguments still get substituted,
+            // so an alias used *as* an argument still expands.
+            if args.is_empty() && ctx.pending.contains_key(&qname) {
                 resolve_one(&qname, ctx)
-            } else {
+            } else if args.is_empty() {
                 ty.clone()
+            } else {
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::Name(
+                        *name,
+                        args.iter()
+                            .map(|arg| substitute(arg, namespace, imports, ctx))
+                            .collect(),
+                    )),
+                    span: ty.span,
+                }
             }
         }
         _ => ty.clone(),
@@ -411,7 +430,7 @@ mod tests {
         let TypeKind::Nullable(inner) = &ty.kind else {
             panic!("expected ?Foo, got {ty:?}");
         };
-        assert!(matches!(&inner.kind, TypeKind::Atom(TypeAtom::Name(_))));
+        assert!(matches!(&inner.kind, TypeKind::Atom(TypeAtom::Name(..))));
     }
 
     #[test]

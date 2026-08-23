@@ -4957,7 +4957,7 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         TypeKind::Atom(TypeAtom::Void) => Ty::Void,
         TypeKind::Atom(TypeAtom::String) => Ty::Str,
         TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
-        TypeKind::Atom(TypeAtom::Name(_)) => Ty::Object,
+        TypeKind::Atom(TypeAtom::Name(..)) => Ty::Object,
         TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
         // `mixed` — ADR 0007 § 3. See `Ty::Mixed`'s own doc comment for
         // exactly how much this representation does and doesn't do yet: a
@@ -5011,7 +5011,7 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::Void => Ty::Void,
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
-        CheckedTy::Class(_) => Ty::Object,
+        CheckedTy::Class(..) => Ty::Object,
         CheckedTy::Enum(_, backing) => Ty::Enum(match backing {
             mwl_types::EnumBacking::Int => EnumRepr::Int,
             mwl_types::EnumBacking::Uint => EnumRepr::Uint,

@@ -238,7 +238,7 @@ pub(crate) fn is_assignable(
         };
     }
     if matches!(interner.get(to), Ty::Object)
-        && matches!(interner.get(from), Ty::Class(_) | Ty::Shape(_))
+        && matches!(interner.get(from), Ty::Class(..) | Ty::Shape(_))
     {
         return true;
     }
@@ -288,7 +288,7 @@ fn shape_satisfied(
                     is_assignable(*from_field_ty, *field_ty, interner, graph, signatures)
                 })
         }),
-        Ty::Class(qname) => to_fields.iter().all(|(name, field_ty)| {
+        Ty::Class(qname, _) => to_fields.iter().all(|(name, field_ty)| {
             resolve_property(qname, name, signatures, graph).is_some_and(|from_field_ty| {
                 is_assignable(from_field_ty, *field_ty, interner, graph, signatures)
             })
@@ -745,7 +745,9 @@ fn infer(
                 }
                 _ => None,
             };
-            let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
+            let sig = resolved
+                .as_ref()
+                .map(|(owner, _, sig)| substitute_receiver_args(object_ty, owner, sig, env));
             let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // ADR 0027: `$obj->method(...)` (first-class callable syntax)
             // names a `Closure` value, not the method's return type — the
@@ -1220,12 +1222,53 @@ fn check_args(
     }
 }
 
+/// `sig` with the receiver's own type arguments substituted in — the
+/// receiver-driven half of [`crate::generics`]' two binding sites.
+///
+/// `$cursor->current()` on a receiver typed `Iterator<int>` resolves to
+/// `current(): T`, and there is no argument list to read `T` out of: the
+/// binding is the receiver's. So the declaring interface's parameter names
+/// (from [`mwl_hir::interfaces`], the one roster) are zipped against the
+/// receiver's written arguments and the signature is rewritten concrete
+/// before a single argument is checked — the same guarantee the argument-side
+/// path already gives, that a type variable never survives a call site.
+///
+/// Everything else is returned untouched, which is every call in a program
+/// that does not name one of ADR 0053 § 2's two interfaces: `owner` must be
+/// exactly the class the receiver is typed as, so an inherited member reached
+/// through an implementing class is deliberately *not* substituted here.
+/// Fixing `Counter`'s `T` from its `implements Iterable<int>` clause needs
+/// [`crate::signatures::ClassSignature::implements`], and is the iteration
+/// lowering's own work rather than this call site's.
+fn substitute_receiver_args(
+    receiver: TypeId,
+    owner: &QName,
+    sig: &MethodSig,
+    env: &mut Env<'_>,
+) -> MethodSig {
+    let Ty::Class(qname, args) = env.interner.get(receiver).clone() else {
+        return sig.clone();
+    };
+    if args.is_empty() || &qname != owner {
+        return sig.clone();
+    }
+    let Some(params) = mwl_hir::interfaces::type_params(qname.short_name()) else {
+        return sig.clone();
+    };
+    let bindings: crate::generics::Bindings = params
+        .iter()
+        .map(|name| (*name).to_owned())
+        .zip(args)
+        .collect();
+    sig.clone().substituted(&bindings, env.interner)
+}
+
 /// The class or enum a resolved type names, if it names one at all — the
 /// receiver-type question every member-access/call arm below needs answered
 /// before it can look anything up in a [`crate::signatures::SignatureTable`].
 fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
     match interner.get(ty) {
-        Ty::Class(q) | Ty::Enum(q, _) => Some(q.clone()),
+        Ty::Class(q, _) | Ty::Enum(q, _) => Some(q.clone()),
         _ => None,
     }
 }
@@ -1527,7 +1570,7 @@ fn apply_qualifier_conversion_rule(
 /// names waits on `Core\Html` actually existing (see the crate docs' known
 /// gaps).
 fn reject_secret_markup_conversion(inner_ty: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
-    let Ty::Class(qname) = env.interner.get(to) else {
+    let Ty::Class(qname, _) = env.interner.get(to) else {
         return;
     };
     if qname.to_string() != "Core\\Html\\Markup" {
@@ -1556,7 +1599,7 @@ fn reject_secret_markup_conversion(inner_ty: TypeId, to: TypeId, span: Span, env
 /// of § 5 (auto-escaping a non-`Markup` interpolation, `Markup + Markup`)
 /// waits on `Core\Html` actually existing as a stdlib class.
 fn reject_non_literal_markup_conversion(inner: &Expr, to: TypeId, span: Span, env: &mut Env<'_>) {
-    let Ty::Class(qname) = env.interner.get(to) else {
+    let Ty::Class(qname, _) = env.interner.get(to) else {
         return;
     };
     if qname.to_string() != "Core\\Html\\Markup" {
@@ -1593,7 +1636,7 @@ fn is_literal_string(expr: &Expr) -> bool {
 /// callee (nothing statically known) and an already-`Ty::Callable` one are
 /// both left alone.
 fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &mut Env<'_>) {
-    let Ty::Class(qname) = env.interner.get(callee_ty).clone() else {
+    let Ty::Class(qname, _) = env.interner.get(callee_ty).clone() else {
         return;
     };
     env.diags.report(
@@ -1645,7 +1688,7 @@ fn reject_enum_to_enum_conversion(from: TypeId, to: TypeId, span: Span, env: &mu
 /// unmodeled `Core` class, the same scoping [`object_comparison_result`] and
 /// [`check_property_access`] already use.
 pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
-    let Ty::Class(qname) = env.interner.get(ty).clone() else {
+    let Ty::Class(qname, _) = env.interner.get(ty).clone() else {
         return;
     };
     if qname.is_core() {
@@ -2026,7 +2069,7 @@ fn object_comparison_result(
     span: Span,
     env: &mut Env<'_>,
 ) -> Option<TypeId> {
-    let (Ty::Class(lhs_q), Ty::Class(rhs_q)) =
+    let (Ty::Class(lhs_q, _), Ty::Class(rhs_q, _)) =
         (env.interner.get(lhs).clone(), env.interner.get(rhs).clone())
     else {
         return None;

@@ -228,7 +228,7 @@ fn check_alias_is_not_a_bare_class(decl: &TypeAliasDecl, diags: &mut Diagnostics
     };
     if matches!(
         atom,
-        TypeAtom::Name(_) | TypeAtom::SelfTy | TypeAtom::StaticTy | TypeAtom::Parent
+        TypeAtom::Name(..) | TypeAtom::SelfTy | TypeAtom::StaticTy | TypeAtom::Parent
     ) {
         diags.report(
             Diagnostic::error(

@@ -171,6 +171,7 @@ pub mod error_lib;
 pub mod expr;
 pub mod expr_table;
 pub(crate) mod generics;
+pub mod iter_lib;
 pub mod lateinit;
 pub mod layout;
 pub mod locals;

@@ -105,16 +105,13 @@ impl QName {
     }
 
     /// Whether this name is one of the handful of global, reserved
-    /// interfaces the compiler itself knows about — `Comparable`
-    /// ([ADR 0013](../../../docs/adr/0013-comparable-interface.md)) and
-    /// `Stringable` ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
-    /// § 1) so far — the same "trusted to exist, never declared in source"
-    /// treatment [`Self::is_core`] gives `Core`, extended one bare name at a
-    /// time as each such ADR lands (`PropertyObserver` is named in ADR 0014
-    /// the same way, but not implemented yet).
+    /// interfaces the compiler itself knows about — the same "trusted to
+    /// exist, never declared in source" treatment [`Self::is_core`] gives
+    /// `Core`. [`crate::interfaces::RESERVED`] is the roster and the one
+    /// place a new entry is added.
     #[must_use]
     pub fn is_reserved_global_interface(&self) -> bool {
-        self.segments.len() == 1 && matches!(self.segments[0].as_str(), "Comparable" | "Stringable")
+        self.segments.len() == 1 && crate::interfaces::is_reserved_interface(&self.segments[0])
     }
 
     /// Whether this name is one of the global exception classes
@@ -180,9 +177,11 @@ mod tests {
     }
 
     #[test]
-    fn is_reserved_global_interface_recognizes_comparable_and_stringable() {
+    fn is_reserved_global_interface_recognizes_every_rostered_name() {
         assert!(QName::parse("Comparable").is_reserved_global_interface());
         assert!(QName::parse("Stringable").is_reserved_global_interface());
+        assert!(QName::parse("Iterable").is_reserved_global_interface());
+        assert!(QName::parse("Iterator").is_reserved_global_interface());
         assert!(!QName::parse("PropertyObserver").is_reserved_global_interface());
         assert!(!QName::parse("App\\Comparable").is_reserved_global_interface());
     }

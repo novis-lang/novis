@@ -26,7 +26,7 @@
 
 use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_hir::SymbolKind;
-use mwl_syntax::ast::{Name, Type, TypeAtom, TypeKind};
+use mwl_syntax::ast::{ImplementsClause, Name, Type, TypeAtom, TypeKind};
 
 use crate::ty::TypeId;
 use crate::{Ctx, Env, span_text};
@@ -141,7 +141,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::SelfTy => resolve_special(span, "self", ctx, env),
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
         TypeAtom::Parent => resolve_parent(span, ctx, env),
-        TypeAtom::Name(name) => resolve_name_type(name, depth, ctx, env),
+        TypeAtom::Name(name, args) => resolve_name_type(name, args, span, depth, ctx, env),
         _ => env.interner.mixed(),
     }
 }
@@ -209,9 +209,140 @@ fn resolve_parent(span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     }
 }
 
-fn resolve_name_type(name: &Name, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+/// Resolves one `implements Name<...>` entry to the interface it names and
+/// the concrete type arguments it fixes — ADR 0053 § 2's one narrow
+/// extension, in the one position that extension exists for.
+///
+/// Deliberately *not* [`lower_type`] over a synthesized name atom, for one
+/// reason: an `implements` entry naming something undeclared is already
+/// `mwl_hir::hierarchy`'s diagnostic, and routing through the type lowerer
+/// would report it a second time. What is checked here is only what the
+/// hierarchy resolver cannot see — that the name takes type arguments at all,
+/// and that it was given the right number.
+pub(crate) fn lower_implemented_interface(
+    clause: &ImplementsClause,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> (mwl_hir::QName, Vec<TypeId>) {
+    let text = span_text(env.src, clause.name.span);
+    let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let args: Vec<TypeId> = clause
+        .type_args
+        .iter()
+        .map(|arg| lower_type(arg, ctx, env))
+        .collect();
+
+    if let Some(params) = generic_params(&qname) {
+        let id = lower_generic_interface(qname.clone(), params, args, clause.span, env);
+        // Read back rather than reused: a wrong count is recovered as the
+        // no-arguments shape, and this record must agree with the type that
+        // was actually interned.
+        let args = match env.interner.get(id) {
+            crate::ty::Ty::Class(_, args) => args.clone(),
+            _ => Vec::new(),
+        };
+        return (qname, args);
+    }
+    if !args.is_empty() {
+        report_not_generic(&qname, clause.span, env);
+    }
+    (qname, Vec::new())
+}
+
+/// `E_TYPE_ARGS_NOT_GENERIC`, from the two positions a type-argument list can
+/// be written in — a name in type position, and an `implements` entry.
+fn report_not_generic(qname: &mwl_hir::QName, span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_ARGS_NOT_GENERIC,
+            format!("`{qname}` takes no type arguments"),
+        )
+        .with_primary(span, "type arguments written here")
+        .with_help(
+            "user-declared type parameters are deferred (ADR 0007 § 1); only the \
+             compiler-owned `Iterable<T>`/`Iterator<T>` may be written with one \
+             (ADR 0053 § 2)",
+        ),
+    );
+}
+
+/// `qname`'s declared type parameters when it is a compiler-owned *generic*
+/// interface — `None` for every other name, including the non-generic
+/// reserved interfaces, which take the ordinary path below.
+///
+/// The roster is [`mwl_hir::interfaces::RESERVED`] and nothing else: ADR
+/// 0053 § 2's extension is to *compiler-owned* declarations, so a user
+/// interface that happens to be named `Iterable` in its own namespace is not
+/// one (the name must be a single global segment, which
+/// [`mwl_hir::QName::is_reserved_global_interface`] already requires).
+fn generic_params(qname: &mwl_hir::QName) -> Option<&'static [&'static str]> {
+    if !qname.is_reserved_global_interface() {
+        return None;
+    }
+    mwl_hir::interfaces::type_params(qname.short_name()).filter(|params| !params.is_empty())
+}
+
+/// Checks a compiler-owned generic interface's type-argument count and
+/// interns `Name<args...>`.
+///
+/// A wrong count is reported and then *recovered from* by interning the name
+/// with no arguments at all, rather than with a padded or truncated list: an
+/// argument the author did not write has no honest value, and `Iterator` with
+/// an empty list is already the shape every non-generic name has, so nothing
+/// downstream meets a case it has no rule for.
+fn lower_generic_interface(
+    qname: mwl_hir::QName,
+    params: &'static [&'static str],
+    args: Vec<TypeId>,
+    span: Span,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if args.len() == params.len() {
+        return env.interner.generic_class(qname, args);
+    }
+    let expected = params.len();
+    let got = args.len();
+    let names = params.join(", ");
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_ARG_COUNT,
+            format!("`{qname}` takes {expected} type argument(s), not {got}"),
+        )
+        .with_primary(span, format!("write `{qname}<{names}>`"))
+        .with_help(format!(
+            "ADR 0053 § 1 declares `{qname}<{names}>`; the argument fixes what it iterates over, \
+             and there is no spelling that leaves it open"
+        )),
+    );
+    env.interner.class(qname)
+}
+
+fn resolve_name_type(
+    name: &Name,
+    args: &[Type],
+    span: Span,
+    depth: u32,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
     let text = span_text(env.src, name.span);
     let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+
+    // Lowered up front, and unconditionally: an argument written on a name
+    // that turns out not to be generic is still a type the author wrote, and
+    // a mistake inside it deserves its own diagnostic rather than being
+    // swallowed by the outer refusal.
+    let args: Vec<TypeId> = args
+        .iter()
+        .map(|arg| lower_type_at_depth(arg, depth + 1, ctx, env))
+        .collect();
+
+    if let Some(params) = generic_params(&qname) {
+        return lower_generic_interface(qname, params, args, span, env);
+    }
+    if !args.is_empty() {
+        report_not_generic(&qname, span, env);
+    }
 
     if let Some(alias_ty) = env.aliases.get(&qname) {
         let alias_ty = alias_ty.clone();
@@ -224,7 +355,12 @@ fn resolve_name_type(name: &Name, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) 
             env.interner.enum_(qname, backing)
         }
         Some(_) => env.interner.class(qname),
-        None if qname.is_core() || qname.is_reserved_global_class() => env.interner.class(qname),
+        None if qname.is_core()
+            || qname.is_reserved_global_class()
+            || qname.is_reserved_global_interface() =>
+        {
+            env.interner.class(qname)
+        }
         None => {
             env.diags.report(
                 Diagnostic::error(
@@ -323,7 +459,7 @@ mod tests {
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
-        assert!(matches!(interner.get(*elem), Ty::Class(q) if q.to_string() == "Foo"));
+        assert!(matches!(interner.get(*elem), Ty::Class(q, _) if q.to_string() == "Foo"));
     }
 
     #[test]
@@ -335,7 +471,7 @@ mod tests {
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
-        assert!(matches!(interner.get(*elem), Ty::Class(q) if q.to_string() == "LogicError"));
+        assert!(matches!(interner.get(*elem), Ty::Class(q, _) if q.to_string() == "LogicError"));
     }
 
     #[test]

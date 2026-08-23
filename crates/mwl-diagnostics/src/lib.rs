@@ -481,6 +481,19 @@ pub mod code {
     /// way in would have to be converted back on the way out — silently, and
     /// lossily.
     pub const E_BY_REF_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440");
+    /// A `<...>` type-argument list written after a name that takes no type
+    /// parameters. ADR 0007 § 1 parks user-declared generics, and ADR 0053
+    /// § 2 opens exactly one door in that wall — the compiler-owned generic
+    /// interfaces `mwl_hir::interfaces::RESERVED` rosters. Everything else,
+    /// including a `type` alias (ADR 0015 gives one no parameters of its
+    /// own), lands here.
+    pub const E_TYPE_ARGS_NOT_GENERIC: Code = Code::new("E0441");
+    /// A compiler-owned generic interface written with the wrong number of
+    /// type arguments, including none at all: `Iterator` on its own is as
+    /// much a mistake as `Iterator<int, string>`, since the element type is
+    /// the whole reason the parameter exists and ADR 0007 leaves no position
+    /// untyped.
+    pub const E_TYPE_ARG_COUNT: Code = Code::new("E0442");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

@@ -14,6 +14,9 @@
 //!   produces a [`Module`].
 //! - [`errors`] — the closed exception tree spec § 10 fixes, as data every
 //!   later crate seeds itself from.
+//! - [`interfaces`] — the closed set of global interfaces the compiler
+//!   declares, with each one's type parameters, on the same
+//!   seeded-from-data footing as [`errors`].
 //! - [`hierarchy`] — [`HierarchyResolver`]: resolves every class/interface's
 //!   `extends`/`implements` and every class/trait's `use Trait, ...;` to real
 //!   [`Symbol`]s, into a [`ClassGraph`]; diagnoses an undeclared or
@@ -50,6 +53,7 @@
 pub mod aliases;
 pub mod errors;
 pub mod hierarchy;
+pub mod interfaces;
 pub mod members;
 pub mod qname;
 pub mod requires;

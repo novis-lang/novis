@@ -74,10 +74,28 @@ pub enum Ty {
     Iterable,
     /// `callable`
     Callable,
-    /// A resolved class or interface name — the type grammar does not
-    /// distinguish them (ADR 0007 § 3); which one `QName` names is a
-    /// question for [`mwl_hir::SymbolTable`], not this representation.
-    Class(QName),
+    /// A resolved class or interface name, plus the type arguments it was
+    /// written with — the type grammar does not distinguish a class from an
+    /// interface (ADR 0007 § 3); which one `QName` names is a question for
+    /// [`mwl_hir::SymbolTable`], not this representation.
+    ///
+    /// The argument list is empty for all but two names.
+    /// [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 2
+    /// lets a *compiler-owned* generic interface be written at a concrete
+    /// type — `Iterator<int>` — and `mwl_hir::interfaces::RESERVED` is the
+    /// closed roster of what may be. Anything else written with arguments is
+    /// refused by [`crate::lower`] before it ever interns, so a non-empty
+    /// list here always names one of those two interfaces.
+    ///
+    /// Interning is structural, so `Iterator<int>` and `Iterator<string>` are
+    /// two distinct `TypeId`s while `Counter` and `Counter` are one — which
+    /// is the whole point of carrying the arguments in the type rather than
+    /// beside it. They are erased at the `mwl-ir` boundary
+    /// (`mwl_ir::lower::lower_checked_ty` maps every class to one pointer
+    /// type), exactly as a [`Self::TypeVar`] is erased at a call site: a type
+    /// argument constrains what the checker accepts and never what the
+    /// runtime stores.
+    Class(QName, Vec<TypeId>),
     /// A resolved enum name (ADR 0010), together with the underlying integer
     /// type its cases are constants of.
     ///
@@ -108,9 +126,12 @@ pub enum Ty {
     /// The one type in this enum no source text can spell. ADR 0007 parks
     /// user-declared generics and `.claude/loop-goal.md` keeps type variables
     /// compiler-owned, so a `TypeVar` only ever enters the interner from
-    /// `mwl_stdlib::registry`'s `Core` signatures — [`crate::lower`] has no
-    /// arm producing one, which is what makes that a property of the code
-    /// rather than a convention.
+    /// `mwl_stdlib::registry`'s `Core` signatures ([`crate::core_lib`]) or
+    /// ADR 0053 § 1's two iteration interfaces ([`crate::iter_lib`]) —
+    /// [`crate::lower`] has no arm producing one, which is what makes that a
+    /// property of the code rather than a convention. `Iterator<int>` written
+    /// in source produces [`Self::Class`] with a concrete argument, never
+    /// this.
     ///
     /// It never survives a call site. [`crate::signatures::MethodSig`]'s own
     /// docs own the substitution rule: a generic signature is unified against
@@ -240,7 +261,16 @@ impl TypeInterner {
             Ty::False => "false".to_owned(),
             Ty::Iterable => "iterable".to_owned(),
             Ty::Callable => "callable".to_owned(),
-            Ty::Class(q) | Ty::Enum(q, _) => q.to_string(),
+            Ty::Enum(q, _) => q.to_string(),
+            Ty::Class(q, args) if args.is_empty() => q.to_string(),
+            Ty::Class(q, args) => {
+                let inner = args
+                    .iter()
+                    .map(|arg| self.describe(*arg))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{q}<{inner}>")
+            }
             Ty::Shape(fields) => {
                 let inner = fields
                     .iter()
@@ -401,10 +431,19 @@ impl TypeInterner {
         self.intern(Ty::Array(elem))
     }
 
-    /// Interns a resolved class/interface name.
+    /// Interns a resolved class/interface name with no type arguments —
+    /// every name but ADR 0053 § 2's two generic interfaces.
     #[must_use]
     pub fn class(&mut self, qname: QName) -> TypeId {
-        self.intern(Ty::Class(qname))
+        self.intern(Ty::Class(qname, Vec::new()))
+    }
+
+    /// Interns a resolved interface name applied to concrete type arguments
+    /// — `Iterator<int>`. See [`Ty::Class`] for the closed set of names this
+    /// is reachable for.
+    #[must_use]
+    pub fn generic_class(&mut self, qname: QName, args: Vec<TypeId>) -> TypeId {
+        self.intern(Ty::Class(qname, args))
     }
 
     /// Interns a resolved enum name together with its backing type — see

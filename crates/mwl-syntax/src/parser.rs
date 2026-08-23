@@ -615,6 +615,33 @@ impl<'src, 'd> Parser<'src, 'd> {
         first
     }
 
+    /// An optional `<T, U>` suffix on a name, in type position or after an
+    /// `implements` entry. Returns what was written (empty when there was no
+    /// `<` at all) and the span covering `name_span` through the closing `>`.
+    ///
+    /// The parser deliberately accepts this after *any* name and imposes no
+    /// arity: [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md)
+    /// § 2's one narrow door is `Iterable`/`Iterator`, but which names are
+    /// generic is `mwl_hir::interfaces`' roster and only the checker reads
+    /// it. Parsing `Foo<int>` and refusing it later gets the reader a
+    /// diagnostic that names the rule, instead of a cascade off a `<` that
+    /// was read as a comparison.
+    ///
+    /// Nothing here needs the lookahead the expression side would: a type
+    /// position never admits a `<` operator, so a `<` after a name in one is
+    /// unambiguously a type-argument list.
+    fn parse_type_args(&mut self, name_span: Span) -> (Vec<Type>, Span) {
+        if self.eat(TokenKind::Lt).is_none() {
+            return (Vec::new(), name_span);
+        }
+        let mut args = vec![self.parse_type_union()];
+        while self.eat(TokenKind::Comma).is_some() {
+            args.push(self.parse_type_union());
+        }
+        let close = self.expect_type_close_angle();
+        (args, name_span.to(close))
+    }
+
     fn parse_type_atom(&mut self) -> Type {
         let tok = self.peek();
         let start = tok.span;
@@ -748,9 +775,10 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Ident | TokenKind::Backslash => {
                 let name = self.parse_name();
+                let (args, span) = self.parse_type_args(name.span);
                 Type {
-                    kind: TypeKind::Atom(TypeAtom::Name(name)),
-                    span: name.span,
+                    kind: TypeKind::Atom(TypeAtom::Name(name, args)),
+                    span,
                 }
             }
             _ => {
@@ -3925,19 +3953,31 @@ impl<'src, 'd> Parser<'src, 'd> {
         clauses
     }
 
-    /// `Name ('by' '$'field)?`. `by` is a contextual keyword, the same shape
-    /// [`Self::parse_type_alias_decl`]'s `type` already is — it has no other
-    /// meaning as a bare identifier immediately after an `implements` name,
-    /// so no reserved word was needed for it.
+    /// `Name ('<' T, ... '>')? ('by' '$'field)?`. `by` is a contextual
+    /// keyword, the same shape [`Self::parse_type_alias_decl`]'s `type`
+    /// already is — it has no other meaning as a bare identifier immediately
+    /// after an `implements` name, so no reserved word was needed for it.
+    ///
+    /// The type-argument list is ADR 0053 § 2's `implements Iterable<int>`,
+    /// parsed by the same [`Self::parse_type_args`] a name in type position
+    /// uses, so the two spellings cannot drift apart.
     fn parse_implements_clause(&mut self) -> ImplementsClause {
         let name = self.parse_name();
+        let (type_args, mut span) = self.parse_type_args(name.span);
         let by_field = if self.at_contextual("by") {
             self.bump();
-            Some(self.expect(TokenKind::Variable, "the delegated-to property, `$field`"))
+            let field = self.expect(TokenKind::Variable, "the delegated-to property, `$field`");
+            span = span.to(field);
+            Some(field)
         } else {
             None
         };
-        ImplementsClause { name, by_field }
+        ImplementsClause {
+            name,
+            type_args,
+            by_field,
+            span,
+        }
     }
 
     fn parse_interface_decl(&mut self, start: Span) -> Stmt {
@@ -4944,6 +4984,51 @@ mod tests {
             inner.kind,
             TypeKind::Atom(TypeAtom::Array(Some(_)))
         ));
+    }
+
+    #[test]
+    fn a_name_in_type_position_carries_its_type_arguments() {
+        let e = parse_ok("$m as Iterator<int>");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        let TypeKind::Atom(TypeAtom::Name(_, args)) = ty.kind else {
+            panic!("expected a name atom: {ty:?}");
+        };
+        assert_eq!(args.len(), 1);
+        assert!(matches!(args[0].kind, TypeKind::Atom(TypeAtom::Int)));
+    }
+
+    /// `>>` splits for a name's arguments exactly as it does for `array<...>`
+    /// -- both go through `expect_type_close_angle`.
+    #[test]
+    fn a_nested_generic_name_closes_through_a_split_shift_token() {
+        let e = parse_ok("$m as array<Iterator<uint>>");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = ty.kind else {
+            panic!("expected `array<...>`: {ty:?}");
+        };
+        let TypeKind::Atom(TypeAtom::Name(_, args)) = inner.kind else {
+            panic!("expected a name atom: {inner:?}");
+        };
+        assert_eq!(args.len(), 1);
+    }
+
+    #[test]
+    fn an_implements_entry_carries_its_type_arguments_and_its_delegation() {
+        let stmts =
+            parse_file_ok("<?mwl\nclass C implements Iterable<int>, Greets by $g, Comparable {}\n");
+        let StmtKind::ClassDecl(decl) = &stmts[0].kind else {
+            panic!("expected a class: {stmts:?}");
+        };
+        assert_eq!(decl.implements.len(), 3);
+        assert_eq!(decl.implements[0].type_args.len(), 1);
+        assert!(decl.implements[0].by_field.is_none());
+        assert!(decl.implements[1].type_args.is_empty());
+        assert!(decl.implements[1].by_field.is_some());
+        assert!(decl.implements[2].type_args.is_empty());
     }
 
     #[test]

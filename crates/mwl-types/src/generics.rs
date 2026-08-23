@@ -3,11 +3,20 @@
 //!
 //! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) parks
 //! user-declared generics and `.claude/loop-goal.md` keeps type variables
-//! **compiler-owned**, so exactly one thing in the whole compiler produces a
+//! **compiler-owned**, so exactly two things in the whole compiler produce a
 //! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `mwl_stdlib::registry`
-//! signature. The spec's own `Core\Arr` section states why they exist at all
+//! signature, and [`crate::iter_lib`] writing ADR 0053 § 1's two iteration
+//! interfaces. The spec's own `Core\Arr` section states why they exist at all
 //! — "`T` is a type variable — the stdlib is parametric where user code is
 //! not."
+//!
+//! The two are bound from different places, and that difference is the only
+//! subtlety here. A `Core` member's variable is bound from its *arguments*
+//! ([`bind`], driven by [`crate::expr`]'s `check_generic_args`). An iteration
+//! interface's is bound from its *receiver* — `$cursor->current()` takes `T`
+//! from the `Iterator<int>` the receiver is already typed as, not from an
+//! argument list that is empty. Both end at the same [`substitute`] call and
+//! both keep the same property below.
 //!
 //! # What this is, and what it deliberately is not
 //!
@@ -58,6 +67,7 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(id) {
         Ty::TypeVar(_) => true,
         Ty::Array(elem) => mentions_type_var(*elem, interner),
+        Ty::Class(_, args) => args.iter().any(|arg| mentions_type_var(*arg, interner)),
         Ty::Union(members) | Ty::Intersection(members) => members
             .iter()
             .any(|member| mentions_type_var(*member, interner)),
@@ -80,6 +90,23 @@ pub(crate) fn bind(declared: TypeId, actual: TypeId, interner: &TypeInterner, ou
         }
         (Ty::Array(declared_elem), Ty::Array(actual_elem)) => {
             bind(*declared_elem, *actual_elem, interner, out);
+        }
+        // `Iterator<T>` against `Iterator<int>` — ADR 0053 § 2's generic
+        // interfaces, the only class-shaped type that carries arguments at
+        // all. Two *different* names bind nothing, deliberately: this walk
+        // has no notion of a supertype, so `Iterable<T>` against a `Counter`
+        // is a miss rather than a wrong answer.
+        (Ty::Class(declared_q, declared_args), Ty::Class(actual_q, actual_args))
+            if declared_q == actual_q && declared_args.len() == actual_args.len() =>
+        {
+            let pairs: Vec<(TypeId, TypeId)> = declared_args
+                .iter()
+                .copied()
+                .zip(actual_args.iter().copied())
+                .collect();
+            for (declared_arg, actual_arg) in pairs {
+                bind(declared_arg, actual_arg, interner, out);
+            }
         }
         (Ty::Shape(declared_fields), Ty::Shape(actual_fields)) => {
             let pairs: Vec<(TypeId, TypeId)> = declared_fields
@@ -136,6 +163,13 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
                 .map(|(name, field)| (name.clone(), substitute(*field, bindings, interner)))
                 .collect();
             interner.shape(fields)
+        }
+        Ty::Class(qname, args) => {
+            let args: Vec<TypeId> = args
+                .iter()
+                .map(|arg| substitute(*arg, bindings, interner))
+                .collect();
+            interner.generic_class(qname, args)
         }
         // Unreachable given the `mentions_type_var` guard above, which is
         // exactly the set of variants handled here — kept total rather than a

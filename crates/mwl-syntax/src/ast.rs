@@ -160,8 +160,16 @@ pub enum TypeAtom {
     /// `parent`
     Parent,
     /// A class, interface, enum or `type`-alias name — the checker (not the
-    /// parser) decides which kind of atom it resolves to.
-    Name(Name),
+    /// parser) decides which kind of atom it resolves to — together with any
+    /// `<...>` type-argument list written after it.
+    ///
+    /// The argument list is almost always empty: ADR 0007 § 1 parks
+    /// user-declared type parameters, and ADR 0053 § 2 opens one door for a
+    /// *compiler-owned* generic interface (`Iterator<int>`). The parser
+    /// accepts the syntax on any name and records what it saw; refusing it on
+    /// a name that is not generic is the checker's call, since only the
+    /// checker knows what the name resolves to.
+    Name(Name, Vec<Type>),
 }
 
 /// One `name: T` field of a [`TypeAtom::Shape`] — ADR 0036 § 3.
@@ -1106,17 +1114,26 @@ pub struct ClassDecl {
 }
 
 /// One entry of a class's `implements` list (ADR 0043 § 4): the interface
-/// named, plus its optional `by $field` delegation suffix. `by_field` is
-/// recorded but not yet resolved — checking that `$field`'s declared type
-/// actually satisfies `name` (`E_DELEGATE_TYPE_MISMATCH`) is `mwl-hir`'s job,
-/// not the parser's.
+/// named, its `<...>` type arguments if any, plus its optional `by $field`
+/// delegation suffix. `by_field` is recorded but not yet resolved — checking
+/// that `$field`'s declared type actually satisfies `name`
+/// (`E_DELEGATE_TYPE_MISMATCH`) is `mwl-hir`'s job, not the parser's.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImplementsClause {
     /// The interface named.
     pub name: Name,
+    /// `implements Iterable<int>` — ADR 0053 § 2's one narrow extension:
+    /// a class may fix a *compiler-owned* generic interface's parameter at a
+    /// concrete type here. Empty for every other `implements` entry, and the
+    /// checker refuses a non-empty list on a name that is not generic. See
+    /// [`TypeAtom::Name`]'s own docs.
+    pub type_args: Vec<Type>,
     /// `by $field`, if written — the property every method `name` requires
     /// is forwarded to.
     pub by_field: Option<Span>,
+    /// The whole entry, name through the closing `>` or the delegated-to
+    /// property, whichever was written last.
+    pub span: Span,
 }
 
 /// `interface Name (extends Base, ...)? { ... }`. PHP allows an interface to
