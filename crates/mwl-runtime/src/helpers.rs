@@ -176,6 +176,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             "mwl_safepoint",
             (crate::ctx::mwl_safepoint as *const ()).cast::<u8>(),
         ),
+        (
+            "mwl_probe_stmt",
+            (crate::ctx::mwl_probe_stmt as *const ()).cast::<u8>(),
+        ),
     ]
 }
 

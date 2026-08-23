@@ -111,6 +111,21 @@ pub struct Ctx {
     pending: Option<Cow<'static, str>>,
     /// Where `echo` writes.
     output: OutputSink,
+    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// § 1's statement-boundary hit counters, indexed by `mwl_ir::StmtId`.
+    ///
+    /// Written only from [`mwl_probe_stmt`], which compiled code reaches only
+    /// when the [`DebugFlags`] word above is non-zero — so a request with no
+    /// probe enabled never touches this vector and never allocates it.
+    ///
+    /// **A stand-in, not the final shape.** `mwl_ir::StmtId` numbers from zero
+    /// within *each* function, so two functions' statements collide in this
+    /// one table. ADR 0018 wants path → line → count, which needs the unit and
+    /// function a statement belongs to; that qualification arrives with
+    /// `Core\Debug` and the Clover/lcov exporters in M10. What this table is
+    /// for now is proving the mechanism: the probe fires at exactly the
+    /// statements a request executed, and nowhere else.
+    stmt_hits: Vec<u64>,
 }
 
 /// Byte offset of the safepoint word within [`Ctx`] — see the module docs.
@@ -129,6 +144,7 @@ impl Ctx {
             debug: DebugFlags::empty(),
             pending: None,
             output,
+            stmt_hits: Vec::new(),
         }
     }
 
@@ -165,6 +181,26 @@ impl Ctx {
     /// Turns probes on or off for a request that may already be running.
     pub fn set_debug_flags(&mut self, flags: DebugFlags) {
         self.debug = flags;
+    }
+
+    /// Counts one hit for the statement `stmt` names — [`mwl_probe_stmt`]'s
+    /// whole effect under [`DebugFlags::COVERAGE`].
+    pub fn record_stmt_hit(&mut self, stmt: u32) {
+        let index = stmt as usize;
+        if self.stmt_hits.len() <= index {
+            self.stmt_hits.resize(index + 1, 0);
+        }
+        self.stmt_hits[index] += 1;
+    }
+
+    /// The per-statement hit counters gathered so far, indexed by
+    /// `mwl_ir::StmtId` — empty for a request that ran with
+    /// [`DebugFlags::COVERAGE`] off throughout. See the field's own doc
+    /// comment for why this is a stand-in for ADR 0018's path → line → count
+    /// shape rather than that shape itself.
+    #[must_use]
+    pub fn stmt_hits(&self) -> &[u64] {
+        &self.stmt_hits
     }
 
     /// Records the message behind a `THROWN` or `FATAL` status.
@@ -275,6 +311,44 @@ pub unsafe extern "C" fn mwl_safepoint(ctx: *mut Ctx) -> i32 {
     crate::OK
 }
 
+/// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1's statement-boundary probe — the slow path behind the debug-flags
+/// check, reached only when the word compiled code loaded was non-zero.
+///
+/// Deliberately the same *shape* as [`mwl_safepoint`]: one cached load and one
+/// predicted-not-taken branch at the site, everything else out of line. It
+/// differs in returning nothing — coverage bookkeeping cannot fail, and ADR
+/// 0018 puts a debugger break at a safepoint, not at a probe — so a compiled
+/// probe site has no status to check and no error edge to emit.
+///
+/// Only [`DebugFlags::COVERAGE`] acts. `BRANCH` needs the per-edge probe site
+/// that lands with `mwl_ir::Terminator::Branch`'s lowering, and `TRACE`/
+/// `PROFILE` are call-site probes with no MWL-level call compiled yet — see
+/// `mwl-codegen`'s own module docs for that split.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer; the contract cannot be \
+              expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_probe_stmt(ctx: *mut Ctx, stmt: u32) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid for this call; the only \
+                  thing that can panic here is the allocator, which aborts \
+                  rather than unwinding into the JIT frame above"
+    )]
+    let ctx = unsafe { &mut *ctx };
+
+    if ctx.debug.contains(DebugFlags::COVERAGE) {
+        ctx.record_stmt_hit(stmt);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -337,6 +411,55 @@ mod tests {
             assert_eq!(status, crate::FATAL);
             assert_eq!(ctx.pending(), Some(message));
         }
+    }
+
+    #[test]
+    fn a_probe_with_coverage_off_records_nothing() {
+        let mut ctx = Ctx::buffered();
+        for stmt in 0..4 {
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+            unsafe {
+                mwl_probe_stmt(&raw mut ctx, stmt);
+            }
+        }
+        assert!(ctx.stmt_hits().is_empty());
+    }
+
+    #[test]
+    fn a_probe_counts_a_hit_per_statement_once_coverage_is_on() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        for stmt in [2_u32, 0, 2] {
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+            unsafe {
+                mwl_probe_stmt(&raw mut ctx, stmt);
+            }
+        }
+        // Statement 1 never ran; 2 ran twice. The table is dense, so an
+        // unexecuted statement between two executed ones reads back as zero
+        // rather than as absent.
+        assert_eq!(ctx.stmt_hits(), [1, 0, 2]);
+    }
+
+    #[test]
+    fn coverage_can_be_turned_on_and_off_mid_request() {
+        // ADR 0018's whole argument for a runtime-checked flag over a second
+        // compiled tier: a harness brackets one test inside a running request.
+        let mut ctx = Ctx::buffered();
+        let probe = |ctx: &mut Ctx, stmt: u32| {
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+            unsafe {
+                mwl_probe_stmt(&raw mut *ctx, stmt);
+            }
+        };
+
+        probe(&mut ctx, 0);
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        probe(&mut ctx, 1);
+        ctx.set_debug_flags(DebugFlags::empty());
+        probe(&mut ctx, 2);
+
+        assert_eq!(ctx.stmt_hits(), [0, 1]);
     }
 
     #[test]

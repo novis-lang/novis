@@ -46,7 +46,8 @@
 //! * the [`SafepointFlags`] word and `mwl_safepoint` slow path backing
 //!   `mwl_ir::InstKind::Safepoint`, and the [`DebugFlags`] word
 //!   [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-//!   § 1's probe sites check;
+//!   § 1's probe sites check, with [`mwl_probe_stmt`] as the
+//!   statement-boundary probe's slow path;
 //! * nine of the ten `mwl_ir::Helper` variants — see [`helpers`].
 //!
 //! ## Known gaps
@@ -92,7 +93,7 @@ mod value;
 pub use abi::{FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, call, run_helper};
 pub use ctx::{
     Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, OutputSink, SAFEPOINT_OFFSET, SafepointFlags,
-    mwl_safepoint,
+    mwl_probe_stmt, mwl_safepoint,
 };
 pub use fmt::php_float_to_string;
 pub use helpers::symbols;
