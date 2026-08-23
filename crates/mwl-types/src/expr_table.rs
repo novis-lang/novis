@@ -159,6 +159,7 @@ pub enum ExprInfo {
 pub struct ExprTypeTable {
     entries: Vec<ExprInfo>,
     by_span: FxHashMap<Span, ExprId>,
+    methods: FxHashMap<Span, String>,
 }
 
 impl ExprTypeTable {
@@ -198,6 +199,30 @@ impl ExprTypeTable {
         self.by_span
             .get(&span)
             .map(|id| &self.entries[id.0 as usize])
+    }
+
+    /// Records the `Class::method` label of the method *declaration* whose
+    /// own name sits at `span`. See [`Self::method_label`] for why a
+    /// declaration is recorded in a table otherwise about expressions.
+    pub(crate) fn record_method(&mut self, span: Span, label: String) {
+        self.methods.insert(span, label);
+    }
+
+    /// The `Class::method` label of the method declaration whose name sits at
+    /// `span` — the *definition* side of the same label [`ResolvedCall`]
+    /// renders on the *call* side.
+    ///
+    /// This is the one entry here keyed by a declaration rather than an
+    /// expression, and it is deliberate: the label has to be spelled from a
+    /// fully-resolved [`QName`], and `mwl-ir` — which names the function it
+    /// lowers — cannot compute one, because it does not depend on `mwl-hir`
+    /// at all (see `mwl_ir::lower`'s module docs). Recording it here, at the
+    /// point [`crate::check`] already holds the class's `QName`, is what
+    /// makes a call's `target` and its callee's name agree *by construction*
+    /// rather than by two crates spelling a namespace the same way.
+    #[must_use]
+    pub fn method_label(&self, span: Span) -> Option<&str> {
+        self.methods.get(&span).map(String::as_str)
     }
 }
 

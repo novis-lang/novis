@@ -46,8 +46,8 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MethodMember, NamespaceDecl, Stmt, StmtKind,
-    StringPart, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    AssignOp, BinaryOp, CallArgs, ClassMemberKind, Expr, ExprKind, MethodMember, NamespaceDecl,
+    Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
@@ -83,6 +83,80 @@ struct LoopFrame {
     /// One `(block, env)` pair per `break` lowered inside this loop's body,
     /// in source order.
     break_edges: Vec<(BlockId, Env)>,
+}
+
+/// Lowers a whole checked file: every class method that has a body, plus the
+/// file's own top-level statements as one script frame named `script`.
+///
+/// This is what a caller with a file in hand wants — [`lower_method`] and
+/// [`lower_script`] stay public for the narrower "lower exactly this one
+/// thing" cases the tests use.
+///
+/// Each method is named with the `Class::method` label
+/// `mwl_types::expr_table::ExprTypeTable::method_label` recorded for its
+/// declaration, which is the *same* label a call's
+/// [`InstKind::Call::target`](crate::ir::InstKind::Call) is rendered from —
+/// see that accessor's own doc comment for why the label is spelled in
+/// `mwl-types` rather than here. A method whose declaration has no recorded
+/// label is skipped: nothing can call it by a name that was never resolved,
+/// so lowering it would only produce an unreachable function.
+///
+/// Interfaces and enums are not walked. An `interface` method may carry a
+/// body ([ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)),
+/// but reaching one needs the `by`-delegation resolution and the dispatch
+/// that land with M4's object model; there is nothing to call it from today.
+///
+/// # Panics
+///
+/// The same way [`lower_method`]/[`lower_script`] do — naming the shape this
+/// slice does not lower. See [`lower_method`]'s own note.
+#[must_use]
+pub fn lower_file(
+    script: &str,
+    stmts: &[Stmt],
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> crate::ir::Program {
+    fn walk(
+        stmts: &[Stmt],
+        src: &SourceFile,
+        exprs: &ExprTypeTable,
+        checked_types: &TypeInterner,
+        out: &mut Vec<Function>,
+    ) {
+        for stmt in stmts {
+            match &stmt.kind {
+                // A namespace scopes names, not storage — the label each
+                // method is lowered under already carries the resolved
+                // namespace, so this walk only has to reach the declarations
+                // inside the block.
+                StmtKind::NamespaceDecl(NamespaceDecl {
+                    body: Some(block), ..
+                }) => walk(&block.stmts, src, exprs, checked_types, out),
+                StmtKind::ClassDecl(decl) => {
+                    for member in &decl.members {
+                        let ClassMemberKind::Method(m) = &member.kind else {
+                            continue;
+                        };
+                        if m.body.is_none() {
+                            continue; // `abstract` — nothing to lower
+                        }
+                        let Some(label) = exprs.method_label(m.name) else {
+                            continue;
+                        };
+                        out.push(lower_method(label, m, src, exprs, checked_types));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    let mut functions = Vec::new();
+    walk(stmts, src, exprs, checked_types, &mut functions);
+    functions.push(lower_script(script, stmts, src, exprs, checked_types));
+    crate::ir::Program { functions }
 }
 
 /// Lowers `m` — which must have a body, and whose body must stay within this

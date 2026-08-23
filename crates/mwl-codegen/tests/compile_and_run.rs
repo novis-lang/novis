@@ -13,8 +13,8 @@
 use mwl_diagnostics::{Diagnostics, SourceMap};
 use mwl_runtime::{Ctx, DebugFlags, FATAL, SafepointFlags, Value, call};
 
-/// Compiles one file's script frame, returning the unit or the first thing
-/// that refused it.
+/// Compiles a whole file, returning the unit or the first thing that refused
+/// it.
 ///
 /// Front-end diagnostics are a panic rather than an error: every fixture below
 /// is meant to type-check, so a diagnostic is a broken fixture, not an outcome
@@ -23,8 +23,8 @@ fn compile(source: &str) -> Result<mwl_codegen::Unit, mwl_codegen::CodegenError>
     mwl_codegen::compile(&lower(source))
 }
 
-/// Runs the whole front end over `source` and lowers its script frame, without
-/// compiling it.
+/// Runs the whole front end over `source` and lowers it — every class method
+/// plus the script frame — without compiling it.
 fn lower(source: &str) -> mwl_ir::Program {
     let mut map = SourceMap::new();
     let id = map.add("test.mwl", source);
@@ -42,11 +42,7 @@ fn lower(source: &str) -> mwl_ir::Program {
         diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
     );
 
-    mwl_ir::Program {
-        functions: vec![mwl_ir::lower::lower_script(
-            "<script>", &stmts, src, &exprs, &interner,
-        )],
-    }
+    mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner)
 }
 
 /// Compiles and runs `source` against `ctx`, returning the compiled status.
@@ -178,6 +174,75 @@ fn coverage_counts_a_looping_statement_once_per_iteration() {
     // s3 the body's one statement — the body's two run twice, the two before
     // the loop once each.
     assert_eq!(ctx.stmt_hits(), [1, 1, 2, 2]);
+}
+
+/// The `examples/calls.mwl` acceptance fixture, as an inline source string.
+const CALLS: &str = "<?mwl
+class Math {
+    public static function double(int $n): int {
+        return $n * 2;
+    }
+
+    public static function quadruple(int $n): int {
+        return Math::double(Math::double($n));
+    }
+}
+
+echo \"quadruple(5) = \" . Math::quadruple(5) . \"\\n\";
+";
+
+#[test]
+fn a_static_call_reaches_its_callee_and_brings_a_value_back() {
+    assert_eq!(output_of(CALLS), "quadruple(5) = 20\n");
+}
+
+#[test]
+fn a_call_resolves_a_callee_declared_after_it() {
+    // The declare-then-define pass is what makes this work: `first` names
+    // `second`, which the unit only declares later in source order.
+    assert_eq!(
+        output_of(
+            "<?mwl\nclass C {\n    public static function first(): int {\n        return C::second() + 1;\n    }\n    public static function second(): int {\n        return 41;\n    }\n}\necho C::first();\n"
+        ),
+        "42"
+    );
+}
+
+#[test]
+fn a_recursive_call_terminates_and_returns_the_right_value() {
+    assert_eq!(
+        output_of(
+            "<?mwl\nclass F {\n    public static function fact(int $n): int {\n        if ($n < 2) {\n            return 1;\n        }\n        return $n * F::fact($n - 1);\n    }\n}\necho F::fact(10);\n"
+        ),
+        "3628800"
+    );
+}
+
+#[test]
+fn a_callee_that_stops_the_request_stops_its_caller_too() {
+    // ADR 0002's compare-and-branch doing its job across an MWL-level frame:
+    // the callee's entry safepoint refuses, and the status travels up through
+    // the caller unchanged rather than being swallowed at the call site.
+    let mut ctx = Ctx::buffered();
+    ctx.request_safepoint(SafepointFlags::CPU_LIMIT);
+    let status = run_with(&mut ctx, CALLS).unwrap_err();
+
+    assert_eq!(status, FATAL);
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b""[..]));
+}
+
+#[test]
+fn every_lowered_method_is_compiled_under_its_class_qualified_name() {
+    // The label a call's target is rendered from and the name its callee is
+    // compiled under are the same string by construction — see
+    // `mwl_types::expr_table::ExprTypeTable::method_label`. A namespace is
+    // where the two would drift apart if they were spelled twice.
+    let unit = compile(
+        "<?mwl\nnamespace App;\nclass Math {\n    public static function id(int $n): int {\n        return $n;\n    }\n}\necho \\App\\Math::id(7);\n",
+    )
+    .expect("the fixture compiles");
+    assert!(unit.function("App\\Math::id").is_some(), "{unit:?}");
+    assert!(unit.function("<script>").is_some(), "{unit:?}");
 }
 
 #[test]

@@ -27,7 +27,7 @@
 
 use cranelift::prelude::*;
 use cranelift_jit::JITModule;
-use cranelift_module::{DataDescription, Linkage, Module};
+use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use mwl_ir::Ty;
 use mwl_ir::ids::{BlockId, ValueId};
 use mwl_ir::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
@@ -68,6 +68,7 @@ pub(crate) fn emit_function(
     ctx: &mut codegen::Context,
     fn_ctx: &mut FunctionBuilderContext,
     sigs: &Signatures,
+    functions: &FxHashMap<String, FuncId>,
     literals: &mut usize,
     f: &Function,
 ) -> Result<(), CodegenError> {
@@ -110,12 +111,14 @@ pub(crate) fn emit_function(
         b,
         module,
         sigs,
+        functions,
         literals,
         f,
         values: FxHashMap::default(),
         blocks,
         phi_counts,
         frefs: FxHashMap::default(),
+        callee_refs: FxHashMap::default(),
         ctx_p,
         args_p,
         out_p,
@@ -153,6 +156,10 @@ struct Emitter<'a, 'f> {
     b: FunctionBuilder<'f>,
     module: &'a mut JITModule,
     sigs: &'a Signatures,
+    /// Every function the unit defines, by MWL name — see
+    /// [`crate::Jit::compile_all`] for why it is complete before any body is
+    /// emitted.
+    functions: &'a FxHashMap<String, FuncId>,
     literals: &'a mut usize,
     f: &'a Function,
     /// Every SSA value defined so far, with the representation it was defined
@@ -162,6 +169,8 @@ struct Emitter<'a, 'f> {
     blocks: FxHashMap<u32, Block>,
     phi_counts: FxHashMap<u32, usize>,
     frefs: FxHashMap<&'static str, codegen::ir::FuncRef>,
+    /// The same cache as `frefs`, for the unit's *own* functions.
+    callee_refs: FxHashMap<String, codegen::ir::FuncRef>,
     ctx_p: Value,
     args_p: Value,
     out_p: Value,
@@ -269,6 +278,13 @@ impl Emitter<'_, '_> {
             }
             InstKind::HelperCall { helper, args } => {
                 return self.emit_helper(cur, inst, *helper, args);
+            }
+            InstKind::Call {
+                target,
+                receiver,
+                args,
+            } => {
+                return self.emit_call(cur, inst, target, *receiver, args);
             }
             InstKind::Concat { lhs, rhs } => {
                 let value = self.emit_concat(*lhs, *rhs)?;
@@ -549,6 +565,98 @@ impl Emitter<'_, '_> {
         }
         let _ = cur;
         Ok(cont)
+    }
+
+    /// One MWL-level call, in ADR 0002's shape.
+    ///
+    /// Structurally identical to [`Self::emit_helper`] — arguments
+    /// materialized into a stack slot of 16-byte [`mwl_runtime::Value`]s, a
+    /// second slot for the result, the compare-and-branch on the returned
+    /// status — and deliberately so: ADR 0002 makes one calling convention
+    /// normative for *every* call, so a runtime helper and a compiled MWL
+    /// method differ here only in which `FuncRef` is called.
+    ///
+    /// # The receiver slot
+    ///
+    /// `mwl_ir::lower::lower_method` gives every lowered method an implicit
+    /// receiver at parameter index 0, whether or not its body reads `$this`
+    /// (see `Function::params`' own doc comment). So argument slot 0 always
+    /// exists, and a static call — which has no receiver value at all — fills
+    /// it with `null`. A method that is *not* static reaches its receiver
+    /// through this same slot, which is why an instance call is refused here
+    /// rather than passed a null: it needs the object representation M4 adds,
+    /// and handing it `null` would be a wrong answer rather than a refusal.
+    fn emit_call(
+        &mut self,
+        cur: Block,
+        inst: &Inst,
+        target: &str,
+        receiver: Option<ValueId>,
+        args: &[ValueId],
+    ) -> Result<Block, CodegenError> {
+        if receiver.is_some() {
+            return Err(CodegenError::Unsupported(
+                "an instance method call, which needs the object \
+                 representation and the dispatch M4 adds"
+                    .to_owned(),
+            ));
+        }
+        let callee = self.callee_ref(target)?;
+
+        // One slot per argument, plus the implicit receiver at index 0.
+        let count =
+            i32::try_from(args.len() + 1).map_err(|_| internal("a call past i32 arguments"))?;
+        let slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            (count * VALUE_SIZE).cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let args_p = self.b.ins().stack_addr(types::I64, slot, 0);
+        self.store_tag_and_bits(args_p, 0, Tag::Null, None)?;
+        for (index, arg) in args.iter().enumerate() {
+            let (value, ty) = self.value(*arg)?;
+            let offset = i32::try_from(index + 1)
+                .map_err(|_| internal("a call past i32 arguments"))?
+                * VALUE_SIZE;
+            self.store_value(args_p, offset, value, ty)?;
+        }
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+
+        let call = self.b.ins().call(callee, &[self.ctx_p, args_p, out_p]);
+        let status = self.b.inst_results(call)[0];
+        let cont = self.emit_status_check(status)?;
+
+        if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
+            let value = self.load_value(out_p, 0, ty)?;
+            self.define(inst, value)?;
+        }
+        let _ = cur;
+        Ok(cont)
+    }
+
+    /// A [`codegen::ir::FuncRef`] for one of the unit's own functions, cached
+    /// per emitted function the same way [`Self::runtime_ref`] caches an
+    /// import.
+    fn callee_ref(&mut self, target: &str) -> Result<codegen::ir::FuncRef, CodegenError> {
+        if let Some(reference) = self.callee_refs.get(target) {
+            return Ok(*reference);
+        }
+        let id = *self
+            .functions
+            .get(target)
+            .ok_or_else(|| CodegenError::UnknownTarget {
+                caller: self.f.name.clone(),
+                target: target.to_owned(),
+            })?;
+        let reference = self.module.declare_func_in_func(id, self.b.func);
+        self.callee_refs.insert(target.to_owned(), reference);
+        Ok(reference)
     }
 
     /// `.` concatenation: one call to `mwl_str_concat`, which allocates the

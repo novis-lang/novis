@@ -200,6 +200,15 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
 }
 
 fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    // Recorded before the abstract/interface early return: a declaration with
+    // no body still has a label, and nothing here needs a body to spell one.
+    // See `ExprTypeTable::method_label` for why the definition side of the
+    // label is recorded at all.
+    if let Some(class) = ctx.current_class {
+        env.exprs
+            .record_method(m.name, format!("{class}::{}", span_text(env.src, m.name)));
+    }
+
     let Some(body) = &m.body else {
         return; // abstract method or interface signature — nothing to check
     };

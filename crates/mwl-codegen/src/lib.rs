@@ -57,16 +57,16 @@
 //! requires, and each gap below is a missing *lowering*, not a missing
 //! decision:
 //!
-//! 1. **No MWL-level call.** [`mwl_ir::ir::InstKind::Call`]/`New`/`FieldGet`/
-//!    `FieldSet`/`ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` all report
-//!    [`CodegenError::Unsupported`] naming the instruction. `Call` needs a
-//!    symbol table over the unit's own functions; the rest need an
-//!    object/array representation for their operands, which does not exist.
-//! 2. **ADR 0018's call-site probe is not emitted**, because there is no
-//!    compiled call site to attach it to. Its `TRACE`/`PROFILE` entry/exit
-//!    pair lands in [`emit::Emitter::emit_call`]'s single path together with
-//!    item 1, which is exactly where that ADR says it belongs. The
-//!    statement-boundary probe, which does have sites today, is emitted.
+//! 1. **No object or array representation.** [`mwl_ir::ir::InstKind::New`]/
+//!    `FieldGet`/`FieldSet`/`ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend`
+//!    all report [`CodegenError::Unsupported`] naming the instruction, and an
+//!    *instance* [`mwl_ir::ir::InstKind::Call`] — one with a receiver — is
+//!    refused for the same reason. A static call is compiled; see
+//!    [`emit::Emitter::emit_call`] for the receiver slot a static call fills
+//!    with `null`.
+//! 2. **ADR 0018's call-site probe is not emitted yet.** Its `TRACE`/
+//!    `PROFILE` entry/exit pair belongs in [`emit::Emitter::emit_call`]'s
+//!    single path, which now exists. The statement-boundary probe is emitted.
 //! 3. **The error path leaks.** A non-`OK` status returns immediately without
 //!    releasing the refcounted locals still live in the frame.
 //!    [`mwl_ir`] itself does not model an error edge yet (see
@@ -119,6 +119,18 @@ pub enum CodegenError {
         function: String,
         /// What Cranelift reported.
         source: Box<ModuleError>,
+    },
+    /// A call naming a function this compilation unit does not define.
+    ///
+    /// Always an engine bug rather than a user error: `mwl_types` resolved
+    /// the target before lowering ever rendered its label, so a unit that
+    /// contains the call and not the callee was assembled wrong.
+    #[error("internal error: `{caller}` calls `{target}`, which this unit does not define")]
+    UnknownTarget {
+        /// The MWL function containing the call.
+        caller: String,
+        /// The `"Class::method"` label it named.
+        target: String,
     },
     /// The host machine cannot run a Cranelift JIT at all.
     #[error("this host is not a supported cranelift target: {0}")]
@@ -173,9 +185,7 @@ impl Unit {
 /// for.
 pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
     let mut jit = Jit::new(None)?;
-    for (index, function) in program.functions.iter().enumerate() {
-        jit.compile_function(index, function)?;
-    }
+    jit.compile_all(program)?;
     jit.finish()
 }
 
@@ -193,9 +203,7 @@ pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
 /// The same three cases [`compile`] reports, for the same reasons.
 pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
     let mut jit = Jit::new(Some(String::new()))?;
-    for (index, function) in program.functions.iter().enumerate() {
-        jit.compile_function(index, function)?;
-    }
+    jit.compile_all(program)?;
     // `finish` still has to run: `finalize_definitions` is what resolves the
     // relocations, and a unit that cannot be linked is not a unit whose
     // disassembly should be reported as if it were fine.
@@ -211,6 +219,12 @@ struct Jit {
     ctx: codegen::Context,
     fn_ctx: FunctionBuilderContext,
     sigs: Signatures,
+    /// Every function this unit defines, by its MWL name — the table
+    /// `mwl_ir::ir::InstKind::Call`'s `"Class::method"` target is resolved
+    /// through. Filled in a declaration pass over the whole program before
+    /// any body is emitted, so a call may name a function defined later in
+    /// the unit (or itself).
+    functions: FxHashMap<String, cranelift_module::FuncId>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     literals: usize,
     entries: Vec<(String, cranelift_module::FuncId)>,
@@ -277,29 +291,53 @@ impl Jit {
             fn_ctx: FunctionBuilderContext::new(),
             module,
             sigs,
+            functions: FxHashMap::default(),
             literals: 0,
             entries: Vec::new(),
             disasm,
         })
     }
 
-    /// Compiles one function. `index` only disambiguates the Cranelift symbol
-    /// name: an MWL function name is not a valid symbol (`<script>` is the
-    /// first counter-example), and two classes may declare the same method
-    /// name.
-    fn compile_function(
-        &mut self,
-        index: usize,
-        function: &mwl_ir::Function,
-    ) -> Result<(), CodegenError> {
-        let symbol = format!("mwl{index}_{}", sanitize(&function.name));
-        let id = self
-            .module
-            .declare_function(&symbol, Linkage::Local, &self.sigs.helper)
-            .map_err(|source| CodegenError::Cranelift {
-                function: function.name.clone(),
-                source: Box::new(source),
-            })?;
+    /// Declares every function in `program`, then emits every body.
+    ///
+    /// The two passes are why a call can name a function declared further
+    /// down the file, or itself: by the time any body is emitted, every MWL
+    /// name in the unit already has a `FuncId` for `emit_call` to resolve
+    /// against. Cranelift is fine with a call to a declared-but-not-yet-
+    /// defined function; `finalize_definitions` is what would object if one
+    /// were never defined.
+    fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
+        for (index, function) in program.functions.iter().enumerate() {
+            // `index` only disambiguates the Cranelift symbol name: an MWL
+            // function name is not a valid symbol (`<script>` is the first
+            // counter-example), and two classes may declare the same method
+            // name.
+            let symbol = format!("mwl{index}_{}", sanitize(&function.name));
+            let id = self
+                .module
+                .declare_function(&symbol, Linkage::Local, &self.sigs.helper)
+                .map_err(|source| CodegenError::Cranelift {
+                    function: function.name.clone(),
+                    source: Box::new(source),
+                })?;
+            self.functions.insert(function.name.clone(), id);
+        }
+        for function in &program.functions {
+            self.compile_function(function)?;
+        }
+        Ok(())
+    }
+
+    /// Emits one already-declared function's body.
+    fn compile_function(&mut self, function: &mwl_ir::Function) -> Result<(), CodegenError> {
+        let id =
+            *self
+                .functions
+                .get(&function.name)
+                .ok_or_else(|| CodegenError::UnknownTarget {
+                    caller: "<unit>".to_owned(),
+                    target: function.name.clone(),
+                })?;
 
         self.ctx.func.signature = self.sigs.helper.clone();
         // Must be set per function: `Module::clear_context` resets it along
@@ -310,6 +348,7 @@ impl Jit {
             &mut self.ctx,
             &mut self.fn_ctx,
             &self.sigs,
+            &self.functions,
             &mut self.literals,
             function,
         );

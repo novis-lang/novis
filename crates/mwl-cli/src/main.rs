@@ -16,12 +16,11 @@
 //!
 //! ## What `run` executes
 //!
-//! One synthesized frame: the file's own top-level statements, lowered by
-//! `mwl_ir::lower::lower_script` — [ADR 0008](../../../docs/adr/0008-static-and-global.md)
-//! § 2's "the script body is a function, so its variables are locals". A
-//! class's methods are *not* compiled alongside it yet, and nothing is lost by
-//! that today: `mwl-codegen` does not lower a call, so no method is reachable.
-//! Both halves land together.
+//! The whole file, through `mwl_ir::lower::lower_file`: every class method
+//! with a body, plus one synthesized frame for the file's own top-level
+//! statements — [ADR 0008](../../../docs/adr/0008-static-and-global.md) § 2's
+//! "the script body is a function, so its variables are locals". That frame is
+//! the entry point; the methods are reachable from it by name.
 
 #![allow(
     clippy::print_stdout,
@@ -183,7 +182,7 @@ fn run_run(path: &std::path::Path, dump_ir: bool, dump_asm: bool) -> ExitCode {
     };
     let src = checked.map.file(checked.id);
 
-    let script = mwl_ir::lower::lower_script(
+    let program = mwl_ir::lower::lower_file(
         SCRIPT,
         &checked.stmts,
         src,
@@ -191,13 +190,12 @@ fn run_run(path: &std::path::Path, dump_ir: bool, dump_asm: bool) -> ExitCode {
         &checked.interner,
     );
     if dump_ir {
-        print!("{}", mwl_ir::print::print_function(&script, src));
+        for function in &program.functions {
+            print!("{}", mwl_ir::print::print_function(function, src));
+        }
         return ExitCode::SUCCESS;
     }
 
-    let program = mwl_ir::Program {
-        functions: vec![script],
-    };
     if dump_asm {
         // Deliberately the same compile `run` performs, disassembled rather
         // than a second differently-configured one — see
