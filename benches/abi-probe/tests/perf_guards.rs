@@ -147,6 +147,86 @@ fn a_coroutine_round_trip_stays_cheap() {
     );
 }
 
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
+    // ADR 0018 § 1's whole argument for a runtime-checked flag over a second
+    // compiled tier rests on this: the check is emitted at every statement
+    // boundary of every compiled unit, whether or not any request ever sets a
+    // bit, so its all-bits-off cost has to be the same cost class already
+    // accepted for the safepoint poll — one cached load and one
+    // predicted-not-taken branch. If it is not, that ADR's *Revisiting*
+    // section says the fix is coarsening the probe site to one per basic
+    // block, not loosening this number.
+    //
+    // The threshold is stated against `a_checked_return_frame_stays_cheap`'s
+    // own guard: a probe site does strictly less than a frame (no call, no
+    // 16-byte result copy, no status check), so anything at or above a
+    // frame's guarded cost means the check has acquired real work.
+    const MAX_NS_PER_PROBE: f64 = 5.0;
+    const DEPTH: usize = 8;
+    const STMTS_PER_FRAME: usize = 16;
+
+    let mut probe = Probe::new();
+    // Same depth, same statement count, same stores — the two chains differ
+    // by exactly the flag checks. See `compile_probe_chain`'s own docs for
+    // why the statements store something rather than being empty.
+    let plain = probe.compile_probe_chain(DEPTH, Helper::Double, STMTS_PER_FRAME, false);
+    let probed = probe.compile_probe_chain(DEPTH, Helper::Double, STMTS_PER_FRAME, true);
+    let mut ctx = Ctx::new();
+    let arg = Value::int(3);
+
+    let t_plain = ns_per_op(200_000, 5, || {
+        black_box(call(plain, &mut ctx, arg));
+    });
+    let t_probed = ns_per_op(200_000, 5, || {
+        black_box(call(probed, &mut ctx, arg));
+    });
+
+    // Nothing set a bit, so no site may have reached its slow path.
+    assert_eq!(
+        ctx.probe_hits, 0,
+        "a probe fired with every debug flag off, which would make the \
+         measurement meaningless"
+    );
+
+    let sites = (DEPTH * STMTS_PER_FRAME) as f64;
+    let per_probe = (t_probed - t_plain) / sites;
+    println!(
+        "all-bits-off debug probe: {per_probe:.3} ns per site \
+         ({sites} sites, {t_probed:.1} ns vs {t_plain:.1} ns)"
+    );
+
+    assert!(
+        per_probe < MAX_NS_PER_PROBE,
+        "an all-bits-off ADR 0018 probe site now costs {per_probe:.3} ns, over \
+         the {MAX_NS_PER_PROBE} ns guard. That check is emitted at every \
+         statement boundary of every compiled unit; if this is real, ADR 0018 \
+         § Revisiting says to coarsen the probe site, not to raise this bound."
+    );
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_probe_that_is_switched_on_mid_flight_actually_fires() {
+    // The other half of the same claim, and the reason the cost above is
+    // worth paying: setting the word on a context is the entire mechanism, so
+    // already-compiled code has to start reporting with no recompilation.
+    const DEPTH: usize = 2;
+    const STMTS_PER_FRAME: usize = 4;
+
+    let mut probe = Probe::new();
+    let probed = probe.compile_probe_chain(DEPTH, Helper::Double, STMTS_PER_FRAME, true);
+    let mut ctx = Ctx::new();
+
+    call(probed, &mut ctx, Value::int(3));
+    assert_eq!(ctx.probe_hits, 0);
+
+    ctx.debug_flags = 1;
+    call(probed, &mut ctx, Value::int(3));
+    assert_eq!(ctx.probe_hits, (DEPTH * STMTS_PER_FRAME) as u64);
+}
+
 // ---------------------------------------------------------------------------
 // Extension sandbox
 // ---------------------------------------------------------------------------

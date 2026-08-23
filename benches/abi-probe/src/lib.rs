@@ -121,7 +121,26 @@ pub struct Ctx {
     pub helper_calls: u64,
     /// How many times a helper suspended the coroutine.
     pub suspends: u64,
+    /// Stands in for the real runtime's debug-flags word
+    /// ([ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// § 1) and, by the same shape, its safepoint word: compiled code loads
+    /// it and branches on non-zero at every probe site. Left zero throughout,
+    /// because the number being guarded is the all-bits-*off* cost.
+    pub debug_flags: u64,
+    /// Written by each statement-shaped store in a probe chain — see
+    /// [`Probe::compile_probe_chain`] for why the chains store anything at
+    /// all.
+    pub scratch: u64,
+    /// How many times a probe site's slow path ran. Zero in the measurement;
+    /// non-zero only when a test deliberately sets [`Self::debug_flags`].
+    pub probe_hits: u64,
 }
+
+/// Byte offset of [`Ctx::debug_flags`] — the word a probe site loads.
+pub const DEBUG_FLAGS_OFFSET: i32 = std::mem::offset_of!(Ctx, debug_flags) as i32;
+
+/// Byte offset of [`Ctx::scratch`] — where a statement-shaped store lands.
+pub const SCRATCH_OFFSET: i32 = std::mem::offset_of!(Ctx, scratch) as i32;
 
 impl Ctx {
     /// A context with no coroutine attached.
@@ -132,6 +151,9 @@ impl Ctx {
             pending: None,
             helper_calls: 0,
             suspends: 0,
+            debug_flags: 0,
+            scratch: 0,
+            probe_hits: 0,
         }
     }
 
@@ -140,6 +162,8 @@ impl Ctx {
         self.pending = None;
         self.helper_calls = 0;
         self.suspends = 0;
+        self.scratch = 0;
+        self.probe_hits = 0;
     }
 }
 
@@ -299,6 +323,38 @@ probe_helper! {
     }
 }
 
+/// The slow path behind an [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1 probe site — the shape `mwl_runtime::mwl_probe_stmt` has, reduced to
+/// the one thing this probe needs to observe.
+///
+/// It returns nothing: a coverage probe cannot fail, so unlike a helper there
+/// is no status for the site to check, and unlike a safepoint there is no stop
+/// to propagate. That asymmetry is deliberate and is what makes a probe site
+/// strictly cheaper than a poll — which is why the guard threshold is stated
+/// against the poll's cost class rather than the poll's exact number.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned and valid for the duration of the call.
+/// Compiled code satisfies this by construction.
+#[allow(
+    unsafe_code,
+    reason = "the probe signature is fixed by what codegen emits; the pointer \
+              contract cannot be expressed in the type"
+)]
+pub unsafe extern "C" fn probe_stmt(ctx: *mut Ctx, _stmt: u32) {
+    #[allow(
+        unsafe_code,
+        reason = "codegen guarantees the context pointer is live for the call"
+    )]
+    // SAFETY: reached only from compiled code, which always passes a live
+    // request context. Nothing here can panic, so no `catch_unwind` is needed
+    // to keep an unwind out of the JIT frame above.
+    unsafe {
+        (*ctx).probe_hits += 1;
+    }
+}
+
 /// Which helper sits at the bottom of a compiled chain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Helper {
@@ -366,6 +422,7 @@ impl Probe {
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
         builder.symbol(Helper::Double.symbol(), probe_double as *const u8);
         builder.symbol(Helper::Suspend.symbol(), probe_suspend as *const u8);
+        builder.symbol("probe_stmt", probe_stmt as *const u8);
 
         let module = JITModule::new(builder);
         Self {
@@ -387,6 +444,14 @@ impl Probe {
         sig
     }
 
+    /// [`probe_stmt`]'s signature: `(ctx, stmt_id)`, no return.
+    fn probe_signature(&self) -> Signature {
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64)); // ctx
+        sig.params.push(AbiParam::new(types::I32)); // stmt id
+        sig
+    }
+
     /// Compiles `depth` nested frames whose innermost call target is `helper`,
     /// and returns the outermost.
     ///
@@ -400,8 +465,45 @@ impl Probe {
     /// Panics if `depth` is 0, or if Cranelift rejects the generated IR, which
     /// would be a bug in this harness.
     pub fn compile_chain(&mut self, depth: usize, helper: Helper) -> MwlFn {
+        self.compile_probe_chain(depth, helper, 0, false)
+    }
+
+    /// [`Self::compile_chain`], with `stmts` statement-shaped stores in each
+    /// frame ahead of its call, each optionally preceded by
+    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// § 1's debug-flags check: load one word out of the context, branch on
+    /// non-zero, fall through to the next statement.
+    ///
+    /// # Why a store, and not just the check
+    ///
+    /// Measuring the check means compiling the same chain twice and
+    /// subtracting, and that only works if the two chains differ by exactly
+    /// the check. A chain of bare, back-to-back loads of one address with
+    /// nothing in between is not what real code looks like, and Cranelift's
+    /// alias analysis would be entitled to collapse them into one — which
+    /// would measure a single load however many probe sites were asked for.
+    /// A statement that *does something* is both more faithful and what makes
+    /// the load unavoidable: a store through the context pointer is exactly
+    /// the kind of write that may alias the flags word, so each site's load
+    /// stands. Both chains pay for the stores; the difference is the checks.
+    ///
+    /// # Panics
+    ///
+    /// See [`Self::compile_chain`].
+    pub fn compile_probe_chain(
+        &mut self,
+        depth: usize,
+        helper: Helper,
+        stmts: usize,
+        probe: bool,
+    ) -> MwlFn {
         assert!(depth > 0, "a chain needs at least one frame");
         let sig = self.signature();
+        let probe_sig = self.probe_signature();
+        let probe_id: FuncId = self
+            .module
+            .declare_function("probe_stmt", Linkage::Import, &probe_sig)
+            .expect("failed to declare the probe import");
         let seq = self.seq;
         self.seq += 1;
 
@@ -420,6 +522,7 @@ impl Probe {
             {
                 let mut b = FunctionBuilder::new(&mut self.ctx.func, &mut self.fn_ctx);
                 let callee_ref = self.module.declare_func_in_func(callee, b.func);
+                let probe_ref = self.module.declare_func_in_func(probe_id, b.func);
 
                 let entry = b.create_block();
                 let ok_block = b.create_block();
@@ -438,6 +541,41 @@ impl Probe {
                 let ctx_p = b.block_params(entry)[0];
                 let arg_p = b.block_params(entry)[1];
                 let out_p = b.block_params(entry)[2];
+
+                // The statement-shaped run this frame performs before its
+                // call — see this method's own doc comment.
+                for stmt in 0..stmts {
+                    if probe {
+                        // ADR 0018 § 1's site, exactly as `mwl-codegen` emits
+                        // it: one load of the context's flags word, one
+                        // branch predicted not taken, and an out-of-line call
+                        // that never runs while every bit is off. `MemFlags`
+                        // deliberately carries only `notrap` — the word is
+                        // written from outside this frame, so nothing may
+                        // treat the load as redundant.
+                        let flags = b.ins().load(
+                            types::I64,
+                            MemFlags::new().with_notrap(),
+                            ctx_p,
+                            DEBUG_FLAGS_OFFSET,
+                        );
+                        let slow = b.create_block();
+                        let cont = b.create_block();
+                        b.ins().brif(flags, slow, &[], cont, &[]);
+
+                        b.switch_to_block(slow);
+                        b.seal_block(slow);
+                        let id = b.ins().iconst(types::I32, stmt as i64);
+                        b.ins().call(probe_ref, &[ctx_p, id]);
+                        b.ins().jump(cont, &[]);
+
+                        b.switch_to_block(cont);
+                        b.seal_block(cont);
+                    }
+                    let value = b.ins().iconst(types::I64, stmt as i64);
+                    b.ins()
+                        .store(MemFlags::trusted(), value, ctx_p, SCRATCH_OFFSET);
+                }
 
                 let tmp_p = b.ins().stack_addr(types::I64, slot, 0);
                 let call = b.ins().call(callee_ref, &[ctx_p, arg_p, tmp_p]);
