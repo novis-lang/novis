@@ -141,7 +141,10 @@ pub enum Ty {
     /// same representation would be its own decision (they are narrower than
     /// fully-erased `mixed`, and `null`'s own IR representation is a
     /// separate, still-open gap named elsewhere in this crate) rather than a
-    /// mechanical extension of it.
+    /// mechanical extension of it. The one position where a union is
+    /// nonetheless lowerable is a `Core` member's *parameter*, and it is
+    /// lowerable precisely because it never reaches this variant at all —
+    /// see [`crate::lower::ArgSig::helper`].
     Mixed,
     /// An enum value — [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)'s
     /// closed, named integer type.

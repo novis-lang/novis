@@ -171,6 +171,74 @@ fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
     })
 }
 
+/// One `int|string` key argument, normalized to the bytes an array actually
+/// stores it under.
+///
+/// ADR 0007 § 5 makes every stored key a `string`, and `mwl-ir` already
+/// normalizes an `int` subscript to its decimal spelling on the way in
+/// (`Lowering::lower_array_key`). A `Core` member reached through the helper
+/// convention gets the argument *un*-normalized, because the tag is written
+/// from the argument's own representation — so this is where the same
+/// normalization happens for that path. Both spellings therefore find the same
+/// entry, which is what makes `hasKey($a, 5)` and `$a["5"]` agree.
+fn key_bytes(value: &Value, member: &str) -> Result<Vec<u8>, Fault> {
+    if let Some(bytes) = value.as_str_bytes() {
+        return Ok(bytes.to_vec());
+    }
+    if let Some(int) = value.as_int() {
+        return Ok(int.to_string().into_bytes());
+    }
+    if let Some(uint) = value.as_uint() {
+        return Ok(uint.to_string().into_bytes());
+    }
+    Err(Fault::fatal(format!(
+        "Core\\Arr::{member} expected an `int|string` key, got tag {}",
+        value.tag_byte()
+    )))
+}
+
+/// A borrowed `MwlArray` handle over an argument's pointer, for the members
+/// that want the safe handle API rather than the raw primitives.
+///
+/// Deliberately never dropped: a helper's arguments are *borrowed* (see
+/// [`crate`]'s own docs), so the reference this handle wraps belongs to the
+/// caller and releasing it here would be a double free. Wrapping in
+/// `ManuallyDrop` rather than retaining first keeps the borrow free — there is
+/// no refcount traffic at all.
+fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::ManuallyDrop<MwlArray> {
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Array argument owns a reference to a live allocation, \
+                  so it is live for the length of this call, and the handle is \
+                  never dropped"
+    )]
+    std::mem::ManuallyDrop::new(unsafe { MwlArray::from_raw(array) })
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::hasKey(array<T> $a, int|string $key): bool` — replacing
+    /// PHP's `array_key_exists` **and** `isset($a[$k])`, which differ in PHP
+    /// only over a stored `null` and therefore cannot both survive ADR 0063
+    /// R20.
+    ///
+    /// The first member with a **union** parameter. It needs no IR
+    /// representation for one: the helper's argument slot is a tagged
+    /// `mwl_runtime::Value` written from the argument's own type, so
+    /// [`key_bytes`] decodes by tag. `mwl_ir::lower::ArgSig::helper` owns why
+    /// that is a property of the helper convention rather than of this member.
+    fn mwl_core_arr_has_key(_ctx, args: [2]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::hasKey expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let key = key_bytes(&args[1], "hasKey")?;
+        Ok(Value::bool(borrowed(array).has_key(&key)))
+    }
+}
+
 mwl_runtime::mwl_helper! {
     /// `Core\Arr::range(int $start, int $end, {step?: int}): array<int>` — the
     /// integers from `$start` to `$end` inclusive, replacing PHP's `range`.
@@ -257,6 +325,70 @@ mod tests {
         unsafe {
             subject.release();
         }
+    }
+
+    /// Both spellings of a key find the same entry, which is what `key_bytes`
+    /// exists for: `mwl-ir` already normalizes an `int` subscript to its
+    /// decimal string, and a helper argument arrives untouched, so this is the
+    /// other half of the same rule.
+    #[test]
+    fn has_key_normalizes_an_int_key_the_way_a_subscript_does() {
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"5"), Value::int(1));
+        array.set(MwlStr::new(b"name"), Value::int(2));
+        let subject = Value::array(array);
+
+        let asked = |key: Value| {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            call(super::mwl_core_arr_has_key, &mut ctx, &[subject, key])
+                .expect("asking never fails")
+                .as_bool()
+                .expect("hasKey returns a bool")
+        };
+        assert!(asked(Value::int(5)));
+        assert!(asked(Value::str(MwlStr::new(b"5"))));
+        assert!(asked(Value::str(MwlStr::new(b"name"))));
+        assert!(!asked(Value::int(6)));
+        assert!(!asked(Value::str(MwlStr::new(b"nope"))));
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and the \
+                      helper borrowed rather than consumed it"
+        )]
+        unsafe {
+            subject.release();
+        }
+    }
+
+    /// The borrowed handle `hasKey` reads through must not disturb the
+    /// caller's reference count — a release there would be a double free, and
+    /// a retain there would leak one reference per call.
+    #[test]
+    fn asking_for_a_key_leaves_the_subjects_refcount_alone() {
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"a"), Value::int(1));
+        let before = array.refcount();
+        let subject = Value::array(array);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        call(
+            super::mwl_core_arr_has_key,
+            &mut ctx,
+            &[subject, Value::str(MwlStr::new(b"a"))],
+        )
+        .expect("asking never fails");
+
+        // The handle takes over the one reference this test owns and drops at
+        // the end of the statement, which is also this test's release.
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and the \
+                      helper borrowed rather than consumed it"
+        )]
+        let after =
+            unsafe { MwlArray::from_raw(subject.array_ptr().expect("an array")) }.refcount();
+        assert_eq!(after, before);
     }
 
     /// The values `range` produces, in order — read back through the array's

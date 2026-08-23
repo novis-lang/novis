@@ -160,6 +160,16 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         }
         CoreTy::Var(name) => interner.type_var(*name),
         CoreTy::Callable => interner.callable(),
+        // Canonicalized by the interner, unlike an options bag: a union has no
+        // ABI order to preserve, so `int|string` and `string|int` are one type
+        // here exactly as they are when written in source.
+        CoreTy::Union(members) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|member| lower(member, interner))
+                .collect();
+            interner.make_union(members)
+        }
         // The registry's order is kept, not sorted: it is the order the bag
         // flattens into ABI arguments. `Ty::Options` owns why.
         CoreTy::Options(options) => {

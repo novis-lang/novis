@@ -836,17 +836,66 @@ struct ArgSig {
     /// call has to supply. See [`Lowering::lower_call_args`] for what an
     /// omitted trailing argument becomes.
     defaults: Vec<Option<mwl_types::ConstArg>>,
+    /// Whether the callee is a Tier 0 `Core` member reached through the ADR
+    /// 0002 helper convention, rather than a compiled MWL function.
+    ///
+    /// One thing turns on it, and it is a real difference rather than a
+    /// convenience: a helper's parameter slot is a whole `mwl_runtime::Value`
+    /// — a tag plus a payload — and `mwl-codegen`'s `emit_helper` writes each
+    /// argument's tag from the *argument's* own representation, never from the
+    /// parameter's. So a `Core` parameter whose declared type has no single IR
+    /// representation (a union — `hasKey(array<T> $a, int|string $key)`) is
+    /// still perfectly lowerable: the argument keeps its own type and the
+    /// helper decodes by tag. A compiled MWL function's parameter slot is
+    /// typed, so the same declaration there is not lowerable at all, and
+    /// [`Lowering::lower_call_args`] keeps panicking for it.
+    ///
+    /// The asymmetry is only in *parameter* position. A `Core` member that
+    /// *returned* a union would need the caller to hold a value of a
+    /// representation [`Ty::Mixed`]'s own doc comment records as still open,
+    /// so the registry has none.
+    helper: bool,
 }
 
 impl ArgSig {
-    /// The shape of a resolved call's own signature.
+    /// The shape of a resolved call's own signature, called through the
+    /// ordinary MWL call convention.
     fn of(call: &mwl_types::expr_table::ResolvedCall) -> Self {
         Self {
             param_tys: call.param_tys.clone(),
             by_ref: call.by_ref.clone(),
             variadic: call.variadic,
             defaults: call.defaults.clone(),
+            helper: false,
         }
+    }
+
+    /// The same shape, for a callee reached through the helper convention —
+    /// see [`Self::helper`].
+    fn of_helper(call: &mwl_types::expr_table::ResolvedCall) -> Self {
+        Self {
+            helper: true,
+            ..Self::of(call)
+        }
+    }
+
+    /// The IR type to lower the argument at `index` against, or `None` when
+    /// the parameter has no single representation *and* the callee can take
+    /// the argument at whatever representation it arrives in — which is a
+    /// helper and only a helper (see [`Self::helper`]).
+    ///
+    /// # Panics
+    ///
+    /// Panics through [`lower_checked_ty`] for a parameter type this crate has
+    /// no lowering for on a *non*-helper callee — the unchanged behaviour, and
+    /// the one that has to stay: a compiled MWL function's parameter slot is
+    /// typed, so there is nothing to fall back to.
+    fn expectation(&self, index: usize, checked_types: &TypeInterner) -> Option<Ty> {
+        let pty = self.param_tys[index];
+        if self.helper && matches!(checked_types.get(pty), CheckedTy::Union(_)) {
+            return None;
+        }
+        Some(lower_checked_ty(pty, checked_types))
     }
 
     /// Whether the argument at `index` binds by reference. Never true past the
@@ -4044,7 +4093,7 @@ impl<'a> Lowering<'a> {
                 // which is the whole reason `mwl_types` seeds a signature
                 // table rather than special-casing `Core` at each call site.
                 if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
-                    let sig = ArgSig::of(call);
+                    let sig = ArgSig::of_helper(call);
                     let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                     let checked_types = self.checked_types;
                     let lowered = self.lower_call_args(
@@ -5396,7 +5445,21 @@ impl<'a> Lowering<'a> {
                 );
                 continue;
             }
-            let expected = lower_checked_ty(pty, checked_types);
+            // A `Core` parameter declared as a union has no single IR
+            // representation to expect, and needs none: the helper's slot is a
+            // tagged `Value` that `mwl-codegen` writes from the *argument's*
+            // own representation. See `ArgSig::helper`, which owns why the
+            // same declaration on a compiled MWL function is not lowerable.
+            let expected = match sig.expectation(index, checked_types) {
+                Some(expected) => expected,
+                None => {
+                    let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
+                    let aliasing = self.aliasing_read(&arg.value);
+                    self.account_for_arg(v, ty, ownership, aliasing, &mut out, cur);
+                    out.values.push(v);
+                    continue;
+                }
+            };
             if sig.is_by_ref(index) {
                 out.values
                     .push(self.stage_ref_arg(&arg.value, expected, env, cur));

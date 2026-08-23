@@ -108,6 +108,16 @@ pub enum CoreTy {
     /// declare one, which is `.claude/loop-goal.md`'s standing decision that
     /// type variables stay compiler-owned.
     Var(&'static str),
+    /// `A|B|...` — ADR 0007 § 3's union, at least two members.
+    ///
+    /// **Parameter position only.** A helper's argument slot is a whole
+    /// `mwl_runtime::Value`, and `mwl-codegen` writes its tag from the
+    /// argument's own representation, so a union parameter needs no IR type of
+    /// its own and the body decodes by tag. A union *return* would hand the
+    /// caller a value whose representation `mwl_ir::ty::Ty::Mixed`'s own doc
+    /// comment records as still undecided, so no row states one —
+    /// `a_union_is_only_ever_a_parameter` holds that.
+    Union(&'static [CoreTy]),
     /// ADR 0063 R2's trailing options shape — `{step?: int}`, one
     /// [`CoreOption`] per declared option, in the order the ABI passes them.
     /// See this module's own docs for why it is its own type rather than a
@@ -395,6 +405,13 @@ pub const CLASSES: &[CoreClass] = &[
                 symbol: "mwl_core_arr_is_empty",
             },
             CoreMethod {
+                name: "hasKey",
+                params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Union(ARRAY_KEY)],
+                defaults: &[],
+                return_ty: CoreTy::Bool,
+                symbol: "mwl_core_arr_has_key",
+            },
+            CoreMethod {
                 name: "range",
                 params: &[CoreTy::Int, CoreTy::Int, CoreTy::Options(RANGE_OPTIONS)],
                 defaults: &[],
@@ -404,6 +421,10 @@ pub const CLASSES: &[CoreClass] = &[
         ],
     },
 ];
+
+/// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
+/// writes at every member taking or producing a key.
+const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
 
 /// `Core\Str::split`'s `{limit?: int}` — `crate::str::mwl_core_str_split`'s
 /// own docs own what each sign of it means and why the default is `int`'s
@@ -567,6 +588,65 @@ mod tests {
                             class.name,
                             method.name,
                             option.name
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// A union is a **parameter** type and nothing else — see
+    /// [`CoreTy::Union`], which owns why: a helper's argument slot is a tagged
+    /// value written from the argument's own representation, while its result
+    /// has to land in a caller-side value whose representation is still open.
+    /// Checked over return types and array element types alike, since either
+    /// would reach the caller.
+    #[test]
+    fn a_union_is_only_ever_a_parameter() {
+        fn reaches_the_caller(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::Union(_) => true,
+                CoreTy::Array(elem) => reaches_the_caller(elem),
+                _ => false,
+            }
+        }
+        for class in CLASSES {
+            for method in class.methods {
+                assert!(
+                    !reaches_the_caller(&method.return_ty),
+                    "{}::{} returns a union",
+                    class.name,
+                    method.name
+                );
+                for member in method.options().unwrap_or(&[]) {
+                    assert!(
+                        !matches!(member.ty, CoreTy::Union(_)),
+                        "{}::{}'s option `{}` is a union, which no option-bag \
+                         flattening rule covers",
+                        class.name,
+                        method.name,
+                        member.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// A union has at least two members — a one-member union is that member,
+    /// and the interner collapses it, so writing one here would be a row that
+    /// does not say what it looks like it says.
+    #[test]
+    fn a_union_has_at_least_two_members() {
+        for class in CLASSES {
+            for method in class.methods {
+                for param in method.params {
+                    if let CoreTy::Union(members) = param {
+                        assert!(
+                            members.len() >= 2,
+                            "{}::{} declares a {}-member union",
+                            class.name,
+                            method.name,
+                            members.len()
                         );
                     }
                 }

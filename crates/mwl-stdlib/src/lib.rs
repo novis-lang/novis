@@ -66,10 +66,14 @@
 //! 3. **`Const` has no `null` variant**, so a member whose spec signature
 //!    defaults to `null` — `Core\Str::slice`'s `?int $length = null` and the
 //!    rest of the spec's most common optional shape — waits on
-//!    `mwl_types::defaults` growing one, and on the IR constant under it.
-//!    ADR 0063 R2's options bag is *not* on that list any more:
-//!    [`registry::CoreTy::Options`] expresses it and `Core\Arr::range` is the
-//!    first member registered with one.
+//!    `mwl_types::defaults` growing one, and on the IR constant under it. Two
+//!    things are *off* that list now: ADR 0063 R2's options bag, which
+//!    [`registry::CoreTy::Options`] expresses (`Core\Arr::range` was the first
+//!    member with one), and a union parameter, which
+//!    [`registry::CoreTy::Union`] expresses (`Core\Arr::hasKey` was the
+//!    first). A union *return* is not — that one is genuinely blocked, on the
+//!    same `mwl_ir::ty::Ty::Mixed` representation `?T` waits on, and
+//!    `CoreTy::Union`'s own docs say why.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
 //!    *Revisiting* section and `.claude/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what
@@ -105,6 +109,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 "mwl_core_arr_count" => (arr::mwl_core_arr_count as *const ()).cast(),
                 "mwl_core_arr_filter" => (arr::mwl_core_arr_filter as *const ()).cast(),
                 "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
+                "mwl_core_arr_has_key" => (arr::mwl_core_arr_has_key as *const ()).cast(),
                 "mwl_core_arr_range" => (arr::mwl_core_arr_range as *const ()).cast(),
                 "mwl_core_str_is_empty" => (str::mwl_core_str_is_empty as *const ()).cast(),
                 "mwl_core_str_contains" => (str::mwl_core_str_contains as *const ()).cast(),

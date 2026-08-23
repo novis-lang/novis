@@ -602,6 +602,30 @@ mod tests {
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
+    /// `Core\Arr::hasKey(array<T> $a, int|string $key)` — the first `Core`
+    /// signature with a union parameter, checked by ADR 0007 § 6's ordinary
+    /// union rule with nothing added for `Core`.
+    #[test]
+    fn a_core_union_parameter_takes_either_member_and_nothing_else() {
+        let diags = check_in_method(
+            "array<int> $a = [\"x\" => 1];\n\
+             bool $byName = Core\\Arr::hasKey($a, \"x\");\n\
+             bool $byIndex = Core\\Arr::hasKey($a, 0);\n\
+             echo $byName, $byIndex;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let refused = check_in_method(
+            "array<int> $a = [\"x\" => 1];\nbool $b = Core\\Arr::hasKey($a, 1.5);\n",
+        );
+        assert!(
+            refused
+                .iter()
+                .any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{refused:?}"
+        );
+    }
+
     /// The rule that makes a bag its own type rather than an ADR 0036 shape:
     /// a field the member does not declare is an error, where § 3's width
     /// subtyping would have accepted it silently. The help names the real

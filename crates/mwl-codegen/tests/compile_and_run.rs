@@ -1530,6 +1530,23 @@ echo \"|\", Core\\Arr::count(Core\\Arr::range(10, 1, {step: 2}));
     assert_eq!(output_of(source), "10|4|5");
 }
 
+/// A `Core` parameter declared `int|string` takes either, at the argument's
+/// own representation: `mwl-codegen` writes each helper argument's tag from
+/// the value it is passing, so the union never needs an IR type of its own.
+/// `mwl_ir::lower::ArgSig::helper` owns why that is the helper convention's
+/// property and not this member's.
+#[test]
+fn a_core_union_parameter_arrives_at_the_helper_tagged_as_what_was_passed() {
+    let source = "<?mwl
+array<int> $a = [\"name\" => 1, 5 => 2];
+if (Core\\Arr::hasKey($a, \"name\")) { echo \"y\"; } else { echo \"n\"; }
+if (Core\\Arr::hasKey($a, 5)) { echo \"y\"; } else { echo \"n\"; }
+if (Core\\Arr::hasKey($a, \"5\")) { echo \"y\"; } else { echo \"n\"; }
+if (Core\\Arr::hasKey($a, 6)) { echo \"y\"; } else { echo \"n\"; }
+";
+    assert_eq!(output_of(source), "yyyn");
+}
+
 /// A bag with *two* options, written in every combination: neither, one, the
 /// other, both, and the second one written first. Options are named rather
 /// than positional, so the written order is not the ABI order — this is what
