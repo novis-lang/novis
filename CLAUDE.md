@@ -360,8 +360,8 @@ If you find yourself restating more than a sentence, that detail belongs in the 
 ## Commands
 
 **A shell runs programs; it never carries file content.** Read, search, create and edit files with the
-Read, Grep, Glob, Write and Edit tools — never `cat`, `head`, `tail`, `sed -n`, `grep`, or a heredoc that
-writes a file. This is not a style preference. A shell tool call is one `-c` string that the shell *parses*
+Read, Grep, Glob, Write and Edit tools — never `cat`, `head`, `tail`, `sed -n`, `grep`, `ls`, `find`, or a
+heredoc that writes a file. This is not a style preference. A shell tool call is one `-c` string that the shell *parses*
 before it runs anything, so an apostrophe in a doc sentence, a backtick in a commit message or an unbalanced
 heredoc terminator fails the whole call with `unexpected EOF while looking for matching '` — the command
 never executed, and nothing tells you which quote was at fault. The dedicated tools pass content as JSON
@@ -372,6 +372,13 @@ quoting grammars (PowerShell primary, Git Bash for the Bash tool).
 Use a shell for what it is for — `cargo`, `git`, `python .claude/brief.py`, `wsl.exe`. When one of those
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
 <file>`, never an inline heredoc or a `-m` string spanning lines.
+
+**One shell call runs one command, and its exit status is the last one's.** Do not `;`-chain several probes
+into a single call to save a round trip. A chain reports only the final command's status, so a probe that is
+*allowed* to fail — `ls` on a directory that may not exist returns 2 — marks the whole call failed while
+holding a complete result, and the real output gets read as wreckage. `2>/dev/null` does not help: it
+suppresses the message, not the status. When a command may legitimately fail, either give it its own call or
+end it with `|| true`, and put a `&&` between steps that genuinely depend on each other.
 
 ```sh
 cargo build                                                    # debug; deps still built at opt-level 2
