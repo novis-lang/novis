@@ -555,6 +555,71 @@ pub enum InstKind {
         /// The value to append, already lowered.
         value: ValueId,
     },
+    /// Removes `key` from `array` if it is present — `unset($a[$k]);`, ADR
+    /// 0028 § 3's one surviving `unset` target (the declared-*property* form
+    /// is a diagnostic `mwl_types::expr::check_unset_target` already reports,
+    /// so it never reaches lowering).
+    ///
+    /// **Defines a fresh [`crate::ty::Ty::Array`] value**, on exactly
+    /// [`InstKind::ArraySet`]'s consume-one-reference-yield-one protocol —
+    /// removing an entry separates a shared array the same way writing one
+    /// does, so the holder is re-pointed through the same
+    /// `crate::lower::Lowering::write_back_array`. `key` is *borrowed*, not
+    /// stored: it is the only array primitive that takes a key without
+    /// durably owning it, so `crate::lower::Lowering::lower_stmt`'s `Unset`
+    /// arm releases a freshly converted key afterwards instead of retaining
+    /// an aliasing one beforehand — the mirror image of what
+    /// [`InstKind::ArraySet`] needs.
+    ArrayUnset {
+        /// The array, already lowered.
+        array: ValueId,
+        /// The key to remove, already lowered and already `Ty::Str`.
+        key: ValueId,
+    },
+    /// The position of the first live entry at or after `from`, or `-1` when
+    /// there is none — one step of a `foreach` cursor over ADR 0007 § 5's
+    /// insertion order, defining a [`crate::ty::Ty::Int`].
+    ///
+    /// A cursor rather than a borrowed iterator because compiled loop-body
+    /// code runs between two steps; `mwl_runtime::array`'s `mwl_array_next_slot`
+    /// is the one home for why that makes PHP's by-value `foreach` fall out.
+    /// Consumes and produces no reference at all: the loop holds its own
+    /// reference to `array` for its whole duration, which
+    /// `crate::lower::Lowering::lower_foreach` establishes.
+    ArrayNextSlot {
+        /// The array being walked, already lowered.
+        array: ValueId,
+        /// The position to resume from, already lowered and already `Ty::Int`.
+        from: ValueId,
+    },
+    /// The key at `slot`, as a fresh [`crate::ty::Ty::Str`] reference the
+    /// frame owns — `foreach`'s `$k` binding.
+    ///
+    /// Unlike [`InstKind::ArrayGet`], this *retains*: a key is stored as the
+    /// index map's own `MwlStr`, and handing compiled code a borrowed pointer
+    /// into it would outlive the one thing keeping it alive as soon as the
+    /// body rebound `$k`. `crate::lower::Lowering::lower_foreach` releases it
+    /// at every point one iteration ends.
+    ArrayKeyAt {
+        /// The array being walked, already lowered.
+        array: ValueId,
+        /// A position [`InstKind::ArrayNextSlot`] returned, already lowered.
+        slot: ValueId,
+    },
+    /// The value at `slot`, borrowed — `foreach`'s `$v` binding, defining
+    /// whatever representation the binding's declared element type lowered to.
+    ///
+    /// Borrowed exactly like [`InstKind::ArrayGet`], and for the same reason:
+    /// `crate::lower::is_aliasing_read` makes whoever copies it into a durable
+    /// slot insert the retain. `crate::lower::Lowering::lower_foreach` inserts
+    /// one itself when the element type is [`crate::ty::Ty::is_refcounted`],
+    /// because the binding *is* such a slot.
+    ArrayValueAt {
+        /// The array being walked, already lowered.
+        array: ValueId,
+        /// A position [`InstKind::ArrayNextSlot`] returned, already lowered.
+        slot: ValueId,
+    },
 }
 
 /// One member of the closed set of engine-owned runtime conversions

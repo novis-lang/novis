@@ -46,9 +46,9 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind, MemberName,
-    MethodMember, Modifier, NamespaceDecl, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
-    UnaryOp as AstUnaryOp,
+    AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
+    ForeachBinding, MemberName, MethodMember, Modifier, NamespaceDecl, Stmt, StmtKind, StringPart,
+    Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
 use mwl_types::layout::ClassLayoutTable;
@@ -66,16 +66,17 @@ use crate::{span_text, strip_sigil};
 /// representation type.
 type Env = FxHashMap<String, (ValueId, Ty)>;
 
-/// One `while` loop's exit points, gathered while its body is lowered.
-/// [`Lowering::lower_while`] pushes one of these onto
-/// [`Lowering::loop_stack`] before lowering its body and pops it back off
+/// One loop's exit points, gathered while its body is lowered.
+/// [`Lowering::lower_while`]/[`Lowering::lower_foreach`] push one of these
+/// onto [`Lowering::loop_stack`] before lowering the body and pop it back off
 /// once lowering returns; [`Lowering::lower_break`]/[`Lowering::lower_continue`]
 /// read the top frame's `after_block`/`header_block` and record their own
-/// `(block, env)` pair into it. `lower_while` then folds `continue_edges` in
+/// `(block, env)` pair into it. The loop then folds `continue_edges` in
 /// alongside the body's own fall-through exit when patching the header's
 /// phis, and `break_edges` in alongside the condition's false edge when
-/// building the loop's own after-block environment — see that method's own
-/// doc comment for exactly how both are combined.
+/// building the loop's own after-block environment — see
+/// [`Lowering::lower_while`]'s own doc comment for exactly how both are
+/// combined.
 struct LoopFrame {
     /// Where a `continue` jumps — the loop header, re-running the condition.
     header_block: BlockId,
@@ -87,6 +88,24 @@ struct LoopFrame {
     /// One `(block, env)` pair per `break` lowered inside this loop's body,
     /// in source order.
     break_edges: Vec<(BlockId, Env)>,
+    /// The locals a `foreach` header rebinds at the top of every iteration —
+    /// its key and value bindings, each holding one owned reference for the
+    /// length of *that* iteration and no longer. Empty for a `while` loop,
+    /// which has no such binding.
+    ///
+    /// Every point one iteration ends releases them: the body's own
+    /// fall-through back edge and a `continue`'s back edge alike (the next
+    /// iteration rebinds both from scratch), and a `break`, which ends the
+    /// last one. A `return` or a throw needs nothing here — those go through
+    /// [`Lowering::release_all_locals`], which sweeps the whole `Env` these
+    /// names are ordinary members of.
+    iteration_owned: Vec<String>,
+    /// The reserved `Env` names a `foreach` keeps its own bookkeeping under —
+    /// its retained reference to the array being walked, and its cursor. They
+    /// are dropped from a `break` edge's recorded environment so nothing after
+    /// the loop can see them; see [`Lowering::lower_foreach`] for why they
+    /// live in the `Env` at all.
+    loop_private: Vec<String>,
 }
 
 /// One `try` statement's protected region, gathered while its body is lowered.
@@ -413,6 +432,11 @@ struct Lowering<'a> {
     /// [`IdGen::next_stmt`], not a second table: ADR 0018's per-statement id
     /// already owns it, and [`Function::stmt_spans`] is where it ends up.
     cur_stmt_span: Span,
+    /// How many `foreach` statements this frame has lowered so far — the
+    /// suffix that keeps two nested loops' reserved [`Env`] names apart. See
+    /// [`Self::lower_foreach`] for why those names exist and why the `#` in
+    /// them cannot collide with a local.
+    foreach_seq: u32,
 }
 
 impl<'a> Lowering<'a> {
@@ -437,6 +461,7 @@ impl<'a> Lowering<'a> {
             borrowed: None,
             fn_label: name.to_owned(),
             cur_stmt_span: Span::at(src.id(), 0),
+            foreach_seq: 0,
         }
     }
 
@@ -905,6 +930,22 @@ impl<'a> Lowering<'a> {
                 self.lower_if(cond, then, else_.as_deref(), cur, env);
             }
             StmtKind::While { cond, body } => self.lower_while(cond, body, cur, env),
+            StmtKind::Foreach {
+                subject,
+                key,
+                value,
+                value_by_ref,
+                body,
+            } => self.lower_foreach(subject, key.as_ref(), value, *value_by_ref, body, cur, env),
+            // ADR 0028 § 3 leaves exactly one `unset` target standing — an
+            // array element — and `mwl_types::expr::check_unset_target`
+            // already rejected a declared property, so anything else reaching
+            // here is a shape this slice does not lower.
+            StmtKind::Unset(targets) => {
+                for target in targets {
+                    self.lower_unset(target, env, *cur);
+                }
+            }
             StmtKind::Break(level) => self.lower_break(level, cur, env),
             StmtKind::Continue(level) => self.lower_continue(level, cur, env),
             StmtKind::Echo(operands) => self.lower_echo(operands, *cur, env),
@@ -915,9 +956,9 @@ impl<'a> Lowering<'a> {
             } => self.lower_try(body, catches, finally.as_ref(), cur, env),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration, a plain \
-                 reassignment, `echo`, `return`, a nested block, `if`, `while`, `try`/`catch`, \
-                 `throw` and a `while`-scoped `break`/`continue` — got {other:?}; see the crate \
-                 docs' known gaps"
+                 reassignment, `echo`, `unset`, `return`, a nested block, `if`, `while`, \
+                 `foreach`, `try`/`catch`, `throw` and a loop-scoped `break`/`continue` — got \
+                 {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -1530,6 +1571,8 @@ impl<'a> Lowering<'a> {
             after_block,
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
+            iteration_owned: Vec::new(),
+            loop_private: Vec::new(),
         });
         let mut body_env = header_env.clone();
         let mut body_cur = body_block;
@@ -1589,6 +1632,310 @@ impl<'a> Lowering<'a> {
         *cur = after_block;
     }
 
+    /// `foreach ($subject as $k => $v) body` over an `array<T>` — ADR 0007
+    /// § 5's insertion order, walked by the cursor
+    /// [`InstKind::ArrayNextSlot`] steps.
+    ///
+    /// Structurally [`Self::lower_while`] with a synthesized condition, and it
+    /// reuses that method's whole phi/`break`/`continue` machinery unchanged.
+    /// Three things are its own:
+    ///
+    /// * **The loop owns a second reference to the array**, retained here when
+    ///   the subject [`is_aliasing_read`]s an existing slot (a fresh subject —
+    ///   a call's result, a literal — already has exactly one owner, this
+    ///   frame's). That reference is what makes PHP's by-value `foreach` fall
+    ///   out of copy-on-write rather than needing a snapshot: a write to the
+    ///   same array inside the body now sees a refcount above one and
+    ///   *separates*, leaving the cursor walking what the loop started on. It
+    ///   is released once, in the loop's own after-block.
+    /// * **The array reference and the cursor live in the [`Env`]** under
+    ///   reserved `foreach#N`/`foreach#N$cursor` names. A `#` can never appear
+    ///   in an MWL identifier, so neither can collide with a local. Being
+    ///   ordinary `Env` members is what gets them for free: the cursor gets
+    ///   its loop-header phi through the same seeding
+    ///   [`Self::lower_while`] gives any reassigned local, and both are swept
+    ///   by [`Self::release_all_locals`] on a `return` or a throw out of the
+    ///   body. [`LoopFrame::loop_private`] then hides them from everything
+    ///   after the loop.
+    /// * **The key and value bindings are owned for one iteration each**, and
+    ///   released at every point an iteration ends — see
+    ///   [`LoopFrame::iteration_owned`]. The cursor is advanced at the *top*
+    ///   of the body rather than the bottom precisely so that a `continue`'s
+    ///   back edge needs no step of its own.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the case for a subject that is not an `array<T>` (ADR
+    /// 0053's `Iterable`/`Iterator` are a separate lowering, over a
+    /// user-visible interface rather than these primitives), for `&$v` by
+    /// reference, for a key binding declared as anything but `string` (ADR
+    /// 0007 § 5 makes every stored key a `string`; an `int` key binding needs
+    /// a string-to-int conversion nothing lowers yet), and for a binding with
+    /// no declared type at all, which `mwl_types` already diagnosed.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the arguments are one `StmtKind::Foreach`'s own fields plus \
+                  the `(cur, env)` pair every lowering method threads"
+    )]
+    fn lower_foreach(
+        &mut self,
+        subject: &Expr,
+        key: Option<&ForeachBinding>,
+        value: &ForeachBinding,
+        value_by_ref: bool,
+        body: &Stmt,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        assert!(
+            !value_by_ref,
+            "mwl-ir does not yet lower `foreach (… as &$v)`: a by-reference value binding writes \
+             back through the array it is walking, which is the one shape ADR 0007 § 5's \
+             copy-on-write separation has to be told not to separate; see the crate docs' known \
+             gaps"
+        );
+        let value_ty = binding_ty(value, "value");
+        let key_binding = key.map(|k| {
+            let ty = binding_ty(k, "key");
+            assert!(
+                ty == Ty::Str,
+                "mwl-ir lowers a `foreach` key binding only at `string`, ADR 0007 § 5's one \
+                 stored key type — got {ty:?}, which would need a string-to-key conversion this \
+                 crate does not have; see the crate docs' known gaps"
+            );
+            strip_sigil(span_text(self.src, k.name)).to_owned()
+        });
+        let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
+
+        let (array_v, array_ty) = self.lower_expr_top(subject, None, env, cur);
+        assert!(
+            array_ty == Ty::Array,
+            "mwl-ir lowers `foreach` only over an `array<T>` — got {array_ty:?}; ADR 0053's \
+             `Iterable`/`Iterator` subjects are their own lowering (see the crate docs' known \
+             gaps)"
+        );
+        if is_aliasing_read(&subject.kind) {
+            self.emit_retain(*cur, array_v);
+        }
+
+        let seq = self.foreach_seq;
+        self.foreach_seq += 1;
+        let array_name = format!("foreach#{seq}");
+        let cursor_name = format!("foreach#{seq}$cursor");
+        env.insert(array_name.clone(), (array_v, Ty::Array));
+        let (zero_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
+        env.insert(cursor_name.clone(), (zero_v, Ty::Int));
+
+        // From here on this is `Self::lower_while`'s shape, with the cursor
+        // prepended to the loop-carried names so it gets the same header phi
+        // every reassigned local does.
+        let mut seen = FxHashSet::default();
+        let mut reassigned = vec![cursor_name.clone()];
+        seen.insert(cursor_name.clone());
+        self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+
+        let pre_block = *cur;
+        let header_block = self.new_block();
+        self.seal(pre_block, Terminator::Jump(header_block));
+
+        let mut header_env = env.clone();
+        let mut phi_slots: Vec<(String, usize)> = Vec::new();
+        for name in &reassigned {
+            let Some(&(pre_v, ty)) = env.get(name) else {
+                continue;
+            };
+            let phi_v = self.ids.next_value();
+            let inst_index = self.block_insts[header_block.index() as usize].len();
+            self.block_insts[header_block.index() as usize].push(Inst {
+                result: Some(phi_v),
+                ty: Some(ty),
+                kind: InstKind::Phi {
+                    incoming: vec![(pre_block, pre_v)],
+                },
+                on_error: None,
+            });
+            header_env.insert(name.clone(), (phi_v, ty));
+            phi_slots.push((name.clone(), inst_index));
+        }
+
+        let cursor_v = header_env[&cursor_name].0;
+        let (slot_v, _) = self.emit(
+            header_block,
+            Ty::Int,
+            InstKind::ArrayNextSlot {
+                array: array_v,
+                from: cursor_v,
+            },
+        );
+        let (exhausted_at, _) = self.emit(header_block, Ty::Int, InstKind::ConstInt(0));
+        let (more_v, _) = self.emit(
+            header_block,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: BinOp::GtEq,
+                lhs: slot_v,
+                rhs: exhausted_at,
+            },
+        );
+
+        let body_block = self.new_block();
+        let after_block = self.new_block();
+        let body_edge = self.ids.next_edge(body.span);
+        let after_edge = self.ids.next_edge(subject.span);
+        self.seal(
+            header_block,
+            Terminator::Branch {
+                cond: more_v,
+                then_block: body_block,
+                then_edge: body_edge,
+                else_block: after_block,
+                else_edge: after_edge,
+            },
+        );
+
+        let mut iteration_owned = Vec::new();
+        if let Some(name) = &key_binding {
+            iteration_owned.push(name.clone());
+        }
+        iteration_owned.push(value_name.clone());
+        self.loop_stack.push(LoopFrame {
+            header_block,
+            after_block,
+            continue_edges: Vec::new(),
+            break_edges: Vec::new(),
+            iteration_owned,
+            loop_private: vec![array_name.clone(), cursor_name.clone()],
+        });
+
+        let mut body_env = header_env.clone();
+        let mut body_cur = body_block;
+        let (one_v, _) = self.emit(body_cur, Ty::Int, InstKind::ConstInt(1));
+        let (next_v, _) = self.emit(
+            body_cur,
+            Ty::Int,
+            InstKind::BinOp {
+                op: BinOp::Add,
+                lhs: slot_v,
+                rhs: one_v,
+            },
+        );
+        body_env.insert(cursor_name.clone(), (next_v, Ty::Int));
+        if let Some(name) = &key_binding {
+            let (k_v, _) = self.emit(
+                body_cur,
+                Ty::Str,
+                InstKind::ArrayKeyAt {
+                    array: array_v,
+                    slot: slot_v,
+                },
+            );
+            body_env.insert(name.clone(), (k_v, Ty::Str));
+        }
+        let (v_v, _) = self.emit(
+            body_cur,
+            value_ty,
+            InstKind::ArrayValueAt {
+                array: array_v,
+                slot: slot_v,
+            },
+        );
+        if value_ty.is_refcounted() {
+            self.emit_retain(body_cur, v_v);
+        }
+        body_env.insert(value_name, (v_v, value_ty));
+
+        self.lower_stmt(body, &mut body_cur, &mut body_env);
+        let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
+        if !self.is_terminated(body_cur) {
+            self.end_iteration(body_cur, &mut body_env);
+            self.emit_safepoint(body_cur);
+            self.seal(body_cur, Terminator::Jump(header_block));
+            back_edges.push((body_cur, body_env));
+        }
+        let frame = self
+            .loop_stack
+            .pop()
+            .expect("just pushed this loop's own frame above");
+        back_edges.extend(frame.continue_edges);
+        for (name, inst_index) in &phi_slots {
+            for (block, back_env) in &back_edges {
+                let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
+                    panic!(
+                        "mwl-ir: `{name}` was reassigned in a foreach body per the syntactic \
+                         scan but is missing from a back edge's exit environment — bug in \
+                         collect_reassigned_locals"
+                    )
+                });
+                let inst = &mut self.block_insts[header_block.index() as usize][*inst_index];
+                let InstKind::Phi { incoming } = &mut inst.kind else {
+                    unreachable!("phi_slots only ever indexes a Phi instruction");
+                };
+                incoming.push((*block, back_v));
+            }
+        }
+
+        let mut exit_env = header_env.clone();
+        exit_env.remove(&array_name);
+        exit_env.remove(&cursor_name);
+        let mut after_incoming: Vec<(BlockId, Env)> = vec![(header_block, exit_env.clone())];
+        after_incoming.extend(frame.break_edges);
+        *env = self.merge_envs(after_block, &after_incoming, &exit_env);
+        self.emit_release(after_block, array_v);
+        *cur = after_block;
+    }
+
+    /// `unset($a[$k]);` — the one `unset` target ADR 0028 § 3 leaves
+    /// standing, lowered to [`InstKind::ArrayUnset`] and written back through
+    /// the same [`Self::write_back_array`] an element *write* uses, since
+    /// removing an entry separates a shared array exactly the way writing one
+    /// does.
+    ///
+    /// The key is borrowed rather than stored, which inverts
+    /// [`Self::lower_reassignment`]'s `Index`-target retain: an aliasing key
+    /// needs nothing, and a freshly converted one (an `int` subscript's
+    /// decimal-string form) is this frame's own single-owner temporary and is
+    /// released once the removal has read it.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the shape for any other `unset` operand. A declared
+    /// property is already a `mwl_types` diagnostic (ADR 0028 § 3), and a bare
+    /// local has no meaning in MWL at all — every binding is typed and
+    /// definitely assigned, so there is no "make this name undefined again".
+    fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: BlockId) {
+        let ExprKind::Index {
+            base,
+            index: Some(index),
+        } = &target.kind
+        else {
+            panic!(
+                "mwl-ir lowers `unset` only on an array element with an explicit subscript — \
+                 got {:?}; see the crate docs' known gaps",
+                target.kind
+            );
+        };
+        let (array_v, array_ty) = self.lower_expr(base, None, env, cur);
+        assert!(
+            array_ty == Ty::Array,
+            "mwl-ir: an `unset` target's base lowered to {array_ty:?} rather than an array — \
+             either it erased to `mixed`, which this crate does not yet lower, or \
+             mwl_types::check_program accepted something it should not have"
+        );
+        let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+        let (written, _) = self.emit(
+            cur,
+            Ty::Array,
+            InstKind::ArrayUnset {
+                array: array_v,
+                key: key_v,
+            },
+        );
+        if !key_aliasing {
+            self.emit_release(cur, key_v);
+        }
+        self.write_back_array(base, written, env, cur);
+    }
+
     /// `break;`/`break 1;` — jumps straight to the enclosing loop's exit
     /// block, recording the current block and environment as one more
     /// incoming edge [`Self::lower_while`] folds into its own after-block
@@ -1614,12 +1961,47 @@ impl<'a> Lowering<'a> {
                 )
             })
             .after_block;
+        // A `break` ends the iteration it is in, so it owes exactly what a
+        // back edge owes — see `LoopFrame::iteration_owned`. It additionally
+        // hides the loop's own bookkeeping names from everything after the
+        // loop, which the condition's own false edge never carries either.
+        let mut exit_env = env.clone();
+        self.end_iteration(*cur, &mut exit_env);
+        for name in &self
+            .loop_stack
+            .last()
+            .expect("just read the same stack above")
+            .loop_private
+        {
+            exit_env.remove(name);
+        }
         self.loop_stack
             .last_mut()
             .expect("just read the same stack above")
             .break_edges
-            .push((*cur, env.clone()));
+            .push((*cur, exit_env));
         self.seal(*cur, Terminator::Jump(after_block));
+    }
+
+    /// Releases the innermost loop's per-iteration bindings and drops them
+    /// from `env` — the one thing every point an iteration ends has in common
+    /// (the body's fall-through back edge, a `continue`, a `break`).
+    ///
+    /// A no-op for a `while` loop, whose [`LoopFrame::iteration_owned`] is
+    /// empty; see that field's own doc comment for the whole policy.
+    fn end_iteration(&mut self, cur: BlockId, env: &mut Env) {
+        let owned = self
+            .loop_stack
+            .last()
+            .map(|frame| frame.iteration_owned.clone())
+            .unwrap_or_default();
+        for name in owned {
+            if let Some((v, ty)) = env.remove(&name)
+                && ty.is_refcounted()
+            {
+                self.emit_release(cur, v);
+            }
+        }
     }
 
     /// `continue;`/`continue 1;` — a loop back edge exactly like the body's
@@ -1645,12 +2027,17 @@ impl<'a> Lowering<'a> {
                 )
             })
             .header_block;
+        // The next iteration rebinds a `foreach` header's key/value from
+        // scratch, so this back edge ends the current one — see
+        // `LoopFrame::iteration_owned`.
+        let mut back_env = env.clone();
+        self.end_iteration(*cur, &mut back_env);
         self.emit_safepoint(*cur);
         self.loop_stack
             .last_mut()
             .expect("just read the same stack above")
             .continue_edges
-            .push((*cur, env.clone()));
+            .push((*cur, back_env));
         self.seal(*cur, Terminator::Jump(header_block));
     }
 
@@ -1781,10 +2168,20 @@ impl<'a> Lowering<'a> {
                     by_ref: false,
                     ..
                 } = &e.kind
-                    && let ExprKind::Variable(name_span) = &target.kind
+                    && let Some(name) = self.rebound_local(target)
+                    && seen.insert(name.clone())
                 {
-                    let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
-                    if seen.insert(name.clone()) {
+                    out.push(name);
+                }
+            }
+            // `unset($a[$k]);` re-points `$a` at the separated array exactly
+            // the way `$a[$k] = …;` does — see `Self::lower_unset` — so it
+            // needs the identical loop-header phi.
+            StmtKind::Unset(targets) => {
+                for target in targets {
+                    if let Some(name) = self.rebound_local(target)
+                        && seen.insert(name.clone())
+                    {
                         out.push(name);
                     }
                 }
@@ -1800,10 +2197,36 @@ impl<'a> Lowering<'a> {
                     self.collect_reassigned_locals(e, seen, out);
                 }
             }
-            StmtKind::While { body, .. } => {
+            StmtKind::While { body, .. } | StmtKind::Foreach { body, .. } => {
                 self.collect_reassigned_locals(body, seen, out);
             }
             _ => {}
+        }
+    }
+
+    /// Which local, if any, an assignment or `unset` target re-points — the
+    /// name [`Self::collect_reassigned_locals`] owes a loop-header phi.
+    ///
+    /// A bare `$x` is the obvious one. An array element (`$a[$k]`, `$a[]`) is
+    /// the less obvious one and matters just as much: ADR 0007 § 5's
+    /// copy-on-write separation produces a *different* allocation, which
+    /// [`Self::write_back_array`] stores back into the base's own local slot.
+    /// Missing that phi would leave a loop body writing into the value the
+    /// loop was entered with on every iteration instead of the one the last
+    /// iteration produced — which is only invisible while the array is solely
+    /// owned and therefore never actually separates.
+    ///
+    /// A property target (`$obj->p`, `$obj->items[$k]`) rebinds no local at
+    /// all: the write goes to the object's own slot, which no phi describes.
+    fn rebound_local(&self, target: &Expr) -> Option<String> {
+        match &target.kind {
+            ExprKind::Variable(name_span) => {
+                Some(strip_sigil(span_text(self.src, *name_span)).to_owned())
+            }
+            ExprKind::Paren(inner) | ExprKind::Index { base: inner, .. } => {
+                self.rebound_local(inner)
+            }
+            _ => None,
         }
     }
 
@@ -3184,6 +3607,26 @@ fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, St
         }
     }
     (10, digits)
+}
+
+/// One `foreach` binding's declared representation.
+///
+/// # Panics
+///
+/// Panics naming `which` binding it was for a header that declares no type at
+/// all. ADR 0007 § 3.2 makes both bindings' types mandatory and
+/// `mwl_syntax`'s parser already reported the omission (the `None` here is the
+/// error-recovery placeholder [`ForeachBinding::ty`]'s own doc comment
+/// describes), so lowering never runs on such a file.
+fn binding_ty(binding: &ForeachBinding, which: &str) -> Ty {
+    let ty = binding.ty.as_ref().unwrap_or_else(|| {
+        panic!(
+            "mwl-ir: a `foreach` {which} binding reached lowering with no declared type — \
+             mwl_syntax already reports that omission, so this file should never have been \
+             lowered"
+        )
+    });
+    lower_decl_type(ty)
 }
 
 /// Lowers a *declared* type straight off the AST — every scalar atom, plus
@@ -4931,6 +5374,81 @@ class T {
         assert_eq!(dog.fields, ["legs", "name"]);
         assert_eq!(dog.conforms, ["Animal", "Greets"]);
         assert!(program.classes[2].fields.is_empty());
+    }
+
+    /// `foreach` over an `array<T>` with both bindings — the cursor's header
+    /// phi, the retained loop-owned array reference under its reserved `Env`
+    /// name, the step at the *top* of the body, and the per-iteration release
+    /// of the key on the back edge. See `Lowering::lower_foreach`.
+    #[test]
+    fn a_foreach_walks_an_array_through_a_cursor_it_owns_a_reference_to() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class T {
+  function m(array<int> $a): void {
+    foreach ($a as string $k => int $v) {
+      echo $k;
+    }
+  }
+}
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A refcounted value binding is retained where a scalar one is not — the
+    /// binding is a durable slot and `InstKind::ArrayValueAt` hands it a
+    /// borrow, the same split `InstKind::ArrayGet` already has.
+    #[test]
+    fn a_refcounted_foreach_value_binding_is_retained_for_its_iteration() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class T {
+  function m(array<string> $a): void {
+    foreach ($a as string $v) {
+      echo $v;
+    }
+  }
+}
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `unset($a[$k]);` — `InstKind::ArrayUnset` written back through the same
+    /// holder a write uses, with the literal key released afterwards because
+    /// the removal only borrows it.
+    #[test]
+    fn unsetting_an_element_writes_the_separated_array_back() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class T {
+  function m(array<int> $a): void {
+    unset($a[\"k\"]);
+  }
+}
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `foreach (… as &$v)` writes back through the array it is walking, which
+    /// is the one shape copy-on-write separation has to be told *not* to
+    /// separate — out of scope, and named rather than mislowered.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn a_by_reference_foreach_value_binding_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl
+class T {
+  function m(array<int> $a): void {
+    foreach ($a as int &$v) {
+      echo $v;
+    }
+  }
+}
+",
+        );
     }
 
     /// A file declaring no class still lowers, with an empty class table —

@@ -100,12 +100,13 @@
 //!    `mwl_types` resolved from the receiver's *static* type, so an overridden
 //!    method reached through a base-typed variable still calls the base's.
 //!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
-//!    `FieldSet`, an instance `Call`, `ArrayNew`, `ArrayGet`, `ArraySet`,
-//!    `ArrayAppend` and a `Ty::Object`/`Ty::Array` retain/release, against
+//!    `FieldSet`, an instance `Call`, every array instruction — `ArrayNew`,
+//!    `ArrayGet`, `ArraySet`, `ArrayAppend`, `ArrayUnset` and `foreach`'s
+//!    `ArrayNextSlot`/`ArrayKeyAt`/`ArrayValueAt` cursor — and a
+//!    `Ty::Object`/`Ty::Array` retain/release, against
 //!    [`mwl_runtime::object`]'s layout, the per-class slot table
 //!    [`mwl_ir::ir::Program::classes`] carries, and [`mwl_runtime::array`]'s
-//!    primitives. `unset($a[$k])` and `foreach` are not lowered by `mwl-ir`
-//!    yet, so neither has a site here.
+//!    primitives.
 //! 2. **ADR 0018's `BRANCH` probe is not emitted.** It needs a per-edge site
 //!    at [`mwl_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe
@@ -440,8 +441,21 @@ struct Signatures {
     array_get: Signature,
     /// `mwl_array_set(array, key, value) -> *mut ArrayHeader`.
     array_set: Signature,
-    /// `mwl_array_append(array, value) -> *mut ArrayHeader`.
+    /// `mwl_array_append(array, value) -> *mut ArrayHeader`, and
+    /// `mwl_array_unset(array, key) -> *mut ArrayHeader`, which is the same
+    /// two-pointers-in, one-pointer-out shape.
     array_append: Signature,
+    /// `mwl_array_next_slot(array, from) -> i64` — the `foreach` cursor step.
+    /// `from` is a `usize` in the Rust signature, `I64` here: every target
+    /// this JIT compiles for is 64-bit (see [`crate::ty::clif_ty`], which maps
+    /// every pointer-shaped representation to `I64` for the same reason).
+    array_next_slot: Signature,
+    /// `mwl_array_key_at(array, slot) -> *mut StrHeader`.
+    array_key_at: Signature,
+    /// `mwl_array_value_at(array, slot, out)` — the read primitive whose
+    /// result travels through a caller-owned 16-byte slot, exactly like
+    /// [`Self::array_get`].
+    array_value_at: Signature,
 }
 
 impl Jit {
@@ -672,6 +686,21 @@ impl Signatures {
         array_append.params.push(AbiParam::new(ptr)); // value
         array_append.returns.push(AbiParam::new(ptr));
 
+        let mut array_next_slot = module.make_signature();
+        array_next_slot.params.push(AbiParam::new(ptr)); // array
+        array_next_slot.params.push(AbiParam::new(types::I64)); // from
+        array_next_slot.returns.push(AbiParam::new(types::I64));
+
+        let mut array_key_at = module.make_signature();
+        array_key_at.params.push(AbiParam::new(ptr)); // array
+        array_key_at.params.push(AbiParam::new(types::I64)); // slot
+        array_key_at.returns.push(AbiParam::new(ptr));
+
+        let mut array_value_at = module.make_signature();
+        array_value_at.params.push(AbiParam::new(ptr)); // array
+        array_value_at.params.push(AbiParam::new(types::I64)); // slot
+        array_value_at.params.push(AbiParam::new(ptr)); // out
+
         Self {
             helper,
             safepoint,
@@ -687,6 +716,9 @@ impl Signatures {
             array_get,
             array_set,
             array_append,
+            array_next_slot,
+            array_key_at,
+            array_value_at,
         }
     }
 }

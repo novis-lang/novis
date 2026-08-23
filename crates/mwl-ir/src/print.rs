@@ -179,6 +179,18 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ArrayAppend { array, value } => {
             format!("array.append v{}, v{}", array.index(), value.index())
         }
+        InstKind::ArrayUnset { array, key } => {
+            format!("array.unset v{}, v{}", array.index(), key.index())
+        }
+        InstKind::ArrayNextSlot { array, from } => {
+            format!("array.next_slot v{}, v{}", array.index(), from.index())
+        }
+        InstKind::ArrayKeyAt { array, slot } => {
+            format!("array.key_at v{}, v{}", array.index(), slot.index())
+        }
+        InstKind::ArrayValueAt { array, slot } => {
+            format!("array.value_at v{}, v{}", array.index(), slot.index())
+        }
         InstKind::TakeThrown => "take.thrown".to_owned(),
         InstKind::Throwable { op, operand } => {
             format!("throwable.{} v{}", throwable_op_name(*op), operand.index())

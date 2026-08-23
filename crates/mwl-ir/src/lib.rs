@@ -34,7 +34,10 @@
 //! through arithmetic, `.` concatenation, ADR 0035's truthy table or an
 //! array-element access, and now `$a[] = expr;` append syntax on the write
 //! side (`$a[]` as a read has no PHP meaning at all, so it stays unsupported
-//! by design, not by gap) — [`lower::lower_method`] is the entry point for
+//! by design, not by gap), and now `foreach` over an `array<T>` and
+//! `unset($a[$k])`, the array's two remaining consumers — see
+//! [`lower::Lowering::lower_foreach`] and [`lower::Lowering::lower_unset`],
+//! which own those two policies — [`lower::lower_method`] is the entry point for
 //! one method, and [`lower::lower_script`] the entry point for a file's own
 //! top-level statements, which are one synthesized frame of ordinary locals
 //! with no receiver parameter (ADR 0008 § 2 — see that function's own doc
@@ -44,9 +47,9 @@
 //! array-literal element, no concatenation of a `Stringable`-object operand (a class/enum
 //! value itself also has a representation, [`ty::Ty::Object`], just not a
 //! way to refcount one yet, nor a way to invoke its `toString()` from here),
-//! and now `break`/`continue` for a `while` loop (level 1 only — see the
-//! twenty-first slice below for `for`/`switch`, which still aren't lowered
-//! at all).
+//! and now `break`/`continue` for a `while` or `foreach` loop (level 1 only —
+//! see the twenty-first slice below for `for`/`switch`, which still aren't
+//! lowered at all).
 //! The straight-line
 //! subset was deliberately the *first* slice landed
 //! (see git history and `docs/implementation-plan.md`'s M2 paragraph) because
@@ -726,14 +729,19 @@
 //!   naming the statement. [`ir::Terminator::Branch`] and [`ids::EdgeId`]
 //!   are both already exercised by `if`/`while`, so widening to the rest is
 //!   expected to reuse the same shapes rather than add new ones — see
-//!   [`lower`]'s module docs. `break`/`continue` now lower for a `while`
-//!   loop (the twenty-first slice, above) — see the next bullet for exactly
-//!   what's still out of scope on that front.
-//! - **`break`/`continue` lower for a `while` loop, level 1 only.** See the
-//!   twenty-first-slice paragraph above for [`lower::LoopFrame`]'s shape and
-//!   how a `continue`'s edge folds into the header's own phi-patch loop
-//!   while a `break`'s folds into a new [`lower::Lowering::merge_envs`] call
-//!   at the after-block. What's still out of scope: `break N`/`continue N`
+//!   [`lower`]'s module docs. `foreach` *does* lower, over an `array<T>`
+//!   subject only — see [`lower::Lowering::lower_foreach`], which owns the
+//!   whole policy. Out of scope there, each panicking rather than
+//!   miscompiling: an ADR 0053 `Iterable`/`Iterator` subject, a `&$v`
+//!   by-reference value binding, and a key binding declared as anything but
+//!   `string`.
+//! - **`break`/`continue` lower for a `while` or `foreach` loop, level 1
+//!   only.** See the twenty-first-slice paragraph above for
+//!   [`lower::LoopFrame`]'s shape and how a `continue`'s edge folds into the
+//!   header's own phi-patch loop while a `break`'s folds into a new
+//!   [`lower::Lowering::merge_envs`] call at the after-block; a `foreach`
+//!   adds one thing to both, [`lower::LoopFrame::iteration_owned`]'s
+//!   per-iteration release. What's still out of scope: `break N`/`continue N`
 //!   for any `N > 1` (a multi-level exit — panics naming it), a
 //!   non-literal level expression (also panics), and either keyword inside
 //!   a `for`/`switch` body, since neither of those statements lowers at all

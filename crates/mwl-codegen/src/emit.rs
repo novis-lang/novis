@@ -402,6 +402,42 @@ impl Emitter<'_, '_> {
                 )?;
                 self.define(inst, result)?;
             }
+            InstKind::ArrayUnset { array, key } => {
+                let (array, _) = self.value(*array)?;
+                let (key, _) = self.value(*key)?;
+                let callee = self.runtime_ref("mwl_array_unset", RuntimeSig::ArrayAppend)?;
+                let call = self.b.ins().call(callee, &[array, key]);
+                let result = self.b.inst_results(call)[0];
+                self.define(inst, result)?;
+            }
+            InstKind::ArrayNextSlot { array, from } => {
+                let (array, _) = self.value(*array)?;
+                let (from, _) = self.value(*from)?;
+                let callee = self.runtime_ref("mwl_array_next_slot", RuntimeSig::ArrayNextSlot)?;
+                let call = self.b.ins().call(callee, &[array, from]);
+                let result = self.b.inst_results(call)[0];
+                self.define(inst, result)?;
+            }
+            InstKind::ArrayKeyAt { array, slot } => {
+                let (array, _) = self.value(*array)?;
+                let (slot, _) = self.value(*slot)?;
+                let callee = self.runtime_ref("mwl_array_key_at", RuntimeSig::ArrayKeyAt)?;
+                let call = self.b.ins().call(callee, &[array, slot]);
+                let result = self.b.inst_results(call)[0];
+                self.define(inst, result)?;
+            }
+            InstKind::ArrayValueAt { array, slot } => {
+                let ty = inst
+                    .ty
+                    .ok_or_else(|| internal("a foreach value binding with no representation"))?;
+                let (array, _) = self.value(*array)?;
+                let (slot, _) = self.value(*slot)?;
+                let out = self.value_slot();
+                let callee = self.runtime_ref("mwl_array_value_at", RuntimeSig::ArrayValueAt)?;
+                self.b.ins().call(callee, &[array, slot, out]);
+                let value = self.load_value(out, 0, ty)?;
+                self.define(inst, value)?;
+            }
             InstKind::Retain { operand } => {
                 let (value, ty) = self.value(*operand)?;
                 self.emit_refcount(true, value, ty)?;
@@ -1398,6 +1434,9 @@ impl Emitter<'_, '_> {
             RuntimeSig::ArrayGet => &self.sigs.array_get,
             RuntimeSig::ArraySet => &self.sigs.array_set,
             RuntimeSig::ArrayAppend => &self.sigs.array_append,
+            RuntimeSig::ArrayNextSlot => &self.sigs.array_next_slot,
+            RuntimeSig::ArrayKeyAt => &self.sigs.array_key_at,
+            RuntimeSig::ArrayValueAt => &self.sigs.array_value_at,
         };
         let id = self
             .module
@@ -1429,6 +1468,9 @@ enum RuntimeSig {
     ArrayGet,
     ArraySet,
     ArrayAppend,
+    ArrayNextSlot,
+    ArrayKeyAt,
+    ArrayValueAt,
 }
 
 /// The symbol name `mwl-runtime` exports for one [`Helper`] tag.
