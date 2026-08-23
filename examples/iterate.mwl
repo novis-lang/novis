@@ -1,0 +1,34 @@
+<?mwl
+class Counter implements Iterable<int> {
+    private int $limit;
+
+    constructor(int $limit) {
+        $this->limit = $limit;
+    }
+
+    public function iterate(): Iterator<int> {
+        return Counter::upTo($this->limit);
+    }
+
+    public static function upTo(int $limit): Iterator<int> {
+        var $i = 1;
+        while ($i <= $limit) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+var $fromGenerator = 0;
+foreach (Counter::upTo(5) as int $n) {
+    $fromGenerator = $fromGenerator + $n;
+}
+
+echo "generator=" . $fromGenerator . "\n";
+
+var $fromIterable = 0;
+foreach (new Counter(4) as int $m) {
+    $fromIterable = $fromIterable + $m;
+}
+
+echo "iterable=" . $fromIterable . "\n";

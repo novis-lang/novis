@@ -78,7 +78,7 @@ crates/
   mwl-codegen       Cranelift backend  [audited unsafe]                                M3
   mwl-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3
   mwl-cli           the `mwl` binary (`ast`, `check` so far)                exists / M3
-  mwl-stdlib        Core domain classes, native builtin static methods                  M4
+  mwl-stdlib        Core domain classes, native builtin static methods                 M4S
   mwl-test          .mwlt runner                                                       M4
   mwl-host          Transport trait, unit cache, the Isolate boundary                  M5
   mwl-config        mwl.ini registry, changeability classes, overlays                  M6

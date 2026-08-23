@@ -55,14 +55,17 @@
 budget, before falling to the next. No tier is retried. Every tier that writes a log line writes the same
 record, through one shared native serialiser.**
 
-### 0. The exception hierarchy is unchanged, plus one addition and one deliberate non-member
+### 0. The exception hierarchy, and one deliberate non-member
 
-`Throwable`, `Exception` and `Error` stay global, PHP-shaped classes — the ordinary `catch` target for
-ordinary control flow, exactly as today. One addition: **`ParseError extends Error`**, thrown when a file
-pulled in mid-execution (`include`/`require`, or a `spawn script` target that fails *after* its parent
-isolate is already running) fails to compile — an ordinary, catchable `Throwable` at the call site, matching
-PHP's own `ParseError` and the frameworks that catch it to fail a bad template or plugin gracefully instead
-of the whole request.
+**The hierarchy itself is [docs/spec/01-core-library.md](../spec/01-core-library.md) § 10's, not this
+ADR's** — that section is the stdlib work this ADR deferred, and it is the one home for the class tree, the
+`message`/`previous`/`backtrace`/`location` members, and the fact that `Exception` and `Error` are not
+class names in MWL at all. What matters *here* is only that these classes are global, are the ordinary
+`catch` target for ordinary control flow, and include a **`ParseError`**, thrown when a file pulled in
+mid-execution (`require`, or a `spawn script` target that fails *after* its parent isolate is already
+running) fails to compile — an ordinary, catchable `Throwable` at the call site, matching PHP's own
+`ParseError` and the frameworks that catch it to fail a bad template or plugin gracefully instead of the
+whole request.
 
 One deliberate non-member: the value a resource-limit `FATAL` carries (illustrative name `Core\Fatal\LimitReport`
 — exact shape is stdlib work, see *Revisiting*) **does not implement `Throwable`.** This is not a runtime

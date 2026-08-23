@@ -257,33 +257,74 @@ function Test-Ordered([string]$text, [string[]]$want) {
     return $true
 }
 
-$script:GoalExact = @(
-    @{ File = 'examples/hello.mwl'; Want = 'Hello, World!' }
-    @{ File = 'examples/calls.mwl'; Want = 'quadruple(5) = 20' }
-    @{ File = 'examples/throw.mwl'; Want = 'caught: boom' }
-    @{ File = 'examples/arith.mwl'; Want = 'sum = 998000' }
+# The acceptance runs in stages, cheapest structural gate first, so the ledger line each iteration writes
+# says how far the loop actually got. .claude/loop-goal.md is authoritative for all of it, including the
+# rule that the expected output below is frozen while a fixture's source may be corrected to a spelling
+# the docs already fix.
+
+# Stage 1 -- the object and array gate.
+$script:GoalStage1 = @(
+    @{ File = 'examples/hello.mwl';   Want = @('Hello, World!') }
+    @{ File = 'examples/calls.mwl';   Want = @('quadruple(5) = 20') }
+    @{ File = 'examples/arith.mwl';   Want = @('sum = 998000') }
+    @{ File = 'examples/throw.mwl';   Want = @('caught: boom') }
+    @{ File = 'examples/objects.mwl'; Want = @(
+        'cat has 4 legs', 'rex has 4 legs, and barks', 'Hello, rex!',
+        'dog is an animal', 'dog greets', 'leaf', 'leaf is a mid') }
+    @{ File = 'examples/arrays.mwl';  Want = @(
+        'alpha=1;beta=2;gamma=3;', 'alpha=1;gamma=3;', 'alpha=1;gamma=3;beta=20;',
+        'alpha=1;gamma=3;beta=20;', 'alpha=99;gamma=3;beta=20;', 'count=3', 'total=10') }
+    @{ File = 'examples/errors.mwl';  Want = @(
+        'checked host', 'value-of-host', 'checked bad', 'config: bad key',
+        'checked missing', 'logic: no such key: missing', 'backtrace present') }
+    @{ File = 'examples/hooks.mwl';   Want = @('6', '20', 'Counter(10)', 'n=6') }
+    @{ File = 'examples/enums.mwl';   Want = @('ana outranks bo', 'gold=2', 'ana,clone') }
+)
+
+# Stage 2 -- the rest of M4's language surface.
+$script:GoalStage2 = @(
+    @{ File = 'examples/iterate.mwl'; Want = @('generator=15', 'iterable=10') }
+)
+
+# Stage 3 -- Core Part I is real.
+$script:GoalStage3 = @(
+    @{ File = 'examples/core.mwl';   Want = @(
+        'evens=5', 'PEAR|APPLE|FIG|BANANA', 'fig,pear,Apple,banana', 'a+b+c', '007', 'Mwl runs') }
+    @{ File = 'examples/report.mwl'; Want = @(
+        'the...3', 'quick.1', 'brown.1', 'fox...2', 'lazy..1', 'dog...1', 'distinct=6') }
 )
 
 $script:GoalFiles = @(
     'examples/hello.mwl', 'examples/calls.mwl', 'examples/throw.mwl', 'examples/arith.mwl',
-    'examples/trace.mwl', 'examples/uncaught.mwl', 'examples/fatal.mwl'
+    'examples/trace.mwl', 'examples/uncaught.mwl', 'examples/fatal.mwl',
+    'examples/objects.mwl', 'examples/arrays.mwl', 'examples/errors.mwl', 'examples/hooks.mwl',
+    'examples/enums.mwl', 'examples/iterate.mwl', 'examples/core.mwl', 'examples/report.mwl'
 )
 
-# $Run takes a string[] of arguments to place after `mwl run` and returns an Invoke-Capture hashtable.
-function Test-GoalLeg([scriptblock]$Run, [string]$leg) {
-
-    foreach ($c in $script:GoalExact) {
+# Stdout as a line array: CRLF normalized away and the trailing newline dropped, so Windows and Linux
+# compare identically. Equality is line for line -- a fixture that prints an extra line has failed.
+function Test-ExactSet([scriptblock]$Run, [string]$leg, $cases) {
+    foreach ($c in $cases) {
         $r = & $Run @(, $c.File)
         if ($r.Code -ne 0) {
             return (Fail-Goal ("{0} {1}: exit {2} -- {3}" -f $leg, $c.File, $r.Code, ($r.Err.Trim() -split "`r?`n")[0]))
         }
-        $got = $r.Out.Trim()
-        if ($got -ne $c.Want) {
-            return (Fail-Goal ("{0} {1}: stdout was '{2}', wanted '{3}'" -f $leg, $c.File, $got, $c.Want))
+        $got  = @((($r.Out -replace "`r", '').TrimEnd("`n")) -split "`n")
+        $want = @($c.Want)
+        if (($got -join '|') -ne ($want -join '|')) {
+            return (Fail-Goal ("{0} {1}: stdout was [{2}], wanted [{3}]" -f `
+                        $leg, $c.File, ($got -join ' / '), ($want -join ' / ')))
         }
     }
+    return $true
+}
 
-    # A caught throw's own trace, read back from MWL through getTraceAsString().
+# $Run takes a string[] of arguments to place after `mwl run` and returns an Invoke-Capture hashtable.
+function Test-GoalLeg([scriptblock]$Run, [string]$leg) {
+
+    if (-not (Test-ExactSet $Run $leg $script:GoalStage1)) { return $false }
+
+    # A caught throw's own trace, read back from MWL through its backtrace property.
     $r = & $Run @(, 'examples/trace.mwl')
     if ($r.Code -ne 0) { return (Fail-Goal ("{0} trace.mwl: exit {1}" -f $leg, $r.Code)) }
     if (-not (Test-Ordered $r.Out @('#0 Deep::inner()', '#1 Deep::outer()'))) {
@@ -308,6 +349,32 @@ function Test-GoalLeg([scriptblock]$Run, [string]$leg) {
     if ($r.Code -ne 0) { return (Fail-Goal ("{0} --dump-asm: exit {1}" -f $leg, $r.Code)) }
     if ($r.Out.Length -lt 200) { return (Fail-Goal ("{0} --dump-asm: only {1} bytes of output" -f $leg, $r.Out.Length)) }
 
+    if (-not (Test-ExactSet $Run $leg $script:GoalStage2)) { return $false }
+    if (-not (Test-ExactSet $Run $leg $script:GoalStage3)) { return $false }
+
+    return $true
+}
+
+# Stage 4. `mwl test <dir>` must exit 0 AND print a summary line "N passed, M failed" -- a suite that
+# silently collected nothing exits 0 too, and that is the failure this guards against. loop-goal.md fixes
+# that output contract.
+function Test-Suite([string[]]$cargoArgs, [int]$minPassing, [string]$what) {
+    $r = Invoke-Capture 'cargo' $cargoArgs
+    if ($r.Code -ne 0) {
+        return (Fail-Goal ("{0}: exit {1} -- {2}" -f $what, $r.Code, ($r.Err.Trim() -split "`r?`n")[0]))
+    }
+    $all = $r.Out + "`n" + $r.Err
+    $m = [regex]::Match($all, '(\d+)\s+passed,\s+(\d+)\s+failed')
+    if (-not $m.Success) {
+        return (Fail-Goal ("{0}: no 'N passed, M failed' summary line in the output" -f $what))
+    }
+    if ([int]$m.Groups[2].Value -ne 0) {
+        return (Fail-Goal ("{0}: {1} case(s) failed" -f $what, $m.Groups[2].Value))
+    }
+    if ([int]$m.Groups[1].Value -lt $minPassing) {
+        return (Fail-Goal ("{0}: only {1} passing case(s), wanted at least {2}" -f `
+                    $what, $m.Groups[1].Value, $minPassing))
+    }
     return $true
 }
 
@@ -341,14 +408,29 @@ function Test-Goal {
     }
     if (-not (Test-GoalLeg $winRun 'win')) { return $false }
 
+    # Stage 4 -- the two suites, plus the mechanical spec-coverage gate behind them.
+    if (-not (Test-Suite @('run', '--quiet', '-p', 'mwl-cli', '--', 'test', 'tests/conformance/') `
+                250 'conformance')) { return $false }
+    if (-not (Test-Suite @('run', '--quiet', '-p', 'mwl-cli', '--', 'test', 'tests/differential/') `
+                60 'differential')) { return $false }
+    if (-not (Test-NamedTests @('test', '-p', 'mwl-stdlib') `
+                @('every_part_one_member_has_a_conformance_case') 'mwl-stdlib')) { return $false }
+
+    # Stage 5 -- the named guard tests.
     if (-not (Test-NamedTests @('test', '--release', '-p', 'mwl-abi-probe') `
                 @('a_typed_arithmetic_loop_contains_no_call',
-                  'a_typed_arithmetic_loop_stays_in_the_native_cost_class') 'abi-probe')) { return $false }
+                  'a_typed_arithmetic_loop_stays_in_the_native_cost_class',
+                  'a_refcount_one_array_member_mutates_in_place',
+                  'a_class_without_a_property_observer_costs_nothing_extra',
+                  'a_grapheme_index_costs_more_than_a_code_point_index') 'abi-probe')) { return $false }
 
     if (-not (Test-NamedTests @('test', '-p', 'mwl-codegen') `
                 @('a_second_script_runs_after_a_contained_helper_panic') 'mwl-codegen')) { return $false }
 
-    # Windows is green -- now pay for the Linux leg.
+    if (-not (Test-NamedTests @('test', '-p', 'mwl-runtime') `
+                @('an_acyclic_object_graph_releases_every_allocation') 'mwl-runtime')) { return $false }
+
+    # Stage 6 -- Windows is green, so now pay for the Linux leg.
     $wslRun = {
         param($mwlArgs)
         $inner = 'cd ' + $script:WslRepo + ' && CARGO_TARGET_DIR=' + $script:WslTarget +
@@ -356,6 +438,25 @@ function Test-Goal {
         Invoke-Capture 'wsl.exe' @('--', 'bash', '-lc', $inner)
     }
     if (-not (Test-GoalLeg $wslRun 'wsl')) { return $false }
+
+    # ... and then every fixture again under memcheck. A hand-written refcount protocol is exactly where a
+    # leak hides, and the whole error path is new this milestone. Cycles are out of scope by decision (see
+    # loop-goal.md), so only *definite* losses fail the run.
+    $build = Invoke-Capture 'wsl.exe' @('--', 'bash', '-lc',
+        'cd ' + $script:WslRepo + ' && CARGO_TARGET_DIR=' + $script:WslTarget +
+        ' cargo build --quiet -p mwl-cli')
+    if ($build.Code -ne 0) {
+        return (Fail-Goal ("valgrind: the linux build failed -- {0}" -f ($build.Err.Trim() -split "`r?`n")[0]))
+    }
+    foreach ($f in $script:GoalFiles) {
+        if ($f -eq 'examples/fatal.mwl' -or $f -eq 'examples/uncaught.mwl') { continue }  # both exit non-zero by design
+        $inner = 'cd ' + $script:WslRepo + ' && valgrind --error-exitcode=1 --leak-check=full ' +
+                 '--errors-for-leak-kinds=definite -q ' + $script:WslTarget + '/debug/mwl run ' + $f
+        $r = Invoke-Capture 'wsl.exe' @('--', 'bash', '-lc', $inner)
+        if ($r.Code -ne 0) {
+            return (Fail-Goal ("valgrind {0}: exit {1} -- {2}" -f $f, $r.Code, ($r.Err.Trim() -split "`r?`n")[0]))
+        }
+    }
 
     return $true
 }
@@ -418,7 +519,7 @@ for ($i = 1; $i -le $MaxSessions; $i++) {
     }
 
     # Deterministic goal check first -- it outranks whatever the session reported.
-    if (Test-Goal) { $reason = 'GOAL REACHED: M3 acceptance list is green on Windows and WSL'; break }
+    if (Test-Goal) { $reason = 'GOAL REACHED: M4 + M4S Part I acceptance is green on Windows and WSL'; break }
     Write-Ledger ('       goal check: ' + $script:GoalFail)
 
     if ($line -like 'DONE*')    { $reason = "session reported DONE but the acceptance test does not pass yet: $line"; break }

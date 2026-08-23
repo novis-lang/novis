@@ -1,0 +1,80 @@
+<?mwl
+interface Greets {
+    public function name(): string;
+
+    public function greet(): string {
+        return "Hello, " . $this->name() . "!";
+    }
+}
+
+class Animal implements Greets {
+    protected string $animalName;
+    protected int $legs;
+
+    constructor(string $animalName, int $legs) {
+        $this->animalName = $animalName;
+        $this->legs = $legs;
+    }
+
+    public function name(): string {
+        return $this->animalName;
+    }
+
+    public function describe(): string {
+        return $this->animalName . " has " . $this->legs . " legs";
+    }
+}
+
+class Dog extends Animal {
+    public function describe(): string {
+        return parent::describe() . ", and barks";
+    }
+}
+
+class Registry {
+    public static function tag(): string {
+        return "base";
+    }
+
+    public static function make(): static {
+        return new static();
+    }
+
+    public function label(): string {
+        return static::tag();
+    }
+}
+
+class MidRegistry extends Registry {
+    public static function tag(): string {
+        return "mid";
+    }
+}
+
+class LeafRegistry extends MidRegistry {
+    public static function tag(): string {
+        return "leaf";
+    }
+}
+
+var $a = new Animal("cat", 4);
+var $d = new Dog("rex", 4);
+
+echo $a->describe() . "\n";
+echo $d->describe() . "\n";
+echo $d->greet() . "\n";
+
+if ($d instanceof Animal) {
+    echo "dog is an animal\n";
+}
+
+if ($d instanceof Greets) {
+    echo "dog greets\n";
+}
+
+var $leaf = LeafRegistry::make();
+echo $leaf->label() . "\n";
+
+if ($leaf instanceof MidRegistry) {
+    echo "leaf is a mid\n";
+}

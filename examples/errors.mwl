@@ -1,0 +1,49 @@
+<?mwl
+class ConfigError extends Throwable {
+}
+
+class Loader {
+    public static function load(string $key): string {
+        if ($key === "bad") {
+            throw new ConfigError("bad key");
+        }
+
+        if ($key === "missing") {
+            throw new LogicError("no such key: " . $key);
+        }
+
+        return "value-of-" . $key;
+    }
+
+    public static function guarded(string $key): string {
+        try {
+            return Loader::load($key);
+        } finally {
+            echo "checked " . $key . "\n";
+        }
+    }
+}
+
+echo Loader::guarded("host") . "\n";
+
+try {
+    Loader::guarded("bad");
+    echo "not reached\n";
+} catch (LogicError $e) {
+    echo "wrong clause\n";
+} catch (ConfigError $e) {
+    echo "config: " . $e->message . "\n";
+}
+
+try {
+    Loader::guarded("missing");
+    echo "not reached\n";
+} catch (ConfigError $e) {
+    echo "wrong clause\n";
+} catch (Throwable $e) {
+    echo "logic: " . $e->message . "\n";
+
+    if (!Core\Arr::isEmpty($e->backtrace)) {
+        echo "backtrace present\n";
+    }
+}

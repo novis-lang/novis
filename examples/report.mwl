@@ -1,0 +1,31 @@
+<?mwl
+class Report {
+    public static function tally(array<string> $words): array<int> {
+        array<int> $counts = [];
+        foreach ($words as string $w) {
+            var $key = Core\Str::lower($w);
+            if (Core\Arr::hasKey($counts, $key)) {
+                $counts[$key] = $counts[$key] + 1;
+            } else {
+                $counts[$key] = 1;
+            }
+        }
+
+        return $counts;
+    }
+
+    public static function render(array<int> $counts): string {
+        array<string> $lines = [];
+        foreach ($counts as string $word => int $count) {
+            $lines[] = Core\Str::padEnd($word, 6, ".") . $count;
+        }
+
+        return Core\Str::join($lines, "\n");
+    }
+}
+
+array<string> $words = Core\Str::split("the quick brown fox the lazy dog the fox", " ");
+var $counts = Report::tally($words);
+
+echo Report::render($counts) . "\n";
+echo "distinct=" . Core\Arr::count($counts) . "\n";

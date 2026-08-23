@@ -6,10 +6,10 @@
      field is capped at 400 bytes. History lives in `git log`, per-crate gaps in each crate's module
      doc — see CLAUDE.md's "Keep work small" section. -->
 
-> **Status:** 2026-08-23. **M3 is done**: all eight of `.claude/loop-goal.md`'s acceptance commands pass,
-> on Windows and under WSL against a Linux build, with the same bytes on both. `cargo build`/`test`/
-> `clippy`/`fmt`/`deny` are green, and `benches/abi-probe`'s guards including both typed-arithmetic ones.
-> Next: **M4**.
+> **Status:** 2026-08-23. **M3 is done**: every acceptance command in `.claude/loop-goal.md` passed on
+> Windows and under WSL against a Linux build, byte for byte, with `build`/`test`/`clippy`/`fmt`/`deny`
+> green. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
+> array, and building that array without its only real consumer produces one that must be rebuilt.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -24,20 +24,20 @@
 > milestone.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
-> 10.0.26100 for linking, PHP 8.5.8 as a comparison oracle, `cargo-fuzz` 0.13.2 under a WSL nightly
-> toolchain (CLAUDE.md says why).
+> 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
+> WSL nightly toolchain (CLAUDE.md says why).
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
 > slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** M4's object representation, which most of what M3 refused is waiting on — an instance
-> method call, a user exception class, `getTrace()`, ADR 0043's `by`-delegation type-matching and its two
-> diagnostics. Alongside it: 0047 (docs only); 0011/0024/0033's sinks, blocked on `Core`
-> until the new M4S; and ADRs 0053/0054/0055, which owe obligations to M1–M3 and are cheaper now than later.
+> **Open now:** M4's object representation, which nearly everything M3 refused waits on — instance
+> dispatch, a user exception class, the `backtrace` array, ADR 0043's `by`-delegation — then M4S §§ 1–12.
+> Alongside: compiler-owned type variables, ADR 0009's granularity measurement (still *Proposed*, and
+> `Core\Str` cannot be pinned without it), and 0011/0024/0033's sinks, which only awaited `Core`.
 >
-> **Blocking:** nothing on M3's path. M4's own first gate is the object representation: no field layout, no
-> instance dispatch, no array, so `mwl_ir::Ty::Object` is still opaque and refcounts nothing. Two smaller
+> **Blocking:** nothing external. The first gate is the object representation: no field layout, no instance
+> dispatch, no array, so `mwl_ir::Ty::Object` is still opaque and refcounts nothing. Two smaller
 > consequences ride on it — integer `Div`/`Mod` (refused because `sdiv` traps rather than throws) and a
 > `throw` counting as a return in a non-`void` method — and neither is hard once it lands.
 
@@ -524,15 +524,15 @@ fixtures on Windows and Linux — `.claude/loop-goal.md` holds the one copy of t
 authoritative for it. `mwl run` prints from natively compiled code. A throw crosses several JIT frames and
 is caught; a helper panic terminates the script with a `FATAL` status and leaves the process able to run the
 next one. An MWL-level backtrace names the right functions, resolved from MWL's own frame chain rather than
-from the platform unwinder, and is readable from MWL through `getTraceAsString()` — `getTrace()` returns an
-array and is a deliberate carry-over to M4, where arrays land. `mwl run --dump-asm` shows generated code. A
+from the platform unwinder, and is readable from MWL as a rendered string — the `backtrace` member's array
+form is a deliberate carry-over to M4, where arrays land. `mwl run --dump-asm` shows generated code. A
 typed arithmetic loop lowers to native instructions rather than helper calls, committed as a figure in
 `benches/` with a guard, so ADR 0007's claim that mandatory types pay for themselves on the request path is
 tested rather than asserted.
 
 ### M4 — Language completeness — a usable CLI language (~10 weeks)
-Full ordered-hash arrays with COW — including `Throwable::getTrace()`, carried over from M3, which lands
-its string form only — `uint` arithmetic, and the conversion operator over every row of
+Full ordered-hash arrays with COW — including `Throwable`'s `backtrace` member, carried over from M3, which
+lands its rendered string form only — `uint` arithmetic, and the conversion operator over every row of
 [ADR 0007](adr/0007-explicit-type-system.md)'s conversion table; exceptions propagating correctly by
 checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)), closures that bind `$this`
 only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
@@ -545,9 +545,7 @@ inheritance/interfaces, including default/private interface method bodies and `b
 references (`&$x`), instance members and static members including late static binding
 (`static::`, `new static()`, `: static`), property hooks and `PropertyObserver`
 ([ADR 0014](adr/0014-property-observer.md)), `clone`
-([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), the first `Core` domain classes'
-`static` methods for string/array/math operations
-([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode`
+([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), `var_dump`/`print_r`/`json_encode`
 — with a `secret`-qualified property's value redacted
 ([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) — `Stringable` and the rest of
 [ADR 0028](adr/0028-closing-the-remaining-magic-methods.md), and `#[...]` attribute syntax on every
@@ -570,21 +568,25 @@ divergence and gets its own case. Plus one fixture per rule in the *Verification
 [0028](adr/0028-closing-the-remaining-magic-methods.md) and
 [0046](adr/0046-attributes-shape-literal-metadata.md) — each of those sections is the one home for what its
 own rule requires, including the "a class that does not implement `PropertyObserver` shows no measurable
-overhead" measurement. A non-trivial CLI program (an argument-parsing file-processing tool) runs correctly;
-no leaks under Valgrind/ASAN.
+overhead" measurement. A non-trivial program runs correctly and leaks nothing under Valgrind — the
+*argument-parsing, file-processing* half of that program moves to M8 with `Core\Cli` (§ 15) and `Core\IO`
+(§ 14), since neither argv nor a file handle is reachable before capabilities exist at M6.
 
 ### M4S — The `Core` API contract and its pure half (~5 weeks)
 The library the language has been compiling calls *against* since M2 without any of it existing. Its shape
 is [ADR 0063](adr/0063-core-api-conventions.md) and its member list is
 [docs/spec/01-core-library.md](spec/01-core-library.md), which is authoritative for every signature; this
-milestone implements Part I of that file — `Core\Str`, `Arr`, `Math`, `Time`, `Json`, `Regex`, `Encoding`,
-`Bytes`, `Path`, the three collection types, the exception types, `Random`, `Uuid`, `Hash`, `Uri`,
-`Validate`, `Csv`, `Out`. Every one is pure: no capability, no reactor, no driver, no open handle, so none
-of it is blocked on M5–M7. It is placed here rather than at M8 so that everything after it — the LSP's
+milestone implements **§§ 1–12** of that file — `Core\Str`, `Arr`, `Math`, `Time`, `Json`, `Regex`,
+`Encoding`, `Bytes`, `Path`, the three collection types, the exception types, `Random`, `Uuid`, `Hash`,
+`Uri`, `Validate`, `Csv`, `Out`. Every one is pure: no capability, no reactor, no driver, no open handle, so
+none of it is blocked on M5–M7. § 13's compiler-facing surfaces are pure too but each waits on something
+outside `Core`; that file's own *Milestones* section says which, and is the one home for it. It is placed here rather than at M8 so that everything after it — the LSP's
 completion data, M5's concurrency tests, M9's extension conformance fixtures, M11's converter mapping
 table — is written against a real standard library instead of against fixtures that will need rewriting.
 Part II of the spec file (anything capability-bearing) stays at M8 and merely conforms to the same
-contract. `crates/mwl-core` starts here; `Core\Regex` binds the engine [ADR 0056](adr/0056-regex-engine-policy.md)
+contract. `crates/mwl-stdlib` starts here — the Tier 0 crate
+[ADR 0003](adr/0003-extension-system.md) § *Tier 0* already names, and the workspace manifest already
+declares; `Core\Regex` binds the engine [ADR 0056](adr/0056-regex-engine-policy.md)
 picks, and `Core\Time`'s `format`/`parse`/`shift` plus `Core\Str::format` land as
 [ADR 0057](adr/0057-intrinsic-literal-folding.md) intrinsics with the compile-time half wired into
 `mwl-types`.

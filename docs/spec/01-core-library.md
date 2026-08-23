@@ -54,9 +54,17 @@ no `isA`.
 
 ## Milestones
 
-**M4S** builds every class in §§ 1–13: they are pure, need no capability, no reactor, no driver, and no
+**M4S** builds every class in §§ 1–12: they are pure, need no capability, no reactor, no driver, and no
 open file — so they can be implemented, tested and depended upon before the HTTP server exists. **M8**
 builds §§ 14–17, which need one of those things, under the same rules and the same conformance checks.
+
+§ 13 is neither: each of its entries is pure, but each also waits on something outside `Core`.
+`Core\Program` needs [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)'s `autoload`,
+`Core\Ast` needs [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s inert-AST
+surface, `Core\Attributes`' retrieval body is M8 by [ADR 0046](../adr/0046-attributes-shape-literal-metadata.md)
+(its `#[...]` *syntax* is M4), and `Core\Reflect`, `Core\Decimal`, `Core\BigInt` and `Core\Test` want a
+finished object representation under them. They land with whichever milestone closes their dependency, to
+this same contract.
 
 ---
 
