@@ -29,14 +29,15 @@
 //! `float`, `string` — optionally negated (`= -1`). Anything else is
 //! `E_PARAM_DEFAULT_NOT_LITERAL`, naming what is accepted.
 //!
-//! **Known gap:** `= null` is refused along with the rest. `null` has no IR
-//! constant to lower to yet (`mwl_ir::ir::InstKind` has `ConstInt` … `ConstStr`
-//! and nothing for it), and a `?T` parameter defaulting to `null` is the single
-//! most common shape in
-//! [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md), so
-//! this is the first thing to widen — a `ConstArg::Null` variant plus the IR
-//! constant under it, not a second design. An enum case (`Mode $m =
-//! Mode::Fast`) is the second: it is already a compile-time integer constant
+//! **Known gap:** a *written* `= null` is refused along with the rest. The
+//! constant itself now exists — [`ConstArg::Null`], over
+//! `mwl_ir::ir::InstKind::ConstNull` — but the thing a written one would
+//! declare is a `?T` parameter, and `mwl_ir::ty::Ty`'s own docs record why a
+//! type that admits both `null` and a `T` has no IR representation yet. So
+//! this stays refused until that lands, and the constant is reached only from
+//! [`crate::core_lib`], where the *declared* type is the option's own and
+//! `null` means "not given". An enum case (`Mode $m = Mode::Fast`) is the
+//! other shape still refused: it is already a compile-time integer constant
 //! (ADR 0010 § 6), it just needs `crate::enums` consulted from here.
 
 use mwl_diagnostics::{Diagnostic, Span, code};
@@ -55,6 +56,16 @@ use crate::ty::{Ty, TypeId};
 /// reason that enum is closed too.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ConstArg {
+    /// `null` — what an **absent** argument is.
+    ///
+    /// Produced only by [`crate::core_lib`], from
+    /// `mwl_stdlib::registry::Const::Null`, and only for an ADR 0063 R2
+    /// option whose spec signature gives it no "not given" spelling of its
+    /// own: `Core\Arr::sort`'s `by` and `comparator` are the first two. A
+    /// written `= null` is still refused — see this module's own known gap,
+    /// which is about the `?T` *parameter type* that would declare it, not
+    /// about the constant.
+    Null,
     /// `bool`
     Bool(bool),
     /// `int`

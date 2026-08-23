@@ -178,6 +178,14 @@ pub enum InstKind {
     ConstUint(u64),
     /// A `float` constant.
     ConstFloat(f64),
+    /// The constant `null` — a [`crate::ty::Ty::Null`] value, which allocates
+    /// nothing and owns nothing.
+    ///
+    /// Its one producer today is an omitted option whose default is "not
+    /// given" ([`crate::lower::Lowering::emit_const_arg`]); a written `null`
+    /// expression still needs the `?T` lowering `Ty::Mixed`'s own doc comment
+    /// records as open.
+    ConstNull,
     /// A `string` literal's cooked bytes — a fresh [`Ty::Str`] value with
     /// exactly one implicit owner (itself), the same "one natural reference"
     /// starting point [`InstKind::New`] gives a freshly constructed object.

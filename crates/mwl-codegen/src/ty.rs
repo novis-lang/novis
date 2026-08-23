@@ -24,6 +24,9 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Int | Ty::Uint => types::I64,
         Ty::Float => types::F64,
         Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed | Ty::ClassDesc => types::I64,
+        // `null`'s payload is always zero, but it still travels in a register
+        // like every other representation rather than in a shape of its own.
+        Ty::Null => types::I64,
         // A by-reference parameter's staged-slot address — see `Ty::Ref`.
         Ty::Ref => types::I64,
         // ADR 0010 § 6: an enum value *is* its backing integer.
@@ -54,6 +57,9 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         Ty::Uint => Tag::Uint,
         Ty::Float => Tag::Float,
         Ty::Str | Ty::Bytes => Tag::Str,
+        // The one representation whose tag is the whole of it — see
+        // `mwl_ir::Ty::Null`.
+        Ty::Null => Tag::Null,
         // ADR 0010 § 6 reserves a tag of its own for an enum; this uses the
         // backing type's instead, deliberately. A tag only has to answer
         // "which type is this?" where the static type does not — the `mixed`

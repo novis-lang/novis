@@ -53,6 +53,32 @@ pub enum Ty {
     Uint,
     /// `float`.
     Float,
+    /// `null` — the one value of its own type, and the whole of what an
+    /// **absent** argument is.
+    ///
+    /// Deliberately *not* the same thing as [`Self::Mixed`]. `mixed` is
+    /// "some value whose runtime type nothing has decided how to read yet";
+    /// this is "no value," and its representation is settled: a `Tag::Null`
+    /// tag byte over a zero payload, which is exactly what
+    /// `mwl_runtime::Value::null` already builds and what every helper
+    /// already receives in the receiver slot of a static call. So a `null`
+    /// argument needs no runtime type tag decided and no new marshalling —
+    /// only a constant to emit it from ([`crate::ir::InstKind::ConstNull`]).
+    ///
+    /// **Not refcounted**, and nothing is ever allocated for it.
+    ///
+    /// # What this does not add
+    ///
+    /// A `?T` *declared* type still does not lower. This variant is the
+    /// representation of the value `null`, not of a type that admits it: a
+    /// binding declared `?int` has to hold either representation at different
+    /// points, which is the union question `mwl_ir::ty::Ty::Mixed` records as
+    /// still open. What it does close is the narrower case that blocked
+    /// [ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2's option
+    /// bags: an option whose *default* is "not given," where the constant is
+    /// `null` at every call site that omits it and the declared type is
+    /// whatever the option accepts when it is written.
+    Null,
     /// A function returning nothing.
     Void,
     /// A reference to a class instance — every `mwl_types::ty::Ty::Class`/

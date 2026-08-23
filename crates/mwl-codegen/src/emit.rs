@@ -316,6 +316,13 @@ impl Emitter<'_, '_> {
                 let v = self.b.ins().f64const(*v);
                 self.define(inst, v)?;
             }
+            // `null` is a zero payload under a `Tag::Null` tag byte, and the
+            // tag comes from `Ty::Null` at whatever slot this value is stored
+            // into — so the value itself is just the zero.
+            InstKind::ConstNull => {
+                let v = self.b.ins().iconst(types::I64, 0);
+                self.define(inst, v)?;
+            }
             InstKind::ConstStr(text) => {
                 let (value, next) = self.emit_const_str(cur, text.as_bytes())?;
                 self.define(inst, value)?;

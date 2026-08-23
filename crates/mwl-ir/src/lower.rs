@@ -4646,6 +4646,7 @@ impl<'a> Lowering<'a> {
                     Ty::Str
                     | Ty::Bytes
                     | Ty::Void
+                    | Ty::Null
                     | Ty::Object
                     | Ty::Array
                     | Ty::Mixed
@@ -4906,6 +4907,7 @@ impl<'a> Lowering<'a> {
                     Ty::Str => Helper::StrTruthy,
                     Ty::Bool
                     | Ty::Void
+                    | Ty::Null
                     | Ty::Object
                     | Ty::Array
                     | Ty::Bytes
@@ -5703,6 +5705,7 @@ impl<'a> Lowering<'a> {
     /// the same `InstKind::ConstStr` and closing that gap closes both.
     fn emit_const_arg(&mut self, default: &mwl_types::ConstArg, cur: BlockId) -> (ValueId, Ty) {
         let (ty, kind) = match default {
+            mwl_types::ConstArg::Null => (Ty::Null, InstKind::ConstNull),
             mwl_types::ConstArg::Bool(b) => (Ty::Bool, InstKind::ConstBool(*b)),
             mwl_types::ConstArg::Int(v) => (Ty::Int, InstKind::ConstInt(*v)),
             mwl_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),

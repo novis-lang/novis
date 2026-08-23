@@ -120,6 +120,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ConstInt(n) => format!("const.int {n}"),
         InstKind::ConstUint(n) => format!("const.uint {n}"),
         InstKind::ConstFloat(n) => format!("const.float {n}"),
+        InstKind::ConstNull => "const.null".to_owned(),
         InstKind::ConstStr(s) => format!("const.str {s:?}"),
         InstKind::Param(i) => format!("param {i}"),
         InstKind::BinOp { op, lhs, rhs } => {
@@ -348,6 +349,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Bytes => "bytes",
         Ty::Array => "array",
         Ty::Mixed => "mixed",
+        Ty::Null => "null",
         Ty::Enum(crate::ty::EnumRepr::Int) => "enum:int",
         Ty::Enum(crate::ty::EnumRepr::Uint) => "enum:uint",
         Ty::ClassDesc => "classdesc",
