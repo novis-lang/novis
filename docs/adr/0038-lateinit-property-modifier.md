@@ -7,12 +7,7 @@
   [ADR 0022](0022-definite-property-initialization.md) states keep working exactly as before.
 - **Amends:** [0022](0022-definite-property-initialization.md) — resolves the *Revisiting* entry "An opt-in
   `lateinit`-equivalent" that ADR left open, and reuses rather than replaces its § 3 runtime mechanism.
-- **Relates to:** [0002](0002-error-propagation.md) (the throw this ADR reuses is an ordinary checked
-  `Throwable`, not routed through the fatal ladder), [0004](0004-memory-for-simplicity.md) (this spends no
-  new memory — same free tag ADR 0022 § 3 already accounts for), [0014](0014-property-observer.md) (how
-  `lateinit` interacts with a `set`-hooked property is left to `docs/spec/`, same deferral that ADR already
-  uses for its own per-property hook internals), [0017](0017-hot-reload-without-restart.md) (the reason this
-  ADR's compile-time check stays intraprocedural — see *Alternatives rejected*).
+- **Relates to:** 0002, 0004, 0014, 0017
 
 > **In short:** `lateinit` marks a non-nullable, object-typed property as exempt from
 > [ADR 0022](0022-definite-property-initialization.md) § 2's constructor-must-assign rule, for the case that

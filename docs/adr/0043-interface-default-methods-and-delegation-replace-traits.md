@@ -14,16 +14,7 @@
   trait-contributed" property phrasing in its *Scope* line and § 2 no longer names a real case; a `by`-target
   field is an ordinary declared property, already covered by § 2's base rule with no special case needed.
 - **Amended by:** none.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (states what `by` delegation spends, per request),
-  [0011](0011-functions-and-constants-are-class-members.md) and
-  [0013](0013-comparable-interface.md)/[0014](0014-property-observer.md) (the existing precedent that
-  MWL already treats an interface as the vehicle for shared behavior, not a second, untyped mechanism),
-  [0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md)
-  (a default or private interface method's name is checked exactly like any other method name — no new
-  exception), [0038](0038-lateinit-property-modifier.md) (a `by`-target field may be `lateinit`; calling
-  through it before it is written throws that ADR's existing checked error, no new mechanism), [0007](0007-explicit-type-system.md)
-  (an interface's own private/default method body type-checks `$this` as that interface's type, not the
-  concrete implementing class — the boundary that makes the two mechanisms this ADR adds compose cleanly).
+- **Relates to:** 0004, 0007, 0011, 0013, 0014, 0029, 0030, 0038
 
 > **In short:** PHP traits bundle two unrelated things — sharing *behavior* across otherwise-unrelated
 > classes, and sharing *state* — under one flattening-plus-`insteadof` mechanism. MWL already has the right

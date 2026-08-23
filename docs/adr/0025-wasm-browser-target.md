@@ -11,20 +11,8 @@
   sandboxing/per-instance-cost properties `benches/abi-probe/tests/wasm_sandbox.rs` already established
   under [0003](0003-extension-system.md); its own target-specific claims (the dropped coroutine, the
   capability matrix) get their own guard test when M14 starts, per the *Revisiting* section below.
-- **Relates to:** [0002](0002-error-propagation.md) (the checked-return ABI carries over unchanged — it
-  never depended on native unwind tables, so `wasm32` needs nothing new here),
-  [0003](0003-extension-system.md) (this target cannot host `.mwlx` extensions itself — see *Decision*),
-  [0004](0004-memory-for-simplicity.md) (a second backend is spent deliberately, priority 4, to reach a real
-  deployment target rather than to shave memory), [0006](0006-isolated-script-execution.md) (`spawn` is
-  unavailable in this target), [0007](0007-explicit-type-system.md)/[0009](0009-string-and-bytes.md)/
-  [0010](0010-enums-are-a-value-type.md)/[0011](0011-functions-and-constants-are-class-members.md)/
-  [0013](0013-comparable-interface.md)/[0014](0014-property-observer.md)/
-  [0015](0015-no-name-aliasing.md)/[0020](0020-error-escalation-ladder.md)/
-  [0022](0022-definite-property-initialization.md)/[0023](0023-clone-serialize-and-cross-boundary-copy.md)/
-  [0024](0024-taint-tracking-for-injection-sinks.md) (every one of these is host-independent already and
-  applies to this target unchanged — see *Consequences*), [0012](0012-no-superglobals.md) (this ADR adds a
-  fourth kind of host context alongside Request/Server/Session/Env/Cli/Script), [0017](0017-hot-reload-without-restart.md)
-  (does not apply — a browser build is a static per-load artifact, not a long-running server core)
+- **Relates to:** 0002, 0003, 0004, 0006, 0007, 0009, 0010, 0011, 0012, 0013, 0014, 0015, 0017,
+  0020, 0022, 0023, 0024
 
 > **In short:** MWL gains an optional `wasm32` compile target for running client-side in a browser tab,
 > implemented as a **second codegen backend consuming the same IR** M2 already produces — not a second

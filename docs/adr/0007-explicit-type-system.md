@@ -6,8 +6,8 @@
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
 - **Amended by:** 0008, 0010, 0011, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036,
-  0037, 0047, 0053, 0054, 0066 — each fold is already applied below, and each row that another ADR owns
-  outright names it in place. This section states the current rule, never a prior one.
+  0037, 0047, 0053, 0054, 0066 — each fold is applied below, and each row another ADR owns outright names
+  it in place. This body states the current rule, never a prior one.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion throws, so it propagates as a
   checked status), [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
   [0006](0006-isolated-script-execution.md) (a value crossing an isolate boundary carries its element type)

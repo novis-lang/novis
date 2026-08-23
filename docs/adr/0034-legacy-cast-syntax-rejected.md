@@ -8,11 +8,7 @@
   spelling of `$x as int` is withdrawn; § 7's divergence table entry 4 (`(int)"abc"`) is restated below,
   since the syntax no longer parses at all rather than parsing with changed semantics.
 - **Amended by:** none.
-- **Relates to:** [0021](0021-single-file-inclusion-construct.md) (the same shape: collapse several
-  spellings of one behaviour to one, reject the rest at parse time naming the survivor),
-  [0015](0015-no-name-aliasing.md) (nothing gets a second runtime-reachable name — this extends that to a
-  second *operator* spelling for one operation), [0035](0035-truthy-boolean-context.md) (the sibling
-  decision about the one context `as` does *not* have to be written out explicitly).
+- **Relates to:** 0015, 0021, 0035
 
 > **In short:** `(int)$x`, `(string)$x`, and the rest of PHP's cast family no longer parse. Each is a
 > parse-time diagnostic (`E0225`) naming `$x as int` (etc.) as the replacement, the same shape ADR 0021

@@ -11,11 +11,7 @@
   rejected any type there. This ADR is the first to say so on purpose, closing a gap ADR 0007 left open
   rather than reopening a decision it made.
 - **Amended by:** none.
-- **Relates to:** [0007](0007-explicit-type-system.md) (the general rule this ADR carves one named exception
-  out of — see *Decision § 1*), [0034](0034-legacy-cast-syntax-rejected.md) (the sibling decision: `as` is
-  the only way to *ask* for `bool`; this ADR is the only place a value is *tested* for truthiness without
-  asking), [0010](0010-enums-are-a-value-type.md) (why an enum case's truthiness does not follow its backing
-  integer — see *Decision § 4*).
+- **Relates to:** 0007, 0010, 0034
 
 > **In short:** a condition never needs an explicit `as bool` or comparison to be written just to express
 > "is this set/non-empty/non-zero." `if ($rows)`, `while ($line)`, `$s && $n`, and `!$user` all type-check

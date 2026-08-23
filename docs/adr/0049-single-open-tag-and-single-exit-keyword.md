@@ -11,12 +11,7 @@
   own *Consequences* section, which named `<?php` as an example of PHP syntax this project "kept but
   reinterpreted," is corrected below — it no longer does.
 - **Amended by:** none.
-- **Relates to:** [0034](0034-legacy-cast-syntax-rejected.md) and
-  [0045](0045-and-or-xor-keyword-operators-rejected.md) (the same shape: collapse several spellings of one
-  behaviour to one, reject the rest at parse time naming the survivor), [0021](0021-single-file-inclusion-construct.md)
-  (same shape, for `require` vs. `include`/`include_once`/`require_once`), [0015](0015-no-name-aliasing.md)
-  (nothing gets a second runtime-reachable name — extended here to a second *tag* spelling and a second
-  *keyword* spelling for one behaviour each).
+- **Relates to:** 0015, 0021, 0034, 0045
 
 > **In short:** `<?php` no longer opens code mode, and `die` no longer terminates the process. Each is a
 > parse-time diagnostic (`E0229` and `E0228` respectively) naming the sole survivor — `<?mwl` for the tag,

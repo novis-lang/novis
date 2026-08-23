@@ -6,19 +6,8 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
-- **Amended by:** [0033](0033-secret-qualifier-for-confidential-values.md) — § 6's `Core\Log::write()`
-  keeps its open `fields: array<string, mixed>` parameter, but `mwl check` now inspects that call site's own
-  argument expressions and refuses a statically-`secret` operand, since this parameter's looseness was never
-  designed to need refusing anything until that ADR gave it a reason to.
-- **Relates to:** [0002](0002-error-propagation.md) (this ADR does not touch the checked-return ABI or the
-  `OK`/`THROWN`/`FATAL` statuses — it defines what consumes a `FATAL` once it reaches the boundary that ADR
-  already says it unwinds to), [0005](0005-config-changeability.md) (new directives and their changeability
-  class), [0006](0006-isolated-script-execution.md) (the tier-3 handler below *is* a `spawn script` isolate,
-  reusing its mechanism, with one deliberate, narrow exception to its budget rule), [0007](0007-explicit-type-system.md)
-  (a resource-limit report is a plain value, not a `Throwable`, and that is enforced by the type checker, not
-  by convention), [0011](0011-functions-and-constants-are-class-members.md) (`Core\Fatal` and `Core\Log` join
-  the domain-class roster), [0012](0012-no-superglobals.md) (the handler script gets an explicit argument,
-  never ambient request state)
+- **Amended by:** 0033 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0005, 0006, 0007, 0011, 0012
 
 > **In short:** nothing MWL runs is ever silently dropped, but not everything is *caught* — those are
 > different guarantees, and conflating them is what this ADR avoids. `FATAL` stays exactly what

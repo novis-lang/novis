@@ -5,9 +5,7 @@
 - **Scope:** the directive registry, `Core\Config::set`/`::get`, per-request limit enforcement
 - **Amends:** [0004](0004-memory-for-simplicity.md) — the enforceable per-request cap is now the *ceiling*
   directive, not the default one
-- **Amended by:** [0064](0064-configuration-file-format.md) — the file is TOML and is named `mwl.toml`, and
-  PHP's `ini_set`/`ini_get`/`ini_restore` are spelled `Core\Config::set`/`::get`/`::restore`. Only the
-  syntax and the names moved; every rule below is unchanged.
+- **Amended by:** 0064 — each fold is applied below; this body states the current rule.
 
 > **In short:** `mwl.toml` states defaults, not ceilings. Every directive carries a changeability
 > class: `System` (settable in `mwl.toml` only), `Runtime` (`mwl.toml` gives the default and a request

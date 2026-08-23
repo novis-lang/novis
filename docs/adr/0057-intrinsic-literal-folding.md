@@ -7,17 +7,8 @@
   behaviour. Not in scope: general constant folding of arithmetic, which is an ordinary optimisation
   needing no ADR.
 - **Amends:** none.
-- **Amended by:** [0063](0063-core-api-conventions.md) — the intrinsic list is respelled under that ADR's
-  R18/R20 (`Core\Time::format` is the instance method `Core\Time\DateTime::format`) and gains one entry,
-  the closed relative-date grammar; the validate-always/prepare-where-possible split and the
-  one-implementation rule are both unchanged, and it is that rule this ADR already states which lets the
-  same grammar serve the folded and runtime paths.
-- **Relates to:** [0046](0046-attributes-shape-literal-metadata.md) (whose compile-time-constant rule this
-  reuses verbatim, and whose `get<T>` already establishes the precedent of a `Core` surface resolved during
-  checking), [0056](0056-regex-engine-policy.md) (the motivating case, and the one where the security
-  benefit is largest), [0042](0042-on-disk-artifact-cache-format.md) (where a prepared artifact is stored),
-  [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) (§ 4, what happens to a probe
-  when a call disappears).
+- **Amended by:** 0063 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0018, 0042, 0046, 0056
 
 > **In short:** a short, closed list of `Core` methods take an argument that is really a small program — a
 > regex pattern, a URI, a date-format string, a format string. When that argument is a compile-time

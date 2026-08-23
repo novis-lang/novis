@@ -13,13 +13,7 @@
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
 - **Amended by:** none.
-- **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (the rename is forced
-  independently: `ini_set` is a free function and MWL has none),
-  [0007](0007-explicit-type-system.md) (nothing is untyped — a configuration format with one value type
-  is the same defect one level down), [0052](0052-closed-doors.md) (a configuration *language* would
-  reopen the `eval` door in the one file read before any sandbox exists),
-  [0061](0061-compile-time-autoload-and-program-discovery.md) § *Alternatives rejected* (which rejected a
-  walked-up `mwl.toml` project manifest — a different file, see § 4).
+- **Relates to:** 0007, 0011, 0052, 0061
 
 > **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read once at boot through the
 > `toml` crate and `serde`. INI was inherited from PHP without an argument and does not survive one: it has

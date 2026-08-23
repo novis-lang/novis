@@ -18,12 +18,7 @@
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Path`, `Core\Out`, `Core\Bytes`
   and `Core\Error`, all split out of entries it already lists.
 - **Amended by:** none.
-- **Relates to:** [0036](0036-anonymous-object-shapes.md) (the options bag is a shape literal),
-  [0047](0047-literal-and-enum-case-types.md) (an enum-case subset is how a signature refuses an unsafe
-  argument), [0024](0024-taint-tracking-for-injection-sinks.md) and
-  [0033](0033-secret-qualifier-for-confidential-values.md) (every member declares its qualifier behaviour),
-  [0053](0053-iteration-and-generators.md) (why there is no lazy pipeline API yet),
-  [0004](0004-memory-for-simplicity.md) (the ordering that makes purity affordable).
+- **Relates to:** 0004, 0024, 0033, 0036, 0047, 0053
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
 > (`array_map(f, a)` / `array_filter(a, f)`), failure is signalled four different ways in the same

@@ -6,15 +6,7 @@
   `Comparable` interface and its single method; what happens when a class does not implement it
 - **Amends:** [0007](0007-explicit-type-system.md) § 4 — adds the object-operand row *Decision § 4* gives
   below to the operator result table, which was previously silent on two object operands.
-- **Relates to:** [0002](0002-error-propagation.md) (`compareTo` may throw; it propagates as a checked
-  status like any other call, no new exception type needed), [0004](0004-memory-for-simplicity.md) (this
-  decision spends nothing — `compareTo` is an ordinary virtual call, already paid for by every other
-  method), [0008](0008-static-and-global.md) (no new storage class: a `Comparable` implementation needs no
-  entry in § 2's exhaustive table), [0011](0011-functions-and-constants-are-class-members.md) (why
-  `Comparable` is a global reserved interface and not a `Core` domain class — it is a contract type, not a
-  holder of `static` methods and constants), [0012](0012-no-superglobals.md) (the same shape of decision:
-  a PHP behaviour that exists by a name simply being present, rather than by a declared contract, is closed
-  rather than preserved)
+- **Relates to:** 0002, 0004, 0008, 0011, 0012
 
 > **In short:** PHP compares two objects of the same class with `<`/`>` by walking their declared
 > properties in order and comparing recursively, stopping at the first difference — a behaviour that exists

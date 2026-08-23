@@ -10,10 +10,7 @@
   partly a *runtime* one. [0005](0005-config-changeability.md) — the `net.connect` grant gains an address
   policy, not just a host list.
 - **Amended by:** none.
-- **Relates to:** [0051](0051-standard-library-tiers.md) (`Core\Http\Client` and `Core\Net` are Native),
-  [0055](0055-extension-qualifier-declarations.md) (an extension granted sockets is bound by the same
-  policy, since the policy lives in the capability rather than in the client),
-  [0057](0057-intrinsic-literal-folding.md) (a literal URL is validated during checking).
+- **Relates to:** 0051, 0055, 0057
 
 > **In short:** SSRF is structurally an injection — untrusted data reaching a sink — but unlike the others
 > it cannot be settled at compile time alone, because the dangerous part is what a hostname *resolves to*

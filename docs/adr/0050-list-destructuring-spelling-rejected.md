@@ -10,11 +10,7 @@
   [ADR 0021](0021-single-file-inclusion-construct.md) § 1's framing paragraph cited the same pair as live
   precedent and is corrected there.
 - **Amended by:** none.
-- **Relates to:** [0049](0049-single-open-tag-and-single-exit-keyword.md) (the same shape, and the ADR that
-  removed this one's stated justification), [0034](0034-legacy-cast-syntax-rejected.md),
-  [0045](0045-and-or-xor-keyword-operators-rejected.md), [0021](0021-single-file-inclusion-construct.md)
-  (collapse several spellings of one behaviour to one, reject the rest at parse time naming the survivor),
-  [0015](0015-no-name-aliasing.md) (nothing gets a second reachable name).
+- **Relates to:** 0015, 0021, 0034, 0045, 0049
 
 > **In short:** `list($a, $b) = $pair;` no longer parses. It is a parse-time diagnostic (`E0230`) naming
 > `[...]`, whose element grammar is identical in every position — key, nesting depth, skipped slot,

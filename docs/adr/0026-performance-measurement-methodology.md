@@ -8,14 +8,7 @@
   [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s in-language profiler
   exposed to *MWL programs* (also unchanged; that ADR is about profiling code written in MWL, this one is
   about profiling the compiler/runtime itself).
-- **Relates to:** [0002](0002-error-propagation.md) (owns the self-relative ratio/slope pattern this ADR
-  builds on top of, not replaces), [0004](0004-memory-for-simplicity.md) (priority 3, latency/throughput,
-  is the reason wall-clock stays authoritative for regression guards even though it is not cross-machine
-  comparable), [0006](0006-isolated-script-execution.md) (`benches/abi-probe`'s process-vs-task ratio guard
-  is the existing precedent for "ratio cancels machine differences"), [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-  (the neighboring, non-overlapping concern named above), [docs/adr/README.md](README.md) § *Architecture
-  assumptions are tested, not remembered* (the standing rule this ADR's own spike follows), AGENTS.md's
-  WSL-for-`cargo-fuzz` precedent (the same shape of Linux-only-tooling gap, now extended to Valgrind)
+- **Relates to:** 0002, 0004, 0006, 0018
 - **Validated by:** `benches/abi-probe/examples/callgrind_spike.rs`, run under `valgrind --tool=callgrind`
   3.22.0 in WSL (Ubuntu on the Windows host also used for `x86_64-pc-windows-msvc` CI), against a
   Cranelift 0.128.4 JIT-compiled 8-frame call chain (the same trampoline machinery

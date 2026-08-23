@@ -5,13 +5,7 @@
 - **Scope:** whether a running MWL program can introspect its own compiled program (classes, methods,
   properties, constants, attributes) and whether it can parse MWL/PHP source text into a structured AST at
   runtime; the shape both take as `Core` domain classes; what each is and is not allowed to do
-- **Relates to:** [0007](0007-explicit-type-system.md) (the AST is typed data, not `array<mixed>`),
-  [0011](0011-functions-and-constants-are-class-members.md) (both land as `Core` domain classes, following
-  its domain-class shape and its illustrative-roster precedent), [0013](0013-comparable-interface.md) and
-  [0014](0014-property-observer.md) (reflective member access runs the same checks ordinary access does —
-  see § 2), [0010](0010-enums-are-a-value-type.md) (`::cases()` is already a narrow, enum-specific piece of
-  this; § 4 explains why that does not conflict), [0006](0006-isolated-script-execution.md) (neither feature
-  crosses an isolation boundary or grants ambient authority, so neither needs a capability grant)
+- **Relates to:** 0006, 0007, 0010, 0011, 0013, 0014
 
 > **In short:** PHP ships reflection (`ReflectionClass` and friends) as a built-in extension, but has no
 > in-language AST facility at all — `token_get_all()` returns a flat token list, not a tree, and a real AST

@@ -6,12 +6,7 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** [0033](0033-secret-qualifier-for-confidential-values.md) — § 1's `qualified_type` grammar
-  gains a second, independent optional qualifier (`secret`), spelled before `tainted` when both apply; § 2's
-  checked-conversion laundering rule now also strips `secret`; § 5's "never distinguishes tainted from
-  untainted" auto-escape behavior gets one carve-out — a `secret` value reaching a `Markup`-building
-  interpolation position is refused outright rather than auto-escaped, since escaping does not restore
-  confidentiality.
+- **Amended by:** 0033 — each fold is applied below; this body states the current rule.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -21,16 +16,7 @@
   [0012](0012-no-superglobals.md) — every method on `Core\Request`/`Core\Server`/`Core\Session`/`Core\Env`/
   `Core\Cli`/`Core\Script::args()` returns the `tainted` variant of whatever it already returned; the
   mapping table and the method-signature deferral are otherwise unchanged.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (the qualifier is compile-time-only and erased
-  before codegen — security bought without spending memory or a runtime representation),
-  [0011](0011-functions-and-constants-are-class-members.md) (the laundering functions are ordinary `Core`
-  static methods, not new syntax), [0013](0013-comparable-interface.md) and
-  [0014](0014-property-observer.md) (precedent for "a declared mechanism, not an ambient one" and "closed,
-  non-hookable" reasoning), [0019](0019-reflection-and-ast-parsing-are-core-features.md) (precedent for
-  "a security-relevant analysis belongs in the compiler itself, not an aftermarket tool"),
-  [0020](0020-error-escalation-ladder.md) (log injection is already closed by that ADR's structured
-  JSON-Lines writer — see § 4), AGENTS.md's priority ordering (security ranks above simplicity, which is
-  the explicit justification for § 5's one deliberate exception to "no ambient behavior")
+- **Relates to:** 0004, 0011, 0013, 0014, 0019, 0020
 
 > **In short:** [ADR 0012](0012-no-superglobals.md) already funnels every piece of untrusted input through
 > five `Core` accessor classes — unlike PHP, where untrusted data can enter through dozens of implicit

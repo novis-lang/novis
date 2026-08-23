@@ -12,12 +12,7 @@
   that is mid-edit.
 - **Amends:** [docs/implementation-plan.md](../implementation-plan.md) M4/M5/M10 — inserts M4B between M4
   and M5, and narrows M10's remaining VS Code scope to what M4B does not cover.
-- **Relates to:** [0016](0016-ide-integration.md) (the client/server split this ADR deepens for VS Code
-  only); [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) (coverage/profiling
-  exporters the Test Explorer and profiler view consume); [0019](0019-reflection-and-ast-parsing-are-core-features.md)
-  (`Core\Ast`/`Core\Reflect`, and why the AST panel does not need to wait for either); [0039](0039-canonical-code-formatting.md)
-  (`mwl fmt`, still M10-gated for formatting support in the extension); [0006](0006-isolated-script-execution.md)
-  (isolates — the request-tree visualization named in *Revisiting*).
+- **Relates to:** 0006, 0016, 0018, 0019, 0039
 
 > **In short:** VS Code is the reference client, and it is getting real depth, not a thin LSP passthrough
 > with a grammar file. A **minimal `mwl-lsp`** (diagnostics, hover, go-to-definition, basic completion) and

@@ -10,12 +10,7 @@
   0018 already committed to, and does not cover coroutine suspend/resume events, an external/live attach
   mechanism, or memory/allocation profiling — all named and deliberately deferred, see *Revisiting*.
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-- **Relates to:** [0002](0002-error-propagation.md) (`emit_call()` is the call-site probe's attachment point —
-  the reason isolate spawn needs its *own* hook rather than reusing it), [0006](0006-isolated-script-execution.md)
-  (the isolate-spawn mechanics being instrumented, and the "nothing merges live across the arena boundary"
-  rule this amendment preserves rather than relaxes), [0040](0040-vscode-deep-tooling-and-resilient-parsing.md)
-  (the sampling profiler's existing speedscope commitment — this reuses that same open format instead of
-  inventing a second one)
+- **Relates to:** 0002, 0006, 0040
 
 > **In short:** ADR 0018's deterministic profiler exports aggregate Callgrind totals (whole-run self/inclusive
 > time per function, no per-instance timeline) and a per-instance trace only as MWL-native NDJSON, which no

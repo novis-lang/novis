@@ -8,12 +8,7 @@
 - **Amends:** [0004](0004-memory-for-simplicity.md) — § 3 records a second, deliberate exception to
   "memory is attributable to a request": cache memory is charged to a **core**, with its own cap.
 - **Amended by:** none.
-- **Relates to:** [0052](0052-closed-doors.md) § 3 (which closes the shared-memory alternative and is the
-  reason this ADR exists), [0006](0006-isolated-script-execution.md) (shared-nothing requests, and the
-  wholesale heap drop § 2 has to respect), [0023](0023-clone-serialize-and-cross-boundary-copy.md) (the
-  graph-copy operation § 2 reuses), [0012](0012-no-superglobals.md) (`Core\Session`, which § 4 explicitly
-  forbids from using the local tier), [0051](0051-standard-library-tiers.md) (the API is Core; the Redis
-  backend is Native).
+- **Relates to:** 0006, 0012, 0023, 0051, 0052
 
 > **In short:** APCu's cross-process shared segment is closed by [ADR 0052](0052-closed-doors.md) § 3, and
 > what replaces it is a **per-core in-process cache** — one copy per core, no coherence between them. That

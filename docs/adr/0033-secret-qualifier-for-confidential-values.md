@@ -34,22 +34,8 @@
   situation [0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already flagged once. M4 —
   the `var_dump`/`print_r` line item gains this ADR's redaction rule. M8 — the `Core\Log` line item gains
   this ADR's call-site inspection rule.
-- **Amended by:** [0046](0046-attributes-shape-literal-metadata.md) — adds an attribute payload position as
-  a fifth refusing sink; every other sink and rule here is unchanged.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (compile-time-only, erased before codegen — the same
-  free-security argument [0024](0024-taint-tracking-for-injection-sinks.md) already made, applied to a
-  second axis), [0009](0009-string-and-bytes.md) § 4 (the scalar payload pulled out of `mixed` may now also
-  be `secret string`/`secret bytes`, alongside `tainted`'s own addition there), [0012](0012-no-superglobals.md)
-  (contrast: every `Core` accessor there returns `tainted` ambiently; nothing returns `secret` ambiently — see
-  § 1), [0015](0015-no-name-aliasing.md) (precedent for "exactly one canonical spelling," which is why
-  combined qualifiers accept only one keyword order, not two), [0020](0020-error-escalation-ladder.md) § 6
-  (the JSON-Lines writer this ADR's `Core\Log` sink rule constrains), [0022](0022-definite-property-initialization.md)
-  (precedent for a compiler-enforced guarantee about what a declared property can hold), [0023](0023-clone-serialize-and-cross-boundary-copy.md)
-  (`serialize()`/`unserialize()` share one graph-copy operation with the `spawn`/`spawn worker`/
-  `spawn script` boundary — this ADR's § 4 refuses `secret` at that one operation, both callers, rather than
-  drawing a new line between them), [0028](0028-closing-the-remaining-magic-methods.md) (the `__debugInfo`
-  guarantee this ADR amends, and the precedent that a closed, type-driven rule is not the customization
-  surface that section already rejected)
+- **Amended by:** 0046 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0004, 0009, 0012, 0015, 0020, 0022, 0023, 0024, 0028
 
 > **In short:** `secret string`/`secret bytes` join `tainted string`/`tainted bytes` as a second, independent
 > compile-time qualifier — `secret` and `tainted` answer different questions (*can I trust where this came

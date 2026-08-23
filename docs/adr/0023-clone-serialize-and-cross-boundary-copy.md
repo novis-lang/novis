@@ -11,12 +11,7 @@
   nothing about what crosses, what refuses, or how the budget/capability rules work changes.
   [ADR 0012](0012-no-superglobals.md) — `Core\Script::args()`'s "deep-copied" now names this ADR's
   graph-copy operation explicitly, rather than an unnamed mechanism.
-- **Relates to:** [ADR 0004](0004-memory-for-simplicity.md) (what a copy spends — stated per operation
-  below), [ADR 0007](0007-explicit-type-system.md) (declared types make a closure/reference/handle
-  rejection mostly a compile-time error at the copy site, the same story as the isolate boundary),
-  [ADR 0014](0014-property-observer.md) (the precedent this ADR follows: a closed mechanism, not a
-  class-overridable hook), [ADR 0022](0022-definite-property-initialization.md) (why neither copy depth
-  reopens the `Core\Reflect`-only residual-throw case)
+- **Relates to:** 0004, 0007, 0014, 0022
 
 > **In short:** MWL keeps two copy depths, not one, because PHP already drew that line and it is a real
 > distinction, not an accident. **`clone`** is PHP's shallow, same-heap, single-level copy: it duplicates an

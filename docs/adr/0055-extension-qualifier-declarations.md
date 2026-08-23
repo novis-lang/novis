@@ -13,10 +13,7 @@
   [0033](0033-secret-qualifier-for-confidential-values.md) — its refusal list gains the extension boundary,
   alongside serialize and isolate-crossing.
 - **Amended by:** none.
-- **Relates to:** [0051](0051-standard-library-tiers.md) (which places internationalization at Tier 1, and
-  is therefore the reason a first-party extension routinely receives `tainted` request data),
-  [0006](0006-isolated-script-execution.md) and [0023](0023-clone-serialize-and-cross-boundary-copy.md)
-  (the boundary § 3 reasons by analogy from).
+- **Relates to:** 0006, 0023, 0051
 
 > **In short:** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 2 already says any operation
 > combining a tainted operand with an untainted one produces a tainted result, and an extension call is

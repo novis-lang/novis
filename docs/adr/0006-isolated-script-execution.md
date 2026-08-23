@@ -6,22 +6,8 @@
   `script.spawn` capability, per-tree limit accounting
 - **Validated by:** `benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`
   (`an_os_process_costs_orders_of_magnitude_more_than_a_task`)
-- **Amended by:** [0064](0064-configuration-file-format.md) — the `script.spawn` grant is a TOML array of
-  roots, not a `:`-joined string, which the previous spelling could not express on Windows at all.
-- **Relates to:** [0002](0002-error-propagation.md) (nothing unwinds across the boundary either),
-  [0003](0003-extension-system.md) (this is not a sandbox for foreign code),
-  [0004](0004-memory-for-simplicity.md) (what an isolate spends),
-  [0005](0005-config-changeability.md) (how a child's config is derived),
-  [0008](0008-static-and-global.md) (what "fresh globals and statics" is a list of, and why it is a short
-  one — there is no function-scope `static` to reset)
-- **Amended by:** [0012](0012-no-superglobals.md) — `$_ARGS` becomes `Core\Script::args()`, and a spawned
-  isolate calling `Core\Request`/`Core\Server`/`Core\Session` throws rather than seeing fresh-and-empty
-  state. [0021](0021-single-file-inclusion-construct.md) — every mention below of PHP's same-frame
-  inclusion keywords is updated to name `require` alone, since `include`/`include_once`/`require_once` are
-  rejected there; the isolation boundary this ADR defines is unchanged. [0023](0023-clone-serialize-and-cross-boundary-copy.md) —
-  § *Values cross by copy* below is now that ADR's formal graph-copy definition, applied to this boundary;
-  the rules for what crosses and what refuses are unchanged, and `serialize()`/`unserialize()` gain the
-  identical operation as a second, externalized-to-bytes caller.
+- **Amended by:** 0012, 0021, 0023, 0064 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0003, 0004, 0005, 0008
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
 > fresh arena, fresh globals and statics, its own config overlay, sharing nothing but immutable

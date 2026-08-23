@@ -10,30 +10,8 @@
   said "an object needs `__toString`, or it throws"; it now names `Stringable` instead. Also
   [implementation-plan.md](../implementation-plan.md) M4 — the `var_dump`/`print_r`/`json_encode` line item
   gains this ADR's citation for what those two no longer do.
-- **Amended by:** [0061](0061-compile-time-autoload-and-program-discovery.md) — § 6 closed `__autoload`
-  as moot but never named what replaces `spl_autoload_register`; that ADR does, and § 6 now points at it.
-  [0030](0030-no-leading-underscores-constructor-spelling.md) — adds the `__construct`
-  disposition this ADR's own magic-method table never carried: kept, not closed, but respelled
-  `constructor`.
-  [0033](0033-secret-qualifier-for-confidential-values.md) — § 4's "`var_dump()`/`print_r()` always show a
-  class's real declared properties and their real current values" guarantee gets one carve-out: a property
-  whose declared type carries `secret` shows a fixed redaction placeholder instead. This is a built-in,
-  type-keyed rule the dump implementation applies uniformly, not the per-class `DebugRepresentable`-style hook
-  this section already rejected — that distinction still holds.
-- **Relates to:** [0002](0002-error-propagation.md) (why a destructor has no sound place to report a thrown
-  status — part of § 2's reasoning below), [0004](0004-memory-for-simplicity.md) (the request heap is
-  dropped wholesale rather than walked object-by-object, which a `__destruct` guarantee would undo),
-  [0006](0006-isolated-script-execution.md) (an isolate already tears down without per-object cleanup;
-  nothing here changes that), [0011](0011-functions-and-constants-are-class-members.md) (why `Stringable`
-  is a global interface, not a `Core` domain class), [0013](0013-comparable-interface.md) and
-  [0014](0014-property-observer.md) (the declared-interface-over-ambient-name pattern this ADR applies to
-  `__toString`, and the precedent — `PropertyObserver`'s "no `__get`/`__set` fallback" — that `__isset`/
-  `__unset` fall out of directly), [0019](0019-reflection-and-ast-parsing-are-core-features.md) (why
-  removing `__debugInfo` does not reopen that ADR's visibility-checked value access — they are different
-  mechanisms), [0022](0022-definite-property-initialization.md) (why `unset()` on an object property is
-  refused), [0023](0023-clone-serialize-and-cross-boundary-copy.md) (its closed serialize format supersedes
-  `__set_state`'s use case), [0027](0027-callable-is-closures-only.md) (the most recent instance of the same
-  ambient-name closure this ADR continues)
+- **Amended by:** 0030, 0033, 0061 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0004, 0006, 0011, 0013, 0014, 0019, 0022, 0023, 0027
 
 > **In short:** `__toString` is replaced by a declared global `Stringable` interface
 > (`public function toString(): string`), the same treatment [0013](0013-comparable-interface.md) gave

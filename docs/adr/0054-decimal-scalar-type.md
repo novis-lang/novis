@@ -9,11 +9,7 @@
   arithmetic result table each gain `decimal`; § 7's divergence list gains one entry. This ADR is the only
   home for those rows.
 - **Amended by:** none.
-- **Relates to:** [0013](0013-comparable-interface.md) (`decimal` is a scalar, so ordering it needs no
-  interface), [0037](0037-var-local-type-inference.md) (§ 2's placing rule is what lets `var` reach
-  `decimal` at all), [0047](0047-literal-and-enum-case-types.md) (a numeric literal's typing,
-  seen from the other side), [0051](0051-standard-library-tiers.md) (`Core\Decimal`, `Core\BigInt` and
-  `Core\BigDecimal`'s placement).
+- **Relates to:** 0013, 0037, 0047, 0051
 
 > **In short:** `decimal` joins `int`, `uint`, `float`, `bool` and `string` as a scalar — a 128-bit value
 > holding a 96-bit signed mantissa and a scale of 0 to 28, the layout .NET's `System.Decimal` has used for

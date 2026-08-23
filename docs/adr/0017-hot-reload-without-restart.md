@@ -4,12 +4,7 @@
 - **Date:** 2026-08-20
 - **Scope:** `mwl-host`'s compiled-unit cache, the M7 HTTP server's requirement to pick up an edited source
   file with no restart and no dropped request
-- **Relates to:** [0002](0002-error-propagation.md) (a failed revalidation surfaces as a checked diagnostic,
-  never a panic or an unwind), [0004](0004-memory-for-simplicity.md) (the memory a stale generation is
-  allowed to hold, and for how long), [0005](0005-config-changeability.md) (`opcache.validate` and its
-  revalidation-rate directive are `System`-class, not something a request can loosen),
-  [0006](0006-isolated-script-execution.md) (the content-addressed compiled-unit cache and the "only
-  compiled code is shared" boundary this ADR extends)
+- **Relates to:** 0002, 0004, 0005, 0006
 
 > **In short:** the cache is keyed by content, not by path: `UnitKey { path, content_hash } →
 > CompileState`, and a `Ready` entry is write-once — nothing already in the map is ever mutated or

@@ -7,23 +7,8 @@
 - **Supersedes:** the *function `static`* row in [0007](0007-explicit-type-system.md) § 1 and the `static`
   entry in the M1 list of new declaration slots. MWL has no function-scope `static`, so there is no type
   slot to add to it.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (simplicity of the language surface is priority 4,
-  and it is bought here by deleting a storage class rather than by spending memory),
-  [0006](0006-isolated-script-execution.md) (every storage class listed here must be built fresh and torn
-  down per isolate; this ADR shortens that list),
-  [0007](0007-explicit-type-system.md) (a function `static` is the one binding whose definite assignment
-  cannot be decided at check time),
-  [0010](0010-enums-are-a-value-type.md) (shortens § 2's table further: an enum case needs no runtime
-  storage at all, so it comes off this list rather than staying on it)
-- **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — § 2's *class constant, global
-  constant* row narrows to **class constant** only; there is no free-floating constant left to share the
-  row with, since every constant now lives on a class.
-  [0012](0012-no-superglobals.md) — § 2's *superglobal* row is dropped entirely; host-populated request,
-  session and CLI state is ordinary class-static state on a `Core` class, populated by the host instead of a
-  user initialiser, so it needs no row of its own.
-  [0031](0031-callable-is-the-only-closure-type.md) — § 4's `bindTo()`/`Closure::bind()` are the same
-  operations, renamed onto `callable`; the `use`-clause capture this section's prose assumed still existed
-  is itself retired there, but the `$this`-binding rule below is otherwise unaffected.
+- **Relates to:** 0004, 0006, 0007, 0010
+- **Amended by:** 0011, 0012, 0031 — each fold is applied below; this body states the current rule.
 
 > **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
 > methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —

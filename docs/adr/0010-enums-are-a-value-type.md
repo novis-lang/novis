@@ -11,16 +11,8 @@
   *enum case* entry is gone from § 2's storage-class table: a case is a compile-time constant of its
   enum's underlying type and needs no runtime storage at all, which shortens that exhaustive list rather
   than adding to it.
-- **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — the *standalone function*
-  destination named in *Consequences* and *Revisiting* below assumed a free-function concept that no
-  longer exists; the only destination for a user-defined enum behaviour is a `static` method.
-- **Relates to:** [0002](0002-error-propagation.md) (a conversion into an enum that names no matching case
-  throws, and propagates as a checked status like every other conversion), [0004](0004-memory-for-simplicity.md)
-  (an enum value costs what `uint` already costs — nothing extra — and a case costs less than that: no
-  storage at all), [0006](0006-isolated-script-execution.md) (an enum value crossing an isolate boundary is
-  a plain scalar, copied under the same rule as any other scalar, never an object with identity to
-  preserve), [0007](0007-explicit-type-system.md) (the conversion operator, the atom grammar, and "one
-  checked operator rather than a second per-type API" all come from there)
+- **Amended by:** 0011 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0004, 0006, 0007
 
 > **In short:** MWL's `enum` ignores PHP's design and follows C#'s instead — an enum declares a new, closed,
 > named **integer** type. A case is a compile-time constant of that type, never a singleton object, so an

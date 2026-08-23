@@ -7,11 +7,7 @@
   method roster, which M8 designs.
 - **Amends:** none.
 - **Amended by:** none.
-- **Relates to:** [0051](0051-standard-library-tiers.md) (`Core\Regex` is Core by tests 2 and 4),
-  [0057](0057-intrinsic-literal-folding.md) (which is what makes § 3's compile-time tiering possible at no
-  runtime cost), [0024](0024-taint-tracking-for-injection-sinks.md) (§ 4 adds a sink),
-  [0020](0020-error-escalation-ladder.md) (a budget exhaustion is an ordinary `Throwable`, not a fatal),
-  [0009](0009-string-and-bytes.md) (which is why there is no `u` modifier).
+- **Relates to:** 0009, 0020, 0024, 0051, 0057
 
 > **In short:** `Core\Regex` runs on a finite-automata engine with **guaranteed linear time**, which cannot
 > be made to backtrack exponentially. Patterns needing lookaround or backreferences — which that engine

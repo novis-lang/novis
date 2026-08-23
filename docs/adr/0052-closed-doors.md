@@ -11,12 +11,7 @@
   [0008](0008-static-and-global.md) — its storage-class table is exhaustive for *language* constructs; § 3
   extends the same rule to library calls that mutate process-global state.
 - **Amended by:** none.
-- **Relates to:** [0051](0051-standard-library-tiers.md) (the placement procedure these four are exempt
-  from, since no tier makes them acceptable), [0006](0006-isolated-script-execution.md) (shared-nothing
-  requests, and `spawn script` as § 4's replacement), [0019](0019-reflection-and-ast-parsing-are-core-features.md)
-  (an AST is inert data with no path back into execution — § 4 is that rule stated from the other side),
-  [0048](0048-portable-single-file-executables.md) and [0025](0025-wasm-browser-target.md) (the static
-  `require` graph § 4 protects), [0059](0059-cross-request-state-is-explicit.md) (what replaces § 3).
+- **Relates to:** 0006, 0019, 0025, 0048, 0051, 0059
 
 > **In short:** four doors stay shut. **No FFI** — it is `dlopen` with friendlier syntax, and ADR 0003
 > already rejected `dlopen` because it destroys the two claims the product rests on. **No stream wrappers

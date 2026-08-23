@@ -10,12 +10,7 @@
 - **Amends:** none. It gives [deny.toml](../../deny.toml)'s existing `licenses.allow` list a second
   reader — `tools/gen-attribution.py` fails if the two disagree — but does not change what it allows.
 - **Amended by:** none.
-- **Relates to:** [0051](0051-standard-library-tiers.md) § 4 (the two-question C-dependency test; this
-  is the licensing half of the same supply-chain discipline), [0048](0048-portable-single-file-executables.md)
-  (a bundled executable is built from the host binary, so it carries the notice unchanged),
-  [0003](0003-extension-system.md) (an extension is a separate artifact and is not covered here),
-  [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) (`mwl info` is not a probe
-  and reports no request state).
+- **Relates to:** 0003, 0018, 0048, 0051
 
 > **In short:** MWL is MIT and links ~80 permissive components, every one of which asks the same thing
 > in return — reproduce the notice with the binary. That obligation is met by a **generated file**,

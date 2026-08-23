@@ -13,16 +13,7 @@
   The rule itself is unchanged; this ADR is the stdlib design ADR 0024's own *Revisiting* section named as
   due at M8, now spelled out concretely enough for `mwl-runtime` to build.
 - **Amended by:** none.
-- **Relates to:** [0002](0002-error-propagation.md) (spawn/wait/timeout failures are checked-return
-  `Throwable`s, never an unwind), [0004](0004-memory-for-simplicity.md) (states what a suspended process wait
-  spends), [0005](0005-config-changeability.md) (`process.exec` is a `RuntimeTighten` capability, the same
-  shape `script.spawn` already established, and captured output reuses the existing `[limits] max_output`
-  cap rather than inventing a second one), [0009](0009-string-and-bytes.md) (a child process's stdout/stderr
-  is `bytes`, never `string` — nothing guarantees a spawned program's output is valid UTF-8),
-  [0033](0033-secret-qualifier-for-confidential-values.md) (a `secret` env value needs
-  `Core\Secret::reveal()` before it can reach a child's environment, the same existing escape hatch, not a
-  new one), [docs/adr/README.md](README.md) § *Decisions taken at project start* ("Stackful coroutines for
-  suspension" — the reason `run()`/`spawn()`'s waits do not block an OS thread).
+- **Relates to:** 0002, 0004, 0005, 0009, 0033
 
 > **In short:** PHP gives a script seven different ways to run another program, each with its own escaping
 > rules and its own history of injection bugs. MWL gives it one: `Core\Process::run()` (blocking, captures

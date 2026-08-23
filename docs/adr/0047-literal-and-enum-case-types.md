@@ -11,19 +11,8 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's atom grammar gains `StringLiteral`, `IntLiteral`,
   a class-constant reference, and an enum-case reference as four new atom productions, alongside the
   existing `true`/`false` literal atoms this ADR generalises.
-- **Amended by:** [0066](0066-nullable-conversion-operator.md) — the checked conversion into a literal or
-  enum-case type gains a non-throwing form, `as ?T`, yielding `null` where it would throw. What counts as
-  success is unchanged.
-- **Relates to:** [0010](0010-enums-are-a-value-type.md) (an enum-case type is a checker-only narrowed view
-  of a case that already exists — it reuses that ADR's zero-byte runtime representation verbatim, never
-  folding a case to its backing integer the way *Decision § 3* explains), [0046](0046-attributes-shape-literal-metadata.md)
-  (why this is a type-system decision and not an attribute — see *Alternatives rejected*),
-  [0002](0002-error-propagation.md) (the checked conversion into one of these types throws like every other
-  conversion), [0036](0036-anonymous-object-shapes.md) (this is a second, narrowly-scoped structural
-  exception to nominal typing, for scalars and enum cases rather than object shapes), [0024](0024-taint-tracking-for-injection-sinks.md)/
-  [0033](0033-secret-qualifier-for-confidential-values.md) (a `tainted`/`secret` value still needs the same
-  checked `as`/narrowing guard to satisfy a literal-typed binding that it already needs for any other
-  typed binding — no new rule required).
+- **Amended by:** 0066 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0010, 0024, 0033, 0036, 0046
 
 > **In short:** `"a"|"b"|"c"` and `1|2` are now legal types, usable everywhere [ADR 0007](0007-explicit-type-system.md)
 > § 1 requires one — the same generalisation that ADR already made for `true`/`false`, extended to `string`

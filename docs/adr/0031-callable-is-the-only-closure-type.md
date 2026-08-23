@@ -13,13 +13,7 @@
   `Closure::fromCallable` is dropped since nothing is left to convert from). All three folds are applied in
   those files.
 - **Amended by:** 0063.
-- **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (why recursion is solved with a
-  lexical self-name rather than a declared-method requirement — the self-name never becomes a free,
-  globally-callable function, so it doesn't reopen that ADR's rule), [0015](0015-no-name-aliasing.md) (the
-  precedent this ADR follows in refusing two names for one value — `Closure`/`callable` collapse for
-  exactly the reason `class_alias` and import-`as` were already refused), [0029](0029-identifier-casing-is-checked.md)/
-  [0030](0030-no-leading-underscores-constructor-spelling.md) (a closure's self-name follows the same
-  casing rule as any local binding, no exception needed)
+- **Relates to:** 0011, 0015, 0029, 0030
 
 > **In short:** PHP's anonymous-function surface collapses to one literal and one type. **`fn(...)` is the
 > only closure literal** — with or without a body (`fn($x) => $x + 1` and `fn($x) => { ...; return $x; }`

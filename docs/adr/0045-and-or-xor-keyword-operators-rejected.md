@@ -8,12 +8,7 @@
   attempt to run one already panicked naming the gap (`mwl-ir`'s `lower_expr_top` doc comment and its crate
   doc's known-gaps list). This ADR closes that gap by removing the construct rather than implementing it.
 - **Amended by:** none.
-- **Relates to:** [0035](0035-truthy-boolean-context.md) (names exactly six syntax positions —
-  `if`/`while`/`for`/`?:`/`&&`/`||`/`!` — as the truthy-table exception; `and`/`or`/`xor` were never among
-  them), [0034](0034-legacy-cast-syntax-rejected.md) and
-  [0021](0021-single-file-inclusion-construct.md) (the same shape: collapse several spellings of one
-  behaviour to one, reject the rest at parse time naming the survivor), [0015](0015-no-name-aliasing.md)
-  (nothing gets a second runtime-reachable name — extended here to a second *operator* spelling).
+- **Relates to:** 0015, 0021, 0034, 0035
 
 > **In short:** `and`, `or`, and `xor` no longer parse as operators. Each is a parse-time diagnostic
 > (`E0226`) — `and`/`or` name `&&`/`||` as the exact replacement; `xor` has none, since MWL has no `^^`

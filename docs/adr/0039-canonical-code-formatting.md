@@ -6,14 +6,7 @@
   modifier order, quoting, trailing commas, import ordering, and the reflow model — plus its CLI surface
   (`mwl fmt`, `mwl fmt --check`, `mwl fmt --diff`). Not `mwl-lsp`'s `textDocument/formatting` wiring or the
   editor clients, which [ADR 0016](0016-ide-integration.md) already settles; not the parser or checker.
-- **Relates to:** [0016](0016-ide-integration.md) (names `mwl-fmt` as the one formatting implementation
-  both editors call — this ADR is what that implementation actually does); [0029](0029-identifier-casing-is-checked.md)
-  (the closest existing precedent: a style question given one hard, unconfigurable answer); every ADR whose
-  construct needs a layout rule with no PER precedent — [0007](0007-explicit-type-system.md) (type
-  grammar), [0010](0010-enums-are-a-value-type.md) (enum cases), [0024](0024-taint-tracking-for-injection-sinks.md)/
-  [0033](0033-secret-qualifier-for-confidential-values.md) (`tainted`/`secret`), [0031](0031-callable-is-the-only-closure-type.md)
-  (`fn` closures), [0036](0036-anonymous-object-shapes.md) (object literals, shape types),
-  [0038](0038-lateinit-property-modifier.md) (`lateinit`).
+- **Relates to:** 0007, 0010, 0016, 0024, 0029, 0031, 0033, 0036, 0038
 
 > **In short:** `mwl fmt` rewrites a `.mwl` file into one canonical layout, deterministically — running it
 > twice produces byte-identical output the second time. The style is [PER](https://www.php-fig.org/per/coding-style/)

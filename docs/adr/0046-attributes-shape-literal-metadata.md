@@ -26,21 +26,7 @@
   [docs/implementation-plan.md](../implementation-plan.md) M4 gains the `#[...]` grammar and its shape/
   compile-time-constant checks; M8 gains `Core\Attributes` alongside `Core\Reflect`/`Core\Ast`.
 - **Amended by:** none.
-- **Relates to:** [0036](0036-anonymous-object-shapes.md) (the payload literal *is* an anonymous object
-  literal, checked against a named shape type by the exact same width-subtyping rule, when one is named at
-  all), [0015](0015-no-name-aliasing.md) (an attribute's optional "name" is nothing but an ordinary `type`
-  alias identifier — no second namespace is created), [0027](0027-callable-is-closures-only.md) (first-class
-  callable syntax is the reference a method-level or constructor-level lookup targets), [0019](0019-reflection-and-ast-parsing-are-core-features.md)
-  (this ADR deliberately does *not* open a second, `Core\Reflect`-shaped generic-walk surface — retrieval
-  stays a narrow, statically-resolved accessor, consistent with that ADR's own scoping instinct),
-  [0011](0011-functions-and-constants-are-class-members.md) (`Core\Attributes` is a new `Core` domain class,
-  landing in M8 alongside `Core\Reflect`/`Core\Ast`), [0033](0033-secret-qualifier-for-confidential-values.md)
-  §4 (the literal-call-site-inspection technique this ADR reuses to validate a property/parameter name
-  string at compile time), [0022](0022-definite-property-initialization.md) (every class has a nameable
-  `constructor`, which is what makes a class-level lookup target expressible with no new "class as value"
-  token), [0042](0042-on-disk-artifact-cache-format.md) (an attribute literal is ordinary source text, already
-  covered by that ADR's content-addressed hash — no new cache-key rule needed), [0004](0004-memory-for-simplicity.md)
-  (states what this feature spends).
+- **Relates to:** 0004, 0011, 0015, 0019, 0022, 0027, 0033, 0036, 0042
 
 > **In short:** `#[Name(field: value, ...)]` (or bare `#[{field: value, ...}]`) attaches an object-shape
 > literal — exactly [ADR 0036](0036-anonymous-object-shapes.md)'s literal, not a new kind of value — to a

@@ -13,17 +13,7 @@
   rule [ADR 0011](0011-functions-and-constants-are-class-members.md) already gives method and constant
   resolution: naming a property that does not exist on the class is refused at the same point, never
   deferred to a magic method.
-- **Relates to:** [ADR 0002](0002-error-propagation.md) (a hook or `PropertyObserver` method that throws
-  propagates as a checked status like any other call — no new exception path), [ADR 0004](0004-memory-for-simplicity.md)
-  (this decision spends nothing beyond what [ADR 0013](0013-comparable-interface.md) already spent: an
-  ordinary virtual call, paid only by a class that opts in), [ADR 0007](0007-explicit-type-system.md) (a
-  property is a declared, typed binding; naming one that was never declared is refused the same way an
-  undeclared local already is), [ADR 0008](0008-static-and-global.md) (no new storage class — a
-  `PropertyObserver` implementation needs no entry in § 2's exhaustive table), [ADR 0011](0011-functions-and-constants-are-class-members.md)
-  (why `PropertyObserver` is a global reserved interface and not a `Core` domain class — a contract type,
-  not a holder of `static` members), [ADR 0013](0013-comparable-interface.md) (the direct precedent this
-  ADR follows: replace a PHP behaviour that fires because a method *name* happens to be present with a
-  behaviour that fires because an *interface* is declared)
+- **Relates to:** 0002, 0004, 0007, 0008, 0011, 0013
 
 > **In short:** PHP has two disconnected ways to intercept property access — 8.4's per-property hooks, and
 > the ambient `__get`/`__set` pair, which fires only for a property that does not exist or is not

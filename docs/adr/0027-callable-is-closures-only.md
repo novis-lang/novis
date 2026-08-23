@@ -8,14 +8,8 @@
   `$obj->method(...)`) produces one
 - **Amends:** [0007](0007-explicit-type-system.md) § 3 — `callable` was an opaque atom with no stated rule
   for *which values* satisfy it. Its opacity as to *signature* is unchanged and still deferred there.
-- **Amended by:** 0031 (the type is spelled `callable`, never `Closure` — applied throughout below;
-  `Closure::fromCallable` is dropped there too), 0063 (illustrative signatures restated subject-first).
-- **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (every callable is a declared
-  method — this ADR is what makes a *value* referencing one safe to pass around),
-  [0013](0013-comparable-interface.md) (the one narrow operator overload MWL admits — the precedent this
-  ADR follows in refusing a second), [0014](0014-property-observer.md) (rejects `__call`/`__callStatic`
-  for hiding which method a call site runs; this rejects `__invoke` for the same reason),
-  [0031](0031-callable-is-the-only-closure-type.md) (the closure *literal* and its capture rule)
+- **Amended by:** 0031, 0063 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0011, 0013, 0014, 0031
 
 > **In short:** `callable` means **a closure value — nothing else.** PHP's three dynamic spellings — a bare
 > string (`"strlen"`), an `"Class::method"` string, and a `[$obj, 'method']` array — are all rejected with a

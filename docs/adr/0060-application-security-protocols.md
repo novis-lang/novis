@@ -8,11 +8,7 @@
 - **Amends:** [0051](0051-standard-library-tiers.md) — § 3's Core roster gains these entries and, in § 2
   below, the test that closes the list.
 - **Amended by:** none.
-- **Relates to:** [0033](0033-secret-qualifier-for-confidential-values.md) (keys are `secret`, which is
-  half of why § 3 keeps these in Core), [0055](0055-extension-qualifier-declarations.md) (which forbids
-  `secret` crossing an extension boundary — the other half),
-  [0024](0024-taint-tracking-for-injection-sinks.md) (§ 4: a verified signature does not make a payload
-  safe), [0012](0012-no-superglobals.md) (`Core\Session`, which the cookie and CSRF entries serve).
+- **Relates to:** 0012, 0024, 0033, 0055
 
 > **In short:** `Core` includes four protocols built on cryptographic primitives — **signed and encrypted
 > cookies, CSRF tokens, TOTP, and JWT signing and verification** — and the list is **closed**: adding to it

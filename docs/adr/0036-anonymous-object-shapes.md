@@ -19,17 +19,7 @@
   literal (see *Decision § 2*). [docs/implementation-plan.md](../implementation-plan.md) M1 — gains a third
   pending grammar item (the literal and the shape-type syntax), M2 — gains the atom's real subtyping and the
   shape's structural check.
-- **Relates to:** [ADR 0004](0004-memory-for-simplicity.md) (cost accounting for the erased-access lookup
-  and the literal's allocation), [ADR 0002](0002-error-propagation.md) (the new throws propagate as an
-  ordinary checked status), [ADR 0013](0013-comparable-interface.md) (the contrast this ADR is careful to
-  preserve — ordering still has no structural fallback; this ADR's structural check is scoped to the
-  `object`/shape family alone), [ADR 0015](0015-no-name-aliasing.md) (a shape type is exactly the kind of
-  type expression its `type` alias mechanism already allows, since it is never a single bare class),
-  [ADR 0022](0022-definite-property-initialization.md) (a literal's fields satisfy definite assignment by
-  construction, the same way a promoted constructor parameter already does), [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)
-  (clone/serialize/isolate-crossing need no special case — a literal instance is an ordinary object with
-  declared properties), [ADR 0020](0020-error-escalation-ladder.md) (every new throw here is an ordinary
-  catchable `Throwable`, never routed through the fatal ladder)
+- **Relates to:** 0002, 0004, 0013, 0015, 0020, 0022, 0023
 
 > **In short:** PHP's `stdClass` needs dynamic, undeclared properties — closed for good reason in
 > [ADR 0014](0014-property-observer.md) — so MWL cannot offer it directly. Instead: **`object` becomes the

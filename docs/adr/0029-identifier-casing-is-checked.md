@@ -8,15 +8,9 @@
   placement — that is [ADR 0039](0039-canonical-code-formatting.md)'s. Built-in type keywords (`int`,
   `uint`, `bytes`, …) and language keywords (`isset`, `require`, …) are reserved words the grammar already
   lowercases; this ADR does not add a rule for them.
-- **Amended by:** 0030 (the leading-underscore allowance is gone, and the constructor is spelled
-  `constructor`), 0032 (the acronym-as-one-word rule is revoked). Both folds are applied below — the table
-  in *Decision* is the rule the checker enforces, with no exceptions of any kind.
-- **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (every callable is a method and
-  every constant a class constant — this ADR is what gives each category its casing rule),
-  [0015](0015-no-name-aliasing.md) (the same "one name, one spelling" ethos),
-  [0062](0062-case-sensitivity-is-a-compiler-property.md) (how a name *resolves*, as opposed to how it is
-  spelled), [0039](0039-canonical-code-formatting.md)/[0016](0016-ide-integration.md) (`mwl fmt`/`mwl-lsp`,
-  where the rename quick-fix lives)
+- **Amended by:** 0030, and the retired 0032 — both folded into the table and § 1 below, which is the rule
+  the checker enforces, with no exceptions of any kind.
+- **Relates to:** 0011, 0015, 0016, 0039, 0062
 
 > **In short:** every user-written identifier's casing is checked at compile time and a mismatch is a hard
 > error — not a lint, not a warning, and **there is no suppression mechanism**. Types (`class`, `interface`,

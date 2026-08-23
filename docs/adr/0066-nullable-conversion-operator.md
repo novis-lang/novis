@@ -11,14 +11,7 @@
   untouched. [0047](0047-literal-and-enum-case-types.md) — its checked conversion into a literal or
   enum-case type gains the same non-throwing form.
 - **Amended by:** none.
-- **Relates to:** [0063](0063-core-api-conventions.md) (R4's *failure throws* and R5's ban on
-  `try…`/`…OrNull`/`…Safe` member names are what make this an operator rather than a method, and this ADR
-  strengthens both), [0022](0022-definite-property-initialization.md) (§ 1's rule that `?T` is already the
-  one spelling for "may legitimately hold no value"), [0035](0035-truthy-boolean-context.md) (why a bare
-  `if ($s as ?int)` is a trap, and why it is a lint rather than an error),
-  [0024](0024-taint-tracking-for-injection-sinks.md)/[0033](0033-secret-qualifier-for-confidential-values.md)
-  (qualifiers are orthogonal to the result's nullability; this never launders), [0010](0010-enums-are-a-value-type.md)
-  (an enum is a value type, so it converts like one).
+- **Relates to:** 0010, 0022, 0024, 0033, 0035, 0063
 
 > **In short:** `$s as ?int` yields the converted value where `$s as int` would succeed and `null` where it
 > would throw, so a failed conversion becomes a value you test rather than control flow you catch. **The

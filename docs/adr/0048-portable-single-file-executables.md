@@ -6,14 +6,7 @@
   `require` graph into a single, self-contained, runnable executable — the Bun/`pkg`/`deno compile` shape —
   and the small addition to `mwl-host`'s startup path needed to run one. CLI programs only; `mwl serve` is
   explicitly out of scope (see *Decision* §1).
-- **Relates to:** [0042](0042-on-disk-artifact-cache-format.md) (the payload this ADR appends is read through
-  that exact cache pipeline, unmodified), [0021](0021-single-file-inclusion-construct.md) (the `require`
-  graph this ADR must resolve ahead of time), [0025](0025-wasm-browser-target.md) (already established the
-  identical "closed-world, statically-resolved `require` graph" rule for a different target; this ADR reuses
-  it rather than re-deriving it), [0005](0005-config-changeability.md)/[the ADR index](README.md)'s
-  "Server-level configuration, not per-project" (why this feature does *not* need to touch that boundary —
-  see *Decision* §1), [0003](0003-extension-system.md) (why a `.mwlx` dependency bundles into the same
-  payload with none of this ADR's own problems)
+- **Relates to:** 0003, 0005, 0021, 0025, 0042
 
 > **In short:** `mwl build --compile entry.mwl -o app` appends the entry file's statically-resolved source
 > tree, as plain bytes with a small footer, after the host `mwl` binary's own sections — the standard

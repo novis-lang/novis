@@ -10,24 +10,8 @@
 - **Amends:** [ADR 0007](0007-explicit-type-system.md) § 1 — "definite assignment is checked" was written
   for local variables only; this ADR names properties as the second binding kind the same analysis covers,
   and is the decision that paragraph's scope was silently missing.
-- **Amended by:** [ADR 0038](0038-lateinit-property-modifier.md) — resolves this ADR's *Revisiting* entry
-  "An opt-in `lateinit`-equivalent" by adding that modifier, reusing rather than replacing § 3's runtime
-  mechanism. [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) — § 2's "own,
-  inherited, or trait-contributed" phrasing is narrowed to "own or inherited": traits do not exist, and a
-  `by`-delegation target is an ordinary declared property with no special case of its own.
-- **Relates to:** [ADR 0002](0002-error-propagation.md) (the runtime fallback throws as an ordinary
-  checked status, not by unwinding), [ADR 0004](0004-memory-for-simplicity.md) (what the "not yet written"
-  marker costs), [ADR 0007](0007-explicit-type-system.md) (a declared type never silently holds something
-  else — the invariant this ADR protects rather than exempts), [ADR 0014](0014-property-observer.md) (that
-  ADR settled *undeclared*-property access; this one settles *declared-but-not-yet-assigned*, the gap it
-  left open), [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)
-  (`Core\Reflect` is the one path that can construct an object without running any constructor, which is
-  where the residual runtime case comes from), [ADR 0020](0020-error-escalation-ladder.md) (this throw is
-  explicitly *not* routed through the fatal ladder — it is an ordinary, catchable `Throwable`),
-  [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) (`clone`, `serialize`/`unserialize`, and the
-  isolate boundary are a second family of constructor-bypassing paths; that ADR explains why none of them
-  reopens the residual case fixed here — a copy always starts from an already-initialized source, and
-  `unserialize()` refuses any payload missing a declared property rather than reconstructing one)
+- **Amended by:** 0038, 0043 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0004, 0007, 0014, 0019, 0020, 0023
 
 > **In short:** PHP's typed properties can exist in a third state, neither assigned nor `null`, and reading
 > one throws — a correct but purely runtime-discovered failure that surfaces far from the missing

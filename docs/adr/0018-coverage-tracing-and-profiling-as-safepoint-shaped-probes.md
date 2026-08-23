@@ -5,20 +5,8 @@
 - **Scope:** `Core\Debug`, the `[debug]` `mwl.toml` section, the `debug.trace`/`debug.profile` capabilities,
   the probe-emission points added to `mwl-codegen`, the `Ctx` fields that back them, and the coverage/trace/
   profile output formats
-- **Relates to:** [0002](0002-error-propagation.md) (`emit_call()` is the one place a trace/profile probe
-  attaches to a call), [0004](0004-memory-for-simplicity.md) (what a live debug session spends, and that it
-  must stay attributable to a request), [0005](0005-config-changeability.md) (`[debug] mode` uses the
-  existing three-class directive model, no new mechanism), [0006](0006-isolated-script-execution.md) (fills
-  in the still-provisional `ScriptResult` shape with a `coverage`/`trace`/`profile` field, crossing by the
-  same copy-out rule `value`/`error`/`usage` already use — not an amendment, since 0006 left that surface
-  provisional pending M5), [0016](0016-ide-integration.md) (`mwl dap` and the M10 sampling profiler are a
-  different, already-decided mechanism this one is designed to sit beside, not replace)
-- **Amended by:** [0064](0064-configuration-file-format.md) — `[debug] mode` is a TOML array of mode names
-  (`[]` is off), not a comma-separated string, and `ini_set` is spelled `Core\Config::set`.
-  [0041](0041-timeline-export-and-gc-spawn-trace-events.md) — adds a `kind` tag to trace
-  events (`call`/`gc`/`spawn`), instruments the cycle collector's run routine and the three isolate-spawn/
-  join routines (none of which this ADR's probes cover), and adds a speedscope-evented export alongside the
-  Clover/lcov/Callgrind/NDJSON formats named here.
+- **Relates to:** 0002, 0004, 0005, 0006, 0016
+- **Amended by:** 0041, 0064 — each fold is applied below; this body states the current rule.
 
 > **In short:** MWL gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
 > deterministic per-call profiler — enabled with one `mwl.toml` directive or one `Core\Debug` call, exported

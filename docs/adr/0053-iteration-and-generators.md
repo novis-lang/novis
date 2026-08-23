@@ -10,13 +10,7 @@
   [0028](0028-closing-the-remaining-magic-methods.md) — it closed the remaining magic *methods* and left
   SPL's magic *interfaces* undecided; § 3 closes `ArrayAccess` and `Countable` on the same reasoning.
 - **Amended by:** none.
-- **Relates to:** [0014](0014-property-observer.md) (§ 3 applies its rejection of implicit
-  property-access dispatch one level over, to subscript dispatch),
-  [0011](0011-functions-and-constants-are-class-members.md) (which is why `Countable` has nothing left to
-  hook), [0025](0025-wasm-browser-target.md) (§ 4's lowering choice is what keeps its cross-target claim
-  intact), [0023](0023-clone-serialize-and-cross-boundary-copy.md) (§ 6, a generator does not cross a
-  boundary), [0031](0031-callable-is-the-only-closure-type.md) (a generator is not a closure and has no
-  capture clause).
+- **Relates to:** 0011, 0014, 0023, 0025, 0031
 
 > **In short:** exactly two iteration interfaces exist. `Iterator<T>` is a single-pass cursor —
 > `advance(): bool` then `current(): T` — and `Iterable<T>` is a thing that can produce a fresh one via

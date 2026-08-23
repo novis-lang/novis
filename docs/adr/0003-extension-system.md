@@ -5,12 +5,7 @@
 - **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/wasm_sandbox.rs` and the
   `wasm-probe` cost guards. Originally spike #4, on wasmtime 41 + cranelift 0.128,
   `x86_64-pc-windows-msvc`.
-- **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — Tier 0's "fine-grained
-  primitives" are `static` methods on `Core` domain classes, never bare functions; a manifest registers
-  classes, whose `static` methods and `const` members the host adds to the symbol table, not functions or
-  constants directly. [0064](0064-configuration-file-format.md) — an extension is loaded by an
-  `[[extension]]` entry in `mwl.toml`, not by a repeated `extension =` key in an INI file, so the hash pin
-  is a field of the entry.
+- **Amended by:** 0011, 0064 — each fold is applied below; this body states the current rule.
 
 > **In short:** third-party extensions are sandboxed WebAssembly components (`.mwlx`), never
 > shared libraries loaded with `dlopen`. Three tiers: built-in (`mwl-stdlib`), wasm component, and

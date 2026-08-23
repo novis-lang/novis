@@ -14,16 +14,7 @@
   lowercases anything; it accepts the lower-case spelling and nothing else, which is a stronger statement
   than the note it replaces.
 - **Amended by:** none.
-- **Relates to:** [0061](0061-compile-time-autoload-and-program-discovery.md) § 1 (already required an
-  autoloaded file's on-disk name to match exactly, and already leaned on `QName` comparing
-  case-sensitively — § 1 and § 3 below are that rule stated once, generally, instead of once per
-  construct), [0029](0029-identifier-casing-is-checked.md)
-  (one legal casing per identifier category, checking only the first character — the reason § 2
-  can *not* diagnose a mis-cased keyword), [0049](0049-single-open-tag-and-single-exit-keyword.md) and
-  [0034](0034-legacy-cast-syntax-rejected.md)/[0045](0045-and-or-xor-keyword-operators-rejected.md) (the
-  same shape: one spelling survives, the rest are diagnosed naming it — applied here to casing rather than
-  to word choice), [0015](0015-no-name-aliasing.md) (nothing gets a second reachable name; a second
-  *casing* of a name is exactly that).
+- **Relates to:** 0015, 0029, 0034, 0045, 0049, 0061
 
 > **In short:** nothing in MWL's meaning depends on the operating system's filesystem or on the case a
 > reserved word was typed in. Names resolve case-sensitively (§ 1). Reserved spellings — keywords,

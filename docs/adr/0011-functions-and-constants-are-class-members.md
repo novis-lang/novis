@@ -13,20 +13,8 @@
   it with. [0010](0010-enums-are-a-value-type.md) — the *standalone function* destination for a
   user-defined enum behaviour, in both *Consequences* and *Revisiting*, assumed a free-function concept
   this ADR removes; the only destination left is a static method.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (simplicity is bought here, again, by removing a
-  surface rather than by spending memory), [0006](0006-isolated-script-execution.md) (a `Core` class is
-  compiled code, shared across isolates exactly like any other class — nothing new for the isolation
-  boundary)
-- **Amended by:** [0012](0012-no-superglobals.md) — `Core\Server`, `Core\Request`, `Core\Session`,
-  `Core\Cli` and `Core\Script` join the domain-class roster below, replacing PHP's superglobals and MWL's own
-  `$_ARGS`. [0015](0015-no-name-aliasing.md) — § 2's "a `use` alias that shadows anything under [`Core`]"
-  no longer describes a real construct, since import aliasing is rejected outright; see that ADR's § 4 for
-  the reworded rule. That ADR's *Revisiting* also notes that any future `use function`/`use const`-style
-  shorthand named in this ADR's own *Revisiting* inherits the same no-renaming rule.
-  [0063](0063-core-api-conventions.md) — fixes the *shape* of every `Core` member this ADR only found a
-  home for: the examples above are restated as `Core\Str::length($s)` and `Core\Arr::map($a, $f)`
-  (subject-first, full words), and § 2's "the exact roster is stdlib design, due at M2/M8" is answered by
-  [docs/spec/01-core-library.md](../spec/01-core-library.md), landing at the new milestone M4S.
+- **Relates to:** 0004, 0006
+- **Amended by:** 0012, 0015, 0063 — each fold is applied below; this body states the current rule.
 
 > **In short:** no `function` and no `const` may be declared outside a class body — a function is always a
 > `static` or instance method, and a constant is always a class constant, with no exception for built-ins.

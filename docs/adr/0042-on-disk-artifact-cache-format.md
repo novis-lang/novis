@@ -8,12 +8,7 @@
   write/verify/evict mechanics, and the `opcache.*` directives that govern it. It does not touch the
   in-process `DashMap<UnitKey, CompileState>` cache or the hot-reload pointer swap — those stay exactly as
   [ADR 0017](0017-hot-reload-without-restart.md) defines them.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (bounded, attributable growth — the eviction rule
-  below), [0005](0005-config-changeability.md) (every directive this ADR adds is `System`-class, for the
-  same reason `opcache.validate` is), [0006](0006-isolated-script-execution.md) (why a script cannot widen
-  its own trust in this cache), [0017](0017-hot-reload-without-restart.md) (the in-process, write-once
-  `Ready` entry this ADR mirrors at the disk layer), [0002](0002-error-propagation.md) (a bad cache entry
-  is ordinary checked-return-shaped fallback, never a panic)
+- **Relates to:** 0002, 0004, 0005, 0006, 0017
 
 > **In short:** the disk cache is a directory of immutable files, one per compiled unit, addressed by
 > `BLAKE3(source content ‖ target triple ‖ CPU feature bitset ‖ compiler version hash)` — folding the

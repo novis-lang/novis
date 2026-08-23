@@ -12,15 +12,7 @@
   (`spl_autoload_register`), which § 6 never named. [`docs/spec/00-overview.md`](../spec/00-overview.md) § 2
   gains `autoload` beside `require`/`spawn script` — that document owns the grammar, this ADR owns why.
 - **Amended by:** none.
-- **Relates to:** [0021](0021-single-file-inclusion-construct.md) (`require`, which this does not replace —
-  the two answer different questions), [0052](0052-closed-doors.md) § 4 (no `eval`, and therefore no
-  runtime code loading of any kind), [0025](0025-wasm-browser-target.md) and
-  [0048](0048-portable-single-file-executables.md) (the closed, build-time-resolved `require` graph this
-  extends rather than reopens), [0017](0017-hot-reload-without-restart.md) and
-  [0042](0042-on-disk-artifact-cache-format.md) (the two caches whose invalidation sets grow — § 5),
-  [0046](0046-attributes-shape-literal-metadata.md) (compile-time structural retrieval, the shape
-  `Core\Program` follows), [0029](0029-identifier-casing-is-checked.md) (why path traversal is structurally
-  impossible here), [0008](0008-static-and-global.md) (why a registered loader stack could not exist).
+- **Relates to:** 0008, 0017, 0021, 0025, 0029, 0042, 0046, 0048, 0052
 
 > **In short:** PHP's autoloader does two jobs. *"Which file declares this name?"* becomes `autoload`, a
 > top-level declaration with literal paths resolved **relative to the file that declares it** — no manifest

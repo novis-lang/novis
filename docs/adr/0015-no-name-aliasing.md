@@ -13,15 +13,8 @@
   anything under it" no longer describes a real construct, since import aliasing is gone; see *Decision § 4*
   for the reworded rule, and any future `use function`/`use const`-shaped shorthand for `Core` members
   named in that ADR's *Revisiting* inherits the same no-renaming rule this ADR states.
-- **Amended by:** [0043](0043-interface-default-methods-and-delegation-replace-traits.md) — withdraws § 3 in
-  full: `trait`, class-body `use Trait;`, and `insteadof` no longer exist at all, so there is no trait
-  composition left for an `as` clause to attach to or be rejected from.
-- **Relates to:** [0004](0004-memory-for-simplicity.md) (simplicity is bought here, again, by refusing a
-  second name rather than by spending memory), [0006](0006-isolated-script-execution.md) (a value crossing
-  an isolate boundary carries one class identity, never a locally-chosen alternate spelling of it),
-  [0008](0008-static-and-global.md) and [0011](0011-functions-and-constants-are-class-members.md) (both
-  already establish "exactly one declared home" for state and for behaviour; this ADR gives the same answer
-  for a *name*)
+- **Amended by:** 0043 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0004, 0006, 0008, 0011
 
 > **In short:** a class, interface, enum, method or constant is reachable under **exactly the name it was
 > declared with** — its own short name, or a fully-qualified path to it — and under no other. PHP's relevant

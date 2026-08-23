@@ -25,15 +25,8 @@
   [0011](0011-functions-and-constants-are-class-members.md) — `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` join the illustrative domain-class roster its *Revisiting* section already
   says is incomplete.
-- **Amended by:** [0024](0024-taint-tracking-for-injection-sinks.md) — every method on `Core\Request`,
-  `Core\Server`, `Core\Session`, `Core\Env`, `Core\Cli` and `Core\Script::args()` returns the `tainted` form
-  of whatever it already returned; the mapping table and the method-signature deferral are otherwise
-  unchanged.
-- **Relates to:** [0002](0002-error-propagation.md) (an isolation-boundary violation on `Core\Request`/
-  `Core\Session` inside a spawned isolate is a checked throw, propagated like any other error),
-  [0004](0004-memory-for-simplicity.md) (dropping `$GLOBALS` and `$_REQUEST` buys simplicity by deleting
-  surface, not by spending memory), [0005](0005-config-changeability.md) (the session store backend is a
-  directive-selected component; its mechanics are deferred, not fixed here)
+- **Amended by:** 0024 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0004, 0005
 
 > **In short:** PHP populates `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV` and
 > `$GLOBALS` ambiently — a script never declares them, they are simply present, and `$GLOBALS` additionally
