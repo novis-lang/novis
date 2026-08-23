@@ -17,10 +17,11 @@
 > local `php-src` checkout and a 5-minute
 > WSL `cargo fuzz run lex`/`parse` both find zero panics).
 >
-> **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
+> **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir` (+ `errors`, `interfaces`), `mwl-types` (+ `layout`, `core_lib`, `error_lib`,
 > `iter_lib`, `generics`, `conformance`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`,
-> `closure`), `mwl-stdlib` (`Core\Arr` × 3), `mwl-codegen`, `mwl-cli`, `fuzz/`, `benches/abi-probe`.
+> `closure`), `mwl-stdlib` (`Core\Arr` × 3), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
+> `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -28,8 +29,8 @@
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
-> slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2 and **0053 in
-> full**. Each ADR's own *Verification* section says what its slice covers, not this field.
+> slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2, 0065, and
+> **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this field.
 >
 > **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. `examples/core.mwl` still needs
 > integer `%`, an options-shape argument and every `Core\Str` row. Then `crates/mwl-test`/`mwl test`.

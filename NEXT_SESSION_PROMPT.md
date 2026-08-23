@@ -7,8 +7,8 @@ authoritative for the acceptance list and for the ten standing decisions already
 do not re-open any of them. The plan's status block says what is on disk and what is open.
 
 **Stages 1 and 2 are green on both legs**, byte for byte, on Windows and under WSL against a Linux build,
-with `valgrind --leak-check=full` clean. **ADR 0053 is done in full**, and **ADR 0031 §§ 1–2 landed this
-session**: closures are checked, lowered, compiled and callable from native `Core` code. Each shape is
+with `valgrind --leak-check=full` clean. **ADR 0053 is done in full**, and **ADR 0031 §§ 1–2 landed**:
+closures are checked, lowered, compiled and callable from native `Core` code. Each shape is
 owned by a doc comment rather than summarised here:
 
 - **`mwl_types::expr::check_fn_literal`** checks a closure body in a scope of its own and offers every
@@ -29,6 +29,20 @@ owned by a doc comment rather than summarised here:
 - **`mwl_ir::lower::LoweredArgs`** — the leak fix valgrind found. A `Borrowed` (helper/`Core`) call now
   releases each argument the argument *expression itself built*, which is the case with no other owner.
   Pre-existing, but only reachable once a `Core` member could take a heap argument the caller just made.
+
+**Two documentation-only decisions landed alongside, neither touching the loop.** Both are M6-scope, so
+they cost a doc pass now and would cost a breaking change later:
+
+- **[ADR 0064](docs/adr/0064-configuration-file-format.md) — configuration is TOML in `mwl.toml`, not
+  INI.** INI has no specification and one value type; four directives the ADRs already specify were
+  booleans, lists or repeated records encoded as strings, including a `:`-joined `script.spawn` that
+  cannot express a Windows absolute path. `ini_set`/`ini_get`/`ini_restore` are now
+  `Core\Config::set`/`::get`/`::restore` (ADR 0011 forced that regardless), and `Core\Config` has a row in
+  [`docs/spec/01-core-library.md`](docs/spec/01-core-library.md) § 16. ADR 0005's registry, changeability
+  classes, ceilings and overlay are all unchanged — only the syntax and the names moved.
+- **[ADR 0065](docs/adr/0065-third-party-attribution-and-mwl-info.md)** — generated third-party
+  attribution and `mwl info`. This closes the previous session's backlog item about an untracked
+  `tools/gen-attribution.py`: it was that ADR's generator, arriving before its number settled.
 
 ## Next
 
@@ -91,9 +105,8 @@ Each crate's own module doc is the home for its known gaps; these are the ones w
   *whole* because of that — closing the gap and narrowing that exemption go together.
 - **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of exactly the kind CLAUDE.md
   forbids. The one doc in the repo genuinely owed a trim.
-- **`tools/gen-attribution.py` is untracked in the working tree** and references an ADR 0064 that does not
-  exist in this repository. It appeared mid-session, is nothing this loop wrote, and was deliberately kept
-  out of every commit. Decide what it is before adding it.
+- **Nothing on disk parses `mwl.toml` yet** — ADR 0064 is a decision, and M6 is where it is built. Nothing
+  in M4/M4S depends on it.
 
 ## Standing rules for this repo
 
