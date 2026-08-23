@@ -7,9 +7,10 @@ signature change, no new `pub`. `cargo test` must pass with the same test count 
 ## Before you start
 
 1. **The loop must not be running.** `tools/loop.py` sessions edit `registry.rs` and `lower.rs` on almost
-   every iteration, so this pass and the loop cannot share a tree. Check `.loop/log.md` for a
-   `## run ended` line as the last entry; if there is none, stop and tell the user rather than proceeding.
-2. Run `python tools/brief.py`, read `AGENTS.md`, and follow its *Where to look* table.
+   every iteration, so this pass and the loop cannot share a tree. **`.loop/running` must not exist** —
+   the driver writes it while it is up and deletes it on every exit, and `python tools/brief.py` prints
+   its contents loudly when it is there. If it exists, stop and tell the user rather than proceeding.
+2. Run `python tools/brief.py`, read `AGENTS.md`, and use `--where <keyword>` to route a topic.
 3. **Locate everything by symbol name, not by line number.** Any line number in this file was true when it
    was written and the loop has moved on since.
 4. Multi-line Rust edits go through `python tools/splice.py <target> <old> <new>`, per `AGENTS.md`'s

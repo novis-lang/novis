@@ -71,6 +71,7 @@ the commit. Tooling notes:
   all. For a multi-line Rust edit, write the old and new blocks to files under `.agent-tmp/` with the
   Write tool, then `python tools/splice.py <target> <old> <new>` — its own docstring says why.
 - **Another agent may be editing this repo at the same time** — one overwrote this very file mid-session.
+  `brief.py` now says so loudly when `.loop/running` exists, but that only covers the work loop.
   **Stage your own paths explicitly, check `git show --stat` after committing, and re-read a shared doc
   immediately before rewriting it.**
 - **`cargo test` does not always relink `target/debug/mwl.exe`** — `cargo build -p mwl-cli` before running
@@ -81,6 +82,8 @@ the commit. Tooling notes:
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
   valgrind sweep, naming the first failure), or `--list` to see it without running it. It is data now, in
   [`loop-goal.toml`](loop-goal.toml).
+- **After moving or renaming any doc, `python tools/check-links.py`** — broken *and* mis-cased relative
+  links, the second kind being the one that works on Windows and 404s on Linux. Advisory, exits 0 always.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>` (note
   `test --accept`); a renamed test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe`
   takes over two minutes — run it in the background.

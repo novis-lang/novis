@@ -654,6 +654,18 @@ def run_git():
     emit(f"branch:  {git('rev-parse', '--abbrev-ref', 'HEAD') or '(unknown)'}")
     emit(f"HEAD:    {git('log', '-1', '--format=%h %s') or '(unknown)'}")
 
+    # `.loop/running` exists for exactly as long as tools/loop.py is driving this tree. Two agents on
+    # one working tree race on every file, and the loop's sessions edit the same few files on nearly
+    # every iteration -- so this is the first thing a session needs to know, before it edits anything.
+    running = ROOT / ".loop" / "running"
+    if running.exists():
+        emit()
+        emit("!! A WORK LOOP IS RUNNING ON THIS TREE (.loop/running):")
+        for line in (read(running) or "").rstrip("\n").split("\n"):
+            emit(f"     {line}")
+        emit("!! Its sessions commit to this same tree. Do not edit files alongside it: tell the user,")
+        emit("!! and stop unless they say otherwise. `tail -f .loop/log.md` shows what it is doing.")
+
     changed = git("status", "--porcelain")
     if changed:
         changed_lines = changed.split("\n")

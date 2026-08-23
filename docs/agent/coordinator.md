@@ -44,11 +44,13 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. |
+| `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` prints it loudly, and `refactor-split.md` refuses to start when it is there. Starting a second driver is refused unless you pass `--force`. |
 
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
 
 ## What the driver does, per iteration
 
+    claim .loop/running, or refuse to start because another driver holds it
     if .loop/stop exists                   -> stop
     record HEAD
     run: claude -p <docs/agent/session-prompt.md> --model opus --permission-mode <mode>
@@ -111,7 +113,8 @@ documented above.
 
 Watch it with `tail -f .loop/log.md` (`Get-Content .loop/log.md -Wait` in PowerShell). Stop it by creating
 `.loop/stop`, which finishes the current session first, or with Ctrl-C, which kills it immediately — the
-repo is still consistent either way, because every session commits before it exits.
+repo is still consistent either way, because every session commits before it exits. Both paths drop
+`.loop/running` on the way out; if a hard kill or a reboot leaves one behind, delete it.
 
 ## Setting a new goal
 

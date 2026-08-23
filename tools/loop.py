@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -48,6 +49,7 @@ LOGDIR = RUNDIR / "logs"
 LEDGER = RUNDIR / "log.md"
 STATUS = RUNDIR / "status.txt"
 STOP = RUNDIR / "stop"
+RUNNING = RUNDIR / "running"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -522,6 +524,50 @@ def run_session(index, prompt_text, opts, renderer):
     return proc.returncode, log
 
 
+# ------------------------------------------------------------------------- run marker
+#
+# `.loop/running` exists for exactly as long as a driver is driving this tree. It is what anything else
+# -- a person, an interactive session, docs/agent/refactor-split.md's own precondition -- checks before
+# touching files the loop's sessions edit on nearly every iteration. A file-existence test, on purpose:
+# asking the OS whether a pid is alive is a different answer on every platform, and getting it subtly
+# wrong here would be worse than a stale marker a human deletes.
+
+
+def claim_run(opts):
+    """Write the marker, or explain who already holds it. Returns True when the run may start."""
+    if RUNNING.exists() and not opts.force:
+        say(f"a loop is already running on this tree, per {rel_to_root(RUNNING)}:", C.RED)
+        for line in RUNNING.read_text(encoding="utf-8").rstrip("\n").split("\n"):
+            say(f"  {line}", C.RED)
+        say(
+            "\nTwo drivers on one working tree race on every file. If that run is actually over "
+            f"(Ctrl-C, a crash, a reboot), delete {rel_to_root(RUNNING)} and start again, "
+            "or pass --force.",
+            C.YELLOW,
+        )
+        return False
+    RUNNING.write_text(
+        f"pid:      {os.getpid()}\n"
+        f"host:     {platform.node()}\n"
+        f"started:  {datetime.now():%Y-%m-%d %H:%M:%S}\n"
+        f"sessions: up to {opts.max_sessions}, model {opts.model}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return True
+
+
+def release_run():
+    RUNNING.unlink(missing_ok=True)
+
+
+def rel_to_root(path):
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--max-sessions", type=int, default=1)
@@ -536,6 +582,9 @@ def main():
     ap.add_argument("--full-output", action="store_true", help="no truncation anywhere")
     ap.add_argument("--goal-only", action="store_true", help="run the acceptance test and exit")
     ap.add_argument("--list", action="store_true", help="print the acceptance plan and exit")
+    ap.add_argument(
+        "--force", action="store_true", help="start even if .loop/running says a driver is up"
+    )
     opts = ap.parse_args()
 
     if opts.full_output:
@@ -576,6 +625,26 @@ def main():
     if not LEDGER.exists():
         LEDGER.write_text("# Loop ledger\n", encoding="utf-8", newline="\n")
 
+    if not claim_run(opts):
+        return 2
+    try:
+        drive(opts, goal)
+    except KeyboardInterrupt:
+        say("")
+        say(
+            "interrupted -- the working tree is still consistent, because every session commits "
+            "before it exits",
+            C.YELLOW,
+        )
+        ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- interrupted (Ctrl-C)")
+    finally:
+        release_run()
+    return 0
+
+
+def drive(opts, goal):
+    """The session loop itself. Split out so `main` can hold the `.loop/running` marker across it,
+    and drop it on any exit -- a normal stop, a Ctrl-C, or an exception."""
     prompt_text = PROMPT.read_text(encoding="utf-8")
     renderer = Renderer(opts)
 
@@ -643,7 +712,6 @@ def main():
     ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- {reason}")
     say("")
     say(reason, C.YELLOW)
-    return 0
 
 
 if __name__ == "__main__":

@@ -81,9 +81,9 @@ open question itself alone. Cleanup is not the moment to make new calls.
    to make sure `## Decision` sections were left untouched).
 4. Re-check `docs/adr/README.md`, `docs/implementation-plan.md`, `docs/spec/`, and `AGENTS.md` for
    anything the trim pass should have caught but is out of ADR scope.
-5. Run `cargo fmt --check` / whatever doc-adjacent checks exist (there's no markdown linter in this
-   repo as of this writing) — this is a docs-only pass, so the main risk is a broken cross-link, not a
-   build break. Spot check a few `[ADR NNNN](...)` links resolve to real files.
+5. Run `python tools/check-links.py` — this is a docs-only pass, so the main risk is a broken or
+   mis-cased cross-link, not a build break, and that is exactly what it reports. There is still no
+   markdown linter here, and no doc-size check of any kind.
 6. Commit with a message describing the trim (line counts before/after are a good thing to mention).
 7. Follow `AGENTS.md`'s "Keep work small, commit your work" section: write the next-session prompt to
    `docs/agent/handoff.md`, replacing its prior content, and show it to the user.

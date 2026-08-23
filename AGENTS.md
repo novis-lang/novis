@@ -392,6 +392,11 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   contested; otherwise a paragraph in *Decisions taken at project start* in
   [docs/adr/README.md](docs/adr/README.md).
 - Crates for later milestones are created when their milestone starts, not left sitting empty.
+- **After moving or renaming a doc, run `python tools/check-links.py`.** It reports relative links that
+  do not resolve, and links whose *case* does not match the file on disk — the second kind resolves fine
+  on Windows and macOS and 404s on GitHub and every Linux checkout, which is the doc-side of the rule
+  [ADR 0062](docs/adr/0062-case-sensitivity-is-a-compiler-property.md) makes for `require`. It is
+  advisory: it always exits 0, and nothing in CI runs it.
 
 ### Length targets, and why nothing enforces them
 
