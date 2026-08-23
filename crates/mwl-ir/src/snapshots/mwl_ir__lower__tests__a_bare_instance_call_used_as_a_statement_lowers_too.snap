@@ -9,10 +9,16 @@ fn m(object) -> void {
     ; stmt s0 @7:5-7:26
     v1 = new Foo() ! bb1  ; object
     ; stmt s1 @8:5-8:19
+    retain v1
     v2 = call Foo::greet(this: v1) ! bb2  ; void
+    release v1
+    release v0
     return
   bb1:
+    release v0
     propagate "m() at t.mwl:7"
   bb2:
+    release v1
+    release v0
     propagate "m() at t.mwl:8"
 }

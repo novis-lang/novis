@@ -11,5 +11,6 @@ fn m(object) -> void {
     v2 = field.get v0, T::name  ; string
     release v2
     field.set v0, T::name, v1
+    release v0
     return
 }

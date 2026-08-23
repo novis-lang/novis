@@ -9,5 +9,6 @@ fn pick(object, mixed) -> mixed {
     v1 = param 1  ; mixed
     ; stmt s0 @4:5-4:17
     ; stmt s1 @5:5-5:15
+    release v0
     return v1
 }

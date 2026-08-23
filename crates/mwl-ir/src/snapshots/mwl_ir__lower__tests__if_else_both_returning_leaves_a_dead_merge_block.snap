@@ -12,14 +12,17 @@ fn abs(object, int) -> int {
     v3 = lt v1, v2  ; bool
     branch v3 -> bb2 (e0), bb3 (e1)
   bb1:
+    release v0
     return
   bb2:
     ; stmt s1 @4:17-6:6
     ; stmt s2 @5:7-5:18
     v4 = neg v1  ; int
+    release v0
     return v4
   bb3:
     ; stmt s3 @6:12-8:6
     ; stmt s4 @7:7-7:17
+    release v0
     return v1
 }

@@ -12,5 +12,6 @@ fn pick(object) -> string {
     retain v1
     ; stmt s2 @6:5-6:15
     release v1
+    release v0
     return v1
 }

@@ -11,6 +11,7 @@ fn m(object) -> void {
     ; stmt s1 @5:5-5:22
     retain v1
     release v1
+    release v0
     release v1
     return
 }

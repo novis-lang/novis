@@ -29,10 +29,12 @@
 //! IR level (`mwl_types::ty::Ty::Array(TypeId)` already enforces that at
 //! check time; erasing it here is the same "representation, not identity"
 //! split [`Ty::Object`] already draws for a class/enum). [`Ty::Object`] is
-//! the one other non-scalar representation that exists, still reserved
-//! rather than functional (see its own doc comment) — widening lowering
-//! further adds variants to this enum; it does not replace the "erase
-//! checker qualifiers" design itself. [`Ty::Mixed`] is the newest, and the
+//! the one other non-scalar representation that exists, and is now
+//! functional: `mwl_runtime::object` gives it a heap shape, and
+//! [`crate::ir::Program::classes`] carries the per-class slot order this
+//! per-value lattice has no room for. Widening lowering further adds
+//! variants to this enum; it does not replace the "erase checker
+//! qualifiers" design itself. [`Ty::Mixed`] is the newest, and the
 //! first variant that is reserved *by design* rather than only until a later
 //! slice gets to it: unlike every representation above, there is no obvious
 //! "next slice" that makes it functional without first deciding a runtime
@@ -59,13 +61,13 @@ pub enum Ty {
     /// is already resolved to a concrete label by
     /// `mwl_types::expr_table::ExprTypeTable` before lowering ever reaches
     /// it (see `crate::lower`'s module docs), so nothing downstream of that
-    /// needs to ask "which class is this?" again. Reserved rather than fully
-    /// modeled: no refcount operations exist yet for a value of this
-    /// representation (the milestone's "refcount operations" ingredient,
-    /// still a known gap — see the crate docs), and no field/property layout
-    /// exists either (property access is still unsupported). What *is*
-    /// modeled: `new` constructing one, and passing/returning one through a
-    /// resolved call.
+    /// needs to ask "which class is this?" again. Its heap shape is
+    /// `mwl_runtime::object`'s: a refcounted header plus one uniform
+    /// 16-byte slot per declared property, laid out ancestors-first. The slot
+    /// *order* is the one class fact this representation deliberately does
+    /// not carry — it is per-class rather than per-value, so it lives in
+    /// [`crate::ir::Program::classes`] instead, which
+    /// [`crate::ir::InstKind::FieldGet`]'s `class`/`field` labels index into.
     Object,
     /// A reference-counted, heap-allocated `string` — ADR 0009 (still
     /// *Proposed*, not *Accepted*) has not settled that type's indexing
@@ -162,10 +164,11 @@ impl Ty {
     /// allocation that needs a matching retain/release around every point it
     /// is copied into or dropped from a durable slot — see
     /// [`crate::lower`]'s module docs for exactly what "durable slot" means
-    /// today. [`Self::Object`] is deliberately *not* included yet: nothing
-    /// allocates or frees the memory behind one so far (see that variant's
-    /// own doc comment), so there is nothing yet for a retain/release to do.
-    /// [`Self::Mixed`] is excluded for the same reason, one level further
+    /// today. [`Self::Object`] joined the list once `mwl_runtime::object`
+    /// gave an instance a real allocation to free: an object local, argument,
+    /// return value or field now carries exactly the retain/release a string
+    /// already did, through `mwl_object_retain`/`mwl_object_release`.
+    /// [`Self::Mixed`] is excluded for a different reason, one level further
     /// removed: a `mixed` value's *actual* runtime type might itself be
     /// refcounted (a `string`, an array, an object) or not (a scalar), but
     /// nothing decides that runtime type tag yet (see that variant's own doc
@@ -179,6 +182,9 @@ impl Ty {
     /// distinction that will matter once a real tag representation lands.
     #[must_use]
     pub fn is_refcounted(self) -> bool {
-        matches!(self, Ty::Str | Ty::Bytes | Ty::Array | Ty::Throwable)
+        matches!(
+            self,
+            Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Throwable
+        )
     }
 }

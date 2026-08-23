@@ -7,8 +7,11 @@ fn m(object) -> void {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @7:5-7:15
-    v1 = new Foo() ! bb1  ; object
+    v1 = new Foo via Foo::constructor() ! bb1  ; object
+    release v1
+    release v0
     return
   bb1:
+    release v0
     propagate "m() at t.mwl:7"
 }

@@ -9,5 +9,6 @@ fn m(object) -> void {
     ; stmt s0 @4:5-4:37
     v1 = const.str "A*😀"  ; string
     release v1
+    release v0
     return
 }

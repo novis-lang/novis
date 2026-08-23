@@ -13,5 +13,6 @@ fn m(object) -> void {
     v2 = array.new ["0": v1]  ; array
     release v2
     release v1
+    release v0
     return
 }

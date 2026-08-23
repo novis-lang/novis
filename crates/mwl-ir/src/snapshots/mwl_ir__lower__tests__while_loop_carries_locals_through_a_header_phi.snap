@@ -29,5 +29,6 @@ fn sum(object, int) -> int {
     jump bb1
   bb3:
     ; stmt s6 @10:5-10:19
+    release v0
     return v4
 }

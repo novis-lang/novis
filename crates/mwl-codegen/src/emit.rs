@@ -37,7 +37,7 @@ use mwl_runtime::{DEBUG_FLAGS_OFFSET, OK, SAFEPOINT_OFFSET, THROWN, Tag, Value a
 use rustc_hash::FxHashMap;
 
 use crate::ty::{clif_ty, tag_of};
-use crate::{CodegenError, Signatures};
+use crate::{Classes, CodegenError, Signatures};
 
 /// Size of one 16-byte [`mwl_runtime::Value`], as an offset multiplier.
 const VALUE_SIZE: i32 = 16;
@@ -63,17 +63,40 @@ fn ctx_word() -> MemFlagsData {
     MemFlagsData::new().with_notrap()
 }
 
+/// Everything about the compilation *unit* that emitting one function needs:
+/// the runtime signatures, the unit's own function and class tables, and the
+/// running literal counter that keeps data-object names unique.
+///
+/// Bundled rather than passed one by one because every field has the same
+/// lifetime and the same "read this, don't rebuild it" role — and because
+/// eight parameters is where the shape stops being readable.
+pub(crate) struct UnitTables<'a> {
+    pub sigs: &'a Signatures,
+    /// Every function the unit defines, by MWL name — see
+    /// [`crate::Jit::compile_all`] for why it is complete before any body is
+    /// emitted.
+    pub functions: &'a FxHashMap<String, FuncId>,
+    /// Every class the unit declares — see [`crate::Classes`].
+    pub classes: &'a Classes,
+    /// One entry per emitted `ConstStr`, so data-object names stay unique.
+    pub literals: &'a mut usize,
+}
+
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
 /// signature.
 pub(crate) fn emit_function(
     module: &mut JITModule,
     ctx: &mut codegen::Context,
     fn_ctx: &mut FunctionBuilderContext,
-    sigs: &Signatures,
-    functions: &FxHashMap<String, FuncId>,
-    literals: &mut usize,
+    tables: UnitTables<'_>,
     f: &Function,
 ) -> Result<(), CodegenError> {
+    let UnitTables {
+        sigs,
+        functions,
+        classes,
+        literals,
+    } = tables;
     let target_config = module.target_config();
     let mut b = FunctionBuilder::new(&mut ctx.func, fn_ctx);
 
@@ -125,6 +148,7 @@ pub(crate) fn emit_function(
         module,
         sigs,
         functions,
+        classes,
         literals,
         f,
         values: FxHashMap::default(),
@@ -187,6 +211,8 @@ struct Emitter<'a, 'f> {
     /// [`crate::Jit::compile_all`] for why it is complete before any body is
     /// emitted.
     functions: &'a FxHashMap<String, FuncId>,
+    /// Every class the unit declares — see [`crate::Classes`].
+    classes: &'a Classes,
     literals: &'a mut usize,
     f: &'a Function,
     /// Every SSA value defined so far, with the representation it was defined
@@ -324,6 +350,25 @@ impl Emitter<'_, '_> {
                 args,
             } => {
                 return self.emit_call(cur, inst, target, *receiver, args);
+            }
+            InstKind::New { class, ctor, args } => {
+                return self.emit_new(cur, inst, class, ctor.as_deref(), args);
+            }
+            InstKind::FieldGet {
+                object,
+                class,
+                field,
+            } => {
+                let value = self.emit_field_get(inst, *object, class, field)?;
+                self.define(inst, value)?;
+            }
+            InstKind::FieldSet {
+                object,
+                class,
+                field,
+                value,
+            } => {
+                self.emit_field_set(*object, class, field, *value)?;
             }
             InstKind::Concat { lhs, rhs } => {
                 let value = self.emit_concat(*lhs, *rhs)?;
@@ -651,11 +696,14 @@ impl Emitter<'_, '_> {
     /// `mwl_ir::lower::lower_method` gives every lowered method an implicit
     /// receiver at parameter index 0, whether or not its body reads `$this`
     /// (see `Function::params`' own doc comment). So argument slot 0 always
-    /// exists, and a static call — which has no receiver value at all — fills
-    /// it with `null`. A method that is *not* static reaches its receiver
-    /// through this same slot, which is why an instance call is refused here
-    /// rather than passed a null: it needs the object representation M4 adds,
-    /// and handing it `null` would be a wrong answer rather than a refusal.
+    /// exists: an instance call stores its receiver there like any other
+    /// argument, and a static call — which has no receiver value at all —
+    /// fills it with `null`.
+    ///
+    /// Ownership follows the same convention every argument does: the caller
+    /// retains an aliasing receiver and the callee releases it at scope exit.
+    /// `mwl_ir::lower`'s `MethodCall` arm inserts that retain, so nothing here
+    /// does.
     fn emit_call(
         &mut self,
         cur: Block,
@@ -664,13 +712,29 @@ impl Emitter<'_, '_> {
         receiver: Option<ValueId>,
         args: &[ValueId],
     ) -> Result<Block, CodegenError> {
-        if receiver.is_some() {
-            return Err(CodegenError::Unsupported(
-                "an instance method call, which needs the object \
-                 representation and the dispatch M4 adds"
-                    .to_owned(),
-            ));
+        let receiver = receiver.map(|id| self.value(id)).transpose()?;
+        let (cont, out_p) = self.emit_invoke(inst, target, receiver, args)?;
+        if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
+            let value = self.load_value(out_p, 0, ty)?;
+            self.define(inst, value)?;
         }
+        let _ = cur;
+        Ok(cont)
+    }
+
+    /// The call itself, shared by [`Self::emit_call`] and the constructor
+    /// invocation inside [`Self::emit_new`]: arguments materialized, both
+    /// probes emitted, the status checked. Returns the block execution
+    /// continues in and the `out` slot the callee wrote its result into —
+    /// which caller decides what to do with, since `new`'s own result is the
+    /// instance rather than anything the constructor returned.
+    fn emit_invoke(
+        &mut self,
+        inst: &Inst,
+        target: &str,
+        receiver: Option<(Value, Ty)>,
+        args: &[ValueId],
+    ) -> Result<(Block, Value), CodegenError> {
         let callee = self.callee_ref(target)?;
         let label = self.emit_bytes(target.as_bytes())?;
         self.emit_call_probe("mwl_probe_call_enter", RuntimeSig::ProbeCall, label, None)?;
@@ -684,7 +748,10 @@ impl Emitter<'_, '_> {
             VALUE_ALIGN_SHIFT,
         ));
         let args_p = self.b.ins().stack_addr(types::I64, slot, 0);
-        self.store_tag_and_bits(args_p, 0, Tag::Null, None)?;
+        match receiver {
+            Some((value, ty)) => self.store_value(args_p, 0, value, ty)?,
+            None => self.store_tag_and_bits(args_p, 0, Tag::Null, None)?,
+        }
         for (index, arg) in args.iter().enumerate() {
             let (value, ty) = self.value(*arg)?;
             let offset = i32::try_from(index + 1)
@@ -711,13 +778,112 @@ impl Emitter<'_, '_> {
             Some(status),
         )?;
         let cont = self.emit_status_check(status, inst.on_error)?;
+        Ok((cont, out_p))
+    }
 
-        if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
-            let value = self.load_value(out_p, 0, ty)?;
-            self.define(inst, value)?;
-        }
-        let _ = cur;
+    /// `new Foo(...)`: allocate the instance, then invoke its resolved
+    /// constructor on it.
+    ///
+    /// The IR bundles the two into one instruction
+    /// (`mwl_ir::ir::InstKind::New`), so the ownership bookkeeping between
+    /// them is this function's rather than lowering's:
+    /// `mwl_object_new` returns the one reference the `New` *result* owns, and
+    /// the constructor — an ordinary method whose frame releases every
+    /// refcounted parameter at scope exit — needs a reference of its own. So
+    /// the receiver is retained before the call, exactly the retain
+    /// `mwl_ir::lower` inserts at an ordinary `$obj->m()` site.
+    ///
+    /// The descriptor address is an `iconst`: see [`crate::Classes`] for why a
+    /// JIT can bake one in.
+    fn emit_new(
+        &mut self,
+        cur: Block,
+        inst: &Inst,
+        class: &str,
+        ctor: Option<&str>,
+        args: &[ValueId],
+    ) -> Result<Block, CodegenError> {
+        let desc = self.classes.desc(class).ok_or_else(|| {
+            CodegenError::Unsupported(format!(
+                "`new {class}(...)`, whose class this unit declares no layout for"
+            ))
+        })?;
+        let address = i64::try_from(desc.addr())
+            .map_err(|_| internal("a class descriptor above i64::MAX"))?;
+        let desc = self.b.ins().iconst(types::I64, address);
+        let callee = self.runtime_ref("mwl_object_new", RuntimeSig::PtrToPtr)?;
+        let call = self.b.ins().call(callee, &[desc]);
+        let object = self.b.inst_results(call)[0];
+        self.define(inst, object)?;
+
+        let Some(ctor) = ctor else {
+            // No constructor anywhere in the chain — `mwl_ir::lower` already
+            // asserted the call site passed no arguments, so allocation is the
+            // whole of `new`. Every slot is `null`, which ADR 0022 makes
+            // unobservable.
+            return Ok(cur);
+        };
+        let retain = self.runtime_ref("mwl_object_retain", RuntimeSig::Refcount)?;
+        self.b.ins().call(retain, &[object]);
+        let (cont, _out) = self.emit_invoke(inst, ctor, Some((object, Ty::Object)), args)?;
         Ok(cont)
+    }
+
+    /// `$obj->prop`: one load out of the receiver's field slot.
+    ///
+    /// The slot's *offset* comes from [`mwl_runtime::field_offset`], so this
+    /// crate never restates the object layout — and the tag is not re-read,
+    /// because the field's static type is already settled (see
+    /// [`Self::load_value`]'s own note, which this shares).
+    ///
+    /// Nothing is retained here. `mwl_ir::ir::InstKind::FieldGet` reads the
+    /// field without taking ownership, and `mwl_ir::lower::is_aliasing_read`
+    /// makes the consumer insert the retain if it keeps the value.
+    fn emit_field_get(
+        &mut self,
+        inst: &Inst,
+        object: ValueId,
+        class: &str,
+        field: &str,
+    ) -> Result<Value, CodegenError> {
+        let offset = self.field_offset(class, field)?;
+        let (base, _) = self.value(object)?;
+        let ty = inst
+            .ty
+            .ok_or_else(|| internal("a property read with no representation"))?;
+        self.load_value(base, offset, ty)
+    }
+
+    /// `$obj->prop = expr;`: one store into the receiver's field slot.
+    ///
+    /// A plain store, with no release of what the slot held:
+    /// `mwl_ir::lower::lower_reassignment` already emitted the `FieldGet` and
+    /// `Release` pair for the previous value, ahead of this instruction. That
+    /// split is why this is not `mwl_runtime::mwl_object_field_set`, which
+    /// releases for its caller.
+    fn emit_field_set(
+        &mut self,
+        object: ValueId,
+        class: &str,
+        field: &str,
+        value: ValueId,
+    ) -> Result<(), CodegenError> {
+        let offset = self.field_offset(class, field)?;
+        let (base, _) = self.value(object)?;
+        let (value, ty) = self.value(value)?;
+        self.store_value(base, offset, value, ty)
+    }
+
+    /// The byte offset of `class::field` within an instance, as an `i32`
+    /// Cranelift memory operand.
+    fn field_offset(&self, class: &str, field: &str) -> Result<i32, CodegenError> {
+        let slot = self.classes.slot(class, field).ok_or_else(|| {
+            CodegenError::Unsupported(format!(
+                "the property `{class}::{field}`, which this unit declares no slot for"
+            ))
+        })?;
+        i32::try_from(mwl_runtime::field_offset(slot))
+            .map_err(|_| internal("an object field sitting past a 2 GiB offset"))
     }
 
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
@@ -820,10 +986,16 @@ impl Emitter<'_, '_> {
     /// they share the primitive. [`Ty::Array`] is [`mwl_ir::Ty::is_refcounted`]
     /// too, but has no runtime representation at all yet, so its refcount
     /// operation has nothing to call.
+    ///
+    /// An object's release is where a whole graph can be freed at once —
+    /// `mwl_runtime::object`'s own docs explain why that sweep is iterative,
+    /// which is what keeps this one call rather than a depth-bounded one.
     fn emit_refcount(&mut self, retain: bool, value: Value, ty: Ty) -> Result<(), CodegenError> {
         let symbol = match (ty, retain) {
             (Ty::Str | Ty::Bytes, true) => "mwl_str_retain",
             (Ty::Str | Ty::Bytes, false) => "mwl_str_release",
+            (Ty::Object, true) => "mwl_object_retain",
+            (Ty::Object, false) => "mwl_object_release",
             (Ty::Throwable, true) => "mwl_throwable_retain",
             (Ty::Throwable, false) => "mwl_throwable_release",
             (other, _) => {

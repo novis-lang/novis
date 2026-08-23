@@ -13,8 +13,10 @@ fn m(object) -> int {
     retain v2
     v3 = call T::take(v2) ! bb1  ; int
     release v2
+    release v0
     return v3
   bb1:
     release v2
+    release v0
     propagate "m() at t.mwl:5"
 }

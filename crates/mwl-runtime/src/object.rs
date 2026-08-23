@@ -71,6 +71,28 @@
 //! the process rather than failing one request. That is priority 1, so the
 //! worklist's allocation is not optional.
 //!
+//! # Decision: a null payload *is* `null`
+//!
+//! A refcounted representation's null pointer means MWL's `null`, and every
+//! retain/release primitive treats it as a no-op — [`mwl_object_retain`],
+//! [`mwl_object_release`], and [`crate::mwl_str_retain`]/
+//! [`crate::mwl_str_release`] alike.
+//!
+//! This is not a defensive check. It is the state a field slot is *in* between
+//! [`MwlObj::new`] zeroing it and the constructor's first assignment: that
+//! assignment releases whatever the slot previously held
+//! (`mwl_ir::lower::lower_reassignment`), and on the first write there is
+//! nothing there. Compiled code reads the payload half of the slot without
+//! consulting its tag — the field's static type already settled what it holds
+//! — so what reaches the primitive is a null pointer, not a `Tag::Null`
+//! [`Value`].
+//!
+//! The same rule is what a nullable `?T` will lower to, so paying one
+//! perfectly-predicted branch per refcount operation buys both cases at once.
+//! The alternative — teaching lowering which assignment is a property's
+//! *first* — needs `mwl_types::ctor_init`'s flow analysis threaded into the
+//! IR, to remove a branch that costs nothing measurable.
+//!
 //! # Decision: no cycle collector
 //!
 //! Refcounting only, per `.claude/loop-goal.md`. A cyclic object graph is
@@ -681,6 +703,9 @@ unsafe fn drop_one(ptr: *mut ObjHeader) -> bool {
     reason = "owning the reference is the caller's obligation to state"
 )]
 pub unsafe fn release_graph(root: *mut ObjHeader) {
+    if root.is_null() {
+        return;
+    }
     #[expect(
         unsafe_code,
         reason = "the caller guarantees it owns `root`'s reference; every \
@@ -751,6 +776,9 @@ pub unsafe extern "C" fn mwl_object_new(class: *const ClassDesc) -> *mut ObjHead
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_object_retain(ptr: *mut ObjHeader) {
+    if ptr.is_null() {
+        return;
+    }
     bump(ptr);
 }
 

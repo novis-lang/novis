@@ -40,6 +40,16 @@
 //! actually runs, which is precisely what ADR 0002 exists to avoid. See
 //! `mwl_runtime::throwable`'s own docs for the one observable consequence.
 //!
+//! ## An object is a pointer; its fields are tagged
+//!
+//! An instance is a bare [`mwl_runtime::ObjHeader`] pointer in a register, and
+//! `new` is one `iconst` of the class descriptor's address plus one call — see
+//! [`Classes`] for why a JIT can bake that address in. A *field* is different:
+//! every slot is a whole 16-byte [`mwl_runtime::Value`], so a `FieldGet` loads
+//! the payload half at [`mwl_runtime::field_offset`] and a `FieldSet` stores
+//! both halves. [`mwl_runtime::object`]'s own docs own that decision and state
+//! its cost; this crate only queries the offset.
+//!
 //! ## Values are native, not tagged, wherever the type is known
 //!
 //! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) settles every
@@ -82,15 +92,19 @@
 //!    [`mwl_runtime::Value`] — passing one to a compiled MWL method or
 //!    returning one is refused by [`ty::tag_of`] rather than given a
 //!    borrowed tag. A `catch` binding it to a local, reading its two
-//!    accessors and re-throwing it all work; everything wider waits on M4's
-//!    object representation, the same thing gap 1 below waits on.
-//! 1. **No object or array representation.** [`mwl_ir::ir::InstKind::New`]/
-//!    `FieldGet`/`FieldSet`/`ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend`
-//!    all report [`CodegenError::Unsupported`] naming the instruction, and an
-//!    *instance* [`mwl_ir::ir::InstKind::Call`] — one with a receiver — is
-//!    refused for the same reason. A static call is compiled; see
-//!    [`emit::Emitter::emit_call`] for the receiver slot a static call fills
-//!    with `null`.
+//!    accessors and re-throwing it all work. Now that objects have a
+//!    representation, joining the two is a decision about the exception
+//!    *surface* (`.claude/loop-goal.md` § *Standing decisions*) rather than a
+//!    missing shape to attach it to.
+//! 1. **No array representation.** [`mwl_ir::ir::InstKind::ArrayNew`]/
+//!    `ArrayGet`/`ArraySet`/`ArrayAppend` all report
+//!    [`CodegenError::Unsupported`] naming the instruction. Objects are done:
+//!    `New`, `FieldGet`, `FieldSet`, an instance `Call` and a `Ty::Object`
+//!    retain/release all compile, against [`mwl_runtime::object`]'s layout and
+//!    the per-class slot table [`mwl_ir::ir::Program::classes`] carries. What
+//!    they do *not* yet do is dispatch virtually: a call's target is whatever
+//!    `mwl_types` resolved from the receiver's static type, so an overridden
+//!    method reached through a base-typed variable still calls the base's.
 //! 2. **ADR 0018's `BRANCH` probe is not emitted.** It needs a per-edge site
 //!    at [`mwl_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe
@@ -173,6 +187,12 @@ pub enum CodegenError {
 pub struct Unit {
     /// Kept alive for its pages; never read again after `compile` returns.
     _module: JITModule,
+    /// Kept alive for its *descriptors*: the compiled code holds each one's
+    /// address as a baked-in constant (see [`Classes`]), so the table must
+    /// outlive every instance and every frame that can allocate one. Moving
+    /// the table here is safe because each descriptor is individually boxed —
+    /// only the `Vec`'s own three words move, never a `ClassDesc`.
+    _classes: mwl_runtime::ClassTable,
     entries: FxHashMap<String, *const u8>,
 }
 
@@ -253,6 +273,10 @@ struct Jit {
     /// any body is emitted, so a call may name a function defined later in
     /// the unit (or itself).
     functions: FxHashMap<String, cranelift_module::FuncId>,
+    /// Every class the unit declares — the descriptors compiled code points
+    /// at, and the field-slot index every `FieldGet`/`FieldSet` resolves
+    /// through.
+    classes: Classes,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     literals: usize,
     entries: Vec<(String, cranelift_module::FuncId)>,
@@ -260,6 +284,117 @@ struct Jit {
     /// generated code. `None` is the ordinary compile, which asks Cranelift
     /// for no disassembly at all and so pays nothing for this field.
     disasm: Option<String>,
+}
+
+/// Every class the compiled unit declares, in the two forms emitted code
+/// needs: the `ClassDesc` address `mwl_object_new`/`mwl_object_instanceof`
+/// take, and the field-slot index a `FieldGet`/`FieldSet` turns into an
+/// offset through [`mwl_runtime::field_offset`].
+///
+/// # Why the descriptor address is baked in as a constant
+///
+/// A JIT compiles at run time, so it *knows* the address of a runtime object
+/// it has already built — there is nothing to relocate and no registry to
+/// consult. `new Foo()` therefore emits one `iconst` and one call, which is
+/// why `mwl_runtime::ClassDesc` needs no `#[repr(C)]` and no layout compiled
+/// code agrees on: it is an opaque token.
+///
+/// The [`Unit`] that owns the table must outlive that code — see its own
+/// `_classes` field.
+#[derive(Debug, Default)]
+struct Classes {
+    table: mwl_runtime::ClassTable,
+    by_label: FxHashMap<String, ClassEntry>,
+    /// The same keys as `by_label`, holding the table id `ClassTable::define`
+    /// needs for a parent. Separate because a descriptor address is what
+    /// *compiled code* wants and an id is what the table wants.
+    ids: FxHashMap<String, mwl_runtime::ClassId>,
+}
+
+/// One class's compiled-in identity and field-slot map.
+#[derive(Debug)]
+struct ClassEntry {
+    /// Address baked into the code that allocates or tests an instance.
+    desc: *const mwl_runtime::ClassDesc,
+    /// Field name to slot index. Built from the *flattened* order
+    /// `mwl_ir::ir::Class::fields` carries, so a slot looked up through the
+    /// declaring class is valid for every subclass.
+    slots: FxHashMap<String, usize>,
+}
+
+impl Classes {
+    /// Builds every descriptor, parents first.
+    ///
+    /// `mwl_ir::ir::Class::conforms` is already the *transitive* supertype
+    /// set, so a class can be defined as soon as every label in it is —
+    /// [`Self::define`] recurses to arrange exactly that. A `conforms` entry
+    /// naming a class the unit does not declare is skipped rather than being
+    /// an error: an `extends` the front end already diagnosed leaves one
+    /// behind, and a second unexplained failure here would only bury the
+    /// first.
+    fn build(classes: &[mwl_ir::ir::Class]) -> Self {
+        let mut out = Self::default();
+        let by_label: FxHashMap<&str, &mwl_ir::ir::Class> = classes
+            .iter()
+            .map(|class| (class.label.as_str(), class))
+            .collect();
+        for class in classes {
+            out.define(class, &by_label);
+        }
+        out
+    }
+
+    fn define(&mut self, class: &mwl_ir::ir::Class, source: &FxHashMap<&str, &mwl_ir::ir::Class>) {
+        if self.by_label.contains_key(&class.label) {
+            return;
+        }
+        // Reserve the label before recursing: a cyclic `extends` has already
+        // been diagnosed by `mwl_hir::hierarchy`, and this must terminate
+        // rather than re-report it.
+        let mut parents = Vec::with_capacity(class.conforms.len());
+        for label in &class.conforms {
+            let Some(parent) = source.get(label.as_str()) else {
+                continue;
+            };
+            if !self.by_label.contains_key(label) {
+                self.define(parent, source);
+            }
+            if let Some(id) = self.ids.get(label) {
+                parents.push(*id);
+            }
+        }
+        let id = self
+            .table
+            .define(&class.label, class.fields.len(), &parents);
+        let slots = class
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(index, name)| (name.clone(), index))
+            .collect();
+        self.ids.insert(class.label.clone(), id);
+        self.by_label.insert(
+            class.label.clone(),
+            ClassEntry {
+                desc: self.table.desc(id),
+                slots,
+            },
+        );
+    }
+
+    /// The descriptor address for `label`, or `None` if the unit declares no
+    /// such class.
+    fn desc(&self, label: &str) -> Option<*const mwl_runtime::ClassDesc> {
+        self.by_label.get(label).map(|entry| entry.desc)
+    }
+
+    /// The slot `class::field` occupies, or `None` if either is unknown.
+    fn slot(&self, class: &str, field: &str) -> Option<usize> {
+        self.by_label
+            .get(class)
+            .and_then(|entry| entry.slots.get(field))
+            .copied()
+    }
 }
 
 /// The signatures the runtime exports, beyond the helper ABI itself.
@@ -331,6 +466,7 @@ impl Jit {
             module,
             sigs,
             functions: FxHashMap::default(),
+            classes: Classes::default(),
             literals: 0,
             entries: Vec::new(),
             disasm,
@@ -346,6 +482,7 @@ impl Jit {
     /// defined function; `finalize_definitions` is what would object if one
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
+        self.classes = Classes::build(&program.classes);
         for (index, function) in program.functions.iter().enumerate() {
             // `index` only disambiguates the Cranelift symbol name: an MWL
             // function name is not a valid symbol (`<script>` is the first
@@ -386,9 +523,12 @@ impl Jit {
             &mut self.module,
             &mut self.ctx,
             &mut self.fn_ctx,
-            &self.sigs,
-            &self.functions,
-            &mut self.literals,
+            emit::UnitTables {
+                sigs: &self.sigs,
+                functions: &self.functions,
+                classes: &self.classes,
+                literals: &mut self.literals,
+            },
             function,
         );
         if let Err(error) = result {
@@ -451,6 +591,7 @@ impl Jit {
             .collect();
         Ok(Unit {
             _module: self.module,
+            _classes: self.classes.table,
             entries,
         })
     }

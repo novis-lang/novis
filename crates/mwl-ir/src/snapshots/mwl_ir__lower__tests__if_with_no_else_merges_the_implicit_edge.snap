@@ -15,6 +15,7 @@ fn clamp(object, int) -> int {
   bb1:
     v5 = phi [bb2: v4, bb0: v1]  ; int
     ; stmt s4 @8:5-8:15
+    release v0
     return v5
   bb2:
     ; stmt s2 @5:17-7:6

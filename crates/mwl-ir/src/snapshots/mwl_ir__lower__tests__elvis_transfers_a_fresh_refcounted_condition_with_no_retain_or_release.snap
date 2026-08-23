@@ -11,6 +11,7 @@ fn m(object) -> string {
     v2 = helper.str_truthy v1  ; bool
     branch v2 -> bb2 (e0), bb3 (e1)
   bb1:
+    release v0
     propagate "m() at t.mwl:4"
   bb2:
     jump bb4
@@ -19,5 +20,6 @@ fn m(object) -> string {
     jump bb4
   bb4:
     v4 = phi [bb2: v1, bb3: v3]  ; string
+    release v0
     return v4
 }

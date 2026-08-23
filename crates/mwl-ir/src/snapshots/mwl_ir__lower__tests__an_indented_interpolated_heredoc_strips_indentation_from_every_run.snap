@@ -17,6 +17,7 @@ fn m(object) -> void {
     release v3
     release v4
     release v5
+    release v0
     release v1
     return
 }

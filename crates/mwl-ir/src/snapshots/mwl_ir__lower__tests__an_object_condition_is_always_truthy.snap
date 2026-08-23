@@ -13,10 +13,14 @@ fn m(object, object) -> bool {
   bb1:
     ; stmt s3 @8:5-8:18
     v4 = const.bool false  ; bool
+    release v1
+    release v0
     return v4
   bb2:
     ; stmt s1 @5:13-7:6
     ; stmt s2 @6:7-6:19
     v3 = const.bool true  ; bool
+    release v1
+    release v0
     return v3
 }

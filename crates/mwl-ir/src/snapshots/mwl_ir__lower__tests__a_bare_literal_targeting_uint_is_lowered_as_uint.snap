@@ -9,5 +9,6 @@ fn m(object) -> uint {
     ; stmt s0 @4:5-4:17
     v1 = const.uint 1  ; uint
     ; stmt s1 @5:5-5:15
+    release v0
     return v1
 }

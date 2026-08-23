@@ -14,5 +14,6 @@ fn m(object, string) -> void {
     array.set v2, v1, v3
     release v2
     release v1
+    release v0
     return
 }

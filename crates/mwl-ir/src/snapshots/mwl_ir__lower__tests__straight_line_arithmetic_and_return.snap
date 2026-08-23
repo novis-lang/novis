@@ -11,5 +11,6 @@ fn add(object, int, int) -> int {
     ; stmt s0 @4:5-4:24
     v3 = add v1, v2  ; int
     ; stmt s1 @5:5-5:17
+    release v0
     return v3
 }

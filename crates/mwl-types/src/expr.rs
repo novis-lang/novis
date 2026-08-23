@@ -130,6 +130,7 @@ fn resolved_call(qname: QName, name: String, sig: &MethodSig) -> ResolvedCall {
         method: name,
         param_tys: sig.params.clone(),
         variadic: sig.variadic,
+        is_static: sig.is_static,
         return_ty: sig.return_ty,
     }
 }
@@ -716,7 +717,12 @@ fn infer(
                     if let Some((owner, sig)) = &found {
                         check_interface_private_visibility(owner, &name, sig, *name_span, ctx, env);
                     }
-                    found.map(|(_, sig)| (qname, name, sig))
+                    // The *declaring* class, not the receiver's: that is what
+                    // `ResolvedCall::class` promises, and `mwl-ir` renders the
+                    // call's target label from it — `$dog->name()` on a `Dog`
+                    // that inherits `name` must name `Animal::name`, the
+                    // symbol that actually exists.
+                    found.map(|(owner, sig)| (owner, name, sig))
                 }
                 _ => None,
             };
@@ -760,7 +766,10 @@ fn infer(
                                 check_interface_private_visibility(
                                     &owner, &name, &sig, *name_span, ctx, env,
                                 );
-                                (qname, name, sig)
+                                // The declaring class — see the `MethodCall`
+                                // arm above for why the receiver's own is the
+                                // wrong label.
+                                (owner, name, sig)
                             },
                         )
                     })

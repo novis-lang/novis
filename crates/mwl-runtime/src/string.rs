@@ -406,9 +406,12 @@ pub unsafe extern "C" fn mwl_str_concat(
 
 /// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Str` operand.
 ///
+/// A null `ptr` is a no-op: see [`crate::object`]'s *A null payload is `null`*
+/// for why that is the rule rather than a defensive check.
+///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL string allocation.
+/// `ptr` must be null or refer to a live MWL string allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw string pointer whose liveness the \
@@ -416,6 +419,9 @@ pub unsafe extern "C" fn mwl_str_concat(
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_str_retain(ptr: *mut StrHeader) {
+    if ptr.is_null() {
+        return;
+    }
     #[expect(
         unsafe_code,
         reason = "the caller guarantees the pointee is live; incrementing in \
@@ -435,10 +441,12 @@ pub unsafe extern "C" fn mwl_str_retain(ptr: *mut StrHeader) {
 /// Drops a reference, freeing the allocation if it was the last —
 /// `mwl_ir::InstKind::Release` for a `Ty::Str` operand.
 ///
+/// A null `ptr` is a no-op — see [`mwl_str_retain`].
+///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL string allocation whose reference this
-/// caller owns, and must not be released twice.
+/// `ptr` must be null, or refer to a live MWL string allocation whose
+/// reference this caller owns; a non-null one must not be released twice.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw string pointer whose ownership the \
@@ -446,6 +454,9 @@ pub unsafe extern "C" fn mwl_str_retain(ptr: *mut StrHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_str_release(ptr: *mut StrHeader) {
+    if ptr.is_null() {
+        return;
+    }
     #[expect(
         unsafe_code,
         reason = "the caller guarantees it owns the reference `from_raw` \

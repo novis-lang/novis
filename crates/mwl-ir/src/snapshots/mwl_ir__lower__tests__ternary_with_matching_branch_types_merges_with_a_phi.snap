@@ -17,5 +17,6 @@ fn m(object, bool, int, int) -> int {
     jump bb3
   bb3:
     v4 = phi [bb1: v2, bb2: v3]  ; int
+    release v0
     return v4
 }

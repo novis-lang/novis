@@ -12,5 +12,6 @@ fn m(object) -> void {
     v3 = const.int 1  ; int
     array.set v1, v2, v3
     release v1
+    release v0
     return
 }

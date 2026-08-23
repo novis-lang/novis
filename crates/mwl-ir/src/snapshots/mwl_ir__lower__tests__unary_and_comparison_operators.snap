@@ -13,5 +13,6 @@ fn check(object, int) -> bool {
     v4 = lt v2, v3  ; bool
     ; stmt s1 @5:5-5:18
     v5 = not v4  ; bool
+    release v0
     return v5
 }

@@ -15,6 +15,7 @@ fn m(object, bytes, bytes) -> void {
     release v1
     release v1
     release v2
+    release v0
     release v2
     return
 }

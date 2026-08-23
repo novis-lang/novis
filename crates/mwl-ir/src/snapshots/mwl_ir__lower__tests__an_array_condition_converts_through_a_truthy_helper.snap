@@ -14,11 +14,13 @@ fn m(object, array) -> bool {
     ; stmt s3 @7:5-7:18
     v4 = const.bool false  ; bool
     release v1
+    release v0
     return v4
   bb2:
     ; stmt s1 @4:13-6:6
     ; stmt s2 @5:7-5:19
     v3 = const.bool true  ; bool
     release v1
+    release v0
     return v3
 }

@@ -26,5 +26,6 @@ fn m(object, bool, bool) -> void {
     safepoint
     jump bb1
   bb5:
+    release v0
     return
 }

@@ -21,5 +21,6 @@ fn m(object, string, string) -> string {
     v4 = phi [bb1: v1, bb2: v2]  ; string
     release v2
     release v1
+    release v0
     return v4
 }

@@ -16,6 +16,7 @@ fn pick(object, bool, int, int) -> int {
   bb1:
     v5 = phi [bb2: v2, bb3: v3]  ; int
     ; stmt s6 @10:5-10:15
+    release v0
     return v5
   bb2:
     ; stmt s2 @5:13-7:6

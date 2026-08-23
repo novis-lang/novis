@@ -11,6 +11,7 @@ fn m(object) -> void {
     ; stmt s1 @5:5-5:14
     v2 = const.str "b"  ; string
     release v1
+    release v0
     release v2
     return
 }

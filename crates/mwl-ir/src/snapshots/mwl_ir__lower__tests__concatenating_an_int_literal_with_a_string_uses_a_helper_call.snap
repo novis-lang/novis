@@ -13,5 +13,6 @@ fn m(object) -> string {
     v4 = concat v2, v3  ; string
     release v2
     release v3
+    release v0
     return v4
 }

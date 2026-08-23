@@ -162,9 +162,12 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             parts.extend(args.iter().map(|a| format!("v{}", a.index())));
             format!("call {target}({})", parts.join(", "))
         }
-        InstKind::New { class, args } => {
+        InstKind::New { class, ctor, args } => {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
-            format!("new {class}({})", parts.join(", "))
+            match ctor {
+                Some(ctor) => format!("new {class} via {ctor}({})", parts.join(", ")),
+                None => format!("new {class}({})", parts.join(", ")),
+            }
         }
         InstKind::FieldGet {
             object,

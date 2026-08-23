@@ -89,6 +89,10 @@ pub struct ResolvedCall {
     pub param_tys: Vec<TypeId>,
     /// Whether the last parameter is variadic — [`crate::signatures::MethodSig::variadic`].
     pub variadic: bool,
+    /// Whether the resolved method is `static` —
+    /// [`crate::signatures::MethodSig::is_static`], which owns the reason this
+    /// has to be recorded rather than read off the call's own syntax.
+    pub is_static: bool,
     /// The declared return type.
     pub return_ty: TypeId,
 }

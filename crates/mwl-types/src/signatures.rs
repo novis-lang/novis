@@ -54,6 +54,16 @@ pub struct MethodSig {
     pub variadic: bool,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
+    /// Whether the declaration carries the `static` modifier — ADR 0008 § 1's
+    /// one surviving meaning of the keyword.
+    ///
+    /// Recorded because a call's *shape* does not settle it: `parent::method()`
+    /// and `self::method()` are written like a static call but invoke an
+    /// instance method with the enclosing `$this` whenever the target is not
+    /// static, which is how a subclass constructor reaches its parent's. A
+    /// consumer that got this wrong would pass `null` where the callee expects
+    /// a receiver.
+    pub is_static: bool,
     /// Whether this is a `private` interface method (ADR 0043 § 3) —
     /// declared with the `private` modifier inside an `interface`, not a
     /// `class`. General class-level method visibility is not modeled at all
@@ -282,6 +292,7 @@ fn collect_members(
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
+                let is_static = m.modifiers.contains(&Modifier::Static);
                 let name = span_text(env.src, m.name).to_owned();
                 table.entry(qname.clone()).methods.insert(
                     name,
@@ -289,6 +300,7 @@ fn collect_members(
                         params,
                         variadic,
                         return_ty,
+                        is_static,
                         interface_private,
                     },
                 );

@@ -8,5 +8,6 @@ fn m(object) -> int {
     v0 = param 0  ; object
     ; stmt s0 @5:5-5:25
     v1 = field.get v0, T::count  ; int
+    release v0
     return v1
 }

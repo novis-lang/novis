@@ -23,6 +23,7 @@ fn m(object, int) -> int {
     branch v6 -> bb5 (e2), bb4 (e3)
   bb3:
     ; stmt s7 @11:5-11:15
+    release v0
     return v3
   bb4:
     ; stmt s6 @9:7-9:19

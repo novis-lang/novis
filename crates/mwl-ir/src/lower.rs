@@ -47,7 +47,7 @@
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
     AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind, MemberName,
-    MethodMember, NamespaceDecl, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
+    MethodMember, Modifier, NamespaceDecl, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
     UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
@@ -255,6 +255,13 @@ pub fn lower_method(
     let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
     env.insert("this".to_owned(), (this_v, Ty::Object));
     param_tys.push(Ty::Object);
+    // ...but a `static` method's caller fills that slot with `null`, so this
+    // frame holds no reference to release at scope exit. See
+    // `Lowering::borrowed`, which is what that costs: one skipped release, no
+    // second parameter shape and no second call convention.
+    if m.modifiers.contains(&Modifier::Static) {
+        low.borrowed = Some("this".to_owned());
+    }
 
     for (i, p) in m.params.iter().enumerate() {
         let decl_ty =
@@ -384,6 +391,17 @@ struct Lowering<'a> {
     /// The stack of enclosing `try` regions currently being lowered, innermost
     /// last — see [`TryFrame`].
     try_stack: Vec<TryFrame>,
+    /// The one local name this frame holds *without* owning a reference to,
+    /// or `None`.
+    ///
+    /// Exactly one thing is ever in it: a `static` method's `$this`. Every
+    /// lowered method carries a receiver at parameter index 0 whether or not
+    /// it has one (see [`lower_method`]), and a static call fills that slot
+    /// with `null` — so the frame was handed no reference there and must not
+    /// release one at scope exit. Every other refcounted parameter *was*
+    /// retained by its caller, which is what makes the release correct for all
+    /// of them.
+    borrowed: Option<String>,
     /// This function's own `Class::method` label, for the backtrace frame
     /// [`Terminator::Propagate`] carries. The caller of [`lower_method`]/
     /// [`lower_script`] picks the spelling; this is the same string.
@@ -416,6 +434,7 @@ impl<'a> Lowering<'a> {
             block_terms: Vec::new(),
             loop_stack: Vec::new(),
             try_stack: Vec::new(),
+            borrowed: None,
             fn_label: name.to_owned(),
             cur_stmt_span: Span::at(src.id(), 0),
         }
@@ -667,11 +686,14 @@ impl<'a> Lowering<'a> {
     /// alias a still-live local; anything else (a fresh literal, or no
     /// return value at all) has no local to exclude, so every live local is
     /// released.
+    ///
+    /// [`Self::borrowed`] is skipped for a second, unrelated reason: that
+    /// slot is one the frame never owned a reference to at all.
     fn release_all_locals(&mut self, cur: BlockId, env: &Env, except: Option<&str>) {
         let mut names: Vec<&String> = env.keys().collect();
         names.sort();
         for name in names {
-            if Some(name.as_str()) == except {
+            if Some(name.as_str()) == except || self.borrowed.as_deref() == Some(name.as_str()) {
                 continue;
             }
             let &(v, ty) = env.get(name).expect("just listed from env.keys()");
@@ -1932,6 +1954,13 @@ impl<'a> Lowering<'a> {
                 if is_global_throwable(&target_label) {
                     return self.lower_exception_new(args, &target_label, env, cur);
                 }
+                // The declaring class, not the constructed one: `new Dog(...)`
+                // on a `Dog` with no `constructor` of its own invokes
+                // `Animal::constructor`. Only `mwl_types` resolved that, so
+                // the label is carried rather than re-derived downstream.
+                let ctor_label = ctor
+                    .as_ref()
+                    .map(|call| format!("{}::{}", call.class, call.method));
                 let arg_values = match ctor {
                     Some(call) => {
                         let param_tys = call.param_tys.clone();
@@ -1961,6 +1990,7 @@ impl<'a> Lowering<'a> {
                     Ty::Object,
                     InstKind::New {
                         class: target_label,
+                        ctor: ctor_label,
                         args: arg_values,
                     },
                     env,
@@ -2004,7 +2034,17 @@ impl<'a> Lowering<'a> {
                 let variadic = call.variadic;
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                 let checked_types = self.checked_types;
-                let (receiver_v, _) = self.lower_expr(object, None, env, cur);
+                let (receiver_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                // The receiver is parameter 0, so it is an ordinary argument
+                // for ownership purposes: MWL's convention is that the caller
+                // retains an aliasing argument and the callee releases every
+                // refcounted parameter at scope exit (see
+                // `Self::release_all_locals`). `$this->m()` and `$obj->m()`
+                // both read an existing slot, so both need the retain
+                // `Self::lower_call_args` already inserts for one.
+                if receiver_ty.is_refcounted() && is_aliasing_read(&object.kind) {
+                    self.emit_retain(cur, receiver_v);
+                }
                 let arg_values =
                     self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur);
                 self.emit_fallible(
@@ -2018,7 +2058,15 @@ impl<'a> Lowering<'a> {
                     env,
                 )
             }
-            // `self::method(...)`/`Class::method(...)` — no receiver value.
+            // `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
+            //
+            // Written like a static call, but *not* necessarily one: PHP's
+            // `parent::constructor(...)` and `self::helper()` invoke an
+            // instance method on the enclosing `$this` whenever the resolved
+            // target is not declared `static`. So the receiver is decided by
+            // `ResolvedCall::is_static` rather than by the `::` in the source
+            // — passing `null` to a method that reads `$this` would be a
+            // null-pointer write into a field slot, not a diagnostic.
             ExprKind::StaticCall { args, .. } => {
                 let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
                     panic!(
@@ -2033,6 +2081,24 @@ impl<'a> Lowering<'a> {
                 let variadic = call.variadic;
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                 let checked_types = self.checked_types;
+                let receiver = if call.is_static {
+                    None
+                } else {
+                    // The enclosing frame's own `$this`, retained the same way
+                    // an explicit `$obj->m()` receiver is — the callee will
+                    // release it. A file-scope frame has none, which the
+                    // checker has already refused for a non-static target.
+                    let &(this_v, this_ty) = env.get("this").unwrap_or_else(|| {
+                        panic!(
+                            "mwl-ir: `{target_label}` is not static but is reached from a frame \
+                             with no `$this` — mwl_types is expected to have refused that"
+                        )
+                    });
+                    if this_ty.is_refcounted() {
+                        self.emit_retain(cur, this_v);
+                    }
+                    Some(this_v)
+                };
                 let arg_values =
                     self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur);
                 self.emit_fallible(
@@ -2040,7 +2106,7 @@ impl<'a> Lowering<'a> {
                     return_ty,
                     InstKind::Call {
                         target: target_label,
-                        receiver: None,
+                        receiver,
                         args: arg_values,
                     },
                     env,
@@ -3955,11 +4021,12 @@ class T {
     }
 
     /// `new Foo();` with no assignment at all — a bare `new` used purely for
-    /// a constructor's side effect. `Ty::Object` isn't refcounted yet (see
-    /// the crate docs' known gaps), so `Lowering::lower_expr_stmt` lowers the
-    /// construction but emits no release for it.
+    /// a constructor's side effect. The fresh instance has exactly one owner
+    /// and nothing ever binds it, so `Lowering::lower_expr_stmt` releases it
+    /// straight after the construction, the same way it already did a
+    /// discarded `string` result above.
     #[test]
-    fn a_bare_new_used_as_a_statement_lowers_with_no_release() {
+    fn a_bare_new_used_as_a_statement_releases_the_discarded_instance() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass Foo {\n  function constructor() {}\n}\nclass T {\n  function m(): void {\n    new Foo();\n  }\n}\n",
         );

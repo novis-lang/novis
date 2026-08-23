@@ -12,6 +12,7 @@ fn m(object, array, string) -> void {
     retain v2
     array.append v1, v2
     release v1
+    release v0
     release v2
     return
 }

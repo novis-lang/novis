@@ -9,7 +9,9 @@ fn m(object) -> void {
     ; stmt s0 @4:5-4:18
     v1 = call T::make() ! bb1  ; string
     release v1
+    release v0
     return
   bb1:
+    release v0
     propagate "m() at t.mwl:4"
 }

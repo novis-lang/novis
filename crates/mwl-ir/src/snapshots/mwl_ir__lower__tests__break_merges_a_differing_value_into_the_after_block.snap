@@ -28,6 +28,7 @@ fn m(object, int) -> int {
   bb3:
     v11 = phi [bb1: v4, bb5: v5]  ; int
     ; stmt s9 @13:5-13:15
+    release v0
     return v11
   bb4:
     ; stmt s8 @11:7-11:19

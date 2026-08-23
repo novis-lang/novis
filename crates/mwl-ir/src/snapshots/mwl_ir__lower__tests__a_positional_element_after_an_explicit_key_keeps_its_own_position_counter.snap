@@ -18,5 +18,6 @@ fn m(object) -> void {
     v7 = const.int 3  ; int
     array.set v1, v6, v7
     release v1
+    release v0
     return
 }

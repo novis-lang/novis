@@ -11,5 +11,6 @@ fn m(object, string) -> bool {
     v2 = helper.str_truthy v1  ; bool
     v3 = not v2  ; bool
     release v1
+    release v0
     return v3
 }

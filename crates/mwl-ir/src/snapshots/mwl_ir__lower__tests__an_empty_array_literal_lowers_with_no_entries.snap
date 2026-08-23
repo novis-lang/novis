@@ -8,5 +8,6 @@ fn m(object) -> array {
     v0 = param 0  ; object
     ; stmt s0 @4:5-4:15
     v1 = array.new []  ; array
+    release v0
     return v1
 }

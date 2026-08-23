@@ -142,9 +142,12 @@ pub unsafe extern "C" fn mwl_exception_new(message: *const StrHeader) -> *const 
 /// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Throwable`
 /// operand.
 ///
+/// A null `ptr` is a no-op — see [`crate::object`]'s *A null payload is
+/// `null`*.
+///
 /// # Safety
 ///
-/// `ptr` must refer to a live exception allocation.
+/// `ptr` must be null or refer to a live exception allocation.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw pointer whose liveness the signature \
@@ -152,6 +155,9 @@ pub unsafe extern "C" fn mwl_exception_new(message: *const StrHeader) -> *const 
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_throwable_retain(ptr: *const ThrowableHeader) {
+    if ptr.is_null() {
+        return;
+    }
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `ptr` came from `Rc::into_raw` and is \
@@ -165,10 +171,12 @@ pub unsafe extern "C" fn mwl_throwable_retain(ptr: *const ThrowableHeader) {
 /// Drops a reference, freeing the exception if it was the last —
 /// `mwl_ir::InstKind::Release` for a `Ty::Throwable` operand.
 ///
+/// A null `ptr` is a no-op — see [`mwl_throwable_retain`].
+///
 /// # Safety
 ///
-/// `ptr` must refer to a live exception allocation whose reference has not
-/// already been released.
+/// `ptr` must be null, or refer to a live exception allocation whose
+/// reference has not already been released.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a raw pointer whose liveness the signature \
@@ -176,6 +184,9 @@ pub unsafe extern "C" fn mwl_throwable_retain(ptr: *const ThrowableHeader) {
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_throwable_release(ptr: *const ThrowableHeader) {
+    if ptr.is_null() {
+        return;
+    }
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `ptr` came from `Rc::into_raw` and \

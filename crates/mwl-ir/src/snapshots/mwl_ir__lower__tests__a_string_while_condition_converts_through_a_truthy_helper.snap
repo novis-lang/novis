@@ -22,5 +22,6 @@ fn m(object, string) -> void {
     jump bb1
   bb3:
     release v2
+    release v0
     return
 }

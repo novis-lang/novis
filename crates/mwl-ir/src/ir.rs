@@ -228,10 +228,21 @@ pub enum InstKind {
     /// observable (M3's backend work, once real object layout exists) and
     /// splitting it now would be a distinction with nothing to attach it to.
     New {
-        /// The constructed class, rendered the same way `Call::target` is.
+        /// The constructed class, rendered the same way `Call::target` is —
+        /// the key into [`crate::ir::Program::classes`].
         class: String,
-        /// Each constructor argument, already lowered — empty when `class`
-        /// declares no explicit `constructor`.
+        /// The resolved `Class::constructor` label to invoke on the fresh
+        /// instance, or `None` for a class that declares none anywhere in its
+        /// chain.
+        ///
+        /// Carried separately from `class` because the two differ whenever a
+        /// subclass inherits its constructor: `new Dog(...)` allocates a `Dog`
+        /// and calls `Animal::constructor`. Only `mwl_types` knows which
+        /// class actually declares it, so recovering it downstream would mean
+        /// re-walking a hierarchy this crate cannot see.
+        ctor: Option<String>,
+        /// Each constructor argument, already lowered — empty when `ctor` is
+        /// `None`.
         args: Vec<ValueId>,
     },
     /// Reads a compile-time-known field off an object — `$obj->prop` whose
