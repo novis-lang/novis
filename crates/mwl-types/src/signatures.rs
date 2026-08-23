@@ -62,6 +62,14 @@ pub struct MethodSig {
     /// position onward is checked against its type instead of requiring an
     /// exact count.
     pub variadic: bool,
+    /// Each parameter's already-evaluated default, positionally — one entry
+    /// per [`Self::params`] entry, `None` for a parameter a call must supply.
+    /// [`crate::defaults`] owns what a default may be and why it is evaluated
+    /// here rather than in the callee.
+    ///
+    /// A parallel `Vec` for [`Self::by_ref`]'s reason, and read through
+    /// [`Self::required`] rather than scanned at each call site.
+    pub defaults: Vec<Option<crate::defaults::ConstArg>>,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
     /// Whether the declaration carries the `static` modifier — ADR 0008 § 1's
@@ -97,6 +105,22 @@ pub struct MethodSig {
 }
 
 impl MethodSig {
+    /// How many arguments a call must supply — the number of leading
+    /// parameters with no [`Self::defaults`] entry.
+    ///
+    /// Derived rather than stored so it cannot disagree with `defaults`.
+    /// `E_PARAM_DEFAULT_ORDER` makes "leading" exact: a required parameter
+    /// after an optional one is refused at the declaration, so the two are
+    /// never interleaved and this count is also the index of the first
+    /// optional parameter.
+    #[must_use]
+    pub fn required(&self) -> usize {
+        self.defaults
+            .iter()
+            .take_while(|default| default.is_none())
+            .count()
+    }
+
     /// The parameter type at `index`, following the variadic rule: every
     /// argument from the last parameter's position onward is checked against
     /// that parameter's own type. `None` for an index past a non-variadic
@@ -505,6 +529,7 @@ fn collect_members(
                     .collect();
                 let by_ref: Vec<bool> = m.params.iter().map(|p| p.by_ref).collect();
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
+                let defaults = collect_defaults(&m.params, &params, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
                 let is_static = m.modifiers.contains(&Modifier::Static);
@@ -515,6 +540,7 @@ fn collect_members(
                         params,
                         by_ref,
                         variadic,
+                        defaults,
                         return_ty,
                         is_static,
                         interface_private,
@@ -526,6 +552,51 @@ fn collect_members(
             _ => {}
         }
     }
+}
+
+/// Evaluates every written `= expr` parameter default in `params` against its
+/// own already-lowered type from `types`, and enforces the one ordering rule
+/// they carry: no required parameter may follow an optional one.
+///
+/// The ordering check is here rather than in [`crate::defaults`] because it is
+/// a property of the *list*, not of any one default — and it is what makes
+/// [`MethodSig::required`] a count of leading entries rather than a scan.
+/// A parameter whose default failed to evaluate is left required: the
+/// diagnostic already fired, and treating it as optional would report a second
+/// one at every call that omitted it.
+///
+/// A variadic parameter never carries a default — `...$rest` already accepts
+/// zero arguments — so it is skipped rather than diagnosed for having none.
+fn collect_defaults(
+    params: &[mwl_syntax::ast::Param],
+    types: &[TypeId],
+    env: &mut Env<'_>,
+) -> Vec<Option<crate::defaults::ConstArg>> {
+    let mut out: Vec<Option<crate::defaults::ConstArg>> = Vec::with_capacity(params.len());
+    let mut seen_optional = false;
+    for (p, &ty) in params.iter().zip(types) {
+        let Some(expr) = p.default.as_ref() else {
+            if seen_optional && !p.variadic {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_PARAM_DEFAULT_ORDER,
+                        "a parameter with no default cannot follow one that has a default",
+                    )
+                    .with_primary(p.name, "this parameter has no default")
+                    .with_help(
+                        "arguments are matched positionally, so nothing could ever reach this \
+                         parameter without also supplying the optional one before it — move it \
+                         ahead of them, or give it a default too",
+                    ),
+                );
+            }
+            out.push(None);
+            continue;
+        };
+        seen_optional = true;
+        out.push(crate::defaults::eval_param_default(expr, ty, env));
+    }
+    out
 }
 
 /// Which hooks `p` declares *with a body* — a bodiless `get;` in an
@@ -931,6 +1002,110 @@ mod tests {
         let (table, module, _interner, _diags) = build("<?mwl\nclass Foo {}\n");
         assert!(resolve_property(&QName::parse("Foo"), "missing", &table, &module.graph).is_none());
         assert!(resolve_method(&QName::parse("Foo"), "missing", &table, &module.graph).is_none());
+    }
+
+    // ------------------------------------------------------------------
+    // Parameter defaults -- see `crate::defaults` for the accepted set.
+    // ------------------------------------------------------------------
+
+    fn sig_of(table: &SignatureTable, class: &str, method: &str) -> MethodSig {
+        table
+            .get(&QName::parse(class))
+            .and_then(|sig| sig.methods.get(method))
+            .expect("method recorded")
+            .clone()
+    }
+
+    #[test]
+    fn a_parameter_default_is_evaluated_once_into_the_declared_type() {
+        let (table, _module, _interner, diags) = build(
+            "<?mwl\nclass Box {\n  function scale(int $n, uint $by = 3, float $bias = -1.5, \
+             string $tag = \"x\\ty\", bool $on = true): void {}\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        let sig = sig_of(&table, "Box", "scale");
+        assert_eq!(sig.required(), 1);
+        assert_eq!(
+            sig.defaults,
+            vec![
+                None,
+                Some(crate::defaults::ConstArg::Uint(3)),
+                Some(crate::defaults::ConstArg::Float(-1.5)),
+                // Cooked through the one escape grammar, not a second one.
+                Some(crate::defaults::ConstArg::Str("x\ty".to_owned())),
+                Some(crate::defaults::ConstArg::Bool(true)),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_method_with_no_defaults_requires_every_parameter() {
+        let (table, _module, _interner, _diags) =
+            build("<?mwl\nclass Box { function pair(int $a, int $b): void {} }\n");
+        let sig = sig_of(&table, "Box", "pair");
+        assert_eq!(sig.required(), 2);
+        assert_eq!(sig.defaults, vec![None, None]);
+    }
+
+    #[test]
+    fn a_non_literal_parameter_default_is_refused() {
+        let (_table, _module, _interner, diags) =
+            build("<?mwl\nclass Box { function scale(int $n = 1 + 1): void {} }\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PARAM_DEFAULT_NOT_LITERAL)),
+            "{diags:?}"
+        );
+    }
+
+    /// The known gap `crate::defaults` names first: `= null` has no IR
+    /// constant under it yet, so it is refused rather than silently ignored
+    /// the way every default was before this existed.
+    #[test]
+    fn a_null_parameter_default_is_refused_for_now() {
+        let (_table, _module, _interner, diags) =
+            build("<?mwl\nclass Box { function scale(?int $n = null): void {} }\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PARAM_DEFAULT_NOT_LITERAL)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_default_of_the_wrong_type_is_refused() {
+        let (_table, _module, _interner, diags) =
+            build("<?mwl\nclass Box { function scale(int $n = \"three\"): void {} }\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PARAM_DEFAULT_NOT_LITERAL)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_required_parameter_after_an_optional_one_is_refused() {
+        let (_table, _module, _interner, diags) =
+            build("<?mwl\nclass Box { function scale(int $a = 1, int $b): void {} }\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PARAM_DEFAULT_ORDER)),
+            "{diags:?}"
+        );
+    }
+
+    /// A variadic tail takes zero arguments already, so it is not "a required
+    /// parameter after an optional one" — the one shape the ordering rule has
+    /// to let through.
+    #[test]
+    fn a_variadic_tail_after_an_optional_parameter_is_accepted() {
+        let (_table, _module, _interner, diags) =
+            build("<?mwl\nclass Box { function scale(int $a = 1, int ...$rest): void {} }\n");
+        assert!(!diags.has_errors(), "{diags:?}");
     }
 
     // ------------------------------------------------------------------

@@ -24,9 +24,10 @@
 //!   the thing to remove once the registry is complete.
 
 use mwl_hir::QName;
-use mwl_stdlib::registry::{CLASSES, CoreTy};
+use mwl_stdlib::registry::{CLASSES, Const, CoreTy};
 use rustc_hash::FxHashMap;
 
+use crate::defaults::ConstArg;
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
@@ -54,6 +55,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                     // the registry — a property of the convention.
                     by_ref: vec![false; method.params.len()],
                     variadic: false,
+                    defaults: defaults_of(method),
                     return_ty: lower(&method.return_ty, interner),
                     is_static: true,
                     interface_private: false,
@@ -83,6 +85,43 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
         .iter()
         .find(|candidate| candidate.name == method)
         .map(|found| found.symbol)
+}
+
+/// A registry row's end-aligned [`CoreMethod::defaults`] as the per-parameter
+/// [`MethodSig::defaults`] the checker and `mwl-ir` read — a run of `None` for
+/// the required parameters, then one entry per declared default.
+///
+/// The two spellings differ on purpose: the registry states the shorter one
+/// because a `Core` row is written by hand, and the signature table states the
+/// positional one because every consumer indexes it by parameter. This is the
+/// one place that has to agree with `CoreMethod::defaults`' own alignment
+/// rule, which is why the slice is taken from the end rather than the start.
+fn defaults_of(method: &mwl_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg>> {
+    let required = method.params.len() - method.defaults.len();
+    (0..method.params.len())
+        .map(|index| {
+            index
+                .checked_sub(required)
+                .map(|offset| lower_const(&method.defaults[offset]))
+        })
+        .collect()
+}
+
+/// One registry default into the checker's own [`ConstArg`] — the same
+/// translation [`lower`] performs for a type, and for the same reason.
+fn lower_const(value: &Const) -> ConstArg {
+    match *value {
+        Const::Bool(b) => ConstArg::Bool(b),
+        Const::Int(v) => ConstArg::Int(v),
+        Const::Uint(v) => ConstArg::Uint(v),
+        Const::Float(v) => ConstArg::Float(v),
+        Const::Str(s) => ConstArg::Str(s.to_owned()),
+        // `Const` is `#[non_exhaustive]`: a variant this arm has not learned
+        // yet has no safe `ConstArg` to become, so it fails loudly here rather
+        // than silently defaulting a parameter to the wrong value. Both tables
+        // are in this workspace, so reaching it is a build-time oversight.
+        ref other => panic!("mwl-types has no ConstArg for the registry default {other:?}"),
+    }
 }
 
 /// One registry type into an interned one. The registry's enum is

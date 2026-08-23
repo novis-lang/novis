@@ -588,6 +588,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_call_may_omit_a_parameter_that_has_a_default() {
+        let diags = check_src(
+            "<?mwl\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
+             \n  function m(): void { echo Box::scale(5); echo Box::scale(5, 2); }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_call_that_omits_a_required_parameter_is_still_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
+             \n  function m(): void { echo Box::scale(); }\n}\n",
+        );
+        let arity = diags
+            .iter()
+            .find(|d| d.code == Some(code::E_ARITY_MISMATCH))
+            .unwrap_or_else(|| panic!("{diags:?}"));
+        // The range, not a single number: a bare "expected 2" would be wrong
+        // now that one of the two is optional.
+        assert!(arity.message.contains("1 to 2"), "{:?}", arity.message);
+    }
+
+    #[test]
+    fn a_call_passing_more_arguments_than_parameters_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\nclass Box {\n  static function scale(int $n, int $by = 3): int { return $n * $by; }\n\
+             \n  function m(): void { echo Box::scale(1, 2, 3); }\n}\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_ARITY_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
     /// An argument that cannot bind the variable at all: `T` stays unbound and
     /// substitutes to `mixed`, so the parameter reads `array<mixed>` and an
     /// `int` still fails it. See `crate::generics` for that rule.

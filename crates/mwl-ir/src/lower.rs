@@ -832,6 +832,10 @@ struct ArgSig {
     by_ref: Vec<bool>,
     /// Whether the last parameter is `...$x`.
     variadic: bool,
+    /// Each parameter's evaluated default, positional — `None` for one every
+    /// call has to supply. See [`Lowering::lower_call_args`] for what an
+    /// omitted trailing argument becomes.
+    defaults: Vec<Option<mwl_types::ConstArg>>,
 }
 
 impl ArgSig {
@@ -841,6 +845,7 @@ impl ArgSig {
             param_tys: call.param_tys.clone(),
             by_ref: call.by_ref.clone(),
             variadic: call.variadic,
+            defaults: call.defaults.clone(),
         }
     }
 
@@ -5329,11 +5334,18 @@ impl<'a> Lowering<'a> {
     /// Panics naming the unsupported shape for anything outside this slice's
     /// scope: a variadic signature, a named or spread argument (`mwl_types`
     /// itself doesn't fully positionally type-check these against a signature
-    /// yet — see its own known gaps), an argument count that doesn't exactly
-    /// match `sig`'s parameter count (this crate trusts
+    /// yet — see its own known gaps), more arguments than `sig` has parameters
+    /// or a missing one with no default (this crate trusts
     /// `mwl_types::check_program` already enforced arity for a non-variadic
     /// signature), or a by-reference argument that is neither a bare local nor
     /// a compile-time-known property.
+    ///
+    /// # Omitted arguments
+    ///
+    /// A call may stop short of `sig`'s parameter list: every parameter past
+    /// the last written argument is materialized from its own default by
+    /// [`Self::emit_const_arg`], in declaration order, so the callee still
+    /// receives exactly one value per parameter.
     fn lower_call_args(
         &mut self,
         args: &CallArgs,
@@ -5359,11 +5371,10 @@ impl<'a> Lowering<'a> {
             "mwl-ir does not yet lower a named or spread call argument; see the crate docs' \
              known gaps"
         );
-        assert_eq!(
-            list.len(),
-            sig.param_tys.len(),
-            "mwl-ir: a resolved call's argument count doesn't match its signature — this crate \
-             trusts mwl_types::check_program already enforced this"
+        assert!(
+            list.len() <= sig.param_tys.len(),
+            "mwl-ir: a resolved call passes more arguments than its signature has parameters — \
+             this crate trusts mwl_types::check_program already enforced arity"
         );
         let mut out = LoweredArgs::default();
         for (index, (arg, &pty)) in list.iter().zip(&sig.param_tys).enumerate() {
@@ -5392,7 +5403,50 @@ impl<'a> Lowering<'a> {
             }
             out.values.push(v);
         }
+        for (index, default) in sig.defaults.iter().enumerate().skip(list.len()) {
+            let default = default.as_ref().unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: parameter {index} was omitted at a call site and has no default — \
+                     this crate trusts mwl_types::check_program already enforced arity"
+                )
+            });
+            let (v, ty) = self.emit_const_arg(default, cur);
+            // A materialized default is always freshly built, never a read of
+            // storage someone else owns — so it lands on exactly the two arms
+            // of the ownership table below that describe that case: a
+            // transferred one simply moves into the callee's slot, a borrowed
+            // one is this frame's to release once the call returns.
+            if ty.is_refcounted() && ownership == ArgOwnership::Borrowed {
+                out.temporaries.push(v);
+            }
+            out.values.push(v);
+        }
         out
+    }
+
+    /// Materializes one omitted parameter's default as an ordinary constant in
+    /// `cur`.
+    ///
+    /// This is the whole of MWL's default-argument mechanism at the IR level,
+    /// which is the point of evaluating a default at signature collection
+    /// rather than in the callee (`mwl_types::defaults` owns why): every
+    /// compiled function keeps exactly one arity, so nothing below this line —
+    /// not the ADR 0002 call ABI, not `mwl-codegen`, not the helper
+    /// convention a `Core` member is reached through — learns that defaults
+    /// exist at all.
+    ///
+    /// A `ConstArg::Str` allocates a fresh string per evaluation, exactly as a
+    /// written string literal does today (`mwl-codegen`'s known gap 4); it is
+    /// the same `InstKind::ConstStr` and closing that gap closes both.
+    fn emit_const_arg(&mut self, default: &mwl_types::ConstArg, cur: BlockId) -> (ValueId, Ty) {
+        let (ty, kind) = match default {
+            mwl_types::ConstArg::Bool(b) => (Ty::Bool, InstKind::ConstBool(*b)),
+            mwl_types::ConstArg::Int(v) => (Ty::Int, InstKind::ConstInt(*v)),
+            mwl_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),
+            mwl_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
+            mwl_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
+        };
+        self.emit(cur, ty, kind)
     }
 
     /// Releases what [`LoweredArgs::temporaries`] collected, after the call
@@ -5484,89 +5538,14 @@ fn clean_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
 /// own doc comment: a single-quoted string, or a double-quoted/heredoc/nowdoc string with no
 /// interpolation in it — into its runtime bytes.
 ///
-/// A single-quoted literal only ever needs the two escapes `mwl-syntax`'s lexer recognizes there
-/// (`\\` and `\'` — see `Lexer::lex_single_quoted`'s own
-/// `single_quoted_string_only_escapes_backslash_and_quote` test), cooked inline below since
-/// there is no invalid-UTF-8 case to guard against (both escapes are ASCII, and every other
-/// character copies straight through from a source file that is already valid UTF-8) — nothing
-/// worth sharing a routine for. A double-quoted literal instead delegates its whole inner span to
-/// [`mwl_types::string_lit::cook_double_quoted_text`] — the full escape grammar (named escapes,
-/// octal/hex byte escapes, `\u{...}` codepoints) plus its two failure modes (an out-of-range
-/// `\u{...}`, or byte escapes that don't assemble into valid UTF-8) live there now, not here, so
-/// `mwl_types::expr::infer`'s own `ExprKind::Str` arm can diagnose exactly the same cooking this
-/// function performs — see that module's own docs for why the routine is shared rather than
-/// duplicated the way [`int_literal_digits`] is. This function discards the returned issues:
-/// `mwl_types::check_program` already reported them, the same "checker diagnoses, `mwl-ir` trusts"
-/// split every other panic in this crate relies on.
-///
-/// A heredoc/nowdoc-sourced `Str` (a body with no interpolation site used at all — its span opens
-/// with `<`, not a quote) instead delegates to [`cook_heredoc_str`]: PHP 7.3's "flexible heredoc"
-/// indentation strip
-/// ([`mwl_types::string_lit::heredoc_shape`]/[`mwl_types::string_lit::dedent_heredoc_run`]) runs
-/// first, then the same double-quoted escape grammar as above — unless it's a nowdoc
-/// (`mwl_types::string_lit::heredoc_is_nowdoc`), which applies no escapes at all, exactly like a
-/// single-quoted literal minus even `\\`/`\'`.
+/// All three spellings live in [`mwl_types::string_lit::cook_string_literal`], which owns the
+/// escape grammar and the flexible-heredoc strip; this wrapper exists only so the call sites
+/// below keep reading as one local name. Sharing rather than duplicating is the same call
+/// `crate::string_lit`'s own module docs already record for the double-quoted half: the checker
+/// has to diagnose exactly the cooking that happens here, so one routine has to perform both —
+/// unlike [`int_literal_digits`], where the crate boundary runs the other way.
 fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
-    let raw = span_text(src, span);
-    if raw.starts_with("<<<") {
-        return cook_heredoc_str(src, span, raw);
-    }
-    let quote = raw
-        .chars()
-        .next()
-        .unwrap_or_else(|| panic!("mwl-ir: an empty string literal span at {span:?} — lexer bug?"));
-    assert!(
-        quote == '\'' || quote == '"',
-        "mwl-ir only cooks a single-quoted, double-quoted or heredoc/nowdoc string literal — got \
-         {raw:?}; see the crate docs' known gaps"
-    );
-    let inner_span = mwl_diagnostics::Span::new(span.file, span.start + 1, span.end - 1);
-    if quote == '"' {
-        return mwl_types::string_lit::cook_double_quoted_text(src, inner_span).0;
-    }
-    let inner = span_text(src, inner_span);
-    let mut out = String::with_capacity(inner.len());
-    let mut chars = inner.chars();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            out.push(c);
-            continue;
-        }
-        match chars.next() {
-            Some('\\') => out.push('\\'),
-            Some(next) if next == quote => out.push(quote),
-            Some(other) => {
-                out.push('\\');
-                out.push(other);
-            }
-            None => out.push('\\'),
-        }
-    }
-    out
-}
-
-/// Cooks a heredoc/nowdoc literal collapsed to `ExprKind::Str` (no interpolation site anywhere in
-/// its body) — `cook_str_literal`'s own doc comment for the shape this covers. `raw` is `span`'s
-/// own text, already confirmed to start with `<<<` by the caller. Trusts
-/// `mwl_types::check_program` already reported any `HeredocIndentIssue` this literal has, the same
-/// way [`cook_str_literal`]'s own double-quoted branch trusts `CookIssue`s were already reported —
-/// this function discards both.
-fn cook_heredoc_str(src: &SourceFile, span: mwl_diagnostics::Span, raw: &str) -> String {
-    let (shape, _issues) = mwl_types::string_lit::heredoc_shape(src, span);
-    let mut issues = Vec::new();
-    let dedented = mwl_types::string_lit::dedent_heredoc_run(
-        src,
-        &shape.indent,
-        shape.body,
-        true,
-        true,
-        &mut issues,
-    );
-    if mwl_types::string_lit::heredoc_is_nowdoc(raw) {
-        dedented
-    } else {
-        mwl_types::string_lit::cook_double_quoted_text_str(&dedented, span).0
-    }
+    mwl_types::string_lit::cook_string_literal(src, span)
 }
 
 /// Splits a cooked integer-literal span into the radix its prefix names and

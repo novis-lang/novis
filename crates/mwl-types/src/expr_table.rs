@@ -97,6 +97,16 @@ pub struct ResolvedCall {
     pub by_ref: Vec<bool>,
     /// Whether the last parameter is variadic — [`crate::signatures::MethodSig::variadic`].
     pub variadic: bool,
+    /// Each parameter's evaluated default, positional —
+    /// [`crate::signatures::MethodSig::defaults`]. Recorded for
+    /// [`Self::by_ref`]'s reason, one step further: a call site's own syntax
+    /// says nothing at all about a parameter it *omitted*, so `mwl-ir` has no
+    /// way to know either that the callee has more parameters than there are
+    /// arguments, or what to pass for them. It materializes one constant per
+    /// missing trailing position from this list — see
+    /// `mwl_types::defaults` for why the caller does that rather than the
+    /// callee.
+    pub defaults: Vec<Option<crate::defaults::ConstArg>>,
     /// Whether the resolved method is `static` —
     /// [`crate::signatures::MethodSig::is_static`], which owns the reason this
     /// has to be recorded rather than read off the call's own syntax.

@@ -22,10 +22,12 @@
 //! # Known gap
 //!
 //! The enum covers exactly what the members registered so far need. §§ 1–12
-//! of the spec also use unions (`int|string`), nullables (`?T`), `decimal`,
-//! shapes (an option bag) and a `callable` — each is a variant to add here
-//! plus a lowering arm in `mwl_types`, and none has a member registered yet
-//! that would exercise it.
+//! of the spec also use unions (`int|string`), nullables (`?T`), `decimal` and
+//! shapes (an option bag) — each is a variant to add here plus a lowering arm
+//! in `mwl_types`, and none has a member registered yet that would exercise
+//! it. [`Const`] has the same shape of gap: no `null`, so a spec signature
+//! ending `= null` cannot be stated here until `mwl_types::defaults` can emit
+//! one.
 
 /// One type in a `Core` member's signature.
 ///
@@ -74,6 +76,32 @@ pub enum CoreTy {
     Var(&'static str),
 }
 
+/// One optional parameter's default value.
+///
+/// The registry's counterpart of `mwl_types::defaults::ConstArg`, kept
+/// separate for the reason [`CoreTy`] is kept separate from
+/// `mwl_types::ty::Ty`: this states what the *spec* wrote, and `mwl-types`
+/// translates it into the one representation the checker and `mwl-ir` share.
+/// Only the shapes that enum can already emit are expressible — a member whose
+/// spec signature defaults to `null` cannot be registered until
+/// `mwl_types::defaults` grows that variant, which is exactly the friction
+/// this crate wants around a signature the whole language resolves against.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum Const {
+    /// A `bool` default.
+    Bool(bool),
+    /// An `int` default.
+    Int(i64),
+    /// A `uint` default.
+    Uint(u64),
+    /// A `float` default.
+    Float(f64),
+    /// A `string` default, already cooked — a registry row writes the bytes it
+    /// means, so there is no escape grammar here at all.
+    Str(&'static str),
+}
+
 /// One `Core` member.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreMethod {
@@ -82,6 +110,17 @@ pub struct CoreMethod {
     /// Each parameter's declared type, positional. ADR 0063 R1 puts the
     /// subject first.
     pub params: &'static [CoreTy],
+    /// Defaults for the *trailing* optional parameters, aligned to the end of
+    /// [`Self::params`] — so `params.len() - defaults.len()` is how many
+    /// arguments a call must supply, and an empty slice means every parameter
+    /// is required.
+    ///
+    /// Aligned to the end rather than carrying one entry per parameter because
+    /// that is the only arrangement the language allows: a required parameter
+    /// can never follow an optional one (`E_PARAM_DEFAULT_ORDER`), so a
+    /// per-parameter list would be a run of `None` followed by a run of `Some`
+    /// and every row would spell out the `None`s.
+    pub defaults: &'static [Const],
     /// The declared return type.
     pub return_ty: CoreTy,
     /// The linker symbol its implementation is reachable at — what
@@ -113,18 +152,21 @@ pub const CLASSES: &[CoreClass] = &[CoreClass {
         CoreMethod {
             name: "count",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
             return_ty: CoreTy::Uint,
             symbol: "mwl_core_arr_count",
         },
         CoreMethod {
             name: "filter",
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "mwl_core_arr_filter",
         },
         CoreMethod {
             name: "isEmpty",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "mwl_core_arr_is_empty",
         },
@@ -179,6 +221,26 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), total);
+    }
+
+    /// No member declares more defaults than it has parameters —
+    /// [`CoreMethod::defaults`] is aligned to the end of `params`, so a longer
+    /// slice has nowhere to align to and would make the required count
+    /// underflow.
+    #[test]
+    fn no_member_declares_more_defaults_than_parameters() {
+        for class in CLASSES {
+            for method in class.methods {
+                assert!(
+                    method.defaults.len() <= method.params.len(),
+                    "{}::{} declares {} defaults for {} parameters",
+                    class.name,
+                    method.name,
+                    method.defaults.len(),
+                    method.params.len()
+                );
+            }
+        }
     }
 
     #[test]

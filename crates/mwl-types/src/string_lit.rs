@@ -111,6 +111,85 @@ pub fn cook_double_quoted_text_str(text: &str, attribute_to: Span) -> (String, V
     cook_double_quoted_chars(text, attribute_to, |_, _| attribute_to)
 }
 
+/// Cooks a whole [`mwl_syntax::ast::ExprKind::Str`] literal — delimiters
+/// included — into the `string` it denotes, dispatching on which of the three
+/// spellings `span` opens with.
+///
+/// * A **single-quoted** literal has exactly two escapes (`\\` and `\'`),
+///   cooked inline below: both are ASCII and every other character copies
+///   straight through from an already-valid-UTF-8 source file, so there is no
+///   failure mode to report and nothing worth a routine of its own.
+/// * A **double-quoted** literal delegates its inner span to
+///   [`cook_double_quoted_text`].
+/// * A **heredoc/nowdoc** body with no interpolation site anywhere in it (its
+///   span opens `<<<`) runs [`heredoc_shape`]/[`dedent_heredoc_run`]'s
+///   flexible-indentation strip first, then the same double-quoted escape
+///   grammar — unless [`heredoc_is_nowdoc`], which applies no escapes at all.
+///
+/// Every [`CookIssue`] and [`HeredocIndentIssue`] is discarded: this is the
+/// *value*, and `crate::expr`'s own `ExprKind::Str` arm already reported both
+/// against the same span. That is the standing "the checker diagnoses,
+/// everything downstream trusts" split, and it is why one routine can serve
+/// both `mwl-ir`'s lowering and [`crate::defaults`]'s parameter-default
+/// evaluation without either growing a second escape grammar.
+///
+/// # Panics
+///
+/// Panics if `span` is empty or opens with something other than `'`, `"` or
+/// `<<<` — a lexer bug, since no other spelling produces an `ExprKind::Str`.
+#[must_use]
+pub fn cook_string_literal(src: &SourceFile, span: Span) -> String {
+    let raw = src.span_text(span).unwrap_or_default();
+    if raw.starts_with("<<<") {
+        return cook_heredoc_literal(src, span, raw);
+    }
+    let quote = raw
+        .chars()
+        .next()
+        .unwrap_or_else(|| panic!("an empty string literal span at {span:?} — lexer bug?"));
+    assert!(
+        quote == '\'' || quote == '"',
+        "only a single-quoted, double-quoted or heredoc/nowdoc string literal can be cooked — \
+         got {raw:?}"
+    );
+    let inner_span = Span::new(span.file, span.start + 1, span.end - 1);
+    if quote == '"' {
+        return cook_double_quoted_text(src, inner_span).0;
+    }
+    let inner = src.span_text(inner_span).unwrap_or_default();
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some(next) if next == quote => out.push(quote),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+/// [`cook_string_literal`]'s heredoc/nowdoc branch — `raw` is `span`'s own
+/// text, already confirmed to start with `<<<` by the caller.
+fn cook_heredoc_literal(src: &SourceFile, span: Span, raw: &str) -> String {
+    let (shape, _issues) = heredoc_shape(src, span);
+    let mut issues = Vec::new();
+    let dedented = dedent_heredoc_run(src, &shape.indent, shape.body, true, true, &mut issues);
+    if heredoc_is_nowdoc(raw) {
+        dedented
+    } else {
+        cook_double_quoted_text_str(&dedented, span).0
+    }
+}
+
 fn cook_double_quoted_chars(
     text: &str,
     whole_span_for_utf8_issue: Span,

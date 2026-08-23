@@ -219,6 +219,44 @@ fn a_recursive_call_terminates_and_returns_the_right_value() {
     );
 }
 
+/// A parameter default is materialized *at the call site* — the callee keeps
+/// exactly one arity, so nothing in this crate knows defaults exist. See
+/// `mwl_types::defaults` for why the caller does the work.
+#[test]
+fn a_call_that_omits_a_defaulted_parameter_passes_the_declared_default() {
+    assert_eq!(
+        output_of(
+            "<?mwl\nclass Box {\n    public static function scale(int $n, int $by = 3): int {\n        return $n * $by;\n    }\n}\necho Box::scale(5), \",\", Box::scale(5, 2);\n"
+        ),
+        "15,10"
+    );
+}
+
+/// The refcounted case: a defaulted `string` is a fresh `ConstStr` the callee
+/// owns and releases at its own exit, exactly like a written literal argument.
+#[test]
+fn a_defaulted_string_parameter_reaches_the_callee_as_a_real_string() {
+    assert_eq!(
+        output_of(
+            "<?mwl\nclass Greeter {\n    public static function greet(string $name, string $sep = \": \"): string {\n        return $name . $sep . \"hi\";\n    }\n}\necho Greeter::greet(\"ana\"), \"|\", Greeter::greet(\"bo\", \"-\");\n"
+        ),
+        "ana: hi|bo-hi"
+    );
+}
+
+/// Two defaults in a row, and the middle one supplied — the arrangement that
+/// would break if the materialized constants were appended in the wrong order
+/// or aligned from the wrong end.
+#[test]
+fn a_call_may_supply_some_defaulted_parameters_and_omit_the_rest() {
+    assert_eq!(
+        output_of(
+            "<?mwl\nclass Sum {\n    public static function of(int $a, int $b = 20, int $c = 300): int {\n        return $a + $b + $c;\n    }\n}\necho Sum::of(1), \",\", Sum::of(1, 2), \",\", Sum::of(1, 2, 3);\n"
+        ),
+        "321,303,6"
+    );
+}
+
 #[test]
 fn the_call_probe_costs_nothing_observable_with_every_bit_off() {
     let mut ctx = Ctx::buffered();

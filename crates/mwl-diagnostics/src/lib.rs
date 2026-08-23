@@ -533,6 +533,19 @@ pub mod code {
     /// which ADR 0007's "nothing is untyped, and no type ever changes by
     /// itself" does not ask the compiler to grow.
     pub const E_CLOSURE_RETURN_TYPE_REQUIRED: Code = Code::new("E0450");
+    /// A parameter default (`function f(int $n = ...)`) that is not a literal
+    /// of the parameter's own declared type, optionally negated. MWL evaluates
+    /// a default once, at signature collection, and materializes it at the
+    /// call site that omitted it — so it has to be a constant this compiler
+    /// can emit, not PHP's general constant *expression*. See
+    /// `mwl_types::defaults`, which owns the accepted set and the two shapes
+    /// (`null`, an enum case) it is expected to grow next.
+    pub const E_PARAM_DEFAULT_NOT_LITERAL: Code = Code::new("E0451");
+    /// A parameter with no default declared *after* one that has a default.
+    /// Every call supplies arguments positionally, so a required parameter
+    /// behind an optional one could never be reached — PHP diagnoses the same
+    /// shape.
+    pub const E_PARAM_DEFAULT_ORDER: Code = Code::new("E0452");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

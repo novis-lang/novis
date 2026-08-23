@@ -131,6 +131,7 @@ fn resolved_call(qname: QName, name: String, sig: &MethodSig) -> ResolvedCall {
         param_tys: sig.params.clone(),
         by_ref: sig.by_ref.clone(),
         variadic: sig.variadic,
+        defaults: sig.defaults.clone(),
         is_static: sig.is_static,
         return_ty: sig.return_ty,
         has_body: sig.has_body,
@@ -420,7 +421,7 @@ fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'
 /// like PHP's `0755` is deliberately not one of the recognized prefixes (see
 /// `mwl_ir`'s own copy of this function for why), so it falls through to the
 /// decimal case, matching `mwl-syntax`'s lexer.
-fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) {
+pub(crate) fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) {
     let cleaned: String = span_text(src, span).chars().filter(|&c| c != '_').collect();
     for (prefix, radix) in [
         ("0x", 16),
@@ -2204,15 +2205,17 @@ fn check_args_typed(
             .collect();
         return (types, Some(sig));
     }
-    if !sig.variadic && list.len() != sig.params.len() {
+    let required = sig.required();
+    if !sig.variadic && (list.len() < required || list.len() > sig.params.len()) {
+        let expected = if required == sig.params.len() {
+            format!("{required}")
+        } else {
+            format!("{required} to {}", sig.params.len())
+        };
         env.diags.report(
             Diagnostic::error(
                 code::E_ARITY_MISMATCH,
-                format!(
-                    "expected {} argument(s), found {}",
-                    sig.params.len(),
-                    list.len()
-                ),
+                format!("expected {expected} argument(s), found {}", list.len()),
             )
             .with_primary(call_span, "called here"),
         );

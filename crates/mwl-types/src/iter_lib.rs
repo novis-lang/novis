@@ -91,6 +91,7 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
 fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
     MethodSig {
         by_ref: vec![false; params.len()],
+        defaults: vec![None; params.len()],
         params,
         variadic: false,
         return_ty,

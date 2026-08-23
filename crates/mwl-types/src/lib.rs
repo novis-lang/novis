@@ -23,6 +23,11 @@
 //!   class/interface/enum's own declared property types and method
 //!   signatures, built once ahead of body-checking, plus the ancestor walk
 //!   that looks one up through `extends`/`implements`.
+//! - [`defaults`] — [`defaults::ConstArg`]: a parameter default, evaluated
+//!   once during signature collection so the *call site* that omits the
+//!   parameter can emit it as an ordinary literal argument. See that module's
+//!   own docs for why the caller does that rather than the callee, and for the
+//!   two shapes (`null`, an enum case) it is expected to grow next.
 //! - [`locals`] — [`locals::LocalScope`]/[`locals::check_block`]: per-body
 //!   local-variable declare-once checking and flow-sensitive definite
 //!   assignment.
@@ -166,6 +171,7 @@ pub mod check;
 pub(crate) mod conformance;
 pub mod core_lib;
 pub mod ctor_init;
+pub mod defaults;
 pub mod enums;
 pub mod error_lib;
 pub mod expr;
@@ -182,6 +188,7 @@ pub mod ty;
 
 pub use check::{HOOK_VALUE_PARAM, check_program};
 pub use core_lib::symbol_of as core_symbol_of;
+pub use defaults::ConstArg;
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
