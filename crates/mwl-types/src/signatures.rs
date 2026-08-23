@@ -355,6 +355,7 @@ pub fn build_signatures(
         interner,
         exprs: &mut placeholder_exprs,
         diags,
+        closure_seq: 0,
     };
     collect_stmts(stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     table

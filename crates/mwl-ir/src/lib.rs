@@ -904,6 +904,18 @@
 //!   named/spread argument against a signature yet either (see its own known
 //!   gaps), so there is no resolved per-argument type to lower against even
 //!   if this crate wanted to try.
+//! - **A closure literal lowers; nothing calls one from MWL source yet.**
+//!   [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s
+//!   `fn` becomes a captured-environment object plus an `invoke` method —
+//!   [`lower::lower_closure`] owns that representation and why it reuses the
+//!   object machinery rather than adding a second heap shape. Three things
+//!   inside it are still open: a `&$x` capture or parameter panics naming
+//!   itself (the cell it addresses is the caller's, and a closure may outlive
+//!   the call that staged it), ADR 0031 § 3's self-name is parsed and ignored,
+//!   and `$f(...)` has no lowering at all — the only caller that exists today
+//!   is native `Core` code invoking a closure through
+//!   `mwl_runtime::mwl_closure_call`, which is why the ABI shape rather than a
+//!   call expression is what this slice landed.
 //! - Safepoints are reserved, not functional. [`ir::InstKind::Safepoint`] is
 //!   emitted at function entry and at every `while` back edge — the body's
 //!   own fall-through exit and every `continue` alike, as of the

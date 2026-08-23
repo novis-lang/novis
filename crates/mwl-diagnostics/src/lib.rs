@@ -527,6 +527,12 @@ pub mod code {
     /// 0053 § 1's `Iterator<T>` made it a dispatch to nothing, since its
     /// members are bodiless by design.
     pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449");
+    /// A block-bodied `fn` closure literal (ADR 0031 § 1) with no declared
+    /// return type. An expression body *is* its own answer, so it needs no
+    /// annotation; a block body would need whole-body return-type inference,
+    /// which ADR 0007's "nothing is untyped, and no type ever changes by
+    /// itself" does not ask the compiler to grow.
+    pub const E_CLOSURE_RETURN_TYPE_REQUIRED: Code = Code::new("E0450");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

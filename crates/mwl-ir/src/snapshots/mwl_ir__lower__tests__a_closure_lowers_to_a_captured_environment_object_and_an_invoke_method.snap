@@ -1,0 +1,56 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_program(&p, map.file(file))"
+---
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    ; stmt s0 @2:1-2:19
+    v0 = const.str "t"  ; string
+    ; stmt s1 @3:1-3:15
+    v1 = const.int 1  ; int
+    ; stmt s2 @4:1-4:37
+    v2 = new Script$fn0()  ; object
+    retain v0
+    field.set v2, Script$fn0::tag, v0
+    ; stmt s3 @5:1-5:12
+    v3 = helper.int_to_string v1  ; string
+    helper.echo_str v3 ! bb1
+    release v3
+    release v2
+    release v0
+    return
+  bb1:
+    release v2
+    release v0
+    propagate "<script>() at t.mwl:5"
+}
+
+fn Script$fn0::invoke(object, int) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, Script$fn0::tag  ; string
+    retain v1
+    v2 = param 1  ; int
+    retain v1
+    release v0
+    release v1
+    return v1
+}
+
+fn Throwable::constructor(object, string) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Throwable::message, v1
+    v2 = array.new []  ; array
+    field.set v0, Throwable::backtrace, v2
+    v3 = const.str ""  ; string
+    field.set v0, Throwable::location, v3
+    release v1
+    release v0
+    return
+}

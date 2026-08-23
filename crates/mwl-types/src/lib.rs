@@ -251,6 +251,12 @@ pub(crate) struct Env<'a> {
     /// read back later — see [`crate::expr_table`]'s own module docs.
     pub exprs: &'a mut crate::expr_table::ExprTypeTable,
     pub diags: &'a mut mwl_diagnostics::Diagnostics,
+    /// How many ADR 0031 `fn` closure literals this run has checked so far —
+    /// the suffix that makes each one's synthesized environment class label
+    /// unique. One counter for the whole run rather than one per body,
+    /// because a closure nested inside another closure has no enclosing
+    /// declaration of its own to be numbered within.
+    pub closure_seq: u32,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

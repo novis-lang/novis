@@ -253,6 +253,37 @@ pub enum ExprInfo {
         /// The case's constant value, in its enum's backing type.
         value: crate::enums::EnumValue,
     },
+    /// An [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// `fn` closure literal, keyed by the literal's own span.
+    ///
+    /// A closure's *type* is [`crate::ty::Ty::Callable`] and says nothing
+    /// about it — ADR 0031 § 4 keeps that type opaque, and ADR 0027 already
+    /// fixed what may satisfy it. So everything lowering one needs is here
+    /// instead: the class label `mwl-ir` synthesizes the closure's captured
+    /// environment as, the outer bindings that environment holds, and the
+    /// value the body produces.
+    ///
+    /// Recorded rather than re-derived for [`ExprInfo::InstanceOf`]'s reason
+    /// twice over. The capture set is "exactly the outer variables its body
+    /// reads" (§ 2), which is a fact only the checker's own scope walk knows;
+    /// and an expression body's return type is inferred from that body, which
+    /// is the checker's job by definition.
+    Closure {
+        /// The label of the class `mwl-ir` synthesizes for this closure's
+        /// captured environment. Contains a `$`, which no MWL identifier may,
+        /// so it can never collide with a declared class.
+        class: String,
+        /// Every outer binding the body reads or writes, in first-touch
+        /// order — the field order of the class above. `$this` appears here
+        /// under the name `this`, which is ADR 0008 § 4's "a closure binds
+        /// `$this` only where the body uses it" falling straight out of § 2's
+        /// capture rule rather than needing a rule of its own.
+        captures: Vec<(String, TypeId)>,
+        /// The value the body produces — the declared return type, or, for an
+        /// expression body with none written, the type inferred from that
+        /// expression.
+        return_ty: TypeId,
+    },
 }
 
 /// Which of ADR 0053 § 3's three subject shapes a `foreach` is walking, and
@@ -320,6 +351,25 @@ impl ExprTypeTable {
         self.by_span
             .get(&span)
             .map(|id| &self.entries[id.0 as usize])
+    }
+
+    /// Every [`ExprInfo::Closure`] recorded this run, in the order the
+    /// checker met each `fn` literal — its environment class label, its
+    /// capture list and its return type.
+    ///
+    /// The one accessor here that iterates rather than looks a span up:
+    /// `mwl-ir` reaches a closure through the literal it is lowering, but a
+    /// test (and, later, anything that has to enumerate the synthesized
+    /// classes) has no span to start from.
+    pub fn closures(&self) -> impl Iterator<Item = (&str, &Vec<(String, TypeId)>, TypeId)> {
+        self.entries.iter().filter_map(|info| match info {
+            ExprInfo::Closure {
+                class,
+                captures,
+                return_ty,
+            } => Some((class.as_str(), captures, *return_ty)),
+            _ => None,
+        })
     }
 
     /// Records the `Class::method` label of the method *declaration* whose

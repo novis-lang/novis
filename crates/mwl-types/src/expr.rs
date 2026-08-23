@@ -16,9 +16,9 @@
 //! known signature (an unresolved receiver, a dynamic member name, a
 //! `Core`-namespaced target with no modeled stdlib signature) still falls
 //! back to `mixed` with no diagnostic, same as everywhere else this checker
-//! only reports what it can be sure of. A closure's body is the one
-//! remaining form walked only for nested variable reads and reported as
-//! `mixed`; see the crate docs' known gaps for why.
+//! only reports what it can be sure of. A closure's body is checked like any
+//! other — see [`check_fn_literal`], which owns ADR 0031's capture rule and
+//! the one shape it refuses (a block body with no declared return type).
 //!
 //! ADR 0013's `Comparable` check for the five ordering operators has a
 //! sibling now: [`require_stringable`] refuses an object at every implicit
@@ -107,14 +107,14 @@
 use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
-    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, ForeachBinding, MemberName,
-    NewTarget, StringPart, UnaryOp,
+    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
+    MemberName, NewTarget, StringPart, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 
 use crate::expr_table::{ExprInfo, ForeachDrive, ResolvedCall};
-use crate::locals::LocalScope;
-use crate::lower::lower_type;
+use crate::locals::{Captures, LocalScope, check_block};
+use crate::lower::{lower_optional_type, lower_type};
 use crate::signatures::{MethodSig, SignatureTable, resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId, TypeInterner};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -1009,7 +1009,7 @@ fn infer(
             target_ty
         }
         ExprKind::Clone(inner) => check_expr(inner, None, live, scope, ctx, env),
-        ExprKind::Fn(_) => env.interner.callable(),
+        ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
             check_expr(subject, None, live, scope, ctx, env);
             let mut arm_types = Vec::with_capacity(arms.len());
@@ -1146,8 +1146,8 @@ fn check_read(
     scope: &LocalScope,
     env: &mut Env<'_>,
 ) -> TypeId {
-    match scope.by_name.get(name) {
-        Some(info) if live.contains(name) => info.ty,
+    match scope.declared_ty(name) {
+        Some(ty) if live.contains(name) => ty,
         Some(_) => {
             env.diags.report(
                 Diagnostic::error(
@@ -1171,6 +1171,142 @@ fn check_read(
     }
 }
 
+/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s
+/// `fn` closure literal.
+///
+/// Three things happen here, and only the first is ordinary type-checking:
+///
+/// * The body is checked in a **fresh** [`LocalScope`] holding the closure's
+///   own parameters. ADR 0007 § 1's declare-once rule is per body, so a
+///   parameter named like an outer local shadows it rather than colliding
+///   with it.
+/// * Every outer binding is offered to that scope as a *capture* rather than
+///   as a local ([`Captures`]), which is what makes the recorded capture set
+///   "exactly the outer variables its body reads" (§ 2) rather than the whole
+///   enclosing frame. `$this` is in that set like any other name, which is
+///   ADR 0008 § 4's bind-`$this`-only-where-used rule with no code of its own.
+/// * The literal's own [`ExprInfo::Closure`] entry is recorded, because a
+///   `callable` type carries none of it (§ 4 keeps that type opaque).
+///
+/// **A block body must declare its return type.** An expression body is its
+/// own answer, so it needs no annotation; inferring one for a block would
+/// mean whole-body return-type inference, which is a larger thing than ADR
+/// 0037's one-initializer rule and is not something ADR 0007 asks for. A
+/// block body with none reports `E0450` and is checked against `void`.
+///
+/// **`yield` is not a generator here.** The inner [`Ctx`] clears
+/// `generator_elem`, so a `yield` written inside a closure sitting in a
+/// generator's own body reports `E0445` — ADR 0053 § 4's lexical confinement.
+///
+/// # Known gap
+///
+/// ADR 0031 § 3's optional self-name is parsed and ignored: nothing binds it,
+/// so calling it inside the body reports an undefined name. Recursion through
+/// a closure is the one § 3 capability with no other route, but it needs a
+/// call shape that does not exist yet — see `mwl_ir::lower`'s own docs for
+/// which closure call sites lower at all.
+fn check_fn_literal(
+    expr: &Expr,
+    f: &FnExpr,
+    live: &FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let seq = env.closure_seq;
+    env.closure_seq += 1;
+    // `$` cannot appear in an MWL identifier, so this label can never collide
+    // with a declared class — the same guarantee ADR 0053 § 4's generator
+    // state class relies on.
+    let owner = ctx
+        .current_class
+        .map_or_else(|| "Script".to_owned(), ToString::to_string);
+    let class = format!("{owner}$fn{seq}");
+
+    let mut inner = LocalScope::new();
+    let mut inner_live = live.clone();
+    for param in &f.params {
+        let ty = lower_optional_type(param.ty.as_ref(), ctx, env);
+        let name = strip_sigil(span_text(env.src, param.name)).to_owned();
+        inner.declare_param(name.clone(), ty, param.name);
+        inner_live.insert(name);
+    }
+    inner.captures = Some(Captures {
+        available: scope.visible(),
+        used: std::cell::RefCell::new(Vec::new()),
+    });
+
+    let inner_ctx = Ctx {
+        namespace: ctx.namespace,
+        imports: ctx.imports,
+        current_class: ctx.current_class,
+        current_hook: ctx.current_hook,
+        generator_elem: None,
+    };
+    let declared = f
+        .return_type
+        .as_ref()
+        .map(|t| lower_type(t, &inner_ctx, env));
+    let return_ty = match (&f.body, declared) {
+        (FnBody::Expr(body), Some(ret)) => {
+            check_expr(body, Some(ret), &mut inner_live, &inner, &inner_ctx, env);
+            ret
+        }
+        (FnBody::Expr(body), None) => {
+            check_expr(body, None, &mut inner_live, &inner, &inner_ctx, env)
+        }
+        (FnBody::Block(block), declared) => {
+            let ret = declared.unwrap_or_else(|| {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_CLOSURE_RETURN_TYPE_REQUIRED,
+                        "a block-bodied closure must declare its return type",
+                    )
+                    .with_primary(expr.span, "no `: T` on this `fn`")
+                    .with_help(
+                        "write `fn (...): T => { ... }`, or use an expression body, whose type \
+                         is the expression's own",
+                    ),
+                );
+                env.interner.void()
+            });
+            check_block(
+                &block.stmts,
+                &mut inner_live,
+                &mut inner,
+                ret,
+                &inner_ctx,
+                env,
+            );
+            ret
+        }
+    };
+
+    let captures = inner
+        .captures
+        .take()
+        .expect("installed just above and never removed")
+        .used
+        .into_inner();
+    // A capture the body reached through *this* closure's `available` set may
+    // have come from an enclosing closure's own capture set rather than from
+    // a real local — that closure has to capture it too in order to have it
+    // to hand on. Harmless when the enclosing scope is an ordinary body: it
+    // has no `Captures` for this to record into.
+    for (name, _) in &captures {
+        scope.note_capture(name);
+    }
+    env.exprs.record(
+        expr.span,
+        ExprInfo::Closure {
+            class,
+            captures,
+            return_ty,
+        },
+    );
+    env.interner.callable()
+}
+
 fn check_assign(
     op: AssignOp,
     target: &Expr,
@@ -1182,7 +1318,7 @@ fn check_assign(
 ) -> TypeId {
     if let (AssignOp::Assign, ExprKind::Variable(span)) = (op, &target.kind) {
         let name = strip_sigil(span_text(env.src, *span)).to_owned();
-        let declared = scope.by_name.get(&name).map(|info| info.ty);
+        let declared = scope.declared_ty(&name);
         let value_ty = check_expr(value, declared, live, scope, ctx, env);
         match declared {
             Some(ty) => {

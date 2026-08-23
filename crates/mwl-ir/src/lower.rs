@@ -46,9 +46,9 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
-    ForeachBinding, MethodMember, Modifier, NamespaceDecl, NewTarget, Stmt, StmtKind, StringPart,
-    Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind, FnBody,
+    FnExpr, ForeachBinding, MethodMember, Modifier, NamespaceDecl, NewTarget, Stmt, StmtKind,
+    StringPart, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
 use mwl_types::layout::ClassLayoutTable;
@@ -241,13 +241,16 @@ pub fn lower_file(
                                     .as_ref()
                                     .expect("just checked this declaration has one");
                                 if mwl_syntax::ast::is_generator_body(body) {
-                                    let (fns, class) =
+                                    let (fns, classes) =
                                         lower_generator(label, m, src, exprs, checked_types);
                                     out.extend(fns);
-                                    synthesized.push(class);
+                                    synthesized.extend(classes);
                                     continue;
                                 }
-                                out.push(lower_method(label, m, src, exprs, checked_types));
+                                let lowered = lower_method(label, m, src, exprs, checked_types);
+                                out.push(lowered.function);
+                                out.extend(lowered.closures);
+                                synthesized.extend(lowered.classes);
                             }
                             // ADR 0014 § 1's property hooks are compiled the
                             // same way, under the label `mwl_types` recorded
@@ -263,14 +266,17 @@ pub fn lower_file(
                                     let Some(label) = exprs.method_label(hook.span) else {
                                         continue;
                                     };
-                                    out.push(lower_property_hook(
+                                    let lowered = lower_property_hook(
                                         label,
                                         p,
                                         hook,
                                         src,
                                         exprs,
                                         checked_types,
-                                    ));
+                                    );
+                                    out.push(lowered.function);
+                                    out.extend(lowered.closures);
+                                    synthesized.extend(lowered.classes);
                                 }
                             }
                             _ => {}
@@ -292,7 +298,10 @@ pub fn lower_file(
         &mut functions,
         &mut synthesized,
     );
-    functions.push(lower_script(script, stmts, src, exprs, checked_types));
+    let lowered = lower_script(script, stmts, src, exprs, checked_types);
+    functions.push(lowered.function);
+    functions.extend(lowered.closures);
+    synthesized.extend(lowered.classes);
     // The one function with no source text — see
     // `synthesized_throwable_constructor`. Emitted unconditionally: the
     // exception tree is in every program's class table, so a unit that omitted
@@ -353,7 +362,7 @@ pub fn lower_method(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> Function {
+) -> Lowered {
     let ret_ty = m
         .return_type
         .as_ref()
@@ -436,15 +445,21 @@ pub fn lower_method(
         low.seal(cur, Terminator::Return(None));
     }
 
+    let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    Function {
-        name: name.to_owned(),
-        params: param_tys,
-        ret: ret_ty,
-        blocks,
-        entry,
-        stmt_spans,
-        edge_spans,
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
+    Lowered {
+        function: Function {
+            name: name.to_owned(),
+            params: param_tys,
+            ret: ret_ty,
+            blocks,
+            entry,
+            stmt_spans,
+            edge_spans,
+        },
+        closures,
+        classes,
     }
 }
 
@@ -487,7 +502,7 @@ pub fn lower_property_hook(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> Function {
+) -> Lowered {
     use mwl_syntax::ast::{PropertyHookBody, PropertyHookKind};
 
     let prop_ty = lower_decl_type(&p.ty, exprs, checked_types);
@@ -567,15 +582,21 @@ pub fn lower_property_hook(
         low.seal(cur, Terminator::Return(None));
     }
 
+    let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    Function {
-        name: name.to_owned(),
-        params: param_tys,
-        ret: ret_ty,
-        blocks,
-        entry,
-        stmt_spans,
-        edge_spans,
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
+    Lowered {
+        function: Function {
+            name: name.to_owned(),
+            params: param_tys,
+            ret: ret_ty,
+            blocks,
+            entry,
+            stmt_spans,
+            edge_spans,
+        },
+        closures,
+        classes,
     }
 }
 
@@ -609,7 +630,7 @@ pub fn lower_script(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> Function {
+) -> Lowered {
     let ret_ty = Ty::Mixed;
     let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types);
     let entry = low.new_block();
@@ -627,15 +648,21 @@ pub fn lower_script(
         low.seal(cur, Terminator::Return(None));
     }
 
+    let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    Function {
-        name: name.to_owned(),
-        params: Vec::new(),
-        ret: ret_ty,
-        blocks,
-        entry,
-        stmt_spans,
-        edge_spans,
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
+    Lowered {
+        function: Function {
+            name: name.to_owned(),
+            params: Vec::new(),
+            ret: ret_ty,
+            blocks,
+            entry,
+            stmt_spans,
+            edge_spans,
+        },
+        closures,
+        classes,
     }
 }
 
@@ -733,6 +760,11 @@ struct Lowering<'a> {
     /// `advance()` — `None` for every other function there is. See
     /// [`lower_generator`], which owns the whole transform.
     generator: Option<GenFrame>,
+    /// Every ADR 0031 `fn` literal met in this body so far, in source order,
+    /// each awaiting a function of its own — see [`lower_closure`]. Drained
+    /// by whichever entry point built this frame, since a
+    /// [`crate::ir::Function`] has nowhere to carry a second one.
+    closures: Vec<PendingClosure>,
 }
 
 /// One by-reference argument staged at a call site, and where its written-back
@@ -833,6 +865,7 @@ impl<'a> Lowering<'a> {
             ref_locals: FxHashMap::default(),
             pending_refs: Vec::new(),
             generator: None,
+            closures: Vec::new(),
         }
     }
 
@@ -3712,6 +3745,69 @@ impl<'a> Lowering<'a> {
             // itself: `target` may be `self`/`static`/`parent`, which this
             // crate has no enclosing-class context to resolve on its own
             // (see `lower_decl_type`'s doc comment).
+            // ADR 0031's `fn` literal. Evaluating one allocates its
+            // captured-environment object and stores a snapshot of every
+            // captured binding into it — "by value at the point the closure
+            // literal is evaluated" (§ 2), which is exactly what a field
+            // store at this program point is. The body itself becomes that
+            // class's one method, lowered later; see `lower_closure`, which
+            // owns the whole representation.
+            ExprKind::Fn(fn_expr) => {
+                let Some(ExprInfo::Closure {
+                    class,
+                    captures,
+                    return_ty,
+                }) = self.exprs.lookup(expr.span)
+                else {
+                    panic!(
+                        "mwl-ir: the `fn` literal at {:?} has no resolved closure recorded in \
+                         the typed-expression table — did this program pass \
+                         mwl_types::check_program with the same table?",
+                        expr.span
+                    );
+                };
+                let class = class.clone();
+                let ret = lower_checked_ty(*return_ty, self.checked_types);
+                let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
+                let (obj, _) = self.emit(
+                    cur,
+                    Ty::Object,
+                    InstKind::New {
+                        class: class.clone(),
+                        ctor: None,
+                        args: Vec::new(),
+                    },
+                );
+                let mut captured = Vec::with_capacity(names.len());
+                for name in names {
+                    let &(v, ty) = env.get(&name).unwrap_or_else(|| {
+                        panic!(
+                            "mwl-ir: the closure at {:?} captures `${name}`, which is not bound \
+                             in the enclosing frame — mwl_types records a capture only for a \
+                             name its own scope resolved",
+                            expr.span
+                        )
+                    });
+                    assert!(
+                        ty != Ty::Ref,
+                        "mwl-ir does not lower a closure capturing the `&$x` parameter \
+                         `${name}`: the cell it addresses is the caller's, and the closure may \
+                         outlive the call that staged it; see the crate docs' known gaps"
+                    );
+                    if ty.is_refcounted() {
+                        self.emit_retain(cur, v);
+                    }
+                    self.emit_field_set(cur, obj, class.clone(), name.clone(), v);
+                    captured.push((name, ty));
+                }
+                self.closures.push(PendingClosure {
+                    class,
+                    fn_expr: fn_expr.clone(),
+                    captures: captured,
+                    ret,
+                });
+                (obj, Ty::Object)
+            }
             ExprKind::New { target, args } => {
                 let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
                     panic!(
@@ -5499,6 +5595,11 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         TypeKind::Atom(TypeAtom::String) => Ty::Str,
         TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
         TypeKind::Atom(TypeAtom::Name(..)) => Ty::Object,
+        // ADR 0031 § 4's one closure type. Its *representation* is an object
+        // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
+        // synthesizes one class per literal to hold the captured environment
+        // — so it erases here exactly the way a class name does.
+        TypeKind::Atom(TypeAtom::Callable) => Ty::Object,
         TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
         // `mixed` — ADR 0007 § 3. See `Ty::Mixed`'s own doc comment for
         // exactly how much this representation does and doesn't do yet: a
@@ -5552,7 +5653,7 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::Void => Ty::Void,
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
-        CheckedTy::Class(..) => Ty::Object,
+        CheckedTy::Class(..) | CheckedTy::Callable => Ty::Object,
         CheckedTy::Enum(_, backing) => Ty::Enum(match backing {
             mwl_types::EnumBacking::Int => EnumRepr::Int,
             mwl_types::EnumBacking::Uint => EnumRepr::Uint,
@@ -5717,6 +5818,224 @@ const GEN_CURRENT: &str = "gen#current";
 /// ([`Lowering::release_all_locals`]) and every landing block release it
 /// without a special case; excluded from spilling, since a field of the state
 /// object pointing at the state object is a cycle with nothing to say.
+/// The reserved `Env` name a closure's `invoke` binds its own captured-
+/// environment object under — the receiver, so that
+/// [`Lowering::release_all_locals`] releases it at every exit with no
+/// closure-specific cleanup path. `#` cannot appear in an MWL identifier, so
+/// it can never collide with a capture or a parameter.
+const FN_SELF: &str = "fn#self";
+
+/// The one method an [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+/// closure's environment class answers, as the method table spells it.
+pub(crate) const FN_INVOKE: &str = "invoke";
+
+/// One `fn` literal met while lowering a body, waiting for its own function
+/// to be built — see [`lower_closure`].
+///
+/// Owns its [`FnExpr`] rather than borrowing it. A borrow would have to live
+/// as long as [`Lowering`]'s own lifetime parameter, which is the *source
+/// file's*; threading a second one through every `lower_expr` call site to
+/// buy back one clone of a small AST subtree, once per closure literal, at
+/// compile time only, is the wrong trade under this repository's priority
+/// ordering.
+struct PendingClosure {
+    /// The environment class's label.
+    class: String,
+    /// The literal itself.
+    fn_expr: FnExpr,
+    /// Every captured binding, in the order `mwl_types` recorded it — which
+    /// is the field order of the class above, so the two sides agree by
+    /// construction rather than by both sorting the same way.
+    captures: Vec<(String, Ty)>,
+    /// What the body produces.
+    ret: Ty,
+}
+
+/// One lowered body, plus everything the ADR 0031 closures inside it
+/// synthesized.
+///
+/// A closure literal is an *expression*, so it is met in the middle of
+/// lowering some other function's body — but what it produces is a whole
+/// second function and a class, neither of which that body can hold. This is
+/// how they travel back out to [`lower_file`], which is the only thing that
+/// owns a [`crate::ir::Program`].
+#[derive(Debug)]
+pub struct Lowered {
+    /// The body that was asked for.
+    pub function: Function,
+    /// One `invoke` per `fn` literal in it, transitively — a closure written
+    /// inside another closure's body is in here too.
+    pub closures: Vec<Function>,
+    /// The captured-environment class each of those is a method of.
+    pub classes: Vec<crate::ir::Class>,
+}
+
+/// Lowers every pending closure, and every closure *those* bodies contain, to
+/// exhaustion.
+fn drain_closures(
+    mut pending: Vec<PendingClosure>,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> (Vec<Function>, Vec<crate::ir::Class>) {
+    let mut functions = Vec::new();
+    let mut classes = Vec::new();
+    while let Some(next) = pending.pop() {
+        let (function, class, more) = lower_closure(&next, src, exprs, checked_types);
+        functions.push(function);
+        classes.push(class);
+        pending.extend(more);
+    }
+    (functions, classes)
+}
+
+/// Lowers one `fn` literal's body to the `invoke` method of its own
+/// captured-environment class — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+/// § 1/§ 2.
+///
+/// # The representation
+///
+/// A closure **is an object**, of a class with no source declaration: one
+/// field per captured binding, one method, no supertypes. That is the whole
+/// design, and it is a reuse decision rather than a new mechanism —
+/// refcounting, field slots, class descriptors and the indirect call through
+/// [`mwl_runtime::mwl_class_method`] all already exist for ordinary objects,
+/// and a closure needs exactly those four things and nothing else. The
+/// alternative, a dedicated code-pointer-plus-environment header, would be a
+/// second refcounted heap shape for the runtime to know about, a second thing
+/// `mwl_runtime::object::dismantle` has to sweep, and a second call path in
+/// `mwl-codegen` — for no capability the object shape does not already have.
+///
+/// The cost is stated rather than hidden: one heap allocation per evaluation
+/// of a `fn` literal, plus one 16-byte slot per captured binding, plus a
+/// method-table lookup per call through it. A closure that captures nothing
+/// still allocates; folding that case to a shared singleton is a real
+/// optimisation, and deliberately not taken here, because the allocation is
+/// what makes every closure value uniform for the caller.
+///
+/// The receiver is parameter 0, exactly as it is for a declared method, so
+/// the closure's own environment reaches its body through the same
+/// [`InstKind::Param`] any method's `$this` does — and calling one is an
+/// ordinary MWL method call at the ABI level, which is what lets a native
+/// `Core` member invoke a closure with no closure-specific entry point.
+///
+/// # Ownership
+///
+/// The literal site retains every capture it stores, so the environment
+/// object owns one reference per field for as long as it lives; `invoke`
+/// retains again when it reads one back into a local, and
+/// [`Lowering::release_all_locals`] pays that back at every exit. The
+/// receiver is bound in `Env` under [`FN_SELF`] for exactly that reason: a
+/// callee owns its parameters, and putting it in `Env` is what makes the
+/// existing sweep release it rather than needing a closure-specific one.
+///
+/// # Panics
+///
+/// Panics naming the shape for a `fn` literal the checker recorded no
+/// [`ExprInfo::Closure`] for, and for a parameter with no declared type.
+fn lower_closure(
+    pending: &PendingClosure,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> (Function, crate::ir::Class, Vec<PendingClosure>) {
+    let PendingClosure {
+        class,
+        fn_expr,
+        captures,
+        ret,
+    } = pending;
+    let label = format!("{class}::{FN_INVOKE}");
+    let mut low = Lowering::new(&label, src, *ret, exprs, checked_types);
+    let entry = low.new_block();
+    let mut cur = entry;
+    low.emit_safepoint(entry);
+
+    let (self_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    let mut env = Env::default();
+    env.insert(FN_SELF.to_owned(), (self_v, Ty::Object));
+    let mut param_tys = vec![Ty::Object];
+
+    // The captures first, so a parameter of the same name — which shadows one,
+    // per `mwl_types::expr::check_fn_literal` — overwrites it rather than the
+    // other way round.
+    for (name, ty) in captures {
+        let (v, _) = low.emit(
+            entry,
+            *ty,
+            InstKind::FieldGet {
+                object: self_v,
+                class: class.clone(),
+                field: name.clone(),
+            },
+        );
+        if ty.is_refcounted() {
+            low.emit_retain(entry, v);
+        }
+        env.insert(name.clone(), (v, *ty));
+    }
+
+    for (i, p) in fn_expr.params.iter().enumerate() {
+        assert!(
+            !p.by_ref,
+            "mwl-ir does not lower a closure with a `&$x` parameter: nothing calls a closure \
+             through a signature yet, so there is no call site to stage the cell at; see the \
+             crate docs' known gaps"
+        );
+        let decl_ty =
+            p.ty.as_ref()
+                .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
+        let ty = lower_decl_type(decl_ty, exprs, checked_types);
+        let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
+        let pname = strip_sigil(span_text(src, p.name)).to_owned();
+        let (v, _) = low.emit(entry, ty, InstKind::Param(index));
+        env.insert(pname, (v, ty));
+        param_tys.push(ty);
+    }
+
+    match &fn_expr.body {
+        // An expression body is an implicit `return` (ADR 0031 § 1), lowered
+        // through the same path `StmtKind::Return` uses: retain if the value
+        // is a borrowed read, release the frame's locals, return.
+        FnBody::Expr(body) => {
+            let (v, ty) = low.lower_expr(body, Some(*ret), &env, cur);
+            if ty.is_refcounted() && low.aliasing_read(body) {
+                low.emit_retain(cur, v);
+            }
+            low.release_all_locals(cur, &env, None);
+            low.seal(cur, Terminator::Return(Some(v)));
+        }
+        FnBody::Block(block) => {
+            low.lower_stmts(&block.stmts, &mut cur, &mut env);
+            if !low.is_terminated(cur) {
+                low.release_all_locals(cur, &env, None);
+                low.seal(cur, Terminator::Return(None));
+            }
+        }
+    }
+
+    let more = std::mem::take(&mut low.closures);
+    let (blocks, stmt_spans, edge_spans) = low.finish();
+    (
+        Function {
+            name: label,
+            params: param_tys,
+            ret: *ret,
+            blocks,
+            entry,
+            stmt_spans,
+            edge_spans,
+        },
+        crate::ir::Class {
+            label: class.clone(),
+            fields: captures.iter().map(|(n, _)| n.clone()).collect(),
+            conforms: Vec::new(),
+            methods: vec![(FN_INVOKE.to_owned(), class.clone())],
+        },
+        more,
+    )
+}
+
 const GEN_SELF: &str = "gen#self";
 
 /// The state value meaning "this generator has finished" — any value no
@@ -5826,7 +6145,7 @@ fn lower_generator(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> (Vec<Function>, crate::ir::Class) {
+) -> (Vec<Function>, Vec<crate::ir::Class>) {
     let class = format!("{name}$gen");
     let elem = generator_element(name, m, exprs, checked_types);
     let is_static = m.modifiers.contains(&Modifier::Static);
@@ -5855,28 +6174,29 @@ fn lower_generator(
         exprs,
         checked_types,
     );
-    let (advance, fields) = advance;
+    let (mut advance, fields) = advance;
     let current = lower_generator_current(&class, elem, src);
 
-    (
-        vec![factory, advance, current],
-        crate::ir::Class {
-            label: class.clone(),
-            fields: fields.into_iter().map(|(n, _)| n).collect(),
-            // `Iterable`/`Iterator` are compiler-declared and have no layout
-            // entry of their own, so `mwl_codegen::Classes::define` drops an
-            // unresolvable label here the same way it does for any other —
-            // which costs nothing today, since a `foreach` over a cursor
-            // dispatches through the method table rather than through an
-            // `instanceof`. Stated rather than left implicit: an
-            // `$gen instanceof Iterator` would answer `false`.
-            conforms: vec![mwl_hir_iterator_label()],
-            methods: vec![
-                (GEN_ADVANCE.to_owned(), class.clone()),
-                (GEN_CURRENT_METHOD.to_owned(), class),
-            ],
-        },
-    )
+    let mut functions = vec![factory, advance.function, current];
+    functions.append(&mut advance.closures);
+    let mut classes = advance.classes;
+    classes.push(crate::ir::Class {
+        label: class.clone(),
+        fields: fields.into_iter().map(|(n, _)| n).collect(),
+        // `Iterable`/`Iterator` are compiler-declared and have no layout
+        // entry of their own, so `mwl_codegen::Classes::define` drops an
+        // unresolvable label here the same way it does for any other —
+        // which costs nothing today, since a `foreach` over a cursor
+        // dispatches through the method table rather than through an
+        // `instanceof`. Stated rather than left implicit: an
+        // `$gen instanceof Iterator` would answer `false`.
+        conforms: vec![mwl_hir_iterator_label()],
+        methods: vec![
+            (GEN_ADVANCE.to_owned(), class.clone()),
+            (GEN_CURRENT_METHOD.to_owned(), class),
+        ],
+    });
+    (functions, classes)
 }
 
 /// `Iterator`'s bare label, restated here for the reason
@@ -6011,7 +6331,7 @@ fn lower_generator_advance(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
-) -> (Function, Vec<(String, Ty)>) {
+) -> (Lowered, Vec<(String, Ty)>) {
     let label = format!("{class}::{GEN_ADVANCE}");
     let mut low = Lowering::new(&label, src, Ty::Bool, exprs, checked_types);
     let entry = low.new_block();
@@ -6103,16 +6423,22 @@ fn lower_generator_advance(
         },
     );
 
+    let pending = std::mem::take(&mut low.closures);
     let (blocks, stmt_spans, edge_spans) = low.finish();
+    let (closures, classes) = drain_closures(pending, src, exprs, checked_types);
     (
-        Function {
-            name: label,
-            params: vec![Ty::Object],
-            ret: Ty::Bool,
-            blocks,
-            entry,
-            stmt_spans,
-            edge_spans,
+        Lowered {
+            function: Function {
+                name: label,
+                params: vec![Ty::Object],
+                ret: Ty::Bool,
+                blocks,
+                entry,
+                stmt_spans,
+                edge_spans,
+            },
+            closures,
+            classes,
         },
         frame.fields,
     )
@@ -6236,7 +6562,7 @@ mod tests {
 
         let name = span_text(map.file(file), method.name).to_owned();
         let f = lower_method(&name, method, map.file(file), &exprs, &checked_types);
-        (f, map, file)
+        (f.function, map, file)
     }
 
     /// Parses, resolves and checks `src` exactly as [`lower_first_method`]
@@ -6263,7 +6589,7 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
         let f = lower_script("<script>", &stmts, map.file(file), &exprs, &checked_types);
-        (f, map, file)
+        (f.function, map, file)
     }
 
     /// The whole file lowered — every function and every class, which is
@@ -8102,6 +8428,24 @@ class G {
     }
   }
 }
+",
+        );
+        assert_snapshot!(print_program(&p, map.file(file)));
+    }
+
+    /// ADR 0031's `fn` literal, lowered: the literal site allocates the
+    /// captured-environment object and stores a *retained* snapshot of each
+    /// capture into it, and the body becomes that class's one `invoke`, which
+    /// reads every capture back out of parameter 0. See `lower_closure`,
+    /// which owns the representation.
+    #[test]
+    fn a_closure_lowers_to_a_captured_environment_object_and_an_invoke_method() {
+        let (p, map, file) = lower_program(
+            "<?mwl
+string $tag = \"t\";
+int $bump = 1;
+var $f = fn(int $n): string => $tag;
+echo $bump;
 ",
         );
         assert_snapshot!(print_program(&p, map.file(file)));

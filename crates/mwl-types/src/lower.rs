@@ -431,6 +431,7 @@ mod tests {
             interner: &mut interner,
             exprs: &mut exprs,
             diags: &mut diags,
+            closure_seq: 0,
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);
         (id, interner, diags)

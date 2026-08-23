@@ -54,11 +54,41 @@ pub(crate) struct LocalInfo {
 
 /// One function/method/closure body's local variables — a single table for
 /// the whole body, since declaration is function-scoped (ADR 0007 § 1), not
-/// block-scoped. A closure gets a fresh, empty one of its own: ADR 0031's
-/// capture is by value, never a shared binding.
+/// block-scoped. A closure gets a fresh one of its own: ADR 0031's capture is
+/// by value, never a shared binding, so an outer name reaches the body
+/// through [`Captures`] rather than through `by_name`.
 #[derive(Debug, Default)]
 pub(crate) struct LocalScope {
     pub(crate) by_name: FxHashMap<String, LocalInfo>,
+    /// Set only for a closure body's own scope — see [`Captures`].
+    pub(crate) captures: Option<Captures>,
+}
+
+/// The outer bindings a closure body may read, and the ones it actually did.
+///
+/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 2
+/// captures "exactly the outer variables its body reads," which is a fact
+/// about the body rather than about the enclosing scope — so `available`
+/// holds every name that *could* be captured, and `used` accumulates the ones
+/// a read or a write actually reached, in first-touch order. That order is
+/// what `mwl-ir` lays the closure object's fields out in, so it has to be
+/// deterministic; a set would not be.
+///
+/// `used` is a [`RefCell`] because [`crate::expr::check_expr`] takes
+/// `&LocalScope` — the whole expression checker threads the scope
+/// immutably, and a capture is discovered mid-expression. The alternative,
+/// a separate free-variable walk of the body's AST before checking it, would
+/// be a second traversal that has to agree with the checker's own notion of
+/// what a variable read is; recording at the one lookup site cannot drift
+/// from it.
+#[derive(Debug, Default)]
+pub(crate) struct Captures {
+    /// Every binding visible from the enclosing body at the `fn` literal —
+    /// its own locals plus, for a nested closure, whatever the enclosing
+    /// closure could itself capture.
+    pub(crate) available: FxHashMap<String, TypeId>,
+    /// The subset of `available` this body touched, in first-touch order.
+    pub(crate) used: std::cell::RefCell<Vec<(String, TypeId)>>,
 }
 
 impl LocalScope {
@@ -73,6 +103,49 @@ impl LocalScope {
     /// definitely assigned, so the caller adds `name` to `live` itself.
     pub(crate) fn declare_param(&mut self, name: String, ty: TypeId, declared_span: Span) {
         self.by_name.insert(name, LocalInfo { ty, declared_span });
+    }
+
+    /// The declared type `name` is readable and writable at in this body —
+    /// its own local, or, in a closure, an outer binding, which this call
+    /// records as captured.
+    ///
+    /// The one lookup every read and every write goes through, so a name can
+    /// never be resolved without the capture being noticed.
+    pub(crate) fn declared_ty(&self, name: &str) -> Option<TypeId> {
+        if let Some(info) = self.by_name.get(name) {
+            return Some(info.ty);
+        }
+        let captures = self.captures.as_ref()?;
+        let ty = *captures.available.get(name)?;
+        let mut used = captures.used.borrow_mut();
+        if !used.iter().any(|(n, _)| n == name) {
+            used.push((name.to_owned(), ty));
+        }
+        Some(ty)
+    }
+
+    /// Records `name` as captured by this body without reading it — how a
+    /// *nested* closure's capture reaches the enclosing one, which has to
+    /// capture it too in order to have it to hand on.
+    pub(crate) fn note_capture(&self, name: &str) {
+        if self.by_name.contains_key(name) {
+            return;
+        }
+        self.declared_ty(name);
+    }
+
+    /// Every name this body can see, for seeding a nested closure's
+    /// [`Captures::available`].
+    pub(crate) fn visible(&self) -> FxHashMap<String, TypeId> {
+        let mut out: FxHashMap<String, TypeId> = self
+            .captures
+            .as_ref()
+            .map(|c| c.available.clone())
+            .unwrap_or_default();
+        for (name, info) in &self.by_name {
+            out.insert(name.clone(), info.ty);
+        }
+        out
     }
 }
 
