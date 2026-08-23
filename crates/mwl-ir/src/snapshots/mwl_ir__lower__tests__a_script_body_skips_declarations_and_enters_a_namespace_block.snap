@@ -7,11 +7,15 @@ fn <script>() -> mixed {
     safepoint
     ; stmt s0 @5:15-5:28
     v0 = const.str "in-ns"  ; string
-    helper.echo_str v0
+    helper.echo_str v0 ! bb1
     release v0
     ; stmt s1 @6:1-6:14
     v1 = const.str "after"  ; string
-    helper.echo_str v1
+    helper.echo_str v1 ! bb2
     release v1
     return
+  bb1:
+    propagate "<script>() at t.mwl:5"
+  bb2:
+    propagate "<script>() at t.mwl:6"
 }

@@ -7,8 +7,12 @@ fn m(object) -> void {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @7:5-7:26
-    v1 = new Foo()  ; object
+    v1 = new Foo() ! bb1  ; object
     ; stmt s1 @8:5-8:19
-    v2 = call Foo::greet(this: v1)  ; void
+    v2 = call Foo::greet(this: v1) ! bb2  ; void
     return
+  bb1:
+    propagate "m() at t.mwl:7"
+  bb2:
+    propagate "m() at t.mwl:8"
 }

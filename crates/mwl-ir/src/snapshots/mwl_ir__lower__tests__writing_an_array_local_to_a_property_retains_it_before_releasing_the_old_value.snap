@@ -9,7 +9,7 @@ fn m(object) -> void {
     ; stmt s0 @10:5-10:29
     v1 = const.int 1  ; int
     v2 = array.new ["0": v1]  ; array
-    v3 = new Foo(v2)  ; object
+    v3 = new Foo(v2) ! bb1  ; object
     ; stmt s1 @11:5-11:24
     v4 = const.int 2  ; int
     v5 = array.new ["0": v4]  ; array
@@ -20,4 +20,6 @@ fn m(object) -> void {
     field.set v3, Foo::data, v5
     release v5
     return
+  bb1:
+    propagate "m() at t.mwl:10"
 }

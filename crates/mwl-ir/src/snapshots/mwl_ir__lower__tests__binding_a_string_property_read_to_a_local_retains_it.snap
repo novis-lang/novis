@@ -7,10 +7,12 @@ fn m(object) -> void {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @7:5-7:26
-    v1 = new Foo()  ; object
+    v1 = new Foo() ! bb1  ; object
     ; stmt s1 @8:5-8:25
     v2 = field.get v1, Foo::name  ; string
     retain v2
     release v2
     return
+  bb1:
+    propagate "m() at t.mwl:7"
 }

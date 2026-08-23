@@ -8,6 +8,8 @@ fn m(object) -> int {
     v0 = param 0  ; object
     ; stmt s0 @4:5-4:26
     v1 = const.int 1  ; int
-    v2 = call T::make(v1)  ; int
+    v2 = call T::make(v1) ! bb1  ; int
     return v2
+  bb1:
+    propagate "m() at t.mwl:4"
 }

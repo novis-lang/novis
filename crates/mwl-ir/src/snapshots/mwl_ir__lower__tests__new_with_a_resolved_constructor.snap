@@ -8,6 +8,8 @@ fn make(object) -> object {
     v0 = param 0  ; object
     ; stmt s0 @7:5-7:23
     v1 = const.int 1  ; int
-    v2 = new Foo(v1)  ; object
+    v2 = new Foo(v1) ! bb1  ; object
     return v2
+  bb1:
+    propagate "make() at t.mwl:7"
 }

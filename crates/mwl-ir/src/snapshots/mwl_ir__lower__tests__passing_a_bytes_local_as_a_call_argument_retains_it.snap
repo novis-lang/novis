@@ -9,7 +9,10 @@ fn m(object, bytes) -> int {
     v1 = param 1  ; bytes
     ; stmt s0 @4:5-4:27
     retain v1
-    v2 = call T::take(v1)  ; int
+    v2 = call T::take(v1) ! bb1  ; int
     release v1
     return v2
+  bb1:
+    release v1
+    propagate "m() at t.mwl:4"
 }

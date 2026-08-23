@@ -7,6 +7,8 @@ fn make(object) -> object {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @5:5-5:22
-    v1 = new Foo()  ; object
+    v1 = new Foo() ! bb1  ; object
     return v1
+  bb1:
+    propagate "make() at t.mwl:5"
 }

@@ -7,6 +7,8 @@ fn m(object) -> string {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @4:5-4:25
-    v1 = call T::make()  ; string
+    v1 = call T::make() ! bb1  ; string
     return v1
+  bb1:
+    propagate "m() at t.mwl:4"
 }

@@ -12,7 +12,9 @@ fn <script>() -> mixed {
     v2 = add v0, v1  ; int
     ; stmt s2 @4:1-4:9
     v3 = helper.int_to_string v2  ; string
-    helper.echo_str v3
+    helper.echo_str v3 ! bb1
     release v3
     return
+  bb1:
+    propagate "<script>() at t.mwl:4"
 }

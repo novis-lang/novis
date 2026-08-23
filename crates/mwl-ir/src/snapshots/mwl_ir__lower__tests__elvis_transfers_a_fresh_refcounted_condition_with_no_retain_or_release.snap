@@ -7,15 +7,17 @@ fn m(object) -> string {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @4:5-4:32
-    v1 = call T::make()  ; string
+    v1 = call T::make() ! bb1  ; string
     v2 = helper.str_truthy v1  ; bool
-    branch v2 -> bb1 (e0), bb2 (e1)
+    branch v2 -> bb2 (e0), bb3 (e1)
   bb1:
-    jump bb3
+    propagate "m() at t.mwl:4"
   bb2:
-    v3 = const.str "x"  ; string
-    jump bb3
+    jump bb4
   bb3:
-    v4 = phi [bb1: v1, bb2: v3]  ; string
+    v3 = const.str "x"  ; string
+    jump bb4
+  bb4:
+    v4 = phi [bb2: v1, bb3: v3]  ; string
     return v4
 }

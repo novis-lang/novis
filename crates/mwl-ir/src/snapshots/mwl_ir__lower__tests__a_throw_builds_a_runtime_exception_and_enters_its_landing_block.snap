@@ -5,11 +5,11 @@ expression: "print_function(&f, map.file(file))"
 fn <script>() -> mixed {
   bb0:
     safepoint
-    ; stmt s0 @2:1-2:22
-    v0 = const.str "Hello, World!"  ; string
-    helper.echo_str v0 ! bb1
+    ; stmt s0 @2:1-2:29
+    v0 = const.str "boom"  ; string
+    v1 = throwable.new v0  ; throwable
     release v0
-    return
+    throw v1 -> bb1
   bb1:
     propagate "<script>() at t.mwl:2"
 }

@@ -707,7 +707,22 @@
 //!   because `.claude/loop-goal.md`'s acceptance program has none, and
 //!   `mwl_types` does not check one either (its own `check_stmt` treats
 //!   `InlineHtml` as a no-op), so landing it would widen two crates at once.
-//! - `for`/`switch`/`match`/`try` are still unsupported: lowering panics
+//! - **`try`/`catch`/`throw` lower; `finally` does not.** See
+//!   [`ir::Inst::on_error`] for the error edge every call-shaped instruction
+//!   now carries, [`lower::Lowering::landing_block`] for what each landing
+//!   block releases and why the propagate and catch exits release different
+//!   things, and [`lower::Lowering::lower_try`] for the one-clause,
+//!   global-`Throwable`-only restriction and the `catch` variable's
+//!   clause-scoped lifetime. Out of scope, each panicking rather than
+//!   miscompiling: `finally`, a second `catch` clause, a user exception class
+//!   (all three need M4's object representation or its `instanceof` test),
+//!   `throw` in expression position, and `Throwable::getTrace()`, which
+//!   returns `array<…>` and is `.claude/loop-goal.md`'s explicit M4
+//!   carry-over. One narrower gap sits inside what *does* lower: the landing
+//!   sweep covers the frame's locals, not a temporary still in flight inside
+//!   the expression that threw — see [`lower::Lowering::landing_block`]'s own
+//!   doc comment.
+//! - `for`/`switch`/`match` are still unsupported: lowering panics
 //!   naming the statement. [`ir::Terminator::Branch`] and [`ids::EdgeId`]
 //!   are both already exercised by `if`/`while`, so widening to the rest is
 //!   expected to reuse the same shapes rather than add new ones — see

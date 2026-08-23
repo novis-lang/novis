@@ -12,7 +12,9 @@ use std::fmt::Write as _;
 use mwl_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
-use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, UnOp};
+use crate::ir::{
+    BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, ThrowableOp, UnOp,
+};
 use crate::ty::Ty;
 
 /// Renders every function in `program`, in order, as text.
@@ -118,7 +120,12 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
     } = inst.kind
     {
         let operands: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
-        let _ = writeln!(out, "    helper.echo_str {}", operands.join(", "));
+        let _ = writeln!(
+            out,
+            "    helper.echo_str {}{}",
+            operands.join(", "),
+            error_edge(inst)
+        );
         return;
     }
     let v = inst
@@ -179,6 +186,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ArrayGet { array, key } => {
             format!("array.get v{}, v{}", array.index(), key.index())
         }
+        InstKind::TakeThrown => "take.thrown".to_owned(),
+        InstKind::Throwable { op, operand } => {
+            format!("throwable.{} v{}", throwable_op_name(*op), operand.index())
+        }
         InstKind::StmtMarker(_)
         | InstKind::Safepoint
         | InstKind::Retain { .. }
@@ -189,7 +200,22 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             unreachable!("returned above")
         }
     };
-    let _ = writeln!(out, "    v{} = {rhs}  ; {}", v.index(), ty_name(ty));
+    let _ = writeln!(
+        out,
+        "    v{} = {rhs}{}  ; {}",
+        v.index(),
+        error_edge(inst),
+        ty_name(ty)
+    );
+}
+
+/// ` ! bbN` for an instruction carrying [`Inst::on_error`], the empty string
+/// for one that cannot fail — see that field's own doc comment.
+fn error_edge(inst: &Inst) -> String {
+    match inst.on_error {
+        Some(landing) => format!(" ! {}", block_name(landing)),
+        None => String::new(),
+    }
 }
 
 fn print_term(out: &mut String, term: &Terminator) {
@@ -202,6 +228,20 @@ fn print_term(out: &mut String, term: &Terminator) {
         }
         Terminator::Jump(b) => {
             let _ = writeln!(out, "    jump {}", block_name(*b));
+        }
+        Terminator::Throw { value, landing } => {
+            let _ = writeln!(
+                out,
+                "    throw v{} -> {}",
+                value.index(),
+                block_name(*landing)
+            );
+        }
+        Terminator::Propagate { frame } => {
+            let _ = writeln!(out, "    propagate {frame:?}");
+        }
+        Terminator::Catch { handler } => {
+            let _ = writeln!(out, "    catch -> {}", block_name(*handler));
         }
         Terminator::Branch {
             cond,
@@ -244,6 +284,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Str => "string",
         Ty::Bytes => "bytes",
         Ty::Array => "array",
+        Ty::Throwable => "throwable",
         Ty::Mixed => "mixed",
     }
 }
@@ -268,6 +309,14 @@ fn un_op_name(op: UnOp) -> &'static str {
     match op {
         UnOp::Neg => "neg",
         UnOp::Not => "not",
+    }
+}
+
+fn throwable_op_name(op: ThrowableOp) -> &'static str {
+    match op {
+        ThrowableOp::New => "new",
+        ThrowableOp::Message => "message",
+        ThrowableOp::TraceAsString => "trace_as_string",
     }
 }
 

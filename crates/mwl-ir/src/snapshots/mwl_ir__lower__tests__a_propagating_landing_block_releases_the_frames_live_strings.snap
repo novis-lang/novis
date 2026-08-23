@@ -1,0 +1,22 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    ; stmt s0 @5:1-5:20
+    v0 = const.str "held"  ; string
+    ; stmt s1 @6:1-6:9
+    v1 = call T::go() ! bb1  ; void
+    ; stmt s2 @7:1-7:9
+    helper.echo_str v0 ! bb2
+    release v0
+    return
+  bb1:
+    release v0
+    propagate "<script>() at t.mwl:6"
+  bb2:
+    release v0
+    propagate "<script>() at t.mwl:7"
+}

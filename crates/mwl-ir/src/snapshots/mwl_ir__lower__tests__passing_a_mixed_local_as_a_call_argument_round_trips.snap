@@ -8,6 +8,8 @@ fn m(object, mixed) -> mixed {
     v0 = param 0  ; object
     v1 = param 1  ; mixed
     ; stmt s0 @4:5-4:32
-    v2 = call T::identity(this: v0, v1)  ; mixed
+    v2 = call T::identity(this: v0, v1) ! bb1  ; mixed
     return v2
+  bb1:
+    propagate "m() at t.mwl:4"
 }

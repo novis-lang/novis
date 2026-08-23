@@ -77,6 +77,33 @@ pub struct Inst {
     pub ty: Option<Ty>,
     /// What the instruction does.
     pub kind: InstKind,
+    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s error edge:
+    /// the landing block a non-`OK` status returned by this instruction
+    /// branches to.
+    ///
+    /// `Some` for the instructions that can actually fail: [`InstKind::Call`],
+    /// [`InstKind::New`], and the one [`InstKind::HelperCall`] with a real
+    /// failure mode, [`Helper::EchoStr`]'s write. `None` everywhere else,
+    /// which is not a gap in two different ways — a [`InstKind::BinOp`] or a
+    /// [`InstKind::Concat`] returns no status at all, and a *conversion*
+    /// helper (`Helper::IntToString`, the truthy table) returns one whose only
+    /// non-`OK` value is the miscompile guard `mwl_runtime::helpers` describes:
+    /// a `FATAL`, which no cleanup path and no `catch` can act on, so giving
+    /// it a landing block would emit code for an outcome that ends the request
+    /// regardless.
+    ///
+    /// The consequence is stated rather than hidden: a `FATAL` raised inside a
+    /// frame does not release that frame's locals. A `THROWN` — the one a
+    /// program can produce and recover from — always does.
+    ///
+    /// The landing block it names holds exactly the
+    /// [`InstKind::Release`]s this frame owes on the error path — the frame's
+    /// live refcounted locals at this instruction's own program point — and
+    /// ends in [`Terminator::Propagate`] or [`Terminator::Catch`]. It is one
+    /// block per call site rather than one shared per region, so a `catch`
+    /// handler's phis get a distinct predecessor per site; see
+    /// `crate::lower::Lowering::landing_block`.
+    pub on_error: Option<BlockId>,
 }
 
 /// What one [`Inst`] does.
@@ -255,6 +282,40 @@ pub enum InstKind {
         /// The right operand, already lowered and already [`Ty::Str`].
         rhs: ValueId,
     },
+    /// One of the closed set of operations over a runtime-owned exception:
+    /// building one, or reading one of its two accessors.
+    ///
+    /// A dedicated instruction rather than a [`Helper`] call, for exactly the
+    /// reason [`InstKind::Concat`] is one: each operation is infallible and
+    /// takes a single already-typed operand, so it needs neither
+    /// [`HelperCall`](InstKind::HelperCall)'s argument list nor
+    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s status check
+    /// — `mwl-runtime` backs all three with bare-pointer primitives alongside
+    /// `mwl_str_concat` rather than with helpers.
+    ///
+    /// `operand` is only *read*, never retained, and the result is a fresh
+    /// value with exactly one natural owner — the same ownership shape
+    /// [`InstKind::Concat`]'s own doc comment describes, and the reason
+    /// `crate::lower` releases a non-aliasing operand right after this
+    /// instruction consumes it.
+    Throwable {
+        /// Which operation.
+        op: ThrowableOp,
+        /// The single operand: a [`crate::ty::Ty::Str`] message for
+        /// [`ThrowableOp::New`], the exception itself for the two accessors.
+        operand: ValueId,
+    },
+    /// Takes the pending exception out of the request context, transferring
+    /// ownership of one reference to the value this defines — the first
+    /// instruction of a `catch` clause's handler block, and the only way an
+    /// MWL binding ever names a [`crate::ty::Ty::Throwable`] that this frame
+    /// did not construct itself.
+    ///
+    /// Defined as an instruction rather than a [`Helper`] call for the same
+    /// reason [`InstKind::Concat`] is one: it has a single fixed shape, takes
+    /// no MWL operand, and cannot fail — so it needs neither the argument
+    /// list nor the status check `HelperCall` exists to carry.
+    TakeThrown,
     /// Increments a [`Ty::is_refcounted`] value's reference count — emitted
     /// exactly where `crate::lower`'s "copy" case needs a second durable
     /// owner to see it stay alive (see that module's docs for the precise
@@ -494,6 +555,30 @@ pub enum Helper {
     EchoStr,
 }
 
+/// One member of the closed set of operations [`InstKind::Throwable`] can
+/// perform — the whole of what MWL code can do with an exception value.
+///
+/// Closed because [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+/// § 1's `Throwable`/`Exception`/`Error` have no source declaration, so they
+/// have no members beyond what the runtime provides. `getTrace()` is
+/// deliberately absent: it returns `array<…>`, and lowering an array is M4's
+/// work — `.claude/loop-goal.md` records that carry-over.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
+pub enum ThrowableOp {
+    /// `new Exception($message)`: a fresh exception with an empty backtrace.
+    /// Takes a [`crate::ty::Ty::Str`], produces a
+    /// [`crate::ty::Ty::Throwable`].
+    New,
+    /// `getMessage()`. Takes the exception, produces a fresh
+    /// [`crate::ty::Ty::Str`].
+    Message,
+    /// `getTraceAsString()`. Takes the exception, produces a fresh
+    /// [`crate::ty::Ty::Str`] holding the frames it has unwound out of so far,
+    /// `#0` first.
+    TraceAsString,
+}
+
 /// A binary arithmetic or comparison operator, already resolved to a single
 /// representation (no `mixed`/union dispatch — see the crate docs' "no
 /// runtime-helper calls" known gap).
@@ -544,6 +629,53 @@ pub enum Terminator {
     /// An unconditional jump — a branch's arm rejoining its merge point, or a
     /// loop's back edge to its header.
     Jump(BlockId),
+    /// `throw expr;`: hands `value`'s one reference to the request context as
+    /// the pending exception, then enters `landing` exactly the way a failed
+    /// call's status check does.
+    ///
+    /// A terminator rather than an instruction because a `throw` never falls
+    /// through, and because the status entering `landing` is the constant
+    /// `THROWN` here rather than a value read back from a call.
+    Throw {
+        /// The [`crate::ty::Ty::Throwable`] being raised. Ownership of one
+        /// reference transfers to the context — `crate::lower` retains an
+        /// aliasing operand (`throw $e;`) first.
+        value: ValueId,
+        /// The landing block this frame's cleanup lives in, exactly the block
+        /// [`Inst::on_error`] would name for a call at this same point.
+        landing: BlockId,
+    },
+    /// A landing block's exit when nothing in this frame handles the failure:
+    /// record `frame` on the pending exception's backtrace, then return the
+    /// status onward unchanged.
+    ///
+    /// `frame` is the fully rendered `Class::method() at <file>:<line>` label,
+    /// built at lowering time because that is where a [`mwl_diagnostics::Span`]
+    /// can still be resolved to a line — `mwl-codegen` sees only byte offsets.
+    /// The line is the enclosing statement's, read from the same per-statement
+    /// span table [`Function::stmt_spans`] already carries for ADR 0018's
+    /// probes; there is no second position table.
+    ///
+    /// A `FATAL` pushes nothing: it is not a `Throwable` at all
+    /// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)), which
+    /// is why the status travels to `mwl_trace_push` rather than being decided
+    /// here.
+    Propagate {
+        /// The backtrace label — see above.
+        frame: String,
+    },
+    /// A landing block's exit inside a `try`: on `THROWN`, enter `handler`;
+    /// on any other non-`OK` status, return it onward the way
+    /// [`Terminator::Propagate`] does.
+    ///
+    /// No frame is recorded here, and deliberately so: the backtrace holds the
+    /// frames the exception actually unwound *out of*, and a caught throw
+    /// never leaves this one. See `mwl_runtime::throwable`'s own docs for why
+    /// that differs from PHP's construction-time stack snapshot.
+    Catch {
+        /// The `catch` clause's handler block.
+        handler: BlockId,
+    },
     /// A two-way conditional branch, carrying the [`EdgeId`] ADR 0018's
     /// branch probe needs on *each* outgoing edge.
     Branch {
