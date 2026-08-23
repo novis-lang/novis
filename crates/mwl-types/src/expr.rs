@@ -1133,6 +1133,19 @@ fn check_new_target(
             {
                 env.interner.class(qname)
             } else {
+                // Diagnosed rather than erased to `mixed`: `mwl-ir` has no
+                // class to allocate and panics naming the missing table entry,
+                // which is a worse report of the same fact. The spelling this
+                // most often catches is PHP's `new Exception(…)` — spec § 10
+                // has no such class, so the ordinary undeclared-class
+                // diagnostic is exactly the right answer.
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_UNDEFINED_CLASS,
+                        format!("`{qname}` is not declared"),
+                    )
+                    .with_primary(name.span, "no matching declaration"),
+                );
                 env.interner.mixed()
             }
         }
@@ -1745,20 +1758,16 @@ fn check_generic_args(
     (arg_types, Some(sig))
 }
 
-/// Whether `qname` names one of ADR 0020 § 0's three global exception
-/// classes — `Throwable`, `Exception`, `Error` — directly, or reaches one by
-/// walking its `extends` chain, the same reachability question
-/// [`mwl_hir::implements_interface`] already answers for `Comparable`/
-/// `Stringable`. `mwl_hir::QName::is_reserved_global_class` is what lets
-/// `new Exception(...)`/a `class MyError extends Exception {}` resolve to a
-/// real `Ty::Class` at all in the absence of a declared stdlib for them; this
-/// reuses that trust to answer "is this the sink ADR 0033 § 4 names."
+/// Whether `qname` is `Throwable` or reaches it by walking its `extends`
+/// chain — the same reachability question [`mwl_hir::implements_interface`]
+/// already answers for `Comparable`/`Stringable`.
+///
+/// One root is enough because spec § 10 makes `Throwable` the only one:
+/// every other exception class, seeded or user-declared, descends from it
+/// through links `mwl_hir::seed_exception_tree` put in the graph.
 fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
-    const GLOBAL_THROWABLE_NAMES: [&str; 3] = ["Throwable", "Exception", "Error"];
-    GLOBAL_THROWABLE_NAMES.iter().any(|name| {
-        let target = QName::parse(name);
-        *qname == target || mwl_hir::implements_interface(qname, &target, graph)
-    })
+    let root = QName::parse(mwl_hir::errors::ROOT);
+    *qname == root || mwl_hir::implements_interface(qname, &root, graph)
 }
 
 /// ADR 0033 § 4: a `Throwable`-shaped class's constructor message argument

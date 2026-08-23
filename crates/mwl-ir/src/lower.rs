@@ -47,8 +47,8 @@
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
     AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
-    ForeachBinding, MemberName, MethodMember, Modifier, NamespaceDecl, Stmt, StmtKind, StringPart,
-    Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    ForeachBinding, MethodMember, Modifier, NamespaceDecl, Stmt, StmtKind, StringPart, Type,
+    TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
 use mwl_types::layout::ClassLayoutTable;
@@ -56,9 +56,7 @@ use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, IdGen, ValueId};
-use crate::ir::{
-    BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, ThrowableOp, UnOp,
-};
+use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
 use crate::ty::Ty;
 use crate::{span_text, strip_sigil};
 
@@ -136,12 +134,35 @@ enum ArgOwnership {
 /// its own `(landing block, env)` pair here when it is the latter — which
 /// [`Lowering::lower_try`] then folds into the handler's phis through the same
 /// [`Lowering::merge_envs`] machinery a `break` edge already uses.
-struct TryFrame {
-    /// The `catch` clause's handler block.
+/// Where a `catch` clause's body goes when it finishes, and what it takes
+/// with it — [`Lowering::lower_try`]'s half of the dispatch it hands
+/// [`Lowering::lower_catch_clauses`].
+struct CatchJoin<'e> {
+    /// The block after the whole `try`, which every completed clause jumps to.
+    after_block: BlockId,
+    /// The environment at the dispatch block, after its phis — every clause
+    /// body starts from a clone of this.
+    dispatch_env: Env,
+    /// The `(block, env)` pairs `lower_try` will merge into `after_block`'s
+    /// own phis; each completed clause appends one.
+    after_incoming: &'e mut Vec<(BlockId, Env)>,
+}
+
+struct TryFrame<'a> {
+    /// Where a failure inside this region goes: the `catch` dispatch block, or
+    /// — for a `try`/`finally` with no clauses — the block that runs the
+    /// `finally` body and re-raises.
     handler: BlockId,
     /// One `(landing block, env)` pair per protected call site lowered inside
     /// this region's body, in source order.
     edges: Vec<(BlockId, Env)>,
+    /// This region's `finally` body, if it has one.
+    ///
+    /// Held as the *AST* block rather than a lowered one because every exit
+    /// out of the protected region lowers its own copy — see
+    /// [`Lowering::run_pending_finallys`] for why duplication is the shape
+    /// chosen over a subroutine.
+    finally: Option<&'a Block>,
 }
 
 /// Lowers a whole checked file: every class method that has a body, plus the
@@ -216,6 +237,11 @@ pub fn lower_file(
     let mut functions = Vec::new();
     walk(stmts, src, exprs, checked_types, &mut functions);
     functions.push(lower_script(script, stmts, src, exprs, checked_types));
+    // The one function with no source text — see
+    // `synthesized_throwable_constructor`. Emitted unconditionally: the
+    // exception tree is in every program's class table, so a unit that omitted
+    // this would be one where `new LogicError(…)` names a missing target.
+    functions.push(synthesized_throwable_constructor());
 
     // Copied straight across rather than recomputed: `mwl-types` already
     // resolved the slot order and the supertype set against the class graph,
@@ -428,7 +454,7 @@ struct Lowering<'a> {
     loop_stack: Vec<LoopFrame>,
     /// The stack of enclosing `try` regions currently being lowered, innermost
     /// last — see [`TryFrame`].
-    try_stack: Vec<TryFrame>,
+    try_stack: Vec<TryFrame<'a>>,
     /// The one local name this frame holds *without* owning a reference to,
     /// or `None`.
     ///
@@ -836,7 +862,7 @@ impl<'a> Lowering<'a> {
     /// The unbraced `namespace X;` form declares no statements of its own,
     /// so it is skipped like any other declaration; the statements that
     /// follow it are siblings and are reached by the ordinary loop.
-    fn lower_script_stmts(&mut self, stmts: &[Stmt], cur: &mut BlockId, env: &mut Env) {
+    fn lower_script_stmts(&mut self, stmts: &'a [Stmt], cur: &mut BlockId, env: &mut Env) {
         for stmt in stmts {
             if self.is_terminated(*cur) {
                 break;
@@ -861,7 +887,7 @@ impl<'a> Lowering<'a> {
     /// Lowers a statement list into `cur`, stopping early once `cur` is
     /// sealed (dead code after a `return` inside the list is simply never
     /// lowered — nothing downstream needs it modeled).
-    fn lower_stmts(&mut self, stmts: &[Stmt], cur: &mut BlockId, env: &mut Env) {
+    fn lower_stmts(&mut self, stmts: &'a [Stmt], cur: &mut BlockId, env: &mut Env) {
         for stmt in stmts {
             if self.is_terminated(*cur) {
                 break;
@@ -870,7 +896,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    fn lower_stmt(&mut self, stmt: &Stmt, cur: &mut BlockId, env: &mut Env) {
+    fn lower_stmt(&mut self, stmt: &'a Stmt, cur: &mut BlockId, env: &mut Env) {
         let stmt_id = self.ids.next_stmt(stmt.span);
         self.cur_stmt_span = stmt.span;
         self.block_insts[cur.index() as usize].push(Inst {
@@ -941,8 +967,14 @@ impl<'a> Lowering<'a> {
                 } else {
                     None
                 };
-                self.release_all_locals(*cur, env, except.as_deref());
-                self.seal(*cur, Terminator::Return(v));
+                // Every enclosing `finally` runs before the frame is left —
+                // see `run_pending_finallys` for why each exit lowers its own
+                // copy of the body.
+                self.run_pending_finallys(cur, env);
+                if !self.is_terminated(*cur) {
+                    self.release_all_locals(*cur, env, except.as_deref());
+                    self.seal(*cur, Terminator::Return(v));
+                }
             }
             StmtKind::Block(b) => self.lower_stmts(&b.stmts, cur, env),
             StmtKind::If { cond, then, else_ } => {
@@ -1041,83 +1073,117 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics naming the operand's representation if it is not a
-    /// [`Ty::Throwable`] — the only producer of one is `new Exception(…)` and
-    /// friends, so anything else is a shape this crate does not lower (a
-    /// user class `extends Exception` needs M4's object representation).
+    /// [`Ty::Object`] — the checker has already refused throwing anything but
+    /// a `Throwable` subclass, so anything else here is a lowering bug.
     fn lower_throw(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) {
         let (v, ty) = self.lower_expr_top(inner, None, env, cur);
         assert!(
-            matches!(ty, Ty::Throwable),
-            "mwl-ir lowers `throw` only for a runtime `Throwable` — got representation {ty:?}; \
+            matches!(ty, Ty::Object),
+            "mwl-ir lowers `throw` only for an exception object — got representation {ty:?}; \
              see the crate docs' known gaps"
         );
         if is_aliasing_read(&inner.kind) {
             self.emit_retain(*cur, v);
         }
+        self.write_throw_location(*cur, v);
         let landing = self.landing_block(env);
         self.seal(*cur, Terminator::Throw { value: v, landing });
     }
 
-    /// `try { … } catch (T $e) { … }` — the protected region, its handler, and
-    /// the join point after both.
+    /// Fills `$e->location` with the site of the `throw` that is about to
+    /// raise it.
+    ///
+    /// **The throw site, not the construction site**, and deliberately so: the
+    /// backtrace beside it holds the frames the exception *unwound out of*
+    /// rather than a snapshot taken at `new` (see `mwl_runtime::throwable`'s
+    /// own docs for why ADR 0002's checked-return convention makes that the
+    /// cheap shape), so a `location` naming the construction site would be the
+    /// one field disagreeing with everything around it.
+    ///
+    /// The write goes through the *root* class label. `mwl_runtime::object`
+    /// lays a subclass's slots after its parent's, so a slot resolved against
+    /// `Throwable` is valid for every exception class there can be — which is
+    /// the same property that lets the runtime reach `backtrace` at all.
+    fn write_throw_location(&mut self, cur: BlockId, thrown: ValueId) {
+        let (line, _) = self.src.line_col(self.cur_stmt_span.start);
+        let rendered = format!("{}:{}", self.src.name(), line + 1);
+        let (previous, _) = self.emit(
+            cur,
+            Ty::Str,
+            InstKind::FieldGet {
+                object: thrown,
+                class: THROWABLE_ROOT.to_owned(),
+                field: LOCATION_FIELD.to_owned(),
+            },
+        );
+        self.emit_release(cur, previous);
+        let (location, _) = self.emit(cur, Ty::Str, InstKind::ConstStr(rendered));
+        self.block_insts[cur.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::FieldSet {
+                object: thrown,
+                class: THROWABLE_ROOT.to_owned(),
+                field: LOCATION_FIELD.to_owned(),
+                value: location,
+            },
+            on_error: None,
+        });
+    }
+
+    /// `try { … } catch (T $e) { … } finally { … }` — the protected region,
+    /// its clause dispatch, its `finally`, and the join point after all of
+    /// them.
     ///
     /// Structurally a [`Self::lower_while`] without a back edge: a
     /// [`TryFrame`] brackets the body so every failing call inside it records
     /// its own landing block as one incoming edge, and those edges are folded
-    /// into the handler's phis by the same [`Self::merge_envs`] the loop's
-    /// `break` edges already go through.
+    /// into the dispatch block's phis by the same [`Self::merge_envs`] the
+    /// loop's `break` edges already go through.
     ///
-    /// The `catch` variable is bound by [`InstKind::TakeThrown`] and released
-    /// at the end of the clause body rather than living on past it. That is
-    /// narrower than PHP, where `$e` stays visible after the `try`, and it
-    /// follows from this crate's flat, unscoped [`Env`]: a name bound on only
-    /// one incoming edge is dropped by `merge_envs`, so anything left holding
-    /// a reference at that join would never be released at all.
+    /// # How a clause is selected
     ///
-    /// # Panics
+    /// [`InstKind::TakeThrown`] takes the pending exception once, at the top
+    /// of the dispatch block, and each clause is then one
+    /// [`InstKind::InstanceOf`] against its declared class plus a branch —
+    /// the same test `$e instanceof T` compiles to, which is why nothing here
+    /// needs a second mechanism. `catch (Throwable $e)` is not special-cased:
+    /// every exception class descends from `Throwable`, so its `instanceof`
+    /// simply always answers true. If no clause matches, the taken reference
+    /// is handed straight back to a [`Terminator::Throw`], so an unmatched
+    /// exception leaves the frame carrying the same object it arrived with.
     ///
-    /// Panics naming the shape for a `finally` block, for more than one
-    /// `catch` clause, or for a clause whose type is anything but the global
-    /// `Throwable`/`Exception`/`Error`. Those three are the only exception
-    /// types that exist at runtime
-    /// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1),
-    /// and each catches everything, so a second clause would be unreachable —
-    /// matching on a *user* class needs the object representation and the
-    /// `instanceof` test M4 adds.
+    /// A clause's binding is released at the end of its own body rather than
+    /// living on past the `try`. That is narrower than PHP, where `$e` stays
+    /// visible after it, and it follows from this crate's flat, unscoped
+    /// [`Env`]: a name bound on only one incoming edge is dropped by
+    /// `merge_envs`, so anything left holding a reference at that join would
+    /// never be released at all.
+    ///
+    /// # Known gaps
+    ///
+    /// * A `finally` does **not** run when the exception path enters a
+    ///   `catch` clause whose *own body* then throws: the frame for this
+    ///   region is popped before a handler is lowered, so that throw reaches
+    ///   the enclosing region directly. PHP runs the `finally` first.
+    /// * A `break`/`continue` out of a protected region does not run a
+    ///   pending `finally` either — [`Self::lower_break`] refuses that shape
+    ///   outright rather than lowering it wrong.
     fn lower_try(
         &mut self,
-        body: &Block,
-        catches: &[CatchClause],
-        finally: Option<&Block>,
+        body: &'a Block,
+        catches: &'a [CatchClause],
+        finally: Option<&'a Block>,
         cur: &mut BlockId,
         env: &mut Env,
     ) {
-        assert!(
-            finally.is_none(),
-            "mwl-ir does not yet lower `finally`; see the crate docs' known gaps"
-        );
-        let [clause] = catches else {
-            panic!(
-                "mwl-ir lowers exactly one `catch` clause per `try` — see this method's own doc \
-                 comment for why a second one has nothing to match on yet"
-            );
-        };
-        let caught = self.catch_clause_type(clause);
-        assert!(
-            matches!(
-                caught.as_str(),
-                "Throwable" | "Exception" | "Error" | "\\Throwable" | "\\Exception" | "\\Error"
-            ),
-            "mwl-ir lowers `catch ({caught} …)` no further than the global Throwable/Exception/\
-             Error; a user exception class needs M4's object representation"
-        );
-
         let handler_block = self.new_block();
         let after_block = self.new_block();
 
         self.try_stack.push(TryFrame {
             handler: handler_block,
             edges: Vec::new(),
+            finally,
         });
         let mut body_env = env.clone();
         let mut body_cur = *cur;
@@ -1129,173 +1195,175 @@ impl<'a> Lowering<'a> {
 
         let mut after_incoming: Vec<(BlockId, Env)> = Vec::new();
         if !self.is_terminated(body_cur) {
-            self.seal(body_cur, Terminator::Jump(after_block));
-            after_incoming.push((body_cur, body_env));
+            // The normal exit runs the `finally` before the join, exactly the
+            // way every other exit runs its own copy.
+            if let Some(block) = finally {
+                self.lower_stmts(&block.stmts, &mut body_cur, &mut body_env);
+            }
+            if !self.is_terminated(body_cur) {
+                self.seal(body_cur, Terminator::Jump(after_block));
+                after_incoming.push((body_cur, body_env));
+            }
         }
 
         // The phis first, then the binding: `mwl-codegen` requires a block's
         // phis to be its leading run, and `merge_envs` appends.
-        let mut handler_env = self.merge_envs(handler_block, &frame.edges, env);
-        let (thrown_v, _) = self.emit(handler_block, Ty::Throwable, InstKind::TakeThrown);
-        let bound = clause
-            .var
-            .map(|span| strip_sigil(span_text(self.src, span)).to_owned());
-        let mut handler_cur = handler_block;
-        match &bound {
-            Some(name) => {
-                handler_env.insert(name.clone(), (thrown_v, Ty::Throwable));
-            }
-            // `catch (Throwable) { … }` names nothing, so the reference
-            // `TakeThrown` produced has no slot to live in.
-            None => self.emit_release(handler_block, thrown_v),
-        }
-        self.lower_stmts(&clause.body.stmts, &mut handler_cur, &mut handler_env);
-        if !self.is_terminated(handler_cur) {
-            if let Some(name) = &bound
-                && let Some(&(v, _)) = handler_env.get(name)
-            {
-                self.emit_release(handler_cur, v);
-                handler_env.remove(name);
-            }
-            self.seal(handler_cur, Terminator::Jump(after_block));
-            after_incoming.push((handler_cur, handler_env));
-        }
+        let dispatch_env = self.merge_envs(handler_block, &frame.edges, env);
+        let (thrown_v, _) = self.emit(handler_block, Ty::Object, InstKind::TakeThrown);
+        let mut join = CatchJoin {
+            after_block,
+            dispatch_env,
+            after_incoming: &mut after_incoming,
+        };
+        self.lower_catch_clauses(handler_block, thrown_v, catches, finally, &mut join);
 
         *env = self.merge_envs(after_block, &after_incoming, env);
         *cur = after_block;
     }
 
-    /// `new Exception($message)` and its two siblings: one
-    /// [`ThrowableOp::New`], no object allocation, no constructor call.
-    ///
-    /// The message is released right after the instruction reads it unless it
-    /// aliases storage something else owns — the same "a fresh value consumed
-    /// by exactly one instruction is released there" rule
-    /// [`Self::concat_operand`]'s caller already applies, since
-    /// [`InstKind::Throwable`] retains nothing.
-    ///
-    /// # Panics
-    ///
-    /// Panics naming the shape for anything but zero or one plain positional
-    /// argument: the runtime exception carries a message and nothing else (no
-    /// code, no previous-exception chain), so PHP's wider constructor has
-    /// nothing here to land on.
-    fn lower_exception_new(
+    /// The `instanceof`-chain dispatch a `try`'s clauses lower to, plus the
+    /// re-raise that ends it — see [`Self::lower_try`] for the shape and why
+    /// it needs no mechanism of its own.
+    fn lower_catch_clauses(
         &mut self,
-        args: &CallArgs,
-        label: &str,
-        env: &Env,
-        cur: BlockId,
-    ) -> (ValueId, Ty) {
-        let CallArgs::List(list) = args else {
-            panic!(
-                "mwl-ir: `new {label}(...)` was not called with a plain argument list — {args:?}"
+        dispatch: BlockId,
+        thrown: ValueId,
+        catches: &'a [CatchClause],
+        finally: Option<&'a Block>,
+        join: &mut CatchJoin<'_>,
+    ) {
+        let mut test_block = dispatch;
+        for clause in catches {
+            let caught = self.catch_clause_type(clause);
+            let (cond, _) = self.emit(
+                test_block,
+                Ty::Bool,
+                InstKind::InstanceOf {
+                    value: thrown,
+                    class: caught,
+                },
             );
-        };
-        assert!(
-            list.len() <= 1,
-            "mwl-ir: `new {label}(...)` takes at most a message argument; a code and a previous \
-             exception have no runtime representation (see mwl-runtime's known gaps)"
-        );
-        let (message_v, fresh) = match list.first() {
-            Some(arg) => {
-                assert!(
-                    arg.name.is_none() && !arg.spread,
-                    "mwl-ir: `new {label}(...)` takes one plain positional message argument"
-                );
-                let (v, ty) = self.lower_expr(&arg.value, Some(Ty::Str), env, cur);
-                assert!(
-                    matches!(ty, Ty::Str),
-                    "mwl-ir: `new {label}(...)`'s message lowered to representation {ty:?}, not a \
-                     string"
-                );
-                (v, !is_aliasing_read(&arg.value.kind))
+            let handler = self.new_block();
+            let next = self.new_block();
+            let then_edge = self.ids.next_edge(clause.body.span);
+            let else_edge = self.ids.next_edge(clause.body.span);
+            self.seal(
+                test_block,
+                Terminator::Branch {
+                    cond,
+                    then_block: handler,
+                    then_edge,
+                    else_block: next,
+                    else_edge,
+                },
+            );
+
+            let mut handler_env = join.dispatch_env.clone();
+            let mut handler_cur = handler;
+            let bound = clause
+                .var
+                .map(|span| strip_sigil(span_text(self.src, span)).to_owned());
+            match &bound {
+                Some(name) => {
+                    handler_env.insert(name.clone(), (thrown, Ty::Object));
+                }
+                // `catch (Throwable) { … }` names nothing, so the reference
+                // `TakeThrown` produced has no slot to live in.
+                None => self.emit_release(handler, thrown),
             }
-            None => (
-                self.emit(cur, Ty::Str, InstKind::ConstStr(String::new())).0,
-                true,
-            ),
-        };
-        let result = self.emit(
-            cur,
-            Ty::Throwable,
-            InstKind::Throwable {
-                op: ThrowableOp::New,
-                operand: message_v,
-            },
-        );
-        if fresh {
-            self.emit_release(cur, message_v);
+            self.lower_stmts(&clause.body.stmts, &mut handler_cur, &mut handler_env);
+            if !self.is_terminated(handler_cur) {
+                if let Some(name) = &bound
+                    && let Some(&(v, _)) = handler_env.get(name)
+                {
+                    self.emit_release(handler_cur, v);
+                    handler_env.remove(name);
+                }
+                if let Some(block) = finally {
+                    self.lower_stmts(&block.stmts, &mut handler_cur, &mut handler_env);
+                }
+                if !self.is_terminated(handler_cur) {
+                    self.seal(handler_cur, Terminator::Jump(join.after_block));
+                    join.after_incoming.push((handler_cur, handler_env));
+                }
+            }
+            test_block = next;
         }
-        result
+
+        // Nothing matched — run the `finally` and hand the very same reference
+        // back to the context, so the exception leaves this frame unchanged.
+        let mut rethrow_env = join.dispatch_env.clone();
+        let mut rethrow_cur = test_block;
+        if let Some(block) = finally {
+            self.lower_stmts(&block.stmts, &mut rethrow_cur, &mut rethrow_env);
+        }
+        if !self.is_terminated(rethrow_cur) {
+            let landing = self.landing_block(&rethrow_env);
+            self.seal(
+                rethrow_cur,
+                Terminator::Throw {
+                    value: thrown,
+                    landing,
+                },
+            );
+        }
     }
 
-    /// `$e->getMessage()`/`$e->getTraceAsString()` on a value this frame
-    /// already knows is a [`Ty::Throwable`], or `None` for any other receiver.
+    /// Lowers a copy of every enclosing region's `finally` body, innermost
+    /// first — what a `return` inside a protected region owes before it
+    /// leaves the frame.
     ///
-    /// The receiver is recognised syntactically — a bare local whose `Env`
-    /// binding is a `Ty::Throwable` — rather than by lowering it first and
-    /// inspecting the result, so that returning `None` costs nothing and
-    /// emits nothing. That covers every shape that can hold an exception
-    /// today: a `catch` clause's variable is the only binder of one.
+    /// **Duplicated at each exit rather than shared.** A shared body would
+    /// need either a subroutine call (JSR, which nothing in this IR has) or a
+    /// dispatch on "where do I go afterwards", and every real compiler that
+    /// tried the latter found the same thing: the exit paths are few and the
+    /// bookkeeping is not. Lowering the AST twice costs nothing at run time
+    /// and needs no new IR shape at all.
     ///
-    /// # Panics
-    ///
-    /// Panics naming the member for anything outside [`ThrowableOp`]'s closed
-    /// set — `getTrace()` in particular, which is M4's carry-over because it
-    /// returns `array<…>`.
-    fn lower_throwable_member(
-        &mut self,
-        object: &Expr,
-        method: &MemberName,
-        args: &CallArgs,
-        env: &Env,
-        cur: BlockId,
-    ) -> Option<(ValueId, Ty)> {
-        let ExprKind::Variable(span) = &object.kind else {
-            return None;
-        };
-        let name = strip_sigil(span_text(self.src, *span));
-        let &(receiver_v, Ty::Throwable) = env.get(name)? else {
-            return None;
-        };
-        let MemberName::Ident(name_span) = method else {
-            panic!("mwl-ir: an exception's members are named statically, never computed");
-        };
-        let member = span_text(self.src, *name_span);
-        let op = match member {
-            "getMessage" => ThrowableOp::Message,
-            "getTraceAsString" => ThrowableOp::TraceAsString,
-            other => panic!(
-                "mwl-ir lowers only `getMessage()` and `getTraceAsString()` on an exception — \
-                 got `{other}`; see `ThrowableOp`'s own doc comment for why the set is closed"
-            ),
-        };
-        assert!(
-            matches!(args, CallArgs::List(list) if list.is_empty()),
-            "mwl-ir: `{member}()` takes no arguments"
-        );
-        Some(self.emit(
-            cur,
-            Ty::Str,
-            InstKind::Throwable {
-                op,
-                operand: receiver_v,
-            },
-        ))
+    /// Each frame is *popped* before its own `finally` is lowered, so a call
+    /// inside that body reaches the next region out rather than looping back
+    /// into the handler it is already running — and pushed back afterwards, so
+    /// the caller's own bracketing is untouched.
+    fn run_pending_finallys(&mut self, cur: &mut BlockId, env: &mut Env) {
+        let mut saved = Vec::new();
+        while let Some(frame) = self.try_stack.pop() {
+            if let Some(block) = frame.finally {
+                self.lower_stmts(&block.stmts, cur, env);
+            }
+            let done = self.is_terminated(*cur);
+            saved.push(frame);
+            if done {
+                break;
+            }
+        }
+        while let Some(frame) = saved.pop() {
+            self.try_stack.push(frame);
+        }
     }
 
-    /// The source spelling of a `catch` clause's type, for the one comparison
-    /// [`Self::lower_try`] makes against the three global exception names.
+    /// The class label a `catch` clause tests against.
     ///
     /// Deliberately the *written* text rather than a resolved `QName`: this
     /// crate never depends on `mwl-hir`, and
     /// [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md) forbids import
-    /// renaming, so a bare `Exception` in source is the global `Exception` and
-    /// nothing else. A namespaced `App\Exception` reads differently here and
-    /// is refused, which is the right answer today either way.
+    /// renaming, so a bare `LogicError` in source is the global `LogicError`
+    /// and nothing else. A leading `\\` is stripped, since
+    /// `mwl_types::layout` keys a class by its rendered `QName`, which never
+    /// carries one.
+    ///
+    /// # Known gap
+    ///
+    /// A clause naming a class inside a `namespace` block resolves against the
+    /// file's namespace at check time and against nothing here, so its label
+    /// will not match the layout table's. That is the same missing resolution
+    /// [`InstKind::InstanceOf`] avoided by having the checker record the
+    /// answer, and the same fix applies — `mwl_types` recording a resolved
+    /// `QName` per clause.
     fn catch_clause_type(&self, clause: &CatchClause) -> String {
-        span_text(self.src, clause.ty.span).trim().to_owned()
+        span_text(self.src, clause.ty.span)
+            .trim()
+            .trim_start_matches('\\')
+            .to_owned()
     }
 
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
@@ -1450,8 +1518,8 @@ impl<'a> Lowering<'a> {
     fn lower_if(
         &mut self,
         cond: &Expr,
-        then: &Stmt,
-        else_: Option<&Stmt>,
+        then: &'a Stmt,
+        else_: Option<&'a Stmt>,
         cur: &mut BlockId,
         env: &mut Env,
     ) {
@@ -1529,7 +1597,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming the case for a `cond` whose static type
     /// [`Self::lower_truthy_cond`] doesn't yet convert — see [`Self::lower_if`]'s
     /// panic doc, the same restriction applies here.
-    fn lower_while(&mut self, cond: &Expr, body: &Stmt, cur: &mut BlockId, env: &mut Env) {
+    fn lower_while(&mut self, cond: &Expr, body: &'a Stmt, cur: &mut BlockId, env: &mut Env) {
         let mut seen = FxHashSet::default();
         let mut reassigned = Vec::new();
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
@@ -1702,7 +1770,7 @@ impl<'a> Lowering<'a> {
         key: Option<&ForeachBinding>,
         value: &ForeachBinding,
         value_by_ref: bool,
-        body: &Stmt,
+        body: &'a Stmt,
         cur: &mut BlockId,
         env: &mut Env,
     ) {
@@ -2447,14 +2515,6 @@ impl<'a> Lowering<'a> {
                     );
                 };
                 let target_label = class.to_string();
-                // ADR 0020 § 1's three global exception names have no source
-                // declaration and so no object layout to allocate — they are
-                // the runtime's own value, built by a primitive rather than
-                // by `InstKind::New`. `.claude/loop-goal.md` records that
-                // decision; it is why a `throw` works in M3 at all.
-                if is_global_throwable(&target_label) {
-                    return self.lower_exception_new(args, &target_label, env, cur);
-                }
                 // The declaring class, not the constructed one: `new Dog(...)`
                 // on a `Dog` with no `constructor` of its own invokes
                 // `Animal::constructor`. Only `mwl_types` resolved that, so
@@ -2512,7 +2572,7 @@ impl<'a> Lowering<'a> {
             // from `self.exprs`, exactly like a static call/`new` below.
             ExprKind::MethodCall {
                 object,
-                method,
+                method: _,
                 nullsafe,
                 args,
             } => {
@@ -2521,15 +2581,6 @@ impl<'a> Lowering<'a> {
                     "mwl-ir does not yet lower a nullsafe method call (`?->`); see the crate \
                      docs' known gaps"
                 );
-                // An exception's members come from the runtime, not from a
-                // resolved signature: `mwl_types` records no `ExprInfo::Call`
-                // for one, because ADR 0020 § 1's global names have no
-                // declared member table to resolve against. Intercepted here,
-                // ahead of that lookup, for the same reason `new Exception(…)`
-                // is above.
-                if let Some(result) = self.lower_throwable_member(object, method, args, env, cur) {
-                    return result;
-                }
                 let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
                     panic!(
                         "mwl-ir: an instance method call at {:?} has no resolved target \
@@ -2936,13 +2987,7 @@ impl<'a> Lowering<'a> {
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
                     Ty::Float => Helper::FloatToString,
-                    Ty::Str
-                    | Ty::Bytes
-                    | Ty::Void
-                    | Ty::Object
-                    | Ty::Array
-                    | Ty::Throwable
-                    | Ty::Mixed => {
+                    Ty::Str | Ty::Bytes | Ty::Void | Ty::Object | Ty::Array | Ty::Mixed => {
                         unreachable!("matched above")
                     }
                 };
@@ -3001,13 +3046,7 @@ impl<'a> Lowering<'a> {
                     Ty::Uint => Helper::UintTruthy,
                     Ty::Float => Helper::FloatTruthy,
                     Ty::Str => Helper::StrTruthy,
-                    Ty::Bool
-                    | Ty::Void
-                    | Ty::Object
-                    | Ty::Array
-                    | Ty::Bytes
-                    | Ty::Throwable
-                    | Ty::Mixed => {
+                    Ty::Bool | Ty::Void | Ty::Object | Ty::Array | Ty::Bytes | Ty::Mixed => {
                         unreachable!("matched above")
                     }
                 };
@@ -3844,17 +3883,109 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
 /// value semantics) — so copying any of them into a new durable slot needs a
 /// retain. A fresh literal, `new`, or a call's own result already has exactly
 /// one natural owner and needs none.
-/// Whether a resolved class label names one of
-/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's three
-/// global exception classes, which the runtime owns outright rather than
-/// laying out as an object.
+/// The root exception class's label — the one `mwl_types::layout` keys its
+/// four slots under, and the one every `FieldGet`/`FieldSet` on an exception
+/// resolves through.
 ///
-/// A user class `extends Exception` is deliberately *not* one of these: it has
-/// its own declared fields, so it needs the object representation M4 adds and
-/// is refused until then rather than being silently flattened to a runtime
-/// exception that would drop them.
-fn is_global_throwable(label: &str) -> bool {
-    matches!(label, "Throwable" | "Exception" | "Error")
+/// A slot resolved against the root is valid for every subclass
+/// (`mwl_runtime::object` lays a subclass's slots after its parent's), so
+/// lowering never has to know which exception class it actually holds. The
+/// tree's own home is `mwl_hir::errors`; this crate depends on neither
+/// `mwl-hir` nor `mwl-types`' name resolution, so it restates the one label it
+/// needs — `mwl-codegen`'s
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot` holds the
+/// three copies together.
+const THROWABLE_ROOT: &str = "Throwable";
+
+/// `Throwable::$message`.
+const MESSAGE_FIELD: &str = "message";
+/// `Throwable::$backtrace`.
+const BACKTRACE_FIELD: &str = "backtrace";
+/// `Throwable::$location`.
+const LOCATION_FIELD: &str = "location";
+
+/// The label the synthesized root constructor is compiled under — the target
+/// a `new LogicError("…")` and a `parent::constructor(…)` in a user subclass
+/// both resolve to.
+const THROWABLE_CTOR: &str = "Throwable::constructor";
+
+/// The one MWL function with no source text: `Throwable`'s constructor.
+///
+/// It cannot be written in MWL — `backtrace` is grown by the runtime as a
+/// throw propagates, so a source declaration would need a body with no legal
+/// spelling (`mwl_hir::errors` owns that reasoning). What it does is small
+/// enough to build by hand: store the message, start an empty backtrace, and
+/// put a placeholder in `location` that [`Lowering::write_throw_location`]
+/// overwrites at the `throw`. `previous` is left `null`, which is the only
+/// value it can have until `mwl_types::signatures::MethodSig` can model an
+/// optional parameter (`mwl_types::error_lib`'s own known gaps).
+///
+/// The receiver and the message are both *transferred* to this frame by the
+/// call convention, so both are released at the exit — the field takes its own
+/// reference to the message first.
+fn synthesized_throwable_constructor() -> Function {
+    let mut ids = IdGen::default();
+    let block = ids.next_block();
+    let this = ids.next_value();
+    let message = ids.next_value();
+    let backtrace = ids.next_value();
+    let location = ids.next_value();
+
+    let plain = |kind: InstKind| Inst {
+        result: None,
+        ty: None,
+        kind,
+        on_error: None,
+    };
+    let defines = |result: ValueId, ty: Ty, kind: InstKind| Inst {
+        result: Some(result),
+        ty: Some(ty),
+        kind,
+        on_error: None,
+    };
+    let store = |field: &str, value: ValueId| {
+        plain(InstKind::FieldSet {
+            object: this,
+            class: THROWABLE_ROOT.to_owned(),
+            field: field.to_owned(),
+            value,
+        })
+    };
+
+    let insts = vec![
+        plain(InstKind::Safepoint),
+        defines(this, Ty::Object, InstKind::Param(0)),
+        defines(message, Ty::Str, InstKind::Param(1)),
+        plain(InstKind::Retain { operand: message }),
+        store(MESSAGE_FIELD, message),
+        defines(
+            backtrace,
+            Ty::Array,
+            InstKind::ArrayNew {
+                entries: Vec::new(),
+            },
+        ),
+        store(BACKTRACE_FIELD, backtrace),
+        defines(location, Ty::Str, InstKind::ConstStr(String::new())),
+        store(LOCATION_FIELD, location),
+        plain(InstKind::Release { operand: message }),
+        plain(InstKind::Release { operand: this }),
+    ];
+
+    let (stmt_spans, edge_spans) = ids.into_spans();
+    Function {
+        name: THROWABLE_CTOR.to_owned(),
+        params: vec![Ty::Object, Ty::Str],
+        ret: Ty::Void,
+        blocks: vec![BasicBlock {
+            id: block,
+            insts,
+            term: Terminator::Return(None),
+        }],
+        entry: block,
+        stmt_spans,
+        edge_spans,
+    }
 }
 
 fn is_aliasing_read(kind: &ExprKind) -> bool {
@@ -3961,25 +4092,61 @@ mod tests {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `throw new Exception(…)` builds the runtime's own exception with one
-    /// `throwable.new`, hands it to the context, and enters a landing block
-    /// that names the frame the throw is leaving.
+    /// `throw new LogicError(…)` allocates an ordinary object, runs the
+    /// synthesized root constructor on it, stamps the throw site into
+    /// `location`, hands it to the context, and enters a landing block that
+    /// names the frame the throw is leaving.
     #[test]
-    fn a_throw_builds_a_runtime_exception_and_enters_its_landing_block() {
-        let (f, map, file) = lower_script_src("<?mwl\nthrow new Exception(\"boom\");\n");
+    fn a_throw_builds_an_exception_object_and_enters_its_landing_block() {
+        let (f, map, file) = lower_script_src("<?mwl\nthrow new LogicError(\"boom\");\n");
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// Every failing call inside a `try` reaches the same handler, each
-    /// through its own landing block — which is what keeps a handler phi's
-    /// predecessors distinct. The `catch` variable is bound by `take.thrown`
-    /// and released where the clause body ends.
+    /// Every failing call inside a `try` reaches the same dispatch block,
+    /// each through its own landing block — which is what keeps a handler
+    /// phi's predecessors distinct. The exception is taken once by
+    /// `take.thrown`, tested by one `instanceof` per clause, and the clause's
+    /// binding is released where its body ends.
     #[test]
     fn a_try_gives_every_protected_call_its_own_landing_block() {
         let (f, map, file) = lower_script_src(
             "<?mwl\nclass T {\n  public static function go(): void { }\n}\n\
              try {\n  T::go();\n  echo \"fine\";\n} catch (Throwable $e) {\n  \
-             echo $e->getMessage();\n}\n",
+             echo $e->message;\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// Two clauses on one `try`: an `instanceof` chain in source order, and a
+    /// re-raise of the very same reference when neither matches.
+    #[test]
+    fn two_catch_clauses_lower_to_an_instanceof_chain_ending_in_a_rethrow() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl\nclass T {\n  public static function go(): void { }\n}\n\
+             try {\n  T::go();\n} catch (LogicError $a) {\n  echo \"logic\";\n\
+             } catch (IOError $b) {\n  echo \"io\";\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `try { return … } finally { … }` — the `finally` body is lowered once
+    /// per exit, so the `return` runs its own copy before leaving the frame
+    /// and the exception path runs a second one before re-raising.
+    #[test]
+    fn a_finally_is_lowered_once_per_exit_out_of_the_protected_region() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class T {
+  function m(): int {
+    try {
+      return T::inner();
+    } finally {
+      echo \"done\";
+    }
+  }
+  static function inner(): int { return 1; }
+}
+",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }
@@ -5476,17 +5643,27 @@ class T {
             "}\n",
         ));
 
-        let labels: Vec<&str> = program
+        // The seeded exception tree is in every program's table, so the
+        // declared classes are checked by name rather than by position.
+        let declared: Vec<&str> = program
             .classes
             .iter()
             .map(|class| class.label.as_str())
+            .filter(|label| ["Animal", "Dog", "Greets"].contains(label))
             .collect();
-        assert_eq!(labels, ["Animal", "Dog", "Greets"]);
+        assert_eq!(declared, ["Animal", "Dog", "Greets"]);
 
-        let dog = &program.classes[1];
+        let by_label = |label: &str| {
+            program
+                .classes
+                .iter()
+                .find(|class| class.label == label)
+                .unwrap_or_else(|| panic!("{label} should be in the class table"))
+        };
+        let dog = by_label("Dog");
         assert_eq!(dog.fields, ["legs", "name"]);
         assert_eq!(dog.conforms, ["Animal", "Greets"]);
-        assert!(program.classes[2].fields.is_empty());
+        assert!(by_label("Greets").fields.is_empty());
     }
 
     /// `foreach` over an `array<T>` with both bindings — the cursor's header
@@ -5618,12 +5795,52 @@ class T {
         );
     }
 
-    /// A file declaring no class still lowers, with an empty class table —
-    /// the `hello.mwl` shape.
+    /// A file declaring no class still lowers, and still carries the
+    /// exception tree plus its one synthesized constructor — the `hello.mwl`
+    /// shape. Nothing in the file references either, and both are emitted
+    /// anyway: `mwl_hir::errors`' classes exist in every program.
     #[test]
-    fn a_file_with_no_class_lowers_to_an_empty_class_table() {
+    fn a_file_with_no_class_still_carries_the_exception_tree() {
         let program = lower_whole_file("<?mwl\necho \"hi\";\n");
-        assert!(program.classes.is_empty());
-        assert_eq!(program.functions.len(), 1);
+        let labels: Vec<&str> = program
+            .classes
+            .iter()
+            .map(|class| class.label.as_str())
+            .collect();
+        assert_eq!(
+            labels,
+            [
+                "ArithmeticError",
+                "IOError",
+                "LogicError",
+                "ParseError",
+                "RuntimeError",
+                "Throwable",
+                "TimeoutError",
+            ]
+        );
+        let functions: Vec<&str> = program.functions.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(functions, ["<script>", "Throwable::constructor"]);
+    }
+
+    /// The root's four slots are the ones `mwl_runtime::throwable` reaches by
+    /// index, and every other exception class inherits them at the same
+    /// indices — the property that lets the runtime append a backtrace frame
+    /// to a value it knows nothing else about.
+    #[test]
+    fn every_exception_class_carries_the_root_s_four_slots_at_the_same_indices() {
+        let program = lower_whole_file("<?mwl\nclass MyError extends IOError {}\n");
+        for label in ["Throwable", "IOError", "MyError"] {
+            let class = program
+                .classes
+                .iter()
+                .find(|c| c.label == label)
+                .unwrap_or_else(|| panic!("{label} should be in the class table"));
+            assert_eq!(
+                class.fields,
+                ["message", "previous", "backtrace", "location"],
+                "{label}"
+            );
+        }
     }
 }

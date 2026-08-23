@@ -612,7 +612,7 @@ mod tests {
     #[test]
     fn a_try_and_its_catch_both_assigning_satisfies_the_property() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (Exception $e) {\n      $this->count = 2;\n    }\n  }\n}\n",
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (LogicError $e) {\n      $this->count = 2;\n    }\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -622,7 +622,7 @@ mod tests {
     #[test]
     fn a_try_whose_catch_does_not_assign_does_not_satisfy_the_property() {
         let diags = check_src(
-            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (Exception $e) {\n    }\n  }\n}\n",
+            "<?mwl\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (LogicError $e) {\n    }\n  }\n}\n",
         );
         assert!(
             diags

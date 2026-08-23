@@ -143,6 +143,20 @@ pub fn build_class_layouts(
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
     let mut own: FxHashMap<QName, Vec<String>> = FxHashMap::default();
+    // The exception tree first: it has no source declaration to collect from
+    // (`mwl_hir::errors`), and a user class extending it needs its four slots
+    // already claimed before its own are appended.
+    for (name, _) in mwl_hir::errors::TREE {
+        let fields = if *name == mwl_hir::errors::ROOT {
+            mwl_hir::errors::PROPERTIES
+                .iter()
+                .map(|p| (*p).to_owned())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        own.insert(QName::parse(name), fields);
+    }
     collect_own(stmts, src, &[], &mut own);
 
     let mut table = ClassLayoutTable::default();
@@ -394,11 +408,30 @@ mod tests {
         assert_eq!(table.get("B").expect("B").fields, ["v", "w"]);
     }
 
+    /// A file declaring nothing still gets the exception tree, and nothing
+    /// else — `mwl_hir::errors`' classes exist in every program, with the
+    /// root's four slots inherited at the same indices by every one of them.
     #[test]
-    fn an_empty_file_yields_an_empty_table() {
+    fn a_file_declaring_nothing_yields_exactly_the_exception_tree() {
         let table = layouts("<?mwl\necho \"hi\";\n");
-        assert!(table.is_empty());
-        assert_eq!(table.len(), 0);
-        assert_eq!(table.iter().count(), 0);
+        assert_eq!(table.len(), mwl_hir::errors::TREE.len());
+        for (name, _) in mwl_hir::errors::TREE {
+            let layout = table.get(name).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(layout.fields, mwl_hir::errors::PROPERTIES, "{name}");
+            assert_eq!(layout.slot_of("backtrace"), Some(2), "{name}");
+        }
+    }
+
+    /// A user class extending the tree gets its own slots *after* the root's,
+    /// which is what makes `mwl_runtime::throwable`'s fixed slot indices hold.
+    #[test]
+    fn a_user_exception_class_appends_its_slots_after_the_roots() {
+        let table = layouts("<?mwl\nclass MyError extends IOError { public int $code; }\n");
+        let layout = table.get("MyError").expect("MyError");
+        assert_eq!(
+            layout.fields,
+            ["message", "previous", "backtrace", "location", "code"]
+        );
+        assert_eq!(layout.conforms, ["IOError", "RuntimeError", "Throwable"]);
     }
 }

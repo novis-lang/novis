@@ -14,13 +14,9 @@ fn <script>() -> mixed {
     release v1
     jump bb2
   bb1:
-    v2 = take.thrown  ; throwable
-    ; stmt s3 @9:3-9:25
-    v3 = throwable.message v2  ; string
-    helper.echo_str v3 ! bb5
-    release v3
-    release v2
-    jump bb2
+    v2 = take.thrown  ; object
+    v3 = instanceof v2, Throwable  ; bool
+    branch v3 -> bb5 (e0), bb6 (e1)
   bb2:
     return
   bb3:
@@ -28,6 +24,16 @@ fn <script>() -> mixed {
   bb4:
     catch -> bb1
   bb5:
+    ; stmt s3 @9:3-9:20
+    v4 = field.get v2, Throwable::message  ; string
+    helper.echo_str v4 ! bb7
     release v2
+    jump bb2
+  bb6:
+    throw v2 -> bb8
+  bb7:
+    release v2
+    propagate "<script>() at t.mwl:9"
+  bb8:
     propagate "<script>() at t.mwl:9"
 }

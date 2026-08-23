@@ -422,6 +422,35 @@ pub unsafe extern "C" fn mwl_str_concat(
     MwlStr::from_pieces(&[left, right]).into_raw()
 }
 
+/// Whether two strings hold the same bytes — `mwl_ir::ir::BinOp::Eq` over a
+/// `Ty::Str` operand pair.
+///
+/// A byte comparison, not a collation: `string` is guaranteed-valid UTF-8
+/// ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)), and PHP's `===`
+/// on two strings is byte equality, which is what MWL keeps. Neither operand
+/// is retained or released — the same read-only treatment
+/// [`mwl_str_concat`] gives its two.
+///
+/// # Safety
+///
+/// `lhs` and `rhs` must each refer to a live MWL string allocation.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes two raw string pointers whose liveness the \
+              signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_str_eq(lhs: *const StrHeader, rhs: *const StrHeader) -> bool {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees both pointees are live; both borrows \
+                  end with this comparison"
+    )]
+    unsafe {
+        MwlStr::bytes_of(lhs) == MwlStr::bytes_of(rhs)
+    }
+}
+
 /// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Str` operand.
 ///
 /// A null `ptr` is a no-op: see [`crate::object`]'s *A null payload is `null`*

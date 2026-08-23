@@ -1,16 +1,33 @@
-//! The runtime-owned exception value, and the primitives compiled code calls
-//! to build, inspect and raise one.
+//! The pending-exception value, and the primitives compiled code calls to
+//! raise, inspect and re-take one.
 //!
-//! # Why the runtime owns it rather than the language
+//! # An exception is an ordinary object
 //!
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 makes
-//! `Throwable`/`Exception`/`Error` global, PHP-shaped names that exist without
-//! a source declaration. Nothing in MWL declares their fields, so nothing
-//! should be able to reach one: a [`ThrowableHeader`] is **opaque** to
-//! compiled code, which only ever holds the pointer. `getMessage()` and
-//! `getTraceAsString()` are the entry points below, not property reads through
-//! an object layout — which is why an exception works in M3 while a
-//! user-declared class still waits for M4's object representation.
+//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 10
+//! makes `Throwable` the root of a small class tree whose members are
+//! *readonly properties* — `message`, `previous`, `backtrace`, `location` —
+//! not `getX()` accessors, and makes user classes extend it directly. So an
+//! exception is a [`crate::MwlObj`] like any other: allocated by
+//! `mwl_object_new`, refcounted by `mwl_object_retain`/`mwl_object_release`,
+//! read by an ordinary `FieldGet`. There is no second representation here any
+//! more, and no `Ty::Throwable` in the IR.
+//!
+//! What survives is the part the *runtime* owns: which object is pending, and
+//! growing its backtrace as a throw travels. Both need to reach two slots of
+//! an object they otherwise know nothing about, which is what [`MESSAGE_SLOT`]
+//! and friends are for.
+//!
+//! # The slot indices are load-bearing
+//!
+//! `crate::object` lays a subclass's slots out *after* its parent's, and
+//! `Throwable` is the root of every exception class in existence — so
+//! `message` is slot 0 and `backtrace` slot 2 for `LogicError`, for a user's
+//! `ConfigError extends Throwable`, and for anything else that can be thrown.
+//! `mwl_hir::errors::PROPERTIES` is the one home for that order; the constants
+//! below restate the two indices this crate needs because `mwl-runtime`
+//! depends on nothing (see [`crate`]'s own docs), and
+//! `mwl-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
+//! is the test that holds the two together.
 //!
 //! # The backtrace is built as the throw propagates
 //!
@@ -23,78 +40,164 @@
 //! and deliberate: the trace holds exactly the frames the exception *unwound
 //! out of*, so a `catch` in the frame that called the thrower sees the
 //! thrower's frame and nothing below it. PHP instead snapshots the whole stack
-//! at construction; matching that needs a walk of MWL's own frame chain, which
-//! arrives with `Throwable::getTrace()`'s `array<…>` form in M4.
-//!
-//! # Refcounting
-//!
-//! [`Rc`] rather than the hand-rolled header [`crate::MwlStr`] uses: a
-//! `Throwable` is allocated at most once per throw, never on a hot path, so
-//! the second indirection a `Rc<T>` costs buys back the whole of that module's
-//! manual `alloc`/`dealloc` surface. `mwl_throwable_retain`/`_release` are
-//! `Rc::increment_strong_count`/`decrement_strong_count`, so compiled code's
-//! retain/release policy for `mwl_ir::Ty::Throwable` is the same one it
-//! already applies to a string.
-
-use std::cell::RefCell;
-use std::rc::Rc;
+//! at construction; matching that needs a walk of MWL's own frame chain.
 
 use crate::ctx::Ctx;
-use crate::string::{MwlStr, StrHeader};
+use crate::object::{ClassDesc, MwlObj, ObjHeader};
+use crate::{MwlArray, MwlStr, Value};
 
-/// One exception value: its message, and the frames it has unwound out of so
-/// far.
+/// The slot `Throwable::$message` occupies — see this module's docs.
+pub const MESSAGE_SLOT: usize = 0;
+/// The slot `Throwable::$previous` occupies.
+pub const PREVIOUS_SLOT: usize = 1;
+/// The slot `Throwable::$backtrace` occupies.
+pub const BACKTRACE_SLOT: usize = 2;
+/// The slot `Throwable::$location` occupies.
+pub const LOCATION_SLOT: usize = 3;
+
+/// How many slots any exception class has at minimum — every one of the four
+/// above. A descriptor with fewer is not an exception class, and every
+/// operation here refuses it rather than reading past the allocation.
+pub const SLOT_COUNT: usize = 4;
+
+/// One owned reference to a pending exception object.
 ///
-/// Opaque to compiled code — see the module docs. Both fields are private and
-/// there is no public constructor taking them apart, because every path into
-/// one goes through [`mwl_exception_new`] or [`crate::Ctx`].
+/// Exists so [`crate::Ctx`] can hold a raw `*mut ObjHeader` without either
+/// leaking it or hand-writing a release at every early return — the same job
+/// [`MwlObj`] does, except that this one may be *null*, which is the state a
+/// failure with no object behind it (a helper fault whose class was never
+/// installed) leaves.
 #[derive(Debug)]
-pub struct ThrowableHeader {
-    /// The message `getMessage()` returns.
-    ///
-    /// A Rust `String`, not an [`MwlStr`], so [`crate::Ctx::pending`] can hand
-    /// back a `&str` without a fallible UTF-8 step on a failure path. The one
-    /// cost is that `getMessage()` allocates a fresh MWL string per call,
-    /// which is not a hot path by construction.
-    message: String,
-    /// `#0`-first frame labels, in the order [`mwl_trace_push`] pushed them.
-    ///
-    /// `RefCell` because a throw in flight may be reachable from a still-live
-    /// local (`throw $e;` retains it) as well as from [`crate::Ctx`], so the
-    /// push cannot take a unique borrow.
-    trace: RefCell<Vec<String>>,
+pub struct Thrown {
+    /// Null, or one owned reference.
+    ptr: *mut ObjHeader,
 }
 
-impl ThrowableHeader {
-    /// A fresh exception with `message` and an empty backtrace.
+impl Thrown {
+    /// Builds a fresh exception of `class` carrying `message`, with an empty
+    /// backtrace — what a helper's bare-message failure is promoted to, and
+    /// what `mwl run --fault-inject` produces.
+    ///
+    /// Returns a null [`Thrown`] if `class` is null or describes fewer than
+    /// [`SLOT_COUNT`] slots, which is the "no exception class was installed"
+    /// case [`Ctx::set_runtime_error_class`] documents.
+    ///
+    /// # Safety
+    ///
+    /// `class` must be null or refer to a live class descriptor that outlives
+    /// every instance made from it.
     #[must_use]
-    pub fn new(message: impl Into<String>) -> Rc<Self> {
-        Rc::new(Self {
-            message: message.into(),
-            trace: RefCell::new(Vec::new()),
-        })
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor's liveness is the caller's obligation and \
+                  cannot be expressed in the signature"
+    )]
+    pub unsafe fn new(class: *const ClassDesc, message: &str) -> Self {
+        if class.is_null() {
+            return Self::none();
+        }
+        #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+        let count = unsafe { (*class).field_count() };
+        if count < SLOT_COUNT {
+            return Self::none();
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees the descriptor outlives the instance"
+        )]
+        let obj = unsafe { MwlObj::new(class) };
+        obj.set_field(MESSAGE_SLOT, Value::str(MwlStr::new(message.as_bytes())));
+        obj.set_field(BACKTRACE_SLOT, Value::array(MwlArray::new()));
+        obj.set_field(LOCATION_SLOT, Value::str(MwlStr::new(b"")));
+        Self {
+            ptr: obj.into_raw(),
+        }
     }
 
-    /// The message `getMessage()` returns.
+    /// The absent exception — what a failure with no object behind it holds.
     #[must_use]
-    pub fn message(&self) -> &str {
-        &self.message
+    pub const fn none() -> Self {
+        Self {
+            ptr: std::ptr::null_mut(),
+        }
     }
 
-    /// Records one more frame the throw has unwound out of.
-    pub fn push_frame(&self, label: impl Into<String>) {
-        self.trace.borrow_mut().push(label.into());
+    /// Whether there is no object here at all.
+    #[must_use]
+    pub const fn is_none(&self) -> bool {
+        self.ptr.is_null()
     }
 
-    /// The backtrace `getTraceAsString()` renders, `#0` first.
+    /// Takes over one reference to `ptr`, which may be null.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be null or refer to a live object allocation whose
+    /// reference is being transferred here.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "reclaiming a reference is the caller's obligation to state"
+    )]
+    pub const unsafe fn from_raw(ptr: *mut ObjHeader) -> Self {
+        Self { ptr }
+    }
+
+    /// Gives the reference back, leaving nothing behind to release.
+    #[must_use]
+    pub fn into_raw(self) -> *mut ObjHeader {
+        let ptr = self.ptr;
+        std::mem::forget(self);
+        ptr
+    }
+
+    /// A borrowed handle on the object, or `None` if there is none.
+    ///
+    /// [`std::mem::ManuallyDrop`] because [`MwlObj::from_raw`] takes over a
+    /// reference this value still owns.
+    fn borrow(&self) -> Option<std::mem::ManuallyDrop<MwlObj>> {
+        if self.ptr.is_null() {
+            return None;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the pointer is non-null and this value owns a reference \
+                      to it; the handle is never dropped, so the reference is \
+                      not released twice"
+        )]
+        Some(std::mem::ManuallyDrop::new(unsafe {
+            MwlObj::from_raw(self.ptr)
+        }))
+    }
+
+    /// The exception's `message` property, as an owned string.
+    ///
+    /// Empty for an absent exception, or for one whose slot somehow does not
+    /// hold a string — a diagnostic path never gets to be the thing that
+    /// crashes.
+    #[must_use]
+    pub fn message(&self) -> String {
+        let Some(obj) = self.borrow() else {
+            return String::new();
+        };
+        if obj.field_count() < SLOT_COUNT {
+            return String::new();
+        }
+        let slot = obj.field(MESSAGE_SLOT);
+        slot.as_str_bytes()
+            .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+            .unwrap_or_default()
+    }
+
+    /// The `backtrace` property rendered `#0`-first, the form
+    /// `mwl run`'s uncaught report prints.
     ///
     /// The `#N ` prefix is applied here rather than stored, so a frame label
     /// never has to know its own depth at the point it is pushed.
     #[must_use]
     pub fn trace_as_string(&self) -> String {
-        let frames = self.trace.borrow();
         let mut out = String::new();
-        for (index, frame) in frames.iter().enumerate() {
+        for (index, frame) in self.frames().iter().enumerate() {
             if index > 0 {
                 out.push('\n');
             }
@@ -104,6 +207,82 @@ impl ThrowableHeader {
             out.push_str(frame);
         }
         out
+    }
+
+    /// Every backtrace frame label, in push order.
+    #[must_use]
+    pub fn frames(&self) -> Vec<String> {
+        let Some(obj) = self.borrow() else {
+            return Vec::new();
+        };
+        if obj.field_count() < SLOT_COUNT {
+            return Vec::new();
+        }
+        let Some(array) = obj.field(BACKTRACE_SLOT).array_ptr() else {
+            return Vec::new();
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the slot holds one reference the object owns; the handle \
+                      is never dropped, so that reference is not released here"
+        )]
+        let handle = std::mem::ManuallyDrop::new(unsafe { MwlArray::from_raw(array) });
+        let mut out = Vec::new();
+        let mut slot = 0;
+        while let Some(found) = handle.next_slot(slot) {
+            if let Some(value) = handle.value_at(found)
+                && let Some(bytes) = value.as_str_bytes()
+            {
+                out.push(String::from_utf8_lossy(bytes).into_owned());
+            }
+            slot = found + 1;
+        }
+        out
+    }
+
+    /// Appends one frame label to the `backtrace` property, in place.
+    ///
+    /// The field's own reference is *moved out* of the slot and back in, so
+    /// the array's refcount stays at one and copy-on-write never separates —
+    /// retaining it first would copy the whole trace once per frame the throw
+    /// unwinds through.
+    pub fn push_frame(&self, label: &str) {
+        let Some(obj) = self.borrow() else {
+            return;
+        };
+        if obj.field_count() < SLOT_COUNT {
+            return;
+        }
+        let held = obj.take_field(BACKTRACE_SLOT);
+        let Some(array) = held.array_ptr() else {
+            // Not an array: put back exactly what was there, unchanged.
+            obj.set_field(BACKTRACE_SLOT, held);
+            return;
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`take_field` transferred the slot's own reference here, \
+                      and `into_raw` hands it straight back to the slot"
+        )]
+        let mut handle = unsafe { MwlArray::from_raw(array) };
+        handle.append(Value::str(MwlStr::new(label.as_bytes())));
+        obj.set_field(BACKTRACE_SLOT, Value::from_array_ptr(handle.into_raw()));
+    }
+}
+
+impl Drop for Thrown {
+    fn drop(&mut self) {
+        if self.ptr.is_null() {
+            return;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "this value owned exactly one reference to a live \
+                      allocation, and this is the one place it is given up"
+        )]
+        unsafe {
+            drop(MwlObj::from_raw(self.ptr));
+        }
     }
 }
 
@@ -115,123 +294,6 @@ impl ThrowableHeader {
 // none of these can fail, so none of them wears ADR 0002's checked-return
 // shape. Every one is `extern "C"` and never `extern "C-unwind"`.
 
-/// Allocates a fresh exception carrying `message`'s bytes — what
-/// `new Exception("…")` lowers to.
-///
-/// `message` is only read; the caller keeps its own reference.
-///
-/// # Safety
-///
-/// `message` must refer to a live MWL string allocation.
-#[expect(
-    unsafe_code,
-    reason = "compiled code passes a raw string pointer whose liveness the \
-              signature cannot express"
-)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_exception_new(message: *const StrHeader) -> *const ThrowableHeader {
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees the pointee is live; the borrow ends \
-                  before the owned `String` is built from it"
-    )]
-    let bytes = unsafe { MwlStr::bytes_of(message) };
-    Rc::into_raw(ThrowableHeader::new(String::from_utf8_lossy(bytes)))
-}
-
-/// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Throwable`
-/// operand.
-///
-/// A null `ptr` is a no-op — see [`crate::object`]'s *A null payload is
-/// `null`*.
-///
-/// # Safety
-///
-/// `ptr` must be null or refer to a live exception allocation.
-#[expect(
-    unsafe_code,
-    reason = "compiled code passes a raw pointer whose liveness the signature \
-              cannot express"
-)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_throwable_retain(ptr: *const ThrowableHeader) {
-    if ptr.is_null() {
-        return;
-    }
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees `ptr` came from `Rc::into_raw` and is \
-                  still live"
-    )]
-    unsafe {
-        Rc::increment_strong_count(ptr);
-    }
-}
-
-/// Drops a reference, freeing the exception if it was the last —
-/// `mwl_ir::InstKind::Release` for a `Ty::Throwable` operand.
-///
-/// A null `ptr` is a no-op — see [`mwl_throwable_retain`].
-///
-/// # Safety
-///
-/// `ptr` must be null, or refer to a live exception allocation whose
-/// reference has not already been released.
-#[expect(
-    unsafe_code,
-    reason = "compiled code passes a raw pointer whose liveness the signature \
-              cannot express"
-)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_throwable_release(ptr: *const ThrowableHeader) {
-    if ptr.is_null() {
-        return;
-    }
-    #[expect(
-        unsafe_code,
-        reason = "the caller guarantees `ptr` came from `Rc::into_raw` and \
-                  that this reference has not already been dropped"
-    )]
-    unsafe {
-        Rc::decrement_strong_count(ptr);
-    }
-}
-
-/// `getMessage()`: a fresh MWL string holding the exception's message.
-///
-/// # Safety
-///
-/// `ptr` must refer to a live exception allocation.
-#[expect(
-    unsafe_code,
-    reason = "compiled code passes a raw pointer whose liveness the signature \
-              cannot express"
-)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_throwable_message(ptr: *const ThrowableHeader) -> *mut StrHeader {
-    #[expect(unsafe_code, reason = "the caller guarantees the pointee is live")]
-    let header = unsafe { &*ptr };
-    MwlStr::new(header.message.as_bytes()).into_raw()
-}
-
-/// `getTraceAsString()`: a fresh MWL string holding the backtrace built so
-/// far, `#0` first.
-///
-/// # Safety
-///
-/// `ptr` must refer to a live exception allocation.
-#[expect(
-    unsafe_code,
-    reason = "compiled code passes a raw pointer whose liveness the signature \
-              cannot express"
-)]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_throwable_trace(ptr: *const ThrowableHeader) -> *mut StrHeader {
-    #[expect(unsafe_code, reason = "the caller guarantees the pointee is live")]
-    let header = unsafe { &*ptr };
-    MwlStr::new(header.trace_as_string().as_bytes()).into_raw()
-}
-
 /// Makes `thrown` this request's pending exception — what MWL's `throw`
 /// lowers to, immediately before the frame branches to its own cleanup path.
 ///
@@ -242,22 +304,22 @@ pub unsafe extern "C" fn mwl_throwable_trace(ptr: *const ThrowableHeader) -> *mu
 /// # Safety
 ///
 /// `ctx` must be non-null, aligned and valid for the duration of the call, and
-/// `thrown` must refer to a live exception allocation whose reference is being
-/// transferred here.
+/// `thrown` must be null or refer to a live object allocation whose reference
+/// is being transferred here.
 #[expect(
     unsafe_code,
     reason = "compiled code passes the context and exception pointers; the \
               contract cannot be expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_raise(ctx: *mut Ctx, thrown: *const ThrowableHeader) {
+pub unsafe extern "C" fn mwl_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
     #[expect(
         unsafe_code,
         reason = "the caller guarantees both pointers are valid, and that the \
                   exception's reference is being transferred"
     )]
     unsafe {
-        (*ctx).raise(Rc::from_raw(thrown));
+        (*ctx).raise(Thrown::from_raw(thrown));
     }
 }
 
@@ -301,12 +363,15 @@ pub unsafe extern "C" fn mwl_trace_push(ctx: *mut Ctx, label: *const u8, len: us
     }
 }
 
-/// Hands the pending exception to a `catch` clause's bound variable, clearing
-/// it from the context — `mwl_ir::InstKind::TakeThrown`'s entry point.
+/// Hands the pending exception to a `catch` clause's dispatch, clearing it
+/// from the context — `mwl_ir::InstKind::TakeThrown`'s entry point.
 ///
-/// The caller owns the returned reference and must eventually release it;
-/// `mwl_ir::lower` binds it to the clause's local, which the frame's ordinary
-/// scope-exit sweep releases.
+/// The caller owns the returned reference and must eventually release it.
+/// It may be **null**: a helper's bare-message failure has no object behind
+/// it unless [`Ctx::set_runtime_error_class`] installed a class to build one
+/// from. Every operation a `catch` dispatch performs on the result is
+/// null-tolerant — `mwl_object_instanceof` answers `false`, so no clause
+/// matches and the throw is re-raised unchanged.
 ///
 /// # Safety
 ///
@@ -317,61 +382,83 @@ pub unsafe extern "C" fn mwl_trace_push(ctx: *mut Ctx, label: *const u8, len: us
               expressed in the signature"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_take_thrown(ctx: *mut Ctx) -> *const ThrowableHeader {
+pub unsafe extern "C" fn mwl_take_thrown(ctx: *mut Ctx) -> *mut ObjHeader {
     #[expect(unsafe_code, reason = "the caller guarantees `ctx` is valid")]
     let thrown = unsafe { (*ctx).take_thrown() };
-    // A `catch` is only ever entered on a `THROWN` status, which by
-    // construction leaves something pending — but a null here would be a
-    // pointer compiled code then releases, so the defensive case allocates an
-    // empty exception rather than trusting that.
-    Rc::into_raw(thrown.unwrap_or_else(|| ThrowableHeader::new("")))
+    thrown.into_raw()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::object::ClassTable;
+
+    /// A class table shaped like the seeded exception tree: `Throwable` with
+    /// its four slots, and one subclass of it with none of its own.
+    fn tree() -> (ClassTable, *const ClassDesc, *const ClassDesc) {
+        let mut table = ClassTable::new();
+        let root = table.define("Throwable", SLOT_COUNT, &[]);
+        let leaf = table.define("LogicError", SLOT_COUNT, &[root]);
+        let (root, leaf) = (table.desc(root), table.desc(leaf));
+        (table, root, leaf)
+    }
 
     #[test]
     fn a_fresh_exception_has_its_message_and_an_empty_trace() {
-        let e = ThrowableHeader::new("boom");
+        let (_table, root, _) = tree();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(root, "boom") };
         assert_eq!(e.message(), "boom");
         assert_eq!(e.trace_as_string(), "");
     }
 
     #[test]
     fn frames_are_numbered_in_push_order() {
-        let e = ThrowableHeader::new("traced");
+        let (_table, _, leaf) = tree();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "traced") };
         e.push_frame("Deep::inner() at t.mwl:4");
         e.push_frame("Deep::outer() at t.mwl:8");
         assert_eq!(
             e.trace_as_string(),
             "#0 Deep::inner() at t.mwl:4\n#1 Deep::outer() at t.mwl:8"
         );
+        assert_eq!(e.frames().len(), 2);
     }
 
     #[test]
-    fn the_primitives_round_trip_a_message_through_an_mwl_string() {
-        let raw = MwlStr::new(b"from a literal").into_raw();
-        #[expect(unsafe_code, reason = "exercising the primitives' own contract")]
-        unsafe {
-            let thrown = mwl_exception_new(raw);
-            let back = MwlStr::from_raw(mwl_throwable_message(thrown));
-            assert_eq!(back.as_bytes(), b"from a literal");
-            mwl_throwable_release(thrown);
-            drop(MwlStr::from_raw(raw));
+    fn growing_the_backtrace_never_separates_the_array() {
+        // The append path moves the slot's own reference out and back, so the
+        // array stays uniquely owned — otherwise every frame would copy the
+        // whole trace.
+        let (_table, root, _) = tree();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(root, "m") };
+        for i in 0..64 {
+            e.push_frame(&format!("f{i}"));
         }
+        let frames = e.frames();
+        assert_eq!(frames.len(), 64);
+        assert_eq!(frames[0], "f0");
+        assert_eq!(frames[63], "f63");
     }
 
     #[test]
-    fn a_retain_keeps_the_allocation_alive_past_one_release() {
-        let e = ThrowableHeader::new("shared");
-        let raw = Rc::into_raw(e);
-        #[expect(unsafe_code, reason = "exercising the retain/release pair")]
-        unsafe {
-            mwl_throwable_retain(raw);
-            mwl_throwable_release(raw);
-            assert_eq!((*raw).message(), "shared");
-            mwl_throwable_release(raw);
-        }
+    fn an_absent_exception_answers_every_query_without_reading_anything() {
+        let none = Thrown::none();
+        assert!(none.is_none());
+        assert_eq!(none.message(), "");
+        assert_eq!(none.trace_as_string(), "");
+        assert!(none.frames().is_empty());
+        none.push_frame("ignored");
+    }
+
+    #[test]
+    fn a_class_with_too_few_slots_is_refused_rather_than_written_past() {
+        let mut table = ClassTable::new();
+        let narrow = table.define("NotAnException", 1, &[]);
+        #[expect(unsafe_code, reason = "the table outlives the call")]
+        let e = unsafe { Thrown::new(table.desc(narrow), "boom") };
+        assert!(e.is_none());
     }
 }

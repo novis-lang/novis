@@ -1,7 +1,7 @@
 <?mwl
 class Deep {
     public static function inner(): void {
-        throw new Exception("traced");
+        throw new LogicError("traced");
     }
 
     public static function outer(): void {
@@ -12,5 +12,9 @@ class Deep {
 try {
     Deep::outer();
 } catch (Throwable $e) {
-    echo $e->getTraceAsString() . "\n";
+    int $depth = 0;
+    foreach ($e->backtrace as string $frame) {
+        echo "#" . $depth . " " . $frame . "\n";
+        $depth = $depth + 1;
+    }
 }

@@ -93,10 +93,10 @@
 //!   Core\Html\Markup` accepts only a literal string token and separately
 //!   refuses a `secret` operand with its own diagnostic (escaping doesn't
 //!   restore confidentiality); a `secret` value passed as a `Throwable`-
-//!   shaped class's constructor message is refused too, via a new
-//!   [`mwl_hir::QName::is_reserved_global_class`] that trusts `Throwable`/
-//!   `Exception`/`Error` to exist without a source declaration, the same way
-//!   `Core`'s own classes already are. A bare string or `[$obj, 'method']`
+//!   shaped class's constructor message is refused too, resolved through the
+//!   exception tree [`error_lib`] seeds — which is what gives `Throwable` and
+//!   its subclasses a signature table without a source declaration, the same
+//!   way [`core_lib`] does for `Core`. A bare string or `[$obj, 'method']`
 //!   array where `callable` is expected gets a targeted diagnostic,
 //!   `$obj(...)` is refused for any resolved-class `$obj`, and first-class
 //!   callable syntax (`$obj->method(...)`, `Foo::bar(...)`) now types as
@@ -111,10 +111,10 @@
 //!   ADR 0033's own remaining sinks — `Core\Log`'s call-site inspection (M8)
 //!   and `var_dump`/`print_r`'s redaction (M4) — are deferred by that ADR's
 //!   own *Verification* section, as is `serialize()`/the `spawn worker`
-//!   boundary refusal (M5). `Throwable`/`Exception`/`Error` have no declared
-//!   member table, so a method call or property access on one is silently
-//!   `mixed` rather than diagnosed, the same treatment an unmodeled `Core`
-//!   class already gets — see [`expr::is_throwable_shaped`]'s own docs.
+//!   boundary refusal (M5). An exception class *does* have a declared member
+//!   table now — [`error_lib`] seeds spec § 10's four readonly properties and
+//!   the one constructor — so `$e->message` is checked like any other
+//!   property read.
 //!   ADR 0014's "a property
 //!   access on any receiver other than `$this` is checked" half turned out to
 //!   already be done: [`expr::check_property_access`] reports
@@ -166,6 +166,7 @@
 pub mod check;
 pub mod core_lib;
 pub mod ctor_init;
+pub mod error_lib;
 pub mod expr;
 pub mod expr_table;
 pub(crate) mod generics;

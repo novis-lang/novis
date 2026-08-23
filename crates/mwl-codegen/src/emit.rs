@@ -30,9 +30,7 @@ use cranelift_jit::JITModule;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use mwl_ir::Ty;
 use mwl_ir::ids::{BlockId, ValueId};
-use mwl_ir::ir::{
-    BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, ThrowableOp, UnOp,
-};
+use mwl_ir::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
 use mwl_runtime::{DEBUG_FLAGS_OFFSET, OK, SAFEPOINT_OFFSET, THROWN, Tag, Value as MwlValue};
 use rustc_hash::FxHashMap;
 
@@ -465,23 +463,6 @@ impl Emitter<'_, '_> {
                 let value = self.b.inst_results(call)[0];
                 self.define(inst, value)?;
             }
-            InstKind::Throwable { op, operand } => {
-                let (value, _) = self.value(*operand)?;
-                let symbol = match op {
-                    ThrowableOp::New => "mwl_exception_new",
-                    ThrowableOp::Message => "mwl_throwable_message",
-                    ThrowableOp::TraceAsString => "mwl_throwable_trace",
-                    other => {
-                        return Err(CodegenError::Unsupported(format!(
-                            "the exception operation {other:?}"
-                        )));
-                    }
-                };
-                let callee = self.runtime_ref(symbol, RuntimeSig::PtrToPtr)?;
-                let call = self.b.ins().call(callee, &[value]);
-                let result = self.b.inst_results(call)[0];
-                self.define(inst, result)?;
-            }
             InstKind::Phi { .. } => return Err(internal("a phi reached the instruction walk")),
             other => {
                 return Err(CodegenError::Unsupported(describe(other)));
@@ -612,6 +593,21 @@ impl Emitter<'_, '_> {
             return Err(internal(
                 "a binary operator over mismatched representations",
             ));
+        }
+
+        // A `string` comparison is a byte comparison in the runtime, not a
+        // machine instruction: `Ty::Str` is a pointer, so `icmp` would compare
+        // *identity*, which is never what `===` means for a string.
+        if matches!(ty, Ty::Str | Ty::Bytes) && matches!(op, BinOp::Eq | BinOp::NotEq) {
+            let callee = self.runtime_ref("mwl_str_eq", RuntimeSig::StrEq)?;
+            let call = self.b.ins().call(callee, &[l, r]);
+            let equal = self.b.inst_results(call)[0];
+            return Ok(match op {
+                BinOp::Eq => equal,
+                // `bxor 1` rather than `icmp_imm 0`: the helper returns a Rust
+                // `bool`, so the byte is already exactly 0 or 1.
+                _ => self.b.ins().bxor_imm_u(equal, 1),
+            });
         }
 
         let signed = matches!(ty, Ty::Int);
@@ -1190,8 +1186,6 @@ impl Emitter<'_, '_> {
             (Ty::Object, false) => "mwl_object_release",
             (Ty::Array, true) => "mwl_array_retain",
             (Ty::Array, false) => "mwl_array_release",
-            (Ty::Throwable, true) => "mwl_throwable_retain",
-            (Ty::Throwable, false) => "mwl_throwable_release",
             (other, _) => {
                 return Err(CodegenError::Unsupported(format!(
                     "a refcount operation on representation {other:?}"
@@ -1280,8 +1274,8 @@ impl Emitter<'_, '_> {
             }
             Terminator::Throw { value, landing } => {
                 let (thrown, ty) = self.value(*value)?;
-                if !matches!(ty, Ty::Throwable) {
-                    return Err(internal("a `throw` of something that is not an exception"));
+                if !matches!(ty, Ty::Object) {
+                    return Err(internal("a `throw` of something that is not an object"));
                 }
                 // Ownership of the exception transfers to the context here —
                 // `mwl_ir::lower` already retained an aliasing operand.
@@ -1458,6 +1452,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
             RuntimeSig::StrNew => &self.sigs.str_new,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
+            RuntimeSig::StrEq => &self.sigs.str_eq,
             RuntimeSig::Refcount => &self.sigs.refcount,
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
             RuntimeSig::Raise => &self.sigs.raise,
@@ -1493,6 +1488,7 @@ enum RuntimeSig {
     ProbeCallExit,
     StrNew,
     StrConcat,
+    StrEq,
     Refcount,
     PtrToPtr,
     Raise,

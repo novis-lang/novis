@@ -86,6 +86,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         .map(|method| {
             let address: *const u8 = match method.symbol {
                 "mwl_core_arr_count" => (arr::mwl_core_arr_count as *const ()).cast(),
+                "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
                 other => panic!("mwl-stdlib registers `{other}` with no implementation address"),
             };
             (method.symbol, address)

@@ -1,26 +1,63 @@
-feat(ir,codegen): lower `instanceof`, and fix an inherited constructor's label
+feat: the exception surface is spec § 10 — an exception is an ordinary object
 
-`instanceof` is the first of the three things the exception surface needs
-(`NEXT_SESSION_PROMPT.md`): `mwl_object_instanceof` and the per-class
-descriptor have existed since the object slice landed, and nothing emitted
-either.
+`.claude/loop-goal.md`'s standing decision, implemented: `Throwable` is the
+root, user classes extend it directly, the tree is `LogicError`/`RuntimeError`
+(with `IOError`/`ParseError`/`TimeoutError`)/`ArithmeticError`, members are the
+readonly properties `$e->message`/`previous`/`backtrace`/`location`, and there
+is no `Exception` and no `Error` class at all. ADR 0020 § 0 already pointed at
+spec § 10 rather than restating it, so no ADR needed amending.
 
-The class the test names is resolved by the *checker*, not by lowering:
-`ExprInfo::InstanceOf` joins `New`/`Property`/`Index` in the typed-expression
-table, because turning a bare `Animal` into `Ns\Animal` needs the namespace and
-import context `mwl-ir` deliberately cannot see. The dynamic
-`$x instanceof $name` form records nothing and lowering refuses it rather than
-guessing. An interface is as legal a target as a class — `mwl_types::layout`
-already gives one a slotless descriptor for exactly this.
+`mwl_ir::Ty::Throwable` is gone, and with it `InstKind::Throwable`,
+`ThrowableOp` and `mwl_runtime::ThrowableHeader`. An exception is a
+`Ty::Object` end to end: allocated by `mwl_object_new`, refcounted by
+`mwl_object_retain`/`_release`, read by an ordinary `FieldGet`. That closes
+`mwl-codegen`'s known gap 0.
 
-Codegen emits one call with the descriptor address baked in as an `iconst`,
-the same move `emit_new` already makes, and nothing is retained: the receiver
-is only read.
+The tree has no source declaration — `backtrace` is grown by the runtime as a
+throw propagates, so there is no legal spelling for its body. `mwl_hir::errors`
+is the one home for its shape, and four consumers seed themselves from it:
+`mwl_hir::hierarchy` (the `extends` links), `mwl_hir::members` (the root's
+member names, so `parent::constructor(…)` in a user subclass resolves),
+`mwl_types::error_lib` (the property/constructor signatures, exactly the shape
+`core_lib` gives `Core`), and `mwl_types::layout` (the slot order). The one
+synthesized function, `Throwable::constructor`, is built by hand in
+`mwl_ir::lower`.
 
-One bug found on the way, on the acceptance path: `ExprInfo::New::ctor` named
-the *constructed* class rather than the one that declares the constructor, so
-`new Dog(...)` on a `Dog extends Animal` that declares none of its own compiled
-to a call on `Dog::constructor`, which no unit defines. `resolve_method`
-already returned the declaring `QName`; the arm discarded it.
+A typed `catch` is an `instanceof` chain over one `take.thrown`, ending in a
+re-raise of the very same reference when no clause matches — so an unmatched
+exception leaves the frame carrying the object it arrived with. `catch
+(Throwable $e)` needs no special case: every exception class descends from it.
+`finally` is lowered once per exit out of the protected region — the normal
+exit, a `return` (which pops each enclosing frame before lowering its copy, so
+a call inside the body escapes outward rather than looping back), the exception
+path, and the end of a matched clause. Two exits still miss it and are named
+rather than mislowered: a throw out of a `catch` body, and `break`/`continue`.
+
+`$e->location` is the **throw** site, not the construction site. The backtrace
+beside it holds the frames the exception unwound out of (ADR 0002's
+checked-return convention is what makes that the cheap shape), so a `location`
+naming the construction site would be the one field disagreeing with everything
+around it.
+
+`Ctx`'s pending slot now holds an object. A runtime helper's bare-message
+failure still has to become one, which needs a class descriptor — and a
+descriptor's *address* is its identity, so the runtime cannot make one up and
+still match a `catch`. `mwl_runtime::ErrorClass` carries an `Rc<ClassTable>`
+alongside the id, which turns "the table must outlive the context" from a
+contract into a fact: `mwl-cli` installs `RuntimeError` from the unit with no
+`unsafe` at all. With nothing installed, `mwl_take_thrown` hands back null,
+`mwl_object_instanceof` answers `false` for it, and the throw is re-raised —
+degraded, never a crash.
+
+Two things `examples/errors.mwl` needed on the way, each on the acceptance
+path: `mwl_str_eq`, so `$key === "bad"` compares bytes rather than pointer
+identity, and `Core\Arr::isEmpty`. A third fell out: `new Foo()` naming an
+undeclared class is now `E_UNDEFINED_CLASS` rather than a lowering panic, which
+is what a migrating `new Exception(…)` now gets.
+
+`examples/errors.mwl` prints all seven of its frozen lines. `throw.mwl`,
+`trace.mwl` and `uncaught.mwl` are migrated off `new Exception`/`getMessage()`/
+`getTraceAsString()` and keep their output byte for byte — checked against the
+previous commit's binary, which is the point of migrating them.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

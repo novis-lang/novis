@@ -336,34 +336,17 @@ pub enum InstKind {
         /// The right operand, already lowered and already [`Ty::Str`].
         rhs: ValueId,
     },
-    /// One of the closed set of operations over a runtime-owned exception:
-    /// building one, or reading one of its two accessors.
-    ///
-    /// A dedicated instruction rather than a [`Helper`] call, for exactly the
-    /// reason [`InstKind::Concat`] is one: each operation is infallible and
-    /// takes a single already-typed operand, so it needs neither
-    /// [`HelperCall`](InstKind::HelperCall)'s argument list nor
-    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s status check
-    /// — `mwl-runtime` backs all three with bare-pointer primitives alongside
-    /// `mwl_str_concat` rather than with helpers.
-    ///
-    /// `operand` is only *read*, never retained, and the result is a fresh
-    /// value with exactly one natural owner — the same ownership shape
-    /// [`InstKind::Concat`]'s own doc comment describes, and the reason
-    /// `crate::lower` releases a non-aliasing operand right after this
-    /// instruction consumes it.
-    Throwable {
-        /// Which operation.
-        op: ThrowableOp,
-        /// The single operand: a [`crate::ty::Ty::Str`] message for
-        /// [`ThrowableOp::New`], the exception itself for the two accessors.
-        operand: ValueId,
-    },
     /// Takes the pending exception out of the request context, transferring
-    /// ownership of one reference to the value this defines — the first
-    /// instruction of a `catch` clause's handler block, and the only way an
-    /// MWL binding ever names a [`crate::ty::Ty::Throwable`] that this frame
-    /// did not construct itself.
+    /// ownership of one reference to the [`crate::ty::Ty::Object`] this
+    /// defines — the first instruction of a `catch`'s dispatch block, and the
+    /// only way an MWL binding ever names an exception this frame did not
+    /// construct itself.
+    ///
+    /// The value may be **null**: a runtime helper's bare-message failure has
+    /// no object behind it unless the driver installed a class to build one
+    /// from (`mwl_runtime::Ctx::set_runtime_error_class`). Every operation the
+    /// dispatch performs on it tolerates that — [`InstKind::InstanceOf`]
+    /// answers `false`, so no clause matches and the throw is re-raised.
     ///
     /// Defined as an instruction rather than a [`Helper`] call for the same
     /// reason [`InstKind::Concat`] is one: it has a single fixed shape, takes
@@ -721,30 +704,6 @@ pub enum Helper {
     EchoStr,
 }
 
-/// One member of the closed set of operations [`InstKind::Throwable`] can
-/// perform — the whole of what MWL code can do with an exception value.
-///
-/// Closed because [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
-/// § 1's `Throwable`/`Exception`/`Error` have no source declaration, so they
-/// have no members beyond what the runtime provides. `getTrace()` is
-/// deliberately absent: it returns `array<…>`, and lowering an array is M4's
-/// work — `.claude/loop-goal.md` records that carry-over.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[non_exhaustive]
-pub enum ThrowableOp {
-    /// `new Exception($message)`: a fresh exception with an empty backtrace.
-    /// Takes a [`crate::ty::Ty::Str`], produces a
-    /// [`crate::ty::Ty::Throwable`].
-    New,
-    /// `getMessage()`. Takes the exception, produces a fresh
-    /// [`crate::ty::Ty::Str`].
-    Message,
-    /// `getTraceAsString()`. Takes the exception, produces a fresh
-    /// [`crate::ty::Ty::Str`] holding the frames it has unwound out of so far,
-    /// `#0` first.
-    TraceAsString,
-}
-
 /// A binary arithmetic or comparison operator, already resolved to a single
 /// representation (no `mixed`/union dispatch — see the crate docs' "no
 /// runtime-helper calls" known gap).
@@ -803,9 +762,10 @@ pub enum Terminator {
     /// through, and because the status entering `landing` is the constant
     /// `THROWN` here rather than a value read back from a call.
     Throw {
-        /// The [`crate::ty::Ty::Throwable`] being raised. Ownership of one
-        /// reference transfers to the context — `crate::lower` retains an
-        /// aliasing operand (`throw $e;`) first.
+        /// The [`crate::ty::Ty::Object`] being raised — an instance of
+        /// `Throwable` or one of its subclasses. Ownership of one reference
+        /// transfers to the context; `crate::lower` retains an aliasing
+        /// operand (`throw $e;`) first.
         value: ValueId,
         /// The landing block this frame's cleanup lives in, exactly the block
         /// [`Inst::on_error`] would name for a call at this same point.

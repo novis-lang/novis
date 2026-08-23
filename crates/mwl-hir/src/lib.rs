@@ -12,6 +12,8 @@
 //!   `namespace Name;` statement both re-namespaces and resets the imported-
 //!   short-name set for the rest of the sequence it appears in), and
 //!   produces a [`Module`].
+//! - [`errors`] — the closed exception tree spec § 10 fixes, as data every
+//!   later crate seeds itself from.
 //! - [`hierarchy`] — [`HierarchyResolver`]: resolves every class/interface's
 //!   `extends`/`implements` and every class/trait's `use Trait, ...;` to real
 //!   [`Symbol`]s, into a [`ClassGraph`]; diagnoses an undeclared or
@@ -46,6 +48,7 @@
 //! plain quoted-string literal path.
 
 pub mod aliases;
+pub mod errors;
 pub mod hierarchy;
 pub mod members;
 pub mod qname;
@@ -54,7 +57,10 @@ pub mod resolve;
 pub mod symbol;
 
 pub use aliases::{AliasResolver, AliasTable};
-pub use hierarchy::{ClassGraph, ClassLinks, HierarchyResolver, implements_interface, resolve_ref};
+pub use hierarchy::{
+    ClassGraph, ClassLinks, HierarchyResolver, implements_interface, resolve_ref,
+    seed_exception_tree,
+};
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
 pub use requires::resolve_program;

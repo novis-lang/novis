@@ -113,20 +113,6 @@ pub enum Ty {
     /// their own known gaps (append syntax, a non-int/uint/string key, a
     /// `mixed`-erased base).
     Array,
-    /// A reference-counted, runtime-owned exception —
-    /// `mwl_runtime::ThrowableHeader`, opaque here as everywhere else.
-    ///
-    /// Deliberately *not* [`Self::Object`]. ADR 0020 § 1's global
-    /// `Throwable`/`Exception`/`Error` have no source declaration, so they
-    /// have no field layout for an object representation to describe; what
-    /// they have instead is a closed set of runtime entry points
-    /// (`getMessage()`, `getTraceAsString()`). Giving them their own
-    /// representation is what lets an exception work in M3 while a
-    /// user-declared class still waits for M4 — see the crate docs' known
-    /// gaps. Refcounted like [`Self::Str`], through
-    /// `mwl_throwable_retain`/`mwl_throwable_release`, with the identical
-    /// [`crate::lower::is_aliasing_read`]-keyed insertion policy.
-    Throwable,
     /// `mixed` — ADR 0007 § 3's one unchecked position. Bare and opaque,
     /// like [`Self::Object`]/[`Self::Array`]: a `mixed`-typed value's actual
     /// runtime shape (`int`, a `string`, an array, an object, ...) needs a
@@ -182,9 +168,6 @@ impl Ty {
     /// distinction that will matter once a real tag representation lands.
     #[must_use]
     pub fn is_refcounted(self) -> bool {
-        matches!(
-            self,
-            Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Throwable
-        )
+        matches!(self, Ty::Str | Ty::Bytes | Ty::Array | Ty::Object)
     }
 }

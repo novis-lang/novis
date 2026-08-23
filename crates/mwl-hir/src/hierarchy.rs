@@ -23,12 +23,14 @@
 //! a forward reference to a not-yet-declared parent works the same way a
 //! `use` import already does.
 //!
+//! [`crate::errors`]' exception tree is seeded into every [`ClassGraph`] this
+//! module builds, before a single declared link is resolved — see
+//! [`seed_exception_tree`] for why that is the graph's job rather than each
+//! consumer's.
+//!
 //! **Known gap:** a target under `Core` ([`QName::is_core`]) is trusted to
 //! exist, same as a `use` import — `mwl-stdlib` doesn't exist yet, so its
-//! members can't be checked either. `Throwable`/`Exception`/`Error`
-//! ([`QName::is_reserved_global_class`]) get the identical trust for
-//! `extends`, since [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
-//! § 0 already fixed them as global, undeclared classes.
+//! members can't be checked either.
 
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use mwl_syntax::ast::{Name, NamespaceDecl, Stmt, StmtKind};
@@ -64,6 +66,15 @@ impl ClassGraph {
     #[must_use]
     pub fn get(&self, qname: &QName) -> Option<&ClassLinks> {
         self.links.get(qname)
+    }
+
+    /// Records one name's links, replacing any already there.
+    ///
+    /// Exists for the compiler-owned declarations that have no source text to
+    /// resolve from — today only [`crate::errors::TREE`], seeded by
+    /// [`seed_exception_tree`] before the first declared link is resolved.
+    pub fn insert(&mut self, qname: QName, links: ClassLinks) {
+        self.links.insert(qname, links);
     }
 
     /// How many declarations have a links entry.
@@ -212,6 +223,7 @@ impl HierarchyResolver {
     #[must_use]
     pub fn resolve(self, symbols: &SymbolTable, diags: &mut Diagnostics) -> ClassGraph {
         let mut graph = ClassGraph::default();
+        seed_exception_tree(&mut graph);
 
         for pending in &self.pending {
             let mut links = ClassLinks::default();
@@ -239,6 +251,24 @@ impl HierarchyResolver {
         detect_cycles(&graph, symbols, diags);
 
         graph
+    }
+}
+
+/// Puts [`crate::errors::TREE`]'s own `extends` links into `graph` before any
+/// declared one, so `resolve_method`/`resolve_property` walk from a user class
+/// through `LogicError` to `Throwable` with the ordinary parent walk and no
+/// special case anywhere above this line.
+///
+/// Seeded here rather than left to each consumer because the graph is what
+/// every one of them already asks; see [`crate::errors`] for why the tree has
+/// no source declaration to collect from instead.
+pub fn seed_exception_tree(graph: &mut ClassGraph) {
+    for (name, parent) in crate::errors::TREE {
+        let links = ClassLinks {
+            extends: parent.iter().map(|p| QName::parse(p)).collect(),
+            implements: Vec::new(),
+        };
+        graph.insert(QName::parse(name), links);
     }
 }
 
@@ -536,16 +566,30 @@ mod tests {
 
     #[test]
     fn a_class_extending_the_reserved_global_exception_resolves_with_no_declaration() {
-        // ADR 0020 § 0: `Exception` is a global, PHP-shaped class with no
-        // `mwl-hir` declaration of its own — trusted the same way `Core`'s
-        // own classes are.
-        let (graph, diags) = resolve("<?mwl\nclass MyError extends Exception {}\n");
+        // Spec § 10: `Throwable` is a global class with no `mwl-hir`
+        // declaration of its own — trusted the same way `Core`'s classes are.
+        let (graph, diags) = resolve("<?mwl\nclass MyError extends Throwable {}\n");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(implements_interface(
             &QName::parse("MyError"),
-            &QName::parse("Exception"),
+            &QName::parse("Throwable"),
             &graph
         ));
+    }
+
+    #[test]
+    fn the_exception_tree_s_own_links_are_in_the_graph_with_nothing_declared() {
+        // A user class reaches the root through the seeded links, with the
+        // ordinary parent walk and no special case — which is why every
+        // consumer can just ask the graph.
+        let (graph, diags) = resolve("<?mwl\nclass MyError extends TimeoutError {}\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        for ancestor in ["TimeoutError", "RuntimeError", "Throwable"] {
+            assert!(
+                implements_interface(&QName::parse("MyError"), &QName::parse(ancestor), &graph),
+                "MyError should reach {ancestor}"
+            );
+        }
     }
 
     #[test]

@@ -22,7 +22,7 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Bool => types::I8,
         Ty::Int | Ty::Uint => types::I64,
         Ty::Float => types::F64,
-        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Throwable | Ty::Mixed => types::I64,
+        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed => types::I64,
         Ty::Void => return None,
         _ => types::I64,
     })
@@ -41,6 +41,7 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
 /// still undecided (`mwl-ir`'s known gap 5) — a `mixed` value's tag is by
 /// definition not knowable from its static representation, which is the whole
 /// of the open question — and for [`Ty::Void`], which is not a value at all.
+/// An exception is an ordinary [`Tag::Object`] now, with no case of its own.
 pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
     Ok(match ty {
         Ty::Bool => Tag::Bool,
@@ -54,14 +55,6 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
             return Err(CodegenError::Unsupported(
                 "a `mixed` value crossing a call boundary — its runtime type \
                  tag is still an open representation question"
-                    .to_owned(),
-            ));
-        }
-        Ty::Throwable => {
-            return Err(CodegenError::Unsupported(
-                "an exception crossing an MWL call boundary — it is the \
-                 runtime's own opaque value, with no `Tag` to borrow until M4 \
-                 gives objects a representation"
                     .to_owned(),
             ));
         }

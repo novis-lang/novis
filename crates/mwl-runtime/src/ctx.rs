@@ -36,9 +36,9 @@
 
 use std::borrow::Cow;
 use std::io::{self, Write};
-use std::rc::Rc;
 
-use crate::throwable::ThrowableHeader;
+use crate::object::{ClassDesc, ClassId, ClassTable};
+use crate::throwable::Thrown;
 
 bitflags::bitflags! {
     /// What a safepoint poll has been asked to do.
@@ -139,6 +139,9 @@ pub struct Ctx {
     /// request. `PROFILE`'s self/inclusive timing shares these two sites and
     /// lands with that sink.
     trace: Vec<TraceEvent>,
+    /// The class a bare-message failure is promoted to, if one was
+    /// installed — see [`Ctx::set_runtime_error_class`].
+    runtime_error_class: Option<ErrorClass>,
     /// The armed fault-injection site, if any. See [`FaultSite`].
     ///
     /// A request with nothing armed — every request that is not a
@@ -150,9 +153,38 @@ pub struct Ctx {
     helper_calls: u32,
 }
 
+/// One class descriptor, plus the table that owns it.
+///
+/// The safe way to hand a [`Ctx`] a descriptor that must outlive it: a
+/// [`ClassDesc`]'s *address* is its identity (`crate::object`), so a context
+/// cannot make one up and still match a `catch` clause's — it has to be handed
+/// the compiled unit's. Carrying the [`Rc`](std::rc::Rc)-shared
+/// [`ClassTable`] along with the id is what turns "the table must outlive the
+/// context" from a contract into a fact, which is why
+/// [`Ctx::set_runtime_error_class`] needs no `unsafe` at all.
+#[derive(Clone, Debug)]
+pub struct ErrorClass {
+    table: std::rc::Rc<ClassTable>,
+    id: ClassId,
+}
+
+impl ErrorClass {
+    /// A handle on `id` within `table`.
+    #[must_use]
+    pub fn new(table: std::rc::Rc<ClassTable>, id: ClassId) -> Self {
+        Self { table, id }
+    }
+
+    /// The descriptor's address, live for as long as this handle is.
+    #[must_use]
+    pub fn desc(&self) -> *const ClassDesc {
+        self.table.desc(self.id)
+    }
+}
+
 /// What is behind a pending non-[`crate::OK`] status.
 ///
-/// One field on [`Ctx`], not two: the [`ThrowableHeader`] **subsumes** the
+/// One field on [`Ctx`], not two: the exception object **subsumes** the
 /// message a [`crate::Fault`] used to leave behind, rather than sitting beside
 /// it. Two fields would mean two places to ask "what failed", and every read
 /// would have to state which one wins.
@@ -169,10 +201,15 @@ pub struct Ctx {
 ///   PHP code throws on ordinary control-flow paths.
 /// * [`Pending::Thrown`] is what MWL's own `throw` produces, and the only one
 ///   carrying a backtrace. A `Message` is promoted to one on demand — by
-///   [`Ctx::take_thrown`] when a `catch` binds it, or by [`Ctx::push_frame`]
-///   when a `THROWN` unwinds a compiled frame — so a helper-raised throw is
-///   catchable and traceable without every helper paying for an allocation it
-///   usually does not need.
+///   [`Ctx::take_thrown`] when a `catch` dispatch takes it, or by
+///   [`Ctx::push_frame`] when a `THROWN` unwinds a compiled frame — so a
+///   helper-raised throw is catchable and traceable without every helper
+///   paying for an allocation it usually does not need.
+///
+/// Promotion needs a class to build the object from, which only the compiled
+/// unit has — see [`Ctx::set_runtime_error_class`]. With none installed, a
+/// `Message` stays a message: it is still reported, and still ends the
+/// request, but no `catch` clause matches it and it grows no backtrace.
 ///
 /// A [`crate::FATAL`] never becomes a `Thrown`: compiled code only ever pushes
 /// a frame for a `THROWN` status, and no `catch` is ever entered for a
@@ -181,24 +218,35 @@ pub struct Ctx {
 enum Pending {
     /// A message alone, with no exception object behind it yet.
     Message(Cow<'static, str>),
-    /// MWL's own runtime-owned exception value.
-    Thrown(Rc<ThrowableHeader>),
+    /// MWL's own exception object.
+    Thrown(Thrown),
 }
 
 impl Pending {
     /// The message, whichever shape this is.
-    fn message(&self) -> &str {
+    fn message(&self) -> Cow<'_, str> {
         match self {
-            Self::Message(message) => message,
-            Self::Thrown(thrown) => thrown.message(),
+            Self::Message(message) => Cow::Borrowed(message),
+            Self::Thrown(thrown) => Cow::Owned(thrown.message()),
         }
     }
 
-    /// This failure as an exception object, allocating one around a bare
-    /// message if that is all there is.
-    fn into_thrown(self) -> Rc<ThrowableHeader> {
+    /// This failure as an exception object, allocating one of `class` around a
+    /// bare message if that is all there is.
+    ///
+    /// # Safety
+    ///
+    /// `class` must be null or refer to a live class descriptor that outlives
+    /// every instance made from it.
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor's liveness is the caller's obligation and \
+                  cannot be expressed in the signature"
+    )]
+    unsafe fn into_thrown(self, class: *const ClassDesc) -> Thrown {
         match self {
-            Self::Message(message) => ThrowableHeader::new(message),
+            #[expect(unsafe_code, reason = "forwarding this function's own contract")]
+            Self::Message(message) => unsafe { Thrown::new(class, &message) },
             Self::Thrown(thrown) => thrown,
         }
     }
@@ -262,6 +310,7 @@ impl Ctx {
             safepoint: SafepointFlags::empty(),
             debug: DebugFlags::empty(),
             pending: None,
+            runtime_error_class: None,
             output,
             stmt_hits: Vec::new(),
             trace: Vec::new(),
@@ -370,16 +419,33 @@ impl Ctx {
         self.pending = Some(Pending::Message(message.into()));
     }
 
+    /// Installs the class a bare-message failure is promoted to — spec
+    /// § 10's `RuntimeError`, "the world said no", which is what a runtime
+    /// helper's failure is.
+    ///
+    /// A caller that never installs one gets the degraded behaviour
+    /// [`Pending`] describes, never a crash.
+    pub fn set_runtime_error_class(&mut self, class: ErrorClass) {
+        self.runtime_error_class = Some(class);
+    }
+
+    /// The installed descriptor's address, or null.
+    fn runtime_error_desc(&self) -> *const ClassDesc {
+        self.runtime_error_class
+            .as_ref()
+            .map_or(std::ptr::null(), ErrorClass::desc)
+    }
+
     /// Records an already-built exception as the pending `THROWN` — what
     /// [`mwl_raise`] does for MWL's own `throw`, taking ownership of the
     /// reference it was handed.
-    pub fn raise(&mut self, thrown: Rc<ThrowableHeader>) {
+    pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
     }
 
     /// The pending message, if any, without clearing it.
     #[must_use]
-    pub fn pending(&self) -> Option<&str> {
+    pub fn pending(&self) -> Option<Cow<'_, str>> {
         self.pending.as_ref().map(Pending::message)
     }
 
@@ -389,7 +455,7 @@ impl Ctx {
     pub fn take_pending(&mut self) -> Option<Cow<'static, str>> {
         Some(match self.pending.take()? {
             Pending::Message(message) => message,
-            Pending::Thrown(thrown) => Cow::Owned(thrown.message().to_owned()),
+            Pending::Thrown(thrown) => Cow::Owned(thrown.message()),
         })
     }
 
@@ -401,8 +467,18 @@ impl Ctx {
     /// one: a helper-raised `THROWN` is as catchable as MWL's own, it just has
     /// no backtrace to show.
     #[must_use]
-    pub fn take_thrown(&mut self) -> Option<Rc<ThrowableHeader>> {
-        Some(self.pending.take()?.into_thrown())
+    pub fn take_thrown(&mut self) -> Thrown {
+        let Some(pending) = self.pending.take() else {
+            return Thrown::none();
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`set_runtime_error_class`'s own contract makes the \
+                      installed descriptor outlive every instance built here"
+        )]
+        unsafe {
+            pending.into_thrown(self.runtime_error_desc())
+        }
     }
 
     /// Records one more frame a pending `THROWN` has unwound out of.
@@ -413,7 +489,20 @@ impl Ctx {
         let Some(pending) = self.pending.take() else {
             return;
         };
-        let thrown = pending.into_thrown();
+        // Captured before promotion, so the message survives the one case
+        // promotion cannot produce an object for — see `Pending`'s note on an
+        // uninstalled class.
+        let message = pending.message().into_owned();
+        #[expect(
+            unsafe_code,
+            reason = "`set_runtime_error_class`'s own contract makes the \
+                      installed descriptor outlive every instance built here"
+        )]
+        let thrown = unsafe { pending.into_thrown(self.runtime_error_desc()) };
+        if thrown.is_none() {
+            self.pending = Some(Pending::Message(Cow::Owned(message)));
+            return;
+        }
         thrown.push_frame(label);
         self.pending = Some(Pending::Thrown(thrown));
     }
@@ -662,7 +751,7 @@ mod tests {
         let ctx = Ctx::buffered();
         assert!(ctx.safepoint_flags().is_empty());
         assert!(ctx.debug_flags().is_empty());
-        assert_eq!(ctx.pending(), None);
+        assert!(ctx.pending().is_none());
     }
 
     #[test]
@@ -688,9 +777,9 @@ mod tests {
     fn a_pending_message_is_taken_once() {
         let mut ctx = Ctx::buffered();
         ctx.set_pending("boom");
-        assert_eq!(ctx.pending(), Some("boom"));
+        assert_eq!(ctx.pending().as_deref(), Some("boom"));
         assert_eq!(ctx.take_pending().as_deref(), Some("boom"));
-        assert_eq!(ctx.pending(), None);
+        assert!(ctx.pending().is_none());
     }
 
     #[test]
@@ -707,7 +796,7 @@ mod tests {
             #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
             let status = unsafe { mwl_safepoint(&raw mut ctx) };
             assert_eq!(status, crate::FATAL);
-            assert_eq!(ctx.pending(), Some(message));
+            assert_eq!(ctx.pending().as_deref(), Some(message));
         }
     }
 
@@ -843,6 +932,6 @@ mod tests {
         let status = unsafe { mwl_safepoint(&raw mut ctx) };
         assert_eq!(status, crate::OK);
         assert!(ctx.safepoint_flags().is_empty());
-        assert_eq!(ctx.pending(), None);
+        assert!(ctx.pending().is_none());
     }
 }

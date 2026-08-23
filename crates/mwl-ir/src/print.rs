@@ -12,9 +12,7 @@ use std::fmt::Write as _;
 use mwl_diagnostics::{SourceFile, Span};
 
 use crate::ids::BlockId;
-use crate::ir::{
-    BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, ThrowableOp, UnOp,
-};
+use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Program, Terminator, UnOp};
 use crate::ty::Ty;
 
 /// Renders every function in `program`, in order, as text.
@@ -199,9 +197,6 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             format!("core.call {symbol}({})", parts.join(", "))
         }
         InstKind::TakeThrown => "take.thrown".to_owned(),
-        InstKind::Throwable { op, operand } => {
-            format!("throwable.{} v{}", throwable_op_name(*op), operand.index())
-        }
         InstKind::StmtMarker(_)
         | InstKind::Safepoint
         | InstKind::Retain { .. }
@@ -294,7 +289,6 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Str => "string",
         Ty::Bytes => "bytes",
         Ty::Array => "array",
-        Ty::Throwable => "throwable",
         Ty::Mixed => "mixed",
     }
 }
@@ -319,14 +313,6 @@ fn un_op_name(op: UnOp) -> &'static str {
     match op {
         UnOp::Neg => "neg",
         UnOp::Not => "not",
-    }
-}
-
-fn throwable_op_name(op: ThrowableOp) -> &'static str {
-    match op {
-        ThrowableOp::New => "new",
-        ThrowableOp::Message => "message",
-        ThrowableOp::TraceAsString => "trace_as_string",
     }
 }
 

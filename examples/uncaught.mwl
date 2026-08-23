@@ -1,7 +1,7 @@
 <?mwl
 class Boom {
     public static function inner(): void {
-        throw new Exception("unhandled");
+        throw new LogicError("unhandled");
     }
 
     public static function outer(): void {

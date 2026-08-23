@@ -87,15 +87,15 @@
 //! requires, and each gap below is a missing *lowering*, not a missing
 //! decision:
 //!
-//! 0. **No user exception class.** [`mwl_ir::Ty::Throwable`] is the runtime's
-//!    own opaque value, so it cannot be materialized into a 16-byte
-//!    [`mwl_runtime::Value`] — passing one to a compiled MWL method or
-//!    returning one is refused by [`ty::tag_of`] rather than given a
-//!    borrowed tag. A `catch` binding it to a local, reading its two
-//!    accessors and re-throwing it all work. Now that objects have a
-//!    representation, joining the two is a decision about the exception
-//!    *surface* (`.claude/loop-goal.md` § *Standing decisions*) rather than a
-//!    missing shape to attach it to.
+//! 0. **A `finally` does not run on every exit.** It runs on the normal exit,
+//!    on a `return` out of the protected region, on the exception path, and
+//!    at the end of a matched `catch` clause — but not when a `catch`
+//!    clause's own body throws, and a `break`/`continue` out of a protected
+//!    region is refused outright rather than lowered without one. See
+//!    [`mwl_ir::lower::Lowering::lower_try`], which owns the whole policy.
+//!    Exceptions themselves are ordinary objects: `Ty::Throwable` is gone,
+//!    a user class `extends Throwable` compiles like any other, and a typed
+//!    `catch` is an [`mwl_ir::ir::InstKind::InstanceOf`] chain.
 //! 1. **A call does not dispatch virtually.** Its target is whatever
 //!    `mwl_types` resolved from the receiver's *static* type, so an overridden
 //!    method reached through a base-typed variable still calls the base's.
@@ -197,7 +197,11 @@ pub struct Unit {
     /// outlive every instance and every frame that can allocate one. Moving
     /// the table here is safe because each descriptor is individually boxed —
     /// only the `Vec`'s own three words move, never a `ClassDesc`.
-    _classes: mwl_runtime::ClassTable,
+    ///
+    /// Shared rather than owned outright so a [`mwl_runtime::ErrorClass`]
+    /// handed to a [`mwl_runtime::Ctx`] can keep it alive by itself — that is
+    /// what makes installing one need no `unsafe` at the call site.
+    classes: std::rc::Rc<mwl_runtime::ClassTable>,
     entries: FxHashMap<String, *const u8>,
 }
 
@@ -224,6 +228,25 @@ impl Unit {
     pub fn function(&self, name: &str) -> Option<MwlFn> {
         let code = *self.entries.get(name)?;
         Some(unsafe { std::mem::transmute::<*const u8, MwlFn>(code) })
+    }
+
+    /// A handle on the class a runtime helper's bare-message failure is
+    /// promoted to — spec § 10's `RuntimeError`, which is what "the world said
+    /// no" means.
+    ///
+    /// `None` only if the unit somehow declares no such class, which the
+    /// seeded exception tree (`mwl_hir::errors`) makes impossible for a
+    /// program that went through the front end.
+    ///
+    /// The returned handle shares ownership of the descriptor table, so it may
+    /// safely outlive this `Unit` — see [`mwl_runtime::ErrorClass`].
+    #[must_use]
+    pub fn runtime_error_class(&self) -> Option<mwl_runtime::ErrorClass> {
+        let id = self.classes.id_of("RuntimeError")?;
+        Some(mwl_runtime::ErrorClass::new(
+            std::rc::Rc::clone(&self.classes),
+            id,
+        ))
     }
 }
 
@@ -426,6 +449,8 @@ struct Signatures {
     str_new: Signature,
     /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`.
     str_concat: Signature,
+    /// `mwl_str_eq(lhs, rhs) -> bool` — `I8`, like `Sigs::instanceof`.
+    str_eq: Signature,
     /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`, and the two
     /// `mwl_throwable_*` counterparts.
     refcount: Signature,
@@ -631,7 +656,7 @@ impl Jit {
             .collect();
         Ok(Unit {
             _module: self.module,
-            _classes: self.classes.table,
+            classes: std::rc::Rc::new(self.classes.table),
             entries,
         })
     }
@@ -672,6 +697,11 @@ impl Signatures {
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.returns.push(AbiParam::new(ptr));
+
+        let mut str_eq = module.make_signature();
+        str_eq.params.push(AbiParam::new(ptr));
+        str_eq.params.push(AbiParam::new(ptr));
+        str_eq.returns.push(AbiParam::new(types::I8));
 
         let mut refcount = module.make_signature();
         refcount.params.push(AbiParam::new(ptr));
@@ -728,6 +758,7 @@ impl Signatures {
             probe_call_exit,
             str_new,
             str_concat,
+            str_eq,
             refcount,
             ptr_to_ptr,
             raise,

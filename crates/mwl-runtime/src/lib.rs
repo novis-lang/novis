@@ -160,8 +160,9 @@ pub use array::{
     mwl_array_retain, mwl_array_set, mwl_array_unset, mwl_array_value_at,
 };
 pub use ctx::{
-    Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, FaultSite, OutputSink, SAFEPOINT_OFFSET, SafepointFlags,
-    TraceEvent, mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint,
+    Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET,
+    SafepointFlags, TraceEvent, mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt,
+    mwl_safepoint,
 };
 pub use fmt::php_float_to_string;
 pub use helpers::symbols;
@@ -172,11 +173,11 @@ pub use object::{
     mwl_object_retain,
 };
 pub use string::{
-    LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_concat, mwl_str_new,
-    mwl_str_release, mwl_str_retain,
+    LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_concat, mwl_str_eq,
+    mwl_str_new, mwl_str_release, mwl_str_retain,
 };
 pub use throwable::{
-    ThrowableHeader, mwl_exception_new, mwl_raise, mwl_take_thrown, mwl_throwable_message,
-    mwl_throwable_release, mwl_throwable_retain, mwl_throwable_trace, mwl_trace_push,
+    BACKTRACE_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown, mwl_raise,
+    mwl_take_thrown, mwl_trace_push,
 };
 pub use value::{Tag, Value};

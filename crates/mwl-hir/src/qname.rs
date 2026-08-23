@@ -117,22 +117,18 @@ impl QName {
         self.segments.len() == 1 && matches!(self.segments[0].as_str(), "Comparable" | "Stringable")
     }
 
-    /// Whether this name is one of the three global exception classes
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 0
-    /// already fixed as "stay global, PHP-shaped classes" — `Throwable`,
-    /// `Exception`, `Error` — trusted to exist without a source declaration
-    /// the same way [`Self::is_core`] trusts `Core`, since `mwl-stdlib`
-    /// doesn't declare them either. Kept separate from
-    /// [`Self::is_reserved_global_interface`]: these three are ordinary
-    /// classes reached via `extends`/`new`, not interfaces reached via
-    /// `implements`.
+    /// Whether this name is one of the global exception classes
+    /// [`crate::errors::TREE`] declares — trusted to exist without a source
+    /// declaration the same way [`Self::is_core`] trusts `Core`, since none
+    /// of them has a spelling MWL could declare (see that module's docs).
+    /// Kept separate from [`Self::is_reserved_global_interface`]: these are
+    /// ordinary classes reached via `extends`/`new`, not interfaces reached
+    /// via `implements`.
+    ///
+    /// PHP's `Exception` and `Error` are deliberately *not* among them.
     #[must_use]
     pub fn is_reserved_global_class(&self) -> bool {
-        self.segments.len() == 1
-            && matches!(
-                self.segments[0].as_str(),
-                "Throwable" | "Exception" | "Error"
-            )
+        self.segments.len() == 1 && crate::errors::is_exception_class(&self.segments[0])
     }
 }
 
@@ -192,11 +188,13 @@ mod tests {
     }
 
     #[test]
-    fn is_reserved_global_class_recognizes_throwable_exception_and_error() {
+    fn is_reserved_global_class_recognizes_the_exception_tree_and_nothing_else() {
         assert!(QName::parse("Throwable").is_reserved_global_class());
-        assert!(QName::parse("Exception").is_reserved_global_class());
-        assert!(QName::parse("Error").is_reserved_global_class());
+        assert!(QName::parse("LogicError").is_reserved_global_class());
+        assert!(QName::parse("TimeoutError").is_reserved_global_class());
+        assert!(!QName::parse("Exception").is_reserved_global_class());
+        assert!(!QName::parse("Error").is_reserved_global_class());
         assert!(!QName::parse("Comparable").is_reserved_global_class());
-        assert!(!QName::parse("App\\Exception").is_reserved_global_class());
+        assert!(!QName::parse("App\\LogicError").is_reserved_global_class());
     }
 }

@@ -101,12 +101,20 @@ pub struct CoreClass {
 /// [`crate`]'s own known gap 1 for how much of the spec is here so far.
 pub const CLASSES: &[CoreClass] = &[CoreClass {
     name: r"Core\Arr",
-    methods: &[CoreMethod {
-        name: "count",
-        params: &[CoreTy::Array(&CoreTy::Var("T"))],
-        return_ty: CoreTy::Uint,
-        symbol: "mwl_core_arr_count",
-    }],
+    methods: &[
+        CoreMethod {
+            name: "count",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            return_ty: CoreTy::Uint,
+            symbol: "mwl_core_arr_count",
+        },
+        CoreMethod {
+            name: "isEmpty",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_arr_is_empty",
+        },
+    ],
 }];
 
 /// Looks a class up by its fully-qualified name.

@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn a_try_and_its_catch_both_assigning_reads_fine_after() {
         let diags = check_in_method(
-            "int $n;\ntry {\n  $n = 1;\n} catch (Exception $e) {\n  $n = 2;\n}\necho $n;\n",
+            "int $n;\ntry {\n  $n = 1;\n} catch (LogicError $e) {\n  $n = 2;\n}\necho $n;\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
     }
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn a_try_whose_catch_does_not_assign_is_still_diagnosed() {
         let diags =
-            check_in_method("int $n;\ntry {\n  $n = 1;\n} catch (Exception $e) {\n}\necho $n;\n");
+            check_in_method("int $n;\ntry {\n  $n = 1;\n} catch (LogicError $e) {\n}\necho $n;\n");
         assert!(
             diags
                 .iter()
@@ -1632,10 +1632,10 @@ mod tests {
     }
 
     #[test]
-    fn a_secret_value_passed_directly_to_exception_is_diagnosed() {
+    fn a_secret_value_passed_directly_to_a_throwable_is_diagnosed() {
         let diags = check_in_method(
             "secret string $s = \"literal\";\n\
-             throw new Exception($s);\n",
+             throw new LogicError($s);\n",
         );
         assert!(
             diags
@@ -1646,10 +1646,10 @@ mod tests {
     }
 
     #[test]
-    fn a_secret_value_passed_to_a_subclass_of_exception_is_diagnosed() {
+    fn a_secret_value_passed_to_a_subclass_of_throwable_is_diagnosed() {
         let diags = check_src(
             "<?mwl\n\
-             class MyError extends Exception {}\n\
+             class MyError extends Throwable {}\n\
              class T {\n  function m(secret string $s): void {\n\
              throw new MyError($s);\n  }\n}\n",
         );
@@ -1662,8 +1662,8 @@ mod tests {
     }
 
     #[test]
-    fn a_plain_value_passed_to_exception_is_fine() {
-        let diags = check_in_method(r#"throw new Exception("plain message");"#);
+    fn a_plain_value_passed_to_a_throwable_is_fine() {
+        let diags = check_in_method(r#"throw new LogicError("plain message");"#);
         assert!(!diags.has_errors(), "{diags:?}");
     }
 

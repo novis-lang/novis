@@ -128,13 +128,35 @@ impl MemberKind {
 /// and the already-resolved [`ClassGraph`] ([`Self::check`]). Two calls, same
 /// two-pass shape as [`crate::hierarchy::HierarchyResolver`], for the same
 /// reason: a reference may name a member declared in a file collected later.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MemberResolver {
     table: MemberTable,
 }
 
+impl Default for MemberResolver {
+    /// A resolver holding only [`crate::errors`]' members.
+    ///
+    /// Seeded here rather than at each of the two call sites because a
+    /// resolver that had *not* been seeded would silently diagnose
+    /// `parent::constructor(…)` in a user exception subclass as an undeclared
+    /// member — the shape every migrated PHP exception class has.
+    fn default() -> Self {
+        let mut table = MemberTable::new();
+        let root = table.entry(QName::parse(crate::errors::ROOT));
+        root.methods.insert("constructor".to_owned());
+        for property in crate::errors::PROPERTIES {
+            root.props.insert((*property).to_owned());
+        }
+        for (name, _) in crate::errors::TREE {
+            table.entry(QName::parse(name));
+        }
+        Self { table }
+    }
+}
+
 impl MemberResolver {
-    /// A resolver with nothing collected yet.
+    /// A resolver with nothing collected yet beyond [`crate::errors`]' own
+    /// members — see [`Self::default`].
     #[must_use]
     pub fn new() -> Self {
         Self::default()

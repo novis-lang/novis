@@ -1,0 +1,20 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    ; stmt s0 @2:1-2:30
+    v0 = const.str "boom"  ; string
+    v1 = new LogicError via Throwable::constructor(v0) ! bb1  ; object
+    v2 = field.get v1, Throwable::location  ; string
+    release v2
+    v3 = const.str "t.mwl:2"  ; string
+    field.set v1, Throwable::location, v3
+    throw v1 -> bb2
+  bb1:
+    propagate "<script>() at t.mwl:2"
+  bb2:
+    propagate "<script>() at t.mwl:2"
+}

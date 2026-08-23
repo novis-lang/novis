@@ -269,6 +269,19 @@ impl ClassTable {
         self.classes.len()
     }
 
+    /// The id of the class named `name`, or `None` if this table defines none.
+    ///
+    /// A linear scan: the one caller is `mwl-codegen` looking up a single
+    /// compiler-owned class once per compiled unit, which is not a place a
+    /// second index would pay for itself.
+    #[must_use]
+    pub fn id_of(&self, name: &str) -> Option<ClassId> {
+        self.classes
+            .iter()
+            .position(|desc| desc.name == name)
+            .map(ClassId)
+    }
+
     /// Whether no class is defined.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -445,6 +458,38 @@ impl MwlObj {
         )]
         unsafe {
             *field_ptr(self.ptr.as_ptr(), index)
+        }
+    }
+
+    /// Reads field slot `index` and leaves `null` there, **transferring** the
+    /// reference the slot held to the caller.
+    ///
+    /// The one operation [`Self::field`] (a borrow) and [`Self::set_field`] (a
+    /// release-then-store) cannot compose into: `crate::throwable`'s backtrace
+    /// append needs the array's *only* reference in hand so copy-on-write does
+    /// not separate it, and retaining first would do exactly that.
+    ///
+    /// # Panics
+    ///
+    /// If `index` is out of range for this object's class.
+    #[must_use]
+    pub(crate) fn take_field(&self, index: usize) -> Value {
+        assert!(
+            index < self.field_count(),
+            "field slot {index} is out of range for {}",
+            self.class_name()
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the bound was just checked; the slot held a well-formed \
+                      Value whose single reference is moved to the caller, and \
+                      `null` needs none"
+        )]
+        unsafe {
+            let slot = field_ptr(self.ptr.as_ptr(), index);
+            let held = *slot;
+            slot.write(Value::null());
+            held
         }
     }
 
@@ -814,10 +859,15 @@ pub unsafe extern "C" fn mwl_object_release(ptr: *mut ObjHeader) {
 
 /// `$obj instanceof Class`, and the type test a typed `catch` clause performs.
 ///
+/// A null `ptr` answers `false`, the same "a null payload *is* `null`"
+/// treatment every retain/release primitive here already gives one — and the
+/// reason a `catch` dispatch stays safe when `mwl_take_thrown` hands back
+/// nothing (see `crate::throwable`).
+///
 /// # Safety
 ///
-/// `ptr` must refer to a live MWL object allocation and `class` to a live
-/// descriptor.
+/// `ptr` must be null or refer to a live MWL object allocation, and `class`
+/// to a live descriptor.
 #[expect(
     unsafe_code,
     reason = "compiled code passes an object pointer and a descriptor pointer \
@@ -828,6 +878,9 @@ pub unsafe extern "C" fn mwl_object_instanceof(
     ptr: *const ObjHeader,
     class: *const ClassDesc,
 ) -> bool {
+    if ptr.is_null() {
+        return false;
+    }
     #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
     unsafe {
         (*MwlObj::class_of(ptr)).conforms_to(class)

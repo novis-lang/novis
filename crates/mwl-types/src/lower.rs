@@ -17,9 +17,8 @@
 //! [`mwl_hir::SymbolTable`] to decide between a class-shaped atom (a class or
 //! interface — the type grammar does not distinguish them) and an enum. A
 //! name that resolves to neither, and is not trusted as a `Core`
-//! reference or one of `Throwable`/`Exception`/`Error`
-//! ([`mwl_hir::QName::is_reserved_global_class`] — ADR 0020 § 0's global,
-//! undeclared exception classes), is `E_UNDEFINED_CLASS`.
+//! reference or one of [`mwl_hir::errors`]' exception classes
+//! ([`mwl_hir::QName::is_reserved_global_class`]), is `E_UNDEFINED_CLASS`.
 //!
 //! `array<...>` nesting is bounded at depth 32 (ADR 0007 § 5) — past that,
 //! lowering stops and reports `E_ARRAY_TYPE_TOO_DEEP` rather than recursing
@@ -315,12 +314,12 @@ mod tests {
     fn a_reserved_global_exception_class_resolves_with_no_declaration() {
         // ADR 0020 § 0: `Exception` never needs a source declaration —
         // trusted the same way a `Core\*` name is.
-        let (id, interner, diags) = lower_alias("<?mwl\ntype Probe = array<Exception>;\n");
+        let (id, interner, diags) = lower_alias("<?mwl\ntype Probe = array<LogicError>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
-        assert!(matches!(interner.get(*elem), Ty::Class(q) if q.to_string() == "Exception"));
+        assert!(matches!(interner.get(*elem), Ty::Class(q) if q.to_string() == "LogicError"));
     }
 
     #[test]

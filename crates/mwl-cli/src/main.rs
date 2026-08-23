@@ -263,6 +263,13 @@ fn run_run(
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
     let mut ctx = mwl_runtime::Ctx::stdout();
+    // A runtime helper's failure carries only a message; this is the class it
+    // is promoted to, so a `catch` can bind it and it can carry a backtrace.
+    // Spec § 10's `RuntimeError` — "the world said no" — is exactly what a
+    // helper failure is.
+    if let Some(class) = unit.runtime_error_class() {
+        ctx.set_runtime_error_class(class);
+    }
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }
@@ -283,9 +290,7 @@ fn run_run(
             // throw is tier 2, a `FATAL` is tier 3 and above, and nothing
             // below the engine floor can catch either.
             let thrown = ctx.take_thrown();
-            let message = thrown
-                .as_ref()
-                .map_or("no message was recorded", |t| t.message());
+            let message = thrown.message();
             if status == mwl_runtime::THROWN {
                 eprintln!("Uncaught Exception: {message}");
                 // The frames the exception unwound out of, `#0` first —
@@ -293,9 +298,8 @@ fn run_run(
                 // is built on the error path rather than at construction.
                 // Empty for a `FATAL`, which has no backtrace by design
                 // (ADR 0020), so nothing is printed for one.
-                if let Some(trace) = thrown.as_ref().map(|t| t.trace_as_string())
-                    && !trace.is_empty()
-                {
+                let trace = thrown.trace_as_string();
+                if !trace.is_empty() {
                     eprintln!("{trace}");
                 }
             } else {

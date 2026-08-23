@@ -171,14 +171,26 @@ impl SignatureTable {
         self.by_class.entry(qname).or_default()
     }
 
-    /// Installs a whole class's method signatures at once, with no properties
-    /// and no constructor obligations — the one shape a *native* declaration
-    /// has, since [`crate::core_lib`] is the only caller and a `Core` class
-    /// has no source text to collect either from. Deliberately not a general
-    /// insertion point: everything else goes through [`build_signatures`]'s
-    /// own walk.
-    pub(crate) fn seed_class(&mut self, qname: QName, methods: FxHashMap<String, MethodSig>) {
-        self.entry(qname).methods = methods;
+    /// Installs a whole class's properties and method signatures at once,
+    /// with no constructor obligations — the one shape a *native* declaration
+    /// has, since [`crate::core_lib`] and [`crate::error_lib`] are the only
+    /// callers and neither has source text to collect from. Deliberately not
+    /// a general insertion point: everything else goes through
+    /// [`build_signatures`]'s own walk.
+    ///
+    /// `required_properties` stays empty on purpose. ADR 0022's obligation is
+    /// a check on a *written* constructor, and neither caller has one — a
+    /// `Core` class has no state at all, and `Throwable`'s constructor is
+    /// synthesized by `mwl_ir::lower`.
+    pub(crate) fn seed_class(
+        &mut self,
+        qname: QName,
+        properties: FxHashMap<String, TypeId>,
+        methods: FxHashMap<String, MethodSig>,
+    ) {
+        let entry = self.entry(qname);
+        entry.properties = properties;
+        entry.methods = methods;
     }
 }
 
@@ -206,6 +218,7 @@ pub fn build_signatures(
     // `Core` first, so a user declaration can never be collected under a name
     // the stdlib already owns without the later insertion being visible.
     crate::core_lib::seed(&mut table, interner);
+    crate::error_lib::seed(&mut table, interner);
     let placeholder = SignatureTable::default();
     // Same placeholder idea as `signatures` above: signature collection only
     // ever lowers property/parameter/return *type annotations*, never a call

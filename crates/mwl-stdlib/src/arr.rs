@@ -33,6 +33,33 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::isEmpty(array<T> $a): bool` — whether the array holds no
+    /// entries, replacing PHP's `empty($a)` and the `count($a) === 0` idiom.
+    ///
+    /// A member of its own rather than left to `count(…) === 0` because ADR
+    /// 0063 R20's "no operation reachable two ways" is about *spellings the
+    /// library offers*, and the spec's § 2 table lists this one: the question
+    /// "is it empty" is answered without the caller having to know that a
+    /// count is `uint` and therefore needs `0` written as one.
+    fn mwl_core_arr_is_empty(_ctx, args: [1]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::isEmpty expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Array argument owns a reference to a live \
+                      allocation, so it is live for the length of this call"
+        )]
+        let count = unsafe { mwl_runtime::mwl_array_count(array) };
+        Ok(Value::bool(count == 0))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use mwl_runtime::{Ctx, MwlArray, MwlStr, OutputSink, Value, call};

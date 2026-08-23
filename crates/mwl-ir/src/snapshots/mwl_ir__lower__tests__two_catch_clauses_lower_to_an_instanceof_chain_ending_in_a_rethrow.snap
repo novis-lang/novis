@@ -1,0 +1,47 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    ; stmt s0 @5:1-11:2
+    ; stmt s1 @6:3-6:11
+    v0 = call T::go() ! bb3  ; void
+    jump bb2
+  bb1:
+    v1 = take.thrown  ; object
+    v2 = instanceof v1, LogicError  ; bool
+    branch v2 -> bb4 (e0), bb5 (e1)
+  bb2:
+    return
+  bb3:
+    catch -> bb1
+  bb4:
+    ; stmt s2 @8:3-8:16
+    v3 = const.str "logic"  ; string
+    helper.echo_str v3 ! bb6
+    release v3
+    release v1
+    jump bb2
+  bb5:
+    v4 = instanceof v1, IOError  ; bool
+    branch v4 -> bb7 (e2), bb8 (e3)
+  bb6:
+    release v1
+    propagate "<script>() at t.mwl:8"
+  bb7:
+    ; stmt s3 @10:3-10:13
+    v5 = const.str "io"  ; string
+    helper.echo_str v5 ! bb9
+    release v5
+    release v1
+    jump bb2
+  bb8:
+    throw v1 -> bb10
+  bb9:
+    release v1
+    propagate "<script>() at t.mwl:10"
+  bb10:
+    propagate "<script>() at t.mwl:10"
+}

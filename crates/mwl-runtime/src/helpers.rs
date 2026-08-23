@@ -182,32 +182,16 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::string::mwl_str_concat as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_str_eq",
+            (crate::string::mwl_str_eq as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_str_retain",
             (crate::string::mwl_str_retain as *const ()).cast::<u8>(),
         ),
         (
             "mwl_str_release",
             (crate::string::mwl_str_release as *const ()).cast::<u8>(),
-        ),
-        (
-            "mwl_exception_new",
-            (crate::throwable::mwl_exception_new as *const ()).cast::<u8>(),
-        ),
-        (
-            "mwl_throwable_retain",
-            (crate::throwable::mwl_throwable_retain as *const ()).cast::<u8>(),
-        ),
-        (
-            "mwl_throwable_release",
-            (crate::throwable::mwl_throwable_release as *const ()).cast::<u8>(),
-        ),
-        (
-            "mwl_throwable_message",
-            (crate::throwable::mwl_throwable_message as *const ()).cast::<u8>(),
-        ),
-        (
-            "mwl_throwable_trace",
-            (crate::throwable::mwl_throwable_trace as *const ()).cast::<u8>(),
         ),
         (
             "mwl_raise",

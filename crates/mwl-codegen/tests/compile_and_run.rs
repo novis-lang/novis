@@ -384,7 +384,7 @@ fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
 const THROWS: &str = "<?mwl
 class Deep {
     public static function level3(): void {
-        throw new Exception(\"boom\");
+        throw new LogicError(\"boom\");
     }
 
     public static function level2(): void {
@@ -397,6 +397,48 @@ class Deep {
 }
 ";
 
+/// The one fact three crates each hold a copy of: which slot a `Throwable`
+/// property occupies.
+///
+/// `mwl_hir::errors::PROPERTIES` is the home; `mwl_runtime::throwable`
+/// restates two indices because it depends on nothing, and `mwl_ir::lower`
+/// restates the field *names* for the same reason. This test is the seam that
+/// keeps the three from drifting — it is here because this is the only crate
+/// that can see all of them at once.
+#[test]
+fn the_runtime_and_the_compiler_agree_on_every_throwable_slot() {
+    use mwl_hir::errors::PROPERTIES;
+
+    assert_eq!(PROPERTIES.len(), mwl_runtime::SLOT_COUNT);
+    assert_eq!(PROPERTIES[mwl_runtime::MESSAGE_SLOT], "message");
+    assert_eq!(PROPERTIES[mwl_runtime::PREVIOUS_SLOT], "previous");
+    assert_eq!(PROPERTIES[mwl_runtime::BACKTRACE_SLOT], "backtrace");
+    assert_eq!(PROPERTIES[mwl_runtime::LOCATION_SLOT], "location");
+
+    // And the labels lowering emits actually resolve to those slots, for a
+    // *user* subclass as much as for the root — which is the property that
+    // lets the runtime reach `backtrace` on a value it knows nothing about.
+    let program = lower(
+        "<?mwl
+class MyError extends IOError {
+  public int $code;
+           function constructor(int $code) {
+    parent::constructor(\"bad\");
+             $this->code = $code;
+  }
+}
+",
+    );
+    for label in ["Throwable", "IOError", "MyError"] {
+        let class = program
+            .classes
+            .iter()
+            .find(|c| c.label == label)
+            .unwrap_or_else(|| panic!("{label} should be in the class table"));
+        assert_eq!(&class.fields[..PROPERTIES.len()], PROPERTIES, "{label}");
+    }
+}
+
 #[test]
 fn a_throw_crosses_several_frames_and_is_caught() {
     // ADR 0002's whole claim, end to end: no unwinder is involved, each frame
@@ -404,7 +446,7 @@ fn a_throw_crosses_several_frames_and_is_caught() {
     // frames up sees the message the `throw` built.
     let source = format!(
         "{THROWS}\ntry {{\n    Deep::level1();\n    echo \"not reached\";\n}} \
-         catch (Throwable $e) {{\n    echo \"caught: \" . $e->getMessage();\n}}\n"
+         catch (Throwable $e) {{\n    echo \"caught: \" . $e->message;\n}}\n"
     );
     assert_eq!(output_of(&source), "caught: boom");
 }
@@ -414,7 +456,7 @@ fn an_uncaught_throw_leaves_the_status_and_the_message_on_the_context() {
     let mut ctx = Ctx::buffered();
     let source = format!("{THROWS}\nDeep::level1();\n");
     assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
-    assert_eq!(ctx.pending(), Some("boom"));
+    assert_eq!(ctx.pending().as_deref(), Some("boom"));
 }
 
 #[test]
@@ -426,10 +468,12 @@ fn the_backtrace_names_every_frame_the_throw_left_in_order() {
     let source = format!("{THROWS}\nDeep::level1();\n");
     assert_eq!(run_with(&mut ctx, &source).unwrap_err(), THROWN);
 
-    let trace = ctx
-        .take_thrown()
-        .expect("an uncaught throw leaves its exception behind")
-        .trace_as_string();
+    let thrown = ctx.take_thrown();
+    assert!(
+        !thrown.is_none(),
+        "an uncaught throw leaves its exception behind"
+    );
+    let trace = thrown.trace_as_string();
     let frames: Vec<&str> = trace.lines().collect();
     assert_eq!(frames.len(), 4, "{trace}");
     assert!(frames[0].starts_with("#0 Deep::level3() at "), "{trace}");
@@ -445,11 +489,11 @@ fn a_caught_throw_stops_the_backtrace_at_the_frame_that_handled_it() {
     // owns that rule and why it differs from PHP's construction-time snapshot.
     let source = format!(
         "{THROWS}\ntry {{\n    Deep::level3();\n}} catch (Throwable $e) {{\n    \
-         echo $e->getTraceAsString();\n}}\n"
+         foreach ($e->backtrace as string $frame) {{ echo $frame; }}\n}}\n"
     );
     let out = output_of(&source);
     assert_eq!(out.lines().count(), 1, "{out}");
-    assert!(out.starts_with("#0 Deep::level3() at "), "{out}");
+    assert!(out.starts_with("Deep::level3() at "), "{out}");
 }
 
 #[test]
@@ -475,7 +519,7 @@ fn a_frame_that_throws_releases_the_strings_it_still_held() {
     // releases there; this checks the backend actually emits them.
     let source = format!(
         "{THROWS}\ntry {{\n    string $held = \"kept alive\";\n    Deep::level1();\n    \
-         echo $held;\n}} catch (Throwable $e) {{\n    echo \"caught: \" . $e->getMessage();\n}}\n"
+         echo $held;\n}} catch (Throwable $e) {{\n    echo \"caught: \" . $e->message;\n}}\n"
     );
     assert_eq!(output_of(&source), "caught: boom");
 }
@@ -664,7 +708,7 @@ fn a_throw_out_of_a_frame_holding_an_object_releases_it() {
     // The landing block's cleanup, for an object rather than a string: the
     // local goes out of scope on the error path too.
     let source = format!(
-        "{SHAPES}\nclass Boom {{\n    public static function go(): void {{\n        throw new Exception(\"boom\");\n    }}\n}}\ntry {{\n    var $d = new Dog(\"rex\");\n    Boom::go();\n    echo $d->name();\n}} catch (Throwable $e) {{\n    echo \"caught: \" . $e->getMessage();\n}}\n"
+        "{SHAPES}\nclass Boom {{\n    public static function go(): void {{\n        throw new LogicError(\"boom\");\n    }}\n}}\ntry {{\n    var $d = new Dog(\"rex\");\n    Boom::go();\n    echo $d->name();\n}} catch (Throwable $e) {{\n    echo \"caught: \" . $e->message;\n}}\n"
     );
     assert_eq!(output_of(&source), "caught: boom");
 }
