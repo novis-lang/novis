@@ -18,24 +18,23 @@
 > WSL `cargo fuzz run lex`/`parse` both find zero panics).
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir` (+ `errors`), `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `generics`),
-> `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`), `mwl-stdlib` (registry + `Core\Arr::count`/
-> `isEmpty`), `mwl-codegen`, `mwl-cli`, `fuzz/`, `benches/abi-probe`. `mwl-test` starts with its own
-> slice.
+> `mwl-syntax`, `mwl-hir` (+ `errors`, `interfaces`), `mwl-types` (+ `layout`, `core_lib`, `error_lib`,
+> `iter_lib`, `generics`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`), `mwl-stdlib`
+> (registry + `Core\Arr::count`/`isEmpty`), `mwl-codegen`, `mwl-cli`, `fuzz/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
 > WSL nightly toolchain (CLAUDE.md says why).
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
-> 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
-> slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1 and 0035 § 4. Each ADR's own
-> *Verification* section says what its slice covers; do not look for the rule here.
+> 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, 0053 §§ 1-3, and 0043's syntax +
+> default/private-method slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1 and 0035 § 4.
+> Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
 > **Open now:** the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, ADR 0043's
-> `by`-delegation, virtual dispatch through a base-typed local, generators and ADR 0053's two iteration
-> interfaces, ADR 0014's `PropertyObserver`, `crates/mwl-test` and `mwl test`. `as` lowers every row but
-> one — an integer *into* an enum. Alongside ADR 0009's measurement and 0024/0033's sinks.
+> `by`-delegation, virtual dispatch through a base-typed local, ADR 0053 § 4's generators and the IR half
+> of its `foreach`, ADR 0014's `PropertyObserver`, `crates/mwl-test` and `mwl test`. `as` lowers every row
+> but one — an integer *into* an enum. Alongside ADR 0009's measurement and 0024/0033's sinks.
 >
 > **Blocking:** nothing external. **Stage 1 is green**: all thirteen of its commands, including
 > `examples/hooks.mwl`'s four frozen lines — `&$x` parameters landed as a caller-staged one-cell slot

@@ -2333,4 +2333,157 @@ class T {
             "{diags:?}"
         );
     }
+
+    // ADR 0053 § 3: what `foreach` accepts, and what it yields.
+
+    #[test]
+    fn a_foreach_over_an_array_binds_the_element_type() {
+        let diags = check_src(
+            "<?mwl\n\
+             class T {\n\
+             \x20 function m(array<int> $a): void {\n\
+             \x20\x20 foreach ($a as int $n) { echo $n; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_foreach_binding_that_disagrees_with_the_element_type_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\n\
+             class T {\n\
+             \x20 function m(array<int> $a): void {\n\
+             \x20\x20 foreach ($a as string $s) { echo $s; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_foreach_over_a_cursor_binds_its_type_argument() {
+        let diags = check_src(
+            "<?mwl\n\
+             class T {\n\
+             \x20 function m(Iterator<int> $it): void {\n\
+             \x20\x20 foreach ($it as int $n) { echo $n; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The element type reaches the loop through the class's own
+    /// `implements Iterable<int>` clause, not through the subject's written
+    /// type -- which is the whole reason `ClassSignature::implements` records
+    /// the resolved argument.
+    #[test]
+    fn a_foreach_over_a_class_reaches_its_implements_clause_for_the_element_type() {
+        let diags = check_src(
+            "<?mwl\n\
+             class Counter implements Iterable<int> {\n\
+             \x20 function iterate(): Iterator<int> { return Counter::empty(); }\n\
+             \x20 static function empty(): Iterator<int> { return Counter::empty(); }\n\
+             }\n\
+             class T {\n\
+             \x20 function m(Counter $c): void {\n\
+             \x20\x20 foreach ($c as string $s) { echo $s; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_foreach_over_a_class_that_implements_neither_interface_is_refused() {
+        let diags = check_src(
+            "<?mwl\n\
+             class Bag {}\n\
+             class T {\n\
+             \x20 function m(Bag $b): void {\n\
+             \x20\x20 foreach ($b as int $n) { echo $n; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_FOREACH_SUBJECT_NOT_ITERABLE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_foreach_over_a_scalar_is_refused() {
+        let diags = check_src(
+            "<?mwl\n\
+             class T {\n\
+             \x20 function m(int $n): void {\n\
+             \x20\x20 foreach ($n as int $x) { echo $x; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_FOREACH_SUBJECT_NOT_ITERABLE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_key_binding_over_a_cursor_is_refused() {
+        let diags = check_src(
+            "<?mwl\n\
+             class T {\n\
+             \x20 function m(Iterator<int> $it): void {\n\
+             \x20\x20 foreach ($it as int $k => int $n) { echo $k . $n; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_FOREACH_KEY_ON_CURSOR)),
+            "{diags:?}"
+        );
+    }
+
+    /// `array<T>` records no key type at all, so a key binding over one is
+    /// deliberately unchecked -- see `crate::expr::check_foreach_key`.
+    #[test]
+    fn a_key_binding_over_an_array_is_left_alone() {
+        let diags = check_src(
+            "<?mwl\n\
+             class T {\n\
+             \x20 function m(array<int> $a): void {\n\
+             \x20\x20 foreach ($a as string $k => int $n) { echo $k . $n; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `mixed` is the one unchecked position (ADR 0007 § 1), so it neither
+    /// yields an element type nor is refused as a subject.
+    #[test]
+    fn a_mixed_subject_is_neither_checked_nor_refused() {
+        let diags = check_src(
+            "<?mwl\n\
+             class T {\n\
+             \x20 function m(mixed $x): void {\n\
+             \x20\x20 foreach ($x as string $s) { echo $s; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
 }

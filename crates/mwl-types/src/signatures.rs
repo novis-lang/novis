@@ -693,6 +693,68 @@ fn resolve_method_rec(
         .find_map(|parent| resolve_method_rec(parent, name, table, graph, seen))
 }
 
+/// What a `foreach` over an instance of `qname` yields, and which of ADR
+/// 0053 § 1's two interfaces says so — `None` when `qname` reaches neither.
+///
+/// Walks `extends`/`implements` exactly as [`resolve_method`] does, looking
+/// at each declaration's own [`ClassSignature::implements`] for an entry
+/// naming `Iterable` or `Iterator`. `Iterable` wins when a class somehow
+/// reaches both, since driving a fresh cursor is the safer of the two: an
+/// `Iterator` is single-pass, so a second `foreach` over the same value would
+/// silently see nothing.
+///
+/// The type argument is what makes this a signature-table question rather
+/// than a [`mwl_hir::ClassGraph`] one — that graph records *which* interfaces
+/// a class reaches and has no interner to record the argument in.
+#[must_use]
+pub fn resolve_iteration_element(
+    qname: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+) -> Option<(QName, TypeId)> {
+    let mut seen = FxHashSet::default();
+    let mut cursor = None;
+    resolve_iteration_rec(qname, table, graph, &mut seen, &mut cursor).or(cursor)
+}
+
+/// The `Iterable` half of [`resolve_iteration_element`]; any `Iterator` found
+/// on the way is left in `cursor` as the fallback.
+fn resolve_iteration_rec(
+    qname: &QName,
+    table: &SignatureTable,
+    graph: &ClassGraph,
+    seen: &mut FxHashSet<QName>,
+    cursor: &mut Option<(QName, TypeId)>,
+) -> Option<(QName, TypeId)> {
+    if !seen.insert(qname.clone()) {
+        return None;
+    }
+    if let Some(sig) = table.get(qname) {
+        for (interface, args) in &sig.implements {
+            let Some(&elem) = args.first() else { continue };
+            if !interface.is_reserved_global_interface() {
+                continue;
+            }
+            if interface.short_name() == mwl_hir::interfaces::ITERABLE {
+                return Some((interface.clone(), elem));
+            }
+            if interface.short_name() == mwl_hir::interfaces::ITERATOR {
+                cursor.get_or_insert((interface.clone(), elem));
+            }
+        }
+    }
+    let links = graph.get(qname)?;
+    let parents: Vec<QName> = links
+        .extends
+        .iter()
+        .chain(links.implements.iter())
+        .cloned()
+        .collect();
+    parents
+        .iter()
+        .find_map(|parent| resolve_iteration_rec(parent, table, graph, seen, cursor))
+}
+
 /// Every property `qname`'s own constructor must definitely assign per
 /// ADR 0022 § 2: exactly `qname`'s own [`ClassSignature::required_properties`].
 /// Deliberately excludes `extends`/`implements`: an inherited property is

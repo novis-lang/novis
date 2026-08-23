@@ -244,15 +244,18 @@ pub(crate) fn check_stmt(
             body,
             ..
         } => {
-            check_expr(subject, None, live, scope, ctx, env);
+            let subject_ty = check_expr(subject, None, live, scope, ctx, env);
+            let source = crate::expr::foreach_source(subject_ty, subject.span, env);
             let mut body_live = live.clone();
             if let Some(k) = key {
                 let ty = lower_optional_type(k.ty.as_ref(), ctx, env);
+                crate::expr::check_foreach_key(&source, ty, k, env);
                 let name = strip_sigil(span_text(env.src, k.name)).to_owned();
                 declare_binding(scope, &name, ty, k.name, false, env);
                 body_live.insert(name);
             }
             let value_ty = lower_optional_type(value.ty.as_ref(), ctx, env);
+            crate::expr::check_foreach_value(&source, value_ty, value, env);
             let value_name = strip_sigil(span_text(env.src, value.name)).to_owned();
             declare_binding(scope, &value_name, value_ty, value.name, false, env);
             body_live.insert(value_name);

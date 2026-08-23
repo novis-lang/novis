@@ -174,6 +174,13 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
   a fixture asserting `$obj[$k]` on a non-array is a diagnostic naming this ADR; a generator whose declared
   return type is not `Iterator<T>` is a diagnostic; a `yield` outside a generator body is a diagnostic; a
   local live across a `yield` but not assigned on one incoming path is still an ADR 0022 error.
+  **§§ 1–3's checker slice has landed.** `mwl_hir::interfaces::RESERVED` declares both interfaces and
+  `mwl_types::iter_lib` gives them § 1's member set; § 2's `implements Iterable<int>` parses, resolves and
+  records its argument on `mwl_types::signatures::ClassSignature::implements`; § 3's three-shapes rule is
+  `mwl_types::expr::foreach_source`, with `E_FOREACH_SUBJECT_NOT_ITERABLE` for a fourth and
+  `E_FOREACH_KEY_ON_CURSOR` for a key binding a cursor cannot have. `mwl_types::check`'s
+  `a_foreach_over_a_class_reaches_its_implements_clause_for_the_element_type` and its eight neighbours hold
+  all of it. Still open here: `yield`'s own diagnostics, which arrive with § 4's lowering.
 - **M3/M4:** an IR snapshot test for a generator with a `yield` inside a loop, asserting the resumption
   states and the lifted locals; a runtime test that a generator consumed twice reports exhaustion rather
   than restarting.

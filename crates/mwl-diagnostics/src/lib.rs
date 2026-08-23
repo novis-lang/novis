@@ -494,6 +494,16 @@ pub mod code {
     /// the whole reason the parameter exists and ADR 0007 leaves no position
     /// untyped.
     pub const E_TYPE_ARG_COUNT: Code = Code::new("E0442");
+    /// A `foreach` subject that is none of ADR 0053 § 3's three accepted
+    /// shapes — an `array<T>`, an `Iterable<T>` or an `Iterator<T>`. A class
+    /// reaching neither interface lands here, which is what keeps `foreach`
+    /// from being a fourth implicit-dispatch site.
+    pub const E_FOREACH_SUBJECT_NOT_ITERABLE: Code = Code::new("E0443");
+    /// A `foreach ($x as $k => $v)` key binding over an `Iterable`/`Iterator`
+    /// subject. ADR 0053 § 1 gives a cursor exactly `advance()` and
+    /// `current()`; there is no key, and inventing a position counter would
+    /// be a second thing `foreach` means.
+    pub const E_FOREACH_KEY_ON_CURSOR: Code = Code::new("E0444");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

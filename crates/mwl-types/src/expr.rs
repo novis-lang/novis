@@ -107,8 +107,8 @@
 use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
-    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MemberName, NewTarget,
-    StringPart, UnaryOp,
+    Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, ForeachBinding, MemberName,
+    NewTarget, StringPart, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 
@@ -1219,6 +1219,129 @@ fn check_args(
     };
     for Arg { value, .. } in list {
         check_expr(value, None, live, scope, ctx, env);
+    }
+}
+
+/// What one `foreach` subject turns out to be — ADR 0053 § 3's three
+/// accepted shapes, plus the two that are neither accepted nor worth a second
+/// diagnostic.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ForeachSource {
+    /// An `array<T>`, iterated directly by the IR with no interface call at
+    /// all. The only shape with keys.
+    Array { value: TypeId },
+    /// An `Iterable<T>` or `Iterator<T>`, written as such or reached through
+    /// a class that implements one. A cursor has no key: ADR 0053 § 1's
+    /// member set is `advance`/`current` and nothing else.
+    Cursor { value: TypeId },
+    /// `mixed`, or a subject already diagnosed as something else — check
+    /// nothing further and let the written binding types stand, so one
+    /// mistake produces one diagnostic.
+    Unchecked,
+}
+
+impl ForeachSource {
+    fn value_ty(self) -> Option<TypeId> {
+        match self {
+            Self::Array { value } | Self::Cursor { value } => Some(value),
+            Self::Unchecked => None,
+        }
+    }
+}
+
+/// Classifies a `foreach` subject, diagnosing one that is none of ADR 0053
+/// § 3's three shapes.
+pub(crate) fn foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) -> ForeachSource {
+    match env.interner.get(subject_ty).clone() {
+        Ty::Array(elem) => ForeachSource::Array { value: elem },
+        // `mixed` is the one unchecked position (ADR 0007 § 1) and `iterable`
+        // is a keyword ADR 0053 leaves untouched — neither is a mistake, and
+        // neither carries an element type to check a binding against.
+        Ty::Mixed | Ty::Iterable => ForeachSource::Unchecked,
+        Ty::Class(qname, args) => {
+            if qname.is_reserved_global_interface()
+                && let Some(&value) = args.first()
+            {
+                return ForeachSource::Cursor { value };
+            }
+            match crate::signatures::resolve_iteration_element(&qname, env.signatures, env.graph) {
+                Some((_, value)) => ForeachSource::Cursor { value },
+                None => {
+                    report_not_iterable(subject_ty, span, env);
+                    ForeachSource::Unchecked
+                }
+            }
+        }
+        _ => {
+            report_not_iterable(subject_ty, span, env);
+            ForeachSource::Unchecked
+        }
+    }
+}
+
+fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<'_>) {
+    let got = env.interner.describe(subject_ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_FOREACH_SUBJECT_NOT_ITERABLE,
+            format!("`foreach` cannot iterate a `{got}`"),
+        )
+        .with_primary(span, format!("this is `{got}`"))
+        .with_help(
+            "ADR 0053 § 3: `foreach` accepts an `array<T>`, an `Iterable<T>` or an \
+             `Iterator<T>`, and nothing else",
+        ),
+    );
+}
+
+/// Checks a `foreach` value binding's declared type against what the subject
+/// actually yields.
+pub(crate) fn check_foreach_value(
+    source: &ForeachSource,
+    declared: TypeId,
+    binding: &ForeachBinding,
+    env: &mut Env<'_>,
+) {
+    let Some(value) = source.value_ty() else {
+        return;
+    };
+    if !is_assignable(value, declared, env.interner, env.graph, env.signatures) {
+        report_mismatch(binding.span, declared, value, env);
+    }
+}
+
+/// Checks a `foreach` key binding — which today means refusing one over a
+/// cursor and nothing else.
+///
+/// # Why an array's key binding is unchecked
+///
+/// `array<T>` records the *value* type and no key type at all (ADR 0007 § 5
+/// fixes the two legal key types, `int` and `string`, but not which one a
+/// given array holds). So a declared `string $k` is neither provable nor
+/// refutable here: the only sound statement about it is `int|string`, and
+/// requiring every author to write that union — over a map whose keys are all
+/// strings by construction — would be noise, not safety. Narrowing it
+/// properly needs `array<K, V>`, which is its own decision. A cursor is the
+/// opposite case: ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and
+/// `current()`, so there is provably no key, and that *is* refused.
+pub(crate) fn check_foreach_key(
+    source: &ForeachSource,
+    _declared: TypeId,
+    binding: &ForeachBinding,
+    env: &mut Env<'_>,
+) {
+    if matches!(source, ForeachSource::Cursor { .. }) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_FOREACH_KEY_ON_CURSOR,
+                "an `Iterable`/`Iterator` subject has no key to bind",
+            )
+            .with_primary(binding.span, "no key exists here")
+            .with_help(
+                "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and `current()`; \
+                 drop the `$k =>` or iterate an `array<T>` instead",
+            ),
+        );
     }
 }
 
