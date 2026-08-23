@@ -29,7 +29,10 @@
 //!    § *Value representation*: a 16-byte tagged [`Value`]. Not NaN-boxed —
 //!    PHP semantics need the full `i64` range.
 //! 3. **Memory is refcounted**, copy-on-write. [`MwlStr`] is the first such
-//!    representation to land, and the one the `Hello, World!` slice needs.
+//!    representation to land, and the one the `Hello, World!` slice needs;
+//!    [`MwlObj`] is the second, and [`object`]'s own docs are the one home for
+//!    every decision behind it — the field-slot width, the subclass layout
+//!    rule, the opaque [`ClassDesc`], and why a release is iterative.
 //!
 //! # What is here, and what is deliberately not
 //!
@@ -60,19 +63,26 @@
 //!   the throw propagates rather than at construction;
 //! * [`FaultSite`], the closed set of failures a run can be *asked* to
 //!   produce, so a contained engine panic — which has no user-facing trigger
-//!   by definition — is testable at all.
+//!   by definition — is testable at all;
+//! * [`MwlObj`]/[`ObjHeader`]/[`ClassDesc`]/[`ClassTable`], M4's class-instance
+//!   representation, with the `mwl_object_new`/`_retain`/`_release`/
+//!   `_instanceof`/`_field_get`/`_field_set`/`_class_name` primitives behind
+//!   `mwl_ir::InstKind::New`/`FieldGet`/`FieldSet` and an instance
+//!   `InstKind::Call`'s receiver. Landed before `mwl-codegen` can emit any of
+//!   them, for the same reason [`MwlStr`] was: it is testable without a
+//!   backend, and the layout is what codegen queries rather than restates.
 //!
 //! ## Known gaps
 //!
 //! Each is a missing *representation*, not a missing decision, and each is
 //! named at the item it blocks:
 //!
-//! 1. **Arrays and objects have no runtime representation yet**, so
+//! 1. **Arrays have no runtime representation yet**, so
 //!    `mwl_ir::Helper::ArrayTruthy` has no entry point, and
-//!    [`Value::release`] ignores the `Array`/`Object`/`Closure`/`Resource`
-//!    tags rather than decrementing anything. Those tags exist in [`Tag`]
-//!    because the plan's § *Value representation* names them; nothing
-//!    constructs one.
+//!    [`Value::release`] ignores the `Array`/`Closure`/`Resource` tags rather
+//!    than decrementing anything. Those tags exist in [`Tag`] because the
+//!    plan's § *Value representation* names them; nothing constructs one.
+//!    `Object` no longer belongs on this list — see [`object`].
 //! 2. **Copy-on-write is not implemented.** [`MwlStr`] is refcounted and
 //!    immutable — every producer allocates. Nothing in the language mutates a
 //!    string in place yet, so there is no observable difference; a
@@ -96,19 +106,38 @@
 //!    ignored, since neither the cycle collector nor `mwl dap` exists.
 //! 7. **An exception carries a message and a backtrace and nothing else.** No
 //!    code, no previous-exception chain, no file/line pair of its own, and no
-//!    `getTrace()` array — that last one is M4's explicit carry-over, since it
+//!    `backtrace` array — that last one is M4's explicit carry-over, since it
 //!    returns `array<…>` and nothing lowers an array yet. A user class
-//!    `extends Exception` is accepted by the checker and has no runtime shape
-//!    at all: every exception is a [`ThrowableHeader`] until M4's object
-//!    representation lands.
+//!    extending `Throwable` still has no runtime shape: every exception is a
+//!    [`ThrowableHeader`], not an [`ObjHeader`]. Now that [`object`] exists,
+//!    joining the two is a lowering decision rather than a missing
+//!    representation — see `.claude/loop-goal.md`'s exception surface.
+//! 8. **There is no cycle collector, by decision rather than by omission.** A
+//!    cyclic object graph is retained until the process exits. The wholesale
+//!    request-heap drop makes cycles structurally unable to accumulate in the
+//!    server (`docs/implementation-plan.md` § *Architecture*), so the optional
+//!    mark-sweep collector belongs with M5/M6, where the stop-the-world path
+//!    and the request arena exist. A long-running CLI script that builds
+//!    cycles is the one shape that pays.
 
 mod abi;
+#[cfg(test)]
+mod counting_alloc;
 mod ctx;
 mod fmt;
 pub mod helpers;
+pub mod object;
 mod string;
 pub mod throwable;
 mod value;
+
+/// The leak guard in [`object`] measures the allocator rather than trusting a
+/// refcount to have reached zero, so this crate's own test binary counts live
+/// bytes per thread. See [`counting_alloc`] for why the counter is
+/// thread-local and why it costs nothing outside `cfg(test)`.
+#[cfg(test)]
+#[global_allocator]
+static COUNTING_ALLOCATOR: counting_alloc::Counting = counting_alloc::Counting;
 
 pub use abi::{FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, call, run_helper};
 pub use ctx::{
@@ -117,6 +146,12 @@ pub use ctx::{
 };
 pub use fmt::php_float_to_string;
 pub use helpers::symbols;
+pub use object::{
+    ClassDesc, ClassId, ClassTable, FIELD_STRIDE, FIELDS_OFFSET, MwlObj, OBJ_CLASS_OFFSET,
+    OBJ_REFCOUNT_OFFSET, ObjHeader, field_offset, mwl_object_class_name, mwl_object_field_get,
+    mwl_object_field_set, mwl_object_instanceof, mwl_object_new, mwl_object_release,
+    mwl_object_retain,
+};
 pub use string::{
     LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_concat, mwl_str_new,
     mwl_str_release, mwl_str_retain,

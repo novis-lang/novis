@@ -23,6 +23,7 @@
 
 use std::fmt;
 
+use crate::object::{MwlObj, ObjHeader};
 use crate::string::{MwlStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
@@ -48,7 +49,8 @@ pub enum Tag {
     Str = 5,
     /// `array<T>`; no representation exists yet.
     Array = 6,
-    /// A class instance; no representation exists yet.
+    /// A class instance; the payload is an [`ObjHeader`] pointer and the value
+    /// owns one reference to it.
     Object = 7,
     /// A closure ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md));
     /// no representation exists yet.
@@ -164,6 +166,12 @@ impl Value {
         Self::new(Tag::Str, value.into_raw() as usize as u64)
     }
 
+    /// A class instance, taking over the handle's reference.
+    #[must_use]
+    pub fn object(value: MwlObj) -> Self {
+        Self::new(Tag::Object, value.into_raw() as usize as u64)
+    }
+
     /// Reassembles a value from bits compiled code produced.
     ///
     /// # Safety
@@ -265,6 +273,19 @@ impl Value {
         }
     }
 
+    /// The object payload's header pointer, if this value is a class instance.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the payload of a Tag::Object value is a pointer that was widened to u64 by `Value::object`, so narrowing it back is exact on every target, including the 32-bit wasm32 one of ADR 0025"
+    )]
+    pub const fn obj_ptr(self) -> Option<*mut ObjHeader> {
+        match self.tag() {
+            Some(Tag::Object) => Some(self.bits as usize as *mut ObjHeader),
+            _ => None,
+        }
+    }
+
     /// Adds a reference to a refcounted payload — `mwl_ir::InstKind::Retain`.
     ///
     /// A non-refcounted value is left alone, so callers need not branch on the
@@ -287,15 +308,24 @@ impl Value {
             unsafe {
                 crate::string::mwl_str_retain(ptr);
             }
+        } else if let Some(ptr) = self.obj_ptr() {
+            #[expect(
+                unsafe_code,
+                reason = "the caller guarantees the payload is live; \
+                          `mwl_object_retain` only increments in place"
+            )]
+            unsafe {
+                crate::object::mwl_object_retain(ptr);
+            }
         }
     }
 
     /// Drops the reference a refcounted payload owns —
     /// `mwl_ir::InstKind::Release`.
     ///
-    /// A non-refcounted value is left alone. An `Array`/`Object`/`Closure`
-    /// payload is *also* left alone today: those representations do not exist
-    /// yet, so nothing can construct one to leak (crate docs, known gap 1).
+    /// A non-refcounted value is left alone. An `Array`/`Closure` payload is
+    /// *also* left alone today: those representations do not exist yet, so
+    /// nothing can construct one to leak (crate docs, known gap 1).
     ///
     /// # Safety
     ///
@@ -314,6 +344,15 @@ impl Value {
             )]
             unsafe {
                 crate::string::mwl_str_release(ptr);
+            }
+        } else if let Some(ptr) = self.obj_ptr() {
+            #[expect(
+                unsafe_code,
+                reason = "the caller guarantees this value owns exactly the \
+                          reference `mwl_object_release` drops"
+            )]
+            unsafe {
+                crate::object::mwl_object_release(ptr);
             }
         }
     }
