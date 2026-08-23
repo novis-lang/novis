@@ -7,6 +7,171 @@
 
 use mwl_runtime::{Fault, MwlArray, MwlStr, Tag, Value};
 
+use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
+
+// ============================================================================
+// Registration — this class's rows, its enum, and where its symbols live
+// ============================================================================
+
+/// `Core\Arr`'s registry rows, in the spec's own order.
+///
+/// Declared beside the implementations rather than in one flat table, so
+/// adding a member touches this file and nothing else. [`crate::registry`]'s
+/// `CLASSES` lists this const; that list grows one line per *class*, never one
+/// per member.
+pub const CLASS: CoreClass = CoreClass {
+    name: r"Core\Arr",
+    methods: &[
+        CoreMethod {
+            name: "count",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "mwl_core_arr_count",
+        },
+        CoreMethod {
+            name: "filter",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_filter",
+        },
+        CoreMethod {
+            name: "map",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::CallableTo("U")],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("U")),
+            symbol: "mwl_core_arr_map",
+        },
+        CoreMethod {
+            name: "isEmpty",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_arr_is_empty",
+        },
+        CoreMethod {
+            name: "hasKey",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Union(ARRAY_KEY)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_arr_has_key",
+        },
+        CoreMethod {
+            name: "isList",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_arr_is_list",
+        },
+        CoreMethod {
+            name: "values",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_values",
+        },
+        CoreMethod {
+            name: "sort",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Options(SORT_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_sort",
+        },
+        CoreMethod {
+            name: "range",
+            params: &[CoreTy::Int, CoreTy::Int, CoreTy::Options(RANGE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Int),
+            symbol: "mwl_core_arr_range",
+        },
+    ],
+};
+
+/// `Core\Order` — the enum [`mwl_core_arr_sort`]'s `{order: ...}` option takes.
+///
+/// Declared here, beside its only consumer, for the same reason [`CLASS`] is.
+/// [`crate::registry`]'s `ENUMS` lists it; the value of each case is written
+/// out rather than auto-incremented, and `Asc` is `0` so it is also what an
+/// omitted `{order: ...}` ends up meaning.
+pub const ORDER: CoreEnum = CoreEnum {
+    name: r"Core\Order",
+    cases: &[("Asc", 0), ("Desc", 1)],
+};
+
+/// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
+/// writes at every member taking or producing a key.
+const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
+
+/// `Core\Arr::range`'s `{step?: int}` — the first options bag in the roster.
+///
+/// A named constant rather than an inline slice because a bag is referenced
+/// twice in practice: once as a parameter type here, and once by this module's
+/// own doc comment naming what its flattened arguments are.
+const RANGE_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "step",
+    ty: CoreTy::Int,
+    default: Const::Int(1),
+}];
+
+/// `Core\Arr::sort`'s
+/// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
+/// — the eleven PHP sort functions plus `array_multisort` in one bag, which is
+/// what the spec's § 2 *Ordering* note means by "descending is
+/// `{order: Order::Desc}`, key-preservation is an option rather than a letter
+/// in the name."
+///
+/// [`mwl_core_arr_sort`]'s own docs own what each option does and which
+/// combinations are refused. Two things about the *declaration* belong here:
+/// `by` and `comparator` are the first options whose default is
+/// [`Const::Null`] (there is no "no callback" callable), and `order` is the
+/// first use of [`CoreTy::Enum`].
+const SORT_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "by",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "order",
+        ty: CoreTy::Enum(r"Core\Order"),
+        default: Const::EnumCase(r"Core\Order", "Asc"),
+    },
+    CoreOption {
+        name: "comparator",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "preserveKeys",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain.
+///
+/// [`crate::symbols`] chains one of these per domain, so a new class adds an
+/// arm here rather than to a single workspace-wide match.
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "mwl_core_arr_count" => (mwl_core_arr_count as *const ()).cast(),
+        "mwl_core_arr_filter" => (mwl_core_arr_filter as *const ()).cast(),
+        "mwl_core_arr_map" => (mwl_core_arr_map as *const ()).cast(),
+        "mwl_core_arr_is_empty" => (mwl_core_arr_is_empty as *const ()).cast(),
+        "mwl_core_arr_has_key" => (mwl_core_arr_has_key as *const ()).cast(),
+        "mwl_core_arr_is_list" => (mwl_core_arr_is_list as *const ()).cast(),
+        "mwl_core_arr_values" => (mwl_core_arr_values as *const ()).cast(),
+        "mwl_core_arr_sort" => (mwl_core_arr_sort as *const ()).cast(),
+        "mwl_core_arr_range" => (mwl_core_arr_range as *const ()).cast(),
+        _ => return None,
+    })
+}
+
 mwl_runtime::mwl_helper! {
     /// `Core\Arr::count(array<T> $a): uint` — how many entries the array
     /// holds, replacing PHP's `count`/`sizeof`.

@@ -10,19 +10,29 @@
 //! holds the two things a signature on paper cannot be: a resolvable entry in
 //! [`registry::CLASSES`], and a callable symbol in [`symbols`].
 //!
-//! # The two halves, and why they are one crate
+//! # One module per domain; adding a class is two lines
 //!
-//! * [`registry`] is pure metadata — a member's name, its parameter and
-//!   return types, and the symbol its implementation is reachable at. The
-//!   compiler (`mwl-types`) seeds its own signature table from it, so
-//!   `Core\Arr::count($a)` resolves through exactly the machinery a
-//!   user-declared static call already does.
-//! * The per-domain modules ([`arr`], [`str`]) hold the implementations, each
-//!   an ADR 0002 helper entry point.
+//! A domain module ([`arr`], [`str`]) holds everything about its class: the
+//! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
+//! carrying that class's registry rows; and a `pub(crate) fn address` answering
+//! for its own symbols and nothing else.
 //!
-//! Keeping them together is what makes a member impossible to half-add: a
-//! registry entry naming a symbol nothing defines fails to link, and an
-//! implementation nothing registers is dead code the compiler will warn about.
+//! [`registry`] holds the *shapes* those rows are written in ([`registry::CoreTy`],
+//! [`registry::CoreMethod`], …) plus one list naming each domain's `CLASS`. The
+//! compiler (`mwl-types`) seeds its signature table from that list, so
+//! `Core\Arr::count($a)` resolves through exactly the machinery a user-declared
+//! static call already does.
+//!
+//! The point of the split is collision surface, not file size. Every one of the
+//! ~190 members the spec still owes used to edit the same two places — one flat
+//! table and one flat match — so two sessions adding two different domains
+//! always conflicted. Now **adding a member touches one file**, and adding a
+//! *class* adds one line to [`registry::CLASSES`] and one to [`symbols`].
+//!
+//! Keeping metadata and implementation in one crate is what makes a member
+//! impossible to half-add: a registry row naming a symbol nothing defines fails
+//! to link, and an implementation nothing registers is dead code the compiler
+//! warns about.
 //!
 //! # A `Core` call is a helper call
 //!
@@ -92,50 +102,33 @@ pub mod str;
 /// [`mwl_runtime::symbols`], which `mwl-codegen` already registers.
 ///
 /// Deliberately derived from [`registry::CLASSES`] rather than written out a
-/// second time: a member is registered once, and this looks its address up
-/// through one match that the compiler makes exhaustive by failing to build
-/// when a registered symbol has no arm.
+/// second time: a member is registered once, and this looks its address up by
+/// asking each domain module in turn for one of *its* symbols.
+///
+/// **One `.or_else` per class, never one arm per member.** Each domain owns
+/// its own `address` function beside its implementations, so adding a member
+/// touches that module alone. Adding a class adds one line here and one in
+/// [`registry::CLASSES`].
 ///
 /// # Panics
 ///
-/// Panics naming the symbol if [`registry::CLASSES`] registers one this has no
-/// address for. Both tables live in this crate, so that is a build-time
-/// oversight rather than anything a program could cause.
+/// Panics naming the symbol if [`registry::CLASSES`] registers one no domain
+/// claims. Both halves live in this crate, so that is a build-time oversight
+/// rather than anything a program could cause.
 #[must_use]
 pub fn symbols() -> Vec<(&'static str, *const u8)> {
     registry::CLASSES
         .iter()
         .flat_map(|class| class.methods)
         .map(|method| {
-            let address: *const u8 = match method.symbol {
-                "mwl_core_arr_count" => (arr::mwl_core_arr_count as *const ()).cast(),
-                "mwl_core_arr_filter" => (arr::mwl_core_arr_filter as *const ()).cast(),
-                "mwl_core_arr_map" => (arr::mwl_core_arr_map as *const ()).cast(),
-                "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
-                "mwl_core_arr_has_key" => (arr::mwl_core_arr_has_key as *const ()).cast(),
-                "mwl_core_arr_is_list" => (arr::mwl_core_arr_is_list as *const ()).cast(),
-                "mwl_core_arr_values" => (arr::mwl_core_arr_values as *const ()).cast(),
-                "mwl_core_arr_sort" => (arr::mwl_core_arr_sort as *const ()).cast(),
-                "mwl_core_arr_range" => (arr::mwl_core_arr_range as *const ()).cast(),
-                "mwl_core_str_is_empty" => (str::mwl_core_str_is_empty as *const ()).cast(),
-                "mwl_core_str_contains" => (str::mwl_core_str_contains as *const ()).cast(),
-                "mwl_core_str_starts_with" => (str::mwl_core_str_starts_with as *const ()).cast(),
-                "mwl_core_str_ends_with" => (str::mwl_core_str_ends_with as *const ()).cast(),
-                "mwl_core_str_join" => (str::mwl_core_str_join as *const ()).cast(),
-                "mwl_core_str_split" => (str::mwl_core_str_split as *const ()).cast(),
-                "mwl_core_str_replace" => (str::mwl_core_str_replace as *const ()).cast(),
-                "mwl_core_str_trim" => (str::mwl_core_str_trim as *const ()).cast(),
-                "mwl_core_str_trim_start" => (str::mwl_core_str_trim_start as *const ()).cast(),
-                "mwl_core_str_trim_end" => (str::mwl_core_str_trim_end as *const ()).cast(),
-                "mwl_core_str_pad_start" => (str::mwl_core_str_pad_start as *const ()).cast(),
-                "mwl_core_str_pad_end" => (str::mwl_core_str_pad_end as *const ()).cast(),
-                "mwl_core_str_repeat" => (str::mwl_core_str_repeat as *const ()).cast(),
-                "mwl_core_str_lower" => (str::mwl_core_str_lower as *const ()).cast(),
-                "mwl_core_str_upper" => (str::mwl_core_str_upper as *const ()).cast(),
-                "mwl_core_str_upper_first" => (str::mwl_core_str_upper_first as *const ()).cast(),
-                "mwl_core_str_lower_first" => (str::mwl_core_str_lower_first as *const ()).cast(),
-                other => panic!("mwl-stdlib registers `{other}` with no implementation address"),
-            };
+            let address = str::address(method.symbol)
+                .or_else(|| arr::address(method.symbol))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "mwl-stdlib registers `{}` with no implementation address",
+                        method.symbol
+                    )
+                });
             (method.symbol, address)
         })
         .collect()

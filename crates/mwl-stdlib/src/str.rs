@@ -36,6 +36,215 @@
 
 use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
+use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
+
+// ============================================================================
+// Registration — this class's rows, and where its symbols live
+// ============================================================================
+
+/// `Core\Str`'s registry rows, in the spec's own order.
+///
+/// Declared beside the implementations rather than in one flat table, so
+/// adding a member touches this file and nothing else. [`crate::registry`]'s
+/// `CLASSES` lists this const; that list grows one line per *class*, never one
+/// per member.
+pub const CLASS: CoreClass = CoreClass {
+    name: r"Core\Str",
+    methods: &[
+        CoreMethod {
+            name: "isEmpty",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_str_is_empty",
+        },
+        CoreMethod {
+            name: "contains",
+            params: &[CoreTy::Str, CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_str_contains",
+        },
+        CoreMethod {
+            name: "startsWith",
+            params: &[CoreTy::Str, CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_str_starts_with",
+        },
+        CoreMethod {
+            name: "endsWith",
+            params: &[CoreTy::Str, CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_str_ends_with",
+        },
+        CoreMethod {
+            name: "join",
+            params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Str],
+            defaults: &[Const::Str("")],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_join",
+        },
+        CoreMethod {
+            name: "split",
+            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(SPLIT_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "mwl_core_str_split",
+        },
+        CoreMethod {
+            name: "replace",
+            params: &[
+                CoreTy::Str,
+                CoreTy::Str,
+                CoreTy::Str,
+                CoreTy::Options(REPLACE_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_replace",
+        },
+        CoreMethod {
+            name: "padStart",
+            params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
+            defaults: &[Const::Str(" ")],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_pad_start",
+        },
+        CoreMethod {
+            name: "padEnd",
+            params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
+            defaults: &[Const::Str(" ")],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_pad_end",
+        },
+        CoreMethod {
+            name: "trim",
+            params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_trim",
+        },
+        CoreMethod {
+            name: "trimStart",
+            params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_trim_start",
+        },
+        CoreMethod {
+            name: "trimEnd",
+            params: &[CoreTy::Str, CoreTy::Options(TRIM_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_trim_end",
+        },
+        CoreMethod {
+            name: "repeat",
+            params: &[CoreTy::Str, CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_repeat",
+        },
+        CoreMethod {
+            name: "lower",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_lower",
+        },
+        CoreMethod {
+            name: "upper",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_upper",
+        },
+        CoreMethod {
+            name: "upperFirst",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_upper_first",
+        },
+        CoreMethod {
+            name: "lowerFirst",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_lower_first",
+        },
+    ],
+};
+
+/// `Core\Str::split`'s `{limit?: int}` — [`mwl_core_str_split`]'s own docs own
+/// what each sign of it means and why the default is `int`'s maximum.
+const SPLIT_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "limit",
+    ty: CoreTy::Int,
+    default: Const::Int(i64::MAX),
+}];
+
+/// `Core\Str::trim`/`trimStart`/`trimEnd`'s `{characters?: string}`, shared by
+/// all three — one bag, so the three members cannot drift apart on either the
+/// option's name or its default.
+///
+/// The default is PHP's own `trim` set: space, tab, newline, carriage return,
+/// NUL and vertical tab. [`trimmed`] owns the two places the match itself
+/// diverges from PHP's.
+const TRIM_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "characters",
+    ty: CoreTy::Str,
+    default: Const::Str(" \t\n\r\0\u{0b}"),
+}];
+
+/// `Core\Str::replace`'s `{caseInsensitive?: bool, limit?: uint}`.
+///
+/// [`mwl_core_str_replace`]'s own docs own both defaults — in particular why
+/// "every occurrence" is spelled as `uint`'s maximum rather than as a sentinel
+/// `0` or a `null` the registry cannot state yet.
+const REPLACE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "caseInsensitive",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "limit",
+        ty: CoreTy::Uint,
+        default: Const::Uint(u64::MAX),
+    },
+];
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain.
+///
+/// [`crate::symbols`] chains one of these per domain, so a new class adds an
+/// arm here rather than to a single workspace-wide match.
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "mwl_core_str_is_empty" => (mwl_core_str_is_empty as *const ()).cast(),
+        "mwl_core_str_contains" => (mwl_core_str_contains as *const ()).cast(),
+        "mwl_core_str_starts_with" => (mwl_core_str_starts_with as *const ()).cast(),
+        "mwl_core_str_ends_with" => (mwl_core_str_ends_with as *const ()).cast(),
+        "mwl_core_str_join" => (mwl_core_str_join as *const ()).cast(),
+        "mwl_core_str_split" => (mwl_core_str_split as *const ()).cast(),
+        "mwl_core_str_replace" => (mwl_core_str_replace as *const ()).cast(),
+        "mwl_core_str_trim" => (mwl_core_str_trim as *const ()).cast(),
+        "mwl_core_str_trim_start" => (mwl_core_str_trim_start as *const ()).cast(),
+        "mwl_core_str_trim_end" => (mwl_core_str_trim_end as *const ()).cast(),
+        "mwl_core_str_pad_start" => (mwl_core_str_pad_start as *const ()).cast(),
+        "mwl_core_str_pad_end" => (mwl_core_str_pad_end as *const ()).cast(),
+        "mwl_core_str_repeat" => (mwl_core_str_repeat as *const ()).cast(),
+        "mwl_core_str_lower" => (mwl_core_str_lower as *const ()).cast(),
+        "mwl_core_str_upper" => (mwl_core_str_upper as *const ()).cast(),
+        "mwl_core_str_upper_first" => (mwl_core_str_upper_first as *const ()).cast(),
+        "mwl_core_str_lower_first" => (mwl_core_str_lower_first as *const ()).cast(),
+        _ => return None,
+    })
+}
+
 /// One `string` argument's text.
 ///
 /// Two failures, both `FATAL` rather than `THROWN`: a non-string argument
