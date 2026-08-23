@@ -22,12 +22,42 @@
 //! # Known gap
 //!
 //! The enum covers exactly what the members registered so far need. §§ 1–12
-//! of the spec also use unions (`int|string`), nullables (`?T`), `decimal` and
-//! shapes (an option bag) — each is a variant to add here plus a lowering arm
-//! in `mwl_types`, and none has a member registered yet that would exercise
-//! it. [`Const`] has the same shape of gap: no `null`, so a spec signature
-//! ending `= null` cannot be stated here until `mwl_types::defaults` can emit
-//! one.
+//! of the spec also use unions (`int|string`), nullables (`?T`) and `decimal`
+//! — each is a variant to add here plus a lowering arm in `mwl_types`, and
+//! none has a member registered yet that would exercise it. [`Const`] has the
+//! same shape of gap: no `null`, so a spec signature ending `= null` cannot be
+//! stated here until `mwl_types::defaults` can emit one.
+//!
+//! # The options bag, and the shape it will take
+//!
+//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R2 makes a
+//! trailing options shape (`{step?: int}`) the form of *every* optioned member,
+//! so this is the largest single gap in the roster — it is what keeps
+//! `Core\Arr::range`, `Core\Str::replace` and most of §§ 1–2's remaining rows
+//! unregistered. The design is settled and unimplemented; recorded here rather
+//! than re-derived, since the fork below is the expensive part:
+//!
+//! * **A bag is its own type, not an ADR 0036 shape.** `mwl_types::ty::Ty`
+//!   grows an `Options` variant beside `Shape`, spellable only from here the
+//!   way `TypeVar` already is. Reusing `Shape` would need an `optional` flag
+//!   on its fields *and* a `?` in the surface type grammar, and would leave an
+//!   unknown option accepted — ADR 0036 § 3's width subtyping allows an extra
+//!   field on purpose, while a mistyped option name must be an error.
+//! * **A bag is always last and always optional**, because every option is.
+//!   Its `MethodSig::defaults` entry is a `ConstArg::Options(...)` carrying each
+//!   option's own default, so `MethodSig::required()` already excludes it and
+//!   the arity check needs no change at all.
+//! * **A bag flattens at the ABI.** `mwl_ir::lower::lower_call_args` expands it
+//!   into one argument per declared option, in registry order — the literal's
+//!   value where written, the option's default where not — so
+//!   `mwl_core_arr_range` is an ordinary `args: [3]` helper and no runtime
+//!   representation of a shape is needed. The rejected alternative was building
+//!   an `array<mixed>` per call: it allocates on the common path, and needs a
+//!   `null`/empty spelling the IR does not have.
+//! * **The cost is one restriction:** an options argument must be written as a
+//!   shape literal at the call site, or omitted — a diagnostic, never silence.
+//!   That is exactly the set of programs that can run today, since
+//!   `ExprKind::ObjectLiteral` has no lowering at all.
 
 /// One type in a `Core` member's signature.
 ///

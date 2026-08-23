@@ -18,9 +18,9 @@
 > WSL `cargo fuzz run lex`/`parse` both find zero panics).
 >
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir` (+ `errors`, `interfaces`), `mwl-types` (+ `layout`, `core_lib`, `error_lib`,
-> `iter_lib`, `generics`, `conformance`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`,
-> `closure`), `mwl-stdlib` (`Core\Arr` × 3), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
+> `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
+> `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
+> `mwl-stdlib` (`Core\Arr` × 3, `Core\Str` × 12), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
 > `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -33,15 +33,15 @@
 > 0065, and **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this
 > field.
 >
-> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. `examples/core.mwl` still needs an
-> options-shape argument and every `Core\Str` row; `%` is done. Then `crates/mwl-test`/`mwl test`. Off
-> that path: `+`/`-`/`*` still wrap rather than throw, `for`/`switch`, ADR 0043's `by`-delegation,
-> virtual dispatch through a base-typed local, ADR 0014's `PropertyObserver`, ADR 0009's measurement.
+> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An optional parameter works end to
+> end, so `examples/core.mwl` needs the options-shape argument, `Core\Arr::range`/`map`/`sort` and
+> `Core\Str::length`/`replace`. Then `crates/mwl-test`/`mwl test`. Off that path: `+`/`-`/`*` wrap,
+> `for`/`switch`, ADR 0043's `by`-delegation, ADR 0014's `PropertyObserver`, ADR 0009's measurement.
 >
 > **Blocking:** nothing external. **Stages 1 and 2 are green on both legs** — byte for byte on Windows
-> and under WSL against a Linux build, `valgrind --leak-check=full` clean on all eleven fixtures.
-> `examples/core.mwl` still stops at line 1: `Core\Arr::range` is unregistered, its `{step?: int}` bag
-> being both a shape the registry cannot express and an optional parameter, which nothing supports.
+> and under WSL against a Linux build, `valgrind --leak-check=full` clean on all eleven fixtures plus
+> this session's two new refcount edges. `examples/core.mwl` still stops at its first line, on an
+> unregistered `Core\Arr::range` whose `{step?: int}` bag the registry still cannot express.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
