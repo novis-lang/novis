@@ -4,7 +4,9 @@
 //!
 //! * `mwl ast` (M1) — dump what the parser produced.
 //! * `mwl check` (M2) — parse, resolve, type-check, report every diagnostic.
-//! * `mwl run` (M3) — all of the above, then compile and execute.
+//! * `mwl run` (M3) — all of the above, then compile and execute. Its two
+//!   dump flags stop one stage earlier and print instead of running:
+//!   `--dump-ir` after lowering, `--dump-asm` after code generation.
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
@@ -62,6 +64,9 @@ enum Command {
         /// Print the lowered IR instead of compiling it.
         #[arg(long)]
         dump_ir: bool,
+        /// Print the generated machine code instead of running it.
+        #[arg(long, conflicts_with = "dump_ir")]
+        dump_asm: bool,
     },
 }
 
@@ -70,7 +75,11 @@ fn main() -> ExitCode {
     match cli.command {
         Command::Ast { file } => run_ast(&file),
         Command::Check { file } => run_check(&file),
-        Command::Run { file, dump_ir } => run_run(&file, dump_ir),
+        Command::Run {
+            file,
+            dump_ir,
+            dump_asm,
+        } => run_run(&file, dump_ir, dump_asm),
     }
 }
 
@@ -167,7 +176,7 @@ fn run_check(path: &std::path::Path) -> ExitCode {
 /// same spelling `mwl-ir`'s own snapshots use.
 const SCRIPT: &str = "<script>";
 
-fn run_run(path: &std::path::Path, dump_ir: bool) -> ExitCode {
+fn run_run(path: &std::path::Path, dump_ir: bool, dump_asm: bool) -> ExitCode {
     let checked = match front_end(path) {
         Ok(checked) => checked,
         Err(code) => return code,
@@ -189,6 +198,22 @@ fn run_run(path: &std::path::Path, dump_ir: bool) -> ExitCode {
     let program = mwl_ir::Program {
         functions: vec![script],
     };
+    if dump_asm {
+        // Deliberately the same compile `run` performs, disassembled rather
+        // than a second differently-configured one — see
+        // `mwl_codegen::disassemble`. Like `--dump-ir`, it prints instead of
+        // running.
+        return match mwl_codegen::disassemble(&program) {
+            Ok(text) => {
+                print!("{text}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let unit = match mwl_codegen::compile(&program) {
         Ok(unit) => unit,
         Err(error) => {

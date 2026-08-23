@@ -20,6 +20,12 @@ use mwl_runtime::{Ctx, DebugFlags, FATAL, SafepointFlags, Value, call};
 /// is meant to type-check, so a diagnostic is a broken fixture, not an outcome
 /// under test.
 fn compile(source: &str) -> Result<mwl_codegen::Unit, mwl_codegen::CodegenError> {
+    mwl_codegen::compile(&lower(source))
+}
+
+/// Runs the whole front end over `source` and lowers its script frame, without
+/// compiling it.
+fn lower(source: &str) -> mwl_ir::Program {
     let mut map = SourceMap::new();
     let id = map.add("test.mwl", source);
     let src = map.file(id);
@@ -36,10 +42,11 @@ fn compile(source: &str) -> Result<mwl_codegen::Unit, mwl_codegen::CodegenError>
         diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
     );
 
-    let script = mwl_ir::lower::lower_script("<script>", &stmts, src, &exprs, &interner);
-    mwl_codegen::compile(&mwl_ir::Program {
-        functions: vec![script],
-    })
+    mwl_ir::Program {
+        functions: vec![mwl_ir::lower::lower_script(
+            "<script>", &stmts, src, &exprs, &interner,
+        )],
+    }
 }
 
 /// Compiles and runs `source` against `ctx`, returning the compiled status.
@@ -171,6 +178,29 @@ fn coverage_counts_a_looping_statement_once_per_iteration() {
     // s3 the body's one statement — the body's two run twice, the two before
     // the loop once each.
     assert_eq!(ctx.stmt_hits(), [1, 1, 2, 2]);
+}
+
+#[test]
+fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
+    // What `mwl run --dump-asm` prints. The two structural claims worth
+    // holding: every compiled frame gets a section headed by its MWL name, and
+    // the section carries the probe sites this backend emits unconditionally —
+    // so a disassembly cannot silently be of some differently-configured
+    // second compile.
+    let text = mwl_codegen::disassemble(&lower("<?mwl\necho \"Hello, World!\";\n"))
+        .expect("the fixture compiles");
+
+    assert!(text.starts_with("; <script>\n"), "{text}");
+    assert!(text.contains("block0:"), "{text}");
+    // Two `load_ext_name` sites at minimum: the safepoint slow path and the
+    // statement probe, both out-of-line calls this backend always emits.
+    assert!(text.matches("load_ext_name").count() >= 2, "{text}");
+}
+
+#[test]
+fn disassembling_an_unlowered_shape_reports_it_rather_than_printing_half_a_unit() {
+    let error = mwl_codegen::disassemble(&lower("<?mwl\necho \"a\" . \"b\";\n")).unwrap_err();
+    assert!(error.to_string().contains("concatenation"), "{error}");
 }
 
 #[test]

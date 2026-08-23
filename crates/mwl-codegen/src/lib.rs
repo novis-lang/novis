@@ -174,11 +174,36 @@ impl Unit {
 /// [`CodegenError::UnsupportedHost`] on a machine Cranelift has no backend
 /// for.
 pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
-    let mut jit = Jit::new()?;
+    let mut jit = Jit::new(None)?;
     for (index, function) in program.functions.iter().enumerate() {
         jit.compile_function(index, function)?;
     }
     jit.finish()
+}
+
+/// Compiles every function in `program` and returns the generated machine
+/// code as text, one section per function, *instead* of a callable [`Unit`].
+///
+/// This is what `mwl run --dump-asm` prints. It compiles through exactly the
+/// same path [`compile`] does — same ISA flags, same emitted probes — with
+/// Cranelift's disassembler switched on, so what it prints is the code that
+/// would have run rather than a second, differently-configured rendering.
+/// Nothing is executed.
+///
+/// # Errors
+///
+/// The same three cases [`compile`] reports, for the same reasons.
+pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
+    let mut jit = Jit::new(Some(String::new()))?;
+    for (index, function) in program.functions.iter().enumerate() {
+        jit.compile_function(index, function)?;
+    }
+    // `finish` still has to run: `finalize_definitions` is what resolves the
+    // relocations, and a unit that cannot be linked is not a unit whose
+    // disassembly should be reported as if it were fine.
+    let disasm = jit.disasm.take().unwrap_or_default();
+    jit.finish()?;
+    Ok(disasm)
 }
 
 /// The JIT module under construction, plus the imported runtime symbols every
@@ -191,6 +216,10 @@ struct Jit {
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     literals: usize,
     entries: Vec<(String, cranelift_module::FuncId)>,
+    /// Set only by [`disassemble`]: the accumulated text of every function's
+    /// generated code. `None` is the ordinary compile, which asks Cranelift
+    /// for no disassembly at all and so pays nothing for this field.
+    disasm: Option<String>,
 }
 
 /// The four signatures the runtime exports, beyond the helper ABI itself.
@@ -215,7 +244,7 @@ struct Signatures {
 }
 
 impl Jit {
-    fn new() -> Result<Self, CodegenError> {
+    fn new(disasm: Option<String>) -> Result<Self, CodegenError> {
         let mut flags = settings::builder();
         for (name, value) in [
             // A JIT resolves every call through an absolute address, and the
@@ -249,6 +278,7 @@ impl Jit {
             sigs,
             literals: 0,
             entries: Vec::new(),
+            disasm,
         })
     }
 
@@ -271,6 +301,9 @@ impl Jit {
             })?;
 
         self.ctx.func.signature = self.sigs.helper.clone();
+        // Must be set per function: `Module::clear_context` resets it along
+        // with the rest of the context.
+        self.ctx.set_disasm(self.disasm.is_some());
         let result = emit::emit_function(
             &mut self.module,
             &mut self.ctx,
@@ -290,9 +323,39 @@ impl Jit {
                 function: function.name.clone(),
                 source: Box::new(source),
             })?;
+        self.collect_disasm(&function.name);
         self.module.clear_context(&mut self.ctx);
         self.entries.push((function.name.clone(), id));
         Ok(())
+    }
+
+    /// Appends the just-compiled function's disassembly, if one was asked for.
+    ///
+    /// Called between `define_function` and `clear_context`, which is the only
+    /// window the compiled code is still attached to the context.
+    fn collect_disasm(&mut self, name: &str) {
+        let Some(buffer) = self.disasm.as_mut() else {
+            return;
+        };
+        let vcode = self
+            .ctx
+            .compiled_code()
+            .and_then(|code| code.vcode.as_deref());
+        buffer.push_str("; ");
+        buffer.push_str(name);
+        buffer.push('\n');
+        match vcode {
+            // Cranelift has no disassembler for every backend it can emit
+            // for; saying so beats printing an empty section.
+            None => buffer.push_str(";   <no disassembly available on this target>\n"),
+            Some(text) => {
+                buffer.push_str(text);
+                if !text.ends_with('\n') {
+                    buffer.push('\n');
+                }
+            }
+        }
+        buffer.push('\n');
     }
 
     fn finish(mut self) -> Result<Unit, CodegenError> {
