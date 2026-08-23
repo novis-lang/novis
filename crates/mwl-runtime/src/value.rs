@@ -53,8 +53,13 @@ pub enum Tag {
     /// A class instance; the payload is an [`ObjHeader`] pointer and the value
     /// owns one reference to it.
     Object = 7,
-    /// A closure ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md));
-    /// no representation exists yet.
+    /// Reserved, and unused: an
+    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// closure is an ordinary object — one field per capture, one `invoke`
+    /// method — so it carries [`Self::Object`]. `mwl_ir::lower::lower_closure`
+    /// owns that decision and says why it reuses the object machinery rather
+    /// than adding a second heap shape; `crate::closure` is what reads a
+    /// closure back out of an object value.
     Closure = 8,
     /// An engine-owned resource handle; no representation exists yet.
     Resource = 9,

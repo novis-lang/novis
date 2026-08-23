@@ -102,6 +102,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             interner.array(elem)
         }
         CoreTy::Var(name) => interner.type_var(*name),
+        CoreTy::Callable => interner.callable(),
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
         // answer for a variant this arm has not learned yet, since `Ty` and

@@ -134,6 +134,7 @@
 
 mod abi;
 pub mod array;
+pub mod closure;
 #[cfg(test)]
 mod counting_alloc;
 mod ctx;
@@ -159,13 +160,14 @@ pub use array::{
     mwl_array_has_key, mwl_array_key_at, mwl_array_new, mwl_array_next_slot, mwl_array_release,
     mwl_array_retain, mwl_array_set, mwl_array_unset, mwl_array_value_at,
 };
+pub use closure::{CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, call_closure};
 pub use ctx::{
     Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, ErrorClass, FaultSite, OutputSink, SAFEPOINT_OFFSET,
     SafepointFlags, TraceEvent, mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt,
     mwl_safepoint,
 };
 pub use fmt::php_float_to_string;
-pub use helpers::symbols;
+pub use helpers::{symbols, value_truthy};
 pub use object::{
     ClassDesc, ClassId, ClassTable, FIELD_STRIDE, FIELDS_OFFSET, MwlObj, OBJ_CLASS_OFFSET,
     OBJ_REFCOUNT_OFFSET, ObjHeader, field_offset, mwl_abstract_method, mwl_class_method,

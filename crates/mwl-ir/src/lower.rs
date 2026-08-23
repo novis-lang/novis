@@ -3778,6 +3778,16 @@ impl<'a> Lowering<'a> {
                         args: Vec::new(),
                     },
                 );
+                let arity =
+                    i64::try_from(fn_expr.params.len()).expect("a parameter list fits an i64");
+                let (arity_v, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(arity));
+                self.emit_field_set(
+                    cur,
+                    obj,
+                    class.clone(),
+                    FN_ARITY.to_owned(),
+                    arity_v,
+                );
                 let mut captured = Vec::with_capacity(names.len());
                 for name in names {
                     let &(v, ty) = env.get(&name).unwrap_or_else(|| {
@@ -5829,6 +5839,23 @@ const FN_SELF: &str = "fn#self";
 /// closure's environment class answers, as the method table spells it.
 pub(crate) const FN_INVOKE: &str = "invoke";
 
+/// The reserved **first** field of every closure's environment class: how many
+/// parameters [`FN_INVOKE`] declares, not counting the receiver.
+///
+/// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+/// § 2 hands every `Core\Arr` callback `($value, $key)` and lets it "declare
+/// fewer parameters" — so a native caller has to know how many the closure
+/// actually wants before it can pass, and retain, the right number. A
+/// descriptor carries no arity, so the closure object carries it, in a slot
+/// whose index `mwl_runtime::CLOSURE_ARITY_SLOT` restates and
+/// `mwl-codegen`'s `a_closure_object_carries_its_own_arity_in_slot_zero`
+/// holds the two together.
+///
+/// One 16-byte slot per closure, per evaluation of the literal — bought
+/// against a second class-descriptor field that every non-closure class would
+/// carry too.
+pub(crate) const FN_ARITY: &str = "fn#arity";
+
 /// One `fn` literal met while lowering a body, waiting for its own function
 /// to be built — see [`lower_closure`].
 ///
@@ -6028,7 +6055,11 @@ fn lower_closure(
         },
         crate::ir::Class {
             label: class.clone(),
-            fields: captures.iter().map(|(n, _)| n.clone()).collect(),
+            // `FN_ARITY` first, always — a native caller reads it by index,
+            // not by name. See that constant.
+            fields: std::iter::once(FN_ARITY.to_owned())
+                .chain(captures.iter().map(|(n, _)| n.clone()))
+                .collect(),
             conforms: Vec::new(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone())],
         },

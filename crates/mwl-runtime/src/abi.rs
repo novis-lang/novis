@@ -55,6 +55,15 @@ pub enum Fault {
     Thrown(std::borrow::Cow<'static, str>),
     /// Unrecoverable; becomes [`FATAL`].
     Fatal(std::borrow::Cow<'static, str>),
+    /// A callee this helper invoked already failed and already recorded what
+    /// failed in [`Ctx`] — return its status unchanged.
+    ///
+    /// The one variant carrying no message, and deliberately: a
+    /// [`Self::Thrown`] built here would call [`Ctx::set_pending`] a second
+    /// time and replace the exception object the callee raised with a bare
+    /// string. Reached today only from [`crate::call_closure`], which is the
+    /// one place a helper calls compiled MWL code.
+    Pending(i32),
 }
 
 impl Fault {
@@ -156,6 +165,9 @@ where
             ctx.set_pending(message);
             FATAL
         }
+        // Nothing to record: the callee that failed already did, and this
+        // frame has nothing of its own to add — see `Fault::Pending`.
+        Ok(Err(Fault::Pending(status))) => status,
         Err(payload) => {
             ctx.set_pending(panic_message(&*payload));
             FATAL

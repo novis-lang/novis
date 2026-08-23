@@ -11,12 +11,14 @@ fn <script>() -> mixed {
     v1 = const.int 1  ; int
     ; stmt s2 @4:1-4:37
     v2 = new Script$fn0()  ; object
+    v3 = const.int 1  ; int
+    field.set v2, Script$fn0::fn#arity, v3
     retain v0
     field.set v2, Script$fn0::tag, v0
     ; stmt s3 @5:1-5:12
-    v3 = helper.int_to_string v1  ; string
-    helper.echo_str v3 ! bb1
-    release v3
+    v4 = helper.int_to_string v1  ; string
+    helper.echo_str v4 ! bb1
+    release v4
     release v2
     release v0
     return

@@ -54,6 +54,14 @@ pub enum CoreTy {
     Mixed,
     /// `array<T>`, whose element type is the wrapped one.
     Array(&'static CoreTy),
+    /// `callable` — [ADR 0031](../../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// § 4's one closure type, and opaque: it says nothing about the
+    /// parameters or the result of the closure that satisfies it. What a
+    /// `Core` member actually hands a callback is stated by
+    /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+    /// § 2 — `($value, $key)`, with fewer parameters allowed — and enforced
+    /// at the call by `mwl_runtime::call_closure`, not by this type.
+    Callable,
     /// A type *variable*, named — `T` in `count(array<T> $a): uint`.
     ///
     /// The spec's `Core\Arr` section states the rule this exists for: "`T` is
@@ -107,6 +115,12 @@ pub const CLASSES: &[CoreClass] = &[CoreClass {
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             return_ty: CoreTy::Uint,
             symbol: "mwl_core_arr_count",
+        },
+        CoreMethod {
+            name: "filter",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_filter",
         },
         CoreMethod {
             name: "isEmpty",

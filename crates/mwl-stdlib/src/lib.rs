@@ -47,13 +47,20 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The registry holds one member.** `Core\Arr::count` is the first, and
-//!    landed with the mechanism rather than after it, on this repository's
-//!    standing "narrow slice, end to end" rule — it compiles and runs, so
-//!    every later member is a registry row plus a body rather than more
-//!    machinery. The spec file's §§ 1–12 are the work list, and
-//!    `.claude/loop-goal.md`'s Stage 4 holds the coverage gate that will name
-//!    every member still missing one.
+//! 1. **The registry holds three members.** `Core\Arr::count` was the first,
+//!    and landed with the mechanism rather than after it, on this
+//!    repository's standing "narrow slice, end to end" rule — it compiles and
+//!    runs, so every later member is a registry row plus a body rather than
+//!    more machinery. `filter` is the second thing the mechanism had to
+//!    prove: a member that calls *back* into MWL code, through
+//!    `mwl_runtime::call_closure`. The spec file's §§ 1–12 are the work list,
+//!    and `.claude/loop-goal.md`'s Stage 4 holds the coverage gate that will
+//!    name every member still missing one.
+//! 3. **No member takes an options shape or an optional parameter yet.**
+//!    `registry::CoreTy` can express neither, which is why `Core\Arr::range`
+//!    — a two-argument member with a `{step?: int}` bag — is not registered
+//!    alongside `filter`: registering it without the bag would put a
+//!    signature in the compiler that the spec does not describe.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
 //!    *Revisiting* section and `.claude/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what
@@ -86,6 +93,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         .map(|method| {
             let address: *const u8 = match method.symbol {
                 "mwl_core_arr_count" => (arr::mwl_core_arr_count as *const ()).cast(),
+                "mwl_core_arr_filter" => (arr::mwl_core_arr_filter as *const ()).cast(),
                 "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
                 other => panic!("mwl-stdlib registers `{other}` with no implementation address"),
             };

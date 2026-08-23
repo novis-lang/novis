@@ -313,6 +313,46 @@ crate::mwl_helper! {
     }
 }
 
+/// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md)'s truthy
+/// table, applied to a value whose type is known only at runtime.
+///
+/// The per-type helpers above are what *compiled* code reaches: the checker
+/// already knows an `if`'s operand type, so the branch is picked at compile
+/// time and there is no tag test on the hot path. This is the other case —
+/// native `Core` code holding a [`Value`] a closure just returned, whose
+/// static type is `callable`'s opaque result and therefore nothing. It is
+/// deliberately *not* the general `mixed` dispatch `mwl_ir::ty::Ty::Mixed`
+/// still defers: this reads a tag a `Value` already carries rather than
+/// deciding how a `mixed` binding represents one.
+///
+/// A `Tag::Object` value is always truthy, which includes an exception and a
+/// closure alike (ADR 0035 § 4); a tag byte denoting nothing at all is falsy,
+/// the same "report what can be be sure of" floor every other decoder here
+/// takes.
+#[must_use]
+pub fn value_truthy(value: Value) -> bool {
+    match value.tag() {
+        None | Some(Tag::Null) => false,
+        Some(Tag::Bool) => value.as_bool() == Some(true),
+        Some(Tag::Int) => value.as_int().is_some_and(|n| n != 0),
+        Some(Tag::Uint) => value.as_uint().is_some_and(|n| n != 0),
+        Some(Tag::Float) => value.as_float().is_some_and(|n| n != 0.0),
+        Some(Tag::Str) => value
+            .as_str_bytes()
+            .is_some_and(|bytes| !(bytes.is_empty() || bytes == b"0")),
+        Some(Tag::Array) => value.array_ptr().is_some_and(|array| {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array value's payload is a live allocation \
+                          the caller owns a reference to"
+            )]
+            let count = unsafe { crate::array::mwl_array_count(array) };
+            count != 0
+        }),
+        Some(Tag::Object | Tag::Closure | Tag::Resource) => true,
+    }
+}
+
 /// Every helper this crate exports, paired with the symbol name compiled code
 /// calls it by.
 ///
