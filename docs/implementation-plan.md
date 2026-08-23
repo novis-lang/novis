@@ -31,15 +31,16 @@
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
 > slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** the ordered-hash array with COW; then the exception surface (spec § 10) onto the object
-> shape that now exists, `foreach`/`for`/`switch`, generics, `static`/`self` as types and late static
-> binding, ADR 0043's `by`-delegation, ADR 0014's hooks (`examples/hooks.mwl` runs, printing the raw
-> slot), then M4S §§ 1–12. Alongside: ADR 0009's measurement, and 0011/0024/0033's sinks.
+> **Open now:** `foreach` and `unset($a[$k])`, the array's two remaining consumers; then the exception
+> surface (spec § 10) onto the object shape that now exists, `for`/`switch`, generics, `static`/`self` as
+> types and late static binding, ADR 0043's `by`-delegation, ADR 0014's hooks (`examples/hooks.mwl` runs,
+> printing the raw slot), then M4S §§ 1–12. Alongside ADR 0009's measurement and 0024/0033's sinks.
 >
-> **Blocking:** nothing external. The object gate is closed: `mwl_runtime::object` gives an instance a
-> refcounted header and uniform 16-byte field slots, `mwl_types::layout` publishes each class's slot
-> order, and `mwl-codegen` compiles `new`/`FieldGet`/`FieldSet`/an instance call — valgrind-clean on the
-> Linux leg. Dispatch is still static: an override reached through a base-typed variable calls the base's.
+> **Blocking:** nothing external. Both Stage 1 representations are closed: `mwl_runtime::object`'s
+> refcounted 16-byte field slots, and `mwl_runtime::array`'s ordered hash with its refcount-1 in-place
+> fast path — and `mwl-codegen` compiles `new`, field access, an instance call and all four array
+> instructions, valgrind-clean on Linux. Dispatch stays static: an override through a base-typed local
+> calls the base.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
