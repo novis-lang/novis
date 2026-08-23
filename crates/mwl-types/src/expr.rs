@@ -1915,6 +1915,16 @@ fn object_comparison_result(
         );
         return Some(env.interner.mixed());
     }
+    // ADR 0013 § 2: the comparison *is* a `compareTo` call, so `mwl-ir` needs
+    // its resolved target the same way an ordinary `$a->compareTo($b)` does —
+    // recorded under the *binary expression's* own span, since there is no
+    // call node in the AST to key it by. `Comparable::compareTo` is bodiless,
+    // so `has_body` is `false` and the call dispatches on the receiver's
+    // runtime class, exactly like any other call to an interface method.
+    if let Some((owner, sig)) = resolve_method(&lhs_q, "compareTo", env.signatures, env.graph) {
+        let call = resolved_call(owner, "compareTo".to_owned(), &sig);
+        env.exprs.record(span, ExprInfo::Call(call));
+    }
     Some(match op {
         BinaryOp::Cmp => env.interner.int(),
         _ => env.interner.bool_ty(),

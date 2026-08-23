@@ -466,6 +466,21 @@ pub enum InstKind {
         /// The value being released.
         operand: ValueId,
     },
+    /// `clone $obj` —
+    /// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+    /// § 1's shallow, same-heap, single-level copy. Defines a fresh
+    /// [`crate::ty::Ty::Object`] with exactly one natural owner, exactly like
+    /// [`InstKind::New`], whose every slot holds what the original's held with
+    /// one more reference taken.
+    ///
+    /// No hook runs and nothing can fail: ADR 0023 has no `__clone`, so this
+    /// carries no status check and no landing block, the same as
+    /// [`InstKind::Concat`]. Reads `object` without retaining it, the way
+    /// [`InstKind::FieldGet`] reads its receiver.
+    Clone {
+        /// The object being copied.
+        object: ValueId,
+    },
     /// Defines a value with the *same machine bits* as `operand` under a
     /// different [`crate::ty::Ty`] — the whole of a conversion that
     /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5 calls

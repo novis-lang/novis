@@ -2530,6 +2530,29 @@ impl<'a> Lowering<'a> {
                 }
                 result
             }
+            // ADR 0013 § 2: ordering two objects is a `Comparable::compareTo`
+            // call, never a comparison of the values themselves — there is no
+            // property-walk fallback and nothing else an object `<` could
+            // mean. Split out ahead of the general arm below, which would
+            // otherwise compare two heap pointers as integers.
+            ExprKind::Binary {
+                op:
+                    op @ (BinaryOp::Lt
+                    | BinaryOp::LtEq
+                    | BinaryOp::Gt
+                    | BinaryOp::GtEq
+                    | BinaryOp::Cmp),
+                lhs,
+                rhs,
+            }
+                // The discriminator is the recorded `compareTo` target, not
+                // the operands' representations: deciding those would mean
+                // lowering each operand to find out, and an operand is lowered
+                // exactly once.
+                if matches!(self.exprs.lookup(expr.span), Some(ExprInfo::Call(_))) =>
+            {
+                self.lower_object_comparison(*op, expr, lhs, rhs, env, cur)
+            }
             ExprKind::Binary { op, lhs, rhs } => {
                 let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
                 let (rv, _) = self.lower_expr(rhs, Some(lty), env, cur);
@@ -3070,6 +3093,28 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // ADR 0023 § 1: PHP's shallow, same-heap, single-level copy, with
+            // no `__clone` hook to run — so the whole operation is one
+            // instruction, and the result is a fresh object with exactly one
+            // owner, the same as `new`.
+            ExprKind::Clone(inner) => {
+                let (v, ty) = self.lower_expr(inner, None, env, cur);
+                assert!(
+                    matches!(ty, Ty::Object),
+                    "mwl-ir lowers `clone` only for an object — got representation {ty:?}. ADR \
+                     0023 § 1 scopes `clone` to an object; an array is already a copy-on-write \
+                     value, and a scalar has nothing to copy"
+                );
+                let result = self.emit(cur, Ty::Object, InstKind::Clone { object: v });
+                // The operand is only *read* — see `InstKind::Clone`. A fresh
+                // one nothing else owns is released right after, the same
+                // "release a fresh value once its one and only use is done"
+                // rule `Self::concat_operand`'s caller applies.
+                if !is_aliasing_read(&inner.kind) {
+                    self.emit_release(cur, v);
+                }
+                result
+            }
             // ADR 0010 § 3: `EnumName::CaseName` "is an integer constant,
             // inlined at every use site" — so it lowers to exactly the
             // constant a literal would, with no storage, no descriptor and no
@@ -3215,6 +3260,86 @@ impl<'a> Lowering<'a> {
                  crate can't synthesize yet, see the crate docs' known gaps"
             ),
         }
+    }
+
+    /// `$a < $b` and its four siblings over two objects — ADR 0013 § 2's
+    /// `Comparable::compareTo` call, then the comparison of *its* `int`
+    /// against zero.
+    ///
+    /// `<=>` is the call's own result with no second step: `compareTo` already
+    /// returns exactly what the spaceship operator means.
+    ///
+    /// The call is ordinary in every respect — ADR 0002's error edge (a
+    /// `compareTo` body may throw like any other), and the same ownership
+    /// convention [`Self::lower_call_args`] applies, with the receiver as
+    /// parameter 0: an aliasing operand is retained here because the callee
+    /// releases every refcounted parameter at scope exit, and a fresh one
+    /// (`new Point(1) < $p`) simply transfers the reference it already has.
+    ///
+    /// It always dispatches on the receiver's runtime class:
+    /// `Comparable::compareTo` is a bodiless interface method, so the resolved
+    /// declaration names no compiled function — the same `has_body: false`
+    /// path an interface method call already takes.
+    fn lower_object_comparison(
+        &mut self,
+        op: BinaryOp,
+        expr: &Expr,
+        lhs: &Expr,
+        rhs: &Expr,
+        env: &Env,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
+            unreachable!("the match guard already found this entry")
+        };
+        let fallback = call
+            .has_body
+            .then(|| format!("{}::{}", call.class, call.method));
+        let method = call.method.clone();
+        let (lv, lty) = self.lower_expr(lhs, None, env, cur);
+        let (rv, rty) = self.lower_expr(rhs, None, env, cur);
+        assert!(
+            matches!(lty, Ty::Object) && matches!(rty, Ty::Object),
+            "mwl-ir: `mwl_types` recorded a `Comparable::compareTo` target for a comparison \
+             whose operands lowered to {lty:?}/{rty:?} rather than two objects"
+        );
+        for (v, operand) in [(lv, lhs), (rv, rhs)] {
+            if is_aliasing_read(&operand.kind) {
+                self.emit_retain(cur, v);
+            }
+        }
+        let (desc, _) = self.emit(cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
+        let (ordering, _) = self.emit_fallible(
+            cur,
+            Ty::Int,
+            InstKind::CallVirtual {
+                lsb: desc,
+                method,
+                fallback,
+                receiver: Some(lv),
+                args: vec![rv],
+            },
+            env,
+        );
+        if op == BinaryOp::Cmp {
+            return (ordering, Ty::Int);
+        }
+        let bop = match op {
+            BinaryOp::Lt => BinOp::Lt,
+            BinaryOp::LtEq => BinOp::LtEq,
+            BinaryOp::Gt => BinOp::Gt,
+            _ => BinOp::GtEq,
+        };
+        let (zero, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(0));
+        self.emit(
+            cur,
+            Ty::Bool,
+            InstKind::BinOp {
+                op: bop,
+                lhs: ordering,
+                rhs: zero,
+            },
+        )
     }
 
     /// Lowers one `expr as T` — ADR 0007 § 2's conversion table, plus
@@ -6302,6 +6427,67 @@ int $n = $u as int;
                 .any(|l| l.contains("helper.uint_to_int") && l.contains(" ! bb")),
             "{text}"
         );
+    }
+
+    /// ADR 0013 § 2: ordering two objects *is* a `Comparable::compareTo` call
+    /// followed by a comparison of its `int` against zero — never a comparison
+    /// of the two values, which for objects would be two heap pointers.
+    #[test]
+    fn ordering_two_objects_calls_compare_to_and_tests_its_result_against_zero() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+class P implements Comparable {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+    public function compareTo(self $other): int { return $this->n - $other->n; }
+}
+var $a = new P(1);
+var $b = new P(2);
+if ($a < $b) { echo \"lt\"; }
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains("::compareTo"), "{text}");
+        assert!(text.contains("const.int 0"), "{text}");
+        assert!(
+            text.lines()
+                .any(|l| l.contains("lt v") && l.contains("bool")),
+            "{text}"
+        );
+    }
+
+    /// `<=>` is the call's own result: `compareTo` already returns exactly
+    /// what the spaceship operator means, so there is no second comparison.
+    #[test]
+    fn the_spaceship_operator_is_the_compare_to_result_itself() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+class P implements Comparable {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+    public function compareTo(self $other): int { return $this->n - $other->n; }
+}
+var $a = new P(1);
+int $c = $a <=> $a;
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains("::compareTo"), "{text}");
+        assert!(!text.contains("const.int 0"), "{text}");
+    }
+
+    /// ADR 0023 § 1: one instruction, a fresh object with one owner, and no
+    /// hook — `__clone` is one of the magic methods MWL does not have.
+    #[test]
+    fn clone_lowers_to_one_instruction_with_no_hook_call() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+class P { public int $n; public function constructor(int $n) { $this->n = $n; } }
+var $a = new P(1);
+var $b = clone $a;
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// The one conversion row still missing, named rather than miscompiled:

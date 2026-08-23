@@ -417,6 +417,13 @@ impl Emitter<'_, '_> {
                 let value = self.emit_concat(*lhs, *rhs)?;
                 self.define(inst, value)?;
             }
+            InstKind::Clone { object } => {
+                let (object, _) = self.value(*object)?;
+                let callee = self.runtime_ref("mwl_object_clone", RuntimeSig::PtrToPtr)?;
+                let call = self.b.ins().call(callee, &[object]);
+                let value = self.b.inst_results(call)[0];
+                self.define(inst, value)?;
+            }
             // No machine instruction at all: the operand's own Cranelift value
             // is recorded a second time under this instruction's id, with the
             // new representation. See `mwl_ir::ir::InstKind::Reinterpret` for

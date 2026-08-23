@@ -913,6 +913,62 @@ pub unsafe extern "C" fn mwl_object_new(class: *const ClassDesc) -> *mut ObjHead
     }
 }
 
+/// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+/// § 1's `clone`: a fresh instance of the *same* class whose every slot holds
+/// what the original's held, with a reference count of one.
+///
+/// **Shallow, same-heap, single-level** — PHP's own rule, kept exactly. A slot
+/// holding an object ends up pointing at that same object from both copies,
+/// with one more reference taken, so mutating `$copy->child->name` is visible
+/// through the original. That is the whole of what `clone` means; deep copying
+/// is `serialize`/`unserialize`'s recursive graph copy, a different operation.
+///
+/// No hook runs. ADR 0023 makes `__clone` one of the magic methods MWL does
+/// not have, so this is the entire operation — nothing here can throw, which
+/// is why it wears no checked-return shape.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live MWL object allocation the caller holds a
+/// reference to for the duration of the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a raw object pointer whose liveness the \
+              signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_object_clone(ptr: *mut ObjHeader) -> *mut ObjHeader {
+    if ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ptr` is a live allocation it holds a \
+                  reference to, so borrowing it for this copy is sound"
+    )]
+    let (source, copy) = unsafe {
+        let source = MwlObj::from_raw(ptr);
+        let copy = MwlObj::new(source.class());
+        (source, copy)
+    };
+    for index in 0..source.field_count() {
+        let value = source.field(index);
+        #[expect(
+            unsafe_code,
+            reason = "the source slot's payload is live because the source is, \
+                      and the copy's slot becomes a second owner of it"
+        )]
+        unsafe {
+            value.retain();
+        }
+        copy.set_field(index, value);
+    }
+    // The borrow ends here: `from_raw` adopted the caller's reference, which
+    // the caller still owns, so it must not be dropped with `source`.
+    std::mem::forget(source);
+    copy.into_raw()
+}
+
 /// Adds a reference — `mwl_ir::InstKind::Retain` for a `Ty::Object` operand.
 ///
 /// # Safety
@@ -1319,6 +1375,77 @@ mod tests {
             drop(outer);
             assert_eq!(inner.refcount(), 1);
         }
+    }
+
+    /// ADR 0023 § 1: `clone` is shallow, same-heap and single-level. The two
+    /// halves that matter are that the copy is a *different* allocation and
+    /// that a slot holding an object ends up shared, with one more reference,
+    /// rather than copied — mutating through one is visible through the other,
+    /// which is exactly PHP's rule.
+    #[test]
+    fn clone_copies_the_slots_and_shares_what_they_point_at() {
+        let (table, animal, dog, _greets) = hierarchy();
+        #[expect(unsafe_code, reason = "the table outlives every object below")]
+        unsafe {
+            let shared = MwlObj::new(table.desc(animal));
+            let original = MwlObj::new(table.desc(dog));
+            original.set_field(0, Value::object(shared.clone()));
+            original.set_field(1, Value::str(MwlStr::new(b"name")));
+            assert_eq!(shared.refcount(), 2);
+
+            // Through raw pointers rather than `MwlObj::clone`, which would
+            // bump the very counts this is measuring.
+            let original_ptr = original.into_raw();
+            let copy_ptr = mwl_object_clone(original_ptr);
+            assert_ne!(
+                copy_ptr.cast_const(),
+                original_ptr.cast_const(),
+                "`clone` must be a second allocation"
+            );
+            let original = MwlObj::from_raw(original_ptr);
+            let copy = MwlObj::from_raw(copy_ptr);
+            assert_eq!(copy.class_name(), original.class_name());
+            assert_eq!(copy.refcount(), 1);
+            // The slot is shared, not copied — a third owner of `shared`.
+            assert_eq!(shared.refcount(), 3);
+            assert_eq!(copy.field(0).obj_ptr(), original.field(0).obj_ptr());
+            assert_eq!(copy.field(1).as_str_bytes(), Some(b"name".as_slice()));
+
+            // Overwriting a slot on the copy leaves the original's alone —
+            // "single-level" is the other half of the rule.
+            copy.set_field(1, Value::str(MwlStr::new(b"copy")));
+            assert_eq!(original.field(1).as_str_bytes(), Some(b"name".as_slice()));
+        }
+    }
+
+    /// The leak guard's sibling: `clone` takes a reference to everything it
+    /// copies, so a cloned graph must release exactly as cleanly as the
+    /// original one does.
+    #[test]
+    fn a_cloned_object_graph_releases_every_allocation() {
+        let (table, animal, dog, _greets) = hierarchy();
+        let before = counting_alloc::live_bytes();
+        {
+            #[expect(unsafe_code, reason = "the table outlives every object below")]
+            unsafe {
+                let shared = MwlObj::new(table.desc(animal));
+                shared.set_field(0, Value::str(MwlStr::new(b"shared")));
+                let original = MwlObj::new(table.desc(dog));
+                original.set_field(0, Value::object(shared.clone()));
+                original.set_field(1, Value::str(MwlStr::new(b"name")));
+                drop(shared);
+
+                let raw = original.into_raw();
+                let copy = MwlObj::from_raw(mwl_object_clone(raw));
+                drop(copy);
+                drop(MwlObj::from_raw(raw));
+            }
+        }
+        assert_eq!(
+            counting_alloc::live_bytes(),
+            before,
+            "a cloned object graph left allocations behind"
+        );
     }
 
     #[test]

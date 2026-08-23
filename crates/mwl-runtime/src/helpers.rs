@@ -383,6 +383,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::mwl_object_new as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_object_clone",
+            (crate::object::mwl_object_clone as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_object_retain",
             (crate::object::mwl_object_retain as *const ()).cast::<u8>(),
         ),

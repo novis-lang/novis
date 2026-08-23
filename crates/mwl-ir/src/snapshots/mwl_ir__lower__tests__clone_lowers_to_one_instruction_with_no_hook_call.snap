@@ -1,0 +1,18 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    ; stmt s0 @3:1-3:19
+    v0 = const.int 1  ; int
+    v1 = new P via P::constructor(v0) ! bb1  ; object
+    ; stmt s1 @4:1-4:19
+    v2 = clone v1  ; object
+    release v1
+    release v2
+    return
+  bb1:
+    propagate "<script>() at t.mwl:3"
+}

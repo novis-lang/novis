@@ -190,6 +190,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         }
         InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
         InstKind::Reinterpret { operand } => format!("reinterpret v{}", operand.index()),
+        InstKind::Clone { object } => format!("clone v{}", object.index()),
         InstKind::HelperCall { helper, args } => {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
             format!("helper.{} {}", helper_name(*helper), parts.join(", "))
