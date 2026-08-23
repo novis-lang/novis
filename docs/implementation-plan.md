@@ -29,17 +29,18 @@
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
-> slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
+> slice; end-to-end for 0007 § 2, 0010, 0013, 0023 § 1 and 0035 § 4. Each ADR's own *Verification*
+> section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, the `as` conversion
-> operator, ADR 0043's `by`-delegation, virtual dispatch through a base-typed local, generators and ADR
-> 0053's two iteration interfaces, ADR 0014's hooks, `crates/mwl-test` and `mwl test`. Alongside ADR
-> 0009's measurement and 0024/0033's sinks.
+> **Open now:** the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, ADR 0043's
+> `by`-delegation, virtual dispatch through a base-typed local, generators and ADR 0053's two iteration
+> interfaces, ADR 0014's hooks, `crates/mwl-test` and `mwl test`. `as` lowers every row but one — an
+> integer *into* an enum. Alongside ADR 0009's measurement and 0024/0033's sinks.
 >
-> **Blocking:** nothing external. Stage 1 is closed for arrays, exceptions and objects —
-> `examples/objects.mwl` prints its seven frozen lines, including late static binding and ADR 0043 § 2's
-> interface default bodies. A call with no static answer dispatches on the runtime class; every other
-> call is still statically resolved. `hooks.mwl` and `enums.mwl` are what remain of Stage 1.
+> **Blocking:** nothing external. Stage 1 is closed for arrays, exceptions, objects and enums —
+> `examples/enums.mwl` prints its three frozen lines, so ADR 0010's integer enum, ADR 0007 § 2's `as`,
+> ADR 0013's `Comparable` ordering and ADR 0023 § 1's `clone` are all end to end. `hooks.mwl` is the
+> last of Stage 1; ADR 0014's hooks are parsed and checked but ignored.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
