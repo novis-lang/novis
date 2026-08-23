@@ -6,10 +6,10 @@
      field is capped at 400 bytes. History lives in `git log`, per-crate gaps in each crate's module
      doc — see CLAUDE.md's "Keep work small" section. -->
 
-> **Status:** 2026-08-23. **M3 is done**, and the loop goal's Stages 1-2 are green on Windows and Linux
-> alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
+> **Status:** 2026-08-23. **M3 is done**, and the loop goal's Stages 1-2 plus `examples/report.mwl` are
+> green on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
 > array, and building that array without its only real consumer produces one that must be rebuilt. M4's
-> language surface is now what Stage 3's `Core` work needs from it, not the other way round.
+> language surface is now driven by what Stage 3's `Core` work needs.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -33,15 +33,15 @@
 > 0065, and **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this
 > field.
 >
-> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. ADR 0063 R2's options bag works
-> end to end, so what `examples/core.mwl` still needs is `Core\Arr::map`/`sort` (and the unbound-`U`
-> decision `map`'s return type turns on) plus `Core\Str::length`. Then `crates/mwl-test`/`mwl test`. Off
-> that path: `+`/`-`/`*` wrap, `for`/`switch`, ADR 0043's `by`-delegation, ADR 0014's `PropertyObserver`.
+> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag and a union
+> parameter both work end to end. `examples/core.mwl` needs three separate unblocks: `Arr::map`'s
+> unbound `U`, `Arr::sort`'s `Order` enum plus its absent-callable options, and `Str::length`'s ADR 0009
+> granularity. Then `crates/mwl-test`/`mwl test`. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
 >
-> **Blocking:** nothing external. **Stages 1 and 2 are green on both legs** — byte for byte on Windows
-> and under WSL against a Linux build, `valgrind --leak-check=full` clean on every fixture.
-> `examples/core.mwl` now reaches its **line 9**: `Core\Arr::map`/`sort` are the two members left
-> unregistered before it, both ordinary registry-row-plus-body work.
+> **Blocking:** nothing external. **Stages 1, 2 and `report.mwl` are green on both legs** — byte for
+> byte on Windows and under WSL against a Linux build, `valgrind --leak-check=full` clean on all twelve
+> fixtures. That leg earned its keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now
+> fixed. `examples/core.mwl` reaches its **line 9**.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

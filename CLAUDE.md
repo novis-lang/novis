@@ -402,6 +402,12 @@ Use a shell for what it is for — `cargo`, `git`, `python .claude/brief.py`, `w
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
 <file>`, never an inline heredoc or a `-m` string spanning lines.
 
+**An Edit the tool cannot express goes through `python .claude/splice.py <target> <old> <new>`** — write
+the exact old and new blocks to files under `target/` with the Write tool and let that script swap them.
+It matches plain text and refuses anything but exactly one hit, so a stale anchor is an error rather than
+a silent wrong edit. Never reach for a `sed`/`python - <<'PY'` one-liner instead: a heredoc is a shell
+string, so it eats the backslashes and apostrophes this repository's Rust and prose are full of.
+
 **One shell call runs one command, and its exit status is the last one's.** Do not `;`-chain several probes
 into a single call to save a round trip. A chain reports only the final command's status, so a probe that is
 *allowed* to fail — `ls` on a directory that may not exist returns 2 — marks the whole call failed while
@@ -443,6 +449,13 @@ For the performance dashboard's instruction-count leg: `cargo build --release -p
 callgrind_spike`, then `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out
 ./target/release/examples/callgrind_spike` — see [ADR 0026](docs/adr/0026-performance-measurement-methodology.md)
 for what the count means and why it's the historical metric instead of wall-clock.
+
+**A hand-written refcount protocol is where a leak hides, so check one before you commit it.**
+`wsl.exe -- bash /mnt/<drive>/<repo>/.claude/leak-check.sh <fixture> …` runs `valgrind --leak-check=full` over the
+`.mwl` files you name; that script's own header says why it exists next to the whole-suite sweep in
+[.claude/wsl-acceptance.sh](.claude/wsl-acceptance.sh). Run it for **any** new refcount edge, against a
+fixture that actually exercises it — this repository's one real leak went unnoticed until a fixture
+happened to declare a refcounted local inside a loop.
 
 ## Writing docs here
 
