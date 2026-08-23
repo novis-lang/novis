@@ -17,6 +17,18 @@ loop). The loop stops at the slice; the rest of M3 stays queued.
 must exit 0 and print exactly `Hello, World!`. Nothing else counts as done — not a passing unit test, not
 an IR snapshot. When this command passes, the loop stops on its own.
 
+`examples/hello.mwl` **already exists** and is exactly this — do not change it. The driver treats a
+missing file as a plain failure, indistinguishable from a wrong one, so it was created up front to keep
+the check a real signal rather than a silently-false one:
+
+```
+<?mwl
+echo "Hello, World!";
+```
+
+`<?mwl` is the only open tag ([ADR 0049](../docs/adr/0049-single-open-tag-and-single-exit-keyword.md));
+`<?php` is a parse error. The driver trims trailing whitespace, so a trailing newline is fine either way.
+
 ## Standing decisions for the road to it
 
 These are pre-authorized; do not stop the loop to ask about them.
@@ -30,7 +42,7 @@ These are pre-authorized; do not stop the loop to ask about them.
   `sprintf`-family design stays deferred to M7/M8 per ADR 0011.
 - Prefer landing a narrow vertical slice that runs over a wide horizontal one that does not.
 
-### The three gaps that actually sit on the path
+### The gaps that actually sit on the path
 
 Named here because none of them is visible from the milestone text, and each is decided already — they are
 work, not questions:
@@ -46,17 +58,30 @@ work, not questions:
 - **`mwl-codegen` and `mwl-runtime` do not exist yet.** When creating them, give each its own `[lints]`
   block with `unsafe_code = "deny"` and narrow reasoned allows — *not* `lints.workspace = true`, which is
   `forbid` workspace-wide and makes a JIT unimplementable. See `Cargo.toml`'s lint-policy comment and the
-  plan's *Unsafe policy* section.
+  plan's *Unsafe policy* section. Both already have a `[workspace.dependencies]` entry pointing at the
+  path, so creating the directory is all that is needed to wire them in.
+- **`mwl run` does not exist as a subcommand.** `crates/mwl-cli/src/main.rs` has `Ast` and `Check` only,
+  and its module doc still says so. `run` is the acceptance command's entry point: check first, and on any
+  diagnostic report it and exit non-zero exactly as `mwl check` already does, rather than running anyway.
+- **`examples/hello.mwl` exists and passes `mwl check` today** — cleanly, and *only* because of the first
+  gap above: nothing checks a top-level statement yet. Treat that clean result as the bug it is, not as
+  evidence the front end is ready.
 
 ### Decided by the user, 2026-08-23
 
 - **ADR 0018's debug-flags probe check lands with the safepoint poll, in the first `mwl-codegen` commit** —
   not deferred until after hello world prints. That ADR's § *Revisiting* verification list names M3 explicitly and its whole
   argument is that this is the one thing not to retrofit. The narrow-backend authorization above does not
-  extend to it.
+  extend to it. That list also names the **`benches/abi-probe` guard test** holding the all-bits-off cost
+  in the safepoint's cost class — the probe check is not landed until that test exists.
 - **`echo` under `mwl run` writes raw bytes to stdout, with no escaping.** ADR 0024 § 5's auto-escaping
   sink is the *HTTP response* write, and `Core\Html\Markup` does not exist until M7/M8. Whether `echo`
   under `mwl serve` becomes that sink is an M7 decision; do not pre-empt it, and do not make `echo` depend
   on `Markup` now.
+- **The runtime value layout is already decided and is not an open question** — the plan's § *Value
+  representation* owns it (16-byte tagged value, refcounted, copy-on-write strings). That
+  [ADR 0009](../docs/adr/0009-string-and-bytes.md) is still *Proposed* does **not** block this slice: what
+  it leaves open is `string`'s default length/indexing granularity, and `echo` of a constant string neither
+  reads a length nor indexes. Emit the constant and move on; do not settle 0009 to get hello world running.
 - **`list(...)` is rejected** ([ADR 0050](../docs/adr/0050-list-destructuring-spelling-rejected.md)) —
   landed, nothing left to do; noted only so no session re-opens it.

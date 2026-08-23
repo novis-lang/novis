@@ -8,55 +8,44 @@ the loop's target, per `.claude/loop-goal.md`. Run `python .claude/brief.py` fir
 only points.
 
 On disk: `mwl-diagnostics`, `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-cli` (`ast`, `check`),
-`fuzz/`, `benches/abi-probe`. Workspace is green (build/test/clippy/fmt). `mwl-codegen` and `mwl-runtime`
-do not exist yet — create them at M3 with their **own** `[lints]` block (`unsafe_code = "deny"`, narrow
-reasoned allows), never `lints.workspace = true`, which is `forbid`.
+`fuzz/`, `benches/abi-probe`. Workspace is green (build/test/clippy/fmt). `mwl-codegen`, `mwl-runtime` and
+`examples/` do not exist yet.
+
+**Nothing is blocked.** Every gap between here and the acceptance command — including the two that are
+merely missing files (`mwl run`, `examples/hello.mwl`) — is enumerated with its already-decided design in
+`.claude/loop-goal.md` § *The gaps that actually sit on the path*. Read that section before picking work;
+do not restate it here.
 
 **ADRs 0051–0061 are decided and wired** into CLAUDE.md, `docs/adr/README.md`, the plan and the spec. No
-code implements any of them yet. Four carry obligations that land **before** M8 and therefore concern the
-work in front of you:
+code implements any of them yet. Four carry obligations landing **before** M8, so they touch the work in
+front of you — each ADR's own *Verification* section is the one home for its split:
 
 - [ADR 0053](docs/adr/0053-iteration-and-generators.md) — `Iterable`/`Iterator` are the only iteration
-  interfaces (`ArrayAccess`/`Countable` do not exist), and generators lower to an explicit **state
-  machine**, not to a coroutine. `mwl-ir` must be able to represent a suspension point inside a loop body.
-- [ADR 0054](docs/adr/0054-decimal-scalar-type.md) — `decimal` is a scalar. Needs an `m` literal suffix in
-  `mwl-syntax`, conversion/arithmetic rows in `mwl-types`, and i128 lowering at M4.
+  interfaces; generators lower to an explicit **state machine**, so `mwl-ir` must be able to represent a
+  suspension point inside a loop body.
+- [ADR 0054](docs/adr/0054-decimal-scalar-type.md) — `decimal` is a scalar: `m` literal suffix in
+  `mwl-syntax`, conversion/arithmetic rows in `mwl-types`, i128 lowering at M4.
 - [ADR 0055](docs/adr/0055-extension-qualifier-declarations.md) — the WIT world must carry a
-  `tainted`/`secret` axis. Nothing to do now; it constrains M8/M9 and is recorded so it is not forgotten.
-- [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md) — **new.** `autoload` is a
-  top-level declaration resolving names to files at compile time, with paths relative to the declaring
-  file; `Core\Program::implementing<T>()` enumerates classes nothing references by name. The M2 half is
-  `mwl-syntax` grammar plus a fixpoint over `mwl-hir::requires`' existing worklist; M6/M7 add the cache
-  and revalidation edges, M8 the `Core\Program` name. See that ADR's *Verification* section, which is the
-  one home for the split.
-
-Nothing is blocked. The three gaps sitting directly on the acceptance command's path are spelled out, with
-their already-decided designs, in `.claude/loop-goal.md` § *The three gaps that actually sit on the path* —
-read that section before picking work.
+  `tainted`/`secret` axis. Nothing to do now; recorded so M8/M9 does not forget it.
+- [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md) — `autoload` resolves names to
+  files at compile time, paths relative to the declaring file. M2 half is grammar plus a fixpoint over
+  `mwl-hir::requires`' existing worklist; M6/M7 add cache edges, M8 adds `Core\Program`.
 
 ## Next
 
-**The script body is a function** — still the largest of those three gaps, and the one everything else
-waits on. `mwl-types::check::check_stmts` walks declarations only (`_ => {}` swallows every top-level
-statement) and `mwl-ir` exposes only `lower_method`, so a top-level `echo "...";` is today neither
-type-checked nor lowered. Confirmed: `echo $undefinedThing;` at file scope passes `mwl check` clean, while
-the identical line inside a method reports `E0301`.
-[ADR 0008](docs/adr/0008-static-and-global.md) § 2 already decides the shape — a file's top-level
-statements are one synthesized frame whose variables are locals — so this is reuse of
-`check_method`/`lower_method`, not a second walk. Land the checker half first; it is testable on its own
-with the fixtures `check.rs` already has.
+**The script body is a function** — the largest gap on the path and the one everything else waits on;
+`.claude/loop-goal.md` names the decided design. Confirmed by inspection: `echo $undefinedThing;` at file
+scope passes `mwl check` clean, while the identical line inside a method reports `E0301`. Land the checker
+half first — it is testable on its own with the fixtures `check.rs` already has — then the `mwl-ir` half.
 
 **Before widening `mwl-ir` further**, spend a short pass deciding how a suspension point inside a loop body
 will be represented, and record it in `crates/mwl-ir/src/lib.rs`'s module doc under *Design choices worth
 knowing before widening this further*. This is a **design note, not an implementation** — ADR 0053's
-state-machine transform itself belongs in M4. The point is that the script-body work is about to widen the
-IR, and foreclosing the representation is the expensive mistake, exactly as it would have been for
-ADR 0018's probe ids.
+state-machine transform belongs in M4. The script-body work is about to widen the IR, and foreclosing the
+representation is the expensive mistake, exactly as it would have been for ADR 0018's probe ids.
 
 ## Backlog
 
-- `echo` lowering: no `StmtKind::Echo` arm in `mwl-ir`'s `lower.rs`, no `InstKind`/`Helper` behind it —
-  `.claude/loop-goal.md` fixes the CLI semantics (raw stdout, no escaping).
 - ADR 0043 `by`-delegation resolution + `E_DELEGATE_TYPE_MISMATCH`, then `E_INTERFACE_MEMBER_CONFLICT` —
   `ImplementsClause.by_field` has parsed since M1 and is still unread by `mwl-hir`/`mwl-types`
   ([ADR 0043](docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md) §§ 4-5).
@@ -70,14 +59,11 @@ ADR 0018's probe ids.
   literals in `mwl-syntax`; [0053](docs/adr/0053-iteration-and-generators.md)'s `Iterable`/`Iterator` as
   reserved interface names alongside `Comparable`/`PropertyObserver`/`Stringable`, and `$obj[$k]` on a
   non-array refused with a diagnostic naming that ADR.
-- **New, from [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md), independently
-  landable and off the `Hello, World!` path:** the `autoload` keyword and its two statement forms in
-  `mwl-syntax` (grammar in [`docs/spec/00-overview.md`](docs/spec/00-overview.md) § 2), then the resolver
-  half in `mwl-hir` — probe on an unresolved `QName`, load, `collect_*`, repeat, and only then report
-  `E_UNDECLARED`, which is a fixpoint over the worklist `requires.rs` already owns rather than a new walk.
-  Three new `E03xx` codes to allocate in `mwl-diagnostics` (duplicate prefix, `autoload` inside an
-  autoloaded file, and the one-declaration-per-autoloaded-file rule). Do the parser half first; it is
-  testable alone.
+- [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md), off the `Hello, World!` path
+  and independently landable: the `autoload` keyword and its two statement forms in `mwl-syntax` (grammar
+  in [`docs/spec/00-overview.md`](docs/spec/00-overview.md) § 2), then the `mwl-hir` resolver half — probe
+  an unresolved `QName`, load, `collect_*`, repeat, report `E_UNDECLARED` only at the fixpoint. Three new
+  `E03xx` codes to allocate. Parser half first; it is testable alone.
 
 ## Standing rules for this repo
 
