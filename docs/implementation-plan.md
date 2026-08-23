@@ -18,10 +18,10 @@
 > WSL `cargo fuzz run lex`/`parse` both find zero panics).
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`, `mwl-codegen`, `mwl-cli` (`ast`,
-> `check`, `run` with `--dump-ir`/`--dump-asm`/`--fault-inject`), `fuzz/`, and `benches/abi-probe`
-> (M0's guards plus M3's probe-cost and typed-arithmetic ones). Every other crate starts with its
-> milestone.
+> `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, the class slot table), `mwl-ir`, `mwl-runtime`
+> (+ `object`), `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run` + `--dump-ir`/`--dump-asm`/
+> `--fault-inject`), `fuzz/`, `benches/abi-probe` (M0's guards + M3's). `mwl-stdlib`/`mwl-test` start
+> with their own slice.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -31,15 +31,15 @@
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
 > slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** M4's object representation, which nearly everything M3 refused waits on — instance
-> dispatch, a user exception class, the `backtrace` array, ADR 0043's `by`-delegation — then M4S §§ 1–12.
-> Alongside: compiler-owned type variables, ADR 0009's granularity measurement (still *Proposed*, and
-> `Core\Str` cannot be pinned without it), and 0011/0024/0033's sinks, which only awaited `Core`.
+> **Open now:** the ordered-hash array with COW; then the exception surface (spec § 10) onto the object
+> shape that now exists, `foreach`/`for`/`switch`, generics, `static`/`self` as types and late static
+> binding, ADR 0043's `by`-delegation, ADR 0014's hooks (`examples/hooks.mwl` runs, printing the raw
+> slot), then M4S §§ 1–12. Alongside: ADR 0009's measurement, and 0011/0024/0033's sinks.
 >
-> **Blocking:** nothing external. The first gate is the object representation: no field layout, no instance
-> dispatch, no array, so `mwl_ir::Ty::Object` is still opaque and refcounts nothing. Two smaller
-> consequences ride on it — integer `Div`/`Mod` (refused because `sdiv` traps rather than throws) and a
-> `throw` counting as a return in a non-`void` method — and neither is hard once it lands.
+> **Blocking:** nothing external. The object gate is closed: `mwl_runtime::object` gives an instance a
+> refcounted header and uniform 16-byte field slots, `mwl_types::layout` publishes each class's slot
+> order, and `mwl-codegen` compiles `new`/`FieldGet`/`FieldSet`/an instance call — valgrind-clean on the
+> Linux leg. Dispatch is still static: an override reached through a base-typed variable calls the base's.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
