@@ -6,66 +6,74 @@
 authoritative for the acceptance list and for the ten standing decisions already settled with the user;
 do not re-open any of them. The plan's status block says what is on disk and what is open.
 
-**ADR 0014 § 1's property hooks went end to end this session.** `examples/hooks.mwl` now prints
-`6`/`20`/`Counter(10)` and fails only on its last line. The shape, owned by the doc comments rather than
-summarised here:
+**Stage 1 is green in full.** All thirteen of its commands pass, byte for byte against the frozen
+output — `hooks.mwl` now prints `n=6`. By-reference parameters (`int &$slot`) landed this session; the
+shape is owned by the doc comments rather than summarised here:
 
-- A hooked property's access is a **call**, not a field touch. Each hook body compiles to an ordinary
-  function under `mwl_types::signatures::hook_label`'s label (`Counter::$doubled::get`), takes the same
-  implicit receiver in parameter slot 0 every method takes, and is reached through the same
-  `InstKind::Call` — so it costs no new instruction, no calling convention and no dispatch-table entry.
-  `mwl_ir::lower::lower_property_hook` is the lowering.
-- `ExprInfo::HookedProperty` is recorded *instead of* `ExprInfo::Property`, carrying both accessor labels
-  because one entry answers a read and a write.
-- `mwl_types::Ctx::current_hook` is the one exception: inside `$p`'s own hooks, `$this->p` is the backing
-  slot. That is what makes a hook that transforms a stored value terminate.
-- **Every hooked property is still backed** — MWL has no virtual/backed split.
-  `mwl_types::signatures::PropertyHooks`' doc comment owns that decision and what it spends; ADR 0014's
-  *Revisiting* no longer lists it as open.
-- `is_aliasing_read` became `Lowering::aliasing_read`, because a `get`-hooked read looks syntactically
-  like a slot read but produces a fresh, already-owned value like any other call's.
+- **`mwl_ir::Ty::Ref` owns the representation decision** — a *caller-staged one-cell slot*, the second
+  of the two models the last session weighed. The caller allocates one `Value`-sized stack slot, copies
+  the holder's current value in, passes its address, and copies back after the call. True PHP aliasing
+  was rejected on cost, and that doc comment says why in full.
+- Three primitive instructions carry it: `InstKind::RefSlot`/`RefLoad`/`RefStore`, each a pure
+  address/load/store in `mwl-codegen`. The refcount policy is in lowering, the way `bind_local`'s
+  already is — a staging `Retain`, a copy-back `Release`, so **the slot owns exactly one reference at
+  every point**.
+- `mwl_types::expr::check_by_ref_arg` adds the two obligations that keep it sound: a writable place
+  (`E0439`) and an *exactly* matching type (`E0440`). The second is load-bearing: `is_assignable` lets a
+  plain `string` satisfy a `tainted string` parameter, and accepting that by reference would launder
+  taint through an argument list.
+- `Lowering::collect_reassigned_locals` gained a by-reference half. A `&$x` argument re-points its
+  holder just as an assignment does, but nothing in the call's *syntax* says so — the `&` is on the
+  callee's declaration — so a loop body's header phi has to be read off the resolved signature.
 
 ## Next
 
-**By-reference parameters (`int &$slot`) — the last line of `examples/hooks.mwl`, and the last of
-Stage 1.** `Adder::bump($n)` still prints `n=1`; it must print `n=6`. This is M4's `references (&$x)`
-bullet, and it needs a representation decision made and recorded before any code — per
-`.claude/loop-goal.md`'s standing "decide and record; never `BLOCKED` for a design call", in
-`mwl_ir::ty`'s or `mwl_runtime`'s own module doc, **not** a numbered ADR.
+**Stage 2 — `examples/iterate.mwl`, which is ADR 0053 end to end.** It is the whole of Stage 2, and it
+needs three things, in this order. Nothing here is a design call: ADR 0053 settles all of it.
 
-ADR 0007 § 1 already settles the *meaning* (both sides declare the same type), so the open question is
-purely what a `&T` parameter is at the ABI level. Last session weighed two models without implementing
-either; start from this rather than re-deriving it:
+1. **`Iterable` and `Iterator` do not exist as declarations.** `mwl check` reports `E0303: `Iterable`
+   is not declared` before it reaches the parse error. They are reserved global interfaces, exactly the
+   way `Comparable`/`Stringable` already are — see `mwl_hir`'s seeding of those (`mwl_hir::errors`
+   seeds the exception tree the same way) and `mwl_types::error_lib`/`core_lib` for how a native
+   declaration gets a signature with no source text. ADR 0053 § 1 fixes both shapes:
+   `Iterable<T>::iterate(): Iterator<T>` and `Iterator<T>`'s own member set. Do that first — it is
+   independent of the parser work and unblocks the type side of everything below.
+2. **A generic interface in an `implements` clause does not parse.** `implements Iterable<int>` is
+   `.claude/loop-goal.md`'s named gap and ADR 0053 § 2's one narrow extension to the standing decision
+   that user-declared generics stay parked. The loop goal's *Standing decisions* is explicit about the
+   boundary: user code gets exactly two things, implementing a compiler-owned generic interface at a
+   concrete type, and the explicit call-site type argument. `mwl_types::generics` already has
+   substitution and call-site inference, so this is a parse + resolve slice, not a solver.
+3. **Generators.** `yield` in `Counter::upTo`, lowered to a state machine per ADR 0053 § 3 — never a
+   coroutine, so every compile target keeps them. `mwl-ir` has no `switch` either, and the loop goal
+   notes the two pair naturally: resumption wants the same N-way terminator `switch` does. Expect that
+   to be the bulk of the session, and expect it to want its own representation paragraph in
+   `mwl_ir::lower`'s or `mwl_ir::ir`'s module doc, not a numbered ADR.
 
-- **True aliasing (a pointer to the caller's own storage).** Most faithful to PHP, and the most
-  expensive: every local that is ever the target of `&` has to be demoted out of SSA into an addressable
-  stack slot, which touches phis, `Env` and the refcount policy. `&$arr[0]` is worse than hard — an
-  array element has no stable address under ADR 0007 § 5's copy-on-write.
-- **A caller-staged one-slot temporary** — the caller allocates a stack slot, stores the current value,
-  passes its address, and copies back after the call; the callee treats the parameter as a pointer, so
-  every read is a load and every write a store. No SSA demotion anywhere: the pointer is loop-invariant,
-  so nothing in the callee needs a phi it did not already need, and the caller's holder can be a local,
-  a property or an array element without any of them becoming addressable. The one divergence from PHP
-  is that a callee that **throws** never reaches the copy-back — recoverable by doing the load-and-write-back
-  on `emit_fallible`'s error edge as well as its normal one, which is where to look first rather than
-  accepting the divergence.
-
-Whichever is chosen, the work is: `Ty::Ref(T)` (or equivalent) in `mwl_ir::ty`; the new load/store/slot
-instructions and their `mwl-codegen` arms (Cranelift `StackSlot`/`stack_addr`); `mwl_types` checking that
-a `&` argument is a writable place and that its type matches exactly; and the refcount policy for a
-refcounted `&T`, which needs stating explicitly in the same doc comment as the representation.
-
-After Stage 1, **Stage 2** is `examples/iterate.mwl`: ADR 0053's generators and the two iteration
-interfaces, blocked first on `implements Iterable<int>` not parsing (a generic interface in an
-`implements` clause).
+`foreach` already lowers over an `array<T>` subject (`Lowering::lower_foreach` owns the whole policy);
+what it refuses is an `Iterable`/`Iterator` subject, which is item 1's consumer.
 
 ## Backlog
 
 Each crate's own module doc is the home for its known gaps; these are the ones worth surfacing.
 
+- **A by-reference call is lowered in two positions only** — a bare expression statement, or a plain
+  assignment's right-hand side. `Lowering::pending_refs` owns why (the copy-back needs an `&mut Env`,
+  which only the statement level holds) and `lower_stmts` asserts rather than silently dropping the
+  write-back. The fix is threading `&mut Env` through `lower_expr`, which is the same widening
+  `landing_block`'s in-flight-temporary gap needs.
+- **A callee that throws never reaches its by-reference copy-back**, leaking the staging retain — never
+  dangling, which is what the unconditional retain buys. `mwl_ir::Ty::Ref`'s *Known gap* section names
+  the exact fix: emit the same `RefLoad` and write-back into `landing_block`'s block ahead of its
+  release sweep, and update the `TryFrame` edge's captured `Env`.
+- **`is_assignable` models no class subtyping at all** — `Dog` into an `Animal` parameter is
+  `E_TYPE_MISMATCH`. Found while writing this session's `E0440` test, which had to be rewritten around
+  it. Not on the acceptance path (no Stage 1–3 fixture passes a subclass into a base-typed position),
+  but it is a real hole in `mwl_types::expr::is_assignable` and every PHP program in existence relies
+  on it.
 - **An array-element write through a hooked property** (`$obj->hooked[0] = v`) panics naming itself —
-  `mwl_ir::lower::Lowering::write_back_array`. The copy-on-write separation would have to be written back
-  through the `set` hook, and no PHP-compatible rule for that exists yet.
+  `mwl_ir::lower::Lowering::write_back_array`. No PHP-compatible rule for writing the copy-on-write
+  separation back through a `set` hook exists yet.
 - **ADR 0014's `PropertyObserver` half** is untouched — § 2/§ 3's declared interface, called after the
   hook or storage settles. Independent of § 1, and not needed by any fixture.
 - **A hook on a `static` or `readonly` property is not refused.** Neither combination means anything;
