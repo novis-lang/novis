@@ -1,0 +1,24 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    ; stmt s0 @5:14-5:25
+    v0 = const.int 1  ; int
+    ; stmt s1 @6:1-6:17
+    v1 = class.desc Adder  ; classdesc
+    v2 = ref.slot v0  ; ref
+    v3 = call Adder::bump(this: v1, v2) ! bb1  ; void
+    v4 = ref.load v2  ; int
+    ; stmt s2 @7:1-7:9
+    v5 = helper.int_to_string v4  ; string
+    helper.echo_str v5 ! bb2
+    release v5
+    return
+  bb1:
+    propagate "<script>() at t.mwl:6"
+  bb2:
+    propagate "<script>() at t.mwl:7"
+}

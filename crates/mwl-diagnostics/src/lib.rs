@@ -469,6 +469,18 @@ pub mod code {
     /// spelling has its own, earlier diagnostic
     /// ([`E_ENUM_STRING_BACKING_UNSUPPORTED`]); this covers the rest.
     pub const E_ENUM_BACKING_NOT_INTEGER: Code = Code::new("E0438");
+    /// An argument passed to a `&$x` parameter that is not a *writable place*
+    /// — a bare local or a compile-time-known property. A literal, an
+    /// arithmetic result or a call's own result has no storage for the callee
+    /// to write back into, so the reference would have nowhere to land.
+    pub const E_BY_REF_ARG_NOT_A_PLACE: Code = Code::new("E0439");
+    /// An argument passed to a `&$x` parameter whose type is not *exactly*
+    /// the parameter's. ADR 0007 § 1 leaves no room for a conversion here:
+    /// the callee writes back through the reference at the declared type, so
+    /// anything the caller's storage would have to be converted from on the
+    /// way in would have to be converted back on the way out — silently, and
+    /// lossily.
+    pub const E_BY_REF_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

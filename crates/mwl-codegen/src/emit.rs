@@ -504,6 +504,31 @@ impl Emitter<'_, '_> {
                 let value = self.load_value(out, 0, ty)?;
                 self.define(inst, value)?;
             }
+            // A by-reference parameter's caller-staged one-cell slot — see
+            // `mwl_ir::Ty::Ref`, which owns the representation decision. All
+            // three arms are pure address/load/store: the retain and release
+            // that keep the slot owning exactly one reference are ordinary
+            // `Retain`/`Release` instructions `mwl_ir::lower` emits around
+            // them, so nothing here has an ownership rule of its own.
+            InstKind::RefSlot { init } => {
+                let (value, ty) = self.value(*init)?;
+                let slot = self.value_slot();
+                self.store_value(slot, 0, value, ty)?;
+                self.define(inst, slot)?;
+            }
+            InstKind::RefLoad { slot } => {
+                let ty = inst
+                    .ty
+                    .ok_or_else(|| internal("a by-reference read with no representation"))?;
+                let (slot, _) = self.value(*slot)?;
+                let value = self.load_value(slot, 0, ty)?;
+                self.define(inst, value)?;
+            }
+            InstKind::RefStore { slot, value } => {
+                let (slot, _) = self.value(*slot)?;
+                let (value, ty) = self.value(*value)?;
+                self.store_value(slot, 0, value, ty)?;
+            }
             InstKind::Retain { operand } => {
                 let (value, ty) = self.value(*operand)?;
                 self.emit_refcount(true, value, ty)?;

@@ -87,6 +87,14 @@ pub struct ResolvedCall {
     pub method: String,
     /// Each parameter's declared type, positional — [`crate::signatures::MethodSig::params`].
     pub param_tys: Vec<TypeId>,
+    /// Which parameters are declared `&$x`, positional —
+    /// [`crate::signatures::MethodSig::by_ref`]. Recorded rather than left to
+    /// `mwl-ir` because a call site's own syntax says nothing about it: PHP
+    /// (and MWL) put the `&` on the *declaration*, so the argument
+    /// `Adder::bump($n)` looks identical whether `$n` is passed by value or by
+    /// reference. `mwl-ir` needs it to decide whether to stage a one-slot
+    /// temporary and copy back — see `mwl_ir::ir::InstKind::RefSlot`.
+    pub by_ref: Vec<bool>,
     /// Whether the last parameter is variadic — [`crate::signatures::MethodSig::variadic`].
     pub variadic: bool,
     /// Whether the resolved method is `static` —

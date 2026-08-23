@@ -466,6 +466,57 @@ pub enum InstKind {
         /// The value being released.
         operand: ValueId,
     },
+    /// Stages one by-reference argument: allocates a `Value`-sized slot in
+    /// the *caller's* frame, stores `init` into it, and defines that slot's
+    /// address as a [`crate::ty::Ty::Ref`].
+    ///
+    /// This is the whole caller-side half of a `&T` parameter — see
+    /// [`crate::ty::Ty::Ref`], which owns the representation decision, the
+    /// refcount policy and the known gap. **Retains nothing**: the staging
+    /// retain that gives the slot its own reference is an ordinary
+    /// [`InstKind::Retain`] `crate::lower::Lowering::lower_call_args` emits
+    /// just before this, the same way `bind_local` emits one before an `Env`
+    /// insert rather than folding it into a compound instruction.
+    ///
+    /// Allocation is per *call site*, not per execution: Cranelift stack slots
+    /// are frame-scoped, so a by-reference call inside a loop restages into
+    /// the same slot every iteration and costs nothing beyond the two copies.
+    ///
+    /// Cannot fail, so like [`InstKind::Concat`] it carries no status check
+    /// and no landing block.
+    RefSlot {
+        /// The holder's current value, copied into the fresh slot.
+        init: ValueId,
+    },
+    /// Reads the [`crate::ty::Ty::Ref`] slot `slot` points at, at this
+    /// instruction's own [`Inst::ty`] — which is the *pointee's*
+    /// representation, not [`crate::ty::Ty::Ref`].
+    ///
+    /// Emitted at both ends of a by-reference parameter: inside the callee for
+    /// every read of the parameter, and in the caller immediately after the
+    /// call to pick up whatever the callee left there. Retains nothing — the
+    /// slot keeps owning its one reference, exactly the way
+    /// [`InstKind::FieldGet`] leaves a field's slot owning its own.
+    RefLoad {
+        /// The [`crate::ty::Ty::Ref`] whose cell is read.
+        slot: ValueId,
+    },
+    /// Writes `value` into the [`crate::ty::Ty::Ref`] slot `slot` points at.
+    /// Defines no value.
+    ///
+    /// **Retains and releases nothing**, for [`InstKind::RefSlot`]'s reason:
+    /// keeping [`crate::ty::Ty::Ref`]'s "the slot owns exactly one reference"
+    /// invariant is `crate::lower::Lowering`'s job, and it does it the same
+    /// way `bind_local` does for an `Env` entry — retain the incoming value
+    /// when it is an aliasing read, then [`InstKind::RefLoad`] the slot's
+    /// previous value and [`InstKind::Release`] it, in that order, so a
+    /// self-assignment never observes a transient zero refcount.
+    RefStore {
+        /// The [`crate::ty::Ty::Ref`] whose cell is written.
+        slot: ValueId,
+        /// The value stored into it.
+        value: ValueId,
+    },
     /// `clone $obj` —
     /// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
     /// § 1's shallow, same-heap, single-level copy. Defines a fresh

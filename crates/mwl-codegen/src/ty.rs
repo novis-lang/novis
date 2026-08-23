@@ -24,6 +24,8 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Int | Ty::Uint => types::I64,
         Ty::Float => types::F64,
         Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed | Ty::ClassDesc => types::I64,
+        // A by-reference parameter's staged-slot address — see `Ty::Ref`.
+        Ty::Ref => types::I64,
         // ADR 0010 § 6: an enum value *is* its backing integer.
         Ty::Enum(_) => types::I64,
         Ty::Void => return None,
@@ -67,6 +69,12 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         // mistake it for a heap reference. `mwl_runtime::object`'s module docs
         // own that decision; `mwl_ir::Ty::ClassDesc` restates the consequence.
         Ty::ClassDesc => Tag::Null,
+        // Not an MWL value either, and for the same reason as `ClassDesc`
+        // above: a by-reference parameter's staged-slot address rides in the
+        // payload half of an otherwise-`null` slot, so nothing sweeping a
+        // `Value` can mistake it for a heap reference. `mwl_ir::Ty::Ref` owns
+        // the decision.
+        Ty::Ref => Tag::Null,
         Ty::Mixed => {
             return Err(CodegenError::Unsupported(
                 "a `mixed` value crossing a call boundary — its runtime type \

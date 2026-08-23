@@ -1,0 +1,16 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn bump(classdesc, ref) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; classdesc
+    v1 = param 1  ; ref
+    ; stmt s0 @3:64-3:82
+    v2 = ref.load v1  ; int
+    v3 = const.int 5  ; int
+    v4 = add v2, v3  ; int
+    ref.store v1, v4
+    return
+}

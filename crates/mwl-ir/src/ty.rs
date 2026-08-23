@@ -169,6 +169,73 @@ pub enum Ty {
     /// representation question [`Self::Mixed`] names. Deciding an enum's tag
     /// ahead of it would be deciding half of it twice.
     Enum(EnumRepr),
+    /// The address of one 16-byte `mwl_runtime::Value` cell — what a `&T`
+    /// parameter is, and the only thing this representation is ever used for.
+    ///
+    /// # The representation decision
+    ///
+    /// A `&T` parameter is a **caller-staged one-slot temporary**, not a
+    /// pointer into the caller's own storage. At each call site the caller
+    /// allocates one `Value`-sized stack slot
+    /// ([`crate::ir::InstKind::RefSlot`]), copies the holder's current value
+    /// into it, passes its address, and copies whatever is in it back to the
+    /// holder after the call ([`crate::ir::InstKind::RefLoad`] plus
+    /// `crate::lower::Lowering::write_back_ref`). Inside the callee the
+    /// parameter is that address: every read is a
+    /// [`crate::ir::InstKind::RefLoad`] and every write a
+    /// [`crate::ir::InstKind::RefStore`].
+    ///
+    /// The alternative — true aliasing, a pointer to the caller's own storage,
+    /// which is what PHP does — was rejected on cost. It requires demoting
+    /// every local that is ever the target of `&` out of SSA into an
+    /// addressable stack slot, which reaches phis, `crate::lower::Env` and the
+    /// refcount policy all at once; and it has no answer at all for
+    /// `&$arr[0]`, since ADR 0007 § 5's copy-on-write gives an array element
+    /// no stable address. Staging costs one stack slot per by-reference
+    /// argument per call site and two copies per call — bought against no SSA
+    /// demotion anywhere (the address is loop-invariant, so the callee needs
+    /// no phi it did not already need) and no constraint whatsoever on what
+    /// the caller's holder may be.
+    ///
+    /// # Refcounting
+    ///
+    /// **The slot owns exactly one reference at every point in its life**,
+    /// when the pointee representation [`Self::is_refcounted`]:
+    ///
+    /// - [`crate::ir::InstKind::RefSlot`] retains the value it stages, so the
+    ///   holder and the slot each own one.
+    /// - [`crate::ir::InstKind::RefStore`] releases what the slot held and
+    ///   stores an owned value in its place — exactly
+    ///   `crate::lower::Lowering::bind_local`'s policy, against a slot instead
+    ///   of an `Env` entry.
+    /// - The copy-back releases the *holder's* previous value and transfers
+    ///   the slot's reference into it. The two ends balance: the staging
+    ///   retain pays for the copy-back release.
+    ///
+    /// A `&T` parameter is therefore never released at the callee's exit, and
+    /// needs no exclusion to arrange that — this representation is not
+    /// [`Self::is_refcounted`], so `crate::lower::Lowering::release_all_locals`
+    /// already skips it.
+    ///
+    /// ## Known gap: a callee that throws
+    ///
+    /// The copy-back sits on the normal edge only, so a callee that throws
+    /// past it leaves the staging retain unpaid — one leaked reference per
+    /// by-reference argument with a refcounted pointee, and the caller's
+    /// holder keeps its pre-call value instead of the callee's partial write
+    /// (PHP would keep the write). Never a dangling reference: that is what
+    /// the staging retain buys, and why it is unconditional rather than
+    /// keyed on whether the callee writes. Closing it means emitting the same
+    /// [`crate::ir::InstKind::RefLoad`] and write-back into
+    /// `crate::lower::Lowering::landing_block`'s block, ahead of its release
+    /// sweep, and updating the `crate::lower::TryFrame` edge's captured `Env`
+    /// so a `catch` handler's phis see the written-back binding.
+    ///
+    /// Materialized into a `mwl_runtime::Value` it takes the same shape
+    /// [`Self::ClassDesc`] does — a `Tag::Null` tag byte with the address in
+    /// the payload half — and for the same reason: it is not an MWL value at
+    /// all, so nothing sweeping a `Value` may mistake it for a heap reference.
+    Ref,
     /// A `mwl_runtime::ClassDesc` address — the *class* a frame was called on,
     /// not a value of any MWL type at all.
     ///

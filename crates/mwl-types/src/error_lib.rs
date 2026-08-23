@@ -102,6 +102,7 @@ fn root_methods(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
         "constructor".to_owned(),
         MethodSig {
             params: vec![string],
+            by_ref: vec![false],
             variadic: false,
             return_ty: void,
             is_static: false,

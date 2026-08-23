@@ -1,0 +1,27 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    ; stmt s0 @5:14-5:33
+    v0 = const.str "hi"  ; string
+    ; stmt s1 @6:1-6:20
+    v1 = class.desc Shout  ; classdesc
+    retain v0
+    v2 = ref.slot v0  ; ref
+    v3 = call Shout::upper(this: v1, v2) ! bb1  ; void
+    v4 = ref.load v2  ; string
+    release v0
+    ; stmt s2 @7:1-7:11
+    helper.echo_str v4 ! bb2
+    release v4
+    return
+  bb1:
+    release v0
+    propagate "<script>() at t.mwl:6"
+  bb2:
+    release v4
+    propagate "<script>() at t.mwl:7"
+}

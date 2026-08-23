@@ -49,6 +49,10 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                         .iter()
                         .map(|param| lower(param, interner))
                         .collect(),
+                    // ADR 0063 R7: nothing in `Core` mutates its subject, so
+                    // no `Core` parameter is ever by-reference. Not a gap in
+                    // the registry — a property of the convention.
+                    by_ref: vec![false; method.params.len()],
                     variadic: false,
                     return_ty: lower(&method.return_ty, interner),
                     is_static: true,

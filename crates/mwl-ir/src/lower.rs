@@ -375,10 +375,22 @@ pub fn lower_method(
         let ty = lower_decl_type(decl_ty, exprs, checked_types);
         // +1: index 0 is always the implicit receiver seeded above.
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
-        let (v, _) = low.emit(entry, ty, InstKind::Param(index));
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
-        env.insert(pname, (v, ty));
-        param_tys.push(ty);
+        // `&$x` — the incoming slot holds the address of one caller-staged
+        // `Value` cell rather than a value of the declared type, so the
+        // binding is a `Ty::Ref` and the declared type is remembered as the
+        // *pointee*: every read of the parameter becomes an
+        // `InstKind::RefLoad` at that type and every write an
+        // `InstKind::RefStore`. See `Ty::Ref` for the whole representation.
+        let bound_ty = if p.by_ref {
+            low.ref_locals.insert(pname.clone(), ty);
+            Ty::Ref
+        } else {
+            ty
+        };
+        let (v, _) = low.emit(entry, bound_ty, InstKind::Param(index));
+        env.insert(pname, (v, bound_ty));
+        param_tys.push(bound_ty);
     }
 
     let body = m.body.as_ref().expect(
@@ -656,6 +668,108 @@ struct Lowering<'a> {
     /// [`Self::lower_foreach`] for why those names exist and why the `#` in
     /// them cannot collide with a local.
     foreach_seq: u32,
+    /// Every `&$x` parameter this frame declares, by name, mapped to the
+    /// *pointee's* representation — the declared type its `Env` entry cannot
+    /// carry, since that entry holds [`Ty::Ref`] instead (see [`Ty::Ref`] and
+    /// [`lower_method`]).
+    ///
+    /// A side table rather than a payload on [`Ty::Ref`] because a [`Ty`] is
+    /// `Copy` and one variant carrying another would end that; and a frame
+    /// field rather than an `Env` one because it never changes after
+    /// [`lower_method`] seeds it, so the `Env` clones a landing block and a
+    /// loop header take would only copy it needlessly.
+    ref_locals: FxHashMap<String, Ty>,
+    /// By-reference arguments staged for the call currently being lowered,
+    /// awaiting their copy-back — see [`Ty::Ref`] and
+    /// [`Self::flush_ref_writebacks`].
+    ///
+    /// # Why this is a frame field rather than a return value
+    ///
+    /// The copy-back re-points the argument's *holder*, which for a local
+    /// means rebinding it in [`Env`] — and [`Self::lower_expr`], where a call
+    /// is lowered, only ever holds an `&Env`. So the staging is parked here
+    /// and drained at the enclosing statement, which is the nearest enclosing
+    /// scope that does hold an `&mut Env`.
+    ///
+    /// **Known gap.** A read of the holder that is sequenced *after* the call
+    /// but still inside the same statement (`$n + Adder::bump($n)`) therefore
+    /// sees the pre-call value, where PHP would see the written-back one.
+    /// [`Self::lower_stmt`] asserts this list is empty once a statement has
+    /// been lowered, so such a program panics naming the shape rather than
+    /// silently losing the write. Closing it means threading `&mut Env`
+    /// through [`Self::lower_expr`], which is the same widening
+    /// `Self::landing_block`'s own known gap needs.
+    pending_refs: Vec<StagedRef>,
+}
+
+/// One by-reference argument staged at a call site, and where its written-back
+/// value has to land afterwards — see [`Lowering::pending_refs`].
+struct StagedRef {
+    /// What the copy-back re-points.
+    holder: RefHolder,
+    /// The [`Ty::Ref`] the callee was handed.
+    slot: ValueId,
+    /// The pointee's representation — the parameter's declared type, which
+    /// `mwl_types`' `check_by_ref_arg` has already proven is exactly the
+    /// holder's own.
+    ty: Ty,
+}
+
+/// The storage a by-reference argument names, resolved at staging time rather
+/// than carried as an AST reference.
+///
+/// Resolved eagerly for two reasons. A property's receiver must be evaluated
+/// exactly once — staging reads the field and the copy-back writes it, and
+/// re-lowering the receiver expression for the second would evaluate it twice.
+/// And a [`Lowering`]'s one lifetime parameter is the source file's, not the
+/// AST's, so parking a borrowed `Expr` in [`Lowering::pending_refs`] would
+/// need a second one.
+///
+/// These are exactly the two shapes [`is_aliasing_read`] recognises as durable
+/// storage, and exactly the two `mwl_types`' `check_by_ref_arg` accepts.
+enum RefHolder {
+    /// A bare local — the `Env` name it is bound under.
+    Local(String),
+    /// A compile-time-known property, with its receiver already lowered.
+    Field {
+        /// The receiver, evaluated once at staging time.
+        object: ValueId,
+        /// The declaring class's label.
+        class: String,
+        /// The property's own name.
+        field: String,
+    },
+}
+
+/// One resolved signature's argument-shape, as [`Lowering::lower_call_args`]
+/// needs it — owned rather than borrowed because every call site has to clone
+/// it out of `self.exprs` before touching `self` mutably anyway.
+struct ArgSig {
+    /// Each parameter's declared type, positional.
+    param_tys: Vec<TypeId>,
+    /// Which parameters are declared `&$x`, positional.
+    by_ref: Vec<bool>,
+    /// Whether the last parameter is `...$x`.
+    variadic: bool,
+}
+
+impl ArgSig {
+    /// The shape of a resolved call's own signature.
+    fn of(call: &mwl_types::expr_table::ResolvedCall) -> Self {
+        Self {
+            param_tys: call.param_tys.clone(),
+            by_ref: call.by_ref.clone(),
+            variadic: call.variadic,
+        }
+    }
+
+    /// Whether the argument at `index` binds by reference. Never true past the
+    /// recorded parameters: `lower_call_args` refuses a variadic signature
+    /// outright, so there is no position-onward rule to apply here the way
+    /// `mwl_types::signatures::MethodSig::is_by_ref` has one.
+    fn is_by_ref(&self, index: usize) -> bool {
+        self.by_ref.get(index).copied().unwrap_or(false)
+    }
 }
 
 impl<'a> Lowering<'a> {
@@ -683,6 +797,8 @@ impl<'a> Lowering<'a> {
             fn_label: name.to_owned(),
             cur_stmt_span: Span::at(src.id(), 0),
             foreach_seq: 0,
+            ref_locals: FxHashMap::default(),
+            pending_refs: Vec::new(),
         }
     }
 
@@ -877,6 +993,18 @@ impl<'a> Lowering<'a> {
         });
     }
 
+    /// Appends an [`InstKind::RefStore`] to `b` — see that variant's own doc
+    /// comment for the release-the-old half it performs itself, and
+    /// [`Ty::Ref`] for the invariant the pair maintains.
+    fn emit_ref_store(&mut self, b: BlockId, slot: ValueId, value: ValueId) {
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::RefStore { slot, value },
+            on_error: None,
+        });
+    }
+
     /// Appends an [`InstKind::FieldSet`] to `b` — see
     /// [`Self::lower_reassignment`]'s property-target arm for the retain/
     /// release policy wrapped around this.
@@ -1022,6 +1150,97 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// The declared type behind the `&$name` parameter `name` — the pointee
+    /// representation [`Self::ref_locals`] remembers, which the parameter's
+    /// own `Env` entry cannot carry (it holds [`Ty::Ref`]).
+    ///
+    /// # Panics
+    ///
+    /// Panics for a name whose `Env` entry is a [`Ty::Ref`] that
+    /// [`lower_method`] never registered — an internal inconsistency, since
+    /// the two are written together and nothing else produces a [`Ty::Ref`]
+    /// binding.
+    fn pointee_of(&self, name: &str) -> Ty {
+        *self.ref_locals.get(name).unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: `${name}` is bound as a `Ty::Ref` but no pointee representation was \
+                 recorded for it — bug in lower_method's by-reference parameter binding"
+            )
+        })
+    }
+
+    /// Emits every staged by-reference argument's copy-back, in staging order,
+    /// and clears the list.
+    ///
+    /// Each one is an [`InstKind::RefLoad`] out of the slot the call may have
+    /// written, then a re-point of the holder ([`Self::write_back_holder`]).
+    /// Called at the end of the *statement* that contained the call, which is
+    /// where an `&mut Env` exists at all — see [`Self::pending_refs`] for what
+    /// that costs and [`Ty::Ref`] for the whole representation.
+    fn flush_ref_writebacks(&mut self, env: &mut Env, cur: BlockId) {
+        for staged in std::mem::take(&mut self.pending_refs) {
+            let (v, _) = self.emit(cur, staged.ty, InstKind::RefLoad { slot: staged.slot });
+            self.write_back_holder(&staged.holder, v, staged.ty, env, cur);
+        }
+    }
+
+    /// Re-points `holder` at `written`, the value an [`InstKind::RefLoad`]
+    /// just read back out of a by-reference argument's staged slot after the
+    /// call returned.
+    ///
+    /// This is the copy-back half of [`Ty::Ref`]'s representation, and it
+    /// **releases the holder's previous value** (when `ty` is
+    /// [`Ty::is_refcounted`]) without retaining `written`: the slot owned one
+    /// reference from the moment [`Self::lower_call_args`] staged it, and that
+    /// reference transfers into the holder here. The staging retain and this
+    /// release are the balanced pair — see [`Ty::Ref`]'s refcounting section,
+    /// which owns the whole policy and the one path (a throwing callee) that
+    /// does not reach this.
+    ///
+    /// Deliberately not [`Self::write_back_array`]: that one re-points a
+    /// holder at a copy-on-write separation and owns *no* release at all,
+    /// because [`InstKind::ArraySet`] consumed the very reference it replaces.
+    /// Folding the two into one function would mean a flag deciding which
+    /// ownership rule applies, which is the thing worth keeping apart.
+    fn write_back_holder(
+        &mut self,
+        holder: &RefHolder,
+        written: ValueId,
+        ty: Ty,
+        env: &mut Env,
+        cur: BlockId,
+    ) {
+        match holder {
+            RefHolder::Local(name) => {
+                if let Some(&(old_v, old_ty)) = env.get(name)
+                    && old_ty.is_refcounted()
+                {
+                    self.emit_release(cur, old_v);
+                }
+                env.insert(name.clone(), (written, ty));
+            }
+            RefHolder::Field {
+                object,
+                class,
+                field,
+            } => {
+                if ty.is_refcounted() {
+                    let (old_v, _) = self.emit(
+                        cur,
+                        ty,
+                        InstKind::FieldGet {
+                            object: *object,
+                            class: class.clone(),
+                            field: field.clone(),
+                        },
+                    );
+                    self.emit_release(cur, old_v);
+                }
+                self.emit_field_set(cur, *object, class.clone(), field.clone(), written);
+            }
+        }
+    }
+
     /// Whether `e` reads storage some durable slot still owns, so a value
     /// taken from it needs a retain before anything else can own it too —
     /// [`is_aliasing_read`]'s syntactic judgment, plus the one case that
@@ -1142,6 +1361,20 @@ impl<'a> Lowering<'a> {
                 break;
             }
             self.lower_stmt(stmt, cur, env);
+            // A by-reference argument staged inside this statement must have
+            // been copied back by now — a leftover means the call appeared in
+            // an expression position no `flush_ref_writebacks` call site
+            // covers, and silently dropping the write-back would be a wrong
+            // program rather than an unsupported one. See
+            // `Self::pending_refs`' known gap.
+            assert!(
+                self.pending_refs.is_empty(),
+                "mwl-ir lowers a call with a `&$x` argument only as a bare expression \
+                 statement or as a plain assignment's right-hand side — the one at {:?} is in \
+                 neither position, and its write-back has nowhere to land; see the crate \
+                 docs' known gaps",
+                stmt.span
+            );
         }
     }
 
@@ -1293,6 +1526,10 @@ impl<'a> Lowering<'a> {
                 if ty.is_refcounted() {
                     self.emit_release(*cur, v);
                 }
+                // Every `&$x` argument the call staged is copied back here —
+                // the statement boundary is where an `&mut Env` exists at all.
+                // See `Self::pending_refs`.
+                self.flush_ref_writebacks(env, *cur);
             }
             // PHP 8 makes `throw` an expression; MWL keeps that grammar and
             // lowers only the statement position, which is the one place it
@@ -1630,9 +1867,28 @@ impl<'a> Lowering<'a> {
         match &target.kind {
             ExprKind::Variable(name_span) => {
                 let lname = strip_sigil(span_text(self.src, *name_span)).to_owned();
-                let expected = env.get(&lname).map(|&(_, t)| t);
-                let (v, ty) = self.lower_expr_top(value, expected, env, cur);
-                self.bind_local(*cur, env, lname, v, ty, value);
+                // A `&$x` parameter names the caller's staged slot, not an SSA
+                // binding: the write is a store through the address, so SSA
+                // renaming has nothing to do and `env` is left alone. The
+                // retain/load-old/release/store sequence is `Self::bind_local`'s
+                // own policy against a slot instead of an `Env` entry — see
+                // `Ty::Ref` and `InstKind::RefStore`.
+                if let Some(&(slot, Ty::Ref)) = env.get(&lname) {
+                    let pointee = self.pointee_of(&lname);
+                    let (v, _) = self.lower_expr_top(value, Some(pointee), env, cur);
+                    if pointee.is_refcounted() && self.aliasing_read(value) {
+                        self.emit_retain(*cur, v);
+                    }
+                    if pointee.is_refcounted() {
+                        let (old_v, _) = self.emit(*cur, pointee, InstKind::RefLoad { slot });
+                        self.emit_release(*cur, old_v);
+                    }
+                    self.emit_ref_store(*cur, slot, v);
+                } else {
+                    let expected = env.get(&lname).map(|&(_, t)| t);
+                    let (v, ty) = self.lower_expr_top(value, expected, env, cur);
+                    self.bind_local(*cur, env, lname, v, ty, value);
+                }
             }
             // `$obj->prop = expr;` — the receiver's declaring class comes
             // from `self.exprs`, exactly like `ExprKind::PropertyAccess`'s
@@ -1705,26 +1961,26 @@ impl<'a> Lowering<'a> {
                         },
                         env,
                     );
-                    return;
+                } else {
+                    let (object_v, _) = self.lower_expr(object, None, env, *cur);
+                    let (v, _) = self.lower_expr_top(value, Some(field_ty), env, cur);
+                    if field_ty.is_refcounted() && self.aliasing_read(value) {
+                        self.emit_retain(*cur, v);
+                    }
+                    if field_ty.is_refcounted() {
+                        let (old_v, _) = self.emit(
+                            *cur,
+                            field_ty,
+                            InstKind::FieldGet {
+                                object: object_v,
+                                class: class_label.clone(),
+                                field: field_name.clone(),
+                            },
+                        );
+                        self.emit_release(*cur, old_v);
+                    }
+                    self.emit_field_set(*cur, object_v, class_label, field_name, v);
                 }
-                let (object_v, _) = self.lower_expr(object, None, env, *cur);
-                let (v, _) = self.lower_expr_top(value, Some(field_ty), env, cur);
-                if field_ty.is_refcounted() && self.aliasing_read(value) {
-                    self.emit_retain(*cur, v);
-                }
-                if field_ty.is_refcounted() {
-                    let (old_v, _) = self.emit(
-                        *cur,
-                        field_ty,
-                        InstKind::FieldGet {
-                            object: object_v,
-                            class: class_label.clone(),
-                            field: field_name.clone(),
-                        },
-                    );
-                    self.emit_release(*cur, old_v);
-                }
-                self.emit_field_set(*cur, object_v, class_label, field_name, v);
             }
             // `$arr[$i] = expr;` — the element's declared type comes from
             // `self.exprs`, exactly like the read side above (`check_assign`'s
@@ -1788,6 +2044,10 @@ impl<'a> Lowering<'a> {
                  {other:?}"
             ),
         }
+        // `$x = Foo::bar($n);` — the right-hand side may have staged a `&$n`
+        // argument, whose copy-back belongs to this statement. See
+        // `Self::pending_refs`.
+        self.flush_ref_writebacks(env, *cur);
     }
 
     /// `if (cond) then (else else_)?` — the module docs describe the
@@ -1899,6 +2159,13 @@ impl<'a> Lowering<'a> {
             let Some(&(pre_v, ty)) = env.get(name) else {
                 continue;
             };
+            // A `&$x` parameter's binding is an address that never changes:
+            // writing to it stores *through* it rather than rebinding it
+            // (`Ty::Ref`), so a header phi for one would carry the same value
+            // on both edges and describe nothing.
+            if ty == Ty::Ref {
+                continue;
+            }
             let phi_v = self.ids.next_value();
             let inst_index = self.block_insts[header_block.index() as usize].len();
             self.block_insts[header_block.index() as usize].push(Inst {
@@ -2115,6 +2382,13 @@ impl<'a> Lowering<'a> {
             let Some(&(pre_v, ty)) = env.get(name) else {
                 continue;
             };
+            // A `&$x` parameter's binding is an address that never changes:
+            // writing to it stores *through* it rather than rebinding it
+            // (`Ty::Ref`), so a header phi for one would carry the same value
+            // on both edges and describe nothing.
+            if ty == Ty::Ref {
+                continue;
+            }
             let phi_v = self.ids.next_value();
             let inst_index = self.block_insts[header_block.index() as usize].len();
             self.block_insts[header_block.index() as usize].push(Inst {
@@ -2544,6 +2818,11 @@ impl<'a> Lowering<'a> {
                 {
                     out.push(name);
                 }
+                // A `&$x` argument re-points its holder just as an assignment
+                // does — `Self::write_back_holder` is literally where — but
+                // nothing in the statement's *syntax* says so, since the `&`
+                // is on the callee's declaration. See below.
+                self.collect_by_ref_holders(e, seen, out);
             }
             // `unset($a[$k]);` re-points `$a` at the separated array exactly
             // the way `$a[$k] = …;` does — see `Self::lower_unset` — so it
@@ -2572,6 +2851,65 @@ impl<'a> Lowering<'a> {
                 self.collect_reassigned_locals(body, seen, out);
             }
             _ => {}
+        }
+    }
+
+    /// [`Self::collect_reassigned_locals`]'s by-reference half: every local a
+    /// call somewhere inside `e` re-points by handing it to a `&$x`
+    /// parameter.
+    ///
+    /// Separate from the assignment scan because the two read different
+    /// things. An assignment says so in its own syntax; a by-reference
+    /// argument does not — the `&` lives on the *callee's* declaration, so
+    /// `Adder::bump($n)` is indistinguishable from a by-value call until the
+    /// resolved signature is consulted. That is what
+    /// `mwl_types::expr_table::ResolvedCall::by_ref` is recorded for, and
+    /// missing this scan leaves a loop body writing back into the value the
+    /// loop was *entered* with on every iteration — the exact failure
+    /// [`Self::rebound_local`]'s own doc comment describes for an array
+    /// element.
+    ///
+    /// Walks nested calls too (`Foo::a(Bar::b($n))`): both stagings are
+    /// flushed by the same [`Self::flush_ref_writebacks`] call, so both owe a
+    /// header phi.
+    fn collect_by_ref_holders(
+        &self,
+        e: &Expr,
+        seen: &mut FxHashSet<String>,
+        out: &mut Vec<String>,
+    ) {
+        let args = match &e.kind {
+            ExprKind::Assign { value, .. } => {
+                self.collect_by_ref_holders(value, seen, out);
+                return;
+            }
+            ExprKind::Paren(inner) => {
+                self.collect_by_ref_holders(inner, seen, out);
+                return;
+            }
+            ExprKind::MethodCall { args, .. }
+            | ExprKind::StaticCall { args, .. }
+            | ExprKind::New { args, .. } => args,
+            _ => return,
+        };
+        let by_ref: &[bool] = match self.exprs.lookup(e.span) {
+            Some(ExprInfo::Call(call)) => &call.by_ref,
+            Some(ExprInfo::New {
+                ctor: Some(call), ..
+            }) => &call.by_ref,
+            _ => &[],
+        };
+        let CallArgs::List(list) = args else {
+            return;
+        };
+        for (index, arg) in list.iter().enumerate() {
+            self.collect_by_ref_holders(&arg.value, seen, out);
+            if by_ref.get(index).copied().unwrap_or(false)
+                && let Some(name) = self.rebound_local(&arg.value)
+                && seen.insert(name.clone())
+            {
+                out.push(name);
+            }
         }
     }
 
@@ -2684,6 +3022,13 @@ impl<'a> Lowering<'a> {
                          already passed mwl_types::check_program"
                     )
                 });
+                // A `&$x` parameter binds an address, not a value: reading it
+                // is a load out of the caller-staged slot, at the declared
+                // (pointee) type `Self::ref_locals` remembers. See `Ty::Ref`.
+                if ty == Ty::Ref {
+                    let pointee = self.pointee_of(name);
+                    return self.emit(cur, pointee, InstKind::RefLoad { slot: v });
+                }
                 (v, ty)
             }
             // `!` always produces `Ty::Bool` via ADR 0035's truthy table
@@ -2845,13 +3190,11 @@ impl<'a> Lowering<'a> {
                     .map(|call| format!("{}::{}", call.class, call.method));
                 let arg_values = match ctor {
                     Some(call) => {
-                        let param_tys = call.param_tys.clone();
-                        let variadic = call.variadic;
+                        let sig = ArgSig::of(call);
                         let checked_types = self.checked_types;
                         self.lower_call_args(
                             args,
-                            &param_tys,
-                            variadic,
+                            &sig,
                             checked_types,
                             ArgOwnership::Transferred,
                             env,
@@ -2922,8 +3265,7 @@ impl<'a> Lowering<'a> {
                     );
                 };
                 let target_label = format!("{}::{}", call.class, call.method);
-                let param_tys = call.param_tys.clone();
-                let variadic = call.variadic;
+                let sig = ArgSig::of(call);
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                 let checked_types = self.checked_types;
                 let is_static = call.is_static;
@@ -2956,8 +3298,7 @@ impl<'a> Lowering<'a> {
                 };
                 let arg_values = self.lower_call_args(
                     args,
-                    &param_tys,
-                    variadic,
+                    &sig,
                     checked_types,
                     ArgOwnership::Transferred,
                     env,
@@ -3024,14 +3365,12 @@ impl<'a> Lowering<'a> {
                 // which is the whole reason `mwl_types` seeds a signature
                 // table rather than special-casing `Core` at each call site.
                 if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
-                    let param_tys = call.param_tys.clone();
-                    let variadic = call.variadic;
+                    let sig = ArgSig::of(call);
                     let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                     let checked_types = self.checked_types;
                     let arg_values = self.lower_call_args(
                         args,
-                        &param_tys,
-                        variadic,
+                        &sig,
                         checked_types,
                         ArgOwnership::Borrowed,
                         env,
@@ -3049,8 +3388,7 @@ impl<'a> Lowering<'a> {
                 }
                 let target_label = format!("{}::{}", call.class, call.method);
                 let method = call.method.clone();
-                let param_tys = call.param_tys.clone();
-                let variadic = call.variadic;
+                let sig = ArgSig::of(call);
                 let is_static = call.is_static;
                 let has_body = call.has_body;
                 let named_class = call.static_class.as_ref().map(ToString::to_string);
@@ -3096,8 +3434,7 @@ impl<'a> Lowering<'a> {
                 };
                 let arg_values = self.lower_call_args(
                     args,
-                    &param_tys,
-                    variadic,
+                    &sig,
                     checked_types,
                     ArgOwnership::Transferred,
                     env,
@@ -3501,7 +3838,8 @@ impl<'a> Lowering<'a> {
                     | Ty::Array
                     | Ty::Mixed
                     | Ty::Enum(_)
-                    | Ty::ClassDesc => {
+                    | Ty::ClassDesc
+                    | Ty::Ref => {
                         unreachable!("matched above")
                     }
                 };
@@ -3761,7 +4099,8 @@ impl<'a> Lowering<'a> {
                     | Ty::Bytes
                     | Ty::Mixed
                     | Ty::Enum(_)
-                    | Ty::ClassDesc => {
+                    | Ty::ClassDesc
+                    | Ty::Ref => {
                         unreachable!("matched above")
                     }
                 };
@@ -4294,33 +4633,37 @@ impl<'a> Lowering<'a> {
     /// argument needs no retain: it already has exactly one owner, which
     /// simply transfers into the callee's parameter slot.
     ///
+    /// A `&$x` parameter's argument is **staged** instead (see [`Ty::Ref`]):
+    /// the holder's current value is read, retained, copied into a fresh
+    /// one-cell slot, and that slot's address is what the callee receives.
+    /// The matching copy-back is parked in [`Self::pending_refs`] for
+    /// [`Self::flush_ref_writebacks`] to emit once the call has returned.
+    /// `ownership` does not apply to one: a staged argument is neither
+    /// borrowed nor transferred, it is copied, and the retain that pays for
+    /// the copy-back's release is emitted unconditionally rather than only for
+    /// an aliasing read.
+    ///
     /// # Panics
     ///
     /// Panics naming the unsupported shape for anything outside this slice's
-    /// scope: `variadic`, a named or spread argument (`mwl_types` itself
-    /// doesn't fully positionally type-check these against a signature yet —
-    /// see its own known gaps), or an argument count that doesn't exactly
-    /// match `param_tys`' length (this crate trusts
+    /// scope: a variadic signature, a named or spread argument (`mwl_types`
+    /// itself doesn't fully positionally type-check these against a signature
+    /// yet — see its own known gaps), an argument count that doesn't exactly
+    /// match `sig`'s parameter count (this crate trusts
     /// `mwl_types::check_program` already enforced arity for a non-variadic
-    /// signature).
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "one resolved signature's three fields plus the interner they \
-                  are read against, the ownership rule, and the `(env, cur)` \
-                  pair every lowering method threads"
-    )]
+    /// signature), or a by-reference argument that is neither a bare local nor
+    /// a compile-time-known property.
     fn lower_call_args(
         &mut self,
         args: &CallArgs,
-        param_tys: &[TypeId],
-        variadic: bool,
+        sig: &ArgSig,
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
         env: &Env,
         cur: BlockId,
     ) -> Vec<ValueId> {
         assert!(
-            !variadic,
+            !sig.variadic,
             "mwl-ir does not yet lower a call to a variadic signature; see the crate docs' \
              known gaps"
         );
@@ -4337,13 +4680,17 @@ impl<'a> Lowering<'a> {
         );
         assert_eq!(
             list.len(),
-            param_tys.len(),
+            sig.param_tys.len(),
             "mwl-ir: a resolved call's argument count doesn't match its signature — this crate \
              trusts mwl_types::check_program already enforced this"
         );
         let mut out = Vec::with_capacity(list.len());
-        for (arg, &pty) in list.iter().zip(param_tys) {
+        for (index, (arg, &pty)) in list.iter().zip(&sig.param_tys).enumerate() {
             let expected = lower_checked_ty(pty, checked_types);
+            if sig.is_by_ref(index) {
+                out.push(self.stage_ref_arg(&arg.value, expected, env, cur));
+                continue;
+            }
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
             if ownership == ArgOwnership::Transferred
                 && ty.is_refcounted()
@@ -4354,6 +4701,71 @@ impl<'a> Lowering<'a> {
             out.push(v);
         }
         out
+    }
+
+    /// Stages one by-reference argument, returning the [`Ty::Ref`] the callee
+    /// is handed — see [`Ty::Ref`], which owns the representation, and
+    /// [`Self::lower_call_args`], which owns why `ownership` does not reach
+    /// here.
+    ///
+    /// The holder's receiver (for a property) is lowered exactly once, here,
+    /// and remembered in the [`RefHolder`] so the copy-back re-uses it rather
+    /// than evaluating it a second time.
+    fn stage_ref_arg(&mut self, arg: &Expr, ty: Ty, env: &Env, cur: BlockId) -> ValueId {
+        let (holder, init) = match &arg.kind {
+            ExprKind::Variable(name_span) => {
+                let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
+                let (v, _) = self.lower_expr(arg, Some(ty), env, cur);
+                (RefHolder::Local(name), v)
+            }
+            ExprKind::PropertyAccess { object, .. } => {
+                let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(arg.span)
+                else {
+                    panic!(
+                        "mwl-ir: the by-reference argument at {:?} is a property with no \
+                         resolved declaring class recorded in the typed-expression table — \
+                         either it wasn't checked with the same table, or its receiver erased \
+                         to a shape/plain `object` (ADR 0036 § 4); mwl_types' \
+                         `check_by_ref_arg` is expected to have refused both",
+                        arg.span
+                    );
+                };
+                let class = class.to_string();
+                let field = name.clone();
+                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                let (v, _) = self.emit(
+                    cur,
+                    ty,
+                    InstKind::FieldGet {
+                        object: object_v,
+                        class: class.clone(),
+                        field: field.clone(),
+                    },
+                );
+                (
+                    RefHolder::Field {
+                        object: object_v,
+                        class,
+                        field,
+                    },
+                    v,
+                )
+            }
+            other => panic!(
+                "mwl-ir stages a by-reference argument only from a bare local or a \
+                 compile-time-known property — not from {other:?}; mwl_types' \
+                 `check_by_ref_arg` is expected to have refused it at the call site"
+            ),
+        };
+        // The staging retain: from here the slot owns one reference of its
+        // own, which `Self::write_back_holder`'s release pays back. See
+        // `Ty::Ref`'s refcounting section.
+        if ty.is_refcounted() {
+            self.emit_retain(cur, init);
+        }
+        let (slot, _) = self.emit(cur, Ty::Ref, InstKind::RefSlot { init });
+        self.pending_refs.push(StagedRef { holder, slot, ty });
+        slot
     }
 }
 
@@ -6881,5 +7293,68 @@ int $n = 1;
 Rank $r = $n as Rank;
 ",
         );
+    }
+
+    // ------------------------------------------------------------------
+    // By-reference parameters -- `Ty::Ref` owns the representation these
+    // pin down, and its refcounting section owns the retain/release pairing
+    // the third one exists to make visible.
+    // ------------------------------------------------------------------
+
+    /// The caller's half: the holder is read, staged into a one-cell slot
+    /// whose address is the argument, and copied back out of that slot once
+    /// the call returns -- rebinding the local, so everything after the call
+    /// reads the written-back value. `int` is not refcounted, so the whole
+    /// thing costs a store, a load and no refcount traffic at all.
+    #[test]
+    fn a_by_reference_argument_is_staged_and_copied_back() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+class Adder {
+               public static function bump(int &$slot): void { $slot = $slot + 5; }
+}
+             int $n = 1;
+Adder::bump($n);
+echo $n;
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The callee's half: the parameter is a `ref`, every read of it is a
+    /// `ref.load` and every write a `ref.store`. Nothing is released at the
+    /// frame's exit -- a `Ty::Ref` is not `Ty::is_refcounted`, so
+    /// `release_all_locals` skips it, which is what keeps the caller's
+    /// staged reference the caller's.
+    #[test]
+    fn a_by_reference_parameter_reads_and_writes_through_its_slot() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class T {
+               public static function bump(int &$slot): void { $slot = $slot + 5; }
+}
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A refcounted pointee, where the policy is actually visible: one
+    /// staging `retain` before `ref.slot`, and one `release` of the holder's
+    /// previous value at the copy-back. The pair balances, which is what
+    /// makes the slot's own reference transfer into the holder rather than
+    /// leak or double-free.
+    #[test]
+    fn a_refcounted_by_reference_argument_balances_its_staging_retain() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+class Shout {
+               public static function upper(string &$s): void { $s = $s . \"!\"; }
+}
+             string $msg = \"hi\";
+Shout::upper($msg);
+echo $msg;
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 }

@@ -76,6 +76,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    release v{}", operand.index());
         return;
     }
+    if let InstKind::RefStore { slot, value } = inst.kind {
+        let _ = writeln!(out, "    ref.store v{}, v{}", slot.index(), value.index());
+        return;
+    }
     if let InstKind::FieldSet {
         object,
         ref class,
@@ -231,10 +235,13 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             format!("core.call {symbol}({})", parts.join(", "))
         }
         InstKind::TakeThrown => "take.thrown".to_owned(),
+        InstKind::RefSlot { init } => format!("ref.slot v{}", init.index()),
+        InstKind::RefLoad { slot } => format!("ref.load v{}", slot.index()),
         InstKind::StmtMarker(_)
         | InstKind::Safepoint
         | InstKind::Retain { .. }
         | InstKind::Release { .. }
+        | InstKind::RefStore { .. }
         | InstKind::FieldSet { .. } => {
             unreachable!("returned above")
         }
@@ -327,6 +334,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Enum(crate::ty::EnumRepr::Int) => "enum:int",
         Ty::Enum(crate::ty::EnumRepr::Uint) => "enum:uint",
         Ty::ClassDesc => "classdesc",
+        Ty::Ref => "ref",
     }
 }
 

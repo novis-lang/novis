@@ -705,6 +705,22 @@
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
+//! - **A `&$x` parameter lowers, in two positions only.** [`ty::Ty::Ref`]
+//!   owns the representation (a caller-staged one-cell slot, passed by
+//!   address, copied back after the call), why true PHP aliasing was rejected
+//!   for it, the refcount policy the staging retain and the copy-back release
+//!   balance, and the one path that does not reach the copy-back — a callee
+//!   that throws, which leaks the staging retain rather than dangling.
+//!   [`lower::Lowering::pending_refs`] owns the second, narrower gap: the
+//!   copy-back is emitted at the enclosing *statement*, because that is the
+//!   nearest scope holding an `&mut Env`, so a call with a `&$x` argument
+//!   lowers only as a bare expression statement or as a plain assignment's
+//!   right-hand side. Anywhere else, [`lower::Lowering::lower_stmts`] asserts
+//!   rather than silently dropping the write-back. `mwl_types`'
+//!   `check_by_ref_arg` refuses the argument shapes with no holder to write
+//!   back to (a literal, a call's result, an array element under ADR 0007
+//!   § 5's copy-on-write, an ADR 0014 § 1 hooked property) at the call site,
+//!   so those are diagnostics rather than panics.
 //! - **Only ADR 0007 § 2's *free* and *total* conversion rows lower.**
 //!   `lower::Lowering::convert` owns the split and panics naming any row it
 //!   does not cover. What is missing is every **checked** row — `int` ↔

@@ -48,6 +48,16 @@ pub struct MethodSig {
     /// Each parameter's declared type (`mixed` for one written with none —
     /// already diagnosed elsewhere).
     pub params: Vec<TypeId>,
+    /// Whether each parameter is declared `&$x`, positionally — one entry per
+    /// [`Self::params`] entry, read through [`Self::is_by_ref`] rather than
+    /// indexed directly so the variadic rule stays in one place.
+    ///
+    /// A parallel `Vec` rather than a field on a per-parameter struct because
+    /// every existing consumer reads [`Self::params`] positionally already
+    /// (see [`Self::param_at`]), and a by-reference parameter is rare enough
+    /// that turning one `Vec<TypeId>` into a `Vec<Param>` would rewrite every
+    /// one of those call sites to buy nothing.
+    pub by_ref: Vec<bool>,
     /// Whether the last parameter is `...$x` — every argument from that
     /// position onward is checked against its type instead of requiring an
     /// exact count.
@@ -97,6 +107,26 @@ impl MethodSig {
             return self.params.last().copied();
         }
         self.params.get(index).copied()
+    }
+
+    /// Whether the parameter at `index` is declared `&$x`, following the same
+    /// variadic rule [`Self::param_at`] does — every argument from a variadic
+    /// parameter's position onward binds the way that parameter declares.
+    /// `false` for an index past a non-variadic signature's parameters, which
+    /// the arity check has already reported.
+    #[must_use]
+    pub fn is_by_ref(&self, index: usize) -> bool {
+        if self.variadic && index >= self.by_ref.len().saturating_sub(1) {
+            return self.by_ref.last().copied().unwrap_or(false);
+        }
+        self.by_ref.get(index).copied().unwrap_or(false)
+    }
+
+    /// Whether any parameter is declared `&$x` — the cheap test a call site
+    /// runs before doing any by-reference work at all.
+    #[must_use]
+    pub fn has_by_ref(&self) -> bool {
+        self.by_ref.iter().any(|&r| r)
     }
 
     /// Whether this signature mentions a type variable anywhere — the test
@@ -448,6 +478,7 @@ fn collect_members(
                     .iter()
                     .map(|p| lower_optional_type(p.ty.as_ref(), ctx, env))
                     .collect();
+                let by_ref: Vec<bool> = m.params.iter().map(|p| p.by_ref).collect();
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
@@ -457,6 +488,7 @@ fn collect_members(
                     name,
                     MethodSig {
                         params,
+                        by_ref,
                         variadic,
                         return_ty,
                         is_static,

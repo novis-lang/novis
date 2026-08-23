@@ -129,6 +129,7 @@ fn resolved_call(qname: QName, name: String, sig: &MethodSig) -> ResolvedCall {
         class: qname,
         method: name,
         param_tys: sig.params.clone(),
+        by_ref: sig.by_ref.clone(),
         variadic: sig.variadic,
         is_static: sig.is_static,
         return_ty: sig.return_ty,
@@ -1771,9 +1772,108 @@ fn check_args_typed(
         } else {
             sig.params.get(i).copied()
         };
-        arg_types.push(check_expr(&arg.value, expected, live, scope, ctx, env));
+        let actual = check_expr(&arg.value, expected, live, scope, ctx, env);
+        if sig.is_by_ref(i) {
+            check_by_ref_arg(arg, actual, expected, env);
+        }
+        arg_types.push(actual);
     }
     (arg_types, Some(sig))
+}
+
+/// The two extra obligations an argument at a `&$x` parameter position
+/// carries, beyond the assignability [`check_args_typed`] already checked for
+/// every argument.
+///
+/// 1. **It must be a writable place.** The callee writes back through the
+///    reference, so the argument has to name storage that survives the call.
+///    Two shapes do: a bare local, and a compile-time-known property. Those
+///    are exactly the two `mwl_ir::lower::Lowering::write_back_ref` can
+///    re-point, and the same two `mwl_ir::lower::is_aliasing_read` already
+///    recognises as durable storage.
+/// 2. **Its type must be exactly the parameter's.** An ordinary argument may
+///    widen on the way in (`int` into a `float` parameter); a by-reference one
+///    may not, because the callee writes back at the *declared* type and the
+///    caller's storage would then have to narrow on the way out — silently,
+///    and lossily. ADR 0007 § 1's "no type ever changes by itself" leaves no
+///    room for that, so the two sides must agree exactly.
+///
+/// Obligation 2 is only reported when the argument would otherwise have been
+/// accepted: a type that is not assignable at all already produced
+/// `E_TYPE_MISMATCH` at the same span, and saying it twice helps nobody.
+fn check_by_ref_arg(arg: &Arg, actual: TypeId, expected: Option<TypeId>, env: &mut Env<'_>) {
+    // ADR 0014 § 1 makes a hooked property's read a call and its write a
+    // second one, so it has no address to hand out — and no rule for what a
+    // callee writing through one would even mean. Checked before the shape
+    // match so `$obj->hooked` is refused for the right reason.
+    let hooked = matches!(
+        env.exprs.lookup(arg.value.span),
+        Some(ExprInfo::HookedProperty { .. })
+    );
+    if hooked {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_BY_REF_ARG_NOT_A_PLACE,
+                "a property with hooks cannot be passed to a `&` parameter",
+            )
+            .with_primary(arg.value.span, "passed by reference here")
+            .with_help(
+                "reading it runs its `get` hook and writing it runs its `set` hook (ADR 0014 \
+                 § 1) — read it into a local, pass that, and assign the result back",
+            ),
+        );
+        return;
+    }
+    match &arg.value.kind {
+        ExprKind::Variable(_) => {}
+        ExprKind::PropertyAccess { nullsafe, .. } if !nullsafe => {}
+        ExprKind::Index { .. } => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_BY_REF_ARG_NOT_A_PLACE,
+                    "an array element cannot be passed to a `&` parameter yet",
+                )
+                .with_primary(arg.value.span, "passed by reference here")
+                .with_help(
+                    "ADR 0007 § 5's copy-on-write separation gives an element no stable \
+                     address — read it into a local, pass that, and write it back",
+                ),
+            );
+        }
+        _ => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_BY_REF_ARG_NOT_A_PLACE,
+                    "only a variable or a property can be passed to a `&` parameter",
+                )
+                .with_primary(arg.value.span, "passed by reference here")
+                .with_help(
+                    "the callee writes back through the reference, so this argument has to \
+                     name storage that outlives the call",
+                ),
+            );
+        }
+    }
+    if let Some(declared) = expected
+        && declared != actual
+        && is_assignable(actual, declared, env.interner, env.graph, env.signatures)
+    {
+        let (want, got) = (
+            env.interner.describe(declared),
+            env.interner.describe(actual),
+        );
+        env.diags.report(
+            Diagnostic::error(
+                code::E_BY_REF_ARG_TYPE_NOT_EXACT,
+                format!("a `&` parameter declared `{want}` needs an argument of exactly that type, not `{got}`"),
+            )
+            .with_primary(arg.value.span, format!("this is `{got}`"))
+            .with_help(
+                "a by-reference argument is written back at the parameter's declared type, so \
+                 widening on the way in would mean narrowing on the way out",
+            ),
+        );
+    }
 }
 
 /// [`check_args_typed`] for a signature that mentions a type variable, which
