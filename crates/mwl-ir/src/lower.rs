@@ -98,6 +98,18 @@ struct LoopFrame {
     /// [`Lowering::release_all_locals`], which sweeps the whole `Env` these
     /// names are ordinary members of.
     iteration_owned: Vec<String>,
+    /// Every name the loop *header* binds — everything that existed before the
+    /// loop, plus the header phis seeded over it.
+    ///
+    /// A name in the body's environment that is **not** here was declared
+    /// inside the body, so it lives for exactly one iteration and this frame
+    /// owns its reference: the next iteration starts from the header
+    /// environment again and would never see it, and the loop's exit
+    /// environment is built from the header's too. Releasing it is therefore
+    /// the same obligation [`Self::iteration_owned`] states for a `foreach`
+    /// header's key and value, arrived at from the other direction — see
+    /// [`Lowering::end_iteration`], which discharges both.
+    carried: FxHashSet<String>,
     /// The reserved `Env` names a `foreach` keeps its own bookkeeping under —
     /// its retained reference to the array being walked, and its cursor. They
     /// are dropped from a `break` edge's recorded environment so nothing after
@@ -2368,11 +2380,20 @@ impl<'a> Lowering<'a> {
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
             iteration_owned: Vec::new(),
+            carried: header_env.keys().cloned().collect(),
             loop_private: Vec::new(),
         });
         let mut body_env = header_env.clone();
         let mut body_cur = body_block;
         self.lower_stmt(body, &mut body_cur, &mut body_env);
+        // The body's own fall-through exit ends an iteration exactly as a
+        // `continue` does, so it owes the same releases — see
+        // `Self::end_iteration`. Emitted before the frame is popped, since
+        // that is where the loop's carried set lives.
+        let reaches_back_edge = !self.is_terminated(body_cur);
+        if reaches_back_edge {
+            self.end_iteration(body_cur, &mut body_env);
+        }
         let frame = self
             .loop_stack
             .pop()
@@ -2382,7 +2403,7 @@ impl<'a> Lowering<'a> {
         // fall-through exit (if it reaches one) plus one more per `continue`
         // recorded while lowering the body above.
         let mut back_edges: Vec<(BlockId, Env)> = Vec::new();
-        if !self.is_terminated(body_cur) {
+        if reaches_back_edge {
             // Reserved safepoint poll site (loop back edge) — see
             // `InstKind::Safepoint`'s own doc comment. Placed on the actual
             // back edge, not the loop header, so a body that never reaches
@@ -2638,6 +2659,7 @@ impl<'a> Lowering<'a> {
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
             iteration_owned,
+            carried: header_env.keys().cloned().collect(),
             loop_private: vec![array_name.clone(), cursor_name.clone()],
         });
 
@@ -2866,6 +2888,7 @@ impl<'a> Lowering<'a> {
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
             iteration_owned: vec![value_name.clone()],
+            carried: header_env.keys().cloned().collect(),
             loop_private: vec![cursor_name.clone()],
         });
 
@@ -3235,19 +3258,38 @@ impl<'a> Lowering<'a> {
         self.seal(*cur, Terminator::Jump(after_block));
     }
 
-    /// Releases the innermost loop's per-iteration bindings and drops them
-    /// from `env` — the one thing every point an iteration ends has in common
-    /// (the body's fall-through back edge, a `continue`, a `break`).
+    /// Releases everything the innermost loop's *current iteration* owns and
+    /// drops it from `env` — the one thing every point an iteration ends has
+    /// in common (the body's fall-through back edge, a `continue`, a `break`).
     ///
-    /// A no-op for a `while` loop, whose [`LoopFrame::iteration_owned`] is
-    /// empty; see that field's own doc comment for the whole policy.
+    /// Two sets, and they are disjoint by construction:
+    ///
+    /// * [`LoopFrame::iteration_owned`] — a `foreach` header's key and value
+    ///   bindings, named up front because the header rebinds them itself.
+    /// * Every remaining binding whose name the loop header does not carry
+    ///   ([`LoopFrame::carried`]) — a local the *body* declared. Nothing
+    ///   after this point can reach it: the next iteration restarts from the
+    ///   header environment and the loop's exit environment is built from the
+    ///   header's, so without this release its reference would simply be
+    ///   dropped on the floor, once per iteration.
+    ///
+    /// Sorted rather than left in `FxHashMap` order: which releases a block
+    /// ends up holding must depend only on the source, never on hash-table
+    /// internals — the same rule the crate's `ids` module states for value
+    /// ids.
     fn end_iteration(&mut self, cur: BlockId, env: &mut Env) {
-        let owned = self
-            .loop_stack
-            .last()
-            .map(|frame| frame.iteration_owned.clone())
-            .unwrap_or_default();
-        for name in owned {
+        let Some(frame) = self.loop_stack.last() else {
+            return;
+        };
+        let owned = frame.iteration_owned.clone();
+        let carried = frame.carried.clone();
+        let mut body_local: Vec<String> = env
+            .iter()
+            .filter(|(name, (_, ty))| ty.is_refcounted() && !carried.contains(*name))
+            .map(|(name, _)| name.clone())
+            .collect();
+        body_local.sort_unstable();
+        for name in owned.into_iter().chain(body_local) {
             if let Some((v, ty)) = env.remove(&name)
                 && ty.is_refcounted()
             {
@@ -3360,6 +3402,11 @@ impl<'a> Lowering<'a> {
                         // Not bound on every incoming edge — per the module
                         // docs, checked input never uses such a name past
                         // this point, so it needs no entry in the merged env.
+                        // It still owes a release on each edge that *does*
+                        // bind it: nothing downstream can reach the value, so
+                        // this is the last point that could free it. See
+                        // `Self::release_merged_away`.
+                        self.release_merged_away(incoming, &name);
                         continue;
                     }
                     let values: Vec<(BlockId, ValueId, Ty)> = incoming
@@ -3386,6 +3433,36 @@ impl<'a> Lowering<'a> {
                 }
                 merged
             }
+        }
+    }
+
+    /// Releases `name` on every incoming edge that binds it to a refcounted
+    /// value, for a name [`Self::merge_envs`] is about to drop.
+    ///
+    /// A binding that survives on only some incoming edges is one a block
+    /// *declared* — an `if` branch's own local, a loop body's own local. The
+    /// merged environment cannot carry it (there is no value for the edges
+    /// that never bound it, and MWL has no `null` in the IR to phi in), and
+    /// the checker's definite-assignment rule already refuses any read of it
+    /// past this point. So the merge is the last place the reference is
+    /// reachable at all, and the edge that owns it is the one that must free
+    /// it — without this, every conditionally-declared `string`/`array`/
+    /// object local would leak exactly one reference per execution.
+    ///
+    /// Emitted into the incoming block itself, which by this point is usually
+    /// already sealed. That is fine and deliberate: a block's instructions and
+    /// its terminator are stored separately, so appending here still lands the
+    /// release before the jump.
+    fn release_merged_away(&mut self, incoming: &[(BlockId, Env)], name: &str) {
+        let owed: Vec<(BlockId, ValueId)> = incoming
+            .iter()
+            .filter_map(|(block, env)| match env.get(name) {
+                Some(&(v, ty)) if ty.is_refcounted() => Some((*block, v)),
+                _ => None,
+            })
+            .collect();
+        for (block, v) in owed {
+            self.emit_release(block, v);
         }
     }
 
@@ -8801,6 +8878,50 @@ class T {
             "class T {\n",
             "  function m(array<int> $a): uint {\n",
             "    return Core\\Arr::count($a);\n",
+            "  }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A refcounted local declared *inside* a loop body is released on the
+    /// back edge, not carried out of the loop: the next iteration restarts
+    /// from the header environment, so nothing after this point could ever
+    /// reach it. Without the release it leaked one reference per iteration —
+    /// found by `examples/report.mwl`'s valgrind leg, which was the first
+    /// fixture to declare one. See [`Lowering::end_iteration`].
+    #[test]
+    fn a_local_declared_in_a_loop_body_is_released_on_the_back_edge() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(array<string> $words): void {\n",
+            "    foreach ($words as string $w) {\n",
+            "      var $key = Core\\Str::lower($w);\n",
+            "      echo $key;\n",
+            "    }\n",
+            "  }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The same obligation one level down: a local declared in one `if` branch
+    /// is bound on that edge only, so the merge drops it — and the edge that
+    /// bound it is the last place its reference is reachable. See
+    /// [`Lowering::release_merged_away`].
+    #[test]
+    fn a_local_declared_in_one_if_branch_is_released_where_the_branches_merge() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(bool $c): void {\n",
+            "    if ($c) {\n",
+            "      var $s = Core\\Str::lower(\"AA\");\n",
+            "      echo $s;\n",
+            "    } else {\n",
+            "      echo \"no\";\n",
+            "    }\n",
             "  }\n",
             "}\n",
         ));

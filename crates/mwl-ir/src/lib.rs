@@ -619,7 +619,18 @@
 //!   synthesize from a bare `.` operand — see the design-choices bullet
 //!   below), and a `tainted`/`secret`-qualified string (`lower_checked_ty`
 //!   only handles the plain, unqualified `string` type — see the known gaps
-//!   below).
+//!   below). One more half of the same judgment landed later: a slot is
+//!   released not only when it is overwritten or when the frame exits, but
+//!   also **when control flow drops the binding itself** — a local declared
+//!   inside a loop body ([`lower::Lowering::end_iteration`]) or inside one
+//!   branch of an `if` ([`lower::Lowering::release_merged_away`]). Neither
+//!   binding can be reached afterwards, since the next iteration restarts
+//!   from the loop header's environment and a merge keeps only what every
+//!   incoming edge binds — so the point the binding disappears is the last
+//!   point its reference could be freed. This was missed until
+//!   `examples/report.mwl` became runnable and its valgrind leg found it: it
+//!   was the first fixture in the repository to declare a refcounted local
+//!   inside a loop at all, which is why nothing caught it earlier.
 //! - **A closed, engine-owned runtime-helper call gets its own
 //!   [`ir::InstKind::HelperCall`], tagged by a non-exhaustive [`ir::Helper`]
 //!   enum, rather than reusing [`ir::InstKind::Call`] with a synthetic
