@@ -6,46 +6,54 @@
 authoritative for the acceptance list and for the ten standing decisions already settled with the user;
 do not re-open any of them. The plan's status block says what is on disk and what is open.
 
-Stage 1's **enum gate is closed**: `examples/enums.mwl` prints its three frozen lines. Four ADRs went end
-to end this session, and each is owned by a doc comment rather than by a summary here:
+**ADR 0014 § 1's property hooks went end to end this session.** `examples/hooks.mwl` now prints
+`6`/`20`/`Counter(10)` and fails only on its last line. The shape, owned by the doc comments rather than
+summarised here:
 
-- **ADR 0010 — an enum is an integer.** `mwl_types::enums` (new module) resolves each declaration's
-  backing type and its cases' values, including the C# auto-increment rule. The backing type rides in
-  `mwl_types::ty::Ty::Enum(QName, EnumBacking)` — read that variant for why it is part of the type rather
-  than a side table. `mwl_ir::ty::Ty::Enum(EnumRepr)` is a representation of its own *only* because
-  ADR 0035 § 4 makes an enum case always truthy where the integer under it would be falsy at `0`.
-- **ADR 0007 § 2 — `as`.** `mwl_ir::lower::Lowering::convert` owns the whole table. Free rows are
-  identity and the new `InstKind::Reinterpret`; total rows reuse the `Helper` conversions `.` and ADR
-  0035's truthy table already had; checked rows are nine new throwing helpers in `mwl_runtime::helpers`,
-  emitted through `emit_fallible` so a failed conversion travels ADR 0002's path into an ordinary `catch`.
-- **ADR 0013 — object ordering.** `$a < $b` is a `Comparable::compareTo` call plus a comparison of its
-  `int` against zero. Until this session it silently compared two heap pointers as integers.
-- **ADR 0023 § 1 — `clone`.** `InstKind::Clone` over the new `mwl_object_clone` primitive: shallow,
-  same-heap, single-level, no hook.
-
-`ExprTypeTable` also gained `declared_ty(span)` — the checker's resolved type for a written annotation.
-`mwl_ir::lower::lower_decl_type` consults it before falling back to its AST-only match, because an enum
-name is the first type atom whose meaning needs the symbol table `mwl-ir` deliberately does not have.
+- A hooked property's access is a **call**, not a field touch. Each hook body compiles to an ordinary
+  function under `mwl_types::signatures::hook_label`'s label (`Counter::$doubled::get`), takes the same
+  implicit receiver in parameter slot 0 every method takes, and is reached through the same
+  `InstKind::Call` — so it costs no new instruction, no calling convention and no dispatch-table entry.
+  `mwl_ir::lower::lower_property_hook` is the lowering.
+- `ExprInfo::HookedProperty` is recorded *instead of* `ExprInfo::Property`, carrying both accessor labels
+  because one entry answers a read and a write.
+- `mwl_types::Ctx::current_hook` is the one exception: inside `$p`'s own hooks, `$this->p` is the backing
+  slot. That is what makes a hook that transforms a stored value terminate.
+- **Every hooked property is still backed** — MWL has no virtual/backed split.
+  `mwl_types::signatures::PropertyHooks`' doc comment owns that decision and what it spends; ADR 0014's
+  *Revisiting* no longer lists it as open.
+- `is_aliasing_read` became `Lowering::aliasing_read`, because a `get`-hooked read looks syntactically
+  like a slot read but produces a fresh, already-owned value like any other call's.
 
 ## Next
 
-**`examples/hooks.mwl` — the last of Stage 1.** It prints `0`/`0`/`Counter(10)`/`n=1` instead of
-`6`/`20`/`Counter(10)`/`n=6`, and it needs *two* independent features. Pick one; each is a session.
+**By-reference parameters (`int &$slot`) — the last line of `examples/hooks.mwl`, and the last of
+Stage 1.** `Adder::bump($n)` still prints `n=1`; it must print `n=6`. This is M4's `references (&$x)`
+bullet, and it needs a representation decision made and recorded before any code — per
+`.claude/loop-goal.md`'s standing "decide and record; never `BLOCKED` for a design call", in
+`mwl_ir::ty`'s or `mwl_runtime`'s own module doc, **not** a numbered ADR.
 
-1. **ADR 0014's property hooks.** `public int $doubled { get => $this->hits * 2; }` is parsed and checked
-   and then ignored — a read falls through to the plain field slot, which is always `null`/`0`. The
-   shape to build, mirroring what `Comparable` just did: compile each hook body as an ordinary function
-   under its own label, have `mwl_types` record an `ExprInfo::Call` for a `PropertyAccess` that resolves
-   to a hooked property instead of the `ExprInfo::Property` it records now, and let `mwl-ir`'s existing
-   call lowering do the rest. `mwl_types::signatures` is where hook presence has to start being recorded
-   (`ClassSignature` knows a property is hooked today only as an ADR 0022 exemption). `set` hooks are the
-   same shape on the write side. The `PropertyObserver` half of ADR 0014 is separate and not needed by
-   the fixture.
-2. **By-reference parameters (`int &$slot`).** `Adder::bump($n)` is M4's `references (&$x)` bullet. This
-   needs a representation decision — ADR 0007 § 1 says both sides of a reference declare the *same* type,
-   so the question is what a `&T` parameter is at the ABI level, not what it means. Decide and record it
-   in `mwl_runtime`'s or `mwl_ir::ty`'s own module doc, per `.claude/loop-goal.md`'s standing
-   "decide and record; never BLOCKED for a design call".
+ADR 0007 § 1 already settles the *meaning* (both sides declare the same type), so the open question is
+purely what a `&T` parameter is at the ABI level. Last session weighed two models without implementing
+either; start from this rather than re-deriving it:
+
+- **True aliasing (a pointer to the caller's own storage).** Most faithful to PHP, and the most
+  expensive: every local that is ever the target of `&` has to be demoted out of SSA into an addressable
+  stack slot, which touches phis, `Env` and the refcount policy. `&$arr[0]` is worse than hard — an
+  array element has no stable address under ADR 0007 § 5's copy-on-write.
+- **A caller-staged one-slot temporary** — the caller allocates a stack slot, stores the current value,
+  passes its address, and copies back after the call; the callee treats the parameter as a pointer, so
+  every read is a load and every write a store. No SSA demotion anywhere: the pointer is loop-invariant,
+  so nothing in the callee needs a phi it did not already need, and the caller's holder can be a local,
+  a property or an array element without any of them becoming addressable. The one divergence from PHP
+  is that a callee that **throws** never reaches the copy-back — recoverable by doing the load-and-write-back
+  on `emit_fallible`'s error edge as well as its normal one, which is where to look first rather than
+  accepting the divergence.
+
+Whichever is chosen, the work is: `Ty::Ref(T)` (or equivalent) in `mwl_ir::ty`; the new load/store/slot
+instructions and their `mwl-codegen` arms (Cranelift `StackSlot`/`stack_addr`); `mwl_types` checking that
+a `&` argument is a writable place and that its type matches exactly; and the refcount policy for a
+refcounted `&T`, which needs stating explicitly in the same doc comment as the representation.
 
 After Stage 1, **Stage 2** is `examples/iterate.mwl`: ADR 0053's generators and the two iteration
 interfaces, blocked first on `implements Iterable<int>` not parsing (a generic interface in an
@@ -53,8 +61,15 @@ interfaces, blocked first on `implements Iterable<int>` not parsing (a generic i
 
 ## Backlog
 
-Each crate's own module doc is the home for its known gaps; these are the seven worth surfacing.
+Each crate's own module doc is the home for its known gaps; these are the ones worth surfacing.
 
+- **An array-element write through a hooked property** (`$obj->hooked[0] = v`) panics naming itself —
+  `mwl_ir::lower::Lowering::write_back_array`. The copy-on-write separation would have to be written back
+  through the `set` hook, and no PHP-compatible rule for that exists yet.
+- **ADR 0014's `PropertyObserver` half** is untouched — § 2/§ 3's declared interface, called after the
+  hook or storage settles. Independent of § 1, and not needed by any fixture.
+- **A hook on a `static` or `readonly` property is not refused.** Neither combination means anything;
+  `mwl_types::check::check_property_hooks` is where the diagnostic would go.
 - **The last conversion row: an integer *into* an enum.** ADR 0010 § 5 says it throws on a value no case
   names. `mwl_ir::lower::Lowering::convert` panics naming it. It needs the declaration's case set carried
   to the point of the check — `mwl_types::EnumTable` has it, nothing in the IR expresses it.
