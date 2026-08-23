@@ -406,6 +406,41 @@ class Deep {
 /// keeps the three from drifting — it is here because this is the only crate
 /// that can see all of them at once.
 #[test]
+fn two_strings_compare_by_bytes_rather_than_by_pointer() {
+    // `Ty::Str` is a pointer, so an `icmp` would compare identity — which is
+    // never what `===` means for a string. Two separately allocated literals
+    // holding the same bytes are the case that catches it.
+    let source = "<?mwl
+class T {
+    public static function same(string $a, string $b): bool { return $a === $b; }
+}
+if (T::same(\"ab\", \"ab\")) { echo \"eq \"; }
+if (T::same(\"ab\", \"ba\")) { echo \"wrong \"; }
+if (\"x\" != \"y\") { echo \"ne\"; }
+";
+    assert_eq!(output_of(source), "eq ne");
+}
+
+#[test]
+fn comparing_against_a_string_literal_in_a_loop_leaks_nothing() {
+    // The literal is a fresh allocation no slot owns, so the comparison has
+    // to release it once it has read it — 20_000 of them otherwise grow the
+    // heap without bound. Stage 6's valgrind leg is what proves the absence;
+    // this proves the program still computes the right answer.
+    let source = "<?mwl
+int $hits = 0;
+int $i = 0;
+string $key = \"bad\";
+while ($i < 20000) {
+    if ($key === \"bad\") { $hits = $hits + 1; }
+    $i = $i + 1;
+}
+echo $hits;
+";
+    assert_eq!(output_of(source), "20000");
+}
+
+#[test]
 fn the_runtime_and_the_compiler_agree_on_every_throwable_slot() {
     use mwl_hir::errors::PROPERTIES;
 

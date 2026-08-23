@@ -2490,7 +2490,12 @@ impl<'a> Lowering<'a> {
                          operators — got {other:?}; see the crate docs' known gaps"
                     ),
                 };
-                self.emit(
+                // A comparison only *reads* its operands, so a refcounted one
+                // that no durable slot owns — a string literal in
+                // `$key === "bad"` is the shape this exists for — is released
+                // right after the instruction reads it, exactly the rule the
+                // `Concat` arm above applies to its own fresh operands.
+                let result = self.emit(
                     cur,
                     ty,
                     InstKind::BinOp {
@@ -2498,7 +2503,16 @@ impl<'a> Lowering<'a> {
                         lhs: lv,
                         rhs: rv,
                     },
-                )
+                );
+                if lty.is_refcounted() {
+                    if !is_aliasing_read(&lhs.kind) {
+                        self.emit_release(cur, lv);
+                    }
+                    if !is_aliasing_read(&rhs.kind) {
+                        self.emit_release(cur, rv);
+                    }
+                }
+                result
             }
             // `new Target(...)` — the constructed class and its resolved
             // constructor (if any) come from `self.exprs`, not from `target`

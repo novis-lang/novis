@@ -18,9 +18,10 @@
 > WSL `cargo fuzz run lex`/`parse` both find zero panics).
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `generics`), `mwl-ir`, `mwl-runtime`
-> (+ `object`, `array`), `mwl-stdlib` (registry + `Core\Arr::count`), `mwl-codegen`, `mwl-cli`, `fuzz/`,
-> `benches/abi-probe`. `mwl-test` starts with its own slice.
+> `mwl-syntax`, `mwl-hir` (+ `errors`), `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `generics`),
+> `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`), `mwl-stdlib` (registry + `Core\Arr::count`/
+> `isEmpty`), `mwl-codegen`, `mwl-cli`, `fuzz/`, `benches/abi-probe`. `mwl-test` starts with its own
+> slice.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -30,15 +31,15 @@
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
 > slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** the exception surface (spec § 10), which needs `instanceof`, a typed `catch` and a second
-> `catch` clause; the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, `static`/`self` as types
-> and late static binding, virtual dispatch, ADR 0043's `by`-delegation, ADR 0014's hooks,
-> `crates/mwl-test` and `mwl test`. Alongside ADR 0009's measurement and 0024/0033's sinks.
+> **Open now:** the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, `static`/`self` as declared
+> types and late static binding, virtual dispatch, generators and ADR 0053's two iteration interfaces,
+> ADR 0043's `by`-delegation, ADR 0014's hooks, `crates/mwl-test` and `mwl test`. Alongside ADR 0009's
+> measurement and 0024/0033's sinks.
 >
-> **Blocking:** nothing external. `examples/arrays.mwl` matches its frozen output on Windows and Linux
-> and is valgrind-clean, so Stage 1's array gate is closed end to end — the ordered hash, `foreach`'s
-> cursor, `unset`, and the Tier 0 path (registry → seeded signature table → type-variable substitution →
-> helper-shaped call). Dispatch stays static: an override through a base-typed local calls the base.
+> **Blocking:** nothing external. Stage 1 is closed for arrays and for exceptions: `examples/errors.mwl`
+> prints its seven frozen lines, and `throw`/`trace`/`uncaught.mwl` keep theirs byte for byte after
+> migrating to spec § 10's object-shaped `Throwable`. Dispatch stays static: an override through a
+> base-typed local calls the base. `objects.mwl`/`enums.mwl` stop at `static` as a declared type.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
