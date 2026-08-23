@@ -24,7 +24,7 @@
 
 > **In short:** PHP's autoloader does two jobs. *"Which file declares this name?"* becomes `autoload`, a
 > top-level declaration with literal paths resolved **relative to the file that declares it** — no manifest
-> file, no walk-up search, no `mwl.ini` directive, and no runtime existence whatsoever. *"Which classes
+> file, no walk-up search, no `mwl.toml` directive, and no runtime existence whatsoever. *"Which classes
 > exist that nothing names?"* — the question a plugin architecture depends on and static resolution cannot
 > answer — becomes `Core\Program::implementing<T>()`, a compile-time query expanding to an array literal of
 > `new` expressions. The first costs one keyword and no new invalidation edge; the second is opt-in, and is
@@ -55,7 +55,7 @@
   this: a file is read only when a name in it is referenced, and nothing references `ADB\Module`.
 - **Where the map lives is a real constraint, not a detail.** A config file under a document root is
   web-reachable; a walk-up search finds the wrong root when many project trees share one framework
-  directory; an `mwl.ini` directive ([ADR 0005](0005-config-changeability.md)) is deployment state, absent
+  directory; an `mwl.toml` directive ([ADR 0005](0005-config-changeability.md)) is deployment state, absent
   from `mwl build --compile` and the browser target, and invisible to an editor running `mwl check`.
 
 ## Decision
@@ -159,7 +159,7 @@ calls is never checked past its declaration and never reaches codegen. **A progr
 
 ### 4. What is deliberately absent
 
-No runtime loader, no registration call, no manifest file, no `mwl.ini` home, no walk-up root search, no
+No runtime loader, no registration call, no manifest file, no `mwl.toml` home, no walk-up root search, no
 classmap, no PSR-0 underscore rule, and no "load these files unconditionally" list (unnecessary — every
 declaration is a class member, [ADR 0011](0011-functions-and-constants-are-class-members.md)). A deployment
 that must exclude a module does not ship its directory; there is no allow/deny list, because a check on
@@ -233,9 +233,13 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   root, and walk-up finds the wrong root when many project trees share one framework directory. It also
   needs a file format, a discovery rule, an `extends` key, and path anchors to express "relative to the
   framework" and "relative to the project" — all of which a declaration in the framework's own bootstrap
-  file gets for free.
-- **An `mwl.ini` `[autoload]` section.** The "current MWL way", and wrong on lifetime: the map is a property
-  of the source tree, not of the deployment, and `mwl.ini` is absent from
+  file gets for free. This rejection is about **discovery and lifetime, not syntax**, and it is untouched by
+  [ADR 0064](0064-configuration-file-format.md) naming the root-owned server configuration `mwl.toml`: that
+  file sits at a path the operator hands the host, is never searched for by walking up from a source file,
+  never lands in or beside a document root, and still may not carry an `[autoload]` table, for the reason in
+  the next bullet.
+- **An `mwl.toml` `[autoload]` section.** The "current MWL way", and wrong on lifetime: the map is a property
+  of the source tree, not of the deployment, and `mwl.toml` is absent from
   `mwl build --compile`, the browser target, and an editor's `mwl check`. It also makes one source tree
   behave differently under two hosts, which the artifact cache would then have to key on. Not rejected
   *forever*: an operator-level block that only *adds* roots could be layered on later without changing
@@ -262,7 +266,7 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   [ADR 0031](0031-callable-is-the-only-closure-type.md)'s *Revisiting*) would let `implementing<T>()` return
   constructor references and let an attributed static method replace the marker interface entirely. This ADR
   is a second concrete forcing case for that deferral, alongside the boxed-cell one.
-- **An operator-level `mwl.ini` block that adds roots** should be reconsidered if a real deployment needs to
+- **An operator-level `mwl.toml` block that adds roots** should be reconsidered if a real deployment needs to
   inject a path without editing source. It composes with this design rather than replacing it.
 - **A selector beyond `implementing<T>`** (by attribute, by base class) should wait for a second real use
   case. One method is the whole API surface until then.

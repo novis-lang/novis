@@ -39,7 +39,7 @@ bytes, and that any `|` inside it is written `\|`; `python .claude/brief.py --ch
 | [0002](0002-error-propagation.md) | Exceptions propagate by checked return, not by unwinding | Accepted |
 | [0003](0003-extension-system.md) | Extensions are sandboxed WebAssembly components, not native shared libraries | Accepted |
 | [0004](0004-memory-for-simplicity.md) | Memory is spent for security, speed and simplicity, in that order | Accepted |
-| [0005](0005-config-changeability.md) | `mwl.ini` states defaults, not ceilings | Accepted |
+| [0005](0005-config-changeability.md) | `mwl.toml` states defaults, not ceilings | Accepted |
 | [0006](0006-isolated-script-execution.md) | Running another script is an in-process isolate, not a subprocess | Accepted |
 | [0007](0007-explicit-type-system.md) | Types are declared, checked, and never change by themselves | Accepted |
 | [0008](0008-static-and-global.md) | `static` marks a class member; there are no function statics and no `global` | Accepted |
@@ -98,6 +98,8 @@ bytes, and that any `|` inside it is written `\|`; `python .claude/brief.py --ch
 | [0061](0061-compile-time-autoload-and-program-discovery.md) | `autoload` maps names to files at compile time; `Core\Program::implementing<T>()` enumerates classes nothing names | Accepted |
 | [0062](0062-case-sensitivity-is-a-compiler-property.md) | Names resolve case-sensitively, reserved spellings are lower case only, and a `require`/`autoload` path must match the on-disk entry exactly | Accepted |
 | [0063](0063-core-api-conventions.md) | Twenty rules fix every `Core` member's shape: subject first, options as one shape, nothing mutates, failure throws, no operation reachable two ways | Accepted |
+| [0064](0064-configuration-file-format.md) | Configuration is TOML in `mwl.toml`; `ini_set` becomes `Core\Config::set` | Accepted |
+| [0065](0065-third-party-attribution-and-mwl-info.md) | Third-party attribution is generated from the dependency graph, committed and embedded in the binary; `mwl info` prints it with the build facts | Accepted |
 
 ## Decisions taken at project start
 
@@ -148,7 +150,8 @@ the single mechanism behind CPU-time limits, client-disconnect cancellation, the
 profiler, debugger breakpoints and later deoptimisation. Retrofitting it would mean rewriting codegen, so
 it is not deferrable.
 
-**Server-level configuration, not per-project.** `mwl.ini` is root-owned, php.ini-style, and per-app
+**Server-level configuration, not per-project.** `mwl.toml` is root-owned, TOML
+([0064](0064-configuration-file-format.md)), and per-app
 capability blocks live in the *root* config so an application can never grant itself rights. What a script
 may change about its own configuration at runtime is per-directive and is argued in
 [0005](0005-config-changeability.md).

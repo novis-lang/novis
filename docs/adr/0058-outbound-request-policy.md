@@ -80,7 +80,7 @@ can resolve into a private range, and because deployment configuration supplies 
 Denied by default: loopback (`127.0.0.0/8`, `::1`), private (`10/8`, `172.16/12`, `192.168/16`,
 `fc00::/7`), **link-local (`169.254.0.0/16`, `fe80::/10`)**, unspecified (`0.0.0.0/8`), and IPv4-mapped
 IPv6 forms of all of the above. An operator grants exceptions explicitly — a service that must reach an
-internal API says so in `mwl.ini`, and that grant is visible in `mwl ext inspect`-style tooling and in
+internal API says so in `mwl.toml`, and that grant is visible in `mwl ext inspect`-style tooling and in
 review.
 
 Link-local is called out because it is the one whose omission is catastrophic rather than merely

@@ -133,6 +133,34 @@ jobs:
         with:
           command: check
 
+  # ---------------------------------------------------------------------------
+  # The other half of `supply-chain`. `cargo deny` decides what MWL may link;
+  # this decides what it must ship. Regenerating the notice and diffing it
+  # catches a dependency added without its licence text — which fails silently
+  # and only at distribution, unlike an unallowed licence, which fails loudly
+  # the moment it enters the tree. Also fails on a licence the generator has no
+  # policy for, so a new one is a decision someone makes rather than a line
+  # that appears in a generated file. See ADR 0065.
+  # ---------------------------------------------------------------------------
+  attribution:
+    name: third-party attribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: none
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      # The generator reads each dependency's own LICENSE file out of its
+      # source, so the sources have to be on disk. `cargo fetch` is enough —
+      # nothing here compiles.
+      - name: Fetch dependency sources
+        run: cargo fetch --locked
+      - name: THIRD-PARTY-LICENSES.txt matches Cargo.lock
+        run: python tools/gen-attribution.py --check
+
   unsafe-audit:
     name: unsafe audit
     runs-on: ubuntu-latest

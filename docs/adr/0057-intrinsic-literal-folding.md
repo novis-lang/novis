@@ -39,7 +39,7 @@
   [ADR 0042](0042-on-disk-artifact-cache-format.md) already stores per-unit compiled artifacts. What is
   missing is only the decision that the compiler may know a few `Core` methods by name.
 - The motivating case is [ADR 0056](0056-regex-engine-policy.md). Deciding a pattern's engine tier at
-  compile time is what lets `mwl check` report — or an operator's `mwl.ini` refuse — a pattern that can be
+  compile time is what lets `mwl check` report — or an operator's `mwl.toml` refuse — a pattern that can be
   made to backtrack. That is a security property, not an optimisation, and it is unavailable without this
   mechanism.
 - The alternative shape considered and rejected in [ADR 0054](0054-decimal-scalar-type.md)'s neighbourhood

@@ -650,6 +650,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 | `Core\Debug` | coverage, tracing, profiling control; the `dump` that replaces `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` | [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
 | `Core\Signal` | graceful shutdown only. What remains of `pcntl_*` after `fork` is refused | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Os` | process and host facts (`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg` | [0051](../adr/0051-standard-library-tiers.md) |
+| `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `mwl.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | [0005](../adr/0005-config-changeability.md), [0064](../adr/0064-configuration-file-format.md) |
 
 ## 17. Documents and formats
 

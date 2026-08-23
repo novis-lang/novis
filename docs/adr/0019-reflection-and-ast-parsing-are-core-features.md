@@ -112,7 +112,7 @@ have — the two are consistent, not competing, descriptions of the same closed 
 ### 5. Neither feature is capability-gated
 
 Both are pure in-memory operations over a program's own compiled shape or its own supplied string — neither
-touches the filesystem, the network, or another process, so neither needs an `mwl.ini` capability grant the
+touches the filesystem, the network, or another process, so neither needs an `mwl.toml` capability grant the
 way `Core\IO` or process execution do ([ADR 0005](0005-config-changeability.md),
 [the plan](../implementation-plan.md) M8). `Core\Ast::parse()` on a string is exactly as ambient-authority-free
 as `Core\Json::decode()` on one.

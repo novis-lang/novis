@@ -18,7 +18,7 @@
 > cannot express — fall to a second, backtracking tier under a **step budget that throws** when exhausted.
 > PHP's equivalent, `pcre.backtrack_limit`, makes `preg_match` return `false`, a falsy value approximately
 > nobody checks, so a denial-of-service mitigation silently becomes a wrong answer. Which tier a **literal**
-> pattern lands in is decided at compile time, so `mwl check` can report — or, under a stricter `mwl.ini`,
+> pattern lands in is decided at compile time, so `mwl check` can report — or, under a stricter `mwl.toml`,
 > refuse — a backtracking pattern on a request path. That is a class of DoS PHP cannot see at all.
 
 ## Context
@@ -51,7 +51,7 @@ The backtracking tier runs under a bounded step count. Exhausting it throws an o
 and never truncates the search. Per [ADR 0020](0020-error-escalation-ladder.md) this is an ordinary throw,
 not a resource-limit fatal — the request may catch it and answer 400.
 
-The budget's default is set in `mwl.ini` under [ADR 0005](0005-config-changeability.md)'s ordinary rules.
+The budget's default is set in `mwl.toml` under [ADR 0005](0005-config-changeability.md)'s ordinary rules.
 The linear tier has no budget, because it needs none.
 
 ### 3. A literal pattern is tiered at compile time
@@ -62,7 +62,7 @@ consequences follow, none of which costs anything at run time:
 
 - **A malformed pattern is a compile error**, not a runtime throw on the first request that reaches it.
 - **The tier is known statically.** `mwl check` reports which patterns require backtracking.
-- **An `mwl.ini` setting can refuse them.** `[regex] backtracking = allow | warn | deny` makes a
+- **An `mwl.toml` setting can refuse them.** `[regex] backtracking = "allow" | "warn" | "deny"` makes a
   backtracking pattern respectively silent, a warning, or a compile-time error. An operator running
   untrusted or high-volume code can set `deny` and know that no request can be made to backtrack at all.
 
@@ -101,7 +101,7 @@ The accepted syntax is PCRE's, across both tiers, with these fixed points:
   rather than mitigating it.
 - **Some existing PHP patterns move to the slower tier**, and a few are refused outright. Migration is
   visible rather than silent: `mwl check` names each one, so a codebase can be audited before it runs.
-- **`[regex] backtracking = deny` is a deployable posture**, not an aspiration — a hosting provider or a
+- **`[regex] backtracking = "deny"` is a deployable posture**, not an aspiration — a hosting provider or a
   high-volume service can adopt it and get a compile-time guarantee. Nothing comparable exists in PHP.
 - **A pattern built from user input now requires an explicit, greppable assertion.** This will surface real
   code that today builds patterns from request data, which is the point.
@@ -129,7 +129,7 @@ The accepted syntax is PCRE's, across both tiers, with these fixed points:
 - **M8:** a fixture per rule. `(a+)+$` against an adversarial subject completes in linear time on the
   linear tier; a pattern with a backreference lands on the backtracking tier and, given an adversarial
   subject, **throws** rather than returning a falsy value; a malformed literal pattern is a compile error;
-  `[regex] backtracking = deny` turns a lookaround pattern into a compile error naming this ADR; a tainted
+  `[regex] backtracking = "deny"` turns a lookaround pattern into a compile error naming this ADR; a tainted
   pattern argument is a compile error while a tainted subject is accepted and produces tainted matches.
 - **M8:** the `preg_*` conformance suite records, per pattern, which tier it lands on, so a future engine
   change that silently moves patterns between tiers is visible in a diff.

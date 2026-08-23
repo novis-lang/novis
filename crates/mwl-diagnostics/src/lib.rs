@@ -541,9 +541,9 @@ pub mod code {
     pub const E_CODEGEN_FAILED: Code = Code::new("E0502");
 
     // --- E06xx configuration and capabilities ------------------------------
-    /// An `mwl.ini` directive that does not exist, or an invalid value.
+    /// An `mwl.toml` directive that does not exist, or an invalid value.
     pub const E_BAD_DIRECTIVE: Code = Code::new("E0601");
-    /// An `ini_set` the directive's changeability class refuses: a `System`
+    /// A `Core\Config::set` the directive's changeability class refuses: a `System`
     /// directive, widening a `RuntimeTighten` one, or exceeding a hard ceiling.
     pub const E_CAPABILITY_DENIED: Code = Code::new("E0602");
     /// A per-request limit was exceeded.

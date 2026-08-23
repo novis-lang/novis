@@ -164,7 +164,7 @@ start on, so other requests scheduled on the same core keep making progress whil
 
 Process execution is deny-by-default, the same as every other syscall-touching stdlib entry point
 ([the plan](../implementation-plan.md)'s M6 paragraph, [ADR 0005](0005-config-changeability.md)):
-`[capabilities] process.exec` is `RuntimeTighten`, off unless `mwl.ini` grants it, and a request may narrow
+`[capabilities] process.exec` is `RuntimeTighten`, off unless `mwl.toml` grants it, and a request may narrow
 it further but never widen it. The exact grant shape (a bare boolean vs. an allowlist of executable
 paths/directories, mirroring `script.spawn`'s canonicalise-then-prefix resolution) is stdlib design due at
 M8, illustrative only here — see *Revisiting*. Calling `run()`/`spawn()` without the grant throws, per

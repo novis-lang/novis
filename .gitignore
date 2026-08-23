@@ -43,8 +43,8 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Local developer config (mwl.ini is server config; keep local overrides out)
-/mwl.local.ini
+# Local developer config (mwl.toml is server config; keep local overrides out)
+/mwl.local.toml
 /.env
 
 # Machine-local agent/tool settings

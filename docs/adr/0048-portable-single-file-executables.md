@@ -84,7 +84,7 @@
 
 This feature ships a runnable *program*, not a deployable *service*. A `mwl build --compile`'d executable is
 a single trust domain — the person who downloads and runs it is the only principal involved, the same as
-running any other native binary — so none of [0005](0005-config-changeability.md)'s root-owned-`mwl.ini`/
+running any other native binary — so none of [0005](0005-config-changeability.md)'s root-owned-`mwl.toml`/
 per-app-capability-block separation applies, because there is no operator-versus-app-author boundary here to
 protect. `mwl serve` is not addressed by this ADR at all: bundling a web-serving deployment this way would
 mean the app's own build step controls what ships as the equivalent of a root-owned config, which is
@@ -226,4 +226,4 @@ M4's usable-CLI-language baseline):
 - A macOS bundle passes Gatekeeper's ad-hoc-signature check out of the box; a Windows/Linux bundle needs no
   such step at all.
 - A `.mwlx` dependency embedded in a bundle behaves identically to one loaded from `extension =` in
-  `mwl.ini` for a plain `mwl run`.
+  `mwl.toml` for a plain `mwl run`.

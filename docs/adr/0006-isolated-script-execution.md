@@ -6,6 +6,8 @@
   `script.spawn` capability, per-tree limit accounting
 - **Validated by:** `benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`
   (`an_os_process_costs_orders_of_magnitude_more_than_a_task`)
+- **Amended by:** [0064](0064-configuration-file-format.md) — the `script.spawn` grant is a TOML array of
+  roots, not a `:`-joined string, which the previous spelling could not express on Windows at all.
 - **Relates to:** [0002](0002-error-propagation.md) (nothing unwinds across the boundary either),
   [0003](0003-extension-system.md) (this is not a sandbox for foreign code),
   [0004](0004-memory-for-simplicity.md) (what an isolate spends),
@@ -148,7 +150,7 @@ isolate does not receive a budget of its own *in addition* to its parent's; it s
   ([0005](0005-config-changeability.md)), **unchanged by isolates**. A request that spawns 50 of them does
   not get 50× the ceiling; it gets one ceiling to divide.
 - `limits:` at the spawn site sets a **sub-cap**: tighter than what remains, never wider. Inside the child,
-  `ini_set` behaves exactly as [0005](0005-config-changeability.md) says — free movement up to the
+  `Core\Config::set` behaves exactly as [0005](0005-config-changeability.md) says — free movement up to the
   `[limits.hard]` ceiling — and the tree's remaining budget is what actually bounds it. A widened limit in
   a child dies with the child, like any other request-local set.
 - Child tasks count against the root's `max_tasks`, child output against the root's `max_output`, child CPU
@@ -168,9 +170,9 @@ wholesale that it did not have before.
 
 Spawning an isolate requires a new deny-by-default grant naming the roots that code may be executed from:
 
-```ini
-[capabilities]
-script.spawn = /srv/www/jobs:/srv/www/app/tasks      # RuntimeTighten
+```toml
+[capabilities]                                       # RuntimeTighten
+script.spawn = ["/srv/www/jobs", "/srv/www/app/tasks"]
 ```
 
 Being able to *read* a file is not permission to *run* it, so `fs.read` does not imply `script.spawn`; the

@@ -8,7 +8,9 @@
 - **Amended by:** [0011](0011-functions-and-constants-are-class-members.md) — Tier 0's "fine-grained
   primitives" are `static` methods on `Core` domain classes, never bare functions; a manifest registers
   classes, whose `static` methods and `const` members the host adds to the symbol table, not functions or
-  constants directly.
+  constants directly. [0064](0064-configuration-file-format.md) — an extension is loaded by an
+  `[[extension]]` entry in `mwl.toml`, not by a repeated `extension =` key in an INI file, so the hash pin
+  is a field of the entry.
 
 > **In short:** third-party extensions are sandboxed WebAssembly components (`.mwlx`), never
 > shared libraries loaded with `dlopen`. Three tiers: built-in (`mwl-stdlib`), wasm component, and
@@ -101,7 +103,7 @@ per-call handle table that the host bounds-checks — and reads through host acc
 ### Extension functions are statically typed
 
 At load time the host reads the manifest — declared classes, with their `static` methods and `const`
-members, and any `mwl.ini` directives the extension wants — and registers them into the compiler's symbol
+members, and any `mwl.toml` directives the extension wants — and registers them into the compiler's symbol
 table. There is no separate function- or constant-shaped registration: an extension follows the same
 class-only shape [ADR 0011](0011-functions-and-constants-are-class-members.md) requires of user code.
 Consequently `mwl check` **type-checks calls into extensions at compile time**, and codegen emits a direct
@@ -109,9 +111,19 @@ call to the extension trampoline rather than a dynamic dispatch. PHP cannot do e
 
 ## Isolation, limits and loading
 
-**Loading is root-controlled.** `extension = image.mwlx` in the root-owned `mwl.ini`, consistent with
-[the server-level configuration decision](README.md). A project cannot cause code to be loaded. Extensions
-may be hash-pinned and signature-verified, since they are precompiled binaries arriving from outside.
+**Loading is root-controlled.** An `[[extension]]` entry in the root-owned `mwl.toml`, consistent with
+[the server-level configuration decision](README.md):
+
+```toml
+[[extension]]
+path   = "image.mwlx"
+sha256 = "…"
+```
+
+A project cannot cause code to be loaded. Extensions may be hash-pinned and signature-verified, since they
+are precompiled binaries arriving from outside — the pin is a field of the entry rather than a naming
+convention over a repeated key, which is one of the reasons
+[0064](0064-configuration-file-format.md) chose a format with an array-of-tables shape.
 
 **A fresh instance per request, created lazily.** Each request gets a pristine instance, so
 **extension state cannot leak between requests** — a guarantee PHP does not offer, where a stateful
@@ -130,7 +142,7 @@ built-in native function currently has.
 
 **No ambient authority.** WASI is *not* granted by default. The guest receives only MWL's own
 capability-checked host functions, so an extension's filesystem and network access is governed by the same
-root-owned `mwl.ini` as script code. WASI is available as an opt-in world whose preopens are derived from
+root-owned `mwl.toml` as script code. WASI is available as an opt-in world whose preopens are derived from
 the capability grants.
 
 **Async composes.** Wasmtime's async support is implemented with stack switching, which is the same

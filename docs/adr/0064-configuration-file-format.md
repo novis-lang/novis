@@ -1,0 +1,212 @@
+# ADR 0064 — Configuration is TOML, in `mwl.toml`
+
+- **Status:** Accepted
+- **Date:** 2026-08-23
+- **Scope:** the on-disk syntax of the root-owned server configuration file, the file's name, and the
+  `Core\Config` accessor that replaces PHP's `ini_set`/`ini_get`/`ini_restore`. It does **not** touch
+  [0005](0005-config-changeability.md)'s directive registry, changeability classes, ceilings or
+  request-local overlay — every one of those is unchanged and still lives only there.
+- **Amends:** [0005](0005-config-changeability.md) — the file is `mwl.toml`, its blocks are TOML tables,
+  and `ini_set`/`ini_get`/`ini_restore` are named `Core\Config::set`/`::get`/`::restore`.
+  [0003](0003-extension-system.md) — `extension = image.mwlx` becomes an `[[extension]]` array-of-tables
+  entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
+  `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+  — `[debug] mode`'s comma-separated string becomes a TOML array.
+- **Amended by:** none.
+- **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (the rename is forced
+  independently: `ini_set` is a free function and MWL has none),
+  [0007](0007-explicit-type-system.md) (nothing is untyped — a configuration format with one value type
+  is the same defect one level down), [0052](0052-closed-doors.md) (a configuration *language* would
+  reopen the `eval` door in the one file read before any sandbox exists),
+  [0061](0061-compile-time-autoload-and-program-discovery.md) § *Alternatives rejected* (which rejected a
+  walked-up `mwl.toml` project manifest — a different file, see § 4).
+
+> **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read once at boot through the
+> `toml` crate and `serde`. INI was inherited from PHP without an argument and does not survive one: it has
+> no specification, so MWL would have to define and fuzz its own dialect, and it has exactly one value
+> type — string — which is the defect [0007](0007-explicit-type-system.md) rejects in the language itself.
+> Four directives the current ADRs already specify are booleans, lists or repeated records encoded as
+> strings; TOML types all four with syntax it already has. `ini_set`/`ini_get`/`ini_restore` become
+> `Core\Config::set`/`::get`/`::restore`, which [0011](0011-functions-and-constants-are-class-members.md)
+> required regardless.
+
+## Context
+
+- `.ini` came from PHP by inheritance, not by decision: `php.ini` is the file an operator recognises. That
+  familiarity is thinner than it looks. MWL's directive set shares almost no key names with `php.ini` —
+  `[limits.hard]`, `[capabilities]`, the per-app blocks, `cache.dir`, `opcache.validate` are all new — so no
+  existing `php.ini` is copy-pastable under any syntax. What actually transfers is the *shape* of a
+  sectioned key/value file, which TOML has too.
+- **There is no INI specification.** `rust-ini`, Python's `configparser`, PHP's own `parse_ini_file` and
+  every editor's highlighter disagree on comment markers (`;` vs `#`), quoting and escapes, whether
+  `[a.b]` nests or is a literal key containing a dot, and what a duplicate key means. Adopting INI means
+  writing that spec, implementing it, fuzzing it and diagnosing it. TOML is one document with one
+  well-exercised pure-Rust implementation.
+- **The configuration is already not all strings.** Four cases exist in the ADRs as written:
+  - `[limits.hard] memory = off` ([0005](0005-config-changeability.md)) — a boolean written as a magic word.
+  - `[debug] mode = coverage,branch,trace,profile`
+    ([0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)) — a list written as a
+    comma-separated string.
+  - `[capabilities] script.spawn = /srv/www/jobs:/srv/www/app/tasks`
+    ([0006](0006-isolated-script-execution.md)) — a list written `PATH`-style. It is **broken on Windows**,
+    where every absolute path contains the separator, and nothing in the ADR noticed because the format
+    offered no shape that would have.
+  - `extension = image.mwlx` plus a hash pin ([0003](0003-extension-system.md)) — a repeated record with
+    two fields, which INI has no shape for at all.
+  Each is a mini-grammar to specify, parse, fuzz and diagnose. TOML has a boolean, an integer, an array and
+  an array-of-tables, all already parsed by the crate.
+
+## Decision
+
+### 1. The file is `mwl.toml`, and it is TOML
+
+Read once at boot into the directive registry through the `toml` crate with `serde` derive. Pure Rust, no
+C, and already inside the dependency set [deny.toml](../../deny.toml) audits, because Cargo's own manifests
+are TOML — this adds no new dependency class.
+
+[ADR 0005](0005-config-changeability.md)'s layout is unchanged; only its spelling moves:
+
+```toml
+[limits]                     # Runtime — what a request starts with
+memory     = "128M"
+cpu_time   = "5s"
+wall_time  = "30s"
+max_tasks  = 64
+max_output = "32M"
+
+[limits.hard]                # System — what one request may raise itself to
+memory     = "2G"
+cpu_time   = "60s"
+wall_time  = "300s"
+max_tasks  = 4096
+max_output = "512M"
+```
+
+A size or a duration stays a **quoted string carrying its suffix** (`"128M"`, `"5s"`) rather than becoming
+a bare integer of implied units: the suffix is what makes the file readable at a glance, and the parser for
+it has to exist anyway for `Core\Config::set("memory", "512M")` (§ 5). A count is an ordinary integer.
+`[limits.hard] memory = off` becomes `memory = false` — "no ceiling" is a boolean, and TOML has one.
+
+### 2. Lists are arrays; repeated records are arrays of tables
+
+```toml
+[debug]                      # RuntimeTighten — the default AND the ceiling in one
+mode = ["coverage", "branch"]          # [] is off
+
+[capabilities]               # RuntimeTighten, deny-by-default
+script.spawn = ["/srv/www/jobs", "/srv/www/app/tasks", "C:\\srv\\jobs"]
+process.exec = true
+debug.trace  = ["/var/log/mwl/trace"]
+
+[[extension]]                # System
+path   = "image.mwlx"
+sha256 = "…"
+```
+
+A capability's name is dotted, and a dotted TOML key *is* table nesting, so `script.spawn` under
+`[capabilities]` and a `[capabilities.script]` block with a `spawn` key are the same thing. The registry
+names a directive by its full dotted path either way, so nothing has to choose between them and neither
+needs quoting.
+
+The `:`-joined root list disappears with its Windows bug, and the extension hash pin gets a shape instead
+of a convention — which matters more than the others, because that pin is what [0003](0003-extension-system.md)
+rests on to accept a precompiled binary from outside.
+
+### 3. A duplicate key is an error, and so is an unknown one
+
+TOML refuses a duplicate key; INI dialects silently take the last one. In a root-owned file where one table
+grants capabilities, a line silently overridden by a later copy of itself is a security-relevant failure
+that costs nothing to refuse. An **unknown** key is refused the same way, with the existing
+`E0601`/`E_BAD_DIRECTIVE` diagnostic naming the line — a typo'd `capabilties` must fail at boot, never read
+as "granted nothing" by accident. Both are `serde`'s default behaviour with `deny_unknown_fields`; neither
+is new machinery.
+
+### 4. `mwl.toml` is not a project manifest
+
+[ADR 0061](0061-compile-time-autoload-and-program-discovery.md) rejected "a manifest file
+(`mwl.toml`/`mwl.json`), found by walking up from the entry file". **That rejection stands**, and it is
+about discovery and lifetime rather than syntax. The file decided here is a single root-owned deployment
+file at a path the operator hands the host: never searched for by walking up from a source file, never
+placed inside or beside a document root, and holding no source-tree state — an `[autoload]` table is still
+refused for exactly the reason ADR 0061 gives. Sharing an extension with `Cargo.toml` is not a collision;
+the name, the location and the owner all differ.
+
+### 5. `ini_set` is `Core\Config::set`
+
+[ADR 0011](0011-functions-and-constants-are-class-members.md) forces this independently of the format —
+`ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are free functions, and MWL has none. The names go
+with the file:
+
+| PHP | MWL |
+|---|---|
+| `ini_set($k, $v)` | `Core\Config::set(string $name, string $value): bool` |
+| `ini_get($k)` | `Core\Config::get(string $name): ?string` |
+| `ini_restore($k)` | `Core\Config::restore(string $name): void` |
+| `ini_get_all()` | `Core\Config::all(): array<string, string>` |
+
+The semantics are exactly [0005](0005-config-changeability.md)'s, unchanged: a set the changeability class
+or a ceiling refuses returns `false` and leaves the value in place, and every accepted change is
+request-local on the copy-on-write overlay.
+
+Values cross this API as `string` in both directions even where the file is typed, because the directive
+*name* is dynamic here and one return type is what makes that possible. The registry parses the string with
+the same parser the boot path uses — the shape [0057](0057-intrinsic-literal-folding.md) already
+establishes, where a prepared and a runtime path cannot diverge because there is one implementation.
+
+## Consequences
+
+- **Cost, as [0004](0004-memory-for-simplicity.md) requires it be stated: none.** The parse is once per
+  process, at boot, over a file measured in kilobytes. No per-request memory, no request-path latency.
+- **What the operator loses:** the `.ini` extension. **What they gain:** editor validation and
+  highlighting that already exists, a parse error that names a line, and a refused duplicate key.
+- **What the implementation loses:** a hand-written dialect parser, a comma-list splitter, a `PATH`-list
+  splitter, an `on`/`off`/`1`/`0`/`yes`/`no` boolean table, and the specification text for all four. M6's
+  config work is smaller by that much, which is priority 4 bought for nothing.
+- **Doc churn is a rename**, done in this change: 0005's layout blocks, 0018's `[debug]` block, 0003's
+  `extension =` line, 0006's `script.spawn` grant, and the prose references in the plan and the two READMEs.
+
+The whole decision is close to free **today** and expensive later: nothing on disk parses configuration yet
+— M6 has not started — so this is a documentation pass. Once M6 ships, changing the format is a breaking
+change for every deployment.
+
+## Alternatives rejected
+
+- **Keep INI.** The status quo, and its one argument is operator familiarity that § *Context* shows is
+  skin-deep. Against it: no specification, one value type, four directives already encoding non-strings as
+  strings, a live Windows bug in one of them, and a dialect MWL would have to own forever.
+- **YAML.** Indentation-significant, and the only candidate with both a parser-CVE record and a documented
+  value ambiguity (`no` parsing as `false`, an unquoted version number as a float). A root-owned file that
+  grants capabilities is the last place to accept a format where a value's *type* depends on how it was
+  typed. Fails priority 1 and priority 4 together.
+- **JSON, or JSONC.** No comments, in a file whose main job is recording why an operator chose a number.
+  JSONC is JSON plus one non-standard extension, which re-enters the no-specification problem INI has.
+- **KDL, RON, HCL.** An operator would meet the format for the first time here, and their editor would not
+  validate it. Nothing any of them offers over TOML is reachable at this file's size.
+- **Dhall, or configuration written in MWL itself.** Both make the configuration file a program.
+  [ADR 0052](0052-closed-doors.md) closed `eval`; a configuration language with functions and imports
+  reopens it in the one file that is root-owned and read before any sandbox exists.
+- **Bare integers with implied units (`memory = 134217728`).** Drops the suffix parser at the cost of a
+  file nobody can edit confidently — and the parser has to exist anyway for `Core\Config::set`.
+- **Accepting both `.ini` and `.toml`.** Two formats to specify, parse and test, so that nobody has to
+  learn one; and a deployment could then hold both with no rule for which wins. Nothing in MWL gets a
+  second spelling ([0015](0015-no-name-aliasing.md) is the same instinct one layer up); configuration is
+  not where to start.
+
+## Revisiting
+
+The format decision is worth reopening only if the `toml` crate leaves the maintained pure-Rust set. TOML's
+one real limitation — array-of-tables syntax gets noisy past two levels of nesting — would bite the per-app
+block layout first, and the answer there is to flatten the layout, which is [0005](0005-config-changeability.md)'s
+question and not this one.
+
+## Verification
+
+In M6, alongside [0005](0005-config-changeability.md)'s own list:
+
+- A `mwl.toml` with a duplicate key is refused at boot, with the line named.
+- An unknown directive is refused (`E0601`), never ignored.
+- `[limits.hard] memory = false` removes the ceiling; `memory = "2G"` enforces it.
+- `[capabilities] script.spawn` given a Windows absolute path (`C:\\srv\\jobs`) resolves as one root — a
+  case the `:`-joined spelling could not express at all.
+- Every shipped default parses identically through the boot path and through
+  `Core\Config::set`, which is what holds the two to one implementation.

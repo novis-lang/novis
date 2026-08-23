@@ -83,7 +83,7 @@ not global, not ambient, dies with the request like every other per-request slot
 ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md)).
 
 It runs with a **reserved slice** of the request's own budget, carved out at request start and unavailable
-to ordinary execution — new `System`-class `mwl.ini` directives, illustrative names
+to ordinary execution — new `System`-class `mwl.toml` directives, illustrative names
 `[limits] fatal_reserve_memory` / `fatal_reserve_time`. `System`, not `Runtime`: this is the request's own
 safety net, and a script choosing its own net's size is exactly the case where the choice most needs to be
 made by someone other than the code that might be about to need it.
@@ -138,7 +138,7 @@ this script drops straight to tier 4, with no second invocation.
 
 Hardcoded in Rust. No script execution — nothing left here that could itself throw, panic, or need a further
 tier, because this is the floor. Writes to an operator-owned, `System`-class sink (illustrative directive
-`[log] target = stderr | file:<path> | syslog`). Fires when `[log] handler` is unset, or tier 3 fails for any
+`[log] target = "stderr" | "file:<path>" | "syslog"`). Fires when `[log] handler` is unset, or tier 3 fails for any
 reason. If even this write fails — a full disk, a broken pipe — the failure is swallowed: there is nothing
 further to escalate to, and the request or isolate still tears down normally regardless. That is a boring,
 explicit answer on purpose: an undefined "what then" at the true floor is worse than a defined "give up."
@@ -174,7 +174,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 
 - **Entry file, at request/isolate start.** No frame ever existed, so tiers 1/2 never had the chance to
   register anything. Reported the same way any `FATAL`-class condition with no registered handler is:
-  straight to tier 3 (if configured) then tier 4. `mwl.ini` (not the never-started script) is what decides
+  straight to tier 3 (if configured) then tier 4. `mwl.toml` (not the never-started script) is what decides
   whether an HTTP response shows a generic page or detail — the request had no code path in which it could
   have decided differently.
 - **Mid-execution**, via `include`/`require` or a `spawn script` target failing after its parent is already
@@ -206,7 +206,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 - One narrow, explicitly-named exception to [ADR 0006](0006-isolated-script-execution.md)'s "an isolate
   spends its parent's budget" rule. Flagged here so it is read as a deliberate carve-out for exactly this
   purpose, not a precedent for isolates getting independent budgets generally.
-- New `mwl.ini` surface: `fatal_reserve_memory`/`fatal_reserve_time`, `[log] handler`,
+- New `mwl.toml` surface: `fatal_reserve_memory`/`fatal_reserve_time`, `[log] handler`,
   `handler_reserve_memory`/`handler_reserve_time`, `[log] target` — a cost against priority 4 (simplicity),
   accepted because the alternative is either an unloggable OOM or a log format that drifts between the engine
   and userland. As [ADR 0004](0004-memory-for-simplicity.md) requires stated: both reserves are small and

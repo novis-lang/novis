@@ -52,7 +52,7 @@ starting point and no build step: change a file, run it.
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
 | Isolates | `spawn script` runs another `.mwl` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/adr/0006-isolated-script-execution.md)) |
-| Config | root-owned `mwl.ini` states defaults; a script may retune its own limits within operator-set ceilings ([ADR 0005](docs/adr/0005-config-changeability.md)) |
+| Config | root-owned `mwl.toml` states defaults; a script may retune its own limits within operator-set ceilings ([ADR 0005](docs/adr/0005-config-changeability.md)) |
 | Serving | built-in HTTP/1.1 + h2c; FastCGI optional and later |
 | Extensions | built-in, sandboxed wasm (`.mwlx`), or statically linked native — never `dlopen` ([ADR 0003](docs/adr/0003-extension-system.md)) |
 
@@ -81,7 +81,7 @@ crates/
   mwl-stdlib        Core domain classes, native builtin static methods                 M4S
   mwl-test          .mwlt runner                                                       M4
   mwl-host          Transport trait, unit cache, the Isolate boundary                  M5
-  mwl-config        mwl.ini registry, changeability classes, overlays                  M6
+  mwl-config        mwl.toml registry, changeability classes, overlays                  M6
   mwl-cache         content-addressed artifact cache                                   M6
   mwl-http          hyper h1 + h2c transport, optional rustls                          M7
   mwl-regex         two-tier engine + `preg_*` layer                                   M8
@@ -150,7 +150,7 @@ behind each design decision — is [docs/implementation-plan.md](docs/implementa
 | M3 | Baseline Cranelift backend → **Hello World** | |
 | M4 | Language completeness, test runner | |
 | M5 | Concurrency: coroutines, channels, workers, script isolates | |
-| M6 | `mwl.ini`, capabilities, limits, artifact cache | |
+| M6 | `mwl.toml`, capabilities, limits, artifact cache | |
 | M7 | Built-in HTTP server | |
 | M8 | Stdlib, database drivers, the `mwl:ext` WIT world | |
 | M9 | Extension system: `.mwlx` loading, sandboxing, `mwl ext` tooling | |
@@ -168,4 +168,23 @@ CLAUDE.md names is right and the other is a bug.
 
 ## Licence
 
-[MIT](LICENSE). Contributions are accepted under the same licence.
+MWL is [MIT](LICENSE). Contributions are accepted under the same licence.
+
+Every third-party component compiled into the `mwl` binary is permissively licensed and attributed in
+[THIRD-PARTY-LICENSES.txt](THIRD-PARTY-LICENSES.txt), with each component's own copyright notice and
+licence text reproduced in full. That file is **generated** from the resolved dependency graph and
+**embedded in the binary**, so a copy of `mwl` carries its notices without the repository:
+
+```sh
+mwl info                # build and host facts, plus every component and its licence
+mwl info --licenses     # the same, plus every licence text in full
+mwl -i                  # the same command, under PHP's spelling
+
+python tools/gen-attribution.py           # regenerate after changing a dependency
+python tools/gen-attribution.py --check   # what CI runs; fails if the notice is stale
+```
+
+The generator fails closed: a licence it has no policy for, or one missing from
+[deny.toml](deny.toml)'s allow list, stops the build instead of quietly omitting a notice. `cargo deny`
+decides what may be *linked*; this decides what must be *shipped*
+([ADR 0065](docs/adr/0065-third-party-attribution-and-mwl-info.md)).

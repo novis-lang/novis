@@ -74,7 +74,7 @@ is single-threaded — an optimisation, not a semantic change, and it must not b
 ### 3. Memory: charged to the core, capped, and stated
 
 Cache memory is **not attributable to a request**. It is charged to the core that holds it and capped by an
-`mwl.ini` directive under [ADR 0005](0005-config-changeability.md)'s ordinary rules; exceeding the cap
+`mwl.toml` directive under [ADR 0005](0005-config-changeability.md)'s ordinary rules; exceeding the cap
 evicts rather than failing an allocation.
 
 Stated in the form [ADR 0004](0004-memory-for-simplicity.md) requires: the local tier costs

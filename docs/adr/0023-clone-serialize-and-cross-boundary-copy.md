@@ -179,7 +179,7 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
 - `clone` keeps its PHP-familiar, genuinely useful shallow behaviour — a ported class that relies on
   clone-then-shared-reference (the common case: cloning a node without cloning what it references) keeps
   working exactly as before.
-- No new capability grant, no new `mwl.ini` directive — existing memory/CPU limits already bound a hostile
+- No new capability grant, no new `mwl.toml` directive — existing memory/CPU limits already bound a hostile
   `unserialize()` payload's cost.
 
 **Negative**

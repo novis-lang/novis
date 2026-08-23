@@ -40,7 +40,8 @@ the same command. A hit is a thirty-second local edit, never a signal that the d
 | Whether a `.mwlx` can be an injection sink or source, `tainted`/`secret` at an extension call, what the manifest may declare | [ADR 0055](docs/adr/0055-extension-qualifier-declarations.md). Holds the only copy of the contagion-by-default rule, the two declarable deviations, the "an extension can never launder" rule, and the monotonicity property that makes the analysis independent of signature verification. |
 | What a `Core` member looks like — argument order, options, failure signalling, naming, mutation, callbacks; whether a PHP built-in survives at all; why there is no procedural twin of a class API | [ADR 0063](docs/adr/0063-core-api-conventions.md). Holds the only copy of the twenty shape rules and the standing reasons a PHP built-in is dropped. The member list itself is [docs/spec/01-core-library.md](docs/spec/01-core-library.md), which is authoritative for every signature. |
 | Weighing memory against safety, speed or simplicity | [ADR 0004](docs/adr/0004-memory-for-simplicity.md) |
-| `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
+| `mwl.toml`, `Core\Config::set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
+| The config file's *format* — why TOML and not INI/YAML/JSON, how a list/boolean/hash-pin is spelled, what `ini_set` is called now, or whether `mwl.toml` is a project manifest | [ADR 0064](docs/adr/0064-configuration-file-format.md). Holds the only copy of the format decision, the duplicate-and-unknown-key refusal, the `Core\Config` signatures, and why ADR 0061's rejected walked-up manifest is a different file. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
 | Caching between requests, APCu, `Core\Cache`, why a cached value is copied, what cache memory is charged to | [ADR 0059](docs/adr/0059-cross-request-state-is-explicit.md). Holds the only copy of the local/shared tier split, the copy-in/copy-out rule, and the O(cores × working set) cost statement. |
 | `include`/`require`, loading another file into the current frame | [ADR 0021](docs/adr/0021-single-file-inclusion-construct.md). Holds the only copy of the rule that `require` is the one surviving spelling — `include`, `include_once` and `require_once` are all rejected with a diagnostic naming it. |
@@ -81,7 +82,7 @@ the same command. A hit is a thirty-second local edit, never a signal that the d
 | Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [ADR 0014](docs/adr/0014-property-observer.md). Holds the only copy of the rule that a property access runs its own hook first and a declared `PropertyObserver` second; accessing an undeclared property is always a hard error, and `__call`/`__callStatic` are not implemented at all. |
 | `class_alias`, `use … as …`, or a `type` alias | [ADR 0015](docs/adr/0015-no-name-aliasing.md). Holds the only copy of the rule that nothing gets a second runtime-reachable name — `class_alias` does not exist and import renaming is rejected — while a `type` alias is kept as a distinct, compile-time-only synonym for a type expression, never for a single bare class. |
 | `trait`, horizontal code reuse, mixins, `insteadof`, why a shared-behavior interface has method bodies, or how a PHP trait migrates | [ADR 0043](docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md). Holds the only copy of the rule that `trait` does not exist at all — an `interface` method may carry a `public` (default, inherited/overridable) or `private` (internal-helper) body for shared behavior, and `implements Interface by $field;` delegates shared state to an ordinary property — with one conflict rule (an explicit override, always; there is no `insteadof`) covering both, and the full `mwl convert` migration path for every PHP trait shape. |
-| Code coverage, call tracing, the deterministic per-call profiler, `Core\Debug`, or the `[debug]` `mwl.ini` section | [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md). Holds the only copy of the probe mechanism and why it is safepoint-shaped rather than a second compiled tier; step debugging (`mwl dap`) and the sampling flamegraph profiler stay in [ADR 0016](docs/adr/0016-ide-integration.md) instead. |
+| Code coverage, call tracing, the deterministic per-call profiler, `Core\Debug`, or the `[debug]` `mwl.toml` section | [ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md). Holds the only copy of the probe mechanism and why it is safepoint-shaped rather than a second compiled tier; step debugging (`mwl dap`) and the sampling flamegraph profiler stay in [ADR 0016](docs/adr/0016-ide-integration.md) instead. |
 | A scrollable timeline/flame-chart view combining calls with GC pauses and isolate-spawn boundaries, the `kind` field on a trace event, or exporting a trace/profile to speedscope | [ADR 0041](docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md). Holds the only copy of the `call`/`gc`/`spawn` event taxonomy, why the GC/spawn instrumentation costs nothing on the per-statement/per-call hot path ADR 0018 already measures, and the speedscope-evented export alongside ADR 0018's Clover/lcov/Callgrind/NDJSON output. |
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, or any runtime introspection/parsing surface | [ADR 0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md). Holds the only copy of the rule that both are built-in `Core` features, not extensions — reflective access enforces the same visibility/hook checks as ordinary code (no `setAccessible(true)`), and a parsed AST is inert typed data with no path back into execution. |
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, compile-error reporting, `Core\Fatal`, `Core\Log`, or anything about what gets logged when a handler itself fails | [ADR 0020](docs/adr/0020-error-escalation-ladder.md). Holds the only copy of the four-tier escalation ladder, why a resource-limit report is not a `Throwable`, and why every tier is zero-retry. |
@@ -94,6 +95,7 @@ the same command. A hit is a thirty-second local edit, never a signal that the d
 | The VS Code extension, the PhpStorm plugin, `mwl-lsp`/`mwl-fmt` client wiring, syntax highlighting, or what "IDE integration" does and doesn't cover yet | [ADR 0016](docs/adr/0016-ide-integration.md). Holds the only copy of the rule that language smarts and formatting live exactly once, in `mwl-lsp`/`mwl-fmt`, with a thin client per editor — PhpStorm's LSP-bridge-before-native phasing and the deferred debugger-UI wiring are both decided there, not left to be inferred from M10's task list. |
 | `mwl fmt`'s formatting rules — indentation, brace placement, quoting, trailing commas, modifier/import order, or why it never reflows a wrapped expression | [ADR 0039](docs/adr/0039-canonical-code-formatting.md). Holds the only copy of the PER-based style, the no-reflow (gofmt, not Prettier) model, and the rule that formatting is unconfigurable and never enforced by the compiler — `mwl fmt --check` is opt-in, not a diagnostic. |
 | The VS Code extension's deep feature catalog (inspections, refactorings, Test Explorer/coverage, AST panel, profiler view, debugger UI wiring), why a minimal `mwl-lsp` ships in milestone M4B instead of M10, or `mwl-syntax`'s resilient/error-recovering parse mode | [ADR 0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md). Holds the only copy of which VS Code feature is staged behind which milestone/ADR, and the rule that `mwl-syntax` keeps its strict whole-file parse for `mwl check`/`mwl run` while exposing a second, lossless, error-tolerant entry point used only by editor tooling. PhpStorm is untouched — it stays exactly at [ADR 0016](docs/adr/0016-ide-integration.md)'s scope. |
+| Third-party licenses, attribution, `THIRD-PARTY-LICENSES.txt`, what `mwl info`/`mwl -i` prints, or whether a new dependency's license may ship | [ADR 0065](docs/adr/0065-third-party-attribution-and-mwl-info.md). Holds the only copy of the generate-commit-embed rule, the fail-closed properties of `tools/gen-attribution.py`, the dual-license preference order, and the `mwl info` surface. [deny.toml](deny.toml) stays authoritative for what may be *linked*; this decides what must be *shipped*. |
 | A decision with no ADR — thread-per-core, value layout, safepoints, the unit cache, shared-nothing requests | [docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start* for **why**; the plan's § *Architecture* for the **mechanics**. That split is deliberate. |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](benches/abi-probe/). The tests are the source of truth; docs quote them and can lag. |
 | Cross-machine/OS performance history, callgrind instruction counts, the perf dashboard, or why CI regression guards use wall-clock ratios instead of that history | [ADR 0026](docs/adr/0026-performance-measurement-methodology.md). Holds the only copy of the split between per-PR wall-clock regression guards (unchanged) and the merge-to-`main` callgrind-based historical dashboard, and why each metric was chosen. |
@@ -182,7 +184,7 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   ([ADR 0017](docs/adr/0017-hot-reload-without-restart.md)).
 - **Coverage, tracing and profiling are always-emitted, flag-gated probes, never a second compiled tier** —
   they must be start/stoppable mid-request, and `[debug] mode` is `RuntimeTighten` so no request can turn on
-  more observability than the operator's `mwl.ini` ceiling allows ([ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)).
+  more observability than the operator's `mwl.toml` ceiling allows ([ADR 0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)).
 - **Architecture assumptions are tested, not remembered.** [benches/abi-probe/](benches/abi-probe/) guards
   the ABI, coroutine, sandbox and cost claims on every CI run. If a change makes one of those tests fail,
   the ADR it points at needs revisiting — do not adjust the threshold to make it pass.
@@ -199,7 +201,7 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   and runs every time it is reached, so no second spelling was needed for either axis
   ([ADR 0021](docs/adr/0021-single-file-inclusion-construct.md)).
 - **A name reaches its file through a compile-time `autoload` declaration, never a runtime loader** — paths
-  resolve relative to the file that declares it, so no manifest, walk-up search or `mwl.ini` directive is
+  resolve relative to the file that declares it, so no manifest, walk-up search or `mwl.toml` directive is
   involved; a file reached that way declares exactly one thing, and `Core\Program::implementing<T>()` is the
   one query answering what nothing references by name — the only thing in MWL that makes a compiled unit
   depend on a directory's contents ([ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md)).
@@ -331,6 +333,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   failure throws and absence is `?T`** — and no operation is ever reachable two ways: no procedural twin of
   a class API, no mutable/immutable type pair, no `from`/`tryFrom` pair, no methods on scalars or
   `array<T>` ([ADR 0063](docs/adr/0063-core-api-conventions.md)).
+- **Every third-party notice MWL owes is generated, committed and embedded in the binary** — a
+  dependency added without its license text fails CI rather than shipping unattributed, and `mwl info`
+  (`mwl -i`) prints the build facts plus the component table, `--licenses` the full texts
+  ([ADR 0065](docs/adr/0065-third-party-attribution-and-mwl-info.md)).
 - **Four doors stay shut: no FFI, no stream wrappers, no cross-request state, no `eval`** — each rejected
   from a commitment already made rather than on taste, and none has an opt-in, an ini flag or a trusted
   mode ([ADR 0052](docs/adr/0052-closed-doors.md)).
@@ -363,6 +369,12 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   — the local tier may lose any entry at any time and is never coherent across cores, `Core\Session` may
   not use it, and the memory it spends is O(cores × working set) under its own cap
   ([ADR 0059](docs/adr/0059-cross-request-state-is-explicit.md)).
+- **Configuration is TOML, in a root-owned `mwl.toml`, read once at boot through `serde`** — a duplicate or
+  unknown key is refused rather than silently taking the last one, a list is a real array and a ceiling's
+  "off" a real boolean, and PHP's `ini_set`/`ini_get`/`ini_restore` are `Core\Config::set`/`::get`/
+  `::restore`; `mwl.toml` is never the walked-up project manifest
+  [ADR 0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md) rejected
+  ([ADR 0064](docs/adr/0064-configuration-file-format.md)).
 - **A closed four-entry roster of application-layer security protocols lives in `Core`** — signed cookies,
   CSRF, TOTP and JWT, each correct by construction (a JWT's algorithm comes from the key, never the token);
   stateless token operations are in, multi-step flows like OAuth and WebAuthn are permanently out

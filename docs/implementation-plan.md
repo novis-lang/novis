@@ -105,7 +105,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Templating | `<?mwl … ?>` inline-HTML mode, `<?= ?>` short echo, `.mwl` extension. Explicit escaping (not auto) |
 | Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
-| Security | Server-level `mwl.ini`, root-owned, php.ini-style, deny-by-default capabilities + hard per-request limits ([ADR 0005](adr/0005-config-changeability.md)) |
+| Security | Server-level `mwl.toml`, root-owned, TOML ([ADR 0064](adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](adr/0005-config-changeability.md)) |
 | Serving | Built-in HTTP/1.1 + h2c server. FastCGI deferred to optional transport. HTTP/3 out of scope |
 | Databases | MySQL/MariaDB, PostgreSQL, SQLite, MS SQL Server |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
@@ -338,16 +338,18 @@ request *is* the root isolate of its tree. The server path (M7) and the `spawn s
 share one arena setup, one teardown, one place limits are enforced — and one state-bleed test suite. That
 is why isolates land in M5, before the server that depends on them.
 
-### `mwl.ini` — server-level, root-owned
+### `mwl.toml` — server-level, root-owned
 
-php.ini-style directive registry, root-owned, with per-app capability blocks living in the *root* config so
-an application can never grant itself rights. `mwl.ini` states **defaults, not ceilings**: a directive is a
+A directive registry in a root-owned TOML file, with per-app capability blocks living in the *root* config so
+an application can never grant itself rights. `mwl.toml` states **defaults, not ceilings**: a directive is a
 limit that cannot be exceeded only when it cannot be changed at runtime at all. Each directive carries one
 of three changeability classes — `System`, `Runtime`, `RuntimeTighten`.
 
 [ADR 0005](adr/0005-config-changeability.md) holds the only copy of the directive layout: the classes and
 why each is argued per directive, the `[core]`, `[limits]`, `[limits.hard]`, `[capabilities]` and `[app]`
-sections, and the `ini_set`/`ini_get`/`ini_restore` overlay rules. Do not restate it here.
+tables, and the `Core\Config::set`/`::get`/`::restore` overlay rules.
+[ADR 0064](adr/0064-configuration-file-format.md) holds the only copy of why the file is TOML rather than
+INI, and of the `Core\Config` signatures. Do not restate either here.
 
 Two cross-cutting consequences the milestones below depend on:
 
@@ -666,8 +668,9 @@ or that name a class whose declared properties no longer match, are refused rath
 ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)).
 
 ### M6 — Config, limits, capabilities, disk cache (~3 weeks)
-Directive registry with changeability classes, boot config parsing, per-request overlay, `ini_set`
-semantics, capability enforcement at every syscall-touching stdlib entry point, safepoint-driven limit
+Directive registry with changeability classes, boot config parsing (TOML via `serde`, with duplicate and
+unknown keys refused — [ADR 0064](adr/0064-configuration-file-format.md)), per-request overlay,
+`Core\Config::set` semantics, capability enforcement at every syscall-touching stdlib entry point, safepoint-driven limit
 enforcement, content-addressed artifact cache with integrity verification and a refusal to use a
 world-writable cache directory — the exact file layout, header format, mmap-verify-then-execute read path
 and probabilistic eviction sweep are already decided in [ADR 0042](adr/0042-on-disk-artifact-cache-format.md);
@@ -685,7 +688,7 @@ web-serving deployment is explicitly out of scope are all in
 [ADR 0048](adr/0048-portable-single-file-executables.md), the only copy of the reasoning.
 
 **Verify:** adversarial suite — a script attempting to widen a capability or set a `System` directive
-fails; `ini_set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
+fails; `Core\Config::set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
 `[limits.hard]` ceiling returns `false` with the previous value intact, and is invisible to the next request
 on the same core; memory/CPU caps terminate runaway scripts as a `FATAL`, reported to `Core\Fatal::onLimit`
 if registered and never to an ordinary `catch` ([ADR 0020](adr/0020-error-escalation-ladder.md)); warm-cache
@@ -819,7 +822,7 @@ with a manifest attempting the laundering form ADR 0055 § 3 says does not exist
 time — the WIT host
 implementation, per-call handle tables for value access, lazy per-request instantiation on the pooling
 allocator, epoch-interruption wiring to the per-request CPU cap, `StoreLimits` wiring to the memory cap,
-the capability bridge (no ambient authority; optional WASI world with preopens derived from `mwl.ini`
+the capability bridge (no ambient authority; optional WASI world with preopens derived from `mwl.toml`
 grants), hash pinning and signature verification, and compiled-module caching in the existing
 content-addressed artifact cache.
 
@@ -847,7 +850,7 @@ workspace-wide symbol search, incremental reparse, rename, and code actions; `mw
 breakpoints plus deopt-to-debug in codegen; a sampling profiler, emitting output in the open speedscope
 format so it opens in existing viewers rather than a bespoke flamegraph renderer
 ([ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md)); `mwl pkg` with lockfile, semver
-resolution and a registry. Also here: `Core\Debug`, the `[debug]` `mwl.ini` section and
+resolution and a registry. Also here: `Core\Debug`, the `[debug]` `mwl.toml` section and
 `debug.trace`/`debug.profile` capabilities, and the Clover/lcov/Callgrind exporters wired to `mwl test
 --coverage=…` and `mwl run --profile=…` — the developer-facing coverage/tracing/profiling feature whose
 probe mechanism landed with M3

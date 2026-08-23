@@ -93,8 +93,8 @@ This closes two things that look unrelated and are the same violation:
   touch is not thread-local. The environment is read-only after startup, and locale, scale and timezone are
   always explicit arguments.
 
-This does not close operator configuration. [ADR 0005](0005-config-changeability.md)'s `mwl.ini` and
-`ini_set` are governed, per-request, and cannot widen an operator's ceiling; that is a different mechanism
+This does not close operator configuration. [ADR 0005](0005-config-changeability.md)'s `mwl.toml` and
+`Core\Config::set` are governed, per-request, and cannot widen an operator's ceiling; that is a different mechanism
 with a different threat model. The rule is about **userland calls whose effect outlives or escapes the
 caller's own request**.
 

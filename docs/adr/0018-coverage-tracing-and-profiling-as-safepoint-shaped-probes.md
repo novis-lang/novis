@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
-- **Scope:** `Core\Debug`, the `[debug]` `mwl.ini` section, the `debug.trace`/`debug.profile` capabilities,
+- **Scope:** `Core\Debug`, the `[debug]` `mwl.toml` section, the `debug.trace`/`debug.profile` capabilities,
   the probe-emission points added to `mwl-codegen`, the `Ctx` fields that back them, and the coverage/trace/
   profile output formats
 - **Relates to:** [0002](0002-error-propagation.md) (`emit_call()` is the one place a trace/profile probe
@@ -13,13 +13,15 @@
   same copy-out rule `value`/`error`/`usage` already use — not an amendment, since 0006 left that surface
   provisional pending M5), [0016](0016-ide-integration.md) (`mwl dap` and the M10 sampling profiler are a
   different, already-decided mechanism this one is designed to sit beside, not replace)
-- **Amended by:** [0041](0041-timeline-export-and-gc-spawn-trace-events.md) — adds a `kind` tag to trace
+- **Amended by:** [0064](0064-configuration-file-format.md) — `[debug] mode` is a TOML array of mode names
+  (`[]` is off), not a comma-separated string, and `ini_set` is spelled `Core\Config::set`.
+  [0041](0041-timeline-export-and-gc-spawn-trace-events.md) — adds a `kind` tag to trace
   events (`call`/`gc`/`spawn`), instruments the cycle collector's run routine and the three isolate-spawn/
   join routines (none of which this ADR's probes cover), and adds a speedscope-evented export alongside the
   Clover/lcov/Callgrind/NDJSON formats named here.
 
 > **In short:** MWL gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
-> deterministic per-call profiler — enabled with one `mwl.ini` directive or one `Core\Debug` call, exported
+> deterministic per-call profiler — enabled with one `mwl.toml` directive or one `Core\Debug` call, exported
 > as Clover/lcov (coverage) and Callgrind (profiling) so existing PHP-ecosystem tooling reads MWL's output
 > with no new client. The mechanism is **not** a second, instrumented compiled tier: it is a small,
 > always-present, per-request debug-flags check at each probe site — the same shape as the safepoint poll
@@ -107,19 +109,20 @@ is bounded by nothing this ADR needs to invent, because nothing accumulates.
 
 ### `[debug] mode` is `RuntimeTighten`, and writing a trace or profile is its own capability
 
-```ini
-[debug]                       ; RuntimeTighten — mwl.ini states the default AND the ceiling in one
-mode = off                    ; off | any comma-combination of: coverage, branch, trace, profile
+```toml
+[debug]                       # RuntimeTighten — mwl.toml states the default AND the ceiling in one
+mode = []                     # [] is off; any subset of: "coverage", "branch", "trace", "profile"
 
-[capabilities]
-debug.trace   = /var/log/mwl/trace     ; RuntimeTighten, deny-by-default — same shape as script.spawn
-debug.profile = /var/log/mwl/profile
+[capabilities]                # RuntimeTighten, deny-by-default — same shape as script.spawn
+debug.trace   = ["/var/log/mwl/trace"]
+debug.profile = ["/var/log/mwl/profile"]
 ```
 
 `[debug] mode` reuses [ADR 0005](0005-config-changeability.md)'s existing three-class directive model with
-no new mechanism: a production `mwl.ini` sets `mode = off` and no request-side call can ever turn any bit
-on, because `RuntimeTighten` only narrows; a development or CI host's `mwl.ini` sets a wider ceiling (say
-`coverage,branch,trace,profile`) and a specific test run may narrow further via `Core\Debug` or `ini_set`.
+no new mechanism: a production `mwl.toml` sets `mode = []` and no request-side call can ever turn any bit
+on, because `RuntimeTighten` only narrows; a development or CI host's `mwl.toml` sets a wider ceiling (say
+`["coverage", "branch", "trace", "profile"]`) and a specific test run may narrow further via `Core\Debug` or
+`Core\Config::set`.
 This is deliberately the same class capability grants already use, and for the same reason
 [ADR 0017](0017-hot-reload-without-restart.md) makes `opcache.validate` `System`-class: whether a running
 request's internals are observable is not a request-local decision, because an attacker-controlled request
@@ -264,5 +267,5 @@ Verification, in the order it becomes possible:
   produces a file KCachegrind/Webgrind opens and attributes time to the right MWL functions; `debug.trace`
   refuses a sink path outside its granted roots, including via `..`, the same test shape
   [ADR 0006](0006-isolated-script-execution.md) already runs for `script.spawn`; a production-shaped
-  `mwl.ini` (`[debug] mode = off`) makes every `Core\Debug::start*()` call a no-op regardless of what the
+  `mwl.toml` (`[debug] mode = []`) makes every `Core\Debug::start*()` call a no-op regardless of what the
   request's own code asks for.

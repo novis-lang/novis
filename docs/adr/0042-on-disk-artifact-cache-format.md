@@ -202,7 +202,7 @@ re-litigated further here since M9 has not started.
   ownership changes *after* the process has already started (a shared, long-lived host reconfigured under a
   running `mwl serve`) is not re-checked mid-run. Accepted as consistent with every other `System`-class
   directive: boot-time configuration is trusted for the life of the process, exactly as
-  [ADR 0005](0005-config-changeability.md) already establishes for the rest of `mwl.ini`.
+  [ADR 0005](0005-config-changeability.md) already establishes for the rest of `mwl.toml`.
 - Probabilistic eviction means the cache can transiently exceed its configured cap between the misses that
   happen to trigger a sweep — bounded by how unlikely a long silent stretch of pure cache hits is in
   practice, and correctable at any time with the explicit `mwl cache gc` escape hatch.
