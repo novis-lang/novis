@@ -75,6 +75,53 @@ pub struct MethodSig {
     pub interface_private: bool,
 }
 
+impl MethodSig {
+    /// The parameter type at `index`, following the variadic rule: every
+    /// argument from the last parameter's position onward is checked against
+    /// that parameter's own type. `None` for an index past a non-variadic
+    /// signature's parameters, which the arity check has already reported.
+    #[must_use]
+    pub fn param_at(&self, index: usize) -> Option<TypeId> {
+        if self.variadic && index >= self.params.len().saturating_sub(1) {
+            return self.params.last().copied();
+        }
+        self.params.get(index).copied()
+    }
+
+    /// Whether this signature mentions a type variable anywhere — the test
+    /// that decides whether a call site needs [`crate::generics`] at all.
+    /// Always false for a user-declared signature: ADR 0007 parks
+    /// user-declared generics, so only a `Core` member registered through
+    /// [`crate::core_lib`] can answer true.
+    #[must_use]
+    pub fn is_generic(&self, interner: &crate::ty::TypeInterner) -> bool {
+        self.params
+            .iter()
+            .chain(std::iter::once(&self.return_ty))
+            .any(|id| crate::generics::mentions_type_var(*id, interner))
+    }
+
+    /// This signature with `bindings` applied to every parameter and to the
+    /// return type — see [`crate::generics`] for the binding rule and for why
+    /// an unbound variable becomes `mixed`.
+    #[must_use]
+    pub(crate) fn substituted(
+        self,
+        bindings: &crate::generics::Bindings,
+        interner: &mut crate::ty::TypeInterner,
+    ) -> Self {
+        Self {
+            params: self
+                .params
+                .iter()
+                .map(|id| crate::generics::substitute(*id, bindings, interner))
+                .collect(),
+            return_ty: crate::generics::substitute(self.return_ty, bindings, interner),
+            ..self
+        }
+    }
+}
+
 /// One class/interface/enum's own directly-declared property types and
 /// method signatures — never anything pulled in via `extends`/`implements`;
 /// walking those is [`resolve_property`]/[`resolve_method`]'s job, done at
@@ -123,6 +170,16 @@ impl SignatureTable {
     fn entry(&mut self, qname: QName) -> &mut ClassSignature {
         self.by_class.entry(qname).or_default()
     }
+
+    /// Installs a whole class's method signatures at once, with no properties
+    /// and no constructor obligations — the one shape a *native* declaration
+    /// has, since [`crate::core_lib`] is the only caller and a `Core` class
+    /// has no source text to collect either from. Deliberately not a general
+    /// insertion point: everything else goes through [`build_signatures`]'s
+    /// own walk.
+    pub(crate) fn seed_class(&mut self, qname: QName, methods: FxHashMap<String, MethodSig>) {
+        self.entry(qname).methods = methods;
+    }
 }
 
 /// Builds a [`SignatureTable`] for every class/interface/enum declared in
@@ -146,6 +203,9 @@ pub fn build_signatures(
     diags: &mut Diagnostics,
 ) -> SignatureTable {
     let mut table = SignatureTable::default();
+    // `Core` first, so a user declaration can never be collected under a name
+    // the stdlib already owns without the later insertion being visible.
+    crate::core_lib::seed(&mut table, interner);
     let placeholder = SignatureTable::default();
     // Same placeholder idea as `signatures` above: signature collection only
     // ever lowers property/parameter/return *type annotations*, never a call

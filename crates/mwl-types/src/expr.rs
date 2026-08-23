@@ -727,7 +727,7 @@ fn infer(
                 _ => None,
             };
             let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
-            check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // ADR 0027: `$obj->method(...)` (first-class callable syntax)
             // names a `Closure` value, not the method's return type — the
             // sentinel `CallArgs::FirstClassCallable` marks exactly this
@@ -738,7 +738,11 @@ fn infer(
             // `mwl-ir` needs this call's resolved target (not just its return
             // type) to lower an eventual instance-call instruction — see
             // `crate::expr_table`'s own module docs.
-            if let Some((qname, name, sig)) = &resolved {
+            // The *substituted* signature, never the one `resolve_method`
+            // returned: `crate::generics` guarantees a type variable never
+            // survives a call site, and this record is the one thing that
+            // carries a signature past it.
+            if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
                 env.exprs.record(
                     expr.span,
                     ExprInfo::Call(resolved_call(qname.clone(), name.clone(), sig)),
@@ -777,7 +781,7 @@ fn infer(
                 _ => None,
             };
             let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
-            check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // See the `MethodCall` arm above: first-class callable syntax
             // names a `Closure`, not the resolved method's return type.
             if matches!(args, CallArgs::FirstClassCallable) {
@@ -785,7 +789,11 @@ fn infer(
             }
             // See the `MethodCall` arm above: persisted for `mwl-ir` to read
             // back a resolved static call's target.
-            if let Some((qname, name, sig)) = &resolved {
+            // The *substituted* signature, never the one `resolve_method`
+            // returned: `crate::generics` guarantees a type variable never
+            // survives a call site, and this record is the one thing that
+            // carries a signature past it.
+            if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
                 env.exprs.record(
                     expr.span,
                     ExprInfo::Call(resolved_call(qname.clone(), name.clone(), sig)),
@@ -863,7 +871,7 @@ fn infer(
             let sig = target_qname.clone().and_then(|qname| {
                 resolve_method(&qname, "constructor", env.signatures, env.graph).map(|(_, sig)| sig)
             });
-            let arg_types = check_args_typed(args, sig.as_ref(), expr.span, live, scope, ctx, env);
+            let (arg_types, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             if let Some(qname) = &target_qname {
                 reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
                 // `mwl-ir` needs the constructed class and its resolved
@@ -1619,27 +1627,29 @@ fn check_interface_private_visibility(
 /// second, diagnostic-duplicating pass over the same expression.
 fn check_args_typed(
     args: &CallArgs,
-    sig: Option<&MethodSig>,
+    sig: Option<MethodSig>,
     call_span: Span,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> Vec<TypeId> {
+) -> (Vec<TypeId>, Option<MethodSig>) {
     let CallArgs::List(list) = args else {
-        return Vec::new();
+        return (Vec::new(), sig);
     };
     let Some(sig) = sig else {
-        return list
+        let types = list
             .iter()
             .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
             .collect();
+        return (types, None);
     };
     if list.iter().any(|a| a.name.is_some() || a.spread) {
-        return list
+        let types = list
             .iter()
             .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
             .collect();
+        return (types, Some(sig));
     }
     if !sig.variadic && list.len() != sig.params.len() {
         env.diags.report(
@@ -1654,6 +1664,9 @@ fn check_args_typed(
             .with_primary(call_span, "called here"),
         );
     }
+    if sig.is_generic(env.interner) {
+        return check_generic_args(list, sig, live, scope, ctx, env);
+    }
     let last_param_index = sig.params.len().saturating_sub(1);
     let mut arg_types = Vec::with_capacity(list.len());
     for (i, arg) in list.iter().enumerate() {
@@ -1664,7 +1677,50 @@ fn check_args_typed(
         };
         arg_types.push(check_expr(&arg.value, expected, live, scope, ctx, env));
     }
-    arg_types
+    (arg_types, Some(sig))
+}
+
+/// [`check_args_typed`] for a signature that mentions a type variable, which
+/// today means a `Core` member and nothing else ([`crate::generics`] owns
+/// why).
+///
+/// The ordering is the whole content: a variable's value *is* an argument's
+/// type, so there is nothing to check an argument against until every
+/// argument has been inferred. Each one is therefore checked with no
+/// expectation first -- which is also the honest expectation for a position
+/// whose declared type is still open -- then the bindings are read off, the
+/// signature is rewritten concrete, and only then is each argument checked for
+/// assignability against its now-known parameter type. One pass over the
+/// arguments, so nothing is diagnosed twice.
+fn check_generic_args(
+    list: &[Arg],
+    sig: MethodSig,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> (Vec<TypeId>, Option<MethodSig>) {
+    let arg_types: Vec<TypeId> = list
+        .iter()
+        .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
+        .collect();
+
+    let mut bindings = crate::generics::Bindings::default();
+    for (index, actual) in arg_types.iter().enumerate() {
+        if let Some(declared) = sig.param_at(index) {
+            crate::generics::bind(declared, *actual, env.interner, &mut bindings);
+        }
+    }
+    let sig = sig.substituted(&bindings, env.interner);
+
+    for (index, (arg, actual)) in list.iter().zip(&arg_types).enumerate() {
+        if let Some(declared) = sig.param_at(index)
+            && !is_assignable(*actual, declared, env.interner, env.graph, env.signatures)
+        {
+            report_mismatch(arg.value.span, declared, *actual, env);
+        }
+    }
+    (arg_types, Some(sig))
 }
 
 /// Whether `qname` names one of ADR 0020 § 0's three global exception

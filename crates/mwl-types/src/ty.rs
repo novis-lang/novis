@@ -93,6 +93,25 @@ pub enum Ty {
     Union(Vec<TypeId>),
     /// `A&B&...` — same canonicalization as [`Self::Union`].
     Intersection(Vec<TypeId>),
+    /// A *type variable*, named — `T` in `Core\Arr::count(array<T> $a): uint`.
+    ///
+    /// The one type in this enum no source text can spell. ADR 0007 parks
+    /// user-declared generics and `.claude/loop-goal.md` keeps type variables
+    /// compiler-owned, so a `TypeVar` only ever enters the interner from
+    /// `mwl_stdlib::registry`'s `Core` signatures — [`crate::lower`] has no
+    /// arm producing one, which is what makes that a property of the code
+    /// rather than a convention.
+    ///
+    /// It never survives a call site. [`crate::signatures::MethodSig`]'s own
+    /// docs own the substitution rule: a generic signature is unified against
+    /// the actual argument types and rewritten before anything checks an
+    /// argument or records a `ResolvedCall`, so every later pass — including
+    /// every `mwl-ir` lowering — only ever sees concrete types. A variable
+    /// that no argument bound is the one exception, and substitutes to
+    /// [`Self::Mixed`]: the honest answer for "this position's type is
+    /// unconstrained by the call," and the only one that keeps a later pass
+    /// from meeting a variable it has no rule for.
+    TypeVar(String),
 }
 
 /// Interns [`Ty`] values, giving structurally identical types the same
@@ -230,7 +249,14 @@ impl TypeInterner {
                 .map(|m| self.describe(*m))
                 .collect::<Vec<_>>()
                 .join("&"),
+            Ty::TypeVar(name) => name.clone(),
         }
+    }
+
+    /// The interned type variable named `name` — see [`Ty::TypeVar`], which
+    /// owns why nothing outside a `Core` signature ever calls this.
+    pub fn type_var(&mut self, name: impl Into<String>) -> TypeId {
+        self.intern(Ty::TypeVar(name.into()))
     }
 
     /// The interned `null` singleton.

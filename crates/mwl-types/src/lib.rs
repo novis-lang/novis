@@ -164,9 +164,11 @@
 //!   arity check on `new` — see [`expr`]'s `New` handling.
 
 pub mod check;
+pub mod core_lib;
 pub mod ctor_init;
 pub mod expr;
 pub mod expr_table;
+pub(crate) mod generics;
 pub mod lateinit;
 pub mod layout;
 pub mod locals;
@@ -176,6 +178,7 @@ pub mod string_lit;
 pub mod ty;
 
 pub use check::check_program;
+pub use core_lib::symbol_of as core_symbol_of;
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 pub use ty::{Ty, TypeId, TypeInterner};

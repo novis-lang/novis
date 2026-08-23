@@ -275,6 +275,60 @@ mod tests {
         diags
     }
 
+    /// A `Core` member resolves through the signature table
+    /// `crate::core_lib` seeded, so its return type reaches the binding it is
+    /// assigned to -- `array<T> -> uint` with `T` bound from the argument.
+    #[test]
+    fn a_core_member_call_type_checks_against_its_registered_signature() {
+        let diags =
+            check_in_method("array<int> $a = [1, 2];\nuint $n = Core\\Arr::count($a);\necho $n;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The point of registering a signature at all: a `Core` call is now
+    /// arity-checked exactly like a user-declared one, where before every
+    /// `Core\...` reference was trusted unchecked.
+    #[test]
+    fn a_core_member_call_with_the_wrong_arity_is_diagnosed() {
+        let diags = check_in_method("array<int> $a = [1];\nuint $n = Core\\Arr::count($a, 2);\n");
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_ARITY_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    /// An argument that cannot bind the variable at all: `T` stays unbound and
+    /// substitutes to `mixed`, so the parameter reads `array<mixed>` and an
+    /// `int` still fails it. See `crate::generics` for that rule.
+    #[test]
+    fn a_core_member_call_with_a_wrongly_typed_argument_is_diagnosed() {
+        let diags = check_in_method("uint $n = Core\\Arr::count(7);\n");
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    /// A type variable never survives the call site, so the assignment below
+    /// is checked against the concrete `uint` the signature declares.
+    #[test]
+    fn a_core_member_call_assigned_to_the_wrong_type_is_diagnosed() {
+        let diags = check_in_method("array<int> $a = [1];\nstring $n = Core\\Arr::count($a);\n");
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    /// A `Core` class the registry does not name stays trusted rather than
+    /// becoming an error -- `crate::core_lib`'s own docs own why, and name
+    /// removing that trust as what completing the registry buys.
+    #[test]
+    fn an_unregistered_core_reference_is_still_trusted() {
+        let diags = check_in_method("Core\\Str::upper(\"x\");\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
     #[test]
     fn a_declared_and_assigned_local_reads_fine() {
         let diags = check_in_method("int $n = 1;\n$n = $n + 1;\n");

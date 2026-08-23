@@ -12,6 +12,7 @@ repository.workspace = true
 mwl-diagnostics.workspace = true
 mwl-syntax.workspace = true
 mwl-hir.workspace = true
+mwl-stdlib.workspace = true
 rustc-hash.workspace = true
 
 [lints]
