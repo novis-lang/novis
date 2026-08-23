@@ -6,9 +6,9 @@
      field is capped at 400 bytes. History lives in `git log`, per-crate gaps in each crate's module
      doc — see CLAUDE.md's "Keep work small" section. -->
 
-> **Status:** 2026-08-23. Current: **M3** — its vertical slice runs (`mwl run examples/hello.mwl` prints
-> `Hello, World!` from natively compiled code), which is not the milestone: the rest of M3's *Verify*
-> bullet stays queued. Next: **M4**.
+> **Status:** 2026-08-23. Current: **M3** — five of its eight acceptance commands pass (`.claude/loop-goal.md`
+> holds that list): `hello`, `calls`, `arith`, `--fault-inject`, `--dump-asm`. The three throw-based ones
+> do not, and that is the whole of what is left. Next: **M4**.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -17,9 +17,10 @@
 > WSL `cargo fuzz run lex`/`parse` both find zero panics).
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`, `mwl-codegen`, `mwl-cli` (`mwl ast`,
-> `mwl check`, `mwl run` with `--dump-ir`/`--dump-asm`), the `fuzz/` crate, and `benches/abi-probe` (M0
-> guard tests plus M3's probe-cost guard). Every other crate is created when its milestone starts.
+> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`, `mwl-codegen`, `mwl-cli` (`ast`,
+> `check`, `run` with `--dump-ir`/`--dump-asm`/`--fault-inject`), `fuzz/`, and `benches/abi-probe`
+> (M0's guards plus M3's probe-cost and typed-arithmetic ones). Every other crate starts with its
+> milestone.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.8 as a comparison oracle, `cargo-fuzz` 0.13.2 under a WSL nightly
@@ -34,10 +35,10 @@
 > (docs only); 0011/0024/0033's stdlib-dependent sinks, blocked on `Core` until M7/M8; and ADRs
 > 0053/0054/0055, which owe obligations to M1–M3 rather than to M8 and are cheaper now than later.
 >
-> **Blocking:** no MWL-level *call* is compiled at all — that blocks ADR 0018's call-site probe and the
-> error path's refcount cleanup. `mwl-runtime` owns ADR 0002's calling convention, the tagged value, the
-> refcounted string and the two-word `Ctx`; `mwl-codegen` compiles the IR against it with the safepoint
-> poll and ADR 0018 § 1's debug-flags check, both guarded in `benches/abi-probe`.
+> **Blocking:** nothing throws. `mwl-ir` models no error edge, `try`/`catch`/`throw` are not lowered
+> anywhere, and there is no runtime `Throwable` — so M3's caught-throw, backtrace and uncaught-report
+> bullets all wait on one piece of work, which also carries the error path's refcount cleanup
+> (`mwl-codegen` known gap 3). Static calls, `.` concatenation and ADR 0018's call-site probe now compile.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -529,7 +530,8 @@ typed arithmetic loop lowers to native instructions rather than helper calls, co
 tested rather than asserted.
 
 ### M4 — Language completeness — a usable CLI language (~10 weeks)
-Full ordered-hash arrays with COW, `uint` arithmetic, and the conversion operator over every row of
+Full ordered-hash arrays with COW — including `Throwable::getTrace()`, carried over from M3, which lands
+its string form only — `uint` arithmetic, and the conversion operator over every row of
 [ADR 0007](adr/0007-explicit-type-system.md)'s conversion table; exceptions propagating correctly by
 checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)), closures that bind `$this`
 only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
