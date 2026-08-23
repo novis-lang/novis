@@ -1,55 +1,43 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-> **Status — 2026-08-23.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
-> Milestone **M3** now **runs**: `mwl run examples/hello.mwl` prints `Hello, World!` from natively
-> compiled code. That is M3's vertical slice, not M3 — the rest of its *Verify* bullet stays queued.
+<!-- This block has a FIXED field set, enforced by `python .claude/brief.py --check`: Status, Done,
+     On disk, Toolchain, ADR slices landed, Open now, Blocking. Overwrite a field in place; never add
+     a paragraph or a new field name. That is what keeps it bounded as milestones accumulate. Each
+     field is capped at 400 bytes. History lives in `git log`, per-crate gaps in each crate's module
+     doc — see CLAUDE.md's "Keep work small" section. -->
+
+> **Status:** 2026-08-23. Current: **M3** — its vertical slice runs (`mwl run examples/hello.mwl` prints
+> `Hello, World!` from natively compiled code), which is not the milestone: the rest of M3's *Verify*
+> bullet stays queued. Next: **M4**.
 >
-> *This block is a bounded snapshot, not a changelog — overwrite it each session rather than appending a*
-> *new paragraph. Session-by-session history lives in `git log`; per-file known-gap detail lives in each*
-> *crate's own module docs, not here (see [CLAUDE.md](../CLAUDE.md)'s "Keep work small" section).*
+> **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
+> interpolation, the full parser, and the M1-scoped grammar of ADRs
+> 0024/0031/0033/0034/0035/0036/0037/0049/0050; `crates/mwl-syntax/tests/corpus_parse.rs` parses the
+> local `php-src` checkout and a 5-minute
+> WSL `cargo fuzz run lex`/`parse` both find zero panics).
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`, `mwl-codegen`, `mwl-cli` (`mwl ast`,
-> `mwl check`, `mwl run`), the `fuzz/` crate, and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard
-> tests, plus M3's probe-cost guard). Every other crate is created when its milestone starts —
-> `python .claude/brief.py` lists what is actually there.
+> `mwl check`, `mwl run`), the `fuzz/` crate, and `benches/abi-probe` (M0 guard tests plus M3's
+> probe-cost guard). Every other crate is created when its milestone starts.
 >
-> **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44 +
-> Windows SDK 10.0.26100 for linking, PHP 8.5.8 as a comparison oracle, `cargo-fuzz` 0.13.2 under a WSL
-> nightly toolchain (CLAUDE.md says why).
+> **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44 + Windows SDK
+> 10.0.26100 for linking, PHP 8.5.8 as a comparison oracle, `cargo-fuzz` 0.13.2 under a WSL nightly
+> toolchain (CLAUDE.md says why).
 >
-> **M1 — done.** Lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full parser, plus
-> the M1-scoped grammar of ADRs 0024, 0031, 0033, 0034, 0035, 0036, 0037, 0049 and 0050 — each ADR states
-> its own rule; do not look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the
-> full local `php-src` checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse`
-> found zero panics. What each measures, and every known parser gap, live in their own doc comments.
+> **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
+> 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
+> slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well underway;
-> `mwl-ir` is the remaining bulk. Checker-side rules landed for ADRs 0007, 0010, 0013, 0014, 0015, 0021,
-> 0022, 0024, 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax +
-> default/private-method slice. Still open: 0011/0024/0033's stdlib-dependent sinks (blocked on `Core`
-> until M7/M8), 0043's `by`-delegation type-matching and its two diagnostics, 0047 (docs only), and
-> finishing `mwl-ir`. Each ADR's own *Verification* section says what its slice covers.
+> **Open now:** finish `mwl-ir` — the remaining bulk of M2; `mwl-hir` name resolution and the `mwl-types`
+> checker are well underway. Then ADR 0043's `by`-delegation type-matching and its two diagnostics; 0047
+> (docs only); 0011/0024/0033's stdlib-dependent sinks, blocked on `Core` until M7/M8; and ADRs
+> 0053/0054/0055, which owe obligations to M1–M3 rather than to M8 and are cheaper now than later.
 >
-> **Not started, and ahead of M8 despite being stdlib decisions:** ADRs [0053](adr/0053-iteration-and-generators.md)
-> and [0054](adr/0054-decimal-scalar-type.md) add obligations to M1–M3, not to the stdlib milestone, and
-> both are cheaper now than once more of M3 is built on the IR without them.
-> [ADR 0055](adr/0055-extension-qualifier-declarations.md) is the third: it must reach the `mwl:ext@1.0.0`
-> WIT world M8 authors, because M9 freezes it. Each ADR's *Verification* section holds its own split.
->
-> **M3 — the vertical slice is done; the milestone is not.** `mwl-runtime` owns
-> [ADR 0002](adr/0002-error-propagation.md)'s calling convention, the tagged value, the refcounted string
-> and the two-word `Ctx`; `mwl-codegen` compiles the IR against it, emitting the safepoint poll and
-> [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) § 1's debug-flags
-> check, whose all-bits-off cost that ADR required a `benches/abi-probe` guard for before it counted as
-> landed. Typed scalars, string literals, `echo`, comparisons, `if`/`while` with phis and `mwl run` work
-> end to end. Still owed by M3's own *Verify* bullet: a caught throw across JIT frames, a helper panic
-> ending in `FATAL`, an MWL-level backtrace, `--dump-asm` (`--dump-ir` exists), the benched arithmetic
-> loop.
->
-> Per-crate known gaps live in each crate's own module doc, which stays more current than a paragraph here
-> could — the largest is that no MWL-level *call* is compiled at all, which is also what blocks ADR 0018's
-> call-site probe and the error path's refcount cleanup.
+> **Blocking:** no MWL-level *call* is compiled at all — that blocks ADR 0018's call-site probe and the
+> error path's refcount cleanup. `mwl-runtime` owns ADR 0002's calling convention, the tagged value, the
+> refcounted string and the two-word `Ctx`; `mwl-codegen` compiles the IR against it with the safepoint
+> poll and ADR 0018 § 1's debug-flags check, both guarded in `benches/abi-probe`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

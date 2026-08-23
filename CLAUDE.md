@@ -15,15 +15,20 @@ Read this file, then **one** row below. Do not read the docs tree breadth-first:
 and only grows as ADRs are added, and most of it is reasoning you only need when you are about to overturn
 a decision.
 
-**First, run `python .claude/brief.py`.** One call, well under 20 KB: the plan's status block, the current
-and next milestone, the one-line title and status of every ADR, what the guard tests actually hold with
-their thresholds, and what exists on disk. It stores no facts — it slices the live files and names each
-source, so it cannot go stale, and it says so loudly if a slice comes back empty. Each section also carries
-a hard byte budget: if a source doc grows past it, that section is truncated with a note naming the file to
-open directly, rather than silently growing the digest. Hitting a budget routinely means the doc it points
-at is overdue for [DOC_CLEANUP_PROMPT.md](DOC_CLEANUP_PROMPT.md)'s trim pass, not that the budget should
-grow. It deliberately does not print each ADR's full rule, so it stays small as more ADRs are added — open
-the row below for whatever you're touching to get that.
+**First, run `python .claude/brief.py`.** One call, well under 20 KB: the plan's status block, a one-line
+map of every milestone plus the lead of the current one, the one-line title and status of every ADR, what
+the guard tests actually hold with their thresholds, and what exists on disk. It stores no facts — it
+slices the live files and names each source, so it cannot go stale, and it says so loudly if a slice comes
+back empty. It deliberately does not print each ADR's full rule or a milestone's full text, so it stays
+small as the repository grows — open the row below, or the plan at the line number it prints, for those.
+
+Its size is held by one structural rule, not by trimming: **it may only print text whose length is bounded
+by a count of entities, never by a length of prose.** Every section is one bounded line per milestone, per
+ADR, per guard test, per named status field, and every section budget is *derived* from that count. So
+adding an ADR, a milestone, or a paragraph of prose can never put it over budget. The one way to overrun is
+writing a single over-long entity, and `python .claude/brief.py --check` reports exactly that — the file,
+the line, and how many bytes to cut. **Run it after editing any doc it slices**; CI's `docs-budget` job runs
+the same command. A hit is a thirty-second local edit, never a signal that the doc set needs a trim pass.
 
 | Doing this | Open this |
 |---|---|
@@ -436,10 +441,13 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 - The docs accumulate rationale bloat as ADRs are added. Periodically (the user does this manually, you never automatically) re-run the pass
   captured in [DOC_CLEANUP_PROMPT.md](DOC_CLEANUP_PROMPT.md) rather than re-deciding its rules from scratch.
 - Everytime we decide to add new features, change feature or remove features, decide and ask what the tradeoffs are in performance, memory, usability and simplicity for developers using the langauge. If there are huge tradeoffs, notify the user and ask for agreement before proceeding. If there are only benefits, just go ahead.
-- [docs/implementation-plan.md](docs/implementation-plan.md)'s leading status block is a bounded snapshot,
-  not a changelog: overwrite it in place each session (current milestone, what's on disk, what's next) —
-  never append a new "this session closed..." paragraph. Session-by-session history already lives in
-  `git log`; per-file known-gap detail belongs in that crate's own module doc comment, not in the plan. A
-  milestone's own paragraph gets the same discipline: name the ADR it draws a rule from and stop, don't
-  re-derive the rule inline — that's what [docs/adr/README.md](docs/adr/README.md) already owns. This is
-  what keeps `python .claude/brief.py` bounded without needing ever-larger budgets.
+- [docs/implementation-plan.md](docs/implementation-plan.md)'s leading status block has a **fixed field
+  set** — `Status`, `Done`, `On disk`, `Toolchain`, `ADR slices landed`, `Open now`, `Blocking` — each
+  capped at 400 bytes and enforced by `python .claude/brief.py --check`. Overwrite a field in place each
+  session; never append a paragraph, and never add a field name (the check rejects an unrecognised one,
+  which is what stops the block drifting back into free prose that grows a paragraph per milestone).
+  Session-by-session history already lives in `git log`; per-file known-gap detail belongs in that crate's
+  own module doc comment, not in the plan. A milestone's own section is free to be as long as it needs —
+  the digest prints only its heading and opening paragraph — but still name the ADR it draws a rule from
+  and stop, rather than re-deriving the rule inline; that's what
+  [docs/adr/README.md](docs/adr/README.md) already owns.

@@ -83,6 +83,25 @@ jobs:
           cargo clippy --workspace --all-targets \
             --features mwl-abi-probe/wasm-probe -- -D warnings
 
+  # ---------------------------------------------------------------------------
+  # Keeps `python .claude/brief.py` — the one call every session starts with —
+  # bounded, by checking the per-entity caps it enforces: one status field, one
+  # milestone heading, one ADR index decision cell. Budgets are derived from
+  # entity counts, so adding an ADR or a milestone can never fail this; only
+  # writing one over-long line can, and the failure names the line to edit. No
+  # Rust toolchain, so it reports in seconds instead of after the build.
+  # ---------------------------------------------------------------------------
+  docs-budget:
+    name: docs budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Per-entity doc caps
+        run: python .claude/brief.py --check
+
   lint:
     name: lint
     runs-on: ubuntu-latest

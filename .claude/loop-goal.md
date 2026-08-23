@@ -75,7 +75,7 @@ version satisfies both), that is a real `BLOCKED` — say which constraint faile
   runtime type tag, how a throw is represented, and how `mwl-ir` models the error edge are all yours to
   settle, following CLAUDE.md's priority ordering. Record each in the home CLAUDE.md already names — a
   paragraph in `docs/adr/README.md` § *Decisions taken at project start*, or the crate's own module doc.
-  **Do not open a numbered ADR for these**; that index is already pushing `brief.py`'s budgets. Reserve
+  **Do not open a numbered ADR for these**; they do not carry the weight of one. Reserve
   `BLOCKED` for a decision that would be expensive to reverse *and* that you cannot pick a safe default for.
 - **The thing thrown is a runtime-owned `Throwable`, not a user-declared class.** `Throwable`, `Exception`
   and `Error` are global, PHP-shaped names — [ADR 0020](../docs/adr/0020-error-escalation-ladder.md) § 1
@@ -107,10 +107,11 @@ version satisfies both), that is a real `BLOCKED` — say which constraint faile
   ADR 0061 autoload, ADRs 0053/0054, inline HTML at file scope, the immortal string literal: if a slice is
   not on the path to the acceptance list, put it in `## Backlog` and move on. `arith.mwl` uses `while`
   deliberately so `for` stays off the path.
-- **Doc trimming is authorized when — and only when — `brief.py` reports a truncated section.** Run
-  [DOC_CLEANUP_PROMPT.md](../DOC_CLEANUP_PROMPT.md)'s pass on **that one doc**, not a repo-wide rewrite.
-  Two are already over: `docs/implementation-plan.md`'s milestone section, and `crates/mwl-ir/src/lib.rs`'s
-  module doc, which has become a slice-by-slice changelog of exactly the kind CLAUDE.md forbids.
+- **Doc trimming is not loop work.** `python .claude/brief.py --check` names any over-long entity with the
+  line and the bytes to cut — fix that one line and move on; never run
+  [DOC_CLEANUP_PROMPT.md](../DOC_CLEANUP_PROMPT.md)'s pass from inside the loop. The one doc genuinely owed
+  a trim is `crates/mwl-ir/src/lib.rs`'s module doc, which has become a slice-by-slice changelog of exactly
+  the kind CLAUDE.md forbids; that is a backlog item, not a reason to stop.
 
 ## The gaps that actually sit on the path
 

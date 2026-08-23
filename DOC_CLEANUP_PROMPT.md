@@ -7,15 +7,18 @@ needs adjusting — don't let it drift out of sync with how cleanup is actually 
 
 ## When this pass is due
 
-`python .claude/brief.py` prints a banner at the very top of its output naming any section that blew
-its byte budget, and the source doc that section is sliced from. That banner is the signal — the doc it
-names has grown past what a session can be handed at orientation, and this pass is what brings it back.
-Absent a banner, run this when you feel the docs have drifted; there is no schedule.
+**Not on a budget signal — that is no longer what this pass is for.** `python .claude/brief.py --check`
+enforces per-entity caps (one status field, one milestone heading, one ADR index decision cell) and its
+section budgets are derived from entity counts, so doc growth cannot trip it. A `--check` failure names a
+single over-long line with the bytes to cut: fix that line where it lives and move on. It is a lint hit,
+not a trim-pass trigger, and running this whole pass in response to one is wasted effort.
 
-One exception, so a pass does not waste effort on it: the ADR index in `docs/adr/README.md` grows a row
-per decision and is *supposed* to. It is not trimmable and is not a target here. If it is the section
-hitting its budget, the fix is in `.claude/brief.py` (a tighter row format, or a raised budget for that
-one section), not in the doc.
+Run this pass when *you* judge the docs have drifted — rationale piled up, a decision superseded in three
+places, an ADR nobody can find. There is no schedule and no automatic signal.
+
+One thing is never a target here: the ADR index in `docs/adr/README.md` grows a row per decision and is
+*supposed* to. It is not trimmable. Its only constraint is that each decision cell stays one sentence,
+which `--check` already enforces.
 
 ## The ask
 

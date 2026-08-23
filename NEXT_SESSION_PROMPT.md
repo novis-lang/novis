@@ -55,5 +55,6 @@ Then, in this order, because each unblocks the next:
 Read `CLAUDE.md` first and follow its *Where to look* table rather than reading `docs/` breadth-first.
 Every fact has exactly one home; if two documents state the same thing, the one CLAUDE.md names is
 authoritative and the other is a bug — including this file, which is overwritten, never appended to.
-Doc trimming is authorized **only** when `python .claude/brief.py` reports a truncated section, and then
-only for that one doc — see the goal file.
+After editing any doc, run `python .claude/brief.py --check`: it enforces a per-entity cap (one status
+field, one milestone heading, one ADR decision cell) and names the exact line and byte count to cut. That
+is a one-line fix, never a reason to run a trim pass — see the goal file.

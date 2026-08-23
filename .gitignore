@@ -50,6 +50,9 @@ Desktop.ini
 # Machine-local agent/tool settings
 .claude/settings.local.json
 
+# Bytecode from importing .claude/brief.py (its --check mode is imported by tests)
+.claude/__pycache__/
+
 # Unattended loop run artifacts (see AGENT_COORDINATOR_PROMPT.md)
 .claude/loop-log.md
 .claude/loop-logs/

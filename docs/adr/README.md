@@ -30,7 +30,9 @@ authoritative; a number written anywhere else is a copy that can go stale.
    [the plan](../implementation-plan.md) with a link and a headline, not a restatement.
 
 `.claude/brief.py` needs no update for any of this: it slices this file's table and the plan's status block
-live, so a new row is picked up automatically (up to its own byte budget — see the script's module doc).
+live, and its budgets are derived from the row count, so a new row is picked up automatically and can never
+put it over. The one rule a new row must meet is that its **Decision** cell stays one sentence under 160
+bytes, and that any `|` inside it is written `\|`; `python .claude/brief.py --check` reports both.
 
 | # | Decision | Status |
 |---|---|---|
@@ -65,19 +67,19 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0030](0030-no-leading-underscores-constructor-spelling.md) | No leading underscores anywhere; the constructor is spelled `constructor`, not `__construct` | Accepted |
 | [0031](0031-callable-is-the-only-closure-type.md) | `fn` is the only closure literal, with no `use` clause; `callable` absorbs `Closure` as the one surviving type name | Accepted |
 | [0032](0032-acronym-casing-rule-revoked.md) | The acronym-as-one-word casing rule is revoked; only an identifier's leading character is checked | Accepted |
-| [0033](0033-secret-qualifier-for-confidential-values.md) | `secret` is a second, independent compile-time qualifier alongside `tainted`; a handful of sinks (HTML output, `Core\Log`, debug dumps, exception messages, serialize/isolate-crossing) refuse it by default | Accepted |
+| [0033](0033-secret-qualifier-for-confidential-values.md) | `secret` is a second compile-time qualifier alongside `tainted`; HTML output, `Core\Log`, debug dumps, exception messages and serialize all refuse it by default | Accepted |
 | [0034](0034-legacy-cast-syntax-rejected.md) | PHP's legacy `(T)expr` cast syntax is rejected; `as` is the only conversion spelling | Accepted |
 | [0035](0035-truthy-boolean-context.md) | A condition is judged by PHP's full truthy table; every other `bool` position stays checked | Accepted |
-| [0036](0036-anonymous-object-shapes.md) | `object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is MWL's one structurally-checked type | Accepted |
+| [0036](0036-anonymous-object-shapes.md) | `object` is the opaque top of every class type; `{...}` builds an anonymous methodless instance, and `{name: T, ...}` is MWL's one structurally-checked type | Accepted |
 | [0037](0037-var-local-type-inference.md) | `var $name = expr;` infers a local's type from its initializer and fixes it forever; a bare array-literal initializer is the one shape it refuses | Accepted |
-| [0038](0038-lateinit-property-modifier.md) | `lateinit` defers a non-nullable object property's first assignment past the constructor, throwing on read-before-write; scalars, `?T`, and `readonly` are all refused | Accepted |
+| [0038](0038-lateinit-property-modifier.md) | `lateinit` defers a non-nullable object property's first assignment past the constructor, throwing on read-before-write; `?T` and `readonly` are refused | Accepted |
 | [0039](0039-canonical-code-formatting.md) | `mwl fmt` is one canonical, unconfigurable, PER-based formatting style with no reflow; it is never wired into the compiler | Accepted |
-| [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) | The VS Code extension goes deep (inspections, refactorings, Test Explorer, debugger UI) on a schedule pulled ahead of M10; `mwl-syntax` gains a resilient parse mode | Accepted |
+| [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) | The VS Code extension goes deep (inspections, refactorings, Test Explorer, debugger UI) ahead of M10; `mwl-syntax` gains a resilient parse mode | Accepted |
 | [0041](0041-timeline-export-and-gc-spawn-trace-events.md) | Trace events gain a `call`/`gc`/`spawn` kind and a speedscope-evented export, so a request's timeline shows GC pauses and isolate boundaries, not just calls | Accepted |
 | [0042](0042-on-disk-artifact-cache-format.md) | The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable | Accepted |
 | [0043](0043-interface-default-methods-and-delegation-replace-traits.md) | There is no `trait`; interface default/private methods share behavior and explicit `by` delegation shares state, with one conflict rule and no `insteadof` | Accepted |
 | [0044](0044-core-process-argv-only-no-shell.md) | `Core\Process` is the one argv-only way to run another program; there is no shell-string form, and a Windows batch/PowerShell target is refused outright | Accepted |
-| [0045](0045-and-or-xor-keyword-operators-rejected.md) | PHP's `and`/`or`/`xor` keyword operators are rejected; `&&`/`||` are the only logical connectives | Accepted |
+| [0045](0045-and-or-xor-keyword-operators-rejected.md) | PHP's `and`/`or`/`xor` keyword operators are rejected; `&&`/`\|\|` are the only logical connectives | Accepted |
 | [0046](0046-attributes-shape-literal-metadata.md) | `#[...]` attributes are shape-literal metadata, checked structurally, retrieved via `Core\Attributes::get<T>`/`::all<T>` | Accepted |
 | [0047](0047-literal-and-enum-case-types.md) | A scalar literal or a named enum case is itself a type; unioning them declares an explicit closed set, checked like any other conversion | Accepted |
 | [0048](0048-portable-single-file-executables.md) | A portable single-file executable appends source to the host binary; rebundling is a build-time CLI step, not a runtime one | Accepted |
