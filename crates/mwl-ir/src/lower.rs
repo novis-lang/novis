@@ -806,6 +806,22 @@ enum RefHolder {
     },
 }
 
+/// What [`Lowering::lower_call_args`] produced: the values to pass, and the
+/// ones this frame still owes a release for once the call has been emitted.
+///
+/// `temporaries` is empty for a [`ArgOwnership::Transferred`] call — the
+/// callee's own exit sweep releases every parameter there — and holds exactly
+/// the freshly built refcounted arguments of a [`ArgOwnership::Borrowed`] one,
+/// which is the case with no other owner at all. See
+/// [`Lowering::release_call_temporaries`].
+#[derive(Default)]
+struct LoweredArgs {
+    /// The argument values, positional.
+    values: Vec<ValueId>,
+    /// The subset of them this frame owns and must release after the call.
+    temporaries: Vec<ValueId>,
+}
+
 /// One resolved signature's argument-shape, as [`Lowering::lower_call_args`]
 /// needs it — owned rather than borrowed because every call site has to clone
 /// it out of `self.exprs` before touching `self` mutably anyway.
@@ -3847,6 +3863,7 @@ impl<'a> Lowering<'a> {
                             env,
                             cur,
                         )
+                        .values
                     }
                     None => {
                         let CallArgs::List(list) = args else {
@@ -3943,14 +3960,16 @@ impl<'a> Lowering<'a> {
                     }
                     object_v
                 };
-                let arg_values = self.lower_call_args(
-                    args,
-                    &sig,
-                    checked_types,
-                    ArgOwnership::Transferred,
-                    env,
-                    cur,
-                );
+                let arg_values = self
+                    .lower_call_args(
+                        args,
+                        &sig,
+                        checked_types,
+                        ArgOwnership::Transferred,
+                        env,
+                        cur,
+                    )
+                    .values;
                 // A resolved declaration with no body names no compiled
                 // function — an `abstract` method, or the interface method an
                 // interface *default* body calls back into (`$this->name()`
@@ -4015,7 +4034,7 @@ impl<'a> Lowering<'a> {
                     let sig = ArgSig::of(call);
                     let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                     let checked_types = self.checked_types;
-                    let arg_values = self.lower_call_args(
+                    let lowered = self.lower_call_args(
                         args,
                         &sig,
                         checked_types,
@@ -4023,15 +4042,20 @@ impl<'a> Lowering<'a> {
                         env,
                         cur,
                     );
-                    return self.emit_fallible(
+                    let result = self.emit_fallible(
                         cur,
                         return_ty,
                         InstKind::CoreCall {
                             symbol,
-                            args: arg_values,
+                            args: lowered.values,
                         },
                         env,
                     );
+                    // A `Core` member borrows, so a freshly built argument —
+                    // an `fn` literal, a nested `Core` call's own result — has
+                    // no other owner and would leak without this.
+                    self.release_call_temporaries(lowered.temporaries, cur);
+                    return result;
                 }
                 let target_label = format!("{}::{}", call.class, call.method);
                 let method = call.method.clone();
@@ -4079,14 +4103,16 @@ impl<'a> Lowering<'a> {
                     }
                     Some(this_v)
                 };
-                let arg_values = self.lower_call_args(
-                    args,
-                    &sig,
-                    checked_types,
-                    ArgOwnership::Transferred,
-                    env,
-                    cur,
-                );
+                let arg_values = self
+                    .lower_call_args(
+                        args,
+                        &sig,
+                        checked_types,
+                        ArgOwnership::Transferred,
+                        env,
+                        cur,
+                    )
+                    .values;
                 let kind = if late_bound {
                     // `static::m()` — the target is whichever class this frame
                     // was *called* on, which is only known at run time.
@@ -5308,7 +5334,7 @@ impl<'a> Lowering<'a> {
         ownership: ArgOwnership,
         env: &Env,
         cur: BlockId,
-    ) -> Vec<ValueId> {
+    ) -> LoweredArgs {
         assert!(
             !sig.variadic,
             "mwl-ir does not yet lower a call to a variadic signature; see the crate docs' \
@@ -5331,23 +5357,48 @@ impl<'a> Lowering<'a> {
             "mwl-ir: a resolved call's argument count doesn't match its signature — this crate \
              trusts mwl_types::check_program already enforced this"
         );
-        let mut out = Vec::with_capacity(list.len());
+        let mut out = LoweredArgs::default();
         for (index, (arg, &pty)) in list.iter().zip(&sig.param_tys).enumerate() {
             let expected = lower_checked_ty(pty, checked_types);
             if sig.is_by_ref(index) {
-                out.push(self.stage_ref_arg(&arg.value, expected, env, cur));
+                out.values
+                    .push(self.stage_ref_arg(&arg.value, expected, env, cur));
                 continue;
             }
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
-            if ownership == ArgOwnership::Transferred
-                && ty.is_refcounted()
-                && self.aliasing_read(&arg.value)
-            {
-                self.emit_retain(cur, v);
+            if ty.is_refcounted() {
+                match (ownership, self.aliasing_read(&arg.value)) {
+                    // A borrowed argument some other binding already owns is
+                    // that binding's to release, not this call site's.
+                    (ArgOwnership::Borrowed, true) => {}
+                    // A borrowed argument this expression built — a `fn`
+                    // literal, a nested call's result, a concatenation — has
+                    // exactly one owner, and it is this frame.
+                    (ArgOwnership::Borrowed, false) => out.temporaries.push(v),
+                    // The callee's exit sweep releases it either way; a copy
+                    // of storage someone else owns needs a second reference
+                    // first, a freshly built value does not.
+                    (ArgOwnership::Transferred, true) => self.emit_retain(cur, v),
+                    (ArgOwnership::Transferred, false) => {}
+                }
             }
-            out.push(v);
+            out.values.push(v);
         }
         out
+    }
+
+    /// Releases what [`LoweredArgs::temporaries`] collected, after the call
+    /// that borrowed them has been emitted into `cur`.
+    ///
+    /// **Known gap, and the same one [`Self::landing_block`] already has:**
+    /// these sit on the normal edge only, so a helper that fails leaves each
+    /// of them unreleased. Closing it means the owned-temporaries stack
+    /// threaded through [`Self::lower_expr`] that `.claude/loop-goal.md`
+    /// already names — this is one more caller for it, not a second design.
+    fn release_call_temporaries(&mut self, temporaries: Vec<ValueId>, cur: BlockId) {
+        for v in temporaries {
+            self.emit_release(cur, v);
+        }
     }
 
     /// Stages one by-reference argument, returning the [`Ty::Ref`] the callee
