@@ -6,35 +6,28 @@
 for the acceptance list and for the ten standing decisions already settled with the user; do not re-open
 any of them. The plan's status block says what is on disk and what is open.
 
-Stages 1 and 2 are green on both legs, byte for byte, with `valgrind --leak-check=full` clean. **ADR 0053
-is done in full. ADR 0031 §§ 1–2 landed this session** — closures are checked, lowered, compiled and
-callable from native `Core` code, with `Core\Arr::filter` as the first member that does. That ADR's own
-*Verification* list says what it covers and what is deliberately still open inside it; the shapes are
-owned by `mwl_types::expr::check_fn_literal`, `mwl_ir::lower::lower_closure` and `mwl_runtime::closure`
-— read those three doc comments rather than looking for a summary here.
-
-Two decisions landed alongside, neither touching the loop. [ADR 0064](docs/adr/0064-configuration-file-format.md)
-(TOML in `mwl.toml`, `Core\Config::set`) is M6-scope and documentation-only — nothing on disk parses it yet.
-[ADR 0065](docs/adr/0065-third-party-attribution-and-mwl-info.md) is **done end to end**: the generator
-`tools/gen-attribution.py`, the committed notice it embeds, `mwl info`/`mwl -i`, and CI's `attribution` job.
-**Nothing is blocked**; `examples/core.mwl` now stops at its *first* line, on an unregistered `Core\Arr::range`.
+Stages 1 and 2 are green on both legs, byte for byte, with `valgrind --leak-check=full` clean. ADR 0053 is
+done in full; ADR 0031 §§ 1–2 and ADR 0065 landed end to end. **Integer `%` landed this session** — a zero
+divisor throws spec § 10's `ArithmeticError` instead of trapping the process, raised inline by
+`mwl_runtime::mwl_raise_new` off `Inst::on_error`'s edge; `Emitter::emit_int_mod` and
+`mwl_ir::ir::Inst::on_error` own the shape, and PHP 8.5 agrees on every sign case. **Nothing is blocked**;
+`examples/core.mwl` still stops at its *first* line, on an unregistered `Core\Arr::range`.
 
 ## Next
 
 **Stage 3 — `Core` §§ 1–12**, per [docs/spec/01-core-library.md](docs/spec/01-core-library.md), which is
-authoritative for every signature, shaped by [ADR 0063](docs/adr/0063-core-api-conventions.md). Three
-session-sized slices stand between here and `examples/core.mwl`'s six frozen output lines. Take them in
-this order — each is smaller than the next and unblocks it:
+authoritative for every signature, shaped by [ADR 0063](docs/adr/0063-core-api-conventions.md). Two
+session-sized slices stand between here and `examples/core.mwl`'s six frozen output lines:
 
-1. **Integer `/` and `%`.** `mwl-codegen` refuses `Div`/`Mod` because `sdiv` traps the process on a zero
-   divisor, which is a request-isolation failure. The throw path exists, so this is a checked divisor plus
-   a `Terminator::Throw`, against ADR 0007 § 4's arithmetic table. `core.mwl` line 3 needs `%`.
-2. **An options-shape argument and an optional parameter.** `Core\Arr::range(int, int, {step?: int})` and
-   `sort(array<T>, {by?: callable, …})` need `mwl_stdlib::registry::CoreTy` to express a shape and the
-   arity check to accept a missing trailing argument — `mwl-stdlib`'s own known gap 3. ADR 0063 R2 makes
-   this the shape of *every* optioned member, so do it properly once. `mwl_types::ty::Ty::Shape` and ADR
-   0036 § 3's width subtyping already exist on the checker side.
-3. **`Core\Str` rows** — `upper`, `lower`, `join`, `split`, `replace`, `padStart`, `padEnd`, `upperFirst`,
+1. **An options-shape argument and an optional parameter.** Bigger than last session's estimate:
+   `MethodSig` has no notion of an optional parameter *at all*, so a user-declared `int $b = 3` is refused
+   by the same arity check — `check_args_typed` in `mwl_types::expr`. Doing it properly once means a
+   required-count on `MethodSig`, a default materialized at the call site in `mwl_ir::lower`, and
+   `mwl_stdlib::registry::CoreTy` growing a shape variant (its own known gap 3). ADR 0063 R2 makes the
+   trailing options bag the shape of *every* optioned member, and `mwl_types::ty::Ty::Shape` plus ADR
+   0036 § 3's width subtyping already exist on the checker side. `Core\Arr::range(int, int, {step?: int})`
+   is the first consumer.
+2. **`Core\Str` rows** — `upper`, `lower`, `join`, `split`, `replace`, `padStart`, `padEnd`, `upperFirst`,
    `length`. **Settle [ADR 0009](docs/adr/0009-string-and-bytes.md) by measurement first**, exactly as the
    loop goal's standing decision spells out, *before* writing conformance cases. Only `length`/`at`/`slice`
    depend on it, so the other rows can land ahead of it.
@@ -45,16 +38,18 @@ decided before it is useful. Then `crates/mwl-test` and `mwl test` (loop goal, S
 
 ## Backlog
 
+- **Integer `+`/`-`/`*` wrap instead of throwing on overflow** — `mwl-codegen`'s known gap 8, which owns
+  why the mechanism now exists and what is left. Note `a_typed_arithmetic_loop_contains_no_call` counts
+  every `call` in `Bench::sum`, so a never-taken raise block needs that guard's claim re-read first.
+- **Integer `/` is refused two phases deep** — `mwl-codegen`'s known gap 5: `int|float` has no IR
+  representation, *and* `mwl_types` does not widen that union to `float` at a binding.
 - **`$fn(...)` has no lowering, and ADR 0031 § 3's self-name is parsed and ignored** — `mwl-ir`'s known
-  gaps own both. Direct invocation needs a decision first: `callable` is opaque, so `$f(3)` has no
-  argument types to check and no result type but `mixed`.
+  gaps own both. Direct invocation needs a decision: `callable` is opaque, so `$f(3)` has no argument
+  types to check and no result type but `mixed`.
 - **`for`/`switch`/`match` are still unlowered** — `mwl-ir`'s module doc. `Terminator::Switch` was built
   general precisely so `switch` reaches for it.
 - **ADR 0043's `by`-delegation is unimplemented**, and `mwl_types::conformance` exempts any class using
   one *whole* because of that — its doc comment owns why the two close together.
-- **ADR 0014's `PropertyObserver` half is untouched** — §§ 2–3; nothing on the acceptance path needs it.
-- **A helper that fails leaks its borrowed temporaries** — `Lowering::release_call_temporaries`, the same
-  owned-temporaries stack `Lowering::landing_block`'s gap already needs.
 - **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** CLAUDE.md forbids. Every other
   open item is a *Known gap* section in the crate that owns it; look there, not here.
 
@@ -69,12 +64,14 @@ the other is a bug — including this file, overwritten never appended to, cappe
   and `\\` becomes one. So does an escaped `\"` inside a Rust test fixture. Write new code to a file under
   `target/` with the Write tool and splice it in with a script that matches only on plain text; edit an
   existing string with the Edit tool.
-- **Another agent may be editing this repo at the same time.** `git status` grew files this session that
-  no commit here touched. **Stage your own paths explicitly and check `git show --stat` after committing**
-  — a `git add -A` swept an unrelated untracked file into one commit and had to be amended back out.
-- **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles. The full leg is
+- **Another agent may be editing this repo at the same time.** **Stage your own paths explicitly and check
+  `git show --stat` after committing** — a `git add -A` once swept an unrelated untracked file into a
+  commit and had to be amended back out.
+- **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and its stdout
+  and stderr interleave — redirect to a file inside the script and `cat` it. The full leg is
   `wsl.exe -- bash /mnt/<drive>/<repo>/.claude/wsl-acceptance.sh`. For a narrower check write a one-off script plus
-  fixture under `target/` — that caught this session's leak; repeat it for **any** hand-written refcount.
+  fixture under `target/` — that is how this session's `%` error path was leak-checked; repeat it for
+  **any** new error edge or hand-written refcount.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>` (note
   `test --accept`); a renamed test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe`
   takes over two minutes — run it in the background.

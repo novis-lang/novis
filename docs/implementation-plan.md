@@ -29,18 +29,19 @@
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
-> slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2, 0065, and
-> **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this field.
+> slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
+> 0065, and **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this
+> field.
 >
-> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. `examples/core.mwl` still needs
-> integer `%`, an options-shape argument and every `Core\Str` row. Then `crates/mwl-test`/`mwl test`.
-> Off that path: `for`/`switch`, ADR 0043's `by`-delegation, virtual dispatch through a base-typed
-> local, ADR 0014's `PropertyObserver`, an integer *into* an enum, ADR 0009's measurement.
+> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. `examples/core.mwl` still needs an
+> options-shape argument and every `Core\Str` row; `%` is done. Then `crates/mwl-test`/`mwl test`. Off
+> that path: `+`/`-`/`*` still wrap rather than throw, `for`/`switch`, ADR 0043's `by`-delegation,
+> virtual dispatch through a base-typed local, ADR 0014's `PropertyObserver`, ADR 0009's measurement.
 >
-> **Blocking:** nothing external. **Stages 1 and 2 are green on both legs**: every command, byte for
-> byte, on Windows and under WSL against a Linux build, and `valgrind --leak-check=full` clean on all
-> eleven runnable fixtures. `examples/core.mwl` now stops at its first line — `Core\Arr::range` is
-> unregistered, because its `{step?: int}` bag is a shape the registry's type enum cannot express yet.
+> **Blocking:** nothing external. **Stages 1 and 2 are green on both legs** — byte for byte on Windows
+> and under WSL against a Linux build, `valgrind --leak-check=full` clean on all eleven fixtures.
+> `examples/core.mwl` still stops at line 1: `Core\Arr::range` is unregistered, its `{step?: int}` bag
+> being both a shape the registry cannot express and an optional parameter, which nothing supports.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
