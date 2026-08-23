@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# The Linux leg of `.claude/loop-goal.md`'s acceptance list, run by hand from a
+# The Linux leg of `docs/agent/loop-goal.md`'s acceptance list, run by hand from a
 # session that has just made the Windows leg green.
 #
-# `Test-Goal` in `.claude/loop.ps1` is the authority on what must pass; this
-# script runs the same `mwl run` commands against a Linux build, then the same
+# `docs/agent/loop-goal.toml` is the authority on what must pass — `python
+# tools/loop.py --goal-only` runs all of it, both legs included, and this script
+# is the hand-run shortcut for just the Linux half from inside WSL. It runs the
+# same `mwl run` commands against a Linux build, then the same
 # valgrind sweep, so a calling-convention divergence in the JIT or a leak in the
 # refcount protocol shows up where it hides — which is the whole reason the
-# second leg exists (see `.claude/loop-goal.md`).
+# second leg exists (see `docs/agent/loop-goal.md`).
 #
 # A `wsl.exe -- bash -lc "…"` one-liner mangles under two layers of shell
-# quoting, so this is a file passed by path instead. CLAUDE.md says why.
+# quoting, so this is a file passed by path instead. AGENTS.md says why.
 set -u
 
 cd /mnt/<drive>/<repo> || exit 1

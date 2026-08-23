@@ -89,7 +89,7 @@ mod tests {
     use super::*;
 
     /// Every expectation here is `php -r 'echo $v;'` output, taken from the
-    /// PHP 8.5 build `CLAUDE.md` names as the comparison oracle.
+    /// PHP 8.5 build `AGENTS.md` names as the comparison oracle.
     #[test]
     fn a_float_is_spelled_the_way_php_spells_it() {
         for (value, expected) in [

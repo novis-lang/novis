@@ -45,7 +45,7 @@
 //! * **Only the classes declared in the files walked are present.** A `Core`
 //!   class has no source declaration and therefore no layout; `mwl-stdlib`
 //!   owns those, and they are native Rust rather than field-slot objects
-//!   (`.claude/loop-goal.md`).
+//!   (`docs/agent/loop-goal.md`).
 
 use mwl_diagnostics::SourceFile;
 use mwl_hir::{ClassGraph, QName};

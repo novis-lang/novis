@@ -88,7 +88,7 @@
 //!
 //! # Scope of this slice
 //!
-//! Narrow by authorization, not by accident — `.claude/loop-goal.md` allows
+//! Narrow by authorization, not by accident — `docs/agent/loop-goal.md` allows
 //! the first backend to be exactly as wide as `mwl run examples/hello.mwl`
 //! requires, and each gap below is a missing *lowering*, not a missing
 //! decision:

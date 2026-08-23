@@ -11,118 +11,24 @@ instance dispatch, no array. `InstKind::New`/`FieldGet`/`FieldSet`/`ArrayNew`/`A
 reason (`mwl-codegen` known gap 1). Nothing else either milestone owes has a site to attach to until that
 lands. **Start there.**
 
-## Acceptance (the driver checks this itself, every iteration)
+## Acceptance
 
-`Test-Goal` in `.claude/loop.ps1` runs the stages below **in order**, short-circuiting on the first
-failure, so the ledger line each iteration writes tells you exactly how far the loop has got. Every item
-must pass. Nothing else counts as done — not a passing unit test, not a session claiming `DONE`.
+**The checks themselves live in [`loop-goal.toml`](loop-goal.toml), and only there.** Every fixture, its
+exact expected output, the two suites and every named guard test are in that file as data; the driver reads
+it directly, so there is nothing here that could drift out of sync with what actually runs. Read it, or run
+`python tools/loop.py --list` for the same thing as a summary.
 
-**The expected stdout below is frozen; the fixture *source* is not.** A fixture may be corrected to a
-spelling the docs already fix — its author had to write `Core\Arr::sort`'s option bag and `Iterator<T>`'s
+The driver runs those checks in order, short-circuiting on the first failure, so the ledger line each
+iteration writes tells you exactly how far the loop got. Every check must pass. Nothing else counts as done
+— not a passing unit test, not a session claiming `DONE`. What the check kinds mean, how the native/WSL legs
+and the valgrind sweep are ordered, and why: [coordinator.md](coordinator.md) § *The acceptance test*.
+
+**The expected output in that file is frozen; a fixture's *source* is not.** A fixture may be corrected to
+a spelling the docs already fix — its author had to write `Core\Arr::sort`'s option bag and `Iterator<T>`'s
 shape from the spec, and a spelling error there is a bug in the fixture, not a decision. What may never
 change is the expected output, or the fixture's reason for existing. Re-freeze, record why in the commit
 message, move on. That is not licence to weaken a check to make it pass.
 
-### Stage 1 — the object and array gate
-
-| command | must |
-|---|---|
-| `mwl run examples/hello.mwl` | exit 0, stdout `Hello, World!` |
-| `mwl run examples/calls.mwl` | exit 0, stdout `quadruple(5) = 20` |
-| `mwl run examples/arith.mwl` | exit 0, stdout `sum = 998000` |
-| `mwl run examples/throw.mwl` | exit 0, stdout `caught: boom` |
-| `mwl run examples/trace.mwl` | exit 0, stdout contains `#0 Deep::inner()` then `#1 Deep::outer()`, in order |
-| `mwl run examples/uncaught.mwl` | exit **non-zero**, stderr contains `Uncaught Exception: unhandled`, `#0 Boom::inner()`, `#1 Boom::outer()` |
-| `mwl run --fault-inject=helper-panic examples/fatal.mwl` | exit **non-zero**, stderr contains `FATAL`, stdout contains `start` |
-| `mwl run --dump-asm examples/arith.mwl` | exit 0, at least 200 bytes of output |
-| `mwl run examples/objects.mwl` | exit 0, the seven lines below |
-| `mwl run examples/arrays.mwl` | exit 0, the seven lines below |
-| `mwl run examples/errors.mwl` | exit 0, the seven lines below |
-| `mwl run examples/hooks.mwl` | exit 0, the four lines below |
-| `mwl run examples/enums.mwl` | exit 0, the three lines below |
-
-`throw.mwl`, `trace.mwl` and `uncaught.mwl` **keep their stdout/stderr byte for byte** while their source
-migrates to the exception surface *Standing decisions* fixes below. That is the point: the migration is
-proved rather than asserted.
-
-### Stage 2 — the rest of M4's language surface
-
-| command | must |
-|---|---|
-| `mwl run examples/iterate.mwl` | exit 0, stdout `generator=15` then `iterable=10` |
-
-### Stage 3 — `Core` Part I is real
-
-| command | must |
-|---|---|
-| `mwl run examples/core.mwl` | exit 0, the six lines below |
-| `mwl run examples/report.mwl` | exit 0, the seven lines below |
-
-### Stage 4 — the suites
-
-| command | must |
-|---|---|
-| `mwl test tests/conformance/` | exit 0, and report **≥ 250** passing cases |
-| `mwl test tests/differential/` | exit 0, and report **≥ 60** passing cases |
-| `cargo test -p mwl-stdlib` | green, and contains `every_part_one_member_has_a_conformance_case` |
-
-**`mwl test` must print a summary line matching `N passed, M failed` on stdout**, and the driver requires
-both a zero failure count and the minimum above. A suite that silently collected nothing also exits 0, and
-that is the failure this contract exists to catch.
-
-`every_part_one_member_has_a_conformance_case` reads `docs/spec/01-core-library.md`'s §§ 1–12 tables and
-fails naming any member with no case. That is the coverage gate, in place of a round-number total —
-[ADR 0063](../docs/adr/0063-core-api-conventions.md)'s *Verification* section is the home for what else it
-should check mechanically, and it should grow to check that too.
-
-### Stage 5 — the named guard tests
-
-Each must both **exist and run** — `cargo test` is green on a suite that never ran the guard.
-
-| suite | tests |
-|---|---|
-| `cargo test --release -p mwl-abi-probe` | the two typed-arithmetic guards M3 landed, plus the three named below |
-| `cargo test -p mwl-codegen` | `a_second_script_runs_after_a_contained_helper_panic` |
-| `cargo test -p mwl-runtime` | `an_acyclic_object_graph_releases_every_allocation` |
-
-### Stage 6 — the Linux leg, and memory
-
-Runs only once every stage above is green on Windows. Same `mwl run` checks, byte for byte, through
-`wsl.exe -- bash -lc` against a Linux build with its own `CARGO_TARGET_DIR`; then every fixture again under
-`valgrind --error-exitcode=1 --errors-for-leak-kinds=definite --leak-check=full`, which must be clean.
-
-A JIT is exactly where an ABI or calling-convention divergence hides, and a hand-written refcount protocol
-is exactly where a leak hides. Neither is left to CI.
-
-## The frozen expected output
-
-```
-examples/objects.mwl        examples/arrays.mwl          examples/errors.mwl
-cat has 4 legs              alpha=1;beta=2;gamma=3;      checked host
-rex has 4 legs, and barks   alpha=1;gamma=3;             value-of-host
-Hello, rex!                 alpha=1;gamma=3;beta=20;     checked bad
-dog is an animal            alpha=1;gamma=3;beta=20;     config: bad key
-dog greets                  alpha=99;gamma=3;beta=20;    checked missing
-leaf                        count=3                      logic: no such key: missing
-leaf is a mid               total=10                     backtrace present
-
-examples/hooks.mwl          examples/enums.mwl           examples/core.mwl
-6                           ana outranks bo              evens=5
-20                          gold=2                       PEAR|APPLE|FIG|BANANA
-Counter(10)                 ana,clone                    fig,pear,Apple,banana
-n=6                                                      a+b+c
-                                                         007
-                                                         Mwl runs
-
-examples/report.mwl
-the...3
-quick.1
-brown.1
-fox...2
-lazy..1
-dog...1
-distinct=6
-```
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
@@ -130,11 +36,11 @@ Every one of these was settled with the user before the loop started. Implement 
 
 - **Decide and record; never `BLOCKED` for a design call.** The object header and field layout, the array's
   ordered-hash representation, the `mixed` runtime type tag, the `Throwable` constructor's exact signature,
-  and how generics are represented in `mwl-types` are all yours to settle under CLAUDE.md's priority
-  ordering. Record each in the home CLAUDE.md already names — a paragraph in `docs/adr/README.md`
+  and how generics are represented in `mwl-types` are all yours to settle under AGENTS.md's priority
+  ordering. Record each in the home AGENTS.md already names — a paragraph in `docs/adr/README.md`
   § *Decisions taken at project start*, or the crate's own module doc. **Do not open a numbered ADR for
   these.** Reserve `BLOCKED` for a decision that is expensive to reverse *and* has no safe default.
-- **The exception surface is [docs/spec/01-core-library.md](../docs/spec/01-core-library.md) § 10, not
+- **The exception surface is [docs/spec/01-core-library.md](../spec/01-core-library.md) § 10, not
   ADR 0020 § 1.** ADR 0020 explicitly deferred the exact shape to stdlib work, and § 10 *is* that work.
   So: `Throwable` is the root and user classes extend it directly; the tree is `LogicError`,
   `RuntimeError` (with `IOError`, `ParseError`, `TimeoutError`) and `ArithmeticError`; members are
@@ -144,8 +50,8 @@ Every one of these was settled with the user before the loop started. Implement 
   `$e->backtrace` is the array form M3 carried over; the string form it landed becomes a rendering of it.
 - **Type variables stay compiler-owned.** Implement real `<T>` machinery in `mwl-hir`/`mwl-types` —
   declaration, substitution, and call-site inference from argument types — but expose it only to
-  declarations the compiler owns, which is what [ADR 0007](../docs/adr/0007-explicit-type-system.md)'s
-  *Revisiting* already assumes and [ADR 0053 § 2](../docs/adr/0053-iteration-and-generators.md) states
+  declarations the compiler owns, which is what [ADR 0007](../adr/0007-explicit-type-system.md)'s
+  *Revisiting* already assumes and [ADR 0053 § 2](../adr/0053-iteration-and-generators.md) states
   outright. User code gets exactly two things: implementing a compiler-owned generic interface at a
   concrete type (`implements Iterator<User>`), and the explicit call-site type argument
   `Core\Attributes::get<T>` needs. **User-defined generic classes stay deferred** — that is a
@@ -161,11 +67,11 @@ Every one of these was settled with the user before the loop started. Implement 
   AST, or a finished object representation. The spec file's own *Milestones* line says §§ 1–13 and is
   wrong; correct it to §§ 1–12 and note where each § 13 entry actually lands. ADR 0046's `#[...]`
   *syntax* is still in scope — only the retrieval body is not, which is what M4 already says.
-- **Settle [ADR 0009](../docs/adr/0009-string-and-bytes.md) early, by measurement.** It is *Proposed*, and
+- **Settle [ADR 0009](../adr/0009-string-and-bytes.md) early, by measurement.** It is *Proposed*, and
   `Core\Str::length`/`at`/`slice` cannot be conformance-tested until its granularity question lands — the
   spec says as much. Implement both granularities behind one seam, take the cost measurement its
   *Revisiting* asks for, write the figure into `a_grapheme_index_costs_more_than_a_code_point_index` in
-  `benches/abi-probe/tests/perf_guards.rs` (where measured numbers live, per CLAUDE.md), pick the default
+  `benches/abi-probe/tests/perf_guards.rs` (where measured numbers live, per AGENTS.md), pick the default
   it justifies, and move the ADR to **Accepted**. Do this before writing `Core\Str`'s conformance cases.
 - **No cycle collector.** Refcounting only. A cyclic object graph in a CLI script is retained until the
   process exits; record that boundary in `mwl-runtime`'s module doc and scope Stage 6's leak check to
@@ -175,7 +81,7 @@ Every one of these was settled with the user before the loop started. Implement 
   exist. Do not build it here.
 - **Dependencies: choose them, record them.** `Core\Regex`, `Core\Time`, `Core\Hash`, `Core\Random`,
   `Core\Uri` and `Core\Csv` all need outside code. Pick pure-Rust crates against
-  [ADR 0051 § 4](../docs/adr/0051-standard-library-tiers.md)'s two-question test, keep `cargo deny check`
+  [ADR 0051 § 4](../adr/0051-standard-library-tiers.md)'s two-question test, keep `cargo deny check`
   green, and record each pick with its reasoning in that module's own doc comment. Stop only if a needed
   capability has no pure-Rust option at all — that is a real `BLOCKED`, naming the capability.
 - **The runner lives in `crates/mwl-test`**, which the README's crate table already reserves; `mwl-cli`
@@ -194,9 +100,8 @@ Every one of these was settled with the user before the loop started. Implement 
   anyway.
 - **Backlog items are off-path unless the goal needs them.** If a slice is not on the path to the
   acceptance list, put it in `## Backlog` and move on.
-- **Doc trimming is not loop work.** `python .claude/brief.py --check` names any over-long entity with the
-  line and the bytes to cut — fix that one line and move on; never run
-  [DOC_CLEANUP_PROMPT.md](../DOC_CLEANUP_PROMPT.md)'s pass from inside the loop.
+- **Doc trimming is not loop work, ever.** Nothing measures doc size (AGENTS.md § *Length targets*), and
+  [doc-cleanup.md](doc-cleanup.md)'s pass is never run from inside the loop.
 
 ## The gaps that actually sit on the path
 
@@ -209,10 +114,10 @@ Named because none is visible from either milestone's text, and each is work rat
   sidesteps it with four distinct names, so it is not on the acceptance path either way.
 - **The constructor is spelled `function constructor(...)`**, and the parent call is
   `parent::constructor(...)` — `mwl-types`' own tests and `ctor_init.rs` are the authority.
-  [ADR 0043](../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s illustrative
+  [ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s illustrative
   examples omitted `function` and have been corrected; if another doc example does the same, it is a bug.
 - **`implements Iterable<int>` does not parse yet.** A generic interface in an `implements` clause is
-  [ADR 0053 § 2](../docs/adr/0053-iteration-and-generators.md)'s one narrow extension, and it is the parse
+  [ADR 0053 § 2](../adr/0053-iteration-and-generators.md)'s one narrow extension, and it is the parse
   error `examples/iterate.mwl` hits today.
 - **`mwl_ir::lower::lower_file` skips interfaces and enums entirely**, for the same reason instance calls
   are refused: there is no object representation to lower them onto.
@@ -231,5 +136,5 @@ Named because none is visible from either milestone's text, and each is work rat
   conformance suite will make this loud.
 - **`for` and `switch` are still absent from `mwl-ir`.** `switch` needs the N-way terminator generator
   resumption also wants, so ADR 0053's state-machine lowering and `switch` pair naturally.
-- **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of exactly the kind CLAUDE.md
+- **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of exactly the kind AGENTS.md
   forbids. It is the one doc in the repo genuinely owed a trim. Backlog, not a reason to stop.

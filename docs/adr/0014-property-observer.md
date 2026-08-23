@@ -81,7 +81,7 @@ Nothing about a property's own `get`/`set` hook changes here — same syntax, sa
 interaction with `readonly` and asymmetric visibility PHP 8.4 already has. This ADR fixes only where a hook
 sits relative to the new mechanism in *2* and *3*; the hook itself is not redesigned, and its finer semantics
 (virtual vs. backed properties, hook visibility) belong to `docs/spec/`, which is unwritten — see
-[CLAUDE.md](../../CLAUDE.md)'s routing table.
+[AGENTS.md](../../AGENTS.md)'s routing table.
 
 ### 2. `PropertyObserver` — a new global reserved interface, not a `Core` domain class
 

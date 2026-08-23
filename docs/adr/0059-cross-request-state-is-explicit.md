@@ -34,7 +34,7 @@
   similar in APCu and are completely different problems; the first tolerates loss and staleness, the second
   does not. PHP's single API for both is why applications routinely use APCu for things that break silently
   under multiple processes.
-- CLAUDE.md's memory rule — attributable to a request, under an enforceable cap, O(in-flight) rather than
+- AGENTS.md's memory rule — attributable to a request, under an enforceable cap, O(in-flight) rather than
   O(requests served) — does not fit a cache, whose whole purpose is to outlive the request that filled it.
   The rule needs an explicit, bounded exception rather than a quiet one.
 

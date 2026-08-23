@@ -2,7 +2,7 @@
 
 - **Status:** Draft — the first spec document. It exists to fix *spelling* the ADRs deliberately left open;
   it does not restate any ADR's semantics, and where this document and an ADR ever disagree on wording, the
-  ADR owns the semantics and this document owns the syntax (see [CLAUDE.md](../../CLAUDE.md), "every fact
+  ADR owns the semantics and this document owns the syntax (see [AGENTS.md](../../AGENTS.md), "every fact
   has exactly one home").
 - **Scope:** file modes and inline HTML; `require` next to `eval` and `spawn script`, since the
   plan names confusing the last two as the predictable mistake; the concrete grammar for every declaration

@@ -1,24 +1,21 @@
 # Documentation cleanup prompt
 
 Reusable prompt for periodically compacting MWL's docs (ADRs, `docs/adr/README.md`,
-`docs/implementation-plan.md`, `docs/spec/`, `CLAUDE.md`) as the ADR count grows. Paste this whole
+`docs/implementation-plan.md`, `docs/spec/`, `AGENTS.md`) as the ADR count grows. Paste this whole
 file as the prompt when you want another pass. Update it in place if a future pass finds a rule that
 needs adjusting — don't let it drift out of sync with how cleanup is actually done.
 
 ## When this pass is due
 
-**Not on a budget signal — that is no longer what this pass is for.** `python .claude/brief.py --check`
-enforces per-entity caps (one status field, one milestone heading, one ADR index decision cell) and its
-section budgets are derived from entity counts, so doc growth cannot trip it. A `--check` failure names a
-single over-long line with the bytes to cut: fix that line where it lives and move on. It is a lint hit,
-not a trim-pass trigger, and running this whole pass in response to one is wasted effort.
+**Not on a budget signal — there is no budget signal.** Nothing in this repository measures a doc against
+a size, by design: see AGENTS.md § *Length targets, and why nothing enforces them*. Doc length never
+triggers this pass.
 
 Run this pass when *you* judge the docs have drifted — rationale piled up, a decision superseded in three
-places, an ADR nobody can find. There is no schedule and no automatic signal.
+places, an ADR nobody can find. There is no schedule and no automatic signal; the user fires it by hand.
 
 One thing is never a target here: the ADR index in `docs/adr/README.md` grows a row per decision and is
-*supposed* to. It is not trimmable. Its only constraint is that each decision cell stays one sentence,
-which `--check` already enforces.
+*supposed* to, as does the `## Where to look` routing table above it. Neither is trimmable.
 
 ## The ask
 
@@ -48,10 +45,10 @@ entirely. Always list merge candidates for human approval before touching files 
 
 **Trim depth: cut rationale to bullet lines.** Every ADR already follows metadata block → `## Decision`
 (within ~60 lines) → optionally `## Context` / `## Investigation` / `## Alternatives rejected` →
-`## Consequences`. `CLAUDE.md` already tells readers the sections after `## Decision` are skippable
+`## Consequences`. `AGENTS.md` already tells readers the sections after `## Decision` are skippable
 unless they intend to overturn the decision — so trim those sections hard:
 - Keep the metadata block exactly as-is (Status, Date, Amends/Amended-by links — these are load-bearing
-  for the README index and CLAUDE.md's routing table).
+  for the README index and AGENTS.md's routing table).
 - Keep `## Decision` and `## Consequences` untouched in meaning; only tighten prose that's clearly
   padding.
 - Compress `## Context` / `## Investigation` / `## Alternatives rejected` into short bullet lists: one
@@ -65,7 +62,7 @@ unless they intend to overturn the decision — so trim those sections hard:
 - Never touch `## Decision` content, diagnostic names/codes, or cross-reference links while trimming.
 
 **Scope: everything.** ADRs, `docs/adr/README.md`, `docs/implementation-plan.md`, `docs/spec/`, and
-`CLAUDE.md` are all in scope for this pass — not just the ADRs. Apply the same "one fact, one home, no
+`AGENTS.md` are all in scope for this pass — not just the ADRs. Apply the same "one fact, one home, no
 padding" standard everywhere; if a doc restates something the ADR already owns, delete the restatement
 and link instead.
 
@@ -75,27 +72,27 @@ open question itself alone. Cleanup is not the moment to make new calls.
 
 ## How to run this pass
 
-1. Read `CLAUDE.md`, run `python .claude/brief.py`, and read `docs/adr/README.md` to get the current shape
+1. Read `AGENTS.md`, run `python tools/brief.py`, and read `docs/adr/README.md` to get the current shape
    of the doc set (ADR count, statuses, what's Accepted vs Proposed).
 2. Survey for merge candidates and stale/irrelevant content before editing anything — read-only pass,
    report findings, get human approval on any proposed merge before acting on it.
 3. Execute the trim across every ADR (batch it — e.g. one subagent per handful of files — to keep this
    from consuming the whole context window; review a sample of the diffs afterward for consistency and
    to make sure `## Decision` sections were left untouched).
-4. Re-check `docs/adr/README.md`, `docs/implementation-plan.md`, `docs/spec/`, and `CLAUDE.md` for
+4. Re-check `docs/adr/README.md`, `docs/implementation-plan.md`, `docs/spec/`, and `AGENTS.md` for
    anything the trim pass should have caught but is out of ADR scope.
 5. Run `cargo fmt --check` / whatever doc-adjacent checks exist (there's no markdown linter in this
    repo as of this writing) — this is a docs-only pass, so the main risk is a broken cross-link, not a
    build break. Spot check a few `[ADR NNNN](...)` links resolve to real files.
 6. Commit with a message describing the trim (line counts before/after are a good thing to mention).
-7. Follow `CLAUDE.md`'s "Keep work small, commit your work" section: write the next-session prompt to
-   `NEXT_SESSION_PROMPT.md`, replacing its prior content, and show it to the user.
+7. Follow `AGENTS.md`'s "Keep work small, commit your work" section: write the next-session prompt to
+   `docs/agent/handoff.md`, replacing its prior content, and show it to the user.
 
 ## Open questions to ask if unclear next time
 
 - Has the "amend, don't rewrite" convention changed? (Check `docs/adr/README.md`'s own process section
   and recent git history for ADR-add commits before assuming the answer above still holds.)
-- Has the ADR count grown enough that `CLAUDE.md`'s "Where to look" table itself needs restructuring
+- Has the ADR count grown enough that `AGENTS.md`'s "Where to look" table itself needs restructuring
   (e.g. grouping several ADRs under one table row) rather than just trimming individual files?
 - Is `docs/spec/` still a stub, or has it grown enough to need its own cleanup pass with different
   rules than the ADRs?

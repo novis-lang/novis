@@ -77,7 +77,7 @@
 
 Inserted as **M4B** (not renumbered into the M5–M14 sequence) specifically to avoid renumbering the ~30
 cross-references to M5 through M14 across other ADRs for a purely additive milestone — the same
-low-churn instinct [CLAUDE.md](../../CLAUDE.md) already applies to documentation. M4B pulls forward,
+low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation. M4B pulls forward,
 **scoped down to a minimal subset**, work that M10 was going to do anyway:
 
 - `crates/mwl-lsp` — created here, not at M10 — implementing only: `textDocument/publishDiagnostics` (by
@@ -121,7 +121,7 @@ The addition, modeled on rust-analyzer's `rowan`-based approach from *Context*:
   strict, all-or-nothing parse. The resilient mode is additive and reachable only through `mwl-lsp` (and,
   later, `mwl fmt`/`mwl-ide`-adjacent tooling that wants the same tolerance) — one grammar, two entry
   points, not two grammars to keep in sync.
-- **Where this lands relative to the priority ordering in [CLAUDE.md](../../CLAUDE.md):** this spends
+- **Where this lands relative to the priority ordering in [AGENTS.md](../../AGENTS.md):** this spends
   simplicity (priority 4) — a second parser mode to build and keep in step with the grammar while M2–M4
   still actively change it — and buys nothing on security, correctness, or the request path (priorities
   1–3), because it is never linked into the compiled artifact `mwl run` produces; it exists only in
@@ -211,7 +211,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - Reusing VS Code's native Test Coverage API, `LanguageStatusItem`, and DAP's existing debugger UI, and the
   open speedscope format for profiling, means MWL avoids building and maintaining four different pieces of
   UI infrastructure that already exist and are already maintained elsewhere — a direct instance of
-  [CLAUDE.md](../../CLAUDE.md)'s simplicity priority.
+  [AGENTS.md](../../AGENTS.md)'s simplicity priority.
 - The resilient parse mode in *Decision § 2* is additive to `mwl-syntax`, never touches the compiled
   artifact's code path, and is exactly the design (`rowan`-style lossless CST) an existing, heavily-used
   language tool (rust-analyzer) already validated at scale for the identical problem.

@@ -1,5 +1,5 @@
 //! MWL's CFG/SSA IR — `docs/implementation-plan.md`'s M2 milestone's last open
-//! thread. See `NEXT_SESSION_PROMPT.md` for how this crate grew: the milestone
+//! thread. See `docs/agent/handoff.md` for how this crate grew: the milestone
 //! text ("a CFG/SSA IR carrying explicit safepoints, refcount operations and
 //! runtime-helper calls, with a stable per-statement/per-edge id" — see
 //! [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md))
@@ -477,7 +477,7 @@
 //! never created.
 //!
 //! `echo` and the **script body as a function** are the latest slice, and the
-//! two that put the whole front end on `.claude/loop-goal.md`'s acceptance
+//! two that put the whole front end on `docs/agent/loop-goal.md`'s acceptance
 //! program. [`lower::lower_script`] synthesizes one frame from a file's own
 //! top-level statements — skipping declarations, whose methods
 //! [`lower::lower_method`] lowers separately, and descending into a
@@ -495,7 +495,7 @@
 //!
 //! - **SSA, not a plain CFG.** `docs/implementation-plan.md`'s M2 paragraph
 //!   already commits to "a CFG/**SSA** IR" (not left open by this session) —
-//!   adopted here rather than reopened, per CLAUDE.md's "mechanical
+//!   adopted here rather than reopened, per AGENTS.md's "mechanical
 //!   follow-through of what the plan already committed to" carve-out.
 //!   `if`/`while` are each a single, hand-rolled two-predecessor (or
 //!   pre-loop/back-edge) merge, not a general dominance-based phi-placement
@@ -571,7 +571,7 @@
 //!   inserting a retain everywhere a value is copied into a second durable
 //!   slot and a release everywhere a slot's value is overwritten or the slot
 //!   itself goes out of scope, with no attempt to prove a copy was
-//!   unnecessary. (b) was chosen: CLAUDE.md's priority ordering ranks
+//!   unnecessary. (b) was chosen: AGENTS.md's priority ordering ranks
 //!   correctness and simplicity ahead of memory/latency, nothing can execute
 //!   this IR yet to make (a)'s payoff measurable, and ADR 0004/0006/the
 //!   project's own architecture notes already commit to "a refcount per
@@ -717,7 +717,7 @@
 //!   unsupported shape. PHP writes such a run to output verbatim, so the
 //!   lowering is the same [`ir::Helper::EchoStr`] call `echo` already emits,
 //!   over a [`ir::InstKind::ConstStr`] of the raw span — left out here only
-//!   because `.claude/loop-goal.md`'s acceptance program has none, and
+//!   because `docs/agent/loop-goal.md`'s acceptance program has none, and
 //!   `mwl_types` does not check one either (its own `check_stmt` treats
 //!   `InlineHtml` as a no-op), so landing it would widen two crates at once.
 //! - **`try`/`catch`/`throw` lower; `finally` does not.** See
@@ -729,10 +729,10 @@
 //!   clause-scoped lifetime. Out of scope, each panicking rather than
 //!   miscompiling: `finally`, a second `catch` clause, a user exception class
 //!   (all three now want only the exception *surface* decision
-//!   `.claude/loop-goal.md` records — [`ir::InstKind::InstanceOf`], the type
+//!   `docs/agent/loop-goal.md` records — [`ir::InstKind::InstanceOf`], the type
 //!   test each needs, already lowers), `throw` in expression position, and
 //!   `Throwable::getTrace()`, which
-//!   returns `array<…>` and is `.claude/loop-goal.md`'s explicit M4
+//!   returns `array<…>` and is `docs/agent/loop-goal.md`'s explicit M4
 //!   carry-over. One narrower gap sits inside what *does* lower: the landing
 //!   sweep covers the frame's locals, not a temporary still in flight inside
 //!   the expression that threw — see [`lower::Lowering::landing_block`]'s own

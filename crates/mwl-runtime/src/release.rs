@@ -8,7 +8,7 @@
 //! depth of a user's data structure — a linked list, a parse tree, `$a = [$a]`
 //! in a loop — decide whether the process survives freeing it, and a stack
 //! overflow aborts the process rather than failing one request. That is
-//! [CLAUDE.md](../../../CLAUDE.md)'s priority 1, so the worklist's allocation
+//! [AGENTS.md](../../../AGENTS.md)'s priority 1, so the worklist's allocation
 //! is not optional.
 //!
 //! Giving each kind its own worklist would not do: a chain that alternates
@@ -17,7 +17,7 @@
 //! both [`crate::object`] and [`crate::array`] hand it their children rather
 //! than dropping them.
 //!
-//! The cost, stated as CLAUDE.md requires: **one `Vec` allocation per
+//! The cost, stated as AGENTS.md requires: **one `Vec` allocation per
 //! outermost release that actually frees a container**, and nothing at all for
 //! a release that only decrements or that frees a string. The worklist starts
 //! empty and is only ever touched once a count has already reached zero.

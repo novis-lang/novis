@@ -200,7 +200,7 @@ impl MethodSig {
 /// which is why nothing here records backedness. The trade is one machine
 /// word per instance for a property whose hooks never touch storage, bought
 /// against an AST walk over every hook body, a second layout rule, and a
-/// second legality rule for what a hook body may say. CLAUDE.md's priority
+/// second legality rule for what a hook body may say. AGENTS.md's priority
 /// ordering puts simplicity above footprint and names exactly this shape of
 /// trade; the word is per *instance* of a class that declares a virtual
 /// hooked property, so it is O(in-flight objects), not O(traffic).

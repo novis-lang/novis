@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `valgrind --leak-check=full` over the fixtures named on the command line — the
-# narrow counterpart of `.claude/wsl-acceptance.sh`'s whole-suite memory leg.
+# narrow counterpart of `tools/wsl-acceptance.sh`'s whole-suite memory leg.
 #
 # Run one of these for **any** new refcount edge, before it reaches a session's
 # last commit: the whole-suite leg only covers `examples/`, and this repository's
@@ -8,10 +8,10 @@
 # `mwl_ir::lower::end_iteration`) went unnoticed until a fixture happened to
 # declare one.
 #
-#   wsl.exe -- bash /mnt/<drive>/<repo>/.claude/leak-check.sh target/mine.mwl examples/report.mwl
+#   wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh target/mine.mwl examples/report.mwl
 #
 # A `wsl.exe -- bash -lc "…"` one-liner mangles under two layers of shell
-# quoting, so this is a file passed by path instead. CLAUDE.md says why.
+# quoting, so this is a file passed by path instead. AGENTS.md says why.
 set -u
 
 cd /mnt/<drive>/<repo> || exit 1

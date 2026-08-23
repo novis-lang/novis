@@ -2,7 +2,7 @@
 //! them back through the signature.
 //!
 //! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) parks
-//! user-declared generics and `.claude/loop-goal.md` keeps type variables
+//! user-declared generics and `docs/agent/loop-goal.md` keeps type variables
 //! **compiler-owned**, so exactly two things in the whole compiler produce a
 //! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `mwl_stdlib::registry`
 //! signature, and [`crate::iter_lib`] writing ADR 0053 § 1's two iteration

@@ -1,0 +1,228 @@
+# The loop's acceptance test, as data.
+#
+# `tools/loop.py` runs the checks below in order, short-circuiting on the first failure, so the ledger
+# line each iteration writes says exactly how far the loop got. Every check must pass. Nothing else
+# counts as done -- not a passing unit test, not a session claiming DONE.
+#
+# `loop-goal.md` is the prose: what the goal is, why, and the standing decisions already settled with the
+# user. It does not restate this list, and this file does not restate its reasoning. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A fixture may be corrected to a
+# spelling the docs already fix -- its author had to write an option bag and an interface shape from the
+# spec, and an error there is a bug in the fixture, not a decision. What may never change is the expected
+# output, or a fixture's reason for existing. Re-freeze, say why in the commit message, move on. That is
+# not licence to weaken a check to make it pass.
+
+# Every fixture the run touches. Missing one fails before anything is built.
+files = [
+  "examples/hello.mwl", "examples/calls.mwl", "examples/throw.mwl", "examples/arith.mwl",
+  "examples/trace.mwl", "examples/uncaught.mwl", "examples/fatal.mwl",
+  "examples/objects.mwl", "examples/arrays.mwl", "examples/errors.mwl", "examples/hooks.mwl",
+  "examples/enums.mwl", "examples/iterate.mwl", "examples/core.mwl", "examples/report.mwl",
+]
+
+[valgrind]
+# Every fixture again under `valgrind --leak-check=full`, once the program legs are green. A hand-written
+# refcount protocol is exactly where a leak hides. Cycles are out of scope by decision (loop-goal.md), so
+# only *definite* losses fail. These two exit non-zero by design, so they are skipped.
+skip = ["examples/fatal.mwl", "examples/uncaught.mwl"]
+
+[wsl]
+# On Windows the second leg runs through WSL, because a JIT is exactly where a calling-convention
+# divergence between two targets hides. On Linux the native leg already is that target, so there is no
+# second leg -- only the valgrind sweep, run directly.
+target_dir = "/tmp/mwl-target-wsl"
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 1 -- the object and array gate.  `kind = "exact"` means: exit 0, and stdout line for line equal
+# to `want`. A fixture that prints an extra line has failed.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/hello.mwl"
+want = ["Hello, World!"]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/calls.mwl"
+want = ["quadruple(5) = 20"]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/arith.mwl"
+want = ["sum = 998000"]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/throw.mwl"
+want = ["caught: boom"]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/objects.mwl"
+want = [
+  "cat has 4 legs", "rex has 4 legs, and barks", "Hello, rex!",
+  "dog is an animal", "dog greets", "leaf", "leaf is a mid",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/arrays.mwl"
+want = [
+  "alpha=1;beta=2;gamma=3;", "alpha=1;gamma=3;", "alpha=1;gamma=3;beta=20;",
+  "alpha=1;gamma=3;beta=20;", "alpha=99;gamma=3;beta=20;", "count=3", "total=10",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/errors.mwl"
+want = [
+  "checked host", "value-of-host", "checked bad", "config: bad key",
+  "checked missing", "logic: no such key: missing", "backtrace present",
+]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/hooks.mwl"
+want = ["6", "20", "Counter(10)", "n=6"]
+
+[[check]]
+kind = "exact"
+stage = "1 object/array gate"
+file = "examples/enums.mwl"
+want = ["ana outranks bo", "gold=2", "ana,clone"]
+
+# A caught throw's own trace, read back from MWL through its backtrace property.
+[[check]]
+kind = "ordered"
+stage = "1 object/array gate"
+file = "examples/trace.mwl"
+stream = "stdout"
+want = ["#0 Deep::inner()", "#1 Deep::outer()"]
+
+# An uncaught throw: non-zero exit plus an MWL-level backtrace on stderr.
+[[check]]
+kind = "ordered"
+stage = "1 object/array gate"
+file = "examples/uncaught.mwl"
+stream = "stderr"
+exit = "nonzero"
+want = ["Uncaught Exception: unhandled", "#0 Boom::inner()", "#1 Boom::outer()"]
+
+# A contained helper panic: FATAL, non-zero, and the output produced before it survives.
+[[check]]
+kind = "contains"
+stage = "1 object/array gate"
+file = "examples/fatal.mwl"
+args = ["--fault-inject=helper-panic"]
+exit = "nonzero"
+stderr_contains = ["FATAL"]
+stdout_contains = ["start"]
+
+# --dump-asm prints generated code instead of running, the way --dump-ir already does.
+[[check]]
+kind = "min-bytes"
+stage = "1 object/array gate"
+file = "examples/arith.mwl"
+args = ["--dump-asm"]
+stream = "stdout"
+min_bytes = 200
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the rest of M4's language surface.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "2 language surface"
+file = "examples/iterate.mwl"
+want = ["generator=15", "iterable=10"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- Core Part I is real.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "3 Core Part I"
+file = "examples/core.mwl"
+want = ["evens=5", "PEAR|APPLE|FIG|BANANA", "fig,pear,Apple,banana", "a+b+c", "007", "Mwl runs"]
+
+[[check]]
+kind = "exact"
+stage = "3 Core Part I"
+file = "examples/report.mwl"
+want = ["the...3", "quick.1", "brown.1", "fox...2", "lazy..1", "dog...1", "distinct=6"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the two suites, plus the mechanical spec-coverage gate behind them. `mwl test <dir>` must
+# exit 0 AND print an "N passed, M failed" summary: a suite that silently collected nothing exits 0 too,
+# and that is the failure this guards against. These run once, not per leg.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-suite"
+stage = "4 suites"
+name = "conformance"
+args = ["run", "--quiet", "-p", "mwl-cli", "--", "test", "tests/conformance/"]
+min_passing = 250
+
+[[check]]
+kind = "cargo-suite"
+stage = "4 suites"
+name = "differential"
+args = ["run", "--quiet", "-p", "mwl-cli", "--", "test", "tests/differential/"]
+min_passing = 60
+
+# A named test must both EXIST and pass -- `cargo test` is green on a suite that never ran the guard.
+[[check]]
+kind = "cargo-named"
+stage = "4 suites"
+name = "mwl-stdlib"
+args = ["test", "-p", "mwl-stdlib"]
+tests = ["every_part_one_member_has_a_conformance_case"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the named guard tests.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 guards"
+name = "abi-probe"
+args = ["test", "--release", "-p", "mwl-abi-probe"]
+tests = [
+  "a_typed_arithmetic_loop_contains_no_call",
+  "a_typed_arithmetic_loop_stays_in_the_native_cost_class",
+  "a_refcount_one_array_member_mutates_in_place",
+  "a_class_without_a_property_observer_costs_nothing_extra",
+  "a_grapheme_index_costs_more_than_a_code_point_index",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 guards"
+name = "mwl-codegen"
+args = ["test", "-p", "mwl-codegen"]
+tests = ["a_second_script_runs_after_a_contained_helper_panic"]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 guards"
+name = "mwl-runtime"
+args = ["test", "-p", "mwl-runtime"]
+tests = ["an_acyclic_object_graph_releases_every_allocation"]

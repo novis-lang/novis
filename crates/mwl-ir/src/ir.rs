@@ -915,7 +915,7 @@ pub enum Helper {
     StrToFloat,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
-    /// effect under `mwl run`, decided in `.claude/loop-goal.md`. Defines no
+    /// effect under `mwl run`, decided in `docs/agent/loop-goal.md`. Defines no
     /// value: the only [`Helper`] so far that is invoked for an effect
     /// rather than a conversion, so its [`InstKind::HelperCall`] is emitted
     /// with `result: None` and every other variant's "the result is a fresh

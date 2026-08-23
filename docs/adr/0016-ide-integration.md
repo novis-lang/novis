@@ -55,7 +55,7 @@
 client re-implements completion, diagnostics, hover, rename, go-to-definition, or code formatting locally —
 each is a thin adapter that starts the server/formatter process, translates its own editor's UI events into
 LSP requests, and renders the results. This is the same "state a fact once" rule
-[CLAUDE.md](../../CLAUDE.md) already applies to documentation, applied here to executable behaviour: two
+[AGENTS.md](../../AGENTS.md) already applies to documentation, applied here to executable behaviour: two
 independent reimplementations of, say, MWL's formatting rules would drift the moment one editor's plugin
 fixes a bug the other's has not.
 
@@ -122,7 +122,7 @@ editors/
   phpstorm/    file-type registration, LSP-bridge plugin (Kotlin/Gradle)              M10
 ```
 
-Created when M10 starts, the same rule [CLAUDE.md](../../CLAUDE.md) and the
+Created when M10 starts, the same rule [AGENTS.md](../../AGENTS.md) and the
 [README](../../README.md#repository-layout) already state for every crate: nothing sits scaffolded and
 empty ahead of its milestone. Neither directory is a Cargo crate — the VS Code extension is TypeScript/Node
 tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform tooling — so both sit outside the Rust

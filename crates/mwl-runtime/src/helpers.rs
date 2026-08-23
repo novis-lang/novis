@@ -299,7 +299,7 @@ crate::mwl_helper! {
 
 crate::mwl_helper! {
     /// `mwl_ir::Helper::EchoStr` — raw bytes to the request's own output, with
-    /// no escaping. `.claude/loop-goal.md` records that decision and why
+    /// no escaping. `docs/agent/loop-goal.md` records that decision and why
     /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 5's auto-escaping sink is the HTTP response write rather than this
     /// one.

@@ -796,7 +796,7 @@ impl Emitter<'_, '_> {
     /// Integer `%`, with the two divisors that would otherwise **trap the
     /// whole process** dealt with before the machine instruction runs.
     ///
-    /// A trap is a request-isolation failure — CLAUDE.md's priority 1 — not a
+    /// A trap is a request-isolation failure — AGENTS.md's priority 1 — not a
     /// wrong answer, so neither case may reach `srem`/`urem`:
     ///
     /// * **A zero divisor** throws spec § 10's `ArithmeticError`, carrying
@@ -807,7 +807,7 @@ impl Emitter<'_, '_> {
     ///   same shape and the same cost as ADR 0002's status check.
     /// * **`i64::MIN % -1`** does not throw, because it is not an overflow:
     ///   `x % -1` is exactly `0` for every `x`, which is representable. PHP 8
-    ///   answers `0` here and CLAUDE.md's priority 2 keeps that. So the
+    ///   answers `0` here and AGENTS.md's priority 2 keeps that. So the
     ///   divisor is rewritten to `1` when it is `-1` — a compare and a
     ///   `select`, no branch, and `x % 1` is `0` by the same identity.
     ///

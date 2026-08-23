@@ -1,10 +1,11 @@
 # MWL — Modern Web Lang: Implementation Plan
 
-<!-- This block has a FIXED field set, enforced by `python .claude/brief.py --check`: Status, Done,
-     On disk, Toolchain, ADR slices landed, Open now, Blocking. Overwrite a field in place; never add
-     a paragraph or a new field name. That is what keeps it bounded as milestones accumulate. Each
-     field is capped at 400 bytes. History lives in `git log`, per-crate gaps in each crate's module
-     doc — see CLAUDE.md's "Keep work small" section. -->
+<!-- This block has a fixed field set: Status, Done, On disk, Toolchain, ADR slices landed, Open now,
+     Blocking. Overwrite a field in place; never add a paragraph or a new field name. That is what
+     keeps it bounded as milestones accumulate. Aim for ~400 bytes a field — guidance for you, not a
+     check: nothing verifies it, and no session should ever be spent trimming to a number. History
+     lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
+     here" section. -->
 
 > **Status:** 2026-08-23. **M3 is done**, and the loop goal's Stages 1-2 plus `examples/report.mwl` are
 > green on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
@@ -25,7 +26,7 @@
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
-> WSL nightly toolchain (CLAUDE.md says why).
+> WSL nightly toolchain (AGENTS.md says why).
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
@@ -333,7 +334,7 @@ values cross (the graph-copy operation [ADR 0023](adr/0023-clone-serialize-and-c
 formally defines, shared with `serialize()`/`unserialize()`), how budgets are accounted (at the root of the
 request tree, never per isolate), the `script.spawn` capability and its path resolution, and failure
 arriving as a value rather than as an unwind. The spec pins the exact grammar down in M5. The three
-invariants no optimisation may trade away are listed in [CLAUDE.md](../CLAUDE.md).
+invariants no optimisation may trade away are listed in [AGENTS.md](../AGENTS.md).
 
 The structural consequence for this plan: `mwl-host` gains **one** `Isolate` type, and an inbound HTTP
 request *is* the root isolate of its tree. The server path (M7) and the `spawn script` path (M5) therefore
@@ -529,7 +530,7 @@ helper only for `mixed`, unions and dynamic calls — a chunk of what M12 was fo
 backend.
 
 **Verify:** every bullet below, machine-checked by the unattended loop against the frozen `examples/*.mwl`
-fixtures on Windows and Linux — `.claude/loop-goal.md` holds the one copy of that acceptance list and is
+fixtures on Windows and Linux — `docs/agent/loop-goal.md` holds the one copy of that acceptance list and is
 authoritative for it. `mwl run` prints from natively compiled code. A throw crosses several JIT frames and
 is caught; a helper panic terminates the script with a `FATAL` status and leaves the process able to run the
 next one. An MWL-level backtrace names the right functions, resolved from MWL's own frame chain rather than

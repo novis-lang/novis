@@ -1,6 +1,6 @@
 //! The typed-expression table — the architecture decision `mwl-ir` widening
 //! past scalars needed before it could lower a call, `new`, or a member
-//! access: see `NEXT_SESSION_PROMPT.md`'s history for the two options this
+//! access: see `docs/agent/handoff.md`'s history for the two options this
 //! was weighed against (`mwl-ir` depending on `mwl-types` and duplicating its
 //! resolution logic, versus this crate publishing a persisted result
 //! `mwl-ir` reads back) and why the second was chosen.

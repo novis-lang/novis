@@ -3,7 +3,7 @@
 //! points back at.
 //!
 //! This is the representation `mwl_ir::ty::Ty::Object` lowers to, and the one
-//! thing nearly everything else in M4 waits on (`.claude/loop-goal.md`). It
+//! thing nearly everything else in M4 waits on (`docs/agent/loop-goal.md`). It
 //! follows [`crate::string`]'s shape deliberately: one allocation, a
 //! [`Cell`]-refcounted header, and the payload behind it at a fixed offset
 //! compiled code computes rather than asks for.
@@ -23,14 +23,14 @@
 //! therefore costs 16 bytes rather than 8, and writing one stores a tag byte
 //! nothing reads back.
 //!
-//! That is [CLAUDE.md](../../../CLAUDE.md)'s priority 5 spent on its priorities
+//! That is [AGENTS.md](../../../AGENTS.md)'s priority 5 spent on its priorities
 //! 2 and 4, which is the direction the ordering permits:
 //!
 //! * **Releasing an object needs no per-field type table.** The sweep in
 //!   [`release_graph`] branches on each slot's own tag. With unboxed slots it
 //!   would have to walk a parallel `Vec<Ty>` on the [`ClassDesc`] — a second
 //!   structure that must agree with the layout codegen emitted, i.e. exactly
-//!   the "invariant every future contributor must remember" CLAUDE.md's
+//!   the "invariant every future contributor must remember" AGENTS.md's
 //!   memory section names as the wrong trade.
 //! * **`mixed` and `?T` fields need no special case.** They are already a
 //!   tagged value; a uniform slot is the only representation that holds one
@@ -40,7 +40,7 @@
 //!   loads the payload half directly and never checks the tag on a read. Only
 //!   a write pays, and it pays one extra store.
 //!
-//! The cost is stated as CLAUDE.md requires: **8 extra bytes per declared
+//! The cost is stated as AGENTS.md requires: **8 extra bytes per declared
 //! property per live object**, charged to the request that allocated it.
 //!
 //! ## Decision: a subclass's slots follow its parent's
@@ -100,7 +100,7 @@
 //! rather than a name — a separate decision, on a table this one already
 //! builds.
 //!
-//! Cost, as [CLAUDE.md](../../../CLAUDE.md) requires: one `(String, *const u8)`
+//! Cost, as [AGENTS.md](../../../AGENTS.md) requires: one `(String, *const u8)`
 //! pair per method *reachable* on each class — so a deep hierarchy holds its
 //! ancestors' entries once per descendant — charged to the compiled unit, not
 //! to a request, and freed with it.
@@ -137,7 +137,7 @@
 //!
 //! # Decision: no cycle collector
 //!
-//! Refcounting only, per `.claude/loop-goal.md`. A cyclic object graph is
+//! Refcounting only, per `docs/agent/loop-goal.md`. A cyclic object graph is
 //! retained until the process exits; see [`crate`]'s own known gaps for the
 //! boundary and where the eventual collector belongs.
 
@@ -1450,7 +1450,7 @@ mod tests {
 
     #[test]
     fn an_acyclic_object_graph_releases_every_allocation() {
-        // The Stage 5 guard `.claude/loop-goal.md` names. A refcount protocol
+        // The Stage 5 guard `docs/agent/loop-goal.md` names. A refcount protocol
         // written by hand is exactly where a leak hides, so this measures the
         // allocator rather than trusting a refcount to have reached zero: the
         // process's live byte count must return to what it was before the

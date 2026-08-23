@@ -245,7 +245,7 @@ on shell grammar `mwl convert` does not (and, per § 1, MWL never will) interpre
   speculatively.
 - **Whether `$env = null`'s full-inherit default should instead default to an empty environment**, forcing
   every call site to state explicitly what the child sees. Kept as full-inherit for now to match every peer
-  language surveyed (Python, Go, Rust, Node) and PHP's own `proc_open` default, per CLAUDE.md's priority 2
+  language surveyed (Python, Go, Rust, Node) and PHP's own `proc_open` default, per AGENTS.md's priority 2
   (PHP-compatible observable behaviour); revisit if secret-leakage-via-inherited-env turns out to be a
   recurring real-world mistake rather than a theoretical one.
 

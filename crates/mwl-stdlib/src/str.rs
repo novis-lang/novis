@@ -31,7 +31,7 @@
 //! **Replaces** column lists both PHP spellings against one MWL member on
 //! purpose (R13: "no member takes an encoding argument"), so the byte-wise
 //! behaviour has no surviving spelling to be compatible with — a deliberate
-//! divergence, and the shape `.claude/loop-goal.md`'s `--ORACLE-DIVERGES--`
+//! divergence, and the shape `docs/agent/loop-goal.md`'s `--ORACLE-DIVERGES--`
 //! section exists to record in the conformance suite.
 
 use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};

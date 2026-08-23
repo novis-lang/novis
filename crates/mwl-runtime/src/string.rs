@@ -19,7 +19,7 @@
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
 //! simpler to write, but it costs a second allocation and a second cache miss
 //! on every string produced, which is a latency question (priority 3 in
-//! [CLAUDE.md](../../../CLAUDE.md)) rather than a footprint one. Codegen will
+//! [AGENTS.md](../../../AGENTS.md)) rather than a footprint one. Codegen will
 //! eventually inline the refcount increment/decrement using
 //! [`REFCOUNT_OFFSET`]/[`LEN_OFFSET`]/[`PAYLOAD_OFFSET`] rather than calling
 //! [`mwl_str_retain`]/[`mwl_str_release`]; those constants exist so the layout

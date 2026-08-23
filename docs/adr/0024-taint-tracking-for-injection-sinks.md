@@ -29,7 +29,7 @@
   non-hookable" reasoning), [0019](0019-reflection-and-ast-parsing-are-core-features.md) (precedent for
   "a security-relevant analysis belongs in the compiler itself, not an aftermarket tool"),
   [0020](0020-error-escalation-ladder.md) (log injection is already closed by that ADR's structured
-  JSON-Lines writer — see § 4), CLAUDE.md's priority ordering (security ranks above simplicity, which is
+  JSON-Lines writer — see § 4), AGENTS.md's priority ordering (security ranks above simplicity, which is
   the explicit justification for § 5's one deliberate exception to "no ambient behavior")
 
 > **In short:** [ADR 0012](0012-no-superglobals.md) already funnels every piece of untrusted input through
@@ -127,7 +127,7 @@ catch-all invites exactly the false confidence this ADR exists to prevent.
 
 One narrow escape hatch exists for the case no built-in launderer fits — the developer has validated the
 value themselves and needs to say so: `Core\Taint::assertTrusted(tainted string, string $reason): string`.
-This is modeled directly on this project's own `unsafe` policy (CLAUDE.md: forbidden workspace-wide, opt
+This is modeled directly on this project's own `unsafe` policy (AGENTS.md: forbidden workspace-wide, opt
 down to `deny` with named, reasoned allows) — forbidden by default, an escape hatch that is rare, greppable,
 and carries a written reason at the call site, never a silent cast.
 
@@ -160,7 +160,7 @@ security log. Stated here so a future reader does not go looking for a redundant
 
 This is the one deliberate exception to this project's otherwise-consistent stance that nothing happens by
 position, only by declaration ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md),
-[ADR 0013](0013-comparable-interface.md), [ADR 0014](0014-property-observer.md)). CLAUDE.md's priority
+[ADR 0013](0013-comparable-interface.md), [ADR 0014](0014-property-observer.md)). AGENTS.md's priority
 ordering ranks security above simplicity for exactly this kind of conflict, and an omitted escape call is
 the single most common real-world XSS root cause — so this ADR spends that priority explicitly rather than
 holding the "no magic" line for its own sake.
@@ -224,7 +224,7 @@ holding the "no magic" line for its own sake.
   grounds [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already used for reflection: an
   optional, skippable analysis is not the same guarantee as a compiler that refuses to emit code.
 - **Require an explicit escape call at every HTML interpolation site, no auto-escape default.** Rejected:
-  CLAUDE.md's priority ordering puts security above simplicity, and "the compiler escapes for you unless you
+  AGENTS.md's priority ordering puts security above simplicity, and "the compiler escapes for you unless you
   opt out with a literal" is strictly safer than "a human remembers, every time."
 - **Require `Core\Db`'s query-text parameter to be a compile-time literal, not merely untainted.** Rejected
   for now: would block legitimate dynamic query assembly (pagination, an allowlisted sort column) for a

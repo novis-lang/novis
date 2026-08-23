@@ -148,7 +148,7 @@ C, LGPL GMP.
 
 ### 4. C dependencies: two questions, not a case-by-case argument
 
-CLAUDE.md's "pure-Rust by default, deviations argued individually" is narrowed to a standing test, so the
+AGENTS.md's "pure-Rust by default, deviations argued individually" is narrowed to a standing test, so the
 answer does not depend on who argues it:
 
 1. **Does attacker-controlled data reach this code?** If no — accept it under ordinary audit.

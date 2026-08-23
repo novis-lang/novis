@@ -41,7 +41,7 @@
 //! # What is here, and what is deliberately not
 //!
 //! This is the runtime half of milestone M3's vertical slice (see
-//! `.claude/loop-goal.md`), landed before `mwl-codegen` exists because it is
+//! `docs/agent/loop-goal.md`), landed before `mwl-codegen` exists because it is
 //! testable without one. It covers exactly:
 //!
 //! * the ABI surface — [`OK`]/[`THROWN`]/[`FATAL`], [`Value`], [`Ctx`],

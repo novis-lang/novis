@@ -7,7 +7,7 @@
 //! * **It is not NaN-boxed.** PHP semantics need the full `i64` range, which
 //!   does not fit alongside a tag in 64 bits. Sixteen bytes instead of eight
 //!   is memory spent to buy correct semantics — priority 5 spent on priority 2
-//!   in [CLAUDE.md](../../../CLAUDE.md)'s ordering, not an oversight.
+//!   in [AGENTS.md](../../../AGENTS.md)'s ordering, not an oversight.
 //! * **`uint` is a tag, not a wider slot.** [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
 //!   § 4's separate unsigned type therefore costs nothing here.
 //!

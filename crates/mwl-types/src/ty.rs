@@ -164,7 +164,7 @@ pub enum Ty {
     /// A *type variable*, named — `T` in `Core\Arr::count(array<T> $a): uint`.
     ///
     /// The one type in this enum no source text can spell. ADR 0007 parks
-    /// user-declared generics and `.claude/loop-goal.md` keeps type variables
+    /// user-declared generics and `docs/agent/loop-goal.md` keeps type variables
     /// compiler-owned, so a `TypeVar` only ever enters the interner from
     /// `mwl_stdlib::registry`'s `Core` signatures ([`crate::core_lib`]) or
     /// ADR 0053 § 1's two iteration interfaces ([`crate::iter_lib`]) —

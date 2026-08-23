@@ -8,29 +8,26 @@ It stores no facts of its own. Every line it prints is sliced out of a file it n
 cannot go stale. When a slice comes back empty it says so loudly rather than printing a
 plausible nothing.
 
-Size is controlled by one rule, and the rule is structural rather than a tripwire:
+Size is controlled by one structural rule:
 
     this digest may only print text whose length is bounded by a COUNT OF ENTITIES,
     never by a LENGTH OF PROSE.
 
-So a section is a *projection* -- one bounded line per milestone, per ADR, per guard test,
-per named status field -- and every section budget is *derived* from that count
-(`n_entities * per_entity_cap + slack`). Adding an ADR, a milestone or a paragraph of prose
-therefore cannot put anything over budget; the budget moves with the repository.
+So a section is a *projection* -- one line per milestone, per ADR, per guard test, per named
+status field. Adding an ADR, a milestone or a paragraph of prose grows it by a line, never by
+a page. The one deliberate shortening is the current/next milestone's lead paragraph, which is
+legitimately long prose this digest only ever wanted the head of; it is marked inline with the
+file and line to open.
 
-That leaves exactly one way to overrun, and it is local: writing one over-long entity. Those
-are reported as `violations` -- named with the file and line to edit, and *never truncated*,
-so the digest stays complete and correct while the complaint stays actionable. `--check`
-exits non-zero on them, which is how CI and a pre-commit run catch a bloated line in the same
-session that wrote it instead of a trim pass discovering it a week later.
+**This script measures nothing and enforces nothing.** The length guidance for a status field,
+a milestone heading or an ADR decision cell is in AGENTS.md, addressed to the author, and is
+deliberately not a check here or in CI -- an agent burning a session trimming bytes to satisfy
+a tripwire costs far more than the bytes ever saved.
 
-The one deliberate shortening is a `projection`: the current/next milestone's lead paragraph,
-which is legitimately long prose that this digest only ever wanted the head of. That is marked
-inline with the file to open, and is NOT a violation -- it is normal operation.
-
-Usage:  python .claude/brief.py            # the digest
-        python .claude/brief.py --no-git   # skip the working-tree section
-        python .claude/brief.py --check    # lint only: per-entity caps, exit 1 on violations
+Usage:  python tools/brief.py                 # the digest
+        python tools/brief.py --no-git        # skip the working-tree section
+        python tools/brief.py --where         # topic index of the routing table
+        python tools/brief.py --where regex   # the routing rows matching a keyword
 """
 
 import re
@@ -44,31 +41,18 @@ PLAN = ROOT / "docs" / "implementation-plan.md"
 ADR_README = ROOT / "docs" / "adr" / "README.md"
 PROBE = ROOT / "benches" / "abi-probe"
 
-# ---------------------------------------------------------------- per-entity caps
+# --------------------------------------------------------------- display excerpts
 #
-# These are the only numbers a doc author has to keep in mind, and each one governs a single
-# line or field that one author wrote in one place. Exceeding one is a violation naming that
-# line -- a thirty-second local edit -- not a signal that the doc set needs a trim pass.
+# Not authoring limits. These bound how much of one legitimately-long *prose* paragraph this
+# digest reproduces before pointing at the file; the full text is always one open away.
 
-STATUS_FIELD_CAP = 400  # one named field of the plan's leading status block
-MILESTONE_HEADING_CAP = 120  # one `### Mn -- title` line, links stripped
-ADR_DECISION_CAP = 160  # the decision cell of one ADR index row (the part an author writes)
-ADR_ROW_OVERHEAD = 70  # filename + separators + an occasional non-Accepted status tag
-NO_ADR_BULLET_CAP = 140  # one project-start decision title
-GUARD_LINE_CAP = 200  # one guard test's name + bounds
+LEAD_EXCERPT = 700  # current milestone's opening paragraph
+VERIFY_EXCERPT = 600  # current milestone's `**Verify:**` paragraph
+NEXT_LEAD_EXCERPT = 350  # next milestone's opening paragraph
+TOPIC_EXCERPT = 96  # one routing-table topic cell, in the `--where` index
 
-# ------------------------------------------------------------- projection caps
-#
-# Deliberate shortening of prose this digest only ever wanted the head of. Never a violation.
-
-LEAD_CAP = 700  # current milestone's opening paragraph
-VERIFY_CAP = 600  # current milestone's `**Verify:**` paragraph
-NEXT_LEAD_CAP = 350  # next milestone's opening paragraph
-
-# The plan's status block has a FIXED field set. This is what stops it drifting back into free
-# prose: it used to carry a paragraph per milestone in flight, which is append-shaped and grew
-# without bound. A field is overwritten in place; an unrecognised one is a violation, so a new
-# paragraph type cannot quietly appear.
+# The plan's status block has a fixed field set, so it is overwritten in place rather than
+# appended to. A missing one is reported below; nothing here rejects an extra one.
 STATUS_FIELDS = [
     "Status",
     "Done",
@@ -79,16 +63,9 @@ STATUS_FIELDS = [
     "Blocking",
 ]
 
-DISK_BUDGET = 2_000
-GIT_BUDGET = 2_000
-GIT_CHANGED_LINE_CAP = 40
+GIT_CHANGED_LINE_CAP = 40  # a display cap on `git status` output, not on anything an author writes
 
 out = []
-
-# (file, line, message) -- an over-long entity. `--check` exits 1 on these.
-violations = []
-# (title, actual_bytes, derived_budget) -- for the --check headroom report.
-section_sizes = []
 
 
 def emit(line=""):
@@ -112,24 +89,13 @@ def nbytes(text):
     return len(text.encode("utf-8"))
 
 
-def cap_entity(text, cap, path, line, what):
-    """Per-entity cap. Over-length is reported and left intact -- the digest never loses
-    content to a budget, because a budget overrun here is a doc bug with a named fix."""
-    n = nbytes(text)
-    if n > cap:
-        violations.append(
-            (path, line, f"{what} is {n} B against a {cap} B cap -- shorten it by {n - cap} B")
-        )
-    return text
-
-
-def project(text, cap, source_hint):
-    """Deliberate shortening of legitimately-long prose. Not a violation."""
-    if nbytes(text) <= cap:
+def excerpt(text, limit, source_hint):
+    """Deliberate shortening of legitimately-long prose, always naming where the rest is."""
+    if nbytes(text) <= limit:
         return text
-    kept = text.encode("utf-8")[:cap].decode("utf-8", "ignore")
+    kept = text.encode("utf-8")[:limit].decode("utf-8", "ignore")
     kept = kept.rsplit(" ", 1)[0]
-    return f"{kept} ... [lead continues at {source_hint}]"
+    return f"{kept} ... [continues at {source_hint}]"
 
 
 def read(path):
@@ -146,7 +112,7 @@ def rel(path):
 
 def strip_links(text):
     """`[ADR 0002](adr/0002-error-propagation.md)` -> `ADR 0002`. A link target is ~50 bytes
-    of no value in a digest whose reader has CLAUDE.md's routing table."""
+    of no value in a digest whose reader has the routing table one call away."""
     return re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
 
 
@@ -160,15 +126,6 @@ def wrap(label, text):
         break_long_words=False,
         break_on_hyphens=False,
     )
-
-
-def measure(title, fn):
-    """Run a section, record what it actually cost against the budget it derived."""
-    start = len(out)
-    budget = fn()
-    body = "\n".join(out[start:])
-    if budget is not None:
-        section_sizes.append((title, nbytes(body), budget))
 
 
 # ---------------------------------------------------------------- plan status
@@ -206,30 +163,16 @@ def run_status(fields):
             f"no `> **Field:**` status block at the top of {rel(PLAN)} -- read it directly. "
             f"The expected fields are: {', '.join(STATUS_FIELDS)}."
         )
-        return None
+        return
 
-    known = set(STATUS_FIELDS)
     seen = set()
-    for name, text, lineno in fields:
+    for name, text, _lineno in fields:
         seen.add(name)
-        if name not in known:
-            violations.append(
-                (
-                    rel(PLAN),
-                    lineno,
-                    f'unknown status field "{name}" -- this block has a fixed field set '
-                    f"({', '.join(STATUS_FIELDS)}). Fold this into one of them rather than "
-                    "adding a paragraph; that is how the block stayed bounded.",
-                )
-            )
-        cap_entity(text, STATUS_FIELD_CAP, rel(PLAN), lineno, f'status field "{name}"')
         emit(wrap(name, strip_links(text)))
 
     missing = [f for f in STATUS_FIELDS if f not in seen]
     if missing:
         warn(f"status block is missing the field(s): {', '.join(missing)}")
-
-    return len(STATUS_FIELDS) * STATUS_FIELD_CAP + 500
 
 
 # ------------------------------------------------------- milestone map + leads
@@ -305,7 +248,7 @@ def run_milestones(status_text, plan_text):
     if not milestones:
         section("MILESTONE MAP", f"{rel(PLAN)} (## Milestones)")
         warn(f"found no `### Mn --` milestone headings in {rel(PLAN)}")
-        return None
+        return
 
     current, nxt = pick_current_next(status_text, milestones)
     section(
@@ -318,14 +261,13 @@ def run_milestones(status_text, plan_text):
 
     for m in milestones:
         line = f"{m['id']} -- {m['title']}"
-        cap_entity(line, MILESTONE_HEADING_CAP, rel(PLAN), m["line"], f"milestone heading {m['id']}")
         marker = "  <- current" if m["id"] == current else ("  <- next" if m["id"] == nxt else "")
         emit(f"  {rel(PLAN)}:{m['line']}  {line}{marker}")
 
     lines = plan_text.split("\n")
     by_id = {m["id"]: m for m in milestones}
 
-    def lead_of(mid, cap):
+    def lead_of(mid, limit):
         m = by_id.get(mid)
         if not m:
             return
@@ -336,9 +278,9 @@ def run_milestones(status_text, plan_text):
             return
         emit()
         emit(f"-- {mid} lead ({rel(PLAN)}:{m['line']})")
-        emit(textwrap.fill(project(para, cap, f"{rel(PLAN)}:{m['line']}"), width=100))
+        emit(textwrap.fill(excerpt(para, limit, f"{rel(PLAN)}:{m['line']}"), width=100))
 
-    lead_of(current, LEAD_CAP)
+    lead_of(current, LEAD_EXCERPT)
 
     m = by_id.get(current)
     if m:
@@ -349,14 +291,14 @@ def run_milestones(status_text, plan_text):
         if ver:
             emit()
             emit(f"-- {current} acceptance ({rel(PLAN)}:{m['line']})")
-            emit(textwrap.fill(project(ver, VERIFY_CAP, f"{rel(PLAN)}:{m['line']}"), width=100))
+            emit(
+                textwrap.fill(
+                    excerpt(ver, VERIFY_EXCERPT, f"{rel(PLAN)}:{m['line']}"), width=100
+                )
+            )
 
     if nxt:
-        lead_of(nxt, NEXT_LEAD_CAP)
-
-    return (
-        len(milestones) * MILESTONE_HEADING_CAP + LEAD_CAP + VERIFY_CAP + NEXT_LEAD_CAP + 1_200
-    )
+        lead_of(nxt, NEXT_LEAD_EXCERPT)
 
 
 # ------------------------------------------------------------------ decisions
@@ -375,11 +317,7 @@ def split_table_row(row):
 def compress_adr_rows(rows, linenos):
     """One line per ADR: filename, then the decision. The status column is dropped for the
     Accepted majority and printed only where it differs. A row that does not match the
-    expected cell shape is passed through verbatim rather than silently reshaped or dropped.
-
-    Yields (printed line, line number, decision cell) -- the cap applies to the decision
-    alone, because that is the part an author writes. A long filename is a slug nobody chose
-    for its length, and should not eat into the sentence's budget."""
+    expected cell shape is passed through verbatim rather than silently reshaped or dropped."""
     compressed = []
     for row, lineno in zip(rows, linenos):
         cells = split_table_row(row)
@@ -404,7 +342,7 @@ def run_adr_index():
     text = read(ADR_README)
     if text is None:
         warn(f"could not read {rel(ADR_README)} at all")
-        return None
+        return
     rows, linenos = [], []
     for lineno, line in enumerate(text.split("\n"), start=1):
         if line.startswith("| ["):
@@ -412,28 +350,23 @@ def run_adr_index():
             linenos.append(lineno)
     if not rows:
         warn(f"could not slice the ADR index table out of {rel(ADR_README)}")
-        return None
+        return
 
+    malformed = []
     for line, lineno, decision in compress_adr_rows(rows, linenos):
         if decision is None:
-            violations.append(
-                (
-                    rel(ADR_README),
-                    lineno,
-                    "ADR index row does not split into the expected link/decision/status cells "
-                    "-- an unescaped `|` inside a cell is the usual cause, and renders the row "
-                    "broken on GitHub too. Write it as `\\|`.",
-                )
-            )
-        else:
-            cap_entity(decision, ADR_DECISION_CAP, rel(ADR_README), lineno,
-                       "ADR index decision cell")
+            malformed.append(f"{rel(ADR_README)}:{lineno}")
         emit(line)
     emit()
     emit("Every ADR not marked otherwise is Accepted -- the status column is printed only for")
     emit("the exceptions. This table intentionally omits the full rule and reasoning -- open the")
-    emit('file it names. CLAUDE.md, section "Where to look", maps a topic to the same file.')
-    return len(rows) * (ADR_DECISION_CAP + ADR_ROW_OVERHEAD) + 500
+    emit("file it names, or run `python tools/brief.py --where <keyword>` to route a topic.")
+    if malformed:
+        warn(
+            "these index rows do not split into link/decision/status cells, so they render "
+            "broken on GitHub too -- an unescaped `|` inside a cell is the usual cause, write "
+            "it as `\\|`: " + ", ".join(malformed)
+        )
 
 
 def run_no_adr_decisions():
@@ -444,7 +377,7 @@ def run_no_adr_decisions():
     text = read(ADR_README)
     if text is None:
         warn(f"could not read {rel(ADR_README)} at all")
-        return None
+        return
     inside = False
     bullets = []
     for lineno, line in enumerate(text.split("\n"), start=1):
@@ -459,13 +392,109 @@ def run_no_adr_decisions():
                 bullets.append((m.group(1), lineno))
     if not bullets:
         warn(f"could not slice the project-start decisions out of {rel(ADR_README)}")
-        return None
-    for title, lineno in bullets:
-        cap_entity(title, NO_ADR_BULLET_CAP, rel(ADR_README), lineno, "project-start decision title")
+        return
+    for title, _lineno in bullets:
         emit(f"- {title}")
     emit()
     emit("(each is one paragraph in that section: open it for the reasoning)")
-    return len(bullets) * NO_ADR_BULLET_CAP + 300
+
+
+# --------------------------------------------------------- the routing table
+
+
+LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
+
+
+def rootward(text):
+    """`[ADR 0056](0056-regex-engine-policy.md)` -> `ADR 0056 (docs/adr/0056-...)`. The table
+    lives in docs/adr/, so its link targets are relative to that; a reader of this output is at
+    the repository root and wants a path they can open."""
+
+    def one(m):
+        label, target = m.group(1), m.group(2)
+        if target.startswith(("http://", "https://", "#")):
+            return label
+        try:
+            resolved = (ADR_README.parent / target).resolve().relative_to(ROOT).as_posix()
+        except (ValueError, OSError):
+            return label
+        return f"{label} ({resolved})"
+
+    return LINK_RE.sub(one, text)
+
+
+def parse_routing_table():
+    """The `## Where to look` table in docs/adr/README.md, as (topic, home, line number)."""
+    text = read(ADR_README)
+    if text is None:
+        return None
+    rows = []
+    inside = False
+    for lineno, line in enumerate(text.split("\n"), start=1):
+        if line.startswith("| Doing this | Open this |"):
+            inside = True
+            continue
+        if inside:
+            if not line.startswith("|"):
+                break
+            if line.startswith("|---") or line.startswith("| ---"):
+                continue
+            cells = split_table_row(line)
+            if len(cells) >= 4:
+                rows.append((cells[1], cells[2], lineno))
+    return rows
+
+
+def run_where(terms):
+    """`--where` with no term prints the topic index; with terms, the matching rows in full."""
+    rows = parse_routing_table()
+    if rows is None:
+        sys.stdout.write(f"brief.py: could not read {rel(ADR_README)}\n")
+        return 1
+    if not rows:
+        sys.stdout.write(
+            f"brief.py: no `| Doing this | Open this |` table in {rel(ADR_README)} -- "
+            "read that file directly.\n"
+        )
+        return 1
+
+    if not terms:
+        sys.stdout.write(
+            f"Routing table: {len(rows)} topics, from {rel(ADR_README)} section 'Where to look'.\n"
+            "Re-run with a keyword for the full row(s): python tools/brief.py --where <keyword>\n\n"
+        )
+        for topic, _home, lineno in rows:
+            plain = strip_links(topic).replace("**", "").replace("*", "")
+            if nbytes(plain) > TOPIC_EXCERPT:
+                plain = plain.encode("utf-8")[:TOPIC_EXCERPT].decode("utf-8", "ignore")
+                plain = plain.rsplit(" ", 1)[0] + " ..."
+            sys.stdout.write(f"  {rel(ADR_README)}:{lineno}  {plain}\n")
+        return 0
+
+    needles = [t.lower() for t in terms]
+    hits = [r for r in rows if all(n in (r[0] + " " + r[1]).lower() for n in needles)]
+    if not hits:
+        sys.stdout.write(
+            f"brief.py --where: nothing matches {' '.join(terms)!r}. "
+            "Run `--where` with no keyword for the topic index, or open "
+            f"{rel(ADR_README)} section 'Where to look'.\n"
+        )
+        return 0
+    for topic, home, lineno in hits:
+        sys.stdout.write(f"\n-- {rel(ADR_README)}:{lineno}\n")
+        sys.stdout.write(
+            textwrap.fill(
+                strip_links(topic), width=96, initial_indent="   ", subsequent_indent="   "
+            )
+            + "\n"
+        )
+        sys.stdout.write(
+            textwrap.fill(
+                rootward(home), width=96, initial_indent="   -> ", subsequent_indent="      "
+            )
+            + "\n"
+        )
+    return 0
 
 
 # --------------------------------------------------------------- guard tests
@@ -539,7 +568,9 @@ def run_guard_tests():
         "WHAT IS ACTUALLY GUARDED",
         f"{rel(PROBE)}/tests/*.rs -- authoritative for every measured number",
     )
-    emit("A test name is the claim; a bracketed threshold is the bound it holds. If one of these fails,")
+    emit(
+        "A test name is the claim; a bracketed threshold is the bound it holds. If one of these fails,"
+    )
     emit("the ADR naming it needs revisiting -- not the threshold.")
 
     tests_dir = PROBE / "tests"
@@ -554,8 +585,7 @@ def run_guard_tests():
             continue
         emit()
         emit(rel(rs_file))
-        for line, lineno in entries:
-            cap_entity(line, GUARD_LINE_CAP, rel(rs_file), lineno, "guard test line")
+        for line, _lineno in entries:
             emit(f"  {line}")
             count += 1
     if count == 0:
@@ -563,7 +593,7 @@ def run_guard_tests():
             f"found no guard tests under {rel(PROBE)}/tests -- that directory is the source of "
             "truth, check it"
         )
-        return None
+        return
 
     benches_dir = PROBE / "benches"
     if benches_dir.is_dir():
@@ -573,7 +603,6 @@ def run_guard_tests():
             emit("benchmarks (unguarded, for tracking figures by hand):")
             for f in bench_files:
                 emit(f"  {rel(f)}")
-    return count * GUARD_LINE_CAP + 800
 
 
 # -------------------------------------------------------------- what exists
@@ -591,12 +620,12 @@ def run_disk():
     emit(f"crates:  {listing('crates')}")
     emit(f"benches: {listing('benches')}")
     emit(f"docs:    {listing('docs')}")
+    emit(f"tools:   {listing('tools')}")
     spec_dir = ROOT / "docs" / "spec"
     if spec_dir.is_dir() and any(spec_dir.iterdir()):
         emit(f"spec:    {listing('docs/spec')}")
     else:
         emit("spec:    unwritten -- say so rather than inferring language semantics")
-    return DISK_BUDGET
 
 
 # ------------------------------------------------------------- working tree
@@ -604,7 +633,7 @@ def run_disk():
 
 def run_git():
     if not (ROOT / ".git").is_dir():
-        return None
+        return
     section("WORKING TREE", "git")
 
     def git(*args):
@@ -638,7 +667,6 @@ def run_git():
             )
     else:
         emit("changed: nothing")
-    return GIT_BUDGET
 
 
 # ------------------------------------------------------------------ drivers
@@ -652,49 +680,16 @@ def build(no_git):
     else:
         fields = parse_status_fields(plan_text)
 
-    measure("WHERE THE PLAN STANDS", lambda: run_status(fields))
+    run_status(fields)
     if plan_text is not None:
         status_text = next((t for n, t, _ in fields if n == "Status"), "")
-        measure("MILESTONE MAP", lambda: run_milestones(status_text, plan_text))
-    measure("ADR INDEX", run_adr_index)
-    measure("DECISIONS WITH NO ADR", run_no_adr_decisions)
-    measure("GUARD TESTS", run_guard_tests)
-    measure("WHAT EXISTS ON DISK", run_disk)
+        run_milestones(status_text, plan_text)
+    run_adr_index()
+    run_no_adr_decisions()
+    run_guard_tests()
+    run_disk()
     if not no_git:
-        measure("WORKING TREE", run_git)
-
-
-def violation_report():
-    lines = []
-    for path, lineno, message in violations:
-        lines.append(f"  {path}:{lineno}  {message}")
-    return lines
-
-
-def run_check():
-    """Lint only. Exit 1 on an over-long entity, naming the line to edit."""
-    build(no_git=True)
-    total = sum(size for _, size, _ in section_sizes)
-    if violations:
-        sys.stdout.write("brief.py --check: FAIL\n\n")
-        for line in violation_report():
-            sys.stdout.write(line + "\n")
-        sys.stdout.write(
-            "\nEach line above is one over-long entity with a named fix. Shorten it where it "
-            "lives.\nA cap is per-entity on purpose: adding an ADR, a milestone or a paragraph "
-            "of prose\ncan never trip this, so there is nothing here to housekeep on a schedule.\n"
-        )
-        return 1
-
-    sys.stdout.write("brief.py --check: OK\n\n")
-    for title, size, budget in section_sizes:
-        pct = (size * 100) // budget if budget else 0
-        sys.stdout.write(f"  {title:<28} {size:>6} B of {budget:>6} B derived budget  ({pct}%)\n")
-    sys.stdout.write(f"\n  {'digest total':<28} {total:>6} B\n")
-    sys.stdout.write(
-        "\nBudgets are derived from entity counts, so they move with the repository.\n"
-    )
-    return 0
+        run_git()
 
 
 def main():
@@ -703,20 +698,14 @@ def main():
     except AttributeError:
         pass
     argv = sys.argv[1:]
-    if "--check" in argv:
-        return run_check()
+
+    if "--where" in argv:
+        i = argv.index("--where")
+        return run_where([a for a in argv[i + 1 :] if not a.startswith("--")])
 
     build(no_git="--no-git" in argv)
-
-    if violations:
-        banner = [
-            "!! brief.py: the digest below is COMPLETE, but a doc entity is over its cap.",
-            "!! Nothing was truncated -- these are lint hits with a named fix, one line each:",
-        ]
-        banner.extend(violation_report())
-        banner.append("!! Run `python .claude/brief.py --check` for this list on its own.")
-        out[0:0] = banner + [""]
-
+    emit()
+    emit("Route a topic to the one file that owns it: python tools/brief.py --where <keyword>")
     sys.stdout.write("\n".join(out).lstrip("\n") + "\n")
     return 0
 

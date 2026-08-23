@@ -50,15 +50,13 @@ Desktop.ini
 # Machine-local agent/tool settings
 .claude/settings.local.json
 
-# Bytecode from importing a repo script (brief.py's --check mode is imported by tests)
+# Bytecode from importing a repo script under tools/
 __pycache__/
 
-# Unattended loop run artifacts (see AGENT_COORDINATOR_PROMPT.md)
-.claude/loop-log.md
-.claude/loop-logs/
-.claude/loop-status.txt
-.claude/loop-stop
+# Unattended loop run artifacts (see docs/agent/coordinator.md). Everything the
+# driver writes at run time lives under one directory, so this is one line.
+/.loop/
 
-# Scratch commit-message file (CLAUDE.md: a multi-line message goes through a
+# Scratch commit-message file (AGENTS.md: a multi-line message goes through a
 # file, never an inline `-m`); never part of the tree it describes.
-.claude/commitmsg.txt
+/.agent-tmp/

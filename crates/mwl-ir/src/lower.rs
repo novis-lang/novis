@@ -4573,7 +4573,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `echo $a, $b;` — writes each operand's bytes to standard output in
-    /// order, with no separator and no escaping: `.claude/loop-goal.md`
+    /// order, with no separator and no escaping: `docs/agent/loop-goal.md`
     /// records that ADR 0024 § 5's auto-escaping sink is the HTTP *response*
     /// write, not this one, and that whether `echo` under a future
     /// `mwl serve` becomes that sink is an M7 decision this does not
@@ -5727,7 +5727,7 @@ impl<'a> Lowering<'a> {
     /// **Known gap, and the same one [`Self::landing_block`] already has:**
     /// these sit on the normal edge only, so a helper that fails leaves each
     /// of them unreleased. Closing it means the owned-temporaries stack
-    /// threaded through [`Self::lower_expr`] that `.claude/loop-goal.md`
+    /// threaded through [`Self::lower_expr`] that `docs/agent/loop-goal.md`
     /// already names — this is one more caller for it, not a second design.
     fn release_call_temporaries(&mut self, temporaries: Vec<ValueId>, cur: BlockId) {
         for v in temporaries {
@@ -6990,7 +6990,7 @@ mod tests {
         (p, map, file)
     }
 
-    /// The acceptance program of `.claude/loop-goal.md`, lowered: one
+    /// The acceptance program of `docs/agent/loop-goal.md`, lowered: one
     /// synthesized frame, no receiver parameter, a `ConstStr` handed straight
     /// to `Helper::EchoStr`, and the literal released right after the write
     /// reads it (nothing else ever owns it).

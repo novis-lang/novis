@@ -83,24 +83,10 @@ jobs:
           cargo clippy --workspace --all-targets \
             --features mwl-abi-probe/wasm-probe -- -D warnings
 
-  # ---------------------------------------------------------------------------
-  # Keeps `python .claude/brief.py` — the one call every session starts with —
-  # bounded, by checking the per-entity caps it enforces: one status field, one
-  # milestone heading, one ADR index decision cell. Budgets are derived from
-  # entity counts, so adding an ADR or a milestone can never fail this; only
-  # writing one over-long line can, and the failure names the line to edit. No
-  # Rust toolchain, so it reports in seconds instead of after the build.
-  # ---------------------------------------------------------------------------
-  docs-budget:
-    name: docs budget
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-      - name: Per-entity doc caps
-        run: python .claude/brief.py --check
+  # There is deliberately no doc-size job. Length guidance for a status field, a
+  # milestone heading or an ADR decision cell is in AGENTS.md, addressed to the
+  # author — never a CI gate. A tripwire here bought nothing and cost whole
+  # sessions spent trimming bytes to clear it; see AGENTS.md § Writing docs here.
 
   lint:
     name: lint
@@ -180,7 +166,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # libFuzzer isn't supported on Windows, so this only ever runs here (or in
-  # a contributor's WSL/Linux/macOS setup — CLAUDE.md's WSL section covers
+  # a contributor's WSL/Linux/macOS setup — AGENTS.md's WSL section covers
   # first-time setup on Windows). A short bounded run on every push/PR catches
   # regressions continuously, per the plan's overall verification strategy;
   # it is not the full 1h M1 corpus/fuzz verification run itself, which is a

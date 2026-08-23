@@ -3,7 +3,7 @@
 //!
 //! This is what `mwl_ir::ty::Ty::Array` lowers to, and the other half of M4's
 //! Stage 1 gate — `Core\Arr`'s whole contract rests on it
-//! (`.claude/loop-goal.md`).
+//! (`docs/agent/loop-goal.md`).
 //!
 //! # Decision: the representation is opaque to compiled code
 //!
@@ -17,9 +17,9 @@
 //! hand-rolled open-addressed table over a flexible-array-member allocation.
 //! An entry lookup already costs a hash and a probe, so the call is not on the
 //! margin the way an object field load is; buying the whole table's
-//! memory-safety for it is [CLAUDE.md](../../../CLAUDE.md)'s priority 1 and 4
+//! memory-safety for it is [AGENTS.md](../../../AGENTS.md)'s priority 1 and 4
 //! bought with a few instructions of priority 3, which the ordering permits.
-//! The cost, stated as CLAUDE.md requires: **three allocations per array**
+//! The cost, stated as AGENTS.md requires: **three allocations per array**
 //! (the header, the entry vector, the index map) rather than one, and one call
 //! per element access.
 //!
@@ -282,7 +282,7 @@ pub struct ArrayHeader {
     /// The ordered hash. Behind a [`RefCell`] rather than reached through
     /// `&mut *ptr`, so the "only a uniquely owned array is mutated" rule is
     /// checked at runtime instead of remembered — the direction
-    /// [CLAUDE.md](../../../CLAUDE.md)'s memory section asks for. Every
+    /// [AGENTS.md](../../../AGENTS.md)'s memory section asks for. Every
     /// mutator below drops the borrow before releasing anything, so no
     /// release can re-enter one.
     table: RefCell<Table>,

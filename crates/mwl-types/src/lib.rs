@@ -1,5 +1,5 @@
 //! The MWL type checker (ADR 0007) — M2's last open thread. See
-//! `docs/implementation-plan.md`'s M2 paragraph and `NEXT_SESSION_PROMPT.md`
+//! `docs/implementation-plan.md`'s M2 paragraph and `docs/agent/handoff.md`
 //! for how this crate grew: a full type checker covering every ADR M2
 //! assigns to `mwl-types` was too large for one slice, so the first slice
 //! covered ADR 0007 §§ 1-4 in full (declared-type recording, per-local
@@ -82,7 +82,7 @@
 //! # Known gaps
 //!
 //! Deliberately out of scope so far, left for a follow-up (see
-//! `NEXT_SESSION_PROMPT.md` for the ordering):
+//! `docs/agent/handoff.md` for the ordering):
 //!
 //! - ADR 0024 (`tainted` propagation/laundering), ADR 0027 (`callable`
 //!   value-shape checking) and ADR 0033 §§ 2-4 (`secret`, the same shape on

@@ -34,7 +34,7 @@
 
 - Xdebug covers four things: step debugging (already decided — [ADR 0016](0016-ide-integration.md) commits
   `mwl dap` to safepoints for breakpoints), code coverage, call tracing, and profiling — the latter three
-  undecided until this ADR, and exactly the kind of decision [CLAUDE.md](../../CLAUDE.md) wants settled
+  undecided until this ADR, and exactly the kind of decision [AGENTS.md](../../AGENTS.md) wants settled
   before codegen exists rather than retrofitted onto ten milestones of statement lowering.
 - Requirement: "the whole language should be very convenient for developers to use and to debug, so entry
   barrier is as low as possible" — an MWL-native format nobody's tooling reads would fail that goal even if

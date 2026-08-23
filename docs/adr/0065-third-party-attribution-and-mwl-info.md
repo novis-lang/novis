@@ -40,7 +40,7 @@
   notice?*, and the two questions fail differently: the first fails loudly at the moment a dependency is
   added, the second fails silently and only at distribution.
 - A hand-maintained notice file is the same shape of problem this repository already documents in
-  CLAUDE.md — a second copy of a fact that goes stale without telling anyone. Cargo already holds the
+  AGENTS.md — a second copy of a fact that goes stale without telling anyone. Cargo already holds the
   authoritative dependency graph; anything derived from it should be derived, not transcribed.
 - PHP answers the "what is this build?" question with `phpinfo()` / `php -i`: one call, everything at
   once, no hunting. That shape is worth copying, and licensing belongs in it — "what is in this binary,
@@ -142,7 +142,7 @@ that cannot be determined becomes `unknown` rather than failing the build.
   identifier. This is intended to be annoying — it is the moment the decision should be made.
 - The `mwl` binary grows ~55 KB. See § 3.
 - Python is now needed to *change* the dependency set, not to build MWL. This matches
-  `.claude/brief.py`, which CI already runs, and keeps a JSON/TOML parser out of the dependency tree
+  `tools/brief.py`, which CI already runs, and keeps a JSON/TOML parser out of the dependency tree
   that this script exists to keep honest.
 - Attribution is over-inclusive by design (all platforms, plus build dependencies). A reader of the
   notice may see a component their own build does not contain; the file says so.

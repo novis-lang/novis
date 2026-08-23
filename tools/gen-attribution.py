@@ -445,7 +445,7 @@ def render(components: list[dict], groups: list[dict], notices: list[tuple[str, 
 def check_policies_agree(allowed: set[str]) -> None:
     """Fails if PREFERENCE and deny.toml's allow list have drifted apart.
 
-    Two lists naming the same thing is exactly the duplication CLAUDE.md
+    Two lists naming the same thing is exactly the duplication AGENTS.md
     warns about, and they cannot be merged — `deny.toml` is cargo-deny's
     format and carries no ordering. Checking them against each other on
     every run is the next best thing, and it catches the realistic mistake:

@@ -28,7 +28,7 @@
 //! # Output
 //!
 //! `Ctx` owns where `echo` writes, rather than the runtime writing to the
-//! process's stdout directly. Two reasons, in `CLAUDE.md`'s priority order:
+//! process's stdout directly. Two reasons, in `AGENTS.md`'s priority order:
 //! under `mwl serve` a request's output is its HTTP response body, not a
 //! process-wide stream (priority 1, request isolation); and a test can assert
 //! on [`OutputSink::Buffer`] without capturing the process's real stdout

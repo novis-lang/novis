@@ -129,7 +129,7 @@ pub enum CoreTy {
     /// variable is bound by unifying the declared parameter types against the
     /// call's actual argument types and then substituted through the whole
     /// signature; `mwl_types` owns both halves. Nothing user-written can
-    /// declare one, which is `.claude/loop-goal.md`'s standing decision that
+    /// declare one, which is `docs/agent/loop-goal.md`'s standing decision that
     /// type variables stay compiler-owned.
     Var(&'static str),
     /// `A|B|...` — ADR 0007 § 3's union, at least two members.

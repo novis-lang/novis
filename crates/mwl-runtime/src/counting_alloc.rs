@@ -1,7 +1,7 @@
 //! A test-only global allocator that counts live bytes on the calling thread.
 //!
 //! It exists for one guard: `object::tests::an_acyclic_object_graph_releases_
-//! every_allocation`, the leak check `.claude/loop-goal.md` Stage 5 names. A
+//! every_allocation`, the leak check `docs/agent/loop-goal.md` Stage 5 names. A
 //! hand-written refcount protocol is exactly where a leak hides, and asserting
 //! that a refcount reached zero only proves the *bookkeeping* balanced — not
 //! that the allocation was handed back. Measuring the allocator proves both.

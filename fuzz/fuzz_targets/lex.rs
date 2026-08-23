@@ -2,7 +2,7 @@
 //!
 //! Run with `cargo +nightly fuzz run lex` (needs `cargo-fuzz`; libFuzzer is
 //! not supported on Windows, so this only runs where a nightly toolchain
-//! with a C compiler is available — see CLAUDE.md's WSL section).
+//! with a C compiler is available — see AGENTS.md's WSL section).
 
 #![no_main]
 

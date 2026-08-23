@@ -1,11 +1,11 @@
 """Replace one exact block of text in a file with another, both read from files.
 
-CLAUDE.md forbids carrying file content through a shell, and the Bash tool
+AGENTS.md forbids carrying file content through a shell, and the Bash tool
 mangles a backslash inside a heredoc — which is every other line of Rust in this
 repository. So a multi-line edit goes: write the old block and the new block to
-files with the Write tool, then
+files under `.agent-tmp/` with the Write tool, then
 
-    python .claude/splice.py <target> <old-file> <new-file>
+    python tools/splice.py <target> <old-file> <new-file>
 
 It refuses anything but exactly one match, so a stale or ambiguous anchor is an
 error rather than a silent wrong edit, and it writes with newline='' so a file's

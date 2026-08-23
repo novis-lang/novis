@@ -3,7 +3,7 @@
 //!
 //! [ADR 0051](../../../docs/adr/0051-standard-library-tiers.md) § *Tier 0*
 //! makes this "compiled into the binary, native, direct heap access, no
-//! boundary," and `.claude/loop-goal.md` records that it is meant literally:
+//! boundary," and `docs/agent/loop-goal.md` records that it is meant literally:
 //! no part of `Core` is written in MWL. [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
 //! fixes every member's *shape* and [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
 //! is authoritative for every *signature* — this crate restates neither. It
@@ -55,7 +55,7 @@
 //!    `mwl_runtime::call_closure`, and `Str::join`, the first with an optional
 //!    parameter. Everything registered since is a registry row plus a body and
 //!    nothing else. The spec file's §§ 1–12 are the work list, and
-//!    `.claude/loop-goal.md`'s Stage 4 holds the coverage gate that will name
+//!    `docs/agent/loop-goal.md`'s Stage 4 holds the coverage gate that will name
 //!    every member still missing a conformance case.
 //!
 //!    Within § 1, the members still absent are the ones waiting on something:
@@ -77,7 +77,7 @@
 //!    that one is genuinely blocked, on the same representation, and
 //!    `CoreTy::Union`'s own docs say why.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
-//!    *Revisiting* section and `.claude/loop-goal.md` both scope `<T>` to
+//!    *Revisiting* section and `docs/agent/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what
 //!    [`registry::CoreTy::Var`] is; `mwl-types` owns the unification and
 //!    substitution, and its own docs are the home for what that does and does

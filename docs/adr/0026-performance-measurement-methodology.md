@@ -14,7 +14,7 @@
   comparable), [0006](0006-isolated-script-execution.md) (`benches/abi-probe`'s process-vs-task ratio guard
   is the existing precedent for "ratio cancels machine differences"), [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   (the neighboring, non-overlapping concern named above), [docs/adr/README.md](README.md) § *Architecture
-  assumptions are tested, not remembered* (the standing rule this ADR's own spike follows), CLAUDE.md's
+  assumptions are tested, not remembered* (the standing rule this ADR's own spike follows), AGENTS.md's
   WSL-for-`cargo-fuzz` precedent (the same shape of Linux-only-tooling gap, now extended to Valgrind)
 - **Validated by:** `benches/abi-probe/examples/callgrind_spike.rs`, run under `valgrind --tool=callgrind`
   3.22.0 in WSL (Ubuntu on the Windows host also used for `x86_64-pc-windows-msvc` CI), against a
@@ -35,7 +35,7 @@
 > M3+ produces a runnable comparison) the same-run ratio against the pinned PHP 8.5.8 oracle are recorded
 > alongside it per entry, as supplementary, *not* cross-machine-comparable figures. Windows and macOS dev
 > machines and CI legs never run the historical leg directly — Valgrind has no native Windows build — they
-> keep using the existing wall-clock guards, the same split CLAUDE.md's fuzzing section already draws for
+> keep using the existing wall-clock guards, the same split AGENTS.md's fuzzing section already draws for
 > the identical reason.
 
 ## Context
@@ -63,7 +63,7 @@
   symbolized or not; per-function drill-down inside JIT code would need a symbol-registration shim, out of
   scope since the dashboard needs an aggregate trend, not a call graph.
 - Confirmed, not assumed: Valgrind has no native Windows build — needs the same WSL leg
-  [CLAUDE.md](../../CLAUDE.md) already documents for `cargo-fuzz`, plus one new package (`valgrind`) — see
+  [AGENTS.md](../../AGENTS.md) already documents for `cargo-fuzz`, plus one new package (`valgrind`) — see
   *Decision* § 5.
 
 ## Decision
@@ -113,7 +113,7 @@ gives it a value — see § 3.
 
 ### 5. `valgrind` joins the WSL one-time setup
 
-[CLAUDE.md](../../CLAUDE.md)'s "Fuzzing on Windows: use WSL" section documents the one-time setup already
+[AGENTS.md](../../AGENTS.md)'s "Fuzzing on Windows: use WSL" section documents the one-time setup already
 needed for `cargo-fuzz`. `sudo apt-get install -y valgrind` is added to that same list — any contributor who
 wants to run or verify the historical-dashboard leg locally needs it, the identical shape of dependency
 `cargo-fuzz` already introduced for the identical reason (a tool with no native Windows build).

@@ -99,10 +99,22 @@ editors/
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]     exists
 tools/
+  brief.py          the one-call orientation digest every session starts with      exists
+  loop.py           the unattended work-loop driver                                exists
+  splice.py         exact-block file edit, for edits a shell would mangle          exists
   gen-attribution   generates THIRD-PARTY-LICENSES.txt from the dep graph          exists
-docs/adr/           architecture decision records                                  exists
+  leak-check.sh     valgrind over named .mwl fixtures (WSL/Linux)                  exists
+  wsl-acceptance.sh whole-suite sweep under WSL/Linux                              exists
+docs/adr/           architecture decision records + the topic routing table        exists
+docs/agent/         how agents work in this repo: loop, prompts, live handoff      exists
 docs/spec/          normative language reference                                unwritten
 ```
+
+`AGENTS.md` at the root is the rules file every agent reads first, harness-neutral; `CLAUDE.md` is a
+pointer to it and `.claude/` holds Claude Code settings and nothing else. `docs/agent/` holds the rest:
+the [work-loop design](docs/agent/coordinator.md), the [per-session prompt](docs/agent/session-prompt.md),
+the [current goal](docs/agent/loop-goal.md), and [handoff.md](docs/agent/handoff.md) — live state,
+overwritten by each session.
 
 `editors/` sits outside the Cargo workspace — the VS Code extension is TypeScript/Node tooling, the
 PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform tooling — and is a thin client over `mwl-lsp`/`mwl-fmt`
@@ -163,10 +175,10 @@ behind each design decision — is [docs/implementation-plan.md](docs/implementa
 
 ## Contributing
 
-Read [CLAUDE.md](CLAUDE.md) first — it carries the priority ordering every design choice is judged
+Read [AGENTS.md](AGENTS.md) first — it carries the priority ordering every design choice is judged
 against, the invariants that are easy to break, and a table pointing at the *one* document to open for a
 given piece of work. Every fact in this repository has a single home; if two documents disagree, the one
-CLAUDE.md names is right and the other is a bug.
+AGENTS.md names is right and the other is a bug.
 
 ## Licence
 

@@ -1,8 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python .claude/brief.py)",
-      "Bash(python .claude/brief.py --no-git)",
+      "Bash(python tools/brief.py)",
+      "Bash(python tools/brief.py --no-git)",
       "Bash(cargo build:*)",
       "Bash(cargo test:*)",
       "Bash(cargo clippy:*)",
