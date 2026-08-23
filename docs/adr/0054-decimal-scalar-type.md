@@ -111,6 +111,13 @@ there is no common type that represents both operands' values. Comparison is per
 `int` against `uint` is — an exact comparison is always computable even where a common arithmetic type is
 not.
 
+**"Throws" covers both overflow kinds — including the one .NET rounds.** A result overflows when its
+mantissa exceeds 96 bits, and equally when its scale would exceed 28: `*` adds its operands' scales, so two
+scale-20 values want scale 40. Both throw. That is a deliberate divergence from `System.Decimal`, whose
+layout § 1 otherwise adopts — .NET silently reduces scale in the second case, which would make `*` a second
+inexact operation and quietly cost the guarantee below. Where a narrowed product is what the application
+means, `Core\Math::round($n, {precision: …})` says so at the site.
+
 **Division is the one place a decimal result may be inexact**, so its policy is fixed in the language and
 **not configurable**: round half to even, at the maximum scale the result admits. There is no `bcscale()`
 equivalent and never will be — ambient precision read by unrelated later code is the shape
@@ -221,7 +228,8 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
   exact — which fails if § 2's placing rule is dropped, since an `f64` round-trip loses it — and
   `const decimal VAT = 0.19;` accepted as a compile-time constant.
 - **M3/M4:** a runtime suite asserting `0.1 + 0.2 == 0.3`; that mantissa overflow throws `ArithmeticError`
-  rather than wrapping; that `1.00 / 3` rounds half-even and `Core\Decimal::divExact` on the same operands
+  rather than wrapping, and that a product whose scale would exceed 28 throws rather than reducing scale the
+  way .NET does; that `1.00 / 3` rounds half-even and `Core\Decimal::divExact` on the same operands
   throws; that `Core\Decimal::allocate(100.00, [1, 1, 1])` sums back to `100.00` exactly; and that
   `19.90 as string` is `"19.90"`. A typed decimal arithmetic loop is committed as a figure in `benches/`
   with a guard, alongside the ADR 0007 loop the plan already requires.
