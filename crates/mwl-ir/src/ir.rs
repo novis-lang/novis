@@ -466,6 +466,28 @@ pub enum InstKind {
         /// The value being released.
         operand: ValueId,
     },
+    /// Defines a value with the *same machine bits* as `operand` under a
+    /// different [`crate::ty::Ty`] — the whole of a conversion that
+    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5 calls
+    /// "total, free ... same representation, reinterpreted": an enum to its
+    /// backing `int`/`uint`, and nothing else so far.
+    ///
+    /// Emitted rather than simply relabelling the operand in `crate::lower`
+    /// because an IR value's representation is a property of the instruction
+    /// that *defined* it — two names for one definition would mean two
+    /// answers to [`Inst::ty`] for the same [`crate::ids::ValueId`], and
+    /// `mwl-codegen`'s value map has exactly one slot per id.
+    ///
+    /// The two representations must share a Cranelift type, which
+    /// `mwl-codegen` asserts: this is a relabelling, never a bit cast, so it
+    /// emits no machine instruction at all — the operand's own Cranelift
+    /// value is recorded under the new id. It transfers no ownership and
+    /// cannot fail, so like [`InstKind::Concat`] it carries no status check
+    /// and no landing block.
+    Reinterpret {
+        /// The value being relabelled.
+        operand: ValueId,
+    },
     /// Invokes one of a small, closed, engine-owned set of runtime
     /// conversions — the milestone's third named ingredient, and this
     /// crate's first. `helper` is a fixed [`Helper`] tag, never a resolved

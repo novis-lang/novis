@@ -6,6 +6,7 @@
 
 use cranelift::prelude::*;
 use mwl_ir::Ty;
+use mwl_ir::ty::EnumRepr;
 use mwl_runtime::Tag;
 
 use crate::CodegenError;
@@ -23,6 +24,8 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Int | Ty::Uint => types::I64,
         Ty::Float => types::F64,
         Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed | Ty::ClassDesc => types::I64,
+        // ADR 0010 § 6: an enum value *is* its backing integer.
+        Ty::Enum(_) => types::I64,
         Ty::Void => return None,
         _ => types::I64,
     })
@@ -49,6 +52,14 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         Ty::Uint => Tag::Uint,
         Ty::Float => Tag::Float,
         Ty::Str | Ty::Bytes => Tag::Str,
+        // ADR 0010 § 6 reserves a tag of its own for an enum; this uses the
+        // backing type's instead, deliberately. A tag only has to answer
+        // "which type is this?" where the static type does not — the `mixed`
+        // case below, whose representation is still open. Deciding an enum's
+        // tag before that would be deciding half the same question twice.
+        // `mwl_ir::Ty::Enum`'s own doc comment records this.
+        Ty::Enum(EnumRepr::Int) => Tag::Int,
+        Ty::Enum(EnumRepr::Uint) => Tag::Uint,
         Ty::Array => Tag::Array,
         Ty::Object => Tag::Object,
         // Not an MWL value at all: a class descriptor rides in the payload

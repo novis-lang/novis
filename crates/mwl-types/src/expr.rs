@@ -842,13 +842,24 @@ fn infer(
         // shape every other static reference in this module uses. An
         // ordinary class constant's own type is unmodeled (`mixed`) either
         // way — see the crate docs' known gaps.
-        ExprKind::ClassConstAccess { class, .. } => {
+        ExprKind::ClassConstAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
             let enum_qname = resolve_class_expr(class, ctx, env).filter(
                 |qname| matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum),
             );
             match enum_qname {
-                Some(qname) => env.interner.enum_(qname),
+                Some(qname) => {
+                    // ADR 0010 § 3: the case *is* its integer constant, so
+                    // `mwl-ir` needs the value, not just the type — see
+                    // `ExprInfo::EnumCase`. A name `mwl_hir::members` already
+                    // reported as undeclared records nothing.
+                    let case = span_text(env.src, *name).to_owned();
+                    if let Some(value) = env.enums.case(&qname, &case) {
+                        env.exprs.record(expr.span, ExprInfo::EnumCase { value });
+                    }
+                    let backing = env.enums.backing_of(&qname);
+                    env.interner.enum_(qname, backing)
+                }
                 None => env.interner.mixed(),
             }
         }
@@ -996,7 +1007,10 @@ fn infer(
 pub(crate) fn class_of_ctx(ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     match ctx.current_class {
         Some(qname) => match env.symbols.get(qname) {
-            Some(sym) if sym.kind == SymbolKind::Enum => env.interner.enum_(qname.clone()),
+            Some(sym) if sym.kind == SymbolKind::Enum => {
+                let backing = env.enums.backing_of(qname);
+                env.interner.enum_(qname.clone(), backing)
+            }
             _ => env.interner.class(qname.clone()),
         },
         None => env.interner.mixed(),
@@ -1210,7 +1224,7 @@ fn check_args(
 /// before it can look anything up in a [`crate::signatures::SignatureTable`].
 fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QName> {
     match interner.get(ty) {
-        Ty::Class(q) | Ty::Enum(q) => Some(q.clone()),
+        Ty::Class(q) | Ty::Enum(q, _) => Some(q.clone()),
         _ => None,
     }
 }
@@ -1562,7 +1576,7 @@ fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &mut Env<'_>)
 /// itself, or to/from anything that isn't `Ty::Enum` (its underlying type,
 /// `mixed`, a checked-throw source) is untouched.
 fn reject_enum_to_enum_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
-    let (Ty::Enum(from_q), Ty::Enum(to_q)) =
+    let (Ty::Enum(from_q, _), Ty::Enum(to_q, _)) =
         (env.interner.get(from).clone(), env.interner.get(to).clone())
     else {
         return;
@@ -1940,8 +1954,8 @@ fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) ->
 /// diagnosed), `None` for every other operand pair so the caller's own table
 /// runs unchanged.
 fn reject_enum_operand(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> Option<TypeId> {
-    let lhs_enum = matches!(env.interner.get(lhs), Ty::Enum(_));
-    let rhs_enum = matches!(env.interner.get(rhs), Ty::Enum(_));
+    let lhs_enum = matches!(env.interner.get(lhs), Ty::Enum(..));
+    let rhs_enum = matches!(env.interner.get(rhs), Ty::Enum(..));
     if !lhs_enum && !rhs_enum {
         return None;
     }

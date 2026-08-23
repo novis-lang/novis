@@ -705,6 +705,16 @@
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
+//! - **Only ADR 0007 § 2's *free* and *total* conversion rows lower.**
+//!   `lower::Lowering::convert` owns the split and panics naming any row it
+//!   does not cover. What is missing is every **checked** row — `int` ↔
+//!   `uint`, `float` to an integer, `string` to a number, and ADR 0010 § 5's
+//!   integer-into-an-enum — each of which either produces the value or throws.
+//!   Every one needs a throwing runtime helper ([`ir::Helper`] has no tag for
+//!   one yet), and the enum row additionally needs its declaration's case set
+//!   carried to the point of the check, which nothing in this crate's IR
+//!   expresses. `EnumName` ↔ `string` is not a gap at all: ADR 0010 § 5 leaves
+//!   it out of the language.
 //! - **Inline HTML at file scope is not lowered.** `?>text<?mwl` reaches
 //!   [`lower::lower_script`] as an [`mwl_syntax::ast::StmtKind::InlineHtml`]
 //!   statement, which `lower::Lowering::lower_stmt` panics on like any other

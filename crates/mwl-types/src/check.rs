@@ -65,20 +65,17 @@ pub fn check_program(
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) {
-    let signatures = build_signatures(
-        stmts,
-        &module.symbols,
-        &module.aliases,
-        &module.graph,
-        src,
-        interner,
-        diags,
-    );
+    // ADR 0010 § 2's backing types first: interning an enum-typed annotation
+    // needs one, and `build_signatures` interns every declared annotation in
+    // the file. See `crate::enums`.
+    let enums = crate::enums::build_enum_table(stmts, src, diags);
+    let signatures = build_signatures(stmts, module, &enums, src, interner, diags);
     let mut env = Env {
         symbols: &module.symbols,
         aliases: &module.aliases,
         graph: &module.graph,
         signatures: &signatures,
+        enums: &enums,
         src,
         interner,
         exprs,

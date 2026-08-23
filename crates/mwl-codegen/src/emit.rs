@@ -417,6 +417,22 @@ impl Emitter<'_, '_> {
                 let value = self.emit_concat(*lhs, *rhs)?;
                 self.define(inst, value)?;
             }
+            // No machine instruction at all: the operand's own Cranelift value
+            // is recorded a second time under this instruction's id, with the
+            // new representation. See `mwl_ir::ir::InstKind::Reinterpret` for
+            // why the IR spends an instruction on a relabelling.
+            InstKind::Reinterpret { operand } => {
+                let (value, from) = self.value(*operand)?;
+                let to = inst.ty.ok_or_else(|| {
+                    internal("a value-defining instruction with no representation")
+                })?;
+                if crate::ty::clif_ty(from) != crate::ty::clif_ty(to) {
+                    return Err(CodegenError::Unsupported(format!(
+                        "`reinterpret` between {from:?} and {to:?}, which do not share a machine                          type — it is a relabelling, never a bit cast"
+                    )));
+                }
+                self.define(inst, value)?;
+            }
             InstKind::ArrayNew { entries } => {
                 let value = self.emit_array_new(entries)?;
                 self.define(inst, value)?;

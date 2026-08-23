@@ -166,6 +166,7 @@
 pub mod check;
 pub mod core_lib;
 pub mod ctor_init;
+pub mod enums;
 pub mod error_lib;
 pub mod expr;
 pub mod expr_table;
@@ -180,6 +181,7 @@ pub mod ty;
 
 pub use check::check_program;
 pub use core_lib::symbol_of as core_symbol_of;
+pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 pub use ty::{Ty, TypeId, TypeInterner};
@@ -219,6 +221,12 @@ pub(crate) struct Env<'a> {
     /// separate `&mut SignatureTable` parameter — see
     /// [`signatures::build_signatures`]'s docs for why that's safe.
     pub signatures: &'a SignatureTable,
+    /// Every declared enum's backing type and case values
+    /// ([`enums::build_enum_table`]) — read wherever an enum-typed annotation
+    /// is interned (an enum's backing type is part of [`ty::Ty::Enum`]'s
+    /// identity) and wherever `EnumName::CaseName` resolves to its constant.
+    /// Built before [`signatures::build_signatures`], which already needs it.
+    pub enums: &'a EnumTable,
     pub src: &'a SourceFile,
     pub interner: &'a mut TypeInterner,
     /// Where a call's/`new`'s resolved target is persisted for `mwl-ir` to

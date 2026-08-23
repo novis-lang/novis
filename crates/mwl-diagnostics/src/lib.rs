@@ -457,6 +457,18 @@ pub mod code {
     /// class (or any other interface) cannot see it at all, not even via
     /// `InterfaceName::method()`.
     pub const E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE: Code = Code::new("E0435");
+    /// An `enum` case whose explicit `= expr` value is not an integer literal
+    /// (or a negated one). ADR 0010 § 1 makes a case a compile-time integer
+    /// constant, not a general constant-expression position.
+    pub const E_ENUM_CASE_VALUE_NOT_LITERAL: Code = Code::new("E0436");
+    /// An `enum` case whose value — written, or reached by ADR 0010 § 1's
+    /// auto-increment — does not fit the enum's backing type.
+    pub const E_ENUM_CASE_VALUE_OUT_OF_RANGE: Code = Code::new("E0437");
+    /// `enum Name: T` where `T` is neither `int` nor `uint` — ADR 0010 § 2
+    /// gives every enum exactly one underlying *integer* type. The `string`
+    /// spelling has its own, earlier diagnostic
+    /// ([`E_ENUM_STRING_BACKING_UNSUPPORTED`]); this covers the rest.
+    pub const E_ENUM_BACKING_NOT_INTEGER: Code = Code::new("E0438");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

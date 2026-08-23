@@ -192,6 +192,22 @@ pub enum ExprInfo {
         /// The class or interface tested against.
         class: QName,
     },
+    /// `EnumName::CaseName`, keyed by the whole access's own span.
+    ///
+    /// ADR 0010 § 3 makes a case "an integer constant, inlined at every use
+    /// site" — so this is the *value*, resolved once by [`crate::enums`] and
+    /// read back by `mwl-ir` as a plain constant. Recorded rather than left to
+    /// the consumer for [`ExprInfo::InstanceOf`]'s reason and one more: the
+    /// enum's name needs namespace/import context only this crate has, and the
+    /// auto-increment rule that gives an unwritten case its value needs the
+    /// whole declaration in view.
+    ///
+    /// Never recorded for an ordinary `Class::CONST`, whose value is unmodeled
+    /// (see [`crate::expr`]'s own known gaps).
+    EnumCase {
+        /// The case's constant value, in its enum's backing type.
+        value: crate::enums::EnumValue,
+    },
 }
 
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
@@ -202,6 +218,7 @@ pub struct ExprTypeTable {
     entries: Vec<ExprInfo>,
     by_span: FxHashMap<Span, ExprId>,
     methods: FxHashMap<Span, String>,
+    types: FxHashMap<Span, TypeId>,
 }
 
 impl ExprTypeTable {
@@ -265,6 +282,31 @@ impl ExprTypeTable {
     #[must_use]
     pub fn method_label(&self, span: Span) -> Option<&str> {
         self.methods.get(&span).map(String::as_str)
+    }
+
+    /// Records the [`TypeId`] a *declared* type annotation at `span` resolved
+    /// to. See [`Self::declared_ty`] for why.
+    pub(crate) fn record_type(&mut self, span: Span, ty: TypeId) {
+        self.types.insert(span, ty);
+    }
+
+    /// The resolved type of the annotation whose [`mwl_syntax::ast::Type`]
+    /// node sits at `span` — a parameter's, a local declaration's, a `catch`
+    /// clause's, or an `as` conversion's target.
+    ///
+    /// The second entry here keyed by a declaration rather than an expression,
+    /// and for [`Self::method_label`]'s reason: `mwl-ir` lowers a declared
+    /// type straight off the AST (`mwl_ir::lower::lower_decl_type`), which
+    /// works for every atom that *is* its own answer — `int`, `array<T>`, a
+    /// plain class name — but not for one whose meaning depends on
+    /// resolution. An enum name is the first such atom: ADR 0010 makes
+    /// `Rank $r` an integer binding, and telling that apart from `Dog $d`
+    /// needs the symbol table, which `mwl-ir` does not have. So the
+    /// resolution happens once, here, at the same
+    /// [`crate::lower::lower_type`] call the checker already makes.
+    #[must_use]
+    pub fn declared_ty(&self, span: Span) -> Option<TypeId> {
+        self.types.get(&span).copied()
     }
 }
 

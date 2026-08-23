@@ -29,7 +29,7 @@
 //!   this module existed.
 
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use mwl_hir::{AliasTable, ClassGraph, QName, SymbolKind, SymbolTable};
+use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
     ClassMember, ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind,
 };
@@ -218,13 +218,13 @@ impl SignatureTable {
 /// immutably through the same `Env` at once.
 pub fn build_signatures(
     stmts: &[Stmt],
-    symbols: &SymbolTable,
-    aliases: &AliasTable,
-    graph: &ClassGraph,
+    module: &mwl_hir::Module,
+    enums: &crate::enums::EnumTable,
     src: &SourceFile,
     interner: &mut crate::ty::TypeInterner,
     diags: &mut Diagnostics,
 ) -> SignatureTable {
+    let (symbols, aliases, graph) = (&module.symbols, &module.aliases, &module.graph);
     let mut table = SignatureTable::default();
     // `Core` first, so a user declaration can never be collected under a name
     // the stdlib already owns without the later insertion being visible.
@@ -240,6 +240,7 @@ pub fn build_signatures(
         aliases,
         graph,
         signatures: &placeholder,
+        enums,
         src,
         interner,
         exprs: &mut placeholder_exprs,
@@ -575,11 +576,11 @@ mod tests {
         let module = resolve_file(&stmts, map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut interner = TypeInterner::new();
+        let enums = crate::enums::build_enum_table(&stmts, map.file(file), &mut diags);
         let table = build_signatures(
             &stmts,
-            &module.symbols,
-            &module.aliases,
-            &module.graph,
+            &module,
+            &enums,
             map.file(file),
             &mut interner,
             &mut diags,

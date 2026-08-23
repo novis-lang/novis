@@ -189,6 +189,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             format!("instanceof v{}, {class}", value.index())
         }
         InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
+        InstKind::Reinterpret { operand } => format!("reinterpret v{}", operand.index()),
         InstKind::HelperCall { helper, args } => {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
             format!("helper.{} {}", helper_name(*helper), parts.join(", "))
@@ -322,6 +323,8 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Bytes => "bytes",
         Ty::Array => "array",
         Ty::Mixed => "mixed",
+        Ty::Enum(crate::ty::EnumRepr::Int) => "enum:int",
+        Ty::Enum(crate::ty::EnumRepr::Uint) => "enum:uint",
         Ty::ClassDesc => "classdesc",
     }
 }

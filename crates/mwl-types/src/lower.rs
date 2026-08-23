@@ -36,7 +36,14 @@ const MAX_ARRAY_DEPTH: u32 = 32;
 /// Lowers `ty` into an interned [`TypeId`], within the given class/namespace
 /// scope.
 pub(crate) fn lower_type(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
-    lower_type_at_depth(ty, 0, ctx, env)
+    let id = lower_type_at_depth(ty, 0, ctx, env);
+    // Persisted for `mwl-ir`, which lowers a declared type off the AST and so
+    // cannot resolve a name-shaped atom for itself — see
+    // `crate::expr_table::ExprTypeTable::declared_ty`. Recorded here, at the
+    // one entry point every annotation goes through, rather than at each of
+    // this function's callers.
+    env.exprs.record_type(ty.span, id);
+    id
 }
 
 /// Lowers an optional declared type, e.g. a `foreach` binding or destructure
@@ -148,7 +155,10 @@ fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) 
         // below already does for an explicit enum name, rather than always
         // interning `Ty::Class`.
         Some(qname) => match env.symbols.get(qname) {
-            Some(sym) if sym.kind == SymbolKind::Enum => env.interner.enum_(qname.clone()),
+            Some(sym) if sym.kind == SymbolKind::Enum => {
+                let backing = env.enums.backing_of(qname);
+                env.interner.enum_(qname.clone(), backing)
+            }
             _ => env.interner.class(qname.clone()),
         },
         None => {
@@ -209,7 +219,10 @@ fn resolve_name_type(name: &Name, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) 
     }
 
     match env.symbols.get(&qname) {
-        Some(sym) if sym.kind == SymbolKind::Enum => env.interner.enum_(qname),
+        Some(sym) if sym.kind == SymbolKind::Enum => {
+            let backing = env.enums.backing_of(&qname);
+            env.interner.enum_(qname, backing)
+        }
         Some(_) => env.interner.class(qname),
         None if qname.is_core() || qname.is_reserved_global_class() => env.interner.class(qname),
         None => {
@@ -269,11 +282,13 @@ mod tests {
         };
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();
+        let enums = crate::enums::build_enum_table(&stmts, map.file(file), &mut diags);
         let mut env = Env {
             symbols: &module.symbols,
             aliases: &module.aliases,
             graph: &module.graph,
             signatures: &signatures,
+            enums: &enums,
             src: map.file(file),
             interner: &mut interner,
             exprs: &mut exprs,
@@ -330,7 +345,7 @@ mod tests {
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
-        assert!(matches!(interner.get(*elem), Ty::Enum(q) if q.to_string() == "Status"));
+        assert!(matches!(interner.get(*elem), Ty::Enum(q, _) if q.to_string() == "Status"));
     }
 
     #[test]

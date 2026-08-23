@@ -78,8 +78,18 @@ pub enum Ty {
     /// distinguish them (ADR 0007 § 3); which one `QName` names is a
     /// question for [`mwl_hir::SymbolTable`], not this representation.
     Class(QName),
-    /// A resolved enum name (ADR 0010).
-    Enum(QName),
+    /// A resolved enum name (ADR 0010), together with the underlying integer
+    /// type its cases are constants of.
+    ///
+    /// The backing type rides in the type itself rather than in a side table
+    /// because it *is* part of what the type is: ADR 0010 § 2 gives every enum
+    /// exactly one underlying integer type, and § 6 makes an enum value that
+    /// integer's representation with names attached. Carrying it here is what
+    /// lets `mwl-ir` lower an enum-typed binding to a machine integer without
+    /// re-resolving the declaration (`mwl_ir::lower::lower_checked_ty`). It is
+    /// a function of the `QName`, so it never splits one enum into two
+    /// interned types.
+    Enum(QName, crate::enums::EnumBacking),
     /// `{name: T, ...}` — ADR 0036 § 3, MWL's one structurally-checked type.
     /// Fields are sorted by name (see [`TypeInterner::shape`]) so two shapes
     /// naming the same fields in a different written order intern to the
@@ -230,7 +240,7 @@ impl TypeInterner {
             Ty::False => "false".to_owned(),
             Ty::Iterable => "iterable".to_owned(),
             Ty::Callable => "callable".to_owned(),
-            Ty::Class(q) | Ty::Enum(q) => q.to_string(),
+            Ty::Class(q) | Ty::Enum(q, _) => q.to_string(),
             Ty::Shape(fields) => {
                 let inner = fields
                     .iter()
@@ -397,10 +407,11 @@ impl TypeInterner {
         self.intern(Ty::Class(qname))
     }
 
-    /// Interns a resolved enum name.
+    /// Interns a resolved enum name together with its backing type — see
+    /// [`Ty::Enum`] for why the two travel as one.
     #[must_use]
-    pub fn enum_(&mut self, qname: QName) -> TypeId {
-        self.intern(Ty::Enum(qname))
+    pub fn enum_(&mut self, qname: QName, backing: crate::enums::EnumBacking) -> TypeId {
+        self.intern(Ty::Enum(qname, backing))
     }
 
     /// Interns `{name: T, ...}` — ADR 0036 § 3. Sorts `fields` by name first,

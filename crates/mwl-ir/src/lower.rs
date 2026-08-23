@@ -57,7 +57,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, IdGen, ValueId};
 use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
-use crate::ty::Ty;
+use crate::ty::{EnumRepr, Ty};
 use crate::{span_text, strip_sigil};
 
 /// A local's current SSA binding: which value it holds, and at what
@@ -299,7 +299,10 @@ pub fn lower_method(
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
 ) -> Function {
-    let ret_ty = m.return_type.as_ref().map_or(Ty::Void, lower_decl_type);
+    let ret_ty = m
+        .return_type
+        .as_ref()
+        .map_or(Ty::Void, |t| lower_decl_type(t, exprs, checked_types));
     let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types);
     let entry = low.new_block();
     let mut cur = entry;
@@ -343,7 +346,7 @@ pub fn lower_method(
         let decl_ty =
             p.ty.as_ref()
                 .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
-        let ty = lower_decl_type(decl_ty);
+        let ty = lower_decl_type(decl_ty, exprs, checked_types);
         // +1: index 0 is always the implicit receiver seeded above.
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let (v, _) = low.emit(entry, ty, InstKind::Param(index));
@@ -968,7 +971,7 @@ impl<'a> Lowering<'a> {
                 name: local_name,
                 value: Some(value),
             } => {
-                let expected = lower_decl_type(decl_ty);
+                let expected = lower_decl_type(decl_ty, self.exprs, self.checked_types);
                 let (v, _) = self.lower_expr_top(value, Some(expected), env, cur);
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, expected, value);
@@ -1838,9 +1841,9 @@ impl<'a> Lowering<'a> {
              copy-on-write separation has to be told not to separate; see the crate docs' known \
              gaps"
         );
-        let value_ty = binding_ty(value, "value");
+        let value_ty = binding_ty(value, "value", self.exprs, self.checked_types);
         let key_binding = key.map(|k| {
-            let ty = binding_ty(k, "key");
+            let ty = binding_ty(k, "key", self.exprs, self.checked_types);
             assert!(
                 ty == Ty::Str,
                 "mwl-ir lowers a `foreach` key binding only at `string`, ADR 0007 § 5's one \
@@ -3067,11 +3070,49 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // ADR 0010 § 3: `EnumName::CaseName` "is an integer constant,
+            // inlined at every use site" — so it lowers to exactly the
+            // constant a literal would, with no storage, no descriptor and no
+            // allocation. `mwl_types` resolved the value (including the
+            // auto-increment rule) into `ExprInfo::EnumCase`; an ordinary
+            // `Class::CONST` records nothing there and is still unlowered.
+            ExprKind::ClassConstAccess { .. } => {
+                let Some(ExprInfo::EnumCase { value }) = self.exprs.lookup(expr.span) else {
+                    panic!(
+                        "mwl-ir: a `Class::CONST` at {:?} with no resolved enum case recorded in \
+                         the typed-expression table — an ordinary class constant's value is \
+                         unmodeled in `mwl_types` (see its own known gaps), so there is nothing \
+                         to lower it to",
+                        expr.span
+                    );
+                };
+                match value {
+                    mwl_types::EnumValue::Int(n) => {
+                        self.emit(cur, Ty::Enum(EnumRepr::Int), InstKind::ConstInt(*n))
+                    }
+                    mwl_types::EnumValue::Uint(n) => {
+                        self.emit(cur, Ty::Enum(EnumRepr::Uint), InstKind::ConstUint(*n))
+                    }
+                }
+            }
+            // ADR 0007 § 2's `as` — the one conversion spelling. The target
+            // type is resolved by `lower_decl_type`, which reads the checker's
+            // own answer for the annotation, so an enum target/source is
+            // already the right representation by the time `convert` sees it.
+            ExprKind::Conversion { expr: inner, ty } => {
+                // `None`, not the target: `mwl_types::expr::check_expr`'s own
+                // `Conversion` arm checks the operand with no expected type,
+                // so a bare integer literal inside one is an `int` here for
+                // the same reason it is there.
+                let (v, from) = self.lower_expr(inner, None, env, cur);
+                let to = lower_decl_type(ty, self.exprs, self.checked_types);
+                self.convert(v, from, to, inner, cur)
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, an array \
-                 literal, an array-element read, and `instanceof` — got {other:?}; see the crate \
-                 docs' known gaps"
+                 literal, an array-element read, `instanceof`, an enum case and an `as` \
+                 conversion — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }
@@ -3153,6 +3194,7 @@ impl<'a> Lowering<'a> {
                     | Ty::Object
                     | Ty::Array
                     | Ty::Mixed
+                    | Ty::Enum(_)
                     | Ty::ClassDesc => {
                         unreachable!("matched above")
                     }
@@ -3171,6 +3213,82 @@ impl<'a> Lowering<'a> {
                 "mwl-ir only converts a scalar operand to `string` for `.` so far — got \
                  {other:?}; a `Stringable`-object operand needs a resolved `toString` call this \
                  crate can't synthesize yet, see the crate docs' known gaps"
+            ),
+        }
+    }
+
+    /// Lowers one `expr as T` — ADR 0007 § 2's conversion table, plus
+    /// ADR 0010 § 5's two enum rows.
+    ///
+    /// Three shapes of row exist, and this slice implements the first two:
+    ///
+    /// * **Free.** The two representations are identical, so nothing runs. A
+    ///   conversion to the same representation is the operand itself; an enum
+    ///   to its own backing `int`/`uint` is an [`InstKind::Reinterpret`],
+    ///   which ADR 0010 § 5 spells out as "total, free ... same
+    ///   representation, reinterpreted."
+    /// * **Total.** A scalar to `string` reuses the same [`Helper`]
+    ///   conversions `.` concatenation already goes through
+    ///   ([`Self::concat_operand`]), and any value to `bool` reuses ADR 0035's
+    ///   truthy table ([`Self::truthy_convert`]) — `as bool` is the explicit
+    ///   spelling of exactly the test a condition applies implicitly, so
+    ///   giving it a second table would be two answers to one question.
+    /// * **Checked.** `int` ↔ `uint`, `float` → an integer, `string` → a
+    ///   number, and an integer → an enum all either produce the value or
+    ///   throw. None is lowered yet; each panics naming itself. They need a
+    ///   throwing helper apiece (and, for the enum row, the case set carried
+    ///   to the runtime), which is the next slice — see the crate docs' known
+    ///   gaps.
+    ///
+    /// `operand` is the un-lowered source expression, used only to decide
+    /// whether a refcounted operand this conversion consumed was borrowed
+    /// storage or a fresh value nothing else will release — the same
+    /// [`is_aliasing_read`] judgment [`Self::concat_operand`]'s caller makes.
+    fn convert(
+        &mut self,
+        v: ValueId,
+        from: Ty,
+        to: Ty,
+        operand: &Expr,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        if from == to {
+            return (v, to);
+        }
+        match (from, to) {
+            // ADR 0010 § 5, row 1 — an enum to its own underlying type.
+            (Ty::Enum(EnumRepr::Int), Ty::Int) | (Ty::Enum(EnumRepr::Uint), Ty::Uint) => {
+                self.emit(cur, to, InstKind::Reinterpret { operand: v })
+            }
+            (_, Ty::Bool) => {
+                let b = self.truthy_convert(v, from, cur);
+                if from.is_refcounted() && !is_aliasing_read(&operand.kind) {
+                    self.emit_release(cur, v);
+                }
+                (b, Ty::Bool)
+            }
+            (Ty::Bool | Ty::Int | Ty::Uint | Ty::Float, Ty::Str) => {
+                let helper = match from {
+                    Ty::Bool => Helper::BoolToString,
+                    Ty::Int => Helper::IntToString,
+                    Ty::Uint => Helper::UintToString,
+                    _ => Helper::FloatToString,
+                };
+                self.emit(
+                    cur,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper,
+                        args: vec![v],
+                    },
+                )
+            }
+            _ => panic!(
+                "mwl-ir lowers only ADR 0007 § 2's free and total conversion rows so far — got \
+                 `{from:?} as {to:?}`, which is one of the checked rows (`int` ↔ `uint`, `float` \
+                 to an integer, `string` to a number, an integer into an enum). Each throws \
+                 rather than rounding or substituting, and needs a throwing runtime helper this \
+                 crate has no tag for yet; see the crate docs' known gaps"
             ),
         }
     }
@@ -3218,6 +3336,7 @@ impl<'a> Lowering<'a> {
                     | Ty::Array
                     | Ty::Bytes
                     | Ty::Mixed
+                    | Ty::Enum(_)
                     | Ty::ClassDesc => {
                         unreachable!("matched above")
                     }
@@ -3244,8 +3363,12 @@ impl<'a> Lowering<'a> {
                 .0
             }
             // A class instance or an enum case — ADR 0035 § 4, always
-            // truthy, nothing to inspect at runtime.
-            Ty::Object => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
+            // truthy, nothing to inspect at runtime. The enum arm is the whole
+            // reason `Ty::Enum` is a representation of its own rather than the
+            // backing integer it is made of: `Rank::Bronze` is backed by `0`
+            // and is still `true` here, where a plain `int` `0` goes through
+            // `Helper::IntTruthy` and comes back `false`.
+            Ty::Object | Ty::Enum(_) => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
             other => panic!(
                 "mwl-ir's truthy-condition slice only converts a `bool`, a scalar, `Ty::Array` \
                  or `Ty::Object` value — got {other:?}; a `null` value has no IR representation \
@@ -3942,7 +4065,12 @@ fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, St
 /// `mwl_syntax`'s parser already reported the omission (the `None` here is the
 /// error-recovery placeholder [`ForeachBinding::ty`]'s own doc comment
 /// describes), so lowering never runs on such a file.
-fn binding_ty(binding: &ForeachBinding, which: &str) -> Ty {
+fn binding_ty(
+    binding: &ForeachBinding,
+    which: &str,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Ty {
     let ty = binding.ty.as_ref().unwrap_or_else(|| {
         panic!(
             "mwl-ir: a `foreach` {which} binding reached lowering with no declared type — \
@@ -3950,7 +4078,7 @@ fn binding_ty(binding: &ForeachBinding, which: &str) -> Ty {
              lowered"
         )
     });
-    lower_decl_type(ty)
+    lower_decl_type(ty, exprs, checked_types)
 }
 
 /// Lowers a *declared* type straight off the AST — every scalar atom, plus
@@ -3973,7 +4101,17 @@ fn binding_ty(binding: &ForeachBinding, which: &str) -> Ty {
 /// question is a *representation* question. `new static()`'s and
 /// `static::m()`'s actual class travels as a value instead
 /// ([`Ty::ClassDesc`]), which is what [`Lowering::lsb`] produces.
-fn lower_decl_type(ty: &Type) -> Ty {
+fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterner) -> Ty {
+    // The checker already resolved this exact annotation and recorded the
+    // answer (`ExprTypeTable::declared_ty`) — take it whenever it exists, so a
+    // name-shaped atom whose meaning depends on resolution comes out right.
+    // ADR 0010's enum is the case that forces this: `Rank $r` is an integer
+    // binding and `Dog $d` is an object one, and nothing in the AST tells the
+    // two apart. The match below stays as the answer for an annotation the
+    // checker never visited, where every atom is its own answer anyway.
+    if let Some(id) = exprs.declared_ty(ty.span) {
+        return lower_checked_ty(id, checked_types);
+    }
     match &ty.kind {
         TypeKind::Atom(TypeAtom::SelfTy | TypeAtom::StaticTy | TypeAtom::Parent) => Ty::Object,
         TypeKind::Atom(TypeAtom::Bool) => Ty::Bool,
@@ -3989,7 +4127,7 @@ fn lower_decl_type(ty: &Type) -> Ty {
         // exactly how much this representation does and doesn't do yet: a
         // local/parameter/return/call-argument round-trips, nothing else.
         TypeKind::Atom(TypeAtom::Mixed) => Ty::Mixed,
-        TypeKind::Paren(inner) => lower_decl_type(inner),
+        TypeKind::Paren(inner) => lower_decl_type(inner, exprs, checked_types),
         other => panic!(
             "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/a plain class name \
              as a declared type — got {other:?}; see the crate docs' known gaps"
@@ -4006,9 +4144,12 @@ fn lower_decl_type(ty: &Type) -> Ty {
 /// from `mwl_types`' own interner, not from a `Type` AST node this crate can
 /// lower directly (there may be no local `Type` node at all, e.g. an
 /// inherited method's parameter declared on a different class's source).
-/// `Class`/`Enum` both erase to [`Ty::Object`], same as [`lower_decl_type`]'s
-/// `Name` case — see that variant's own doc comment for why identity doesn't
-/// need to survive this translation. `String` erases to [`Ty::Str`] and
+/// `Class` erases to [`Ty::Object`], same as [`lower_decl_type`]'s `Name`
+/// case — see that variant's own doc comment for why identity doesn't need to
+/// survive this translation. `Enum` does *not* join it: ADR 0010 makes an enum
+/// a closed integer type, so it lowers to [`Ty::Enum`] carrying the backing
+/// type `mwl_types::ty::Ty::Enum` already knows (see that variant for why the
+/// backing rides in the checker's type rather than in a side table). `String` erases to [`Ty::Str`] and
 /// `Bytes` to [`Ty::Bytes`] — the same representations [`lower_decl_type`]
 /// already gives a local/parameter/return type spelled directly in source —
 /// see [`crate::lower`]'s module docs for the retain policy this now needs at
@@ -4034,7 +4175,11 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::Void => Ty::Void,
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
-        CheckedTy::Class(_) | CheckedTy::Enum(_) => Ty::Object,
+        CheckedTy::Class(_) => Ty::Object,
+        CheckedTy::Enum(_, backing) => Ty::Enum(match backing {
+            mwl_types::EnumBacking::Int => EnumRepr::Int,
+            mwl_types::EnumBacking::Uint => EnumRepr::Uint,
+        }),
         // The element `TypeId` is discarded — same erasure `lower_decl_type`
         // already gives `TypeAtom::Array(_)`, see `Ty::Array`'s own doc
         // comment for why this crate has no lowering decision that needs it.
@@ -6021,5 +6166,94 @@ class T {
                 "{label}"
             );
         }
+    }
+
+    /// ADR 0010 § 3: a case is an integer constant inlined at its use site —
+    /// `Rank::Gold` is a `ConstInt 2` and nothing else, with no storage, no
+    /// descriptor and no allocation. ADR 0010 § 5's first row then makes
+    /// `as int` a free `Reinterpret`.
+    #[test]
+    fn an_enum_case_lowers_to_a_constant_and_as_int_is_free() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+enum Rank { Bronze, Silver, Gold }
+int $g = Rank::Gold as int;
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// ADR 0010 § 2's `: uint` backing reaches the IR: the case constant is a
+    /// `ConstUint` at `enum:uint`, and `as uint` is the free row again.
+    #[test]
+    fn a_uint_backed_enum_case_lowers_to_a_uint_constant() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+enum P: uint { Read = 0b001, Write = 0b010 }
+uint $w = P::Write as uint;
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// An enum-typed *binding* is an integer binding, not an object one —
+    /// ADR 0010 § 6. The parameter's representation is what proves it: a
+    /// `Ty::Object` here would mean a refcounted receiver slot, a retain and a
+    /// release, none of which an enum has.
+    #[test]
+    fn an_enum_typed_parameter_is_an_integer_parameter() {
+        let (f, _map, _file) = lower_first_method(
+            "<?mwl
+enum Rank { Bronze, Gold }
+class T { public function f(Rank $r): int { return $r as int; } }
+",
+        );
+        assert_eq!(f.params, [Ty::Object, Ty::Enum(EnumRepr::Int)]);
+        assert_eq!(f.ret, Ty::Int);
+    }
+
+    /// ADR 0035 § 4: an enum case is *always* truthy, never judged by its
+    /// backing value. `Rank::Bronze` is backed by `0`, so a representation
+    /// that erased it to `Ty::Int` would emit `Helper::IntTruthy` here and
+    /// come back `false`.
+    #[test]
+    fn an_enum_condition_folds_to_true_rather_than_testing_its_backing_value() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+enum Rank { Bronze, Gold }
+if (Rank::Bronze) { echo \"y\"; }
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains("const.bool true"), "{text}");
+        assert!(!text.contains("helper.int_truthy"), "{text}");
+    }
+
+    /// ADR 0007 § 2's total rows, reached through `as` rather than through
+    /// `.`: a scalar to `string` reuses the same `Helper` conversion, and a
+    /// value to `bool` reuses ADR 0035's truthy table.
+    #[test]
+    fn as_string_and_as_bool_reuse_the_conversions_that_already_exist() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl
+string $s = 7 as string;
+bool $b = 0 as bool;
+",
+        );
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains("helper.int_to_string"), "{text}");
+        assert!(text.contains("helper.int_truthy"), "{text}");
+    }
+
+    /// The checked rows of ADR 0007 § 2 are not lowered yet, and say so.
+    #[test]
+    #[should_panic(expected = "one of the checked rows")]
+    fn a_checked_conversion_row_panics_naming_itself() {
+        let _ = lower_script_src(
+            "<?mwl
+uint $u = 1;
+int $n = $u as int;
+",
+        );
     }
 }
