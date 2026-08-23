@@ -289,6 +289,23 @@ fn print_term(out: &mut String, term: &Terminator) {
         Terminator::Catch { handler } => {
             let _ = writeln!(out, "    catch -> {}", block_name(*handler));
         }
+        Terminator::Switch {
+            value,
+            arms,
+            default,
+            default_edge,
+        } => {
+            let _ = write!(out, "    switch v{} ->", value.index());
+            for (case, target, edge) in arms {
+                let _ = write!(out, " {case}: {} (e{}),", block_name(*target), edge.index());
+            }
+            let _ = writeln!(
+                out,
+                " default: {} (e{})",
+                block_name(*default),
+                default_edge.index()
+            );
+        }
         Terminator::Branch {
             cond,
             then_block,

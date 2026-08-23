@@ -652,56 +652,25 @@
 //!   land for `Call`/`New`/`HelperCall` together, whenever `try`/`throw`
 //!   lowering needs it.
 //!
-//! - **A suspension point will be a *terminator*, not an instruction — a
-//!   representation decision taken now, with the transform itself left to
-//!   M4.** [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 4
-//!   lowers a generator to an explicit state machine rather than onto the
-//!   coroutine substrate, and its *Consequences* make "M2's IR must model a
-//!   suspension point inside a loop body" this crate's obligation — the
-//!   transform may land later, foreclosing it is the expensive mistake, the
-//!   same argument [`ir::InstKind::StmtMarker`]'s probe ids already rest on.
-//!   Nothing here lowers `yield` today. What this bullet fixes is the shape
-//!   it will take, so that widening this crate in the meantime does not
-//!   quietly rule it out. Four properties carry it; each already holds, and
-//!   each is now an invariant rather than an accident:
-//!   1. **A `yield` ends its block.** It becomes a [`ir::Terminator`]
-//!      variant carrying the yielded value and naming the block resumption
-//!      re-enters, not an [`ir::InstKind`] sitting mid-block. A generator
-//!      body is then already split at exactly its suspension points when the
-//!      transform sees it, so the pass never has to re-split a block and
-//!      re-run the phi bookkeeping [`lower::Lowering::merge_envs`] and
-//!      `lower::Lowering::lower_while`'s seed-then-patch dance do at lowering
-//!      time. Inside a loop body this is the whole difficulty: the resumption
-//!      block is a block *within* the loop that gains a second predecessor
-//!      which is not the loop header, and that is only expressible if the
-//!      split is a real CFG edge to begin with.
-//!   2. **The resumption dispatch is the N-way terminator `switch` already
-//!      needs.** Resuming means entering at a state tag, i.e. a multi-way
-//!      jump at function entry — structurally identical to `switch`'s own
-//!      dispatch (the known gaps below still list `switch` as unlowered).
-//!      Whoever lands `switch` should add *one* N-way [`ir::Terminator`]
-//!      general enough for both, not a two-way `Branch` chain that a later
-//!      state machine would have to work around. [`ir::Terminator::Branch`]
-//!      carries an [`ids::EdgeId`] per outgoing edge for ADR 0018's branch
-//!      probe; an N-way terminator carries one per arm on the same grounds.
-//!   3. **A local live across a suspension becomes an object field, and both
-//!      instructions for that already exist.** ADR 0053 § 4 stores every such
-//!      local in the state object; [`ir::InstKind::FieldSet`] before the
-//!      suspend and [`ir::InstKind::FieldGet`] at the resumption block are
-//!      exactly that, with the retain/release policy those two already carry.
-//!      No new instruction is needed — what the pass needs from this crate is
-//!      the ability to *compute* which locals are live, which is why
-//!      [`ir::InstKind::Phi`] keeps its `(predecessor, value)` pairs
-//!      explicitly at the block head rather than in a side table. Keep it
-//!      that way.
-//!   4. **Nothing may assume the CFG is reducible.** Dispatching straight
+//! - **A generator is a state machine, and its transform has landed** —
+//!   [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 4.
+//!   [`lower::lower_generator`] owns the whole design: what one source
+//!   declaration becomes (a factory, an `advance()`, a `current()`, and a
+//!   synthesized state class), how a `yield` spills every binding into that
+//!   class and a resume block reads it back, and why that keeps the body's
+//!   ordinary phi/loop/landing-block lowering unchanged. Two properties of
+//!   *this crate* are what make it expressible, and both are invariants
+//!   rather than accidents:
+//!   1. **Resumption dispatch is one N-way terminator**
+//!      ([`ir::Terminator::Switch`]), general enough for a `switch`
+//!      statement too rather than a two-way `Branch` chain a state machine
+//!      would have to work around — carrying an [`ids::EdgeId`] per arm on
+//!      the same grounds [`ir::Terminator::Branch`] carries one per edge.
+//!   2. **Nothing may assume the CFG is reducible.** Dispatching straight
 //!      into a block inside a loop body gives that loop a second entry, so a
-//!      post-transform generator function is irreducible in the general case.
-//!      Lowering itself never produces such a CFG — it is structured, and
-//!      [`lower::LoopFrame`] only ever sees single-entry loops — so this
-//!      costs nothing today; it is a constraint on any *later* pass or
-//!      backend assumption added here. Cranelift accepts an irreducible CFG,
-//!      so M3's backend does not need to care either.
+//!      generator's `advance()` is irreducible in the general case. Cranelift
+//!      accepts one, so M3's backend does not care; this is a constraint on
+//!      any *later* pass added here.
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
@@ -758,10 +727,11 @@
 //!   the expression that threw — see [`lower::Lowering::landing_block`]'s own
 //!   doc comment.
 //! - `for`/`switch`/`match` are still unsupported: lowering panics
-//!   naming the statement. [`ir::Terminator::Branch`] and [`ids::EdgeId`]
-//!   are both already exercised by `if`/`while`, so widening to the rest is
-//!   expected to reuse the same shapes rather than add new ones — see
-//!   [`lower`]'s module docs. `foreach` *does* lower, over all three of
+//!   naming the statement. Every shape they need now exists —
+//!   [`ir::Terminator::Branch`] and [`ids::EdgeId`] from `if`/`while`, and
+//!   [`ir::Terminator::Switch`], built general rather than
+//!   resumption-specific precisely so `switch` reaches for it — so widening
+//!   is expected to add no new ones; see [`lower`]'s module docs. `foreach` *does* lower, over all three of
 //!   ADR 0053 § 3's subject shapes: an `array<T>` in
 //!   [`lower::Lowering::lower_foreach`] and an `Iterable<T>`/`Iterator<T>`
 //!   in [`lower::Lowering::lower_foreach_cursor`], each of which owns its

@@ -143,7 +143,14 @@
 //!    `Value` needs the runtime type tag nothing has decided yet (`mwl-ir`'s
 //!    known gap 5); a `mixed`-typed *return of nothing* still works, since
 //!    that writes `null`.
-//! 6. **Executable memory is never freed.** [`Unit`] holds its `JITModule` for
+//! 6. **[`mwl_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
+//!    jump table.** Correct for any case set — the IR deliberately does not
+//!    require a dense or sorted one — and the arms are few in the one
+//!    producer there is today, ADR 0053 § 4's generator resumption (one per
+//!    `yield`, plus the entry and exhausted arms). A `br_table` over a dense
+//!    case set is the obvious optimisation, and is the shape a `switch`
+//!    statement over an `int` subject would want first.
+//! 7. **Executable memory is never freed.** [`Unit`] holds its `JITModule` for
 //!    the process's lifetime; `cranelift_jit::JITModule::free_memory` is
 //!    `unsafe` and needs the "no compiled frame is still live" proof that
 //!    [ADR 0017](../../../docs/adr/0017-hot-reload-without-restart.md)'s
@@ -203,7 +210,7 @@ pub enum CodegenError {
 /// the pages it lives on.
 ///
 /// Holding the [`JITModule`] is what keeps the code mapped — see the crate
-/// docs' known gap 6 on why nothing unmaps it.
+/// docs' known gap 7 on why nothing unmaps it.
 pub struct Unit {
     /// Kept alive for its pages; never read again after `compile` returns.
     _module: JITModule,

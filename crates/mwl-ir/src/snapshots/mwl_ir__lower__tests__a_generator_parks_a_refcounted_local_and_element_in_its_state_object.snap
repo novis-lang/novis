@@ -1,0 +1,102 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_program(&p, map.file(file))"
+---
+fn G::two(classdesc) -> object {
+  bb0:
+    safepoint
+    v0 = param 0  ; classdesc
+    v1 = new G::two$gen()  ; object
+    v2 = const.int 0  ; int
+    field.set v1, G::two$gen::gen#state, v2
+    return v1
+}
+
+fn G::two$gen::advance(object) -> bool {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, G::two$gen::gen#state  ; int
+    switch v1 -> 0: bb1 (e0), 1: bb3 (e1), 2: bb4 (e2), default: bb2 (e3)
+  bb1:
+    ; stmt s0 @4:5-4:20
+    v2 = const.str "t"  ; string
+    ; stmt s1 @5:5-5:16
+    retain v2
+    v3 = field.get v0, G::two$gen::gen#current  ; string
+    field.set v0, G::two$gen::gen#current, v2
+    release v3
+    v4 = field.get v0, G::two$gen::tag  ; string
+    retain v2
+    field.set v0, G::two$gen::tag, v2
+    release v4
+    v5 = const.int 1  ; int
+    field.set v0, G::two$gen::gen#state, v5
+    release v0
+    release v2
+    v6 = const.bool true  ; bool
+    return v6
+  bb2:
+    v15 = const.bool false  ; bool
+    release v0
+    return v15
+  bb3:
+    v7 = field.get v0, G::two$gen::tag  ; string
+    retain v7
+    ; stmt s2 @6:5-6:16
+    retain v7
+    v8 = field.get v0, G::two$gen::gen#current  ; string
+    field.set v0, G::two$gen::gen#current, v7
+    release v8
+    v9 = field.get v0, G::two$gen::tag  ; string
+    retain v7
+    field.set v0, G::two$gen::tag, v7
+    release v9
+    v10 = const.int 2  ; int
+    field.set v0, G::two$gen::gen#state, v10
+    release v0
+    release v7
+    v11 = const.bool true  ; bool
+    return v11
+  bb4:
+    v12 = field.get v0, G::two$gen::tag  ; string
+    retain v12
+    v13 = const.int -1  ; int
+    field.set v0, G::two$gen::gen#state, v13
+    release v0
+    release v12
+    v14 = const.bool false  ; bool
+    return v14
+}
+
+fn G::two$gen::current(object) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, G::two$gen::gen#current  ; string
+    retain v1
+    release v0
+    return v1
+}
+
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    return
+}
+
+fn Throwable::constructor(object, string) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Throwable::message, v1
+    v2 = array.new []  ; array
+    field.set v0, Throwable::backtrace, v2
+    v3 = const.str ""  ; string
+    field.set v0, Throwable::location, v3
+    release v1
+    release v0
+    return
+}

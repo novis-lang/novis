@@ -55,7 +55,7 @@ use mwl_types::layout::ClassLayoutTable;
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::ids::{BlockId, IdGen, ValueId};
+use crate::ids::{BlockId, EdgeId, IdGen, ValueId};
 use crate::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
 use crate::ty::{EnumRepr, Ty};
 use crate::{span_text, strip_sigil};
@@ -205,6 +205,7 @@ pub fn lower_file(
         exprs: &ExprTypeTable,
         checked_types: &TypeInterner,
         out: &mut Vec<Function>,
+        synthesized: &mut Vec<crate::ir::Class>,
     ) {
         for stmt in stmts {
             match &stmt.kind {
@@ -214,7 +215,7 @@ pub fn lower_file(
                 // inside the block.
                 StmtKind::NamespaceDecl(NamespaceDecl {
                     body: Some(block), ..
-                }) => walk(&block.stmts, src, exprs, checked_types, out),
+                }) => walk(&block.stmts, src, exprs, checked_types, out, synthesized),
                 // An `interface`'s default and private method bodies (ADR
                 // 0043 § 2/§ 3) are ordinary compiled methods — the interface
                 // is where they are *declared*, which is all that differs.
@@ -231,6 +232,21 @@ pub fn lower_file(
                                 let Some(label) = exprs.method_label(m.name) else {
                                     continue;
                                 };
+                                // ADR 0053 § 4: a body containing `yield` is
+                                // a generator, and becomes three functions
+                                // and a state class rather than one function
+                                // — see `lower_generator`.
+                                let body = m
+                                    .body
+                                    .as_ref()
+                                    .expect("just checked this declaration has one");
+                                if mwl_syntax::ast::is_generator_body(body) {
+                                    let (fns, class) =
+                                        lower_generator(label, m, src, exprs, checked_types);
+                                    out.extend(fns);
+                                    synthesized.push(class);
+                                    continue;
+                                }
                                 out.push(lower_method(label, m, src, exprs, checked_types));
                             }
                             // ADR 0014 § 1's property hooks are compiled the
@@ -267,7 +283,15 @@ pub fn lower_file(
     }
 
     let mut functions = Vec::new();
-    walk(stmts, src, exprs, checked_types, &mut functions);
+    let mut synthesized = Vec::new();
+    walk(
+        stmts,
+        src,
+        exprs,
+        checked_types,
+        &mut functions,
+        &mut synthesized,
+    );
     functions.push(lower_script(script, stmts, src, exprs, checked_types));
     // The one function with no source text — see
     // `synthesized_throwable_constructor`. Emitted unconditionally: the
@@ -287,6 +311,11 @@ pub fn lower_file(
             methods: layout.methods.clone(),
         })
         .collect();
+    // ADR 0053 § 4's generator state classes have no source declaration and
+    // therefore no `mwl_types::layout` entry — `mwl-ir` synthesizes both the
+    // class and its two methods, so it is the one thing here that adds to the
+    // table rather than copying it.
+    classes.extend(synthesized);
     // The table behind `iter()` is a hash map, so its order varies run to run.
     // Sorting here is what makes a lowered `Program` — and therefore the
     // `--dump-ir` listing and every snapshot taken of it — reproducible for an
@@ -700,6 +729,10 @@ struct Lowering<'a> {
     /// through [`Self::lower_expr`], which is the same widening
     /// `Self::landing_block`'s own known gap needs.
     pending_refs: Vec<StagedRef>,
+    /// ADR 0053 § 4's state class, while this frame is a generator's
+    /// `advance()` — `None` for every other function there is. See
+    /// [`lower_generator`], which owns the whole transform.
+    generator: Option<GenFrame>,
 }
 
 /// One by-reference argument staged at a call site, and where its written-back
@@ -799,6 +832,7 @@ impl<'a> Lowering<'a> {
             foreach_seq: 0,
             ref_locals: FxHashMap::default(),
             pending_refs: Vec::new(),
+            generator: None,
         }
     }
 
@@ -1430,6 +1464,17 @@ impl<'a> Lowering<'a> {
             // an explicit retain here instead, the same `is_aliasing_read`
             // judgment `Self::bind_local`/`Self::lower_call_args` already
             // apply at their own boundary.
+            // ADR 0053 § 5: a generator's body has no return value, so
+            // `return;` means "the sequence ends here" — the same exit
+            // running off the end takes. `mwl_types` reports E0447 for a
+            // `return expr;` in one, which is why this ignores `value`
+            // rather than lowering it.
+            StmtKind::Return(_) if self.generator.is_some() => {
+                self.run_pending_finallys(cur, env);
+                if !self.is_terminated(*cur) {
+                    self.finish_generator(*cur, env);
+                }
+            }
             StmtKind::Return(value) => {
                 let except = value.as_ref().and_then(|v| {
                     if let ExprKind::Variable(span) = &v.kind {
@@ -1536,6 +1581,15 @@ impl<'a> Lowering<'a> {
             // has a block to seal. `$x = throw …;` falls through to
             // `lower_expr`'s own unsupported-shape panic.
             ExprKind::Throw(inner) => self.lower_throw(inner, env, cur),
+            // ADR 0053 § 4's suspension point. Only the statement position
+            // is lowered, for `throw`'s reason above: `yield` produces
+            // nothing a surrounding expression could consume (§ 5 gives a
+            // generator no `send()`), so there is no other position worth
+            // having.
+            ExprKind::Yield {
+                key: None,
+                value: Some(v),
+            } => self.lower_yield(v, env, cur),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment or a \
                  bare call/`new` as an expression statement — got {other:?}; see the crate \
@@ -2145,6 +2199,7 @@ impl<'a> Lowering<'a> {
         let mut seen = FxHashSet::default();
         let mut reassigned = Vec::new();
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
 
         let pre_block = *cur;
         let header_block = self.new_block();
@@ -2401,6 +2456,7 @@ impl<'a> Lowering<'a> {
         let mut reassigned = vec![cursor_name.clone()];
         seen.insert(cursor_name.clone());
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
 
         let pre_block = *cur;
         let header_block = self.new_block();
@@ -2645,6 +2701,7 @@ impl<'a> Lowering<'a> {
         let mut seen = FxHashSet::default();
         let mut reassigned = Vec::new();
         self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
 
         let pre_block = *cur;
         let header_block = self.new_block();
@@ -2790,6 +2847,190 @@ impl<'a> Lowering<'a> {
             env,
         );
         v
+    }
+
+    /// Reads `name`'s parked value back out of the state object and takes a
+    /// reference of its own — the reload half of a generator suspension. See
+    /// [`lower_generator`], which owns the whole protocol.
+    fn reload_field(&mut self, b: BlockId, name: &str, ty: Ty) -> ValueId {
+        let (class, gen_v) = self.gen_target();
+        let (v, _) = self.emit(
+            b,
+            ty,
+            InstKind::FieldGet {
+                object: gen_v,
+                class,
+                field: name.to_owned(),
+            },
+        );
+        if ty.is_refcounted() {
+            self.emit_retain(b, v);
+        }
+        v
+    }
+
+    /// Parks `v` in `name`'s field — the spill half. The field takes its own
+    /// reference and releases whatever it held before, which at the first
+    /// suspension is the `null` [`InstKind::New`] left there; every
+    /// `mwl_runtime` release primitive answers a null payload with a no-op,
+    /// which is what makes the first spill need no special case.
+    fn spill_field(&mut self, b: BlockId, name: &str, v: ValueId, ty: Ty) {
+        self.generator
+            .as_mut()
+            .expect("spill_field is only reached inside a generator frame")
+            .field(name, ty);
+        let (class, gen_v) = self.gen_target();
+        if ty.is_refcounted() {
+            let (old, _) = self.emit(
+                b,
+                ty,
+                InstKind::FieldGet {
+                    object: gen_v,
+                    class: class.clone(),
+                    field: name.to_owned(),
+                },
+            );
+            self.emit_retain(b, v);
+            self.emit_field_set(b, gen_v, class, name.to_owned(), v);
+            self.emit_release(b, old);
+        } else {
+            self.emit_field_set(b, gen_v, class, name.to_owned(), v);
+        }
+    }
+
+    /// This generator frame's state-class label and receiver.
+    ///
+    /// # Panics
+    ///
+    /// Panics outside a generator's `advance()` — every caller is reached
+    /// only from one.
+    fn gen_target(&self) -> (String, ValueId) {
+        let frame = self
+            .generator
+            .as_ref()
+            .expect("a generator field access outside a generator frame");
+        (frame.class.clone(), frame.gen_v)
+    }
+
+    /// Marks this generator finished and leaves `advance()` with `false` —
+    /// what a bare `return;` in the body and running off its end both do.
+    ///
+    /// The state moves to [`GEN_DONE`], which no resumption arm names, so a
+    /// further `advance()` takes the entry switch's default arm and answers
+    /// `false` again rather than re-running anything.
+    fn finish_generator(&mut self, cur: BlockId, env: &Env) {
+        let (class, gen_v) = self.gen_target();
+        let (done, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(GEN_DONE));
+        self.emit_field_set(cur, gen_v, class, GEN_STATE.to_owned(), done);
+        self.release_all_locals(cur, env, None);
+        let (fal, _) = self.emit(cur, Ty::Bool, InstKind::ConstBool(false));
+        self.seal(cur, Terminator::Return(Some(fal)));
+    }
+
+    /// `yield expr;` — ADR 0053 § 4's suspension point, lowered as an
+    /// ordinary `return true` bracketed by a spill and a reload.
+    ///
+    /// [`lower_generator`] owns the protocol and the reason it is shaped this
+    /// way; what happens here is exactly its two halves in order: park the
+    /// element, park every binding, record which resumption point this is,
+    /// leave the frame the way any `return` would, and open the resume block
+    /// the enclosing statement carries on in.
+    ///
+    /// # Panics
+    ///
+    /// Panics outside a generator body (`mwl_types` reports E0445), and for a
+    /// [`Ty::Ref`] binding live at the suspension — see [`lower_generator`].
+    fn lower_yield(&mut self, value: &Expr, env: &mut Env, cur: &mut BlockId) {
+        let elem = self
+            .generator
+            .as_ref()
+            .unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: a `yield` reached lowering outside a generator body — mwl_types \
+                     reports E0445 for one, so this program should not have got here"
+                )
+            })
+            .elem;
+        let (class, gen_v) = self.gen_target();
+
+        let (v, vty) = self.lower_expr_top(value, Some(elem), env, cur);
+        assert!(
+            vty == elem,
+            "mwl-ir: a `yield` operand lowered to {vty:?} where the declared `Iterator<T>` \
+             gives {elem:?} — mwl_types checks the operand against `T`, so this is a lowering \
+             bug"
+        );
+        if vty.is_refcounted() && self.aliasing_read(value) {
+            self.emit_retain(*cur, v);
+        }
+        // The element field owns its reference between suspensions, which is
+        // what lets `current()` hand out a retained copy without the loop
+        // driving it having to know anything about ownership.
+        if elem.is_refcounted() {
+            let (old, _) = self.emit(
+                *cur,
+                elem,
+                InstKind::FieldGet {
+                    object: gen_v,
+                    class: class.clone(),
+                    field: GEN_CURRENT.to_owned(),
+                },
+            );
+            self.emit_field_set(*cur, gen_v, class.clone(), GEN_CURRENT.to_owned(), v);
+            self.emit_release(*cur, old);
+        } else {
+            self.emit_field_set(*cur, gen_v, class.clone(), GEN_CURRENT.to_owned(), v);
+        }
+
+        // Sorted rather than left in `FxHashMap`'s bucket order, for
+        // `Self::release_all_locals`' reason: an emitted instruction's id must
+        // depend only on source order.
+        let mut names: Vec<String> = env
+            .keys()
+            .filter(|n| n.as_str() != GEN_SELF)
+            .cloned()
+            .collect();
+        names.sort();
+        let mut spilled: Vec<(String, Ty)> = Vec::with_capacity(names.len());
+        for name in names {
+            let &(lv, lty) = &env[&name];
+            assert!(
+                lty != Ty::Ref,
+                "mwl-ir does not lower a `yield` with the `&$x` binding `{name}` live across \
+                 it: the cell it addresses is the caller's, and the caller is gone by the time \
+                 the generator resumes; see the crate docs' known gaps"
+            );
+            self.spill_field(*cur, &name, lv, lty);
+            spilled.push((name, lty));
+        }
+
+        let index = self
+            .generator
+            .as_ref()
+            .expect("checked above")
+            .resumes
+            .len();
+        let state = i64::try_from(index + 1).expect("far fewer than i64::MAX yields in one body");
+        let (state_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(state));
+        self.emit_field_set(*cur, gen_v, class, GEN_STATE.to_owned(), state_v);
+        self.release_all_locals(*cur, env, None);
+        let (t, _) = self.emit(*cur, Ty::Bool, InstKind::ConstBool(true));
+        self.seal(*cur, Terminator::Return(Some(t)));
+
+        let resume = self.new_block();
+        self.generator
+            .as_mut()
+            .expect("checked above")
+            .resumes
+            .push(resume);
+        let mut next = Env::default();
+        next.insert(GEN_SELF.to_owned(), (gen_v, Ty::Object));
+        for (name, lty) in spilled {
+            let rv = self.reload_field(resume, &name, lty);
+            next.insert(name, (rv, lty));
+        }
+        *env = next;
+        *cur = resume;
     }
 
     /// `unset($a[$k]);` — the one `unset` target ADR 0028 § 3 leaves
@@ -3041,6 +3282,43 @@ impl<'a> Lowering<'a> {
                     }
                 }
                 merged
+            }
+        }
+    }
+
+    /// Adds every remaining [`Env`] binding to a loop's carried set, but only
+    /// inside a generator's `advance()`.
+    ///
+    /// Outside one, a value bound *before* a loop dominates the whole loop,
+    /// so only a reassigned local needs a header phi — which is exactly what
+    /// [`Self::collect_reassigned_locals`] finds. A generator breaks that
+    /// assumption and is the only thing that does: its entry switch enters a
+    /// resume block that may sit *inside* the loop body, so the header gains
+    /// a predecessor whose path never passed through the block the pre-loop
+    /// value was defined in. The resume block rebinds every name from a field
+    /// (see [`lower_generator`]), so the values are all there — giving every
+    /// binding a header phi is what lets them reach the header in SSA form.
+    ///
+    /// [`GEN_SELF`] is excluded: it is parameter 0, defined in the entry
+    /// block, which dominates every block in the function including every
+    /// resume block, so a phi for it would carry one value on both edges and
+    /// describe nothing.
+    fn seed_generator_loop_carried(
+        &self,
+        env: &Env,
+        seen: &mut FxHashSet<String>,
+        out: &mut Vec<String>,
+    ) {
+        if self.generator.is_none() {
+            return;
+        }
+        // Sorted for `Self::release_all_locals`' reason: which phi gets which
+        // id must depend only on source order, never on hash-bucket layout.
+        let mut names: Vec<&String> = env.keys().filter(|n| n.as_str() != GEN_SELF).collect();
+        names.sort();
+        for name in names {
+            if seen.insert(name.clone()) {
+                out.push(name.clone());
             }
         }
     }
@@ -5418,6 +5696,489 @@ fn is_aliasing_read(kind: &ExprKind) -> bool {
     )
 }
 
+// ---------------------------------------------------------------------------
+// ADR 0053 § 4: generators
+// ---------------------------------------------------------------------------
+
+/// The state field's name in a generator's synthesized state class — which
+/// resumption point [`GEN_ADVANCE`]'s entry switch enters.
+///
+/// A `#` can never appear in an MWL identifier (ADR 0029/0030 fix the whole
+/// character set), so neither this nor [`GEN_CURRENT`] can collide with a
+/// local the body spilled under its own name — the same guarantee
+/// [`Lowering::lower_foreach`]'s `foreach#N` bookkeeping names rest on.
+const GEN_STATE: &str = "gen#state";
+
+/// The most recently yielded element, which [`GEN_CURRENT_METHOD`] reads.
+const GEN_CURRENT: &str = "gen#current";
+
+/// The [`Env`] name a generator's `advance()`/`current()` frame holds its own
+/// receiver — the state object — under. Present so the ordinary exit sweep
+/// ([`Lowering::release_all_locals`]) and every landing block release it
+/// without a special case; excluded from spilling, since a field of the state
+/// object pointing at the state object is a cycle with nothing to say.
+const GEN_SELF: &str = "gen#self";
+
+/// The state value meaning "this generator has finished" — any value no
+/// resumption arm names, so the entry switch's default arm takes it.
+const GEN_DONE: i64 = -1;
+
+/// `Iterator<T>::advance`'s name, as the method table spells it.
+const GEN_ADVANCE: &str = "advance";
+
+/// `Iterator<T>::current`'s name.
+const GEN_CURRENT_METHOD: &str = "current";
+
+/// One generator's synthesized state class, accumulated while its
+/// `advance()` body is lowered — see [`lower_generator`].
+struct GenFrame {
+    /// The state class's label.
+    class: String,
+    /// `T`, from the declared `Iterator<T>` return type.
+    elem: Ty,
+    /// This frame's own receiver, the state object.
+    gen_v: ValueId,
+    /// Every field the class needs, in first-registered order: the two
+    /// reserved ones, then each parameter, then each local some `yield`
+    /// spilled. Deduplicated by name.
+    fields: Vec<(String, Ty)>,
+    /// One resume block per `yield` lowered so far, in source order — the
+    /// entry switch's arms, whose case value is the index plus one (state `0`
+    /// is the body's own start).
+    resumes: Vec<BlockId>,
+}
+
+impl GenFrame {
+    /// Registers `name` as a field at `ty`, or checks that an already-known
+    /// one agrees.
+    fn field(&mut self, name: &str, ty: Ty) {
+        match self.fields.iter().find(|(n, _)| n == name) {
+            Some((_, known)) => assert!(
+                *known == ty,
+                "mwl-ir: the generator local `{name}` was spilled at {ty:?} and at {known:?} — \
+                 a local's representation is fixed at its binding, so this is a lowering bug"
+            ),
+            None => self.fields.push((name.to_owned(), ty)),
+        }
+    }
+}
+
+/// Lowers a generator declaration — ADR 0053 § 4's state-machine transform.
+///
+/// One source method becomes **three functions and one class**:
+///
+/// * `name` itself keeps the label every call site already resolves to, but
+///   runs no user code at all: it allocates the state object, stores its
+///   receiver and every argument into that object's fields, and returns it.
+///   That is § 4's "calling it runs no user code", and it is what makes a
+///   generator's result an ordinary `Iterator<T>` value rather than a
+///   suspended frame.
+/// * `{name}$gen::advance` holds the original body, cut into resumption
+///   segments at each `yield`.
+/// * `{name}$gen::current` returns the last yielded element.
+/// * `{name}$gen` is the state class those two are methods of. `$` cannot
+///   appear in an MWL identifier, so the label can never collide with a
+///   user class.
+///
+/// # How the body survives being cut in half
+///
+/// The body is lowered by the ordinary [`Lowering`] machinery, unchanged —
+/// same `Env`, same phis, same loops, same landing blocks. Only the two ends
+/// of a `yield` are new, and they are exact inverses:
+///
+/// * **Spill.** Every `Env` binding is stored into a field of the state
+///   object, then the frame exits with `true` exactly as an ordinary
+///   `return` would, releasing what it owes. The field takes its own
+///   reference first, so the two do not cancel.
+/// * **Reload.** The resume block reads every one of those fields back and
+///   retains it, rebuilding an `Env` with the same names at fresh SSA values.
+///
+/// So a value never has to live *across* a suspension in SSA form, which is
+/// the thing a state machine cannot express — and the resume block is an
+/// ordinary block the enclosing `while`/`if`/`try` lowering then continues
+/// from, so a `yield` inside a loop body needs nothing from this function at
+/// all: the loop's own back edge picks up the reloaded values as one more
+/// incoming edge to its header phi.
+///
+/// Spilling *everything* rather than only what is live across the `yield` is
+/// deliberate: liveness would be an analysis this crate does not have, and
+/// what it would buy is fewer stores in a routine that is already returning.
+///
+/// # Ownership, and why it never dangles
+///
+/// While the generator is suspended, its fields own every reference; while
+/// `advance()` is running, the locals own a second one each. A generator
+/// dropped mid-sequence is dismantled like any other object, so
+/// `mwl_runtime::object::dismantle` releases exactly what the last spill
+/// stored — there is no state in which a slot holds a reference nobody
+/// releases, and none in which two things release the same one.
+///
+/// # Panics
+///
+/// Panics naming the shape for a generator whose declared return type is not
+/// an `Iterator<T>` the checker resolved (E0446 has already reported one), and
+/// for a `&$x` parameter — a by-reference binding is the address of a
+/// caller-staged cell (see [`Ty::Ref`]), which stops existing the moment the
+/// factory returns, so there is nothing sound to park in a field.
+fn lower_generator(
+    name: &str,
+    m: &MethodMember,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> (Vec<Function>, crate::ir::Class) {
+    let class = format!("{name}$gen");
+    let elem = generator_element(name, m, exprs, checked_types);
+    let is_static = m.modifiers.contains(&Modifier::Static);
+
+    let mut fields = vec![
+        (GEN_STATE.to_owned(), Ty::Int),
+        (GEN_CURRENT.to_owned(), elem),
+    ];
+    let factory = lower_generator_factory(
+        name,
+        &class,
+        m,
+        is_static,
+        &mut fields,
+        src,
+        exprs,
+        checked_types,
+    );
+    let advance = lower_generator_advance(
+        &class,
+        m,
+        is_static,
+        elem,
+        fields.clone(),
+        src,
+        exprs,
+        checked_types,
+    );
+    let (advance, fields) = advance;
+    let current = lower_generator_current(&class, elem, src);
+
+    (
+        vec![factory, advance, current],
+        crate::ir::Class {
+            label: class.clone(),
+            fields: fields.into_iter().map(|(n, _)| n).collect(),
+            // `Iterable`/`Iterator` are compiler-declared and have no layout
+            // entry of their own, so `mwl_codegen::Classes::define` drops an
+            // unresolvable label here the same way it does for any other —
+            // which costs nothing today, since a `foreach` over a cursor
+            // dispatches through the method table rather than through an
+            // `instanceof`. Stated rather than left implicit: an
+            // `$gen instanceof Iterator` would answer `false`.
+            conforms: vec![mwl_hir_iterator_label()],
+            methods: vec![
+                (GEN_ADVANCE.to_owned(), class.clone()),
+                (GEN_CURRENT_METHOD.to_owned(), class),
+            ],
+        },
+    )
+}
+
+/// `Iterator`'s bare label, restated here for the reason
+/// [`THROWABLE_ROOT`] is: this crate depends on neither `mwl-hir` nor
+/// `mwl-types`' name resolution.
+fn mwl_hir_iterator_label() -> String {
+    "Iterator".to_owned()
+}
+
+/// `T`, read back off the declared `Iterator<T>` return type the checker
+/// already resolved and recorded.
+fn generator_element(
+    name: &str,
+    m: &MethodMember,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Ty {
+    let declared = m
+        .return_type
+        .as_ref()
+        .and_then(|t| exprs.declared_ty(t.span))
+        .unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: the generator `{name}` has no resolved return type recorded — \
+                 mwl_types reports E0446 for one that is not an `Iterator<T>`, so lowering \
+                 should never have been reached"
+            )
+        });
+    match checked_types.get(declared) {
+        CheckedTy::Class(_, args) if !args.is_empty() => lower_checked_ty(args[0], checked_types),
+        other => panic!(
+            "mwl-ir: the generator `{name}` declares {other:?} rather than an `Iterator<T>` — \
+             mwl_types reports E0446 for that"
+        ),
+    }
+}
+
+/// The factory half: allocate the state object, park the receiver and every
+/// argument in it, return it. See [`lower_generator`].
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the arguments are one declaration's own parts plus the three \
+              tables every lowering entry point takes"
+)]
+fn lower_generator_factory(
+    name: &str,
+    class: &str,
+    m: &MethodMember,
+    is_static: bool,
+    fields: &mut Vec<(String, Ty)>,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Function {
+    let mut low = Lowering::new(name, src, Ty::Object, exprs, checked_types);
+    let entry = low.new_block();
+    low.emit_safepoint(entry);
+
+    // Parameter 0 is the receiver for an instance method and the called class
+    // for a static one, exactly as `lower_method` seeds it.
+    let recv_ty = if is_static { Ty::ClassDesc } else { Ty::Object };
+    let (recv_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
+    let mut param_tys = vec![recv_ty];
+
+    let (gen_v, _) = low.emit(
+        entry,
+        Ty::Object,
+        InstKind::New {
+            class: class.to_owned(),
+            ctor: None,
+            args: Vec::new(),
+        },
+    );
+    let (zero, _) = low.emit(entry, Ty::Int, InstKind::ConstInt(0));
+    low.emit_field_set(entry, gen_v, class.to_owned(), GEN_STATE.to_owned(), zero);
+
+    // Every stored parameter *transfers* the reference the caller handed this
+    // frame — the field owns it from here, and there is no release to pair,
+    // which is why the factory never sweeps its own locals. A `static`
+    // method's parameter 0 is a `Ty::ClassDesc` and is simply dropped: it is
+    // not refcounted, and nothing in a generator body can ask for it (see
+    // `Lowering::lsb`'s panic).
+    if !is_static {
+        fields.push(("this".to_owned(), Ty::Object));
+        low.emit_field_set(entry, gen_v, class.to_owned(), "this".to_owned(), recv_v);
+    }
+    for (i, p) in m.params.iter().enumerate() {
+        assert!(
+            !p.by_ref,
+            "mwl-ir does not lower a generator with a `&$x` parameter: the slot it binds is a \
+             caller-staged cell that stops existing when the factory returns, so there is \
+             nothing sound to park in the state object; see the crate docs' known gaps"
+        );
+        let decl_ty =
+            p.ty.as_ref()
+                .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
+        let ty = lower_decl_type(decl_ty, exprs, checked_types);
+        let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
+        let pname = strip_sigil(span_text(src, p.name)).to_owned();
+        let (v, _) = low.emit(entry, ty, InstKind::Param(index));
+        param_tys.push(ty);
+        fields.push((pname.clone(), ty));
+        low.emit_field_set(entry, gen_v, class.to_owned(), pname, v);
+    }
+    low.seal(entry, Terminator::Return(Some(gen_v)));
+
+    let (blocks, stmt_spans, edge_spans) = low.finish();
+    Function {
+        name: name.to_owned(),
+        params: param_tys,
+        ret: Ty::Object,
+        blocks,
+        entry,
+        stmt_spans,
+        edge_spans,
+    }
+}
+
+/// The body half: the original statements, cut into resumption segments,
+/// behind an entry switch on the parked state. See [`lower_generator`].
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the arguments are one declaration's own parts plus the three \
+              tables every lowering entry point takes"
+)]
+fn lower_generator_advance(
+    class: &str,
+    m: &MethodMember,
+    is_static: bool,
+    elem: Ty,
+    fields: Vec<(String, Ty)>,
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> (Function, Vec<(String, Ty)>) {
+    let label = format!("{class}::{GEN_ADVANCE}");
+    let mut low = Lowering::new(&label, src, Ty::Bool, exprs, checked_types);
+    let entry = low.new_block();
+    low.emit_safepoint(entry);
+    let (gen_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
+    let (state_v, _) = low.emit(
+        entry,
+        Ty::Int,
+        InstKind::FieldGet {
+            object: gen_v,
+            class: class.to_owned(),
+            field: GEN_STATE.to_owned(),
+        },
+    );
+
+    // The two fixed arms. `start` is state 0 — the first `advance()`, which
+    // reloads what the factory parked and runs the body from the top;
+    // `exhausted` is the default, reached both by a generator that has
+    // already finished and by one whose body ran off the end.
+    let start = low.new_block();
+    let exhausted = low.new_block();
+
+    // Everything the factory parked, minus the two reserved slots, is what
+    // state 0 reloads — the same shape a resume block reloads, so the body
+    // sees one kind of binding rather than two.
+    let seeded: Vec<(String, Ty)> = fields
+        .iter()
+        .filter(|(n, _)| n != GEN_STATE && n != GEN_CURRENT)
+        .cloned()
+        .collect();
+    low.generator = Some(GenFrame {
+        class: class.to_owned(),
+        elem,
+        gen_v,
+        fields,
+        resumes: Vec::new(),
+    });
+
+    let mut env = Env::default();
+    env.insert(GEN_SELF.to_owned(), (gen_v, Ty::Object));
+    let mut cur = start;
+    for (name, ty) in &seeded {
+        let v = low.reload_field(cur, name, *ty);
+        env.insert(name.clone(), (v, *ty));
+    }
+    // `$this` inside a generator body is an ordinary reloaded local, so
+    // `Lowering::this` stays `None` and `static::`/`new static()` panic
+    // naming the gap rather than reading a value from a block that does not
+    // dominate every resume point.
+    let _ = is_static;
+
+    let body = m
+        .body
+        .as_ref()
+        .expect("lower_generator is only reached for a declaration with a body");
+    low.lower_stmts(&body.stmts, &mut cur, &mut env);
+    if !low.is_terminated(cur) {
+        low.finish_generator(cur, &env);
+    }
+
+    let (fal, _) = low.emit(exhausted, Ty::Bool, InstKind::ConstBool(false));
+    low.emit_release(exhausted, gen_v);
+    low.seal(exhausted, Terminator::Return(Some(fal)));
+
+    // Sealed last, because the arms are exactly the `yield`s the body turned
+    // out to contain — a block's terminator is a separate field from its
+    // instruction list, so appending the switch here still lands after the
+    // loads above.
+    let frame = low
+        .generator
+        .take()
+        .expect("just installed this frame's own");
+    let arms: Vec<(i64, BlockId, EdgeId)> = std::iter::once(start)
+        .chain(frame.resumes.iter().copied())
+        .enumerate()
+        .map(|(i, block)| {
+            let case = i64::try_from(i).expect("far fewer than i64::MAX yields in one body");
+            (case, block, low.ids.next_edge(m.name))
+        })
+        .collect();
+    let default_edge = low.ids.next_edge(m.name);
+    low.seal(
+        entry,
+        Terminator::Switch {
+            value: state_v,
+            arms,
+            default: exhausted,
+            default_edge,
+        },
+    );
+
+    let (blocks, stmt_spans, edge_spans) = low.finish();
+    (
+        Function {
+            name: label,
+            params: vec![Ty::Object],
+            ret: Ty::Bool,
+            blocks,
+            entry,
+            stmt_spans,
+            edge_spans,
+        },
+        frame.fields,
+    )
+}
+
+/// The one-line accessor half: hand back the element the last `yield`
+/// parked, retained, since the field keeps owning its own reference.
+///
+/// ADR 0053 § 1 says `current()` called before the first `advance()` or after
+/// one returned `false` throws. **It does not yet**: the slot is `null` at
+/// both points and this reads it as a `T`, which is a known gap rather than a
+/// decision — a `foreach`, the only thing that drives a cursor today, never
+/// calls `current()` at either point.
+fn lower_generator_current(class: &str, elem: Ty, src: &SourceFile) -> Function {
+    let mut ids = IdGen::default();
+    let block = ids.next_block();
+    let gen_v = ids.next_value();
+    let value = ids.next_value();
+
+    let plain = |kind: InstKind| Inst {
+        result: None,
+        ty: None,
+        kind,
+        on_error: None,
+    };
+    let mut insts = vec![
+        plain(InstKind::Safepoint),
+        Inst {
+            result: Some(gen_v),
+            ty: Some(Ty::Object),
+            kind: InstKind::Param(0),
+            on_error: None,
+        },
+        Inst {
+            result: Some(value),
+            ty: Some(elem),
+            kind: InstKind::FieldGet {
+                object: gen_v,
+                class: class.to_owned(),
+                field: GEN_CURRENT.to_owned(),
+            },
+            on_error: None,
+        },
+    ];
+    if elem.is_refcounted() {
+        insts.push(plain(InstKind::Retain { operand: value }));
+    }
+    insts.push(plain(InstKind::Release { operand: gen_v }));
+
+    let _ = src;
+    let (stmt_spans, edge_spans) = ids.into_spans();
+    Function {
+        name: format!("{class}::{GEN_CURRENT_METHOD}"),
+        params: vec![Ty::Object],
+        ret: elem,
+        blocks: vec![BasicBlock {
+            id: block,
+            insts,
+            term: Terminator::Return(Some(value)),
+        }],
+        entry: block,
+        stmt_spans,
+        edge_spans,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use insta::assert_snapshot;
@@ -5426,7 +6187,7 @@ mod tests {
     use mwl_syntax::parse_file;
 
     use super::*;
-    use crate::print::print_function;
+    use crate::print::{print_function, print_program};
 
     /// Parses `src`, actually runs it through `mwl_hir::resolve_file` and
     /// `mwl_types::check_program` (unlike this crate's earlier slices, which
@@ -5503,6 +6264,41 @@ mod tests {
 
         let f = lower_script("<script>", &stmts, map.file(file), &exprs, &checked_types);
         (f, map, file)
+    }
+
+    /// The whole file lowered — every function and every class, which is
+    /// what a generator needs: one declaration becomes three functions plus a
+    /// synthesized class, and a snapshot of any one of them alone would hide
+    /// how they fit together.
+    fn lower_program(src: &str) -> (crate::ir::Program, SourceMap, SourceId) {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        let mut checked_types = TypeInterner::new();
+        let mut exprs = ExprTypeTable::new();
+        mwl_types::check_program(
+            &stmts,
+            map.file(file),
+            &module,
+            &mut checked_types,
+            &mut exprs,
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+        let layouts = mwl_types::layout::build_class_layouts(&stmts, map.file(file), &module.graph);
+        let p = lower_file(
+            "<script>",
+            &stmts,
+            map.file(file),
+            &exprs,
+            &checked_types,
+            &layouts,
+        );
+        (p, map, file)
     }
 
     /// The acceptance program of `.claude/loop-goal.md`, lowered: one
@@ -7286,6 +8082,48 @@ class T {
 ",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// ADR 0053 § 4's state-machine transform, end to end: the factory that
+    /// runs no user code, the entry switch, one resumption arm per `yield`,
+    /// and the spill/reload pair that lets a value cross a suspension that
+    /// SSA cannot carry it across. `$limit` gets a loop-header phi despite
+    /// never being reassigned — see `seed_generator_loop_carried`.
+    #[test]
+    fn a_generator_lowers_to_a_factory_a_state_class_and_a_resumption_switch() {
+        let (p, map, file) = lower_program(
+            "<?mwl
+class G {
+  static function upTo(int $limit): Iterator<int> {
+    var $i = 1;
+    while ($i <= $limit) {
+      yield $i;
+      $i = $i + 1;
+    }
+  }
+}
+",
+        );
+        assert_snapshot!(print_program(&p, map.file(file)));
+    }
+
+    /// A refcounted element and a refcounted local both survive a
+    /// suspension: the field takes its own reference on the way in and the
+    /// resume block takes one on the way back out, so the two never share.
+    #[test]
+    fn a_generator_parks_a_refcounted_local_and_element_in_its_state_object() {
+        let (p, map, file) = lower_program(
+            "<?mwl
+class G {
+  static function two(): Iterator<string> {
+    var $tag = \"t\";
+    yield $tag;
+    yield $tag;
+  }
+}
+",
+        );
+        assert_snapshot!(print_program(&p, map.file(file)));
     }
 
     /// `unset($a[$k]);` — `InstKind::ArrayUnset` written back through the same

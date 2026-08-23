@@ -1,0 +1,94 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_program(&p, map.file(file))"
+---
+fn G::upTo(classdesc, int) -> object {
+  bb0:
+    safepoint
+    v0 = param 0  ; classdesc
+    v1 = new G::upTo$gen()  ; object
+    v2 = const.int 0  ; int
+    field.set v1, G::upTo$gen::gen#state, v2
+    v3 = param 1  ; int
+    field.set v1, G::upTo$gen::limit, v3
+    return v1
+}
+
+fn G::upTo$gen::advance(object) -> bool {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, G::upTo$gen::gen#state  ; int
+    switch v1 -> 0: bb1 (e2), 1: bb6 (e3), default: bb2 (e4)
+  bb1:
+    v2 = field.get v0, G::upTo$gen::limit  ; int
+    ; stmt s0 @4:5-4:16
+    v3 = const.int 1  ; int
+    ; stmt s1 @5:5-8:6
+    jump bb3
+  bb2:
+    v15 = const.bool false  ; bool
+    release v0
+    return v15
+  bb3:
+    v4 = phi [bb1: v3, bb6: v12]  ; int
+    v5 = phi [bb1: v2, bb6: v10]  ; int
+    v6 = le v4, v5  ; bool
+    branch v6 -> bb4 (e0), bb5 (e1)
+  bb4:
+    ; stmt s2 @5:26-8:6
+    ; stmt s3 @6:7-6:16
+    field.set v0, G::upTo$gen::gen#current, v4
+    field.set v0, G::upTo$gen::i, v4
+    field.set v0, G::upTo$gen::limit, v5
+    v7 = const.int 1  ; int
+    field.set v0, G::upTo$gen::gen#state, v7
+    release v0
+    v8 = const.bool true  ; bool
+    return v8
+  bb5:
+    v13 = const.int -1  ; int
+    field.set v0, G::upTo$gen::gen#state, v13
+    release v0
+    v14 = const.bool false  ; bool
+    return v14
+  bb6:
+    v9 = field.get v0, G::upTo$gen::i  ; int
+    v10 = field.get v0, G::upTo$gen::limit  ; int
+    ; stmt s4 @7:7-7:19
+    v11 = const.int 1  ; int
+    v12 = add v9, v11  ; int
+    safepoint
+    jump bb3
+}
+
+fn G::upTo$gen::current(object) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = field.get v0, G::upTo$gen::gen#current  ; int
+    release v0
+    return v1
+}
+
+fn <script>() -> mixed {
+  bb0:
+    safepoint
+    return
+}
+
+fn Throwable::constructor(object, string) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, Throwable::message, v1
+    v2 = array.new []  ; array
+    field.set v0, Throwable::backtrace, v2
+    v3 = const.str ""  ; string
+    field.set v0, Throwable::location, v3
+    release v1
+    release v0
+    return
+}

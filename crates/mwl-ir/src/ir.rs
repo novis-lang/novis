@@ -1009,6 +1009,35 @@ pub enum Terminator {
         /// The `catch` clause's handler block.
         handler: BlockId,
     },
+    /// An N-way branch on an integer value: the first arm whose case equals
+    /// `value` is entered, `default` when none does.
+    ///
+    /// Built for ADR 0053 § 4's generator resumption — `crate::lower`'s
+    /// generator section owns what the cases mean there — and shaped as the
+    /// general N-way terminator a `switch` statement will reach for rather
+    /// than as a resumption-specific one, since the two want the same edge.
+    ///
+    /// Cases are matched in order and are **not** required to be dense,
+    /// contiguous or sorted; a duplicate case is unreachable rather than an
+    /// error, exactly as a duplicate `if` arm would be. `mwl-codegen` lowers
+    /// this to a compare chain, which is why order is what it is — a jump
+    /// table over a dense case set is the obvious optimisation and is
+    /// deliberately not taken yet (see `mwl-codegen`'s own known gaps).
+    ///
+    /// Each arm carries its own [`EdgeId`] for the same reason
+    /// [`Terminator::Branch`]'s two do: ADR 0018 § 1's branch probe is
+    /// per-edge, and retrofitting ids onto edges already lowered is the cost
+    /// [`crate::ids`] exists to avoid.
+    Switch {
+        /// The value tested, at [`crate::ty::Ty::Int`].
+        value: ValueId,
+        /// One `(case value, target, edge)` per arm, in match order.
+        arms: Vec<(i64, BlockId, EdgeId)>,
+        /// Where control goes when no arm matched.
+        default: BlockId,
+        /// The stable id of the default edge.
+        default_edge: EdgeId,
+    },
     /// A two-way conditional branch, carrying the [`EdgeId`] ADR 0018's
     /// branch probe needs on *each* outgoing edge.
     Branch {

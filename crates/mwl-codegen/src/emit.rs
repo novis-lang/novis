@@ -1465,6 +1465,31 @@ impl Emitter<'_, '_> {
                     .ins()
                     .brif(cond, then_target, &then_args, else_target, &else_args);
             }
+            // A compare chain, not a jump table. Correct for any case set —
+            // the IR deliberately does not require a dense or sorted one —
+            // and the arms are few in the one producer there is today (one
+            // per `yield` in a generator, plus the entry and the exhausted
+            // arm). A `br_table` over a dense case set is this module's
+            // known gap 5.
+            Terminator::Switch {
+                value,
+                arms,
+                default,
+                default_edge: _,
+            } => {
+                let (value, _) = self.value(*value)?;
+                for (case, target, _) in arms {
+                    let hit = self.b.ins().icmp_imm_s(IntCC::Equal, value, *case);
+                    let args = self.phi_args(block.id, *target)?;
+                    let target = self.block(*target)?;
+                    let next = self.b.create_block();
+                    self.b.ins().brif(hit, target, &args, next, &[]);
+                    self.b.switch_to_block(next);
+                }
+                let args = self.phi_args(block.id, *default)?;
+                let target = self.block(*default)?;
+                self.b.ins().jump(target, &args);
+            }
             Terminator::Throw { value, landing } => {
                 let (thrown, ty) = self.value(*value)?;
                 if !matches!(ty, Ty::Object) {
