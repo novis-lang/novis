@@ -9,7 +9,9 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** none.
+- **Amended by:** [0063](0063-core-api-conventions.md) — § 3's Core roster gains `Core\Path`, `Core\Out`,
+  `Core\Bytes` and `Core\Error`, each split out of an entry already listed here; the six placement tests and
+  every tier assignment are unchanged. That ADR fixes the *shape* of the members this one places.
 - **Relates to:** [0004](0004-memory-for-simplicity.md) (the priority ordering this ADR applies; in
   particular that footprint is spent last), [0052](0052-closed-doors.md) (what is not implemented at any
   tier, and why each closure is structural), [0055](0055-extension-qualifier-declarations.md) (how an

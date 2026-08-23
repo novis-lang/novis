@@ -43,6 +43,8 @@
   [0047](0047-literal-and-enum-case-types.md) — § 3's atom grammar gains a `string`/`int` literal atom, a
   class-constant reference that folds to one, and an enum-case reference that stays a narrowed subtype of
   its enum — generalising the `true`/`false` literal atoms already in this section's grammar.
+  [0063](0063-core-api-conventions.md) — § 5's illustrative stdlib signatures are restated subject-first
+  (`Core\Arr::map(array<T>, callable): array<U>`); the parametric-in-`T` rule itself is unchanged.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -273,8 +275,9 @@ One type parameter, not two, because the key type is fixed by the language.
   requires: **one pointer per array header**, plus the O(n) widening copies above.
 - The checker bounds descriptor nesting at depth 32 with a diagnostic, so a pathological type cannot make
   checking superlinear.
-- **The stdlib's array signatures are parametric in `T`** — `array_map(callable, array<T>): array<U>`,
-  `array_filter(array<T>, callable): array<T>`, `array_merge(array<T>, array<U>): array<T|U>`. Type
+- **The stdlib's array signatures are parametric in `T`** — `Core\Arr::map(array<T>, callable): array<U>`,
+  `Core\Arr::filter(array<T>, callable): array<T>`, `Core\Arr::merge(array<T>, array<U>): array<T|U>`
+  (subject-first per [0063](0063-core-api-conventions.md) R1). Type
   variables are available to declarations the compiler owns: the built-ins, and from M9 the WIT-declared
   extension functions. User-written generic functions are not part of this decision.
 

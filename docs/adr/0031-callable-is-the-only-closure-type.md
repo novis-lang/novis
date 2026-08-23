@@ -16,6 +16,8 @@
   and stay recorded there, including its own diagnostics and verification list, just read with `callable`
   substituted for `Closure` throughout. `Closure::fromCallable` is additionally dropped here, since after
   0027 there is nothing left for it to convert *from*.
+- **Amended by:** [0063](0063-core-api-conventions.md) — the illustrative `Core\Arr::map` signature is
+  restated subject-first; nothing about the closure literal or the `callable` type changes.
 - **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (why recursion is solved with a
   lexical self-name rather than a declared-method requirement — the self-name never becomes a free,
   globally-callable function, so it doesn't reopen that ADR's rule), [0015](0015-no-name-aliasing.md) (the
@@ -121,7 +123,7 @@ to call itself once.
 ### 4. `callable` absorbs `Closure`; nothing is left for `Closure` to mean on its own
 
 `Closure` is retired as a type name. `callable` is the only spelling — for a parameter, a property, a return
-type, or a stdlib signature like `Core\Arr::map(callable, array<T>): array<U>`. This is a rename, not a
+type, or a stdlib signature like `Core\Arr::map(array<T>, callable): array<U>`. This is a rename, not a
 behavior change: [ADR 0027](0027-callable-is-closures-only.md)'s decision (only a closure/arrow-function
 value or a first-class-callable-syntax reference satisfies it; PHP's string/array spellings and `__invoke`
 are still refused) is entirely unaffected, just read with `callable` in every place that ADR wrote `Closure`.

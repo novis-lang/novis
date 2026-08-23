@@ -12,8 +12,7 @@
   — its `Core\Str::len` / `Core\Arr::map($f, $a)` examples become `Core\Str::length` / `Core\Arr::map($a, $f)`,
   and § 2's "the exact roster is stdlib design" is answered by the spec file this ADR names.
   [0027](0027-callable-is-closures-only.md) and [0031](0031-callable-is-the-only-closure-type.md) — the same
-  `Core\Arr::map(callable, array<T>)` example, same flip. [0029](0029-identifier-casing-is-checked.md) — its
-  `Core\Time::createFromFormat` casing example is spelled `Core\Time\DateTime::fromFormat` under R5/R18.
+  `Core\Arr::map(callable, array<T>)` example, same flip.
   [0057](0057-intrinsic-literal-folding.md) — its `Core\Time::format` intrinsic is the instance method
   `DateTime::format`, per R18; the folded argument is unchanged and so is everything else about it.
   [0051](0051-standard-library-tiers.md) § 3 — the Core roster gains `Core\Path`, `Core\Out`, `Core\Bytes`

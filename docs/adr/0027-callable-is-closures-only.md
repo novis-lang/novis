@@ -14,6 +14,8 @@
   Every value this ADR calls "a `Closure`" is unaffected in substance; it is typed `callable` everywhere
   from here on, since after this decision the two names had identical membership. `Closure::fromCallable`
   is dropped there too, for the same reason. Read every occurrence of `Closure` below as `callable`.
+  [0063](0063-core-api-conventions.md) — the illustrative `Core\Arr::map` signature is restated
+  subject-first, and `Core\Str::len` is spelled `Core\Str::length`; nothing about `callable` changes.
 - **Relates to:** [0011](0011-functions-and-constants-are-class-members.md) (every callable is a declared
   method — this ADR is what makes a *value* referencing one of those methods safe to pass around),
   [0012](0012-no-superglobals.md) and [0015](0015-no-name-aliasing.md) (the precedent for closing an
@@ -62,7 +64,7 @@ mechanism, that makes an object callable with `()` syntax — `$obj(...)` is ref
 
 ```php
 // kept — produces a Closure, resolved at the reference itself, not at call time
-$fn = Core\Str::len(...);
+$fn = Core\Str::length(...);
 $fn = $user->getName(...);
 $fn = self::helper(...);           // early-bound, like Class::method(...)
 $fn = static::helper(...);         // late-bound, exactly like static::class
@@ -78,13 +80,13 @@ $sum = $adder->add(1, 2);          // kept — call the named method directly
 $sum = $adder(1, 2);               // rejected — "Adder is not callable; MWL has no `__invoke`"
 
 // rejected — each names a value this ADR closes off, diagnostic names the replacement
-Core\Func::call('strlen', $s);            // bare string — "use `Core\Str::len(...)`"
+Core\Func::call('strlen', $s);            // bare string — "use `Core\Str::length(...)`"
 Core\Func::call('User::validate', $u);    // "Class::method" string — "use `User::validate(...)`"
 Core\Func::call([$user, 'getName']);      // array-callable — "use `$user->getName(...)`"
 ```
 
 `Core\Func::call` above is illustrative of *any* position typed `callable` — a parameter, a property, a
-return type, a stdlib signature like `Core\Arr::map(callable, array<T>): array<U>` (already noted as
+return type, a stdlib signature like `Core\Arr::map(array<T>, callable): array<U>` (already noted as
 parametric in [ADR 0007](0007-explicit-type-system.md) § 3's *Consequences*). The rule is the same at every
 one of them: the argument must already be a `Closure` by the time it reaches that position, never a string,
 an array, or an arbitrary object the checker would have to interpret or special-case.
@@ -101,7 +103,7 @@ names for one capability, for no semantic gain.
 ### 3. Diagnostics
 
 - `"strlen"` (or any string) passed where `callable` is expected → *a string is not callable in MWL; take a
-  reference with first-class callable syntax instead — `Core\Str::len(...)`*
+  reference with first-class callable syntax instead — `Core\Str::length(...)`*
 - `[$obj, 'method']` (or `[ClassName::class, 'method']`) passed where `callable` is expected → *an array is
   not callable in MWL; use `$obj->method(...)` (or `ClassName::method(...)`)*
 - `$obj(...)` where `$obj` is any non-`Closure` value → *`ClassName` is not callable; MWL has no `__invoke`

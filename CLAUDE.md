@@ -38,6 +38,7 @@ the same command. A hit is a thirty-second local edit, never a signal that the d
 | Whether a stdlib feature belongs in `Core`, in the default binary, in an extension or nowhere; which PHP extension maps to what; whether a C dependency is acceptable | [ADR 0051](docs/adr/0051-standard-library-tiers.md). Holds the only copy of the six ordered placement tests, the roster PHP's bundled extensions map onto, the rule that only Tier 0 may claim the `Core` prefix, and the two-question C-dependency test that replaces "argued individually". |
 | `FFI`, `dl()`, native modules, stream wrappers, `php://`/`phar://`, `shmop`/`sysv*`/APCu, `eval`, `putenv`, `setlocale`, or "why can't userland do X at all" | [ADR 0052](docs/adr/0052-closed-doors.md). Holds the only copy of the four structural closures and the argument each rests on. |
 | Whether a `.mwlx` can be an injection sink or source, `tainted`/`secret` at an extension call, what the manifest may declare | [ADR 0055](docs/adr/0055-extension-qualifier-declarations.md). Holds the only copy of the contagion-by-default rule, the two declarable deviations, the "an extension can never launder" rule, and the monotonicity property that makes the analysis independent of signature verification. |
+| What a `Core` member looks like — argument order, options, failure signalling, naming, mutation, callbacks; whether a PHP built-in survives at all; why there is no procedural twin of a class API | [ADR 0063](docs/adr/0063-core-api-conventions.md). Holds the only copy of the twenty shape rules and the standing reasons a PHP built-in is dropped. The member list itself is [docs/spec/01-core-library.md](docs/spec/01-core-library.md), which is authoritative for every signature. |
 | Weighing memory against safety, speed or simplicity | [ADR 0004](docs/adr/0004-memory-for-simplicity.md) |
 | `mwl.ini`, `ini_set`, limits, capabilities | [ADR 0005](docs/adr/0005-config-changeability.md). Holds the only copy of the directive layout. |
 | `spawn script`, isolates, the request boundary | [ADR 0006](docs/adr/0006-isolated-script-execution.md) |
@@ -325,6 +326,10 @@ If you find yourself restating more than a sentence, that detail belongs in the 
   bloat being guarded against is API surface and the unsandboxed dependency set, never binary size or
   runtime memory; only Tier 0 may claim the `Core` prefix
   ([ADR 0051](docs/adr/0051-standard-library-tiers.md)).
+- **Every `Core` member has the same shape: subject first, one trailing options shape, nothing mutates,
+  failure throws and absence is `?T`** — and no operation is ever reachable two ways: no procedural twin of
+  a class API, no mutable/immutable type pair, no `from`/`tryFrom` pair, no methods on scalars or
+  `array<T>` ([ADR 0063](docs/adr/0063-core-api-conventions.md)).
 - **Four doors stay shut: no FFI, no stream wrappers, no cross-request state, no `eval`** — each rejected
   from a commitment already made rather than on taste, and none has an opt-in, an ini flag or a trusted
   mode ([ADR 0052](docs/adr/0052-closed-doors.md)).

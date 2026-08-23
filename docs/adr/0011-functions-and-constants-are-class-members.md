@@ -23,6 +23,10 @@
   no longer describes a real construct, since import aliasing is rejected outright; see that ADR's § 4 for
   the reworded rule. That ADR's *Revisiting* also notes that any future `use function`/`use const`-style
   shorthand named in this ADR's own *Revisiting* inherits the same no-renaming rule.
+  [0063](0063-core-api-conventions.md) — fixes the *shape* of every `Core` member this ADR only found a
+  home for: the examples above are restated as `Core\Str::length($s)` and `Core\Arr::map($a, $f)`
+  (subject-first, full words), and § 2's "the exact roster is stdlib design, due at M2/M8" is answered by
+  [docs/spec/01-core-library.md](../spec/01-core-library.md), landing at the new milestone M4S.
 
 > **In short:** no `function` and no `const` may be declared outside a class body — a function is always a
 > `static` or instance method, and a constant is always a class constant, with no exception for built-ins.
@@ -30,9 +34,9 @@
 > **domain classes** — `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`,
 > `Core\Server`, `Core\Request`, `Core\Session`, `Core\Cli`, `Core\Script`, and more as the stdlib milestones
 > build them out — mirroring the groupings PHP itself already splits its extensions into, rather than one
-> class holding everything. `strlen($s)` becomes `Core\Str::len($s)`,
+> class holding everything. `strlen($s)` becomes `Core\Str::length($s)`,
 > `PHP_EOL` becomes `Core\Env::EOL`. Call sites use ordinary namespace resolution — `use Core\Str;` then
-> `Str::len($s)`, or the fully-qualified form — nothing under `Core` is auto-imported, which is the same
+> `Str::length($s)`, or the fully-qualified form — nothing under `Core` is auto-imported, which is the same
 > "nothing is global by default" reading [ADR 0008](0008-static-and-global.md) already gives the rest of
 > the language. Anonymous functions and arrow functions are unaffected: they are values, not named
 > declarations, and creating one inside a method body or the script's own top-level frame was never a
@@ -68,7 +72,7 @@ everything.**
 |---|---|---|
 | `function foo(...) { ... }` at file or namespace scope | **rejected**, diagnostic | a `public static function` on some class |
 | `const FOO = 1;` at file or namespace scope | **rejected**, diagnostic | a `public const` on some class |
-| a bare call to a built-in, e.g. `strlen($s)`, `array_map($f, $a)` | **rejected**, diagnostic naming the `Core` class | `Core\Str::len($s)`, `Core\Arr::map($f, $a)` — via `use Core\Str;` or fully qualified |
+| a bare call to a built-in, e.g. `strlen($s)`, `array_map($f, $a)` | **rejected**, diagnostic naming the `Core` class | `Core\Str::length($s)`, `Core\Arr::map($a, $f)` — via `use Core\Str;` or fully qualified |
 | a bare built-in constant, e.g. `PHP_EOL`, `M_PI` | **rejected**, diagnostic naming the `Core` class | `Core\Env::EOL`, `Core\Math::PI` |
 
 Two things are deliberately **not** affected:
@@ -102,10 +106,10 @@ Two things are deliberately **not** affected:
   it exactly where a type is expected. This is the one naming wrinkle worth fixing now rather than
   discovering it at M2.
 - **Every PHP global function becomes a `public static` method** on the matching domain class, and **every
-  PHP global constant becomes a `public const`**: `strlen($s)` → `Core\Str::len($s)`; `array_map($f, $a)` →
-  `Core\Arr::map($f, $a)`; `PHP_EOL` → `Core\Env::EOL`.
-- **Call sites use ordinary namespace resolution, nothing more.** `use Core\Str; Str::len($s);` or the
-  fully-qualified `Core\Str::len($s);` — `Core` gets no special auto-import. This is the same reading
+  PHP global constant becomes a `public const`**: `strlen($s)` → `Core\Str::length($s)`; `array_map($f, $a)` →
+  `Core\Arr::map($a, $f)`; `PHP_EOL` → `Core\Env::EOL`.
+- **Call sites use ordinary namespace resolution, nothing more.** `use Core\Str; Str::length($s);` or the
+  fully-qualified `Core\Str::length($s);` — `Core` gets no special auto-import. This is the same reading
   [ADR 0008](0008-static-and-global.md) already gives the rest of the language: nothing is reachable without
   a declared name in scope, and a reserved namespace is not an exemption from that.
 - **An extension manifest registers classes, not bare functions or constants.**
@@ -132,7 +136,7 @@ Each rejection names its replacement, in the style [ADR 0008](0008-static-and-gl
   `public static function foo()`, or add it to the class it logically belongs to*
 - `const FOO = 1;` outside any class → *a constant must belong to a class; declare it `public const`*
 - an unresolvable bare call, e.g. `strlen($s)` → *`strlen` does not exist; built-ins live under `Core` —
-  use `Core\Str::len`, or `use Core\Str;` and call `Str::len`*
+  use `Core\Str::length`, or `use Core\Str;` and call `Str::length`*
 - an unresolvable bare constant, e.g. `PHP_EOL` → *`PHP_EOL` does not exist; use `Core\Env::EOL`*
 - `namespace Core;` / `namespace Core\Anything;`, or a class declared directly under it, in user or
   extension code → *`Core` is reserved for built-ins*
@@ -171,7 +175,7 @@ tenth.
 **Negative**
 
 - Every PHP global-function or global-constant call in a converted program needs a name-mapping rewrite
-  (`strlen` → `Core\Str::len`), on top of the type-annotation rewrite
+  (`strlen` → `Core\Str::length`), on top of the type-annotation rewrite
   [ADR 0007](0007-explicit-type-system.md) already requires. `mwl convert` (M11) needs a maintained
   PHP-name → `Core`-class-and-member table that grows with the stdlib rather than being fixed at M0.
 - A PHP file's own free functions and constants — user-authored procedural code with no built-in
@@ -188,7 +192,7 @@ tenth.
 
 - **One flat `Core` class holding every built-in as a static method.** Rejected per the domain-class
   requirement: hundreds of unrelated static methods on one class is a global namespace with extra syntax.
-- **Auto-importing `Core`**, so a bare `Str::len()` or `len()` resolves without a `use`. Rejected:
+- **Auto-importing `Core`**, so a bare `Str::length()` or `length()` resolves without a `use`. Rejected:
   reintroduces "reachable from anywhere with no declared import" for callables generally.
 - **Leave global constants out of scope, matching only the functions half.** Rejected in *3*: leaves one
   row in [ADR 0008](0008-static-and-global.md) § 2 as the sole remaining free-floating name, with no

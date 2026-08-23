@@ -7,7 +7,11 @@
   behaviour. Not in scope: general constant folding of arithmetic, which is an ordinary optimisation
   needing no ADR.
 - **Amends:** none.
-- **Amended by:** none.
+- **Amended by:** [0063](0063-core-api-conventions.md) — the intrinsic list is respelled under that ADR's
+  R18/R20 (`Core\Time::format` is the instance method `Core\Time\DateTime::format`) and gains one entry,
+  the closed relative-date grammar; the validate-always/prepare-where-possible split and the
+  one-implementation rule are both unchanged, and it is that rule this ADR already states which lets the
+  same grammar serve the folded and runtime paths.
 - **Relates to:** [0046](0046-attributes-shape-literal-metadata.md) (whose compile-time-constant rule this
   reuses verbatim, and whose `get<T>` already establishes the precedent of a `Core` surface resolved during
   checking), [0056](0056-regex-engine-policy.md) (the motivating case, and the one where the security
@@ -57,7 +61,8 @@ The initial list:
 |---|---|---|
 | `Core\Regex::compile` | pattern syntax; engine tier ([ADR 0056](0056-regex-engine-policy.md) § 3) | the compiled program |
 | `Core\Uri::parse` | RFC/WHATWG well-formedness | the parsed components |
-| `Core\Time::format` / `::parse` | format-string syntax | the parsed format plan |
+| `Core\Time\DateTime::format` / `Core\Time::parse` | format-string syntax | the parsed format plan |
+| `Core\Time\DateTime::shift` | the closed relative-expression grammar ([ADR 0063](0063-core-api-conventions.md) § 4) | the resolved shift plan |
 | `Core\Str::format` | format-string syntax; placeholder count and types against the argument list | the parsed format plan |
 
 The type check on `Core\Str::format`'s placeholders is worth naming separately: it turns
@@ -83,9 +88,9 @@ reason to prefer it, recorded here rather than left to be discovered.
   cache, so the runtime call uses it directly.
 
 **Preparation is not evaluation.** A call whose result depends on runtime state is not evaluated at compile
-time; only the state-independent part is. `Core\Time::format($now, "Y-m-d")` prepares the format plan and
+time; only the state-independent part is. `$now->format("Y-m-d")` prepares the format plan and
 formats at run time, because the instant, the timezone and the calendar are all runtime values. The
-narrower case where the whole call is constant — `Core\Str::len("abc")` — folds to its value, but that is
+narrower case where the whole call is constant — `Core\Str::length("abc")` — folds to its value, but that is
 ordinary constant folding and not what this ADR is for.
 
 ### 4. Preparation never changes behaviour
