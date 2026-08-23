@@ -142,7 +142,14 @@
 //! 5. **[`mwl_ir::Ty::Mixed`] cannot be materialized.** Writing one into a
 //!    `Value` needs the runtime type tag nothing has decided yet (`mwl-ir`'s
 //!    known gap 5); a `mixed`-typed *return of nothing* still works, since
-//!    that writes `null`.
+//!    that writes `null`. **Integer `/` is the same gap wearing a different
+//!    hat**: [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4
+//!    types `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and
+//!    `7/2` is not — and a union has no single IR representation either. It is
+//!    refused a phase earlier today regardless, since `mwl_types` does not yet
+//!    widen that union to `float` at a binding, which is what makes `float $avg
+//!    = $sum / $n;` the ADR's own worked example. Integer `%` has no such
+//!    problem — its result is the operand type — and compiles.
 //! 6. **[`mwl_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
 //!    jump table.** Correct for any case set — the IR deliberately does not
 //!    require a dense or sorted one — and the arms are few in the one
@@ -156,6 +163,17 @@
 //!    [ADR 0017](../../../docs/adr/0017-hot-reload-without-restart.md)'s
 //!    pointer-swap reclamation is the real home for. A one-shot `mwl run`
 //!    exits before it matters.
+//! 8. **Integer `+`/`-`/`*` wrap instead of throwing on overflow.**
+//!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 makes
+//!    overflow throw `ArithmeticError`, and calls it the divergence from PHP
+//!    it is least willing to trade. The mechanism now exists — integer `%`'s
+//!    zero divisor raises inline through
+//!    [`mwl_runtime::mwl_raise_new`] and takes
+//!    [`mwl_ir::ir::Inst::on_error`]'s edge, which is the same shape a
+//!    checked `iadd` wants — so what is left is emitting the overflow test at
+//!    the three sites and giving each an error edge in `mwl_ir::lower`. The
+//!    divergence meanwhile is a wrong *value* in a case PHP would also not
+//!    produce, never a trap.
 
 mod emit;
 mod ty;
@@ -491,6 +509,10 @@ struct Signatures {
     ptr_to_ptr: Signature,
     /// `mwl_raise(ctx, throwable)`.
     raise: Signature,
+    /// `mwl_raise_new(ctx, class, message, len)` — the throw compiled code
+    /// raises by itself, with no MWL `new` behind it. See
+    /// `mwl_runtime::mwl_raise_new`.
+    raise_new: Signature,
     /// `mwl_object_instanceof(object, desc) -> bool` — `I8`, the width a
     /// Cranelift comparison produces and the one [`ty::clif_ty`] gives
     /// [`mwl_ir::Ty::Bool`].
@@ -775,6 +797,12 @@ impl Signatures {
         raise.params.push(AbiParam::new(ptr));
         raise.params.push(AbiParam::new(ptr));
 
+        let mut raise_new = module.make_signature();
+        raise_new.params.push(AbiParam::new(ptr)); // ctx
+        raise_new.params.push(AbiParam::new(ptr)); // class descriptor
+        raise_new.params.push(AbiParam::new(ptr)); // message bytes
+        raise_new.params.push(AbiParam::new(ptr)); // message length
+
         let mut instanceof = module.make_signature();
         instanceof.params.push(AbiParam::new(ptr)); // object
         instanceof.params.push(AbiParam::new(ptr)); // class descriptor
@@ -830,6 +858,7 @@ impl Signatures {
             refcount,
             ptr_to_ptr,
             raise,
+            raise_new,
             instanceof,
             class_method,
             array_new,

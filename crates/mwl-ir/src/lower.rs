@@ -3737,15 +3737,23 @@ impl<'a> Lowering<'a> {
                 // `$key === "bad"` is the shape this exists for — is released
                 // right after the instruction reads it, exactly the rule the
                 // `Concat` arm above applies to its own fresh operands.
-                let result = self.emit(
-                    cur,
-                    ty,
-                    InstKind::BinOp {
-                        op: bop,
-                        lhs: lv,
-                        rhs: rv,
-                    },
-                );
+                //
+                // Integer `%` is the one operator here that can *fail*: ADR
+                // 0007 § 4 makes a zero divisor throw `ArithmeticError`, which
+                // `mwl-codegen` raises inline rather than through a helper, so
+                // it needs an error edge exactly the way a call does. Every
+                // other operator, `%` on floats included, returns no status at
+                // all — see `Inst::on_error`.
+                let inst = InstKind::BinOp {
+                    op: bop,
+                    lhs: lv,
+                    rhs: rv,
+                };
+                let result = if matches!(bop, BinOp::Mod) && matches!(ty, Ty::Int | Ty::Uint) {
+                    self.emit_fallible(cur, ty, inst, env)
+                } else {
+                    self.emit(cur, ty, inst)
+                };
                 if lty.is_refcounted() {
                     if !self.aliasing_read(lhs) {
                         self.emit_release(cur, lv);
@@ -8640,6 +8648,35 @@ class T {
 }
 ",
         );
+    }
+
+    /// Integer `%` is the one operator carrying an
+    /// [`Inst::on_error`](crate::ir::Inst::on_error) edge: ADR 0007 § 4 makes
+    /// a zero divisor throw, and `mwl-codegen` raises that inline rather than
+    /// through a helper, so the frame's cleanup path has to exist at the
+    /// operator itself. `%` over floats gets none, which is the half of this
+    /// worth holding — an error edge that appeared on every `BinOp` would be
+    /// a landing block per arithmetic expression.
+    #[test]
+    fn an_integer_modulo_carries_an_error_edge_and_a_float_one_does_not() {
+        let (f, _, _) = lower_script_src("<?mwl\nint $a = 7;\nint $b = 2;\nint $q = $a % $b;\n");
+        let modulo = f
+            .blocks
+            .iter()
+            .flat_map(|b| &b.insts)
+            .find(|i| matches!(i.kind, InstKind::BinOp { op: BinOp::Mod, .. }))
+            .expect("the fixture lowers one `%`");
+        assert!(modulo.on_error.is_some(), "{modulo:?}");
+
+        let (f, _, _) =
+            lower_script_src("<?mwl\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n");
+        let modulo = f
+            .blocks
+            .iter()
+            .flat_map(|b| &b.insts)
+            .find(|i| matches!(i.kind, InstKind::BinOp { op: BinOp::Mod, .. }))
+            .expect("the fixture lowers one `%`");
+        assert!(modulo.on_error.is_none(), "{modulo:?}");
     }
 
     /// A file declaring no class still lowers, and still carries the

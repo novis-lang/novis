@@ -323,6 +323,66 @@ pub unsafe extern "C" fn mwl_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
     }
 }
 
+/// Builds an exception of `class` carrying `message` and makes it this
+/// request's pending one — [`mwl_raise`] for a throw compiled code raises by
+/// itself, with no MWL `new` behind it.
+///
+/// The one caller today is `mwl-codegen`'s integer `%`, whose zero divisor
+/// must throw spec § 10's `ArithmeticError` rather than trap the process. That
+/// site has no MWL expression to construct the exception from, and cannot go
+/// through a helper's [`crate::Fault`] either: a helper failure carries a bare
+/// message, which `run_helper` promotes to `RuntimeError` and only
+/// `RuntimeError` (see [`Ctx::set_runtime_error_class`]). Naming the class is
+/// the whole point here, and compiled code already knows the descriptor's
+/// address as a constant — so it passes it.
+///
+/// A null or too-small `class` leaves the pending failure with no object
+/// behind it, exactly as [`Thrown::new`] documents; the status the caller
+/// returns is unaffected.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned and valid for the duration of the call;
+/// `class` must be null or refer to a live class descriptor that outlives the
+/// instance made from it; and `message` must be valid for reads of `len`
+/// bytes, or `len` must be zero.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context and descriptor pointers plus a \
+              pointer and a length into its own data section"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_raise_new(
+    ctx: *mut Ctx,
+    class: *const ClassDesc,
+    message: *const u8,
+    len: usize,
+) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `message` is valid for `len` bytes; \
+                  the zero-length case is split out because `from_raw_parts` \
+                  rejects a null pointer even for an empty slice"
+    )]
+    let bytes = unsafe {
+        if len == 0 {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(message, len)
+        }
+    };
+    let text = String::from_utf8_lossy(bytes);
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the descriptor outlives the instance"
+    )]
+    let thrown = unsafe { Thrown::new(class, &text) };
+    #[expect(unsafe_code, reason = "the caller guarantees `ctx` is valid")]
+    unsafe {
+        (*ctx).raise(thrown);
+    }
+}
+
 /// Records one more frame a pending `THROWN` has unwound out of — the
 /// backtrace's whole mechanism, called only from a compiled frame's error
 /// path.

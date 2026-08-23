@@ -340,20 +340,75 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
 
 #[test]
 fn disassembling_an_unlowered_shape_reports_it_rather_than_printing_half_a_unit() {
-    let error = mwl_codegen::disassemble(&lower("<?mwl\nint $q = 7 % 2;\n")).unwrap_err();
+    let error = mwl_codegen::disassemble(&lower(
+        "<?mwl\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n",
+    ))
+    .unwrap_err();
     assert!(error.to_string().contains("Mod"), "{error}");
 }
 
 #[test]
 fn an_unlowered_shape_is_an_error_naming_it_rather_than_a_panic() {
-    // Integer modulo still has no lowering — a zero divisor has to throw
-    // rather than trap the process, and that needs a checked divisor plus a
-    // `Terminator::Throw` (the crate docs' known gaps). What matters is that
-    // the backend *says so* instead of panicking or, worse, emitting
-    // something.
-    let error = compile("<?mwl\nint $q = 7 % 2;\n").unwrap_err();
+    // `%` over two floats has no lowering: ADR 0007 § 4's arithmetic table
+    // gives `%` an `int`/`uint` row and no `float` one, and PHP reaches it by
+    // converting both operands first — a conversion nothing inserts here. What
+    // matters is that the backend *says so* instead of panicking or, worse,
+    // emitting something.
+    let error =
+        compile("<?mwl\nfloat $a = 7.0;\nfloat $b = 2.0;\nfloat $q = $a % $b;\n").unwrap_err();
     let message = error.to_string();
     assert!(message.contains("Mod"), "{message}");
+}
+
+#[test]
+fn integer_modulo_answers_php_s_value_for_every_sign() {
+    // The sign rules are PHP's: the result takes the *dividend's* sign, which
+    // is what `srem` already gives, so these are here to hold that rather than
+    // to describe a conversion.
+    assert_eq!(output_of("<?mwl\nint $q = 17 % 5;\necho $q;\n"), "2");
+    assert_eq!(output_of("<?mwl\nint $q = -17 % 5;\necho $q;\n"), "-2");
+    assert_eq!(output_of("<?mwl\nint $q = 17 % -5;\necho $q;\n"), "2");
+    assert_eq!(
+        output_of("<?mwl\nuint $a = 17;\nuint $b = 5;\necho $a % $b;\n"),
+        "2"
+    );
+}
+
+#[test]
+fn a_modulo_by_minus_one_answers_zero_rather_than_trapping() {
+    // `i64::MIN % -1` is the second input `srem` traps on, and a trap takes
+    // the whole process down. It is *not* an overflow — `x % -1` is `0` for
+    // every `x`, which is representable, and PHP 8 answers `0` — so
+    // `Emitter::emit_int_mod` rewrites the divisor rather than throwing.
+    // Reaching `i64::MIN` needs the negation, since the literal itself is out
+    // of `int`'s range.
+    assert_eq!(
+        output_of("<?mwl\nint $a = -9223372036854775807 - 1;\nint $b = -1;\necho $a % $b;\n"),
+        "0"
+    );
+}
+
+#[test]
+fn a_modulo_by_zero_throws_arithmetic_error_rather_than_trapping() {
+    // The whole reason this operator waited for the throw path: `srem` on a
+    // zero divisor traps, which is a request-isolation failure rather than a
+    // wrong answer. The message is PHP's own, and the class is spec § 10's
+    // `ArithmeticError` — which is why the raise names a descriptor instead of
+    // going through a helper's `Fault`, whose bare message could only ever be
+    // promoted to `RuntimeError`.
+    assert_eq!(
+        output_of(
+            "<?mwl
+int $b = 0;
+try {
+  echo 10 % $b;
+} catch (ArithmeticError $e) {
+  echo \"caught: \" . $e->message;
+}
+"
+        ),
+        "caught: Modulo by zero"
+    );
 }
 
 #[test]

@@ -332,8 +332,9 @@ impl Emitter<'_, '_> {
                 self.define(inst, value)?;
             }
             InstKind::BinOp { op, lhs, rhs } => {
-                let value = self.emit_binop(*op, *lhs, *rhs)?;
+                let (value, next) = self.emit_binop(cur, inst, *op, *lhs, *rhs)?;
                 self.define(inst, value)?;
+                return Ok(next);
             }
             InstKind::UnOp { op, operand } => {
                 let value = self.emit_unop(*op, *operand)?;
@@ -666,7 +667,18 @@ impl Emitter<'_, '_> {
         Ok((address, len))
     }
 
-    fn emit_binop(&mut self, op: BinOp, lhs: ValueId, rhs: ValueId) -> Result<Value, CodegenError> {
+    /// Emits one [`InstKind::BinOp`], returning both its value and the block
+    /// execution continues in — which is the *entry* block for every operator
+    /// but integer `%`, whose zero-divisor guard splits the flow (see
+    /// [`Self::emit_int_mod`]).
+    fn emit_binop(
+        &mut self,
+        cur: Block,
+        inst: &Inst,
+        op: BinOp,
+        lhs: ValueId,
+        rhs: ValueId,
+    ) -> Result<(Value, Block), CodegenError> {
         let (l, ty) = self.value(lhs)?;
         let (r, rty) = self.value(rhs)?;
         if ty != rty {
@@ -682,12 +694,15 @@ impl Emitter<'_, '_> {
             let callee = self.runtime_ref("mwl_str_eq", RuntimeSig::StrEq)?;
             let call = self.b.ins().call(callee, &[l, r]);
             let equal = self.b.inst_results(call)[0];
-            return Ok(match op {
-                BinOp::Eq => equal,
-                // `bxor 1` rather than `icmp_imm 0`: the helper returns a Rust
-                // `bool`, so the byte is already exactly 0 or 1.
-                _ => self.b.ins().bxor_imm_u(equal, 1),
-            });
+            return Ok((
+                match op {
+                    BinOp::Eq => equal,
+                    // `bxor 1` rather than `icmp_imm 0`: the helper returns a
+                    // Rust `bool`, so the byte is already exactly 0 or 1.
+                    _ => self.b.ins().bxor_imm_u(equal, 1),
+                },
+                cur,
+            ));
         }
 
         let signed = matches!(ty, Ty::Int);
@@ -699,30 +714,41 @@ impl Emitter<'_, '_> {
             )));
         }
 
+        // The one operator whose flow is not straight-line — it owns its own
+        // continuation block, so it returns rather than falling through to the
+        // single-value tail below.
+        if matches!(op, BinOp::Mod) && matches!(ty, Ty::Int | Ty::Uint) {
+            return self.emit_int_mod(inst, l, r, signed);
+        }
+
         let value = match op {
             BinOp::Add if float => self.b.ins().fadd(l, r),
             BinOp::Sub if float => self.b.ins().fsub(l, r),
             BinOp::Mul if float => self.b.ins().fmul(l, r),
             BinOp::Div if float => self.b.ins().fdiv(l, r),
             // Wrapping, for now: ADR 0007 § 4 makes integer overflow a throw
-            // rather than a silent widening to `float`, and there is no error
-            // edge in the IR to branch to yet (crate docs, known gap 3). The
-            // divergence is a wrong *value* in a case PHP would also not
-            // produce, which is why these are emitted while `Div`/`Mod` below
-            // are not.
+            // rather than a silent widening to `float`, and lowering gives
+            // these three no error edge to branch to yet (crate docs, known
+            // gap 8). The divergence is a wrong *value* in a case PHP would
+            // also not produce, which is why these are emitted while `Div`
+            // below is not.
             BinOp::Add => self.b.ins().iadd(l, r),
             BinOp::Sub => self.b.ins().isub(l, r),
             BinOp::Mul => self.b.ins().imul(l, r),
-            // Deliberately *not* emitted, and not for the same reason as the
-            // overflow gap above: `sdiv`/`udiv` **trap** on a zero divisor,
-            // and a trap takes the whole process down. That is a request-
-            // isolation failure — CLAUDE.md's priority 1 — not a wrong answer,
-            // so it waits for the throw path rather than shipping ahead of it.
-            BinOp::Div | BinOp::Mod => {
-                return Err(CodegenError::Unsupported(format!(
-                    "integer `{op:?}`, whose zero divisor must throw \
-                     (ADR 0007 § 4) rather than trap the process"
-                )));
+            // Deliberately not emitted, and no longer for the reason integer
+            // `Mod` above once shared: the trap is guarded now, but ADR 0007
+            // § 4 types `int / int` as `int|float` — PHP-exact, so `6/3` is an
+            // integer and `7/2` is not — and `mwl_ir::Ty` has no
+            // representation for a union (see `mwl_ir::ty::Ty::Mixed`, which
+            // states that gap). Nothing reaches this arm today anyway:
+            // `mwl_types` does not yet widen that union to `float` at a
+            // binding, so an integer `/` is refused a checker phase earlier.
+            BinOp::Div => {
+                return Err(CodegenError::Unsupported(
+                    "integer `/`, whose `int|float` result (ADR 0007 § 4) has no \
+                     single IR representation"
+                        .to_owned(),
+                ));
             }
             BinOp::Eq | BinOp::NotEq | BinOp::Lt | BinOp::LtEq | BinOp::Gt | BinOp::GtEq => {
                 if float {
@@ -757,7 +783,78 @@ impl Emitter<'_, '_> {
                 )));
             }
         };
-        Ok(value)
+        Ok((value, cur))
+    }
+
+    /// Integer `%`, with the two divisors that would otherwise **trap the
+    /// whole process** dealt with before the machine instruction runs.
+    ///
+    /// A trap is a request-isolation failure — CLAUDE.md's priority 1 — not a
+    /// wrong answer, so neither case may reach `srem`/`urem`:
+    ///
+    /// * **A zero divisor** throws spec § 10's `ArithmeticError`, carrying
+    ///   PHP's own `Modulo by zero` message. That is the branch: compare,
+    ///   branch to a block that raises and takes this instruction's error edge
+    ///   ([`mwl_ir::ir::Inst::on_error`]), carry on in a fresh one. The
+    ///   not-taken side costs a compare and a predicted branch, which is the
+    ///   same shape and the same cost as ADR 0002's status check.
+    /// * **`i64::MIN % -1`** does not throw, because it is not an overflow:
+    ///   `x % -1` is exactly `0` for every `x`, which is representable. PHP 8
+    ///   answers `0` here and CLAUDE.md's priority 2 keeps that. So the
+    ///   divisor is rewritten to `1` when it is `-1` — a compare and a
+    ///   `select`, no branch, and `x % 1` is `0` by the same identity.
+    ///
+    /// The unsigned case needs only the zero guard: `urem` has no second
+    /// trapping input.
+    ///
+    /// The exception is built by [`mwl_runtime::mwl_raise_new`] from a
+    /// descriptor address baked in as an `iconst` — see [`crate::Classes`] —
+    /// rather than by a helper's `Fault`, which could only ever name
+    /// `RuntimeError`.
+    fn emit_int_mod(
+        &mut self,
+        inst: &Inst,
+        lhs: Value,
+        rhs: Value,
+        signed: bool,
+    ) -> Result<(Value, Block), CodegenError> {
+        let by_zero = self.b.ins().icmp_imm_s(IntCC::Equal, rhs, 0);
+        let raise = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(by_zero, raise, &[], cont, &[]);
+
+        self.b.switch_to_block(raise);
+        let desc = self.class_desc_const("ArithmeticError")?;
+        let (message, len) = self.emit_bytes(b"Modulo by zero")?;
+        let callee = self.runtime_ref("mwl_raise_new", RuntimeSig::RaiseNew)?;
+        self.b.ins().call(callee, &[self.ctx_p, desc, message, len]);
+        let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
+        match inst.on_error {
+            Some(landing) => {
+                let target = self.block(landing)?;
+                self.b
+                    .ins()
+                    .jump(target, &[codegen::ir::BlockArg::Value(status)]);
+            }
+            // The pre-error-edge shape `Self::emit_status_check` also keeps
+            // for a `None`: return the status onward, releasing nothing.
+            // Unreachable from `mwl_ir::lower`, which emits this instruction
+            // through `emit_fallible`.
+            None => {
+                self.b.ins().return_(&[status]);
+            }
+        }
+
+        self.b.switch_to_block(cont);
+        let value = if signed {
+            let minus_one = self.b.ins().icmp_imm_s(IntCC::Equal, rhs, -1);
+            let one = self.b.ins().iconst(types::I64, 1);
+            let divisor = self.b.ins().select(minus_one, one, rhs);
+            self.b.ins().srem(lhs, divisor)
+        } else {
+            self.b.ins().urem(lhs, rhs)
+        };
+        Ok((value, cont))
     }
 
     fn emit_unop(&mut self, op: UnOp, operand: ValueId) -> Result<Value, CodegenError> {
@@ -1674,6 +1771,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::Refcount => &self.sigs.refcount,
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
             RuntimeSig::Raise => &self.sigs.raise,
+            RuntimeSig::RaiseNew => &self.sigs.raise_new,
             RuntimeSig::InstanceOf => &self.sigs.instanceof,
             RuntimeSig::ClassMethod => &self.sigs.class_method,
             RuntimeSig::ArrayNew => &self.sigs.array_new,
@@ -1724,6 +1822,7 @@ enum RuntimeSig {
     Refcount,
     PtrToPtr,
     Raise,
+    RaiseNew,
     InstanceOf,
     ClassMethod,
     ArrayNew,

@@ -411,6 +411,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::throwable::mwl_raise as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_raise_new",
+            (crate::throwable::mwl_raise_new as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_trace_push",
             (crate::throwable::mwl_trace_push as *const ()).cast::<u8>(),
         ),

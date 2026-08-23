@@ -57,14 +57,14 @@
 //!   § 1's probe sites check, with [`mwl_probe_stmt`] as the
 //!   statement-boundary probe's slow path;
 //! * nine of the ten `mwl_ir::Helper` variants — see [`helpers`];
-//! * [`ThrowableHeader`], the runtime-owned exception value MWL's `throw`
-//!   raises and a `catch` binds, with the `mwl_exception_new`/
-//!   `mwl_throwable_message`/`mwl_throwable_trace`/`mwl_raise`/
-//!   `mwl_trace_push`/`mwl_take_thrown` primitives behind it. It **subsumes**
-//!   the message [`Ctx`] used to carry on its own rather than sitting beside
-//!   it — see that module's `Pending` for why one field carries both levels of
-//!   detail, and [`throwable`]'s own docs for why the backtrace is built as
-//!   the throw propagates rather than at construction;
+//! * the pending exception, with the [`mwl_raise`]/[`mwl_raise_new`]/
+//!   [`mwl_trace_push`]/[`mwl_take_thrown`] primitives behind it. The value
+//!   itself is an ordinary [`ObjHeader`] — see [`throwable`]'s own docs for
+//!   why there is no second representation, which slots the runtime reaches by
+//!   index, and why the backtrace is built as the throw propagates rather than
+//!   at construction. It **subsumes** the message [`Ctx`] used to carry on its
+//!   own rather than sitting beside it — see that module's `Pending` for why
+//!   one field carries both levels of detail;
 //! * [`FaultSite`], the closed set of failures a run can be *asked* to
 //!   produce, so a contained engine panic — which has no user-facing trigger
 //!   by definition — is testable at all;
@@ -115,15 +115,16 @@
 //! 6. **`mwl_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `mwl dap` exists.
-//! 7. **An exception carries a message and a rendered backtrace and nothing
-//!    else.** No code, no previous-exception chain, no file/line pair of its
-//!    own, and no `backtrace` array — that last one is M4's explicit
-//!    carry-over, and now that [`mod@array`] exists it is a lowering decision
-//!    rather than a missing representation. A user class
-//!    extending `Throwable` still has no runtime shape: every exception is a
-//!    [`ThrowableHeader`], not an [`ObjHeader`]. Now that [`object`] exists,
-//!    joining the two is a lowering decision rather than a missing
-//!    representation — see `.claude/loop-goal.md`'s exception surface.
+//! 7. **An exception *this crate* builds carries a message and nothing
+//!    else.** [`Thrown::new`] — reached from [`mwl_raise_new`] and from a
+//!    helper's bare-message [`Fault`] — fills `message`, empties `backtrace`
+//!    and `location`, and leaves `previous` null, because none of the three
+//!    has a value to pass at that point. An exception MWL code constructs is
+//!    unaffected: it is an ordinary [`ObjHeader`] built by an ordinary
+//!    constructor, and `mwl_ir::lower` fills `location` at the `throw`. That
+//!    `previous` cannot be set *at all* yet is a different gap, owned by
+//!    `mwl_types::error_lib`, which explains why the synthesized constructor
+//!    takes only a message.
 //! 8. **There is no cycle collector, by decision rather than by omission.** A
 //!    cyclic object or array graph is retained until the process exits. The wholesale
 //!    request-heap drop makes cycles structurally unable to accumulate in the
@@ -180,6 +181,6 @@ pub use string::{
 };
 pub use throwable::{
     BACKTRACE_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown, mwl_raise,
-    mwl_take_thrown, mwl_trace_push,
+    mwl_raise_new, mwl_take_thrown, mwl_trace_push,
 };
 pub use value::{Tag, Value};

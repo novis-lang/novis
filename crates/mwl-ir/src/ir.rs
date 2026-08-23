@@ -117,10 +117,17 @@ pub struct Inst {
     ///
     /// `Some` for the instructions that can actually fail: [`InstKind::Call`],
     /// [`InstKind::CallVirtual`], [`InstKind::New`],
-    /// [`InstKind::NewDynamic`], and the one [`InstKind::HelperCall`] with a real
-    /// failure mode, [`Helper::EchoStr`]'s write. `None` everywhere else,
-    /// which is not a gap in two different ways — a [`InstKind::BinOp`] or a
-    /// [`InstKind::Concat`] returns no status at all, and a *conversion*
+    /// [`InstKind::NewDynamic`], the one [`InstKind::HelperCall`] with a real
+    /// failure mode ([`Helper::EchoStr`]'s write), and the one
+    /// [`InstKind::BinOp`] with one: `%` over [`crate::ty::Ty::Int`]/
+    /// [`crate::ty::Ty::Uint`], whose zero divisor throws
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
+    /// `ArithmeticError` rather than trapping the process. That one is not a
+    /// call at all — `mwl-codegen` compares and raises inline, so this edge is
+    /// the frame's cleanup path and nothing else. `None` everywhere else,
+    /// which is not a gap in two different ways — every other
+    /// [`InstKind::BinOp`] and a [`InstKind::Concat`] return no status at all,
+    /// and a *conversion*
     /// helper (`Helper::IntToString`, the truthy table) returns one whose only
     /// non-`OK` value is the miscompile guard `mwl_runtime::helpers` describes:
     /// a `FATAL`, which no cleanup path and no `catch` can act on, so giving
