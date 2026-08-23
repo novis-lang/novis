@@ -1,0 +1,40 @@
+[package]
+name = "mwl-runtime"
+description = "MWL runtime: the ADR 0002 helper ABI, the tagged value representation, refcounted strings, and the per-request context"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+bitflags.workspace = true
+
+# ---------------------------------------------------------------------------
+# This crate cannot inherit the workspace lint policy. It owns the heap
+# representation compiled code manipulates by raw pointer and the helper
+# entry points compiled code calls across an `extern "C"` boundary, neither of
+# which is expressible in safe Rust. `deny` rather than the workspace's
+# `forbid`, so each genuinely necessary block is allowed individually with a
+# stated reason — the policy in docs/implementation-plan.md's "Unsafe policy"
+# section, which names this crate.
+# ---------------------------------------------------------------------------
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
