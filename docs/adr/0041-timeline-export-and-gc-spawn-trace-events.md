@@ -4,23 +4,26 @@
 - **Date:** 2026-08-22
 - **Scope:** the trace/profile event taxonomy and export formats defined in
   [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md). Adds a `kind` field to trace
-  events (`call` | `gc` | `spawn`), two new instrumentation points (the cycle collector's run routine; the
-  three isolate-spawn/join runtime routines), and a speedscope "evented" export alongside ADR 0018's existing
+  events (`call` | `gc` | `spawn` | `query`), three new instrumentation points (the cycle collector's run
+  routine; the three isolate-spawn/join runtime routines; each `Core\Db` statement, per
+  [ADR 0067](0067-core-db.md) § 11), and a speedscope "evented" export alongside ADR 0018's existing
   Clover/lcov/Callgrind/NDJSON output. Does **not** add any probe to the per-statement/per-call hot path ADR
   0018 already committed to, and does not cover coroutine suspend/resume events, an external/live attach
   mechanism, or memory/allocation profiling — all named and deliberately deferred, see *Revisiting*.
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-- **Relates to:** 0002, 0006, 0040
+- **Amended by:** 0067 — the fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0006, 0040, 0067
 
 > **In short:** ADR 0018's deterministic profiler exports aggregate Callgrind totals (whole-run self/inclusive
 > time per function, no per-instance timeline) and a per-instance trace only as MWL-native NDJSON, which no
 > ecosystem viewer reads. Neither GC pauses nor isolate-spawn boundaries appear as events at all — a
 > stop-the-world collection run gets silently folded into whichever function's self time happened to be
 > executing, and a `spawn`'s cost is one opaque number that does not separate real child compute from
-> isolate-scheduling/copy-out overhead. This amendment adds a `kind` tag (`call`/`gc`/`spawn`) to trace
-> events, instruments the cycle collector's run routine and the three fixed isolate-spawn/join routines
+> isolate-scheduling/copy-out overhead. This amendment adds a `kind` tag (`call`/`gc`/`spawn`/`query`) to
+> trace events, instruments the cycle collector's run routine, the three fixed isolate-spawn/join routines
+> and each database statement
 > (gated by the same `TRACE`/`PROFILE` bits `Ctx` already carries), and adds a speedscope-evented export that
-> renders all three kinds as one scrollable timeline in speedscope.app — reusing the exact format ADR 0040
+> renders all four kinds as one scrollable timeline in speedscope.app — reusing the exact format ADR 0040
 > already committed to for the sampling profiler, so no bespoke viewer is built. None of this touches the
 > per-statement/per-call check ADR 0018 measures on the hot path: the new instrumentation lives entirely
 > inside routines that are already rare and already slow (a GC run, a spawn), so the marginal cost is
@@ -68,8 +71,12 @@
 
 ### 1. Trace events carry a `kind` tag
 
-`call | gc | spawn`. Existing `call`-kind events are unchanged in shape from ADR 0018 (callee name, args,
-entry/exit timestamp, checked-return status, result).
+`call | gc | spawn | query`. Existing `call`-kind events are unchanged in shape from ADR 0018 (callee name,
+args, entry/exit timestamp, checked-return status, result). The `query` kind is emitted from inside
+`Core\Db`'s own statement routines and carries duration, driver, connection name, truncated SQL text, rows
+returned and rows affected — **never a bound parameter value**, since a trace is a `secret` sink
+([ADR 0067](0067-core-db.md) § 11, [ADR 0033](0033-secret-qualifier-for-confidential-values.md)). Like `gc`
+and `spawn` it sits in a routine that is already slow, so it adds nothing to the hot path.
 
 ### 2. GC-pause events (`kind: gc`)
 
@@ -97,7 +104,7 @@ boundary exactly as ADR 0018 defined — not a new live cross-arena mechanism.
 
 ### 4. A speedscope-evented export, alongside the existing three
 
-A new export renders recorded `call`/`gc`/`spawn` events as speedscope's evented-profile JSON — open/close
+A new export renders recorded `call`/`gc`/`spawn`/`query` events as speedscope's evented-profile JSON — open/close
 pairs at a timestamp, which is exactly what a `TRACE`-flagged run already produces. This reuses the identical
 open format [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md)/M10's sampling profiler already
 commits to, rather than inventing a second timeline format with its own bespoke viewer to build and maintain.
@@ -122,8 +129,8 @@ implementation.
 
 **Negative**
 
-- The trace event schema now has three kinds instead of one; every exporter (the NDJSON writer, the new
-  speedscope-evented writer) has to handle all three — a small, ongoing surface that grows further if a
+- The trace event schema now has four kinds instead of one; every exporter (the NDJSON writer, the new
+  speedscope-evented writer) has to handle all four — a small, ongoing surface that grows further if a
   future primitive needs its own kind.
 - Two more low-cardinality runtime routines (the cycle collector's run function; the spawn/join routines) now
   carry a debug-flag check each, to be kept working as those routines evolve — a bounded, named cost, not a
@@ -144,7 +151,7 @@ implementation.
 - **A bespoke MWL timeline-viewer webview instead of speedscope's evented format.** Rejected per ADR 0040's
   own reasoning: an open, already-maintained viewer exists, and MWL is already committed to it for the
   sampling profiler; building a second one is unnecessary scope against the simplicity priority.
-- **Coroutine suspend/resume as a fourth event kind, an external/live attach mechanism, and a memory/
+- **Coroutine suspend/resume as a further event kind, an external/live attach mechanism, and a memory/
   allocation timeline** — all considered in the same discussion this amendment came out of, and explicitly
   deferred rather than folded in; see *Revisiting*.
 

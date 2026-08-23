@@ -6,7 +6,7 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** 0033 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0033, 0058, 0067 — each fold is applied below; this body states the current rule.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -126,7 +126,11 @@ and carries a written reason at the call site, never a silent cast.
   concatenating. The **bound-parameters argument stays `array<mixed>`, tainted-friendly by design**: binding
   is the mechanism that makes an arbitrarily tainted value safe, so requiring laundering there would be
   pure friction with no security benefit. Dynamic identifiers (table/column names, which SQL cannot
-  parameterize) go through `Core\Db::quoteIdentifier()` or an allowlist check instead.
+  parameterize) go through `Core\Db::quoteIdentifier()` or an allowlist check instead. **One bound
+  parameter is always one value**; an `IN` list is spelled `Core\Db::inList($values)`, which expands to a
+  placeholder list rather than letting a runtime value's type reshape the SQL text
+  ([ADR 0067](0067-core-db.md) § 5). Values read back out of a database are themselves `tainted` under this
+  ADR's standing source rule, which is what closes stored injection by the same mechanism as reflected.
 - **`Core\Process`'s command execution** (M8+, behind the capability gate already named in the plan) takes
   an executable path and an argv array, each element requiring the plain type — and, more fundamentally,
   there is no shell-interpolation form at all. An argv array with no shell in between removes the escaping
@@ -222,10 +226,11 @@ holding the "no magic" line for its own sake.
 - **If real MWL programs show the untainted-string SQL rule insufficient** — a class of query-building bugs
   slips through because an "untainted" string was easy to construct without real validation — reconsider the
   literal-only stricter mode rejected above.
-- **Whether `Core\Session`, and later `Core\Db` result rows and `Core\Cache` reads, should expose a
-  narrower, provably-safe subtype instead of blanket `tainted`** is an open stdlib question, deferred to
-  whichever milestone designs each class's real API — the same deferral
-  [ADR 0012](0012-no-superglobals.md) already used for `Core\Request`'s exact method signatures.
+- **Whether `Core\Session` and `Core\Cache` reads should expose a narrower, provably-safe subtype instead of
+  blanket `tainted`** is an open stdlib question, deferred to whichever milestone designs each class's real
+  API — the same deferral [ADR 0012](0012-no-superglobals.md) already used for `Core\Request`'s exact
+  method signatures. `Core\Db` result rows are settled: they are `tainted`
+  ([ADR 0067](0067-core-db.md) § 6), by this ADR's own standing rule.
 - **The exact laundering-function roster** (`Core\Html::escape`, a matching attribute-context escaper,
   `Core\Db::quoteIdentifier`, `Core\Taint::assertTrusted`, and whatever `Core\Process`/`Core\Fs` need) is
   stdlib design due at M8, illustrative only here, the same status

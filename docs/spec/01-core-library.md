@@ -488,7 +488,9 @@ Members are readonly properties, not `getX()` accessors: `$e->message`, `$e->pre
 `$e->location`. `Throwable`'s message is a `secret` sink
 ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)). Resource-limit reports are **not**
 `Throwable` at all and never reach a `catch` ([ADR 0020](../adr/0020-error-escalation-ladder.md)).
-Domain-specific errors are user-defined classes; `Core` does not attempt to enumerate them.
+Domain-specific errors are user-defined classes; `Core` does not attempt to enumerate them. The one
+exception is `Core\Db\DbError` and `Core\Db\RolledBack` (§ 18), which extend `RuntimeError`: a driver
+failure and a deliberate rollback have no user-defined home.
 
 ## 11. `Core\Random`, `Core\Uuid`, `Core\Hash`
 
@@ -644,7 +646,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 |---|---|---|
 | `Core\Http\Client` | `get`, `post`, `send(Request)`, `stream`; `Core\Http::allowUrl` is the SSRF launderer that pins an address. Replaces all ~30 `curl_*` functions and their handle | [0058](../adr/0058-outbound-request-policy.md) |
 | `Core\Net` | TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job | [0051](../adr/0051-standard-library-tiers.md) |
-| `Core\Db` | `connect`, `query`, `execute`, `transaction`, prepared statements only; SQL text is a sink. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | [0051](../adr/0051-standard-library-tiers.md) |
+| `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | [0067](../adr/0067-core-db.md) |
 | `Core\Crypto` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces `openssl_*`'s primitive half and `sodium_*` | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Password` | `hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. Replaces `password_hash`, `password_verify`, `crypt` | [0063](../adr/0063-core-api-conventions.md) |
 | `Core\Jwt`, `Core\Csrf`, `Core\Totp`, `Core\SignedCookie` | the closed four-entry roster; a JWT's algorithm comes from the key, never the token | [0060](../adr/0060-application-security-protocols.md) |
@@ -667,6 +669,101 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 | `Core\Zip` | Core rather than an extension because `../` entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional | [ADR 0051 § 3](../adr/0051-standard-library-tiers.md) |
 | `Core\Mime` | type detection by magic bytes, not by libmagic's rule interpreter | |
 
+## 18. `Core\Db`
+
+Semantics are [ADR 0067](../adr/0067-core-db.md) — connection naming and memoization, the capability split,
+why there is no `prepare`, the transaction shape, the coercion rule and the full SQL type map. This section
+owns the signatures only. Every member needs `db.connect` or `db.open`, and a connection's credentials live
+in a root-owned `[db.<name>]` block ([ADR 0064](../adr/0064-configuration-file-format.md)).
+
+### Entry points on `Core\Db`
+
+| Member | Signature | Replaces | Q |
+|---|---|---|---|
+| `connect` | `connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connection` | `new PDO`, `mysqli_connect`, `pg_connect`, `new SQLite3` | **sink** (name) |
+| `open` | `open(Db\Settings $settings, {shared?: bool}): Db\Connection` | a runtime-built DSN | **sink** (host) |
+| `inList` | `inList(array<mixed> $values): Db\InList` | `implode(",", array_fill(0, n, "?"))` | |
+| `quoteIdentifier` | `quoteIdentifier(tainted string $name): string` | `mysqli_real_escape_string` on a table/column name | **launder** (identifier) |
+
+`PDO::quote`, `mysqli_real_escape_string` and `pg_escape_string` have **no equivalent**: binding is the
+mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4).
+
+### `Core\Db\Queryable` — the interface both a connection and a transaction satisfy
+
+| Member | Signature | Replaces | Q |
+|---|---|---|---|
+| `query` | `$q->query(string $sql, array<mixed> $params, {timeout?: Duration}): Db\Rows` | `PDO::query`/`prepare`+`execute`, `mysqli_query` | **sink** (sql) |
+| `queryAs` | `$q->queryAs<T>(string $sql, array<mixed> $params, {timeout?}): Db\Rows<T>` | `PDO::FETCH_CLASS`, hand-written hydration | **sink** (sql) |
+| `execute` | `$q->execute(string $sql, array<mixed> $params, {timeout?}): Db\Write` | `PDO::exec`, `PDOStatement::execute`, `lastInsertId` | **sink** (sql) |
+| `executeMany` | `$q->executeMany(string $sql, array<array<mixed>> $sets, {timeout?}): uint` | a loop around `PDOStatement::execute` | **sink** (sql) |
+| `stream` | `$q->stream(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<Db\Row>` | `MYSQLI_USE_RESULT`, `PDO::CURSOR_*`, `pg_query` + `pg_fetch_row` | **sink** (sql) |
+| `streamAs` | `$q->streamAs<T>(string $sql, array<mixed> $params, {timeout?, chunk?: uint}): Iterable<T>` | — | **sink** (sql) |
+| `transaction` | `$q->transaction(callable $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T` | `beginTransaction`/`commit`/`rollBack`, `SAVEPOINT` | |
+
+`Core\Db\Connection` implements it; `Core\Db\Transaction implements Queryable by $connection`
+([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so the surface is
+declared once. A nested `transaction` is a savepoint. Params are one `array<mixed>`: list-keyed for `?`,
+string-keyed for `:name`, mixing throws.
+
+| Type | Members beyond `Queryable` |
+|---|---|
+| `Connection` | `$c->close(): void`; readonly `driver: Driver`, `serverVersion: string`, `isOpen: bool` |
+| `Transaction` | `$t->rollBack(string $reason): void` — sets the rollback-only flag and throws `Db\RolledBack` |
+
+There is no `commit`, no connection-level `rollBack`, no `inTransaction`, no explicit savepoint member and
+no `lastInsertId` — [ADR 0067](../adr/0067-core-db.md) §§ 7 and 12 say why each is absent.
+
+### Results
+
+| Type | Members | Replaces |
+|---|---|---|
+| `Rows` | `->all(): array<Row>`, `->first(): ?Row`, `->value(): mixed`, `->column(int\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<Row>` | `fetchAll`, `fetch`, `fetchColumn`, `rowCount` on a select, `getColumnMeta` |
+| `Rows<T>` | `->all(): array<T>`, `->first(): ?T`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>` | `FETCH_CLASS`, `fetchObject` |
+| `Row` | `->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below | `FETCH_ASSOC`, `FETCH_NUM`, `FETCH_OBJ` |
+| `Write` | readonly `affected: uint`, `changed: ?uint`, `lastId: ?uint` | `rowCount` on a write, `lastInsertId`, `mysqli_info` |
+| `Column` | readonly `name: string`, `type: ColumnType`, `nullable: bool` | `getColumnMeta`, `mysqli_fetch_field` |
+| `InList` | opaque; produced by `Db::inList`, accepted only as a bound parameter | — |
+
+`Row`'s typed readers each take `(string $name)` and return `?T`, a `null` being a NULL column: `string`,
+`bytes`, `int`, `uint`, `float`, `bool`, `decimal`, `instant`, `date`, `time`, `uuid`. The requested type
+drives a lossless conversion or throws ([ADR 0067](../adr/0067-core-db.md) § 6); `->string` accepts
+text-family columns only, and the universal path is `->get()` plus `as`. An unknown column name throws.
+
+A class participates in `queryAs<T>` by implementing `Core\Db\Codec`, which declares
+`static fromRow(Db\Row $row): static` — read-only by design, since writing rows from objects is an ORM
+concern and not `Core`'s ([ADR 0051](../adr/0051-standard-library-tiers.md) test 6). The other accepted `T`
+is an inline shape ([ADR 0036](../adr/0036-anonymous-object-shapes.md)), validated per row.
+
+### Enums, settings and errors
+
+```
+Driver     { MySql, MariaDb, Postgres, Sqlite, SqlServer }   // detected from the handshake
+Isolation  { ReadUncommitted, ReadCommitted, RepeatableRead, Snapshot, Serializable }
+Tls        { Disabled, Required, VerifyCa, VerifyFull }      // VerifyFull is the default over TCP
+ColumnType { Int, Uint, Float, Decimal, Text, Bytes, Bool, Date, Time, DateTime, Instant, Uuid, Json, Other }
+ErrorKind  { UniqueViolation, ForeignKeyViolation, NotNullViolation, CheckViolation, Deadlock,
+             SerializationFailure, ConnectionLost, Timeout, Syntax, Permission, Other }
+```
+
+`Db\Settings` is a discriminated union over [ADR 0047](../adr/0047-literal-and-enum-case-types.md)'s
+enum-case types — a `host` on a SQLite literal is a compile error:
+
+```
+{driver: Driver::MySql|Driver::MariaDb|Driver::Postgres|Driver::SqlServer,
+ host: string, port?: uint, database: tainted string, user: tainted string,
+ password: secret tainted string, tls?: Tls, timeZone?: Core\Time\Zone,
+ timeout?: Duration, statementCache?: uint}
+| {driver: Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Duration}
+```
+
+Two `Throwable`s join § 10's tree, both under `Core\Db`:
+
+- `DbError extends RuntimeError` — readonly `kind: ErrorKind`, `sqlState: ?string`, `driverCode: ?int`,
+  `constraint: ?string`, `sql: ?string`. Bound parameter values never appear on it
+  ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)).
+- `RolledBack extends RuntimeError` — readonly `reason: string`; thrown by `Transaction::rollBack` and
+  propagated out of the owning `transaction()` call.
+
 ---
 
 ## Counting the result
@@ -683,7 +780,8 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 | Socket APIs | 3 | 1 |
 | Ways to run a program | 7 | 1 |
 | Ways to hash | 3 | 1 |
-| Exception classes in the stdlib | 13 SPL + 8 `Error` | 7 |
+| Database APIs | 4 (`PDO`, `mysqli` ×2, `pgsql`, `sqlite3`) | 1 |
+| Exception classes in the stdlib | 13 SPL + 8 `Error` | 9 |
 
 The reduction is entirely in restatements. The library covers strictly more than PHP's: an HTTP client,
 SMTP, cache, CSV, UUID, a test surface, [ADR 0060](../adr/0060-application-security-protocols.md)'s

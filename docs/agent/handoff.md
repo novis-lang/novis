@@ -17,6 +17,10 @@ files every session used to collide in are split — `mwl-stdlib`'s registry is 
 domain owning its own rows, `mwl-types`'s checker tests and `mwl-codegen`'s end-to-end tests are one file
 per area, and `mwl-ir`'s `lower.rs` is a `lower/` directory. 1077 tests, unchanged across all three.
 
+**M8's database design is settled and recorded** — [ADR 0067](../adr/0067-core-db.md) plus
+[spec § 18](../spec/01-core-library.md). It folded into 0024, 0041, 0051 and 0058, so those bodies moved;
+none of it touches M4/M4S work or anything on disk today. Do not re-open it.
+
 ## Next
 
 **Three re-opened M1 grammar slices, then ADR 0009 § 2.** The housekeeping audit found three ADRs accepted

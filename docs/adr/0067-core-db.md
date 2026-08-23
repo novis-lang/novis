@@ -1,0 +1,453 @@
+# ADR 0067 — One database API: `Core\Db` is connection-named, prepared-only and capability-gated
+
+- **Status:** Accepted
+- **Date:** 2026-08-24
+- **Scope:** the whole `Core\Db` subsystem — how a connection is obtained, configured and reused; how a
+  statement runs; how a row becomes typed values; transactions; errors; the SQL↔MWL type map; what is
+  refused outright. Not in scope: the signature list, which is
+  [docs/spec/01-core-library.md](../spec/01-core-library.md) § 18; tier placement, which is
+  [0051](0051-standard-library-tiers.md); and the shape rules every member obeys, which are
+  [0063](0063-core-api-conventions.md).
+- **Amends:** [0058](0058-outbound-request-policy.md) — its address policy governs *program-supplied*
+  addresses; an endpoint an operator wrote in root-owned config is pre-approved, and `db.connect`/`db.open`
+  join the capability roster beside `net.connect`. [0041](0041-timeline-export-and-gc-spawn-trace-events.md)
+  — the trace-event kind gains a fourth case, `query`. [0024](0024-taint-tracking-for-injection-sinks.md) —
+  its *Revisiting* question about `Core\Db` result rows is answered by § 6 below (rows are `tainted`, by the
+  standing rule that ADR already states), and § 5's `Core\Db::inList` joins its binding rules.
+  [0051](0051-standard-library-tiers.md) — § 3's Native entry names MariaDB as a driver distinct from
+  MySQL, and § 4's two questions gain the MariaDB authentication-plugin case.
+- **Amended by:** none.
+- **Relates to:** 0002, 0005, 0006, 0007, 0009, 0020, 0028, 0033, 0036, 0043, 0047, 0053, 0054, 0057, 0063,
+  0064, 0066
+
+> **In short:** one API replaces `PDO`, `mysqli`, `pgsql` and `sqlite3`. A program names a connection
+> (`Core\Db::connect("main")`) and the credentials live in root-owned `mwl.toml`, gated by a new
+> deny-by-default `db.connect`; dynamic targets go through `Db::open(Settings)` under `db.open` and refuse a
+> `tainted` host. **Every statement is prepared and parameterised** — there is no `prepare` step, no
+> `quote()`, no emulated prepares and no multi-statement form; a per-connection statement cache makes the
+> single spelling fast. A row is read either dynamically (`Db\Row`, typed readers returning `?T`) or by
+> declaring its shape (`queryAs<T>`), mirroring `Json::decode`/`decodeAs<T>`. **Transactions are closures**,
+> because [0028](0028-closing-the-remaining-magic-methods.md) leaves no destructor to close one; the closure
+> receives a `Transaction`, which is a `Queryable` by [0043](0043-interface-default-methods-and-delegation-replace-traits.md)
+> delegation rather than a second copy of the query surface, nests as a savepoint, and can be handed down a
+> call stack. Failure is one `DbError` carrying a normalised `ErrorKind`, so "duplicate key" stops being a
+> string match against a vendor message.
+
+## Context
+
+- Databases drive nearly every PHP application, and PHP ships the job **four times**: `PDO`, `mysqli`
+  (itself procedural *and* object-oriented), `pgsql` and `sqlite3`. [0051](0051-standard-library-tiers.md)
+  test 6 already dropped the procedural three; what remained undesigned was the survivor.
+- Test 1 of that ADR — does the feature hold state outliving a request — puts `Core\Db` natively in Tier 0
+  and forecloses the obvious alternative of shipping drivers as sandboxed extensions. A connection pool is
+  exactly the thing a wasm sandbox boundary cannot hold.
+- Two accepted decisions constrain the design harder than any preference:
+  [0028](0028-closing-the-remaining-magic-methods.md) removes destructors, so a scope-guarding transaction
+  object cannot exist; and [0024](0024-taint-tracking-for-injection-sinks.md) § 4 makes SQL text a sink,
+  so escaping-based APIs (`PDO::quote`, `mysqli_real_escape_string`) have nothing to be the correct answer
+  to.
+- The runtime is strict shared-nothing with **no pooling in v1**
+  ([the plan](../implementation-plan.md) § *Consequences to accept*), so a connection is a per-request
+  object and its handshake is a per-request cost. That is the accepted trade, and it is what makes
+  memoization (§ 2) worth having rather than a convenience.
+- MariaDB has diverged from MySQL enough that treating them as one driver is a design error, not a
+  simplification: its `JSON` is a `LONGTEXT` alias with a `json_valid` constraint rather than a native type,
+  it has `RETURNING` and a bulk-execute protocol MySQL lacks, it has a native `UUID` type, and its
+  authentication plugins are its own.
+
+## Decision
+
+### 1. One API, and every statement is prepared
+
+`Core\Db` is the only way to reach a database. There is no procedural twin, no second object API, and no
+escaping function — [0024](0024-taint-tracking-for-injection-sinks.md) § 4's rule that the query-text
+parameter refuses `tainted` while bound parameters accept it freely is the whole of the injection story, and
+an escaper would be a second, weaker answer to a question already answered.
+
+There is **no `prepare` step**. `query`/`execute` take SQL and parameters together, and each connection
+holds an LRU cache of server-side prepared statements keyed by *SQL text plus expansion arity* (§ 5), sized
+by `statement_cache` in the connection's config block. Two spellings of one operation would violate
+[0063](0063-core-api-conventions.md) R17 for no gain the cache does not already provide, and the batch case
+that would otherwise justify a `Statement` object is `executeMany`.
+
+The cost is recorded rather than hidden: on MySQL and MariaDB a statement's **first** execution in a request
+costs two round trips (`COM_STMT_PREPARE`, then `COM_STMT_EXECUTE`) and cached re-executions cost one;
+PostgreSQL's extended protocol pays nothing extra. Emulated prepares — which reintroduce string
+interpolation inside the driver — do not exist in any form.
+
+### 2. A connection is named, or built from settings, and is memoized for the request
+
+```
+Core\Db::connect(string $name, {shared?: bool, timeout?: Duration}): Db\Connection
+Core\Db::open(Db\Settings $settings, {shared?: bool}): Db\Connection
+```
+
+`connect` resolves a root-owned `[db.<name>]` block in `mwl.toml` ([0064](0064-configuration-file-format.md)),
+so a credential never appears in program source, never enters the repository, and is rotated without a
+deploy. `open` covers what a name cannot: one database per tenant, chosen at request time.
+
+Both **memoize per request**: `connect` keys on the *name*, `open` on a hash of *every* settings field.
+Keying `connect` on the name rather than the resolved settings keeps two identically-configured config
+blocks as two connections, because an operator who wrote two blocks meant two. Hashing all of `open`'s
+fields — rather than an "identity" subset — means a second call differing only in `timeout` gets its own
+connection instead of silently inheriting the first caller's; hashing a `secret` password is safe because a
+hash of a secret is neutral ([0033](0033-secret-qualifier-for-confidential-values.md)).
+
+`{shared: false}` bypasses memoization and yields a dedicated connection. It is not a micro-optimisation:
+it is how a program writes an audit row that must survive a rollback, holds session-scoped state (advisory
+locks, `SET LOCAL`, temp tables) off the shared connection, or writes while a `stream` (§ 4) occupies
+another. A per-request `max_connections` cap throws rather than letting a loop open five hundred.
+
+`Db\Settings` is a **discriminated union** over [0047](0047-literal-and-enum-case-types.md)'s enum-case
+types, not one loose shape: SQLite takes a `path` and has no `host`, `port`, `user` or `password`, so a
+`host` on a SQLite settings literal is a compile error rather than a silently ignored field.
+
+A connection is closed by the runtime at request teardown — the job a destructor would have done, done by
+the arena instead — and `close()` releases one early. `Db::connect` after a `close()` opens a fresh one.
+
+### 3. `db.connect` and `db.open`, and what that means for ADR 0058
+
+Two deny-by-default capabilities:
+
+```toml
+[capabilities]
+db.connect = ["main", "replica"]        # which config blocks a program may open
+db.open    = ["*.tenants.internal"]     # which hosts dynamic settings may reach
+```
+
+[ADR 0058](0058-outbound-request-policy.md)'s address policy exists because a **program-supplied** address
+can be attacker-influenced. An address an operator wrote into root-owned configuration is not: it is the
+same authority that grants the capability in the first place. So a `connect`-named endpoint is
+pre-approved and is not additionally checked against the denied ranges — which matters because a database
+lives at `10/8`, a container network or `127.0.0.1`, precisely the set 0058 denies by default. `db.open`'s
+targets are program-supplied and stay subject to that policy in full.
+
+`Settings.host` refuses `tainted` and **has no launderer**. No string check can establish that a hostname
+is safe to send credentials to: a malicious MySQL server can answer any query with a `LOCAL INFILE` request
+and read files off the application host. The only way through is
+`Core\Taint::assertTrusted($host, $reason)` — forbidden by default, greppable, and carrying a written
+justification — which is the honest spelling for an Adminer-style tool where a human genuinely types the
+host. `Settings.database` and `.user` accept `tainted` freely (length-prefixed protocol fields, not parsed
+text), and `.password` is `secret tainted string`.
+
+Three defaults close holes PHP leaves open, and none is configurable to the unsafe value:
+
+- **`LOCAL INFILE` is off**, with no option to enable it.
+- **TLS defaults to `VerifyFull`** for a TCP connection. PHP's `pdo_pgsql` defaults to `sslmode=prefer`,
+  which silently connects in plaintext when the server says so.
+- **The connection charset is forced to UTF-8** (`utf8mb4` on MySQL/MariaDB), so text columns arrive as
+  valid UTF-8 and [ADR 0009](0009-string-and-bytes.md)'s guarantee holds by construction.
+
+A SQLite connection's file path comes from its config block, so `db.connect` covers it; a program-supplied
+path through `open` additionally needs `fs.read`/`fs.write` and is a path sink.
+
+### 4. Five ways to run a statement, and only one of them streams
+
+| Member | Returns | Note |
+|---|---|---|
+| `query` | `Db\Rows` | buffered; `count()` known, connection free afterwards |
+| `queryAs<T>` | `Db\Rows<T>` | same, hydrated into a shape or a `Db\Codec` class (§ 6) |
+| `execute` | `Db\Write` | `affected`, `changed`, `lastId` (§ 7) |
+| `executeMany` | `uint` | one prepare, N executions; MariaDB 10.2+ uses `COM_STMT_BULK_EXECUTE` |
+| `stream` / `streamAs<T>` | `Iterable<Row>` / `Iterable<T>` | constant memory; **holds the connection until drained** |
+
+Buffering is the default because [0004](0004-memory-for-simplicity.md) ranks memory last and because the
+alternative breaks the commonest loop in web programming — reading rows and writing per row — on a
+connection-busy rule that only surfaces at runtime. A statement attempted on a streaming connection throws
+`LogicError` naming both fixes (`->all()`, or a `{shared: false}` connection). The rule is uniform even
+though SQL Server's MARS could lift it, so that code written against one driver runs on all four.
+
+`executeMany` does **not** open a transaction of its own. A caller who wants all-or-nothing writes
+`transaction(fn($tx) => $tx->executeMany(…))`, which composes with savepoint nesting and with retry; a
+hidden `BEGIN` inside a method whose name does not mention one would also silently change lock duration on
+a large batch. An empty set list is a no-op returning `0`.
+
+### 5. Parameters: `?` or `:name`, one parameter is one value
+
+The params argument is a single `array<mixed>`. A **list-keyed** array means positional `?` placeholders; a
+**string-keyed** one means `:name`. Mixing the two in one call throws `LogicError`. Both are rewritten for
+the driver (`$1` on PostgreSQL, `@p1` on SQL Server), and a `:name` used twice binds one value once — which
+positional form cannot express. The rewriter skips string literals, comments and PostgreSQL's `::` cast and
+`?`/`?|`/`?&` jsonb operators, which is why an escape (`??`) exists for a literal question mark.
+
+**One parameter is always one value.** A list bound to a placeholder is a single value — a PostgreSQL array
+column, a JSON document — and `Core\Db::inList($values)` is the explicit marker that expands into a
+parenthesised placeholder list. Automatic expansion was rejected on
+[0007](0007-explicit-type-system.md)'s rule rather than on how common array columns are: it would make the
+*SQL text* depend on a runtime value's type, so a `mixed` that turned out to be a list would reshape the
+query instead of failing. `inList([])` **throws** `LogicError`: an empty list means "match nothing" inside
+`IN` and "match everything" inside `NOT IN`, the rewriter cannot tell which it is in, and silently picking
+one is worse than making the caller branch.
+
+Expansion changes the statement's arity, so the cache key includes it: `IN` over three ids and over four is
+two cache entries.
+
+### 6. A row is dynamic or declared, and the requested type drives the conversion
+
+`query` yields `Db\Row`: `has`, `get(): mixed`, `toArray(): array<string, mixed>`, and typed readers
+(`string`, `bytes`, `int`, `uint`, `float`, `bool`, `decimal`, `instant`, `date`, `time`, `uuid`), each
+returning `?T` because a NULL column is an ordinary absence ([0063](0063-core-api-conventions.md) R4).
+
+`queryAs<T>` takes either an inline shape ([0036](0036-anonymous-object-shapes.md)) validated per row
+against the result-set metadata, or a class implementing `Core\Db\Codec` (`static fromRow(Db\Row): static`).
+This is the same split [0063 § 4](0063-core-api-conventions.md) already blessed for
+`Json::decode`/`decodeAs<T>` and `Json\Codec`, not a new pattern. A wrong type, a missing column or a NULL
+in a field declared non-nullable throws `DbError` naming the column and the query's source location. Field
+names match column names exactly — `_` is legal inside an identifier
+([0030](0030-no-leading-underscores-constructor-spelling.md) bans it only leading), so there is no
+snake-to-camel mapping layer and `AS` is the way to rename.
+
+**The requested type drives the conversion, losslessly or not at all.** Every column has a natural MWL type
+(used by `get` and `toArray`); asking for another one converts when that is lossless and throws `DbError`
+otherwise. One rule settles what would otherwise be a list of special cases: MySQL's `TINYINT(1)` is
+naturally `int` and reads as `bool` on request, with a stored `7` throwing; a `BIGINT UNSIGNED` past
+`i64::MAX` reads as `uint` and throws for `int`; a `DECIMAL` refuses a `float` field, since
+[0054](0054-decimal-scalar-type.md) keeps the two apart.
+
+There is deliberately **no universal string**. `->string()` and a `string` field accept text-family columns
+only; the universal path is `get(): mixed` plus the language's own `as` conversion
+([0007](0007-explicit-type-system.md) § 2, [0066](0066-nullable-conversion-operator.md)'s `as ?T`), so
+`Core\Db` never grows a second stringification table to keep in agreement with the first. PHP's "everything
+is a string" is an artefact of the MySQL text protocol, and it is why `$row['id'] === 1` silently fails
+there.
+
+Every value a row yields is `tainted` where the type can carry it — a persisted store is a source under
+[0024](0024-taint-tracking-for-injection-sinks.md)'s standing rule, which closes stored (second-order)
+injection by the same mechanism as reflected. Only `string` and `bytes` carry the qualifier, so an `int`,
+`decimal` or `Instant` column is unqualified and arithmetic on it needs no laundering.
+
+### 7. Transactions are closures; `Transaction` is a `Queryable`, not a second surface
+
+```
+$db->transaction(callable $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T
+```
+
+The closure form is forced: with no destructors, an object-scoped transaction has no point at which to roll
+back. The closure receives a `Db\Transaction` and may declare zero parameters (R9); a normal return commits,
+a throw rolls back and propagates, and a failed commit throws `DbError`.
+
+`Core\Db\Queryable` is an interface declaring `query`, `queryAs`, `execute`, `executeMany`, `stream` and
+`transaction`. `Connection` implements it; **`Transaction implements Queryable by $connection`** — the
+delegation [0043](0043-interface-default-methods-and-delegation-replace-traits.md) exists for. The query
+surface is therefore declared once and forwarded, so R17 is satisfied while the type system still expresses
+"this function must be called inside a transaction" (`Transaction $tx`) and "this one does not care"
+(`Queryable $db`). This is the first `Core` type to use `by` delegation.
+
+A `Transaction` is passable down a call stack, and two hazards that opens are closed explicitly:
+
+- Using one after its `transaction()` call returned throws `LogicError: transaction scope has ended`.
+- `$tx->rollBack(string $reason)` sets a rollback-only **flag** *and* throws `Core\Db\RolledBack`, which
+  propagates out of `transaction()` to its caller. The owning frame acts on the flag, not on catching the
+  signal, so an intervening `catch (Throwable)` cannot leave the transaction committed. Doctrine's
+  `setRollbackOnly()` relies on every layer checking; this does not.
+
+Nesting `transaction()` on the same connection issues `SAVEPOINT` / `ROLLBACK TO SAVEPOINT`, so a library
+that wraps its own writes stays callable from inside a caller's transaction — the composition problem every
+PHP framework re-solves. There is no explicit savepoint API, no `commit()`, no `rollBack()` on the
+connection and no `inTransaction()`: nesting removes the reason each existed.
+
+`{retries: n}` re-runs the closure on `ErrorKind::Deadlock` and `SerializationFailure` only, outermost
+transactions only, with exponential backoff and jitter that suspends the coroutine rather than blocking the
+core. **The default is 0**, because a closure may have non-database side effects and re-running one that
+sends mail is worse than surfacing the conflict.
+
+`Isolation` is `{ReadUncommitted, ReadCommitted, RepeatableRead, Snapshot, Serializable}`, throwing where a
+driver lacks the level (SQLite is always serializable).
+
+### 8. One `DbError`, with a normalised kind
+
+`Core\Db\DbError extends RuntimeError`, readonly: `kind: ErrorKind`, `sqlState: ?string`, `driverCode:
+?int`, `constraint: ?string`, `sql: ?string`.
+
+`ErrorKind` normalises the conditions applications actually branch on —
+`UniqueViolation`, `ForeignKeyViolation`, `NotNullViolation`, `CheckViolation`, `Deadlock`,
+`SerializationFailure`, `ConnectionLost`, `Timeout`, `Syntax`, `Permission`, `Other` — across four drivers
+and five dialects (MariaDB needs its own code table, not MySQL's). PDO exposes only SQLSTATE and a vendor
+integer, which is why real PHP code matches on `"Duplicate entry"` or hard-codes `1062`/`23505`. The raw
+values stay available for the cases normalisation does not cover. SQLite's `SQLITE_BUSY`/`SQLITE_LOCKED`
+map to `Deadlock`, so § 7's retry option works there too.
+
+A class per condition was rejected: it would add ten types to the deliberately small closed exception set in
+[0063 § 4](0063-core-api-conventions.md), and some boundaries are driver-dependent.
+
+**Bound parameters never appear on the error, in the message, or in a trace** — a `Throwable` message is a
+`secret` sink ([0033](0033-secret-qualifier-for-confidential-values.md)). The SQL text may, being
+developer-authored.
+
+### 9. The type map
+
+| SQL | MWL | |
+|---|---|---|
+| `SMALLINT`/`INT`/`BIGINT` | `int` | |
+| `… UNSIGNED` (MySQL/MariaDB) | `uint` | `BIGINT UNSIGNED` needs it; PHP overflows to `float` |
+| `DECIMAL`/`NUMERIC`/`MONEY` | `decimal` | [0054](0054-decimal-scalar-type.md); PHP hands back a string |
+| `FLOAT`/`REAL`/`DOUBLE` | `float` | |
+| `BOOLEAN`, `BIT(1)` | `bool` | MySQL/MariaDB `TINYINT(1)` is naturally `int` — § 6 |
+| `CHAR`/`VARCHAR`/`TEXT`/`ENUM` | `tainted string` | connection charset forces UTF-8 |
+| `BINARY`/`BLOB`/`BYTEA` | `tainted bytes` | no text form at all ([0009](0009-string-and-bytes.md)) |
+| `DATE` | `Core\Time\Date` | |
+| `TIME` | `Core\Time\TimeOfDay` | |
+| `TIMESTAMPTZ`, `datetimeoffset` | `Core\Time\Instant` | carries its own zone |
+| `DATETIME`, `TIMESTAMP`, `datetime2` | `Core\Time\DateTime` | in the connection's declared zone — below |
+| `UUID`, `uniqueidentifier` | `Core\Uuid` | MariaDB 10.7+, PostgreSQL, SQL Server. MySQL `BINARY(16)` stays `bytes` |
+| PostgreSQL arrays | `array<T>` | |
+| MySQL `SET` | `array<string>` | |
+| `JSON`/`JSONB` | `tainted string` | decoded explicitly — below |
+| `NULL` | `null`, hence `?T` | |
+| PostgreSQL `inet`/`cidr`/ranges/`hstore`/geometry, `BIT(n>1)`, `interval` | `tainted string` | no MWL type; `interval` is deliberately **not** `Duration`, since it carries months |
+
+**JSON is not auto-decoded.** MariaDB's `JSON` is an alias for `LONGTEXT` with a `json_valid` check
+constraint, so a JSON column is not reliably detectable from column metadata at all; an auto-decoding rule
+would work on three drivers and not the fourth. `Core\Json::decode` is one call and is honest.
+
+**A zone-less `DATETIME`/`TIMESTAMP` reads as `Core\Time\DateTime` in a zone the connection declares** —
+`time_zone` in the config block or `timeZone` in `Settings`, defaulting to UTC, and also sent to the server
+so `CURRENT_TIMESTAMP` agrees. It is sent as a numeric offset, never a zone name: named zones require the
+`mysql.time_zone` tables to be populated, which they usually are not.
+[0063 § 4](0063-core-api-conventions.md)'s "no ambient timezone" is not weakened — this is not a process or
+request default but a declared property of one database, written by the operator who knows what its columns
+mean, and the only alternative that obeys § 4 literally (a `Zone` argument at every read) cannot work with
+`queryAs<T>`, which has no call site to pass it at.
+
+SQLite has no date or time types; mapping keys off the *declared* column type and throws on a value that
+does not parse.
+
+### 10. What `mwl check` proves about a literal query
+
+Under [0057](0057-intrinsic-literal-folding.md)'s closed intrinsic list, a literal SQL argument is
+validated during checking: placeholder count against a literal params array, positional-vs-named
+consistency, an unterminated string literal, and a refused second statement. A literal `Db::open` host that
+matches no `db.open` grant pattern is likewise a check-time diagnostic, since `mwl.toml` is read at boot on
+the machine that compiles.
+
+Full per-dialect SQL parsing is **not** done: it would mean maintaining four vendors' grammars in
+`mwl-syntax` forever. Schema-aware checking is a *Revisiting* item below.
+
+### 11. A query is a trace event
+
+[0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s event kind gains `query` beside `call`, `gc` and
+`spawn`, instrumented in the driver's own routines and off the hot path exactly as those two are. A span
+carries duration, driver, connection name, truncated SQL text, rows returned and rows affected — and never
+parameters. A `slow_query` threshold per connection block writes the same facts to `Core\Log`. Both are
+inert unless the corresponding capability is granted, so this adds no ungated output.
+
+### 12. What is refused, and what waits
+
+**Refused, permanently:** multi-statement queries (the amplifier that turns one injection into a
+compromise); `LOAD DATA LOCAL INFILE`; `PDO::quote`/`mysqli_real_escape_string`; emulated prepares;
+by-reference parameter or column binding (R3); connection-level `lastInsertId` state; `PDO::ATTR_*`
+get/set; `PDO::inTransaction`.
+
+**Deferred, with the trigger in *Revisiting*:** connection pooling (the plan's reserved
+`PersistentRegistry` seam); LOB streaming; stored procedures returning multiple result sets and `OUT`
+parameters; PostgreSQL `COPY`; `LISTEN`/`NOTIFY`; scrollable cursors; a portable schema-introspection API.
+Query builders, ORMs and migration tooling are not `Core` at all — [0051](0051-standard-library-tiers.md)
+test 6.
+
+## Consequences
+
+**Positive**
+
+- **Injection is closed by construction, in both directions.** Query text refuses `tainted`, binding
+  accepts it, `inList` covers the one case a placeholder cannot, and result rows are themselves `tainted`,
+  so stored injection is closed by the same rule as reflected rather than as an afterthought.
+- **The reachable set of databases is enumerable from `mwl.toml`** — a question no PHP deployment can
+  answer.
+- **`ErrorKind` removes vendor-string matching** from every application that handles a duplicate key.
+- **`decimal`, `Instant` and `uint` columns arrive as themselves.** Money stops being a string that
+  `+ 0.1` silently corrupts — the single largest correctness win over PDO for business applications.
+- **`Transaction` proves out ADR 0043's delegation** on a real `Core` type: a second query surface would
+  have been the obvious shape and would have been a twin to maintain forever.
+
+**Negative**
+
+- **A per-request handshake per database.** No pooling in v1 means TCP + TLS + auth on every request that
+  touches a database. Memoization and `statement_cache` reduce the multiplier, not the base cost, and the
+  fix is the `PersistentRegistry` seam in a later milestone.
+- **Buffered results are held whole.** A `query` that returns a large result counts fully against the
+  request's memory cap; `stream` is the escape, and a program that does not know to reach for it meets the
+  cap rather than a slow path.
+- **Dynamic connections cost the operator a grant.** PHP code that builds a DSN at runtime does not port
+  until root adds `db.open`, and `mwl convert` can only emit the `[db.*]` block and the diagnostic.
+- **Two ways to read a row.** `Db\Row` and `queryAs<T>` are justified by the `Json` precedent, but they are
+  still two, and a codebase will contain both.
+- **MySQL's implicit commit on DDL is not fixable here.** `CREATE`/`ALTER`/`TRUNCATE` inside `transaction()`
+  is already committed on MySQL and MariaDB, so a later throw rolls back nothing. PostgreSQL is
+  transactional for DDL. No API shape prevents this; migration tooling warns.
+- **`INSERT … ON DUPLICATE KEY UPDATE` reports 2** for a row it updated, on MySQL and MariaDB. That is the
+  server's number and it is not rewritten.
+- **A pure-Rust risk is carried into M8.** MariaDB's `ed25519` and `parsec` authentication plugins may not
+  be covered by the pure-Rust MySQL crates; if one is not, it is a
+  [0051 § 4](0051-standard-library-tiers.md) question to answer then, not a footnote.
+
+## Alternatives rejected
+
+- **Mirror PDO.** `prepare`/`execute`, fetch-mode constants, `quote()`, `lastInsertId()`, `errorInfo()`.
+  Maximum familiarity and the easiest `mwl convert` target. Rejected piece by piece by
+  [0063](0063-core-api-conventions.md): R11 kills the flag constants, R4 the error accessors, R3 the
+  by-reference binding, R17 the prepare/query duality, and 0024 the escaper.
+- **Drivers as Tier 1 extensions.** Rejected by [0051](0051-standard-library-tiers.md) test 1 before this
+  ADR started: connection lifetime is precisely what a sandbox boundary cannot hold.
+- **A DSN string.** `connect("pgsql:host=db;dbname=shop", $user, $pass)`. Rejected on R11 — a mode string
+  encoding structure the type system should carry — and because it puts credentials in source by default.
+- **Auto-expanding list parameters.** Two characters shorter at the `IN` site. Rejected in § 5: the SQL text
+  would depend on a runtime value's type.
+- **`string` as a universal column reader.** Ports PHP almost unchanged. Rejected in § 6: it needs a second
+  conversion table and makes the stringly-typed style frictionless.
+- **A `Db\Transaction` with its own query members.** The obvious way to type "inside a transaction".
+  Rejected as an R17 twin, and replaced by delegation, which gives the same type safety with one
+  implementation.
+- **Retrying by default.** Rejected in § 7: re-running a closure with non-database side effects is worse
+  than surfacing a conflict.
+- **A class per error condition.** Rejected in § 8.
+- **Schema-aware compile-time checking now.** The most valuable idea considered here — and it needs a
+  reachable database at check time, so it can only be a developer-machine mode. Deferred below rather than
+  bolted onto an already large milestone.
+
+## Revisiting
+
+- **Connection pooling** — when a benchmark shows the per-request handshake dominating a realistic request,
+  build it behind the `PersistentRegistry` seam. Nothing in this ADR's surface changes when it lands:
+  `connect` already hands back a memoized object.
+- **Schema-aware checking** (`mwl check --schema`) — validate literal queries and `queryAs<T>` shapes
+  against a live schema, the way `sqlx::query!` does, turning a first-row `DbError` into a compile error.
+  Wants its own ADR: it introduces a build-time dependency on a reachable database and a cache format for
+  the introspected schema.
+- **LOB streaming** — when a real program needs to read a BLOB larger than a request's memory cap. This is
+  the deferred item most likely to become a blocker rather than an inconvenience.
+- **Stored procedures with multiple result sets and `OUT` parameters** — when porting an application whose
+  business logic lives in procedures. `Rows::next(): ?Rows` and `OUT` values on `Db\Write` are the shapes.
+- **PostgreSQL `COPY`** — when bulk ingest performance is measured and `executeMany` is shown insufficient.
+- **`LISTEN`/`NOTIFY`** — only with a long-lived process to receive on; revisit alongside any background
+  worker or scheduler work.
+- **A portable `Core\Db\Schema`** — if migration tooling in `mwl` itself needs it, rather than userland.
+
+## Verification
+
+- **M8, security:** a `tainted` value at a query-text parameter is a compile-time diagnostic and the same
+  value at a bound parameter compiles ([0024](0024-taint-tracking-for-injection-sinks.md)'s own M8 item); a
+  `tainted` `Settings.host` is a diagnostic naming `Core\Taint::assertTrusted`; a two-statement literal
+  query is a diagnostic; `db.connect`/`db.open` are deny-by-default, and an ungranted name throws naming the
+  capability; a `connect`-named private-range endpoint succeeds with no `net.connect` grant while a
+  `db.open` target in a denied range fails; `LOCAL INFILE` is refused by a fixture that stands up a rogue
+  MySQL server and asserts no file is sent.
+- **M8, per driver, against real servers in CI containers** (MySQL, MariaDB, PostgreSQL, SQL Server,
+  SQLite): TLS; prepared statements; the `?`/`:name` rewrite including a PostgreSQL `::` cast and a jsonb
+  `?` operator in the same query; `inList` expansion and its empty-list throw; transactions, savepoint
+  nesting, and `rollBack` surviving an intervening `catch (Throwable)`; `{retries: n}` against an induced
+  deadlock; large-result streaming at constant memory, and the connection-busy `LogicError`;
+  `executeMany` including MariaDB's bulk path.
+- **M8, typing:** every row of § 9's map round-trips; `TINYINT(1)` reads `int` and `bool` and throws for a
+  stored `7`; `BIGINT UNSIGNED` past `i64::MAX` reads `uint` and throws for `int`; a `DECIMAL` into a
+  `float` field throws; `queryAs<T>` throws naming the column for a type mismatch, a missing column and a
+  NULL in a non-nullable field; a zone-less column reads as `DateTime` in the declared zone and a
+  `TIMESTAMPTZ` ignores it; `affected` is the matched count on all four drivers while `changed` is non-null
+  only on MySQL/MariaDB.
+- **M8, `mwl check`:** placeholder-count mismatch, mixed placeholder styles, and an `open` host matching no
+  grant are each diagnostics on a literal (§ 10).
+- **M8, observability:** a query emits a `query` span with no parameter values anywhere in it, and a
+  `DbError`'s message contains no bound value.
+- **M11:** `mwl convert` maps `PDO`, `mysqli` and `pgsql` names to § 12's refusals or to their `Core\Db`
+  equivalents, emitting the `[db.*]` block plus `Core\Db::connect("main")` for a constructed DSN and a
+  diagnostic — never a silent rewrite — for `quote()`, `beginTransaction`/`commit` pairs and
+  `lastInsertId()`.

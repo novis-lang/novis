@@ -758,12 +758,17 @@ stream abstractions — with no scheme dispatch anywhere in them
 execution behind the `process.exec` capability gate — `Core\Process::run()`/`::spawn()`, argv-only with no
 shell-string form at all, a Windows batch/PowerShell-target refusal, and coroutine-suspending waits, per
 [ADR 0044](adr/0044-core-process-argv-only-no-shell.md) (which supersedes ADR 0024 §4's original
-placeholder bullet); sessions, which may not be backed by `Core\Cache`'s local tier; a PDO-like DB API with pure-Rust
-MySQL/MariaDB, PostgreSQL and MS SQL Server drivers plus SQLite (documenting `rusqlite`'s C dependency as an
-explicit, audited exception to the pure-Rust rule) — its query-text parameter requires the plain,
-unqualified `string` while bound parameters stay tainted-friendly, and `Core\Html::escape`/`Markup` and the
-`Core\Taint`/`Core\Db::quoteIdentifier` laundering functions land here too, all per
-[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md). Also here: **`Core\Reflect` and `Core\Ast`**, built-in — not
+placeholder bullet); sessions, which may not be backed by `Core\Cache`'s local tier; and
+`Core\Html::escape`/`Markup` plus the `Core\Taint` launderers, per
+[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md).
+
+**The database half of this milestone is [ADR 0067](adr/0067-core-db.md)**, with its signatures in
+[docs/spec/01-core-library.md](spec/01-core-library.md) § 18: one API replacing `PDO`, `mysqli`, `pgsql` and
+`sqlite3`, over pure-Rust MySQL, MariaDB, PostgreSQL and MS SQL Server drivers plus SQLite (whose C
+dependency is [ADR 0051 § 4](adr/0051-standard-library-tiers.md)'s audited exception). Connections are named
+in root-owned config under a new `db.connect`/`db.open` capability pair, every statement is prepared, and a
+transaction is a closure. Two things it needs from elsewhere in this milestone: `Core\Time`'s types for the
+date columns, and `Core\Json` for the JSON ones, which are not auto-decoded. Also here: **`Core\Reflect` and `Core\Ast`**, built-in — not
 extension-provided — structural reflection and a runtime door onto `mwl-syntax`'s own lexer/parser, per
 [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md); reflective access enforces the same
 visibility/hook checks ordinary code does, and a parsed AST is typed, inert data with no path back into
@@ -795,8 +800,9 @@ not part of this milestone.
 them, and this paragraph does not restate it. Two are worth naming here because they are CI infrastructure
 rather than fixtures: a check enumerating the default binary's C dependencies, failing on any addition not
 recorded against [ADR 0051](adr/0051-standard-library-tiers.md) § 4's two questions, and a check that no
-class outside Tier 0 registers a name beginning `Core\`. Beyond that: per-subsystem conformance suites; DB drivers tested against real servers in CI containers,
-including TLS, prepared statements, transactions and large result streaming. `Core\Reflect`/`Core\Ast`
+class outside Tier 0 registers a name beginning `Core\`. Beyond that: per-subsystem conformance suites, and
+for the database half, the five-driver CI-container matrix [ADR 0067](adr/0067-core-db.md)'s own
+*Verification* section specifies. `Core\Reflect`/`Core\Ast`
 verified per [ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md)'s own M8 verification
 list — a reflective call to a `private` method from outside its class fails like the equivalent ordinary
 call; `Core\Ast::parse()` fuzzed with the same corpus as M1's lexer/parser target. `Core\Attributes` verified per

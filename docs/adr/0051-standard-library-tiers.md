@@ -9,7 +9,7 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** 0063 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0063, 0067 — each fold is applied below; this body states the current rule.
 - **Relates to:** 0004, 0024, 0033, 0052, 0055
 
 > **In short:** MWL does not inherit PHP's extension partition. That partition tracks 1997 C build
@@ -102,7 +102,10 @@ bombs are *policy*, and the policy must be non-optional. A sandboxed decoder get
 and the traversal rules not at all.
 
 **Native.** `Core\Db` (`pdo` and its drivers) and the Redis backend behind `Core\Cache`, both by test 1 —
-connection lifetime. `Core\Crypto`: `openssl`'s primitive half merged with `sodium`, AEAD-only, with no
+connection lifetime. `Core\Db`'s own surface is [ADR 0067](0067-core-db.md), and **MariaDB is a driver
+distinct from MySQL** there rather than a version of it: its `JSON` is a `LONGTEXT` alias, it has
+`RETURNING`, a bulk-execute protocol, a native `UUID` type and its own authentication plugins, none of
+which MySQL has. `Core\Crypto`: `openssl`'s primitive half merged with `sodium`, AEAD-only, with no
 ECB, no unauthenticated CBC and no cipher-name-as-string; TLS via `rustls`. `Core\Http\Client` (`curl`) and
 `Core\Net` (`sockets`, `stream_*`), over the runtime's own reactor rather than a second event loop.
 `Core\Mail`, an SMTP client with structured headers, replacing `mail()`. `Core\Process`
@@ -152,6 +155,12 @@ SQLite passes (2): its test suite is orders of magnitude larger than its source 
 fuzzed. Almost nothing else clears that bar, which is the point. A codec, an archive reader or an XSLT
 engine fails it and is therefore Tier 1 — including when the only implementation is C, since compiling a C
 library to wasm is the standing answer when the test fails.
+
+One case is known to be waiting at M8 and is named here so it is answered by the test rather than by
+convenience: **MariaDB's `ed25519` and `parsec` authentication plugins** may not be covered by the pure-Rust
+MySQL crates. Authentication handshakes handle attacker-reachable data, so question 2 applies, and the
+answer is a Rust implementation of the plugin rather than a C dependency — or, failing that, a documented
+refusal to support that auth method.
 
 ### 5. `Core` means *always present*
 

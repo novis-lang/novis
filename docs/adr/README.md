@@ -84,6 +84,7 @@ so you never have to open this file to route a topic.
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, runtime introspection or source parsing | [0019](0019-reflection-and-ast-parsing-are-core-features.md) |
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, `Core\Fatal`, `Core\Log` | [0020](0020-error-escalation-ladder.md) |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
+| A database — `Core\Db`, `PDO`/`mysqli`/`pgsql`/`sqlite3`, drivers, connections, prepared statements, transactions, result rows, an ORM | [0067](0067-core-db.md) — signatures in [spec § 18](../spec/01-core-library.md) |
 | SSRF, fetching a user-supplied URL, `Core\Http\Client`, the `net.connect` address policy, DNS rebinding | [0058](0058-outbound-request-policy.md) |
 | `exec`/`system`/`shell_exec`/backticks/`proc_open`, running another program, shell injection | [0044](0044-core-process-argv-only-no-shell.md) |
 | Passwords, API keys, credentials, `secret string`, why a value can't be echoed/logged/dumped | [0033](0033-secret-qualifier-for-confidential-values.md) |
@@ -185,6 +186,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0064](0064-configuration-file-format.md) | Configuration is TOML in `mwl.toml`; `ini_set` becomes `Core\Config::set` | Accepted |
 | [0065](0065-third-party-attribution-and-mwl-info.md) | Third-party attribution is generated from the dependency graph, committed and embedded in the binary; `mwl info` prints it with the build facts | Accepted |
 | [0066](0066-nullable-conversion-operator.md) | `expr as ?T` converts without throwing, yielding `null` on failure; `Core\Validate`'s three numeric predicates go | Accepted |
+| [0067](0067-core-db.md) | One database API: connections are named in root-owned config, every statement is prepared, and a transaction is a closure | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

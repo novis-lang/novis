@@ -190,6 +190,8 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0057](docs/adr/0057-intrinsic-literal-folding.md)).
 - **Reflection and AST parsing are built into `Core`, not left to extensions**
   ([0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)).
+- **One database API: a connection is named in root-owned config, every statement is prepared, and a
+  transaction is a closure** ([0067](docs/adr/0067-core-db.md)).
 - **Configuration is TOML, in a root-owned `mwl.toml`, read once at boot**
   ([0064](docs/adr/0064-configuration-file-format.md)); it states defaults, not ceilings
   ([0005](docs/adr/0005-config-changeability.md)).

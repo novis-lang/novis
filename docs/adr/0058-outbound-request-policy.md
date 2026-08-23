@@ -9,8 +9,8 @@
   and § 3's launderer roster gains `Core\Http::allowUrl`, which is the first launderer whose check is
   partly a *runtime* one. [0005](0005-config-changeability.md) — the `net.connect` grant gains an address
   policy, not just a host list.
-- **Amended by:** none.
-- **Relates to:** 0051, 0055, 0057
+- **Amended by:** 0067 — the fold is applied below; this body states the current rule.
+- **Relates to:** 0051, 0055, 0057, 0067
 
 > **In short:** SSRF is structurally an injection — untrusted data reaching a sink — but unlike the others
 > it cannot be settled at compile time alone, because the dangerous part is what a hostname *resolves to*
@@ -71,8 +71,16 @@ plain string, and that is why.
 ### 3. Run time: the capability carries an address policy
 
 `net.connect` is not a boolean and not merely a host list. It carries an address policy, and the policy is
-enforced on **every** outbound connection — including from a hardcoded URL, because a hardcoded hostname
-can resolve into a private range, and because deployment configuration supplies most real endpoint URLs.
+enforced on **every outbound connection whose address the program supplies** — including from a hardcoded
+URL, because a hardcoded hostname can resolve into a private range, and because deployment configuration
+supplies most real endpoint URLs.
+
+The one class of address it does **not** govern is an endpoint an operator wrote into root-owned
+configuration and granted by name — a `[db.<name>]` block reached through `Core\Db::connect`
+([ADR 0067](0067-core-db.md) § 3). That address is not attacker-influenceable: it was written by the same
+authority that grants the capability. Applying the policy there would deny every ordinary deployment, since
+a database lives at `10/8`, a container network or `127.0.0.1`, which is precisely the denied set below.
+`Core\Db::open`'s target *is* program-supplied and stays governed in full.
 
 Denied by default: loopback (`127.0.0.0/8`, `::1`), private (`10/8`, `172.16/12`, `192.168/16`,
 `fc00::/7`), **link-local (`169.254.0.0/16`, `fe80::/10`)**, unspecified (`0.0.0.0/8`), and IPv4-mapped
@@ -92,8 +100,9 @@ the first URL.
 
 ### 5. The policy lives in the capability, not in the client
 
-`Core\Http\Client`, `Core\Net`, and any socket a host import hands to a Tier 1 extension are all subject to
-the same policy, enforced at the point the connection is made. An extension cannot be granted a socket that
+`Core\Http\Client`, `Core\Net`, `Core\Db::open`'s target, and any socket a host import hands to a Tier 1
+extension are all subject to the same policy, enforced at the point the connection is made — the exception
+in § 3 being a config-named database endpoint, which the operator has already approved by writing it. An extension cannot be granted a socket that
 escapes it, which matters because [ADR 0055](0055-extension-qualifier-declarations.md) permits an extension
 to be an I/O source and [ADR 0051](0051-standard-library-tiers.md) places several network clients at
 Tier 1.
