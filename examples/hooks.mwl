@@ -6,7 +6,7 @@ class Counter implements Stringable {
         get => $this->hits * 2;
     }
 
-    constructor(int $hits) {
+    public function constructor(int $hits) {
         $this->hits = $hits;
     }
 

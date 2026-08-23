@@ -29,21 +29,21 @@ echo Loader::guarded("host") . "\n";
 try {
     Loader::guarded("bad");
     echo "not reached\n";
-} catch (LogicError $e) {
+} catch (LogicError $notThisClause) {
     echo "wrong clause\n";
-} catch (ConfigError $e) {
-    echo "config: " . $e->message . "\n";
+} catch (ConfigError $configError) {
+    echo "config: " . $configError->message . "\n";
 }
 
 try {
     Loader::guarded("missing");
     echo "not reached\n";
-} catch (ConfigError $e) {
+} catch (ConfigError $alsoNotThisClause) {
     echo "wrong clause\n";
-} catch (Throwable $e) {
-    echo "logic: " . $e->message . "\n";
+} catch (Throwable $failure) {
+    echo "logic: " . $failure->message . "\n";
 
-    if (!Core\Arr::isEmpty($e->backtrace)) {
+    if (!Core\Arr::isEmpty($failure->backtrace)) {
         echo "backtrace present\n";
     }
 }

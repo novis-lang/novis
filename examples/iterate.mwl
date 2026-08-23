@@ -2,7 +2,7 @@
 class Counter implements Iterable<int> {
     private int $limit;
 
-    constructor(int $limit) {
+    public function constructor(int $limit) {
         $this->limit = $limit;
     }
 

@@ -115,7 +115,7 @@ class Person implements Greets
 {
     private string $personName;
 
-    constructor(string $personName) { $this->personName = $personName; }
+    function constructor(string $personName) { $this->personName = $personName; }
 
     public function name(): string { return $this->personName; }
 }
@@ -169,7 +169,7 @@ class TimestampTracker implements Timestamped
 {
     private ?DateTimeImmutable $createdAt;
 
-    constructor() { $this->createdAt = null; }
+    function constructor() { $this->createdAt = null; }
 
     public function touch(): void { $this->createdAt = new DateTimeImmutable(); }
     public function createdAt(): ?DateTimeImmutable { return $this->createdAt; }
@@ -179,7 +179,7 @@ class Post implements Timestamped by $timestamps
 {
     private TimestampTracker $timestamps;
 
-    constructor() { $this->timestamps = new TimestampTracker(); }
+    function constructor() { $this->timestamps = new TimestampTracker(); }
 }
 ```
 

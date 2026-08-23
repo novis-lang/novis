@@ -11,7 +11,7 @@ class Animal implements Greets {
     protected string $animalName;
     protected int $legs;
 
-    constructor(string $animalName, int $legs) {
+    public function constructor(string $animalName, int $legs) {
         $this->animalName = $animalName;
         $this->legs = $legs;
     }

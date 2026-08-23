@@ -9,7 +9,7 @@ class Player implements Comparable {
     public string $playerName;
     public Rank $rank;
 
-    constructor(string $playerName, Rank $rank) {
+    public function constructor(string $playerName, Rank $rank) {
         $this->playerName = $playerName;
         $this->rank = $rank;
     }

@@ -202,6 +202,18 @@ Every one of these was settled with the user before the loop started. Implement 
 
 Named because none is visible from either milestone's text, and each is work rather than a question:
 
+- **A `catch` binding is function-scoped today**, so two clauses on one `try` cannot both bind `$e` —
+  `E0406` fires on the second. PHP allows it, and every PHP program in existence writes it. This is a
+  decide-and-record call, not a `BLOCKED`: either scope a `catch` binding to its own handler block, or
+  keep the current rule deliberately and say why in `mwl-types`' own module doc. `examples/errors.mwl`
+  sidesteps it with four distinct names, so it is not on the acceptance path either way.
+- **The constructor is spelled `function constructor(...)`**, and the parent call is
+  `parent::constructor(...)` — `mwl-types`' own tests and `ctor_init.rs` are the authority.
+  [ADR 0043](../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s illustrative
+  examples omitted `function` and have been corrected; if another doc example does the same, it is a bug.
+- **`implements Iterable<int>` does not parse yet.** A generic interface in an `implements` clause is
+  [ADR 0053 § 2](../docs/adr/0053-iteration-and-generators.md)'s one narrow extension, and it is the parse
+  error `examples/iterate.mwl` hits today.
 - **`mwl_ir::lower::lower_file` skips interfaces and enums entirely**, for the same reason instance calls
   are refused: there is no object representation to lower them onto.
 - **`lower_try` panics on a second `catch` clause and on `finally`.** `examples/errors.mwl` needs both,
