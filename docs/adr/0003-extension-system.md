@@ -143,7 +143,8 @@ MWL already embeds Cranelift, so writing our own wasm engine is tempting and wou
 backend. Rejected for the same reason MWL uses `hyper` instead of a hand-rolled protocol parser: the wasm
 **validator** is security-critical, and a bug in it is a sandbox escape. Wasmtime is memory-safe Rust, is
 the most-audited wasm runtime available, and is built on the same Cranelift version MWL already pins —
-spike #4 confirmed wasmtime 41 and cranelift 0.128 coexist with no dependency conflict.
+spike #4 established that the two coexist with no dependency conflict, and the paired bump to wasmtime 48
++ cranelift 0.135 re-confirmed it — both still resolve to one shared `cranelift-codegen`.
 
 ## Measured cost, stated honestly
 

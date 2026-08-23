@@ -32,18 +32,18 @@ mwl-runtime = { path = "crates/mwl-runtime", version = "0.0.1" }
 mwl-stdlib = { path = "crates/mwl-stdlib", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
-cranelift = "0.128"
-cranelift-jit = "0.128"
-cranelift-module = "0.128"
-cranelift-native = "0.128"
+cranelift = "0.135"
+cranelift-jit = "0.135"
+cranelift-module = "0.135"
+cranelift-native = "0.135"
 
 # --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
 corosensei = "0.2"
 
 # --- extension sandbox (M9). Built on the same cranelift version above;
-# --- spike #4 confirmed wasmtime 41 and cranelift 0.128 coexist.
+# --- spike #4 confirmed wasmtime 48 and cranelift 0.135 coexist.
 # --- See docs/adr/0003-extension-system.md.
-wasmtime = "41"
+wasmtime = "48"
 
 # --- core utilities ---
 anyhow = "1"

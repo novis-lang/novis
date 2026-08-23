@@ -21,7 +21,7 @@
 > `mwl check`, `mwl run`), the `fuzz/` crate, and `benches/abi-probe` (M0 guard tests plus M3's
 > probe-cost guard). Every other crate is created when its milestone starts.
 >
-> **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44 + Windows SDK
+> **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.8 as a comparison oracle, `cargo-fuzz` 0.13.2 under a WSL nightly
 > toolchain (CLAUDE.md says why).
 >

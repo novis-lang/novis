@@ -520,6 +520,7 @@ impl Probe {
             self.ctx.func.signature = sig.clone();
 
             {
+                let target_config = self.module.target_config();
                 let mut b = FunctionBuilder::new(&mut self.ctx.func, &mut self.fn_ctx);
                 let callee_ref = self.module.declare_func_in_func(callee, b.func);
                 let probe_ref = self.module.declare_func_in_func(probe_id, b.func);
@@ -549,13 +550,13 @@ impl Probe {
                         // ADR 0018 § 1's site, exactly as `mwl-codegen` emits
                         // it: one load of the context's flags word, one
                         // branch predicted not taken, and an out-of-line call
-                        // that never runs while every bit is off. `MemFlags`
+                        // that never runs while every bit is off. `MemFlagsData`
                         // deliberately carries only `notrap` — the word is
                         // written from outside this frame, so nothing may
                         // treat the load as redundant.
                         let flags = b.ins().load(
                             types::I64,
-                            MemFlags::new().with_notrap(),
+                            MemFlagsData::new().with_notrap(),
                             ctx_p,
                             DEBUG_FLAGS_OFFSET,
                         );
@@ -574,7 +575,7 @@ impl Probe {
                     }
                     let value = b.ins().iconst(types::I64, stmt as i64);
                     b.ins()
-                        .store(MemFlags::trusted(), value, ctx_p, SCRATCH_OFFSET);
+                        .store(MemFlagsData::trusted(), value, ctx_p, SCRATCH_OFFSET);
                 }
 
                 let tmp_p = b.ins().stack_addr(types::I64, slot, 0);
@@ -582,15 +583,15 @@ impl Probe {
                 let status = b.inst_results(call)[0];
 
                 // This pair of instructions is what replaces a landing pad.
-                let failed = b.ins().icmp_imm(IntCC::NotEqual, status, 0);
+                let failed = b.ins().icmp_imm_s(IntCC::NotEqual, status, 0);
                 b.ins().brif(failed, err_block, &[], ok_block, &[]);
 
                 b.switch_to_block(ok_block);
                 b.seal_block(ok_block);
-                let lo = b.ins().load(types::I64, MemFlags::trusted(), tmp_p, 0);
-                let hi = b.ins().load(types::I64, MemFlags::trusted(), tmp_p, 8);
-                b.ins().store(MemFlags::trusted(), lo, out_p, 0);
-                b.ins().store(MemFlags::trusted(), hi, out_p, 8);
+                let lo = b.ins().load(types::I64, MemFlagsData::trusted(), tmp_p, 0);
+                let hi = b.ins().load(types::I64, MemFlagsData::trusted(), tmp_p, 8);
+                b.ins().store(MemFlagsData::trusted(), lo, out_p, 0);
+                b.ins().store(MemFlagsData::trusted(), hi, out_p, 8);
                 let zero = b.ins().iconst(types::I32, 0);
                 b.ins().return_(&[zero]);
 
@@ -601,7 +602,7 @@ impl Probe {
                 b.seal_block(err_block);
                 b.ins().return_(&[status]);
 
-                b.finalize();
+                b.finalize(target_config);
             }
 
             self.module

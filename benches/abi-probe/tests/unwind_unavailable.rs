@@ -154,6 +154,7 @@ fn run_child() {
     let mut fn_ctx = FunctionBuilderContext::new();
     ctx.func.signature = sig;
     {
+        let target_config = module.target_config();
         let mut b = FunctionBuilder::new(&mut ctx.func, &mut fn_ctx);
         let helper_ref = module.declare_func_in_func(helper, b.func);
         let entry = b.create_block();
@@ -164,7 +165,7 @@ fn run_child() {
         let call = b.ins().call(helper_ref, &[x]);
         let ret = b.inst_results(call)[0];
         b.ins().return_(&[ret]);
-        b.finalize();
+        b.finalize(target_config);
     }
     module.define_function(wrapper, &mut ctx).unwrap();
     module.clear_context(&mut ctx);

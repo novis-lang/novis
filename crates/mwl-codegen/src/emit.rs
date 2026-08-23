@@ -45,20 +45,20 @@ const VALUE_ALIGN_SHIFT: u8 = 4;
 
 /// Memory flags for a load or store this frame fully controls — a stack slot
 /// it just allocated, or the `out` pointer its caller promised is writable.
-fn trusted() -> MemFlags {
-    MemFlags::trusted()
+fn trusted() -> MemFlagsData {
+    MemFlagsData::trusted()
 }
 
 /// Memory flags for reading [`mwl_runtime::Ctx`]'s two hot words.
 ///
-/// Deliberately *not* [`MemFlags::trusted`]: `trusted` asserts nothing about
+/// Deliberately *not* [`MemFlagsData::trusted`]: `trusted` asserts nothing about
 /// aliasing today, but the safepoint word is written from outside the running
 /// frame (a CPU-limit watchdog, a cancellation), so the load must stay a real
 /// load rather than becoming something Cranelift may prove redundant. Marking
 /// it `readonly` — which is what a future "this is immutable" annotation would
 /// mean — would be exactly wrong.
-fn ctx_word() -> MemFlags {
-    MemFlags::new().with_notrap()
+fn ctx_word() -> MemFlagsData {
+    MemFlagsData::new().with_notrap()
 }
 
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
@@ -71,6 +71,7 @@ pub(crate) fn emit_function(
     literals: &mut usize,
     f: &Function,
 ) -> Result<(), CodegenError> {
+    let target_config = module.target_config();
     let mut b = FunctionBuilder::new(&mut ctx.func, fn_ctx);
 
     // A dedicated Cranelift entry block carrying the ABI parameters, jumping
@@ -121,7 +122,7 @@ pub(crate) fn emit_function(
     };
     emitter.emit_blocks()?;
     emitter.b.seal_all_blocks();
-    emitter.b.finalize();
+    emitter.b.finalize(target_config);
     Ok(())
 }
 
@@ -580,7 +581,7 @@ impl Emitter<'_, '_> {
         let failed = self
             .b
             .ins()
-            .icmp_imm(IntCC::NotEqual, status, i64::from(OK));
+            .icmp_imm_s(IntCC::NotEqual, status, i64::from(OK));
         let fail = self.b.create_block();
         let cont = self.b.create_block();
         self.b.ins().brif(failed, fail, &[], cont, &[]);
