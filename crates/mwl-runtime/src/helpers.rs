@@ -184,6 +184,14 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             "mwl_probe_stmt",
             (crate::ctx::mwl_probe_stmt as *const ()).cast::<u8>(),
         ),
+        (
+            "mwl_probe_call_enter",
+            (crate::ctx::mwl_probe_call_enter as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_probe_call_exit",
+            (crate::ctx::mwl_probe_call_exit as *const ()).cast::<u8>(),
+        ),
     ]
 }
 

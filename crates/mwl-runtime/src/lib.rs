@@ -93,8 +93,8 @@ mod value;
 
 pub use abi::{FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, call, run_helper};
 pub use ctx::{
-    Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, OutputSink, SAFEPOINT_OFFSET, SafepointFlags,
-    mwl_probe_stmt, mwl_safepoint,
+    Ctx, DEBUG_FLAGS_OFFSET, DebugFlags, OutputSink, SAFEPOINT_OFFSET, SafepointFlags, TraceEvent,
+    mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt, mwl_safepoint,
 };
 pub use fmt::php_float_to_string;
 pub use helpers::symbols;

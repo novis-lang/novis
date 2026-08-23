@@ -11,7 +11,7 @@
 //! where instruction-level costs are held.
 
 use mwl_diagnostics::{Diagnostics, SourceMap};
-use mwl_runtime::{Ctx, DebugFlags, FATAL, SafepointFlags, Value, call};
+use mwl_runtime::{Ctx, DebugFlags, FATAL, OK, SafepointFlags, Value, call};
 
 /// Compiles a whole file, returning the unit or the first thing that refused
 /// it.
@@ -217,6 +217,48 @@ fn a_recursive_call_terminates_and_returns_the_right_value() {
         "3628800"
     );
 }
+
+#[test]
+fn the_call_probe_costs_nothing_observable_with_every_bit_off() {
+    let mut ctx = Ctx::buffered();
+    run_with(&mut ctx, CALLS).expect("the script ran");
+    assert!(ctx.trace().is_empty());
+}
+
+#[test]
+fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
+    // ADR 0018 § 1's call-site pair. `quadruple` is entered first and left
+    // last; both `double` calls nest inside it, and every exit carries the
+    // status the call site is about to branch on.
+    let mut ctx = Ctx::buffered();
+    ctx.set_debug_flags(DebugFlags::TRACE);
+    run_with(&mut ctx, CALLS).expect("the script ran");
+
+    let events: Vec<(&str, Option<i32>)> = ctx
+        .trace()
+        .iter()
+        .map(|e| (e.callee.as_str(), e.status))
+        .collect();
+    assert_eq!(
+        events,
+        [
+            ("Math::quadruple", None),
+            ("Math::double", None),
+            ("Math::double", Some(OK)),
+            ("Math::double", None),
+            ("Math::double", Some(OK)),
+            ("Math::quadruple", Some(OK)),
+        ]
+    );
+}
+
+// A *non-`OK`* traced exit has no fixture here yet, and deliberately not: the
+// only stop this slice can provoke is a pending safepoint, which fires at the
+// script frame's own entry poll before any call is reached. `mwl_probe_call_
+// exit`'s own unit test covers that it records the status it is handed; that
+// the probe is emitted *before* ADR 0002's compare-and-branch — so a thrown
+// exit is traced rather than skipped along with the rest of the frame — gets
+// its end-to-end fixture with `throw`, which is the next slice.
 
 #[test]
 fn a_callee_that_stops_the_request_stops_its_caller_too() {

@@ -40,9 +40,11 @@
 //!   function entry and loop back edges, the project-start decision's two
 //!   fixed sites;
 //! * [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-//!   § 1's **debug-flags check** at every
-//!   [`mwl_ir::ir::InstKind::StmtMarker`], branching to
-//!   [`mwl_runtime::mwl_probe_stmt`].
+//!   § 1's **debug-flags check**, at every
+//!   [`mwl_ir::ir::InstKind::StmtMarker`] (branching to
+//!   [`mwl_runtime::mwl_probe_stmt`]) and twice at every call site, before and
+//!   after (branching to [`mwl_runtime::mwl_probe_call_enter`] and
+//!   [`mwl_runtime::mwl_probe_call_exit`]).
 //!
 //! Neither is behind a flag or a build configuration: ADR 0018's whole
 //! argument is that a request already running must be able to have coverage
@@ -64,9 +66,10 @@
 //!    refused for the same reason. A static call is compiled; see
 //!    [`emit::Emitter::emit_call`] for the receiver slot a static call fills
 //!    with `null`.
-//! 2. **ADR 0018's call-site probe is not emitted yet.** Its `TRACE`/
-//!    `PROFILE` entry/exit pair belongs in [`emit::Emitter::emit_call`]'s
-//!    single path, which now exists. The statement-boundary probe is emitted.
+//! 2. **ADR 0018's `BRANCH` probe is not emitted.** It needs a per-edge site
+//!    at [`mwl_ir::ir::Terminator::Branch`]'s lowering, which is the only one
+//!    of that ADR's three sites still missing — the statement-boundary probe
+//!    and the call-site `TRACE`/`PROFILE` pair are both emitted.
 //! 3. **The error path leaks.** A non-`OK` status returns immediately without
 //!    releasing the refcounted locals still live in the frame.
 //!    [`mwl_ir`] itself does not model an error edge yet (see
@@ -250,6 +253,10 @@ struct Signatures {
     safepoint: Signature,
     /// `mwl_probe_stmt(ctx, stmt_id)`.
     probe: Signature,
+    /// `mwl_probe_call_enter(ctx, name, len)`.
+    probe_call: Signature,
+    /// `mwl_probe_call_exit(ctx, name, len, status)`.
+    probe_call_exit: Signature,
     /// `mwl_str_new(ptr, len) -> *mut StrHeader`.
     str_new: Signature,
     /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`.
@@ -435,6 +442,14 @@ impl Signatures {
         probe.params.push(AbiParam::new(ptr));
         probe.params.push(AbiParam::new(types::I32));
 
+        let mut probe_call = module.make_signature();
+        probe_call.params.push(AbiParam::new(ptr));
+        probe_call.params.push(AbiParam::new(ptr));
+        probe_call.params.push(AbiParam::new(ptr));
+
+        let mut probe_call_exit = probe_call.clone();
+        probe_call_exit.params.push(AbiParam::new(types::I32));
+
         let mut str_new = module.make_signature();
         str_new.params.push(AbiParam::new(ptr));
         str_new.params.push(AbiParam::new(ptr));
@@ -452,6 +467,8 @@ impl Signatures {
             helper,
             safepoint,
             probe,
+            probe_call,
+            probe_call_exit,
             str_new,
             str_concat,
             refcount,

@@ -126,6 +126,38 @@ pub struct Ctx {
     /// for now is proving the mechanism: the probe fires at exactly the
     /// statements a request executed, and nowhere else.
     stmt_hits: Vec<u64>,
+    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// § 1's call-site trace, in the order the probes fired.
+    ///
+    /// Written only from [`mwl_probe_call_enter`]/[`mwl_probe_call_exit`],
+    /// under the same "the flags word was non-zero" gate `stmt_hits` is under.
+    ///
+    /// **A stand-in, not the final shape**, for the same reason `stmt_hits`
+    /// is one, plus a second: ADR 0018 has trace and profile data *stream to
+    /// a sink* rather than accumulate, precisely because a long-running
+    /// request's trace is call-count-proportional. This vector is bounded by
+    /// nothing, which is why it exists only until `Core\Debug` names a sink —
+    /// it is proving the probe fires at the right places, not serving a
+    /// request. `PROFILE`'s self/inclusive timing shares these two sites and
+    /// lands with that sink.
+    trace: Vec<TraceEvent>,
+}
+
+/// One [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1 call-site trace record.
+///
+/// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// adds a `call`/`gc`/`spawn` kind alongside this; every event here is a
+/// `call`, since the GC and isolate-spawn routines it also instruments do not
+/// exist yet.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TraceEvent {
+    /// The callee's `Class::method` label.
+    pub callee: String,
+    /// `None` on entry; on exit, the status the call site is about to branch
+    /// on — so a trace records a thrown or `FATAL` exit exactly as it
+    /// happened rather than as a reconstruction.
+    pub status: Option<i32>,
 }
 
 /// Byte offset of the safepoint word within [`Ctx`] — see the module docs.
@@ -145,6 +177,7 @@ impl Ctx {
             pending: None,
             output,
             stmt_hits: Vec::new(),
+            trace: Vec::new(),
         }
     }
 
@@ -201,6 +234,24 @@ impl Ctx {
     #[must_use]
     pub fn stmt_hits(&self) -> &[u64] {
         &self.stmt_hits
+    }
+
+    /// Records one call-site trace event — [`mwl_probe_call_enter`]/
+    /// [`mwl_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
+    pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
+        self.trace.push(TraceEvent {
+            callee: callee.to_owned(),
+            status,
+        });
+    }
+
+    /// The call-site trace gathered so far, in the order the probes fired —
+    /// empty for a request that ran with [`DebugFlags::TRACE`] off
+    /// throughout. See the field's own doc comment for why this accumulates
+    /// in memory today and will not once ADR 0018's sink exists.
+    #[must_use]
+    pub fn trace(&self) -> &[TraceEvent] {
+        &self.trace
     }
 
     /// Records the message behind a `THROWN` or `FATAL` status.
@@ -321,10 +372,9 @@ pub unsafe extern "C" fn mwl_safepoint(ctx: *mut Ctx) -> i32 {
 /// 0018 puts a debugger break at a safepoint, not at a probe — so a compiled
 /// probe site has no status to check and no error edge to emit.
 ///
-/// Only [`DebugFlags::COVERAGE`] acts. `BRANCH` needs the per-edge probe site
-/// that lands with `mwl_ir::Terminator::Branch`'s lowering, and `TRACE`/
-/// `PROFILE` are call-site probes with no MWL-level call compiled yet — see
-/// `mwl-codegen`'s own module docs for that split.
+/// Only [`DebugFlags::COVERAGE`] acts here. `BRANCH` needs the per-edge probe
+/// site that lands with `mwl_ir::Terminator::Branch`'s lowering; `TRACE` and
+/// `PROFILE` are the call-site pair below.
 ///
 /// # Safety
 ///
@@ -346,6 +396,108 @@ pub unsafe extern "C" fn mwl_probe_stmt(ctx: *mut Ctx, stmt: u32) {
 
     if ctx.debug.contains(DebugFlags::COVERAGE) {
         ctx.record_stmt_hit(stmt);
+    }
+}
+
+/// Reads a callee label a compiled call site passed as a pointer/length pair
+/// into the unit's own data section.
+///
+/// Lossy rather than fallible: the bytes come from an MWL identifier the
+/// compiler wrote there, so they are already valid UTF-8, and a trace record
+/// is not a place to fail a request from if that assumption were ever wrong.
+///
+/// # Safety
+///
+/// `name`/`len` must describe a live, readable byte range, or `len` must be
+/// zero.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a pointer and a length; the contract cannot \
+              be expressed in the signature"
+)]
+unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
+    if len == 0 {
+        return Cow::Borrowed("");
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the range is readable; the zero-length \
+                  case is split out because `from_raw_parts` rejects a null \
+                  pointer even for an empty slice"
+    )]
+    let bytes = unsafe { std::slice::from_raw_parts(name, len) };
+    String::from_utf8_lossy(bytes)
+}
+
+/// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1's call-site **entry** probe — the slow path behind the debug-flags
+/// check compiled code emits before every call.
+///
+/// The callee is passed as a pointer and length into the compiled unit's own
+/// data section rather than as an index into a side table: the name is
+/// already a static constant of the unit, so there is nothing for a table to
+/// add and nothing to keep in sync.
+///
+/// Like [`mwl_probe_stmt`], it returns nothing — a trace record cannot fail —
+/// so the site has no status to check.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned and valid for the call, and `name`/`len`
+/// must describe a readable byte range.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer and a static byte \
+              range; neither contract can be expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_probe_call_enter(ctx: *mut Ctx, name: *const u8, len: usize) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees both are valid for this call; the only \
+                  thing that can panic here is the allocator, which aborts \
+                  rather than unwinding into the JIT frame above"
+    )]
+    let (ctx, label) = unsafe { (&mut *ctx, callee_label(name, len)) };
+    if ctx.debug.contains(DebugFlags::TRACE) {
+        ctx.record_trace(&label, None);
+    }
+}
+
+/// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1's call-site **exit** probe, carrying the checked-return `status` the
+/// call site is about to branch on — which is why a trace shows a thrown or
+/// `FATAL` exit as it happened rather than as a reconstruction.
+///
+/// See [`mwl_probe_call_enter`] for the rest, including why the flags word is
+/// re-read here rather than the entry probe's answer being reused: a request
+/// may turn tracing on or off *during* the call, and an exit whose flag state
+/// differs from its entry's is the honest record of that.
+///
+/// # Safety
+///
+/// The same contract as [`mwl_probe_call_enter`].
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer and a static byte \
+              range; neither contract can be expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_probe_call_exit(
+    ctx: *mut Ctx,
+    name: *const u8,
+    len: usize,
+    status: i32,
+) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees both are valid for this call; the only \
+                  thing that can panic here is the allocator, which aborts \
+                  rather than unwinding into the JIT frame above"
+    )]
+    let (ctx, label) = unsafe { (&mut *ctx, callee_label(name, len)) };
+    if ctx.debug.contains(DebugFlags::TRACE) {
+        ctx.record_trace(&label, Some(status));
     }
 }
 
@@ -439,6 +591,65 @@ mod tests {
         // unexecuted statement between two executed ones reads back as zero
         // rather than as absent.
         assert_eq!(ctx.stmt_hits(), [1, 0, 2]);
+    }
+
+    #[test]
+    fn a_call_probe_with_tracing_off_records_nothing() {
+        let mut ctx = Ctx::buffered();
+        let name = b"Math::double";
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            mwl_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            mwl_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::OK);
+        }
+        // Coverage on, tracing still off: the two flags are independent, and
+        // the call probe reads its own bit rather than "any bit set".
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            mwl_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+        }
+        assert!(ctx.trace().is_empty());
+    }
+
+    #[test]
+    fn a_call_probe_records_the_callee_and_the_status_it_is_handed() {
+        // The exit probe carries the checked-return status the call site is
+        // about to branch on, so a thrown or `FATAL` exit is recorded as it
+        // happened rather than reconstructed — ADR 0018 § 1.
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        let name = b"Boom::inner";
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            mwl_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            mwl_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::THROWN);
+        }
+        assert_eq!(
+            ctx.trace(),
+            [
+                TraceEvent {
+                    callee: "Boom::inner".to_owned(),
+                    status: None,
+                },
+                TraceEvent {
+                    callee: "Boom::inner".to_owned(),
+                    status: Some(crate::THROWN),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_call_probe_accepts_an_empty_label_without_reading_the_pointer() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            mwl_probe_call_enter(&raw mut ctx, std::ptr::null(), 0);
+        }
+        assert_eq!(ctx.trace().len(), 1);
+        assert_eq!(ctx.trace()[0].callee, "");
     }
 
     #[test]

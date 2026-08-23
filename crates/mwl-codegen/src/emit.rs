@@ -374,14 +374,25 @@ impl Emitter<'_, '_> {
     /// layout, so pinning a refcount is that crate's decision to make, not a
     /// pattern this one should start writing into a data section on its own.
     fn emit_const_str(&mut self, cur: Block, bytes: &[u8]) -> Result<(Value, Block), CodegenError> {
-        let name = format!("mwl_str_{}", *self.literals);
+        let (address, len) = self.emit_bytes(bytes)?;
+        let callee = self.runtime_ref("mwl_str_new", RuntimeSig::StrNew)?;
+        let call = self.b.ins().call(callee, &[address, len]);
+        let value = self.b.inst_results(call)[0];
+        Ok((value, cur))
+    }
+
+    /// Puts `bytes` in the unit's data section and materializes its address
+    /// and length as two values — the shape every runtime primitive taking
+    /// static bytes wants (`mwl_str_new`, and ADR 0018's call-site probes).
+    fn emit_bytes(&mut self, bytes: &[u8]) -> Result<(Value, Value), CodegenError> {
+        let name = format!("mwl_bytes_{}", *self.literals);
         *self.literals += 1;
 
         let mut desc = DataDescription::new();
-        // A zero-length literal still needs a real address to hand to
-        // `mwl_str_new`, which ignores the pointer when the length is zero but
-        // is handed one regardless; a one-byte object is the cheapest way to
-        // keep the two cases identical here.
+        // A zero-length literal still needs a real address to hand to its
+        // consumer, which ignores the pointer when the length is zero but is
+        // handed one regardless; a one-byte object is the cheapest way to keep
+        // the two cases identical here.
         desc.define(if bytes.is_empty() {
             Box::new([0_u8]) as Box<[u8]>
         } else {
@@ -405,12 +416,9 @@ impl Emitter<'_, '_> {
         let address = self.b.ins().symbol_value(types::I64, global);
         let len = self.b.ins().iconst(
             types::I64,
-            i64::try_from(bytes.len()).map_err(|_| internal("a string literal past i64 bytes"))?,
+            i64::try_from(bytes.len()).map_err(|_| internal("a literal past i64 bytes"))?,
         );
-        let callee = self.runtime_ref("mwl_str_new", RuntimeSig::StrNew)?;
-        let call = self.b.ins().call(callee, &[address, len]);
-        let value = self.b.inst_results(call)[0];
-        Ok((value, cur))
+        Ok((address, len))
     }
 
     fn emit_binop(&mut self, op: BinOp, lhs: ValueId, rhs: ValueId) -> Result<Value, CodegenError> {
@@ -602,6 +610,8 @@ impl Emitter<'_, '_> {
             ));
         }
         let callee = self.callee_ref(target)?;
+        let label = self.emit_bytes(target.as_bytes())?;
+        self.emit_call_probe("mwl_probe_call_enter", RuntimeSig::ProbeCall, label, None)?;
 
         // One slot per argument, plus the implicit receiver at index 0.
         let count =
@@ -630,6 +640,14 @@ impl Emitter<'_, '_> {
 
         let call = self.b.ins().call(callee, &[self.ctx_p, args_p, out_p]);
         let status = self.b.inst_results(call)[0];
+        // Before the status check, so a thrown or `FATAL` exit is traced as it
+        // happened rather than skipped along with the rest of the frame.
+        self.emit_call_probe(
+            "mwl_probe_call_exit",
+            RuntimeSig::ProbeCallExit,
+            label,
+            Some(status),
+        )?;
         let cont = self.emit_status_check(status)?;
 
         if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
@@ -638,6 +656,57 @@ impl Emitter<'_, '_> {
         }
         let _ = cur;
         Ok(cont)
+    }
+
+    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// § 1's call-site probe, emitted twice per call: once before and once
+    /// after, `status` distinguishing them.
+    ///
+    /// Exactly [`Self::emit_stmt_probe`]'s shape — one load of the debug-flags
+    /// word, one predicted-not-taken branch, an out-of-line call that never
+    /// runs while every bit is off — because it is the same mechanism at a
+    /// different site, and ADR 0018's whole argument is that both are one
+    /// cost class rather than a second compiled tier.
+    ///
+    /// The word is re-read at the exit site rather than the entry site's load
+    /// being reused: a request may turn tracing on or off *during* the call,
+    /// and `mwl_probe_call_exit`'s own doc comment says why recording that
+    /// honestly beats a balanced-looking reconstruction.
+    fn emit_call_probe(
+        &mut self,
+        symbol: &'static str,
+        sig: RuntimeSig,
+        label: (Value, Value),
+        status: Option<Value>,
+    ) -> Result<(), CodegenError> {
+        let offset = i32::try_from(DEBUG_FLAGS_OFFSET)
+            .map_err(|_| internal("the debug-flags word sits past a 2 GiB offset"))?;
+        let flags = self
+            .b
+            .ins()
+            .load(types::I64, ctx_word(), self.ctx_p, offset);
+
+        let slow = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.ins().brif(flags, slow, &[], cont, &[]);
+
+        self.b.switch_to_block(slow);
+        let probe = self.runtime_ref(symbol, sig)?;
+        let (address, len) = label;
+        match status {
+            None => {
+                self.b.ins().call(probe, &[self.ctx_p, address, len]);
+            }
+            Some(status) => {
+                self.b
+                    .ins()
+                    .call(probe, &[self.ctx_p, address, len, status]);
+            }
+        }
+        self.b.ins().jump(cont, &[]);
+
+        self.b.switch_to_block(cont);
+        Ok(())
     }
 
     /// A [`codegen::ir::FuncRef`] for one of the unit's own functions, cached
@@ -894,6 +963,8 @@ impl Emitter<'_, '_> {
             RuntimeSig::Helper => &self.sigs.helper,
             RuntimeSig::Safepoint => &self.sigs.safepoint,
             RuntimeSig::Probe => &self.sigs.probe,
+            RuntimeSig::ProbeCall => &self.sigs.probe_call,
+            RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
             RuntimeSig::StrNew => &self.sigs.str_new,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::Refcount => &self.sigs.refcount,
@@ -917,6 +988,8 @@ enum RuntimeSig {
     Helper,
     Safepoint,
     Probe,
+    ProbeCall,
+    ProbeCallExit,
     StrNew,
     StrConcat,
     Refcount,
