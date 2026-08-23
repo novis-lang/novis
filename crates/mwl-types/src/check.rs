@@ -1810,11 +1810,7 @@ mod tests {
 
     #[test]
     fn reading_an_undeclared_local_at_file_scope_is_diagnosed() {
-        let diags = check_src(
-            "<?mwl
-echo $missing;
-",
-        );
+        let diags = check_src("<?mwl\necho $missing;\n");
         assert!(
             diags
                 .iter()
@@ -1825,24 +1821,13 @@ echo $missing;
 
     #[test]
     fn a_declared_and_assigned_file_scope_local_reads_fine() {
-        let diags = check_src(
-            "<?mwl
-int $n = 1;
-$n = $n + 1;
-echo $n;
-",
-        );
+        let diags = check_src("<?mwl\nint $n = 1;\n$n = $n + 1;\necho $n;\n");
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
     fn redeclaring_a_file_scope_local_is_diagnosed() {
-        let diags = check_src(
-            "<?mwl
-int $n = 1;
-int $n = 2;
-",
-        );
+        let diags = check_src("<?mwl\nint $n = 1;\nint $n = 2;\n");
         assert!(
             diags
                 .iter()
@@ -1853,12 +1838,7 @@ int $n = 2;
 
     #[test]
     fn a_file_scope_type_mismatch_is_diagnosed() {
-        let diags = check_src(
-            "<?mwl
-int $n = 1;
-$n = \"x\";
-",
-        );
+        let diags = check_src("<?mwl\nint $n = 1;\n$n = \"x\";\n");
         assert!(
             diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
             "{diags:?}"
@@ -1869,11 +1849,7 @@ $n = \"x\";
     /// so it is an ordinary undeclared name rather than a special case.
     #[test]
     fn this_at_file_scope_is_an_undeclared_local() {
-        let diags = check_src(
-            "<?mwl
-echo $this;
-",
-        );
+        let diags = check_src("<?mwl\necho $this;\n");
         assert!(
             diags
                 .iter()
@@ -1887,12 +1863,7 @@ echo $this;
     /// the file, so a redeclaration across two blocks still conflicts.
     #[test]
     fn a_namespace_block_shares_the_one_script_frame() {
-        let diags = check_src(
-            "<?mwl
-namespace A { int $n = 1; }
-namespace B { int $n = 2; }
-",
-        );
+        let diags = check_src("<?mwl\nnamespace A { int $n = 1; }\nnamespace B { int $n = 2; }\n");
         assert!(
             diags
                 .iter()
@@ -1902,18 +1873,12 @@ namespace B { int $n = 2; }
     }
 
     /// A class body is still its own frame — a file-scope local is not
-    /// visible from inside a method (ADR 0008's table: "unreachable from a
-    /// function").
+    /// visible from inside a method (ADR 0008's storage-class table: "the
+    /// script's own frame, unreachable from a function").
     #[test]
     fn a_file_scope_local_is_not_visible_inside_a_method() {
-        let diags = check_src(
-            "<?mwl
-int $n = 1;
-class T {
-  function m(): void { echo $n; }
-}
-",
-        );
+        let diags =
+            check_src("<?mwl\nint $n = 1;\nclass T {\n  function m(): void { echo $n; }\n}\n");
         assert!(
             diags
                 .iter()
