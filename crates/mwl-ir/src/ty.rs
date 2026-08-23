@@ -95,8 +95,8 @@ pub enum Ty {
     /// [`crate::ir::Program::classes`] instead, which
     /// [`crate::ir::InstKind::FieldGet`]'s `class`/`field` labels index into.
     Object,
-    /// A reference-counted, heap-allocated `string` — ADR 0009 (still
-    /// *Proposed*, not *Accepted*) has not settled that type's indexing
+    /// A reference-counted, heap-allocated `string` — ADR 0009 § 2 has not
+    /// settled that type's default length/indexing
     /// granularity, but nothing lowered so far needs indexing at all: only a
     /// literal's *bytes*, which are granularity-independent. [`crate::lower`]
     /// cooks a literal directly to [`crate::ir::InstKind::ConstStr`] and
@@ -108,8 +108,8 @@ pub enum Ty {
     /// (string concatenation and `tainted`/`secret`-qualified string
     /// variants are still unsupported).
     Str,
-    /// A reference-counted, heap-allocated `bytes` value — ADR 0009 (still
-    /// *Proposed*). The same representation shape as [`Self::Str`], different
+    /// A reference-counted, heap-allocated `bytes` value — ADR 0009's own
+    /// primitive. The same representation shape as [`Self::Str`], different
     /// content: same retain/release treatment at a local's declare/reassign/
     /// scope-exit lifecycle, a call argument/parameter, a returned value, and
     /// a compile-time-known property read/write. Unlike [`Self::Str`],

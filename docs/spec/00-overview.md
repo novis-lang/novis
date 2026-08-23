@@ -263,8 +263,8 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
   spec.
 
 This resolves the open item in [ADR 0009 *Revisiting*](../adr/0009-string-and-bytes.md); that ADR's own
-status (Proposed, pending the grapheme-cost guard test) is unaffected — this decision is about literal
-syntax only, not about `string`'s default length/indexing granularity.
+status (Accepted, with § 2's granularity pending the grapheme-cost guard test) is unaffected — this
+decision is about literal syntax only, not about `string`'s default length/indexing granularity.
 
 ## Revisiting
 

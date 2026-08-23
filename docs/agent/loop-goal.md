@@ -67,12 +67,12 @@ Every one of these was settled with the user before the loop started. Implement 
   AST, or a finished object representation. The spec file's own *Milestones* line says §§ 1–13 and is
   wrong; correct it to §§ 1–12 and note where each § 13 entry actually lands. ADR 0046's `#[...]`
   *syntax* is still in scope — only the retrieval body is not, which is what M4 already says.
-- **Settle [ADR 0009](../adr/0009-string-and-bytes.md) early, by measurement.** It is *Proposed*, and
-  `Core\Str::length`/`at`/`slice` cannot be conformance-tested until its granularity question lands — the
-  spec says as much. Implement both granularities behind one seam, take the cost measurement its
+- **Settle [ADR 0009](../adr/0009-string-and-bytes.md) § 2 early, by measurement.** The ADR is Accepted and
+  only § 2's granularity is open, and `Core\Str::length`/`at`/`slice` cannot be conformance-tested until it
+  lands — the spec says as much. Implement both granularities behind one seam, take the cost measurement its
   *Revisiting* asks for, write the figure into `a_grapheme_index_costs_more_than_a_code_point_index` in
   `benches/abi-probe/tests/perf_guards.rs` (where measured numbers live, per AGENTS.md), pick the default
-  it justifies, and move the ADR to **Accepted**. Do this before writing `Core\Str`'s conformance cases.
+  it justifies, and close § 2 in the ADR's status line. Do this before writing `Core\Str`'s conformance cases.
 - **No cycle collector.** Refcounting only. A cyclic object graph in a CLI script is retained until the
   process exits; record that boundary in `mwl-runtime`'s module doc and scope Stage 6's leak check to
   acyclic fixtures so it stays a true signal. The plan's § *Architecture* already fixes the policy — the

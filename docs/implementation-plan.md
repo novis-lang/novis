@@ -113,17 +113,14 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
 | Security | Server-level `mwl.toml`, root-owned, TOML ([ADR 0064](adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](adr/0005-config-changeability.md)) |
 | Serving | Built-in HTTP/1.1 + h2c server. FastCGI deferred to optional transport. HTTP/3 out of scope |
-| Databases | MySQL/MariaDB, PostgreSQL, SQLite, MS SQL Server |
+| Text and binary | `string` is guaranteed-valid UTF-8; binary data is the separate `bytes` primitive. Only its default length/indexing granularity is still open ([ADR 0009](adr/0009-string-and-bytes.md) § 2, pending a cost measurement) |
+| Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
 | Testing | Hand-written suite is normative; `.phpt → .mwlt` transpiler imports PHP's corpus |
 | Migration | `mwl convert` — real PHP→MWL transpiler |
 | Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.mwlx`), statically linked native. No `dlopen` ([ADR 0003](adr/0003-extension-system.md)) |
 | Platforms | Windows x86_64, Linux x86_64, macOS (x86_64 + aarch64) |
 | Licence | MIT |
-
-One decision — `string` is guaranteed-valid UTF-8, `bytes` is the separate binary type — is drafted but not
-yet in this table: it is **Proposed**, not Accepted, pending a cost measurement
-([ADR 0009](adr/0009-string-and-bytes.md)).
 
 ### Rationale for the two calls left open
 
@@ -569,10 +566,11 @@ maps. `new static()` through two levels of inheritance returns the called class,
 method without naming `$this` is unbound — `bindTo()` on it rebinds nothing, which is ADR 0008's single
 divergence and gets its own case. Plus one fixture per rule in the *Verification* section of ADRs
 [0014](adr/0014-property-observer.md), [0023](adr/0023-clone-serialize-and-cross-boundary-copy.md),
-[0028](adr/0028-closing-the-remaining-magic-methods.md) and
-[0046](adr/0046-attributes-shape-literal-metadata.md) — each of those sections is the one home for what its
-own rule requires, including the "a class that does not implement `PropertyObserver` shows no measurable
-overhead" measurement. A non-trivial program runs correctly and leaks nothing under Valgrind — the
+[0028](adr/0028-closing-the-remaining-magic-methods.md),
+[0046](adr/0046-attributes-shape-literal-metadata.md) and
+[0069](adr/0069-array-combination-is-key-type-independent.md) — each of those sections is the one home for
+what its own rule requires, including the "a class that does not implement `PropertyObserver` shows no
+measurable overhead" measurement and the diagnostic `$a + $b`/`$a += $b` over two arrays now owes. A non-trivial program runs correctly and leaks nothing under Valgrind — the
 *argument-parsing, file-processing* half of that program moves to M8 with `Core\Cli` (§ 15) and `Core\IO`
 (§ 14), since neither argv nor a file handle is reachable before capabilities exist at M6.
 
@@ -924,7 +922,11 @@ what the construct provides, a backed enum's case declarations and `->value` rea
 an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call or reference to a PHP
 built-in global function or constant (`strlen`, `array_map`, `PHP_EOL`, …) → the matching `Core`
 class-and-member, `Core\Str::length`, `Core\Arr::map`, `Core\Env::EOL`, via a maintained PHP-name → `Core`
-table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)),
+table that grows with the stdlib ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) —
+except the array-combining calls no name table can carry, `array_merge` and `$a + $b`, which are picked by
+the argument's static type and left as a diagnostic where none can be proven
+([ADR 0069](adr/0069-array-combination-is-key-type-independent.md) § 2 owns that table and the report it
+writes),
 `use Path\To\Name as Other;` → the local alias replaced with the real short name or the FQN at every use, a
 stateless PHP trait (methods only) → an `interface` with the same method bodies as defaults plus plain
 `implements` at every use site, and its `insteadof` conflicts → an explicit override calling the winner by

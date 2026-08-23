@@ -19,6 +19,17 @@ four members were renamed (`splice`→`replaceRange`, `pad`→`padStart`/`padEnd
 disk — `Arr` is still the same nine members — so it costs a spec read, not a migration. It folded into
 0007 § 5 and 0063 § 3.
 
+**The three ADR sessions were then audited against what is landed, and nothing landed is invalidated.**
+The registered nine (`count`, `filter`, `map`, `isEmpty`, `hasKey`, `isList`, `values`, `sort`, `range`)
+contain none of 0069's renamed or removed names, `hasKey`'s `int|string` key *parameter* is what the spec
+still says, and `Arr::sort`'s `{preserveKeys: false}` already renumbers **every** key from `"0"` — which is
+exactly the rule 0069 § 3 tightened the spec to. 0067/0024/0041/0051/0058 land no rule before M8. What the
+audit did find was stale prose, now fixed: four cross-links still called ADR 0009 *Proposed* (`mwl-ir`'s
+`ty.rs`, the plan's decisions table, the spec overview, this loop's goal file) when only its § 2 is open;
+`mwl-runtime`'s `TraceEvent` doc missed 0041's fourth `query` kind; and the plan carried neither 0069's M4
+diagnostic nor its M11 converter rows, nor a link from the *Databases* row to 0067. All five are edits to
+docs, none to behaviour.
+
 **The dependency-update policy** is [ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md)
 plus [`dependency-update.md`](dependency-update.md): we are in the **prototyping regime**, so a bump is free
 and needs no classification until 0.1.0 — but **the sweep is a pass the user fires by hand**. Never start
@@ -70,8 +81,8 @@ rows (`Str::lines`/`chunk`/`replaceAll`, `Arr::reverse`/`fill`/`sortByKey`), the
 - **A `Core` helper cannot name the class it throws** — every `Fault::thrown` becomes `RuntimeError`, so
   spec § 10's `LogicError` is unreachable from `mwl-stdlib`. `mwl_runtime::mwl_raise_new` is the shape.
 - **`<`/`>` over two `string`s is unlowered** — `mwl-codegen` refuses a `Gt` over representation `Str`.
-- **`array + array` still has no diagnostic** — ADR 0069 § 2 requires one naming `Arr::underlay`, and M4's
-  arithmetic checking is where it belongs.
+- **`$a + $b` and `$a += $b` over two arrays still have no diagnostic** — ADR 0069 § 2 requires one naming
+  `Arr::underlay`; M4's arithmetic checking is where it belongs, and M4's **Verify** list now says so.
 - **Still-large files, deliberately not split yet** — `mwl-syntax`'s `parser.rs` (split it as the first
   step of ADR 0040's M4B resilient-parse work, so it happens once) and `mwl-types`'s `expr.rs`. Revisit
   `mwl-stdlib`'s `arr.rs` past ~2,500 lines.

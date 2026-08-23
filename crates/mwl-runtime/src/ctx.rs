@@ -282,9 +282,9 @@ pub enum FaultSite {
 /// § 1 call-site trace record.
 ///
 /// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
-/// adds a `call`/`gc`/`spawn` kind alongside this; every event here is a
-/// `call`, since the GC and isolate-spawn routines it also instruments do not
-/// exist yet.
+/// adds a `call`/`gc`/`spawn`/`query` kind alongside this; every event here is
+/// a `call`, since the GC, isolate-spawn and `Core\Db` statement routines it
+/// also instruments do not exist yet.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceEvent {
     /// The callee's `Class::method` label.
