@@ -54,6 +54,19 @@ to miss:
   `mwl_runtime::symbols()`. Mapping an `mwl_ir::Helper` tag to one of those names is `mwl-codegen`'s job
   by design: `mwl-runtime` deliberately does not depend on `mwl-ir`.
 
+## Known red, and not caused by any of the above
+
+`cargo deny check` **fails today**, on `main`, and did before this session: 13 RUSTSEC vulnerability
+advisories against `wasmtime` 41.0.4 (several sandbox-escape class) plus three unmaintained transitive
+crates, `bitmaps`/`im-rc`/`sized-chunks`. `bans`, `licenses` and `sources` are clean. Nothing MWL ships
+runs Wasmtime yet — it reaches the lock only through `benches/abi-probe`'s optional `wasm-probe` feature —
+so this is not a runtime exposure, but it is a real CI-red and it blocks
+[ADR 0003](docs/adr/0003-extension-system.md)'s M9 sandbox on a version that must be fixed before then.
+It is deliberately **not** a drive-by fix: the advisories want wasmtime >= 46, and the pin at 41 exists
+because M0's spike #4 confirmed 41 coexists with the pinned Cranelift 0.128 (`Cargo.toml` says so at the
+dependency). Moving it is a paired wasmtime + Cranelift bump that has to re-run that spike and the
+`benches/abi-probe` guard tests. Worth its own session; say so rather than patching `deny.toml`.
+
 ## Backlog
 
 - Inline HTML at file scope (`?>text<?mwl`) is not lowered — `mwl-ir`'s known gaps say why, and that
