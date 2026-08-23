@@ -1,55 +1,55 @@
 # MWL — Modern Web Lang: Implementation Plan
 
 > **Status — 2026-08-23.** Milestone **M1**, front end, done. Milestone **M2**, HIR/types/IR, in progress.
-> M3 has started from the runtime end. Nothing runs yet; `Hello, World!` is M3.
+> Milestone **M3** now **runs**: `mwl run examples/hello.mwl` prints `Hello, World!` from natively
+> compiled code. That is M3's vertical slice, not M3 — the rest of its *Verify* bullet stays queued.
 >
 > *This block is a bounded snapshot, not a changelog — overwrite it each session rather than appending a*
 > *new paragraph. Session-by-session history lives in `git log`; per-file known-gap detail lives in each*
 > *crate's own module docs, not here (see [CLAUDE.md](../CLAUDE.md)'s "Keep work small" section).*
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`, `mwl-cli` (`mwl ast`, `mwl check`), the
-> `fuzz/` crate, and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard tests). Every other crate is
-> created when its milestone starts — `python .claude/brief.py` lists what is actually there.
+> `mwl-syntax`, `mwl-hir`, `mwl-types`, `mwl-ir`, `mwl-runtime`, `mwl-codegen`, `mwl-cli` (`mwl ast`,
+> `mwl check`, `mwl run`), the `fuzz/` crate, and [`benches/abi-probe`](../benches/abi-probe/) (M0 guard
+> tests, plus M3's probe-cost guard). Every other crate is created when its milestone starts —
+> `python .claude/brief.py` lists what is actually there.
 >
-> **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44
-> + Windows SDK 10.0.26100 for linking, PHP 8.5.8 available as a comparison oracle, `cargo-fuzz`
-> 0.13.2 under a WSL nightly toolchain (CLAUDE.md says why).
+> **Toolchain in place:** Rust 1.97.1 stable (pinned), Cranelift 0.128.4, wasmtime 41, MSVC 14.44 +
+> Windows SDK 10.0.26100 for linking, PHP 8.5.8 as a comparison oracle, `cargo-fuzz` 0.13.2 under a WSL
+> nightly toolchain (CLAUDE.md says why).
 >
-> **M1 — done.** Lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full parser —
-> types, expressions, every control-flow statement, every declaration — plus the M1-scoped grammar of
-> ADRs 0024, 0031, 0033, 0034, 0035, 0036, 0037, 0049 and 0050. Each ADR states its own rule; do not
-> look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
-> checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics. What
-> that test does and does not measure, and every known parser gap, live in their own doc comments.
+> **M1 — done.** Lexer (dual mode, inline HTML, heredoc/nowdoc, interpolation) and the full parser, plus
+> the M1-scoped grammar of ADRs 0024, 0031, 0033, 0034, 0035, 0036, 0037, 0049 and 0050 — each ADR states
+> its own rule; do not look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the
+> full local `php-src` checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse`
+> found zero panics. What each measures, and every known parser gap, live in their own doc comments.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well underway;
 > `mwl-ir` is the remaining bulk. Checker-side rules landed for ADRs 0007, 0010, 0013, 0014, 0015, 0021,
 > 0022, 0024, 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax +
-> default/private-method slice. Still open: 0011/0024/0033's stdlib-dependent sinks (blocked on `Core` classes until M7/M8),
-> 0043's `by`-delegation type-matching and its `E_INTERFACE_MEMBER_CONFLICT`/`E_DELEGATE_TYPE_MISMATCH`,
-> 0047 (docs only so far), and finishing `mwl-ir`. Each ADR's own *Verification* section says what its
-> slice covers — that is the one home for it.
+> default/private-method slice. Still open: 0011/0024/0033's stdlib-dependent sinks (blocked on `Core`
+> until M7/M8), 0043's `by`-delegation type-matching and its two diagnostics, 0047 (docs only), and
+> finishing `mwl-ir`. Each ADR's own *Verification* section says what its slice covers.
 >
 > **Not started, and ahead of M8 despite being stdlib decisions:** ADRs [0053](adr/0053-iteration-and-generators.md)
-> and [0054](adr/0054-decimal-scalar-type.md) add obligations to M1–M3, not to the stdlib milestone —
-> `Iterable`/`Iterator` checking plus an IR that can carry a suspension point inside a loop body, and
-> `decimal`'s lexer, checker and i128 backend rows. Both are cheap now and expensive once M3 builds on the
-> IR without them. [ADR 0055](adr/0055-extension-qualifier-declarations.md) is the third: it must be
-> reflected in the `mwl:ext@1.0.0` WIT world M8 authors, because M9 freezes it.
+> and [0054](adr/0054-decimal-scalar-type.md) add obligations to M1–M3, not to the stdlib milestone, and
+> both are cheaper now than once more of M3 is built on the IR without them.
+> [ADR 0055](adr/0055-extension-qualifier-declarations.md) is the third: it must reach the `mwl:ext@1.0.0`
+> WIT world M8 authors, because M9 freezes it. Each ADR's *Verification* section holds its own split.
 >
-> **M3 — started, from the runtime end.** `mwl-runtime` exists: [ADR 0002](adr/0002-error-propagation.md)'s
-> calling convention and its `mwl_helper!`/`catch_unwind` corollary, the § *Value representation* tagged
-> value, the refcounted string, the `Ctx` backing the safepoint poll and
-> [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) § 1's probe check, and
-> nine of ten `mwl_ir::Helper` entry points including `echo`'s — landed first because it is the half
-> testable without a backend. Its own module docs hold its known gaps. What remains between here and
-> `mwl run examples/hello.mwl` is `mwl-codegen` and a `run` subcommand; `.claude/loop-goal.md` holds the
-> decided design for each.
+> **M3 — the vertical slice is done; the milestone is not.** `mwl-runtime` owns
+> [ADR 0002](adr/0002-error-propagation.md)'s calling convention, the tagged value, the refcounted string
+> and the two-word `Ctx`; `mwl-codegen` compiles the IR against it, emitting the safepoint poll and
+> [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) § 1's debug-flags
+> check, whose all-bits-off cost that ADR required a `benches/abi-probe` guard for before it counted as
+> landed. Typed scalars, string literals, `echo`, comparisons, `if`/`while` with phis and `mwl run` work
+> end to end. Still owed by M3's own *Verify* bullet: a caught throw across JIT frames, a helper panic
+> ending in `FATAL`, an MWL-level backtrace, `--dump-asm` (`--dump-ir` exists), the benched arithmetic
+> loop.
 >
-> Per-crate detail — `mwl-ir`'s lowering history, refcount policy, table dependency and known gaps, and
-> the same for `mwl-hir` and `mwl-types` — lives in each crate's own module doc, which stays more current
-> than a paragraph here could.
+> Per-crate known gaps live in each crate's own module doc, which stays more current than a paragraph here
+> could — the largest is that no MWL-level *call* is compiled at all, which is also what blocks ADR 0018's
+> call-site probe and the error path's refcount cleanup.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -525,9 +525,9 @@ debug-flags probe checks at every statement boundary and call site, and W^X page
 safepoint poll, landing with it rather than after it).
 
 Because [ADR 0007](adr/0007-explicit-type-system.md) makes operand types known by construction, the
-baseline tier emits a native instruction wherever the static type is a single scalar and falls back to the
-generic helper only for `mixed`, unions and dynamic calls. That is a chunk of what M12 was for, arriving
-with the first backend.
+baseline tier emits a native instruction for any single-scalar static type and falls back to the generic
+helper only for `mixed`, unions and dynamic calls — a chunk of what M12 was for, arriving with the first
+backend.
 
 **Verify:** `mwl run examples/hello.mwl` prints `Hello, World!` from natively compiled code on all three
 platforms (that exact string is the unattended loop's machine-checked acceptance — see
@@ -540,42 +540,32 @@ in `benches/` with a guard, so ADR 0007's claim that mandatory types pay for the
 is tested rather than asserted.
 
 ### M4 — Language completeness — a usable CLI language (~10 weeks)
-Full ordered-hash arrays with COW — string-only keys, insertion order, declared element types enforced at
-every write ([ADR 0007](adr/0007-explicit-type-system.md)) — `uint` arithmetic with its overflow throws and
-its logical `>>`, the conversion operator over every row of that ADR's conversion table, exceptions
-propagating correctly by checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)),
-closures that bind
-`$this` only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
+Full ordered-hash arrays with COW, `uint` arithmetic, and the conversion operator over every row of
+[ADR 0007](adr/0007-explicit-type-system.md)'s conversion table; exceptions propagating correctly by
+checked return across JIT frames ([ADR 0002](adr/0002-error-propagation.md)), closures that bind `$this`
+only where the body uses it ([ADR 0008](adr/0008-static-and-global.md)),
 inheritance/interfaces, including default/private interface method bodies and `by`-delegation
-([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)), the built-in global
-`Comparable` interface lowering `< <= > >= <=>` between
-two objects to `compareTo`, with no property-walk fallback ([ADR 0013](adr/0013-comparable-interface.md)),
-enums as a closed named integer type with cases inlined as compile-time
-constants ([ADR 0010](adr/0010-enums-are-a-value-type.md)), `decimal` arithmetic — i128 add/sub/compare
-inlined at equal scale, everything else through a runtime helper with a wider intermediate
-([ADR 0054](adr/0054-decimal-scalar-type.md)) — generators, lowered to an explicit state machine rather
-than to a coroutine so every target keeps them, alongside `foreach` over the two surviving iteration
-interfaces ([ADR 0053](adr/0053-iteration-and-generators.md)),
+([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)), object ordering through
+`Comparable` ([ADR 0013](adr/0013-comparable-interface.md)), enums
+([ADR 0010](adr/0010-enums-are-a-value-type.md)), `decimal` arithmetic
+([ADR 0054](adr/0054-decimal-scalar-type.md)), generators and `foreach` over the two iteration interfaces
+([ADR 0053](adr/0053-iteration-and-generators.md)),
 references (`&$x`), instance members and static members including late static binding
-(`static::`, `new static()`, `: static`), property hooks feeding the built-in global `PropertyObserver`
-interface with a hard error on any undeclared property and no `__call`/`__callStatic` at all
-([ADR 0014](adr/0014-property-observer.md)), `clone` kept as PHP's shallow, same-heap, single-level copy
-with no `__clone` hook ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), the first `Core` domain classes'
+(`static::`, `new static()`, `: static`), property hooks and `PropertyObserver`
+([ADR 0014](adr/0014-property-observer.md)), `clone`
+([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), the first `Core` domain classes'
 `static` methods for string/array/math operations
-([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode` —
-the first two showing only real declared properties with no `__debugInfo` hook, except a `secret`-qualified
-property's value, which shows a fixed redaction placeholder instead
-([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) — `Stringable` replacing
-`__toString` at every implicit string conversion, no destructors of any kind, and `unset()` refused on a
-declared object property ([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)), and `#[...]`
-attribute syntax on a class/interface/method/property/parameter declaration — a shape-literal payload checked
-structurally against a named `type` alias or left bare, compile-time-constant-only field values, and the
-explicit `<T>` call-site type argument `Core\Attributes::get<T>`/`::all<T>` need even though their retrieval
-body doesn't land until M8 ([ADR 0046](adr/0046-attributes-shape-literal-metadata.md)).
+([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), `var_dump`/`print_r`/`json_encode`
+— with a `secret`-qualified property's value redacted
+([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) — `Stringable` and the rest of
+[ADR 0028](adr/0028-closing-the-remaining-magic-methods.md), and `#[...]` attribute syntax on every
+declaration it attaches to, including the explicit `<T>` call-site type argument
+`Core\Attributes::get<T>`/`::all<T>` need even though their retrieval body doesn't land until M8
+([ADR 0046](adr/0046-attributes-shape-literal-metadata.md)).
 
-Also in this milestone: `mwl test` and the `.mwlt` format — deliberately defined as a **superset of
-`.phpt` sections** (`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`,
-`--ARGS--`, `--ENV--`, `--CLEAN--`) so the M11 importer is mechanical rather than a rewrite.
+Also in this milestone: `mwl test` and the `.mwlt` format — deliberately a **superset of `.phpt` sections**
+(`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`, `--ARGS--`, `--ENV--`,
+`--CLEAN--`), so the M11 importer is mechanical rather than a rewrite.
 
 **Verify:** hand-written conformance suite ≥ 1000 `.mwlt` cases green, including `uint` at `0`, `i64::MAX`,
 `i64::MAX + 1` and `2^64 − 1`; every conversion in ADR 0007 both succeeding and throwing; overflow throwing
@@ -583,23 +573,13 @@ rather than promoting to `float`; key order preserved across insert, delete, re-
 function; `array_keys()` typed `array<string>`; `json_encode` output identical to PHP's for both lists and
 maps. `new static()` through two levels of inheritance returns the called class, and a closure written in a
 method without naming `$this` is unbound — `bindTo()` on it rebinds nothing, which is ADR 0008's single
-divergence and gets its own case. A class implementing `PropertyObserver` runs its `onPropertyGet`/
-`onPropertySet` after each property's own hook or storage, for hooked and un-hooked properties alike, and
-cannot override the value; a class that does not implement it shows no measurable overhead over plain field
-access ([ADR 0014](adr/0014-property-observer.md)). `clone $x` leaves an object-typed property `===` the
-original's while an array-typed property diverges after either side writes, and a declared `__clone` method
-is never invoked by the language ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)). A class
-implementing `Stringable` is accepted at every implicit string-conversion site and produces the value
-`toString()` returns; no method named `__destruct`, `__debugInfo`, `__set_state`, `__isset` or `__unset` is
-ever invoked by the language even when a refcount legitimately reaches zero mid-request; `unset()` on a
-declared object property is refused regardless of nullability
-([ADR 0028](adr/0028-closing-the-remaining-magic-methods.md)). A
-non-trivial CLI program (an argument-parsing file-processing tool) runs correctly; no leaks under
-Valgrind/ASAN. A named `#[Route(...)]`-style attribute is checked against its `type` alias the same way an
-equivalent standalone shape literal already is, and a mismatched field type is the identical diagnostic; a
-bare `#[{...}]` attaches with no such check. A non-constant field value (a variable, a call, `new`) is a
-compile-time diagnostic naming the compile-time-constant-only rule
-([ADR 0046](adr/0046-attributes-shape-literal-metadata.md)).
+divergence and gets its own case. Plus one fixture per rule in the *Verification* section of ADRs
+[0014](adr/0014-property-observer.md), [0023](adr/0023-clone-serialize-and-cross-boundary-copy.md),
+[0028](adr/0028-closing-the-remaining-magic-methods.md) and
+[0046](adr/0046-attributes-shape-literal-metadata.md) — each of those sections is the one home for what its
+own rule requires, including the "a class that does not implement `PropertyObserver` shows no measurable
+overhead" measurement. A non-trivial CLI program (an argument-parsing file-processing tool) runs correctly;
+no leaks under Valgrind/ASAN.
 
 ### M4B — Minimal `mwl-lsp` and the VS Code extension (~3 weeks)
 Pulled ahead of M10 by [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
