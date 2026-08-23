@@ -355,3 +355,165 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
          if the gap has really closed, the ADR needs revisiting."
     );
 }
+
+// ---------------------------------------------------------------------------
+// ADR 0007's claim, tested rather than asserted
+// ---------------------------------------------------------------------------
+//
+// "Mandatory types pay for themselves on the request path" is a claim about
+// what the *compiler emits*, so both guards below compile the frozen
+// `examples/arith.mwl` fixture through the real pipeline rather than
+// approximating it with hand-built IR. The first is structural and the honest
+// form of the claim; the second is a timing, and self-relative per ADR 0026.
+
+/// Compiles `examples/arith.mwl` and returns its lowered program alongside the
+/// compiled unit.
+fn compile_arith() -> (mwl_ir::Program, mwl_codegen::Unit) {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/arith.mwl");
+    let mut map = mwl_diagnostics::SourceMap::new();
+    let id = map
+        .load(std::path::Path::new(path))
+        .expect("the frozen acceptance fixture is readable");
+    let src = map.file(id);
+
+    let mut diags = mwl_diagnostics::Diagnostics::new();
+    let stmts = mwl_syntax::parse_file(src, &mut diags);
+    let module = mwl_hir::resolve_file(&stmts, src, &mut diags);
+    let mut interner = mwl_types::TypeInterner::new();
+    let mut exprs = mwl_types::ExprTypeTable::new();
+    mwl_types::check_program(&stmts, src, &module, &mut interner, &mut exprs, &mut diags);
+    assert!(!diags.has_errors(), "the fixture stopped type-checking");
+
+    let program = mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner);
+    let unit = mwl_codegen::compile(&program).expect("the fixture compiles");
+    (program, unit)
+}
+
+/// The lowered `Bench::sum`, whose body is the fixture's `while` loop.
+fn bench_sum(program: &mwl_ir::Program) -> &mwl_ir::Function {
+    program
+        .functions
+        .iter()
+        .find(|f| f.name == "Bench::sum")
+        .expect("the fixture declares Bench::sum")
+}
+
+#[test]
+fn a_typed_arithmetic_loop_contains_no_call() {
+    use mwl_ir::ir::InstKind;
+
+    let (program, _unit) = compile_arith();
+    let sum = bench_sum(&program);
+
+    // Half one: the loop's arithmetic reached no helper and no MWL function.
+    // `$total + $i * 2 - 1` and `$i < $n` are native instructions because
+    // ADR 0007 settled both operands' types before lowering; an untyped
+    // language has to call something here.
+    let insts = || sum.blocks.iter().flat_map(|b| b.insts.iter());
+    let calls: Vec<&InstKind> = insts()
+        .map(|i| &i.kind)
+        .filter(|k| matches!(k, InstKind::Call { .. } | InstKind::HelperCall { .. }))
+        .collect();
+    assert!(
+        calls.is_empty(),
+        "Bench::sum now contains {} call instruction(s): {calls:?}. ADR 0007 justifies \
+         mandatory types on typed arithmetic lowering to native instructions; if a call \
+         genuinely belongs here now, that argument needs revisiting.",
+        calls.len()
+    );
+
+    // Half two: every `call` the *machine code* contains is accounted for by a
+    // safepoint poll or an ADR 0018 probe — both out-of-line, both emitted
+    // unconditionally, and both guarded for cost separately above. Tying the
+    // machine-code count to the IR site count is what makes half one a claim
+    // about the emitted code rather than only about the IR.
+    let sites = insts()
+        .filter(|i| matches!(i.kind, InstKind::Safepoint | InstKind::StmtMarker(_)))
+        .count();
+    // Scanned line by line rather than by splitting on the section marker:
+    // Cranelift renders a two-way branch as `jnz label3; j label2`, so a
+    // `"; "` split would cut the section short at the first branch.
+    let asm = mwl_codegen::disassemble(&program).expect("the fixture compiles");
+    let mut in_section = false;
+    let mut emitted = 0;
+    for line in asm.lines() {
+        if let Some(name) = line.strip_prefix("; ") {
+            in_section = name == "Bench::sum";
+        } else if in_section && line.trim_start().starts_with("call ") {
+            emitted += 1;
+        }
+    }
+    println!("Bench::sum: {sites} probe/safepoint sites, {emitted} emitted calls");
+
+    assert_eq!(
+        emitted, sites,
+        "Bench::sum emits {emitted} call(s) for {sites} probe/safepoint site(s). \
+         Every call in a typed arithmetic loop should be one of those two \
+         out-of-line slow paths and nothing else."
+    );
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
+    // Self-relative, per ADR 0026: the bound is a multiple of the
+    // checked-return frame cost this file already measures on *this* machine,
+    // never an absolute figure quoted from another one.
+    //
+    // Measured on x86_64-pc-windows-msvc: 1.13-1.28 ns per loop iteration
+    // against 1.38-1.89 ns per checked-return frame, a ratio of 0.7-0.8x
+    // across runs. An iteration does a compare, three arithmetic operations, a
+    // safepoint poll and six ADR 0018 probe checks — and still costs less than
+    // one cross-frame call, which is the whole of ADR 0007's claim.
+    //
+    // The guard is set well above that, because what it exists to catch is a
+    // change of *kind*: arithmetic going through a runtime helper instead of a
+    // native instruction would put four calls in each iteration and move the
+    // ratio into the tens.
+    const MAX_RATIO: f64 = 6.0;
+    const ITERATIONS: i64 = 1_000;
+
+    let mut probe = Probe::new();
+    let shallow = probe.compile_chain(2, Helper::Double);
+    let deep = probe.compile_chain(18, Helper::Double);
+    let mut probe_ctx = Ctx::new();
+    let arg = Value::int(3);
+    let t_shallow = ns_per_op(200_000, 5, || {
+        black_box(call(shallow, &mut probe_ctx, arg));
+    });
+    let t_deep = ns_per_op(200_000, 5, || {
+        black_box(call(deep, &mut probe_ctx, arg));
+    });
+    let per_frame = (t_deep - t_shallow) / 16.0;
+
+    let (_program, unit) = compile_arith();
+    let sum = unit
+        .function("Bench::sum")
+        .expect("the fixture declares Bench::sum");
+    let mut ctx = mwl_runtime::Ctx::new(mwl_runtime::OutputSink::Sink);
+    // Argument slot 0 is the implicit receiver every lowered method carries;
+    // `Bench::sum` is static, so it is `null` — see `emit_call`'s own docs.
+    let args = [
+        mwl_runtime::Value::null(),
+        mwl_runtime::Value::int(ITERATIONS),
+    ];
+    let per_call = ns_per_op(2_000, 5, || {
+        black_box(mwl_runtime::call(sum, &mut ctx, &args)).expect("the loop ran");
+    });
+    let per_iteration = per_call / ITERATIONS as f64;
+
+    let ratio = per_iteration / per_frame;
+    println!(
+        "typed arithmetic loop: {per_iteration:.2} ns/iteration against \
+         {per_frame:.2} ns/frame, ratio {ratio:.1}x"
+    );
+
+    assert!(
+        ratio < MAX_RATIO,
+        "a loop iteration now costs {ratio:.1}x a checked-return frame \
+         ({per_iteration:.2} ns vs {per_frame:.2} ns), over the {MAX_RATIO}x guard. \
+         ADR 0007 justifies mandatory types on typed arithmetic staying in the \
+         native cost class; if this is a real regression that argument needs \
+         revisiting."
+    );
+}

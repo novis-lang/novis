@@ -1033,6 +1033,13 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "criterion",
+ "mwl-codegen",
+ "mwl-diagnostics",
+ "mwl-hir",
+ "mwl-ir",
+ "mwl-runtime",
+ "mwl-syntax",
+ "mwl-types",
  "wasmtime",
 ]
 
