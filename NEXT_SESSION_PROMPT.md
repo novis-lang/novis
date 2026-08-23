@@ -15,6 +15,13 @@ compiled code; every other acceptance example fails today, the first at
 
 `examples/*.mwl` are the acceptance fixtures and are **frozen** — changing one is a `BLOCKED`, not an edit.
 
+Since the last session, `.claude/brief.py` no longer needs periodic doc trimming: its sections are bounded
+by entity counts rather than prose length, its budgets are derived from those counts, and an over-long
+line is a `--check` lint hit naming the file, line and bytes to cut. There is nothing to housekeep here —
+just run `python .claude/brief.py --check` after a doc edit. Uncommitted Rust changes to `Cargo.toml`,
+`Cargo.lock`, `benches/abi-probe/` and `crates/mwl-codegen/src/emit.rs` predate that work and were left
+untouched; check them before starting.
+
 ## Next
 
 **Bump wasmtime and Cranelift together, and get `cargo deny check` green — before any M3 work.** The goal
@@ -49,6 +56,10 @@ Then, in this order, because each unblocks the next:
   resolver half. Three new `E03xx` codes, starting at **`E0315`**.
 - [0054](docs/adr/0054-decimal-scalar-type.md)'s `m` literal suffix;
   [0053](docs/adr/0053-iteration-and-generators.md)'s `Iterable`/`Iterator` as reserved interface names.
+- **Docs-only, optional:** `CLAUDE.md` is 57 KB read in full every session, 47 KB of which is two lists
+  that each grow one entry per ADR — the *Where to look* table (25 KB) and *Ground rules enforced
+  elsewhere* (22 KB). Putting both under the same per-entity cap `brief.py --check` already enforces
+  elsewhere would roughly halve the per-ADR growth without deleting anything. Not started; not on M3's path.
 
 ## Standing rules for this repo
 
