@@ -480,7 +480,14 @@ impl Jit {
             .map_err(|e| CodegenError::UnsupportedHost(e.to_string()))?;
 
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
-        for (name, address) in mwl_runtime::symbols() {
+        // Two symbol tables, one namespace: `mwl_runtime`'s primitives and
+        // helpers, and every Tier 0 `Core` member. Both have ADR 0002's one
+        // helper signature, and `mwl_stdlib`'s own docs own why a `Core` call
+        // is emitted through the same path a helper call is.
+        for (name, address) in mwl_runtime::symbols()
+            .into_iter()
+            .chain(mwl_stdlib::symbols())
+        {
             builder.symbol(name, address);
         }
 

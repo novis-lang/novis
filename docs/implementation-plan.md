@@ -371,7 +371,9 @@ starts rather than sitting empty.
 
 `unsafe_code = "forbid"` workspace-wide. Crates that genuinely need it opt down to `deny` and allow
 individual blocks with a stated reason: `mwl-runtime` and `mwl-codegen` (planned — the coroutine stack
-switcher, the request arena, JIT page mapping), plus `benches/abi-probe`, which must call JIT-compiled code
+switcher, the request arena, JIT page mapping), `mwl-stdlib`, whose every `Core` member is an
+[ADR 0002](adr/0002-error-propagation.md) helper entry point and therefore an `extern "C"` function
+decoding raw pointers, plus `benches/abi-probe`, which must call JIT-compiled code
 to measure it and is `publish = false`, so it does not widen the runtime's unsafe surface. Those modules
 carry `deny(unsafe_op_in_unsafe_fn)`, a safety-invariant doc comment per block, dedicated Miri/ASAN
 coverage, and require an ADR to grow. Prefer `corosensei` (audited, handles Windows SEH and aarch64) over a

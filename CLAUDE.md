@@ -134,8 +134,9 @@ Each bullet is the one-sentence rule; the full mechanism, the exact spellings re
 live only in the ADR it links to. **When you add a new decision, add one bullet here — not a paragraph.**
 If you find yourself restating more than a sentence, that detail belongs in the ADR instead.
 
-- **`unsafe` is forbidden workspace-wide**; only `mwl-runtime`, `mwl-codegen` and `benches/abi-probe` opt
-  down to `deny` with narrow, reasoned allows. Lint policy is in [Cargo.toml](Cargo.toml).
+- **`unsafe` is forbidden workspace-wide**; only `mwl-runtime`, `mwl-codegen`, `mwl-stdlib` and
+  `benches/abi-probe` opt down to `deny` with narrow, reasoned allows. Lint policy is in
+  [Cargo.toml](Cargo.toml).
 - **Nothing unwinds through a JIT frame** — every call returns a checked status instead, never
   `extern "C-unwind"` ([ADR 0002](docs/adr/0002-error-propagation.md)).
 - **Pure-Rust dependencies by default**, enforced by [deny.toml](deny.toml) in CI. A C dependency is

@@ -11,6 +11,7 @@ repository.workspace = true
 [dependencies]
 mwl-ir.workspace = true
 mwl-runtime.workspace = true
+mwl-stdlib.workspace = true
 cranelift.workspace = true
 cranelift-jit.workspace = true
 cranelift-module.workspace = true
