@@ -73,6 +73,10 @@ the mechanism, the exact spellings rejected, and the reasoning.
   them on every CI run; if one fails, revisit the ADR it points at rather than the threshold.
 - **Every third-party notice MWL owes is generated, committed and embedded in the binary**
   ([0065](docs/adr/0065-third-party-attribution-and-mwl-info.md)).
+- **Dependencies stay current, and from 0.1.0 a break in one is absorbed rather than forwarded to MWL
+  programs** — until then, update anything freely; the sweep is a pass the *user* fires, never an agent
+  ([0068](docs/adr/0068-dependency-currency-and-the-version-contract.md),
+  [docs/agent/dependency-update.md](docs/agent/dependency-update.md)).
 
 ### The type system
 

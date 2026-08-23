@@ -11,21 +11,26 @@ plan's status block says what is on disk and what is open.
 parameter, a callback-bound result type, a `Core`-owned enum and an absent option. `examples/core.mwl` runs
 its line 11 sort and stops at `Core\Str::length`. **Nothing is blocked.**
 
-**A housekeeping pass just landed** (docs + three hotspot splits). Two things changed that affect how you
-work: an ADR's body now always states the current rule rather than carrying amendment prose, and the three
-files every session used to collide in are split — `mwl-stdlib`'s registry is one line per class with each
-domain owning its own rows, `mwl-types`'s checker tests and `mwl-codegen`'s end-to-end tests are one file
-per area, and `mwl-ir`'s `lower.rs` is a `lower/` directory. 1077 tests, unchanged across all three.
+**The dependency-update policy just landed** — [ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md)
+plus the procedure in [`dependency-update.md`](dependency-update.md). Two things it says that change how you
+work: **we are still in the prototyping regime**, so updating any dependency is free and needs no
+classification until 0.1.0 ships; and **the sweep is a pass the user fires by hand** — never start it, and
+never bump a dependency as a side effect of unrelated work. If you notice something stale, say so and carry
+on. Nothing on disk changed, and no code work depends on it.
 
 **M8's database design is settled and recorded** — [ADR 0067](../adr/0067-core-db.md) plus
 [spec § 18](../spec/01-core-library.md). It folded into 0024, 0041, 0051 and 0058, so those bodies moved;
 none of it touches M4/M4S work or anything on disk today. Do not re-open it.
 
+**An earlier housekeeping pass split the three files sessions used to collide in** — `mwl-stdlib`'s registry
+is one line per class with each domain owning its own rows, `mwl-types`'s checker tests and `mwl-codegen`'s
+end-to-end tests are one file per area, and `mwl-ir`'s `lower.rs` is a `lower/` directory. 1077 tests.
+
 ## Next
 
-**Three re-opened M1 grammar slices, then ADR 0009 § 2.** The housekeeping audit found three ADRs accepted
-*after* M1 was reported done that add grammar M1 owns, none of it built, each blocking a checker slice M2
-is already scheduled for. The plan's M1 section lists all three; take them one per session, smallest first:
+**Three re-opened M1 grammar slices, then ADR 0009 § 2.** Three ADRs accepted *after* M1 was reported done
+add grammar M1 owns, none of it built, each blocking a checker slice M2 is already scheduled for. The plan's
+M1 section lists all three; take them one per session, smallest first:
 
 1. **`decimal`** ([ADR 0054](../adr/0054-decimal-scalar-type.md)) — a keyword in `mwl_syntax::token`, a
    `TypeAtom`, and a fractional literal that is untyped until placed rather than immediately `float`. The

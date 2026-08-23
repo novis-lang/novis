@@ -94,6 +94,7 @@ so you never have to open this file to route a topic.
 | `mwl fmt`'s style — indentation, braces, quoting, trailing commas, why it never reflows | [0039](0039-canonical-code-formatting.md) |
 | The VS Code extension's feature catalog, why a minimal `mwl-lsp` ships in M4B, `mwl-syntax`'s resilient parse mode | [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) |
 | Third-party licenses, attribution, what `mwl info` prints, whether a new dependency's license may ship | [0065](0065-third-party-attribution-and-mwl-info.md) |
+| Updating a crate, the Rust toolchain, a CI action or the PHP oracle; SemVer, what a break costs a release, deprecation, MSRV, pinning, a stale dependency | [0068](0068-dependency-currency-and-the-version-contract.md) for the policy; [docs/agent/dependency-update.md](../agent/dependency-update.md) for the procedure — a pass the user fires by hand |
 | Cross-machine performance history, callgrind instruction counts, why CI guards use wall-clock ratios | [0026](0026-performance-measurement-methodology.md) |
 | Concrete *spelling* an ADR left open — file modes, the declaration-slot grammar, `as`, the `bytes` literal | [docs/spec/00-overview.md](../spec/00-overview.md) — the ADR owns semantics, this owns syntax |
 | A decision with no ADR — thread-per-core, value layout, safepoints, shared-nothing requests | § *Decisions taken at project start* below for **why**; the plan's § *Architecture* for the **mechanics** |
@@ -110,9 +111,9 @@ so you never have to open this file to route a topic.
    not as a note about what changed. Then add a one-line `Amends:` to yours naming the ADR and section, and
    add your number to that ADR's bare `Amended by:` list. Nothing else. If folding leaves the earlier ADR
    with no unique content at all, delete it instead and update every reference; the number stays retired.
-4. If the topic is one an agent will search for by keyword, add one row to the *Where to look* table above
-   and one to [AGENTS.md](../../AGENTS.md)'s, and — only if it is a hard invariant — one **sentence** to
-   AGENTS.md's *Ground rules enforced elsewhere*.
+4. If the topic is one an agent will search for by keyword, add one row to the *Where to look* table above —
+   the only one there is, since [AGENTS.md](../../AGENTS.md) points here rather than keeping a copy — and,
+   only if it is a hard invariant, one **sentence** to AGENTS.md's *Ground rules enforced elsewhere*.
 5. If it changes what a milestone builds, update that milestone's paragraph in
    [the plan](../implementation-plan.md) with a link and a headline, not a restatement.
 
@@ -187,6 +188,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0065](0065-third-party-attribution-and-mwl-info.md) | Third-party attribution is generated from the dependency graph, committed and embedded in the binary; `mwl info` prints it with the build facts | Accepted |
 | [0066](0066-nullable-conversion-operator.md) | `expr as ?T` converts without throwing, yielding `null` on failure; `Core\Validate`'s three numeric predicates go | Accepted |
 | [0067](0067-core-db.md) | One database API: connections are named in root-owned config, every statement is prepared, and a transaction is a closure | Accepted |
+| [0068](0068-dependency-currency-and-the-version-contract.md) | Dependencies stay current; a break in one is absorbed rather than forwarded, and only an enumerated user-facing surface can force a major | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
