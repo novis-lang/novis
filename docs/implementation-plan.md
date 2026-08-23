@@ -14,9 +14,11 @@
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
-> 0024/0031/0033/0034/0035/0036/0037/0049/0050; `crates/mwl-syntax/tests/corpus_parse.rs` parses the
-> local `php-src` checkout and a 5-minute
-> WSL `cargo fuzz run lex`/`parse` both find zero panics).
+> 0024/0031/0033/0036/0037/0043/0046/0049/0050/0066; `crates/mwl-syntax/tests/corpus_parse.rs` parses the
+> local `php-src` checkout and a 5-minute WSL `cargo fuzz run lex`/`parse` both find zero panics).
+> **M1 has since been re-opened for three grammar additions** — `decimal` (0054), literal/enum-case type
+> atoms (0047) and `autoload` (0061) — each accepted after it was reported done, none built, each
+> blocking its ADR's already-scheduled M2 slice. M1's own section lists them.
 >
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
@@ -36,8 +38,9 @@
 >
 > **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag, a union parameter,
 > a callback-bound result type, a `Core`-owned enum and an absent option all work end to end.
-> `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 granularity. Then
-> `crates/mwl-test`/`mwl test`. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
+> `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 § 2 granularity. Then
+> `crates/mwl-test`/`mwl test`. Ahead of that, three re-opened M1 grammar slices (`decimal`, literal type
+> atoms, `autoload`) — see M1. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
 >
 > **Blocking:** nothing external. **Stages 1, 2 and `report.mwl` are green on both legs** — byte for
 > byte on Windows and under WSL against a Linux build, `valgrind --leak-check=full` clean on all twelve
@@ -420,50 +423,41 @@ every superglobal spelling ([ADR 0012](adr/0012-no-superglobals.md)), and `use �
 ([ADR 0015](adr/0015-no-name-aliasing.md)). Error recovery good enough for the LSP.
 
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
-is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator, and the
-declaration slots PHP has no syntax for — typed locals, `foreach` bindings and destructuring targets.
-**Added after this milestone's grammar work first landed:** the `tainted` qualifier on `string`/`bytes`
-([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)) is new reserved-keyword grammar too — `tainted`
-prefixing either scalar atom, everywhere a type may appear (parameter, return, property, local,
-`foreach` binding). It belongs here for the same reason `uint` does: *enforcing* it is M2's job, but
-*parsing* it is this milestone's, so it needs to land before M1's own verification below counts as
-complete — a real, if small, addition discovered after the parser was first reported done. Also
-new here: `type Name = TypeExpr;` ([ADR 0015](adr/0015-no-name-aliasing.md)), a file/namespace-scope
-declaration using the same grammar, parsed but not yet resolved — that is M2's job.
+is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator
+including its nullable form `as ?T` ([ADR 0066](adr/0066-nullable-conversion-operator.md)), and the
+declaration slots PHP has no syntax for — typed locals, `foreach` bindings and destructuring targets. Also
+in the grammar, each *parsed* here and *enforced* in M2: the `tainted` and `secret` qualifiers on
+`string`/`bytes`, composable only as `secret tainted T`
+([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md),
+[ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)); `type Name = TypeExpr;`
+([ADR 0015](adr/0015-no-name-aliasing.md)); the anonymous object literal `{a: 1}` and the inline shape type
+`{name: T}`, whose two collisions with a block body and a block statement are resolved by requiring
+parentheses, diagnosed by name at both sites ([ADR 0036](adr/0036-anonymous-object-shapes.md)); and
+`implements Interface by $field` plus a body on an interface method, replacing the `trait`/`use
+TraitName`/`insteadof` grammar that is now a parse-time `E_TRAIT_NOT_SUPPORTED`
+([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)).
 
-**Added after that, a second time:** the `secret` qualifier on `string`/`bytes`
-([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) is a second, independent reserved-keyword
-qualifier alongside `tainted` — `secret string`, `secret bytes`, and, composed with `tainted`, `secret
-tainted string`/`secret tainted bytes` (only in that order; the reverse is a diagnostic). Same reasoning as
-`tainted`'s own addition above: parsing it is this milestone's job, enforcing it is M2's.
+**Still owed — three ADRs accepted after this milestone was reported done add grammar it owns, and none
+of it is built.** Each is parser-and-lexer work that M2's checker slice is already scheduled against, so
+each blocks its ADR rather than being optional:
 
-**Added after that, a third time:** [ADR 0036](adr/0036-anonymous-object-shapes.md) §§ 2-3 adds the
-anonymous object-literal expression (`{a: 1, b: 2}`, no shorthand, no computed key) and an inline
-structural shape type (`{name: T, ...}`) usable anywhere a type may appear. Two grammar collisions this
-creates — `fn() => {...}` already meaning a block body (ADR 0031), and a statement-initial `{` already
-meaning a block statement — are resolved the same way JavaScript resolves the identical `() => {...}`
-ambiguity: parenthesize to force the expression reading, diagnosed by name at both call sites when a
-non-empty literal is attempted without the parentheses. Parsing and this disambiguation are this
-milestone's job; `object`'s real subtyping and the shape's structural check are M2's.
-
-**Added after that, a fourth time — implemented in a follow-up session:**
-[ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) removes `trait`, class-body
-`use TraitName, ...;`, and `insteadof` from the grammar entirely (each is now a parse-time
-`E_TRAIT_NOT_SUPPORTED` diagnostic naming the replacement) and adds two small extensions in their place: an
-interface method may carry a body (a `public` default or a `private` helper — this fell out of the existing
-shared class-body grammar with no parser change needed), and one entry in a class's `implements` list may
-carry an optional `by $field` delegation suffix (a new `ImplementsClause` AST node). This retroactively
-narrows the "classes, interfaces, traits, enums" grammar line above — `mwl-syntax`'s originally-shipped
-`TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/`TraitMethodRef` AST nodes and their parser/casing support
-are gone, not merely superseded. `mwl-hir`/`mwl-types`'s own now-stale trait-flattening code was removed in
-the same session, just to keep the workspace building — the new default/private-method and `by`-delegation
-*resolution* those crates still need is unrelated follow-up work, tracked in that ADR's own *Consequences*
-and *Verification* rather than reopening this "done" milestone's checkbox.
+1. **`decimal`** ([ADR 0054](adr/0054-decimal-scalar-type.md)) — a reserved keyword and a type atom, plus
+   a fractional literal that is untyped until placed rather than immediately `float`. A trailing `m` is an
+   unknown token, not a suffix, and a mantissa over 96 bits is refused at parse time.
+2. **Literal and enum-case type atoms** ([ADR 0047](adr/0047-literal-and-enum-case-types.md)) — a
+   `StringLiteral`/`IntLiteral` atom, unions of them, `?"a"` sugar, and a class-constant or enum-case
+   reference in type position, which needs no production beyond the `ClassName`/`EnumName` ambiguity
+   ADR 0010 § 4 already established.
+3. **`autoload`** ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)) — the two
+   file-scope declaration forms whose grammar
+   [`docs/spec/00-overview.md`](spec/00-overview.md) § 2 already fixes. M2's name-to-file fixpoint has
+   nothing to resolve until this parses.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
-finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing (they will
-not *check* — see M2 — but they must parse). A snapshot pins the one grammar wrinkle in ADR 0007: `as` in a
-`foreach` header belongs to `foreach`, so a conversion of the subject needs parentheses.
+finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing
+(they will not *check* — see M2 — but they must parse). A snapshot pins the one grammar wrinkle in
+ADR 0007: `as` in a `foreach` header belongs to `foreach`, so a conversion of the subject needs
+parentheses. The three additions above each carry their own ADR's M1 verification line.
 
 ### M2 — HIR, types, IR (~4 weeks)
 Name resolution: namespace/`use` scoping, class hierarchy resolution — no trait flattening, since traits do
