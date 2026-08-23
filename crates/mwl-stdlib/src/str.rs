@@ -58,15 +58,31 @@ fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, F
     })
 }
 
-/// One `uint` argument, as a `usize`.
-fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
-    let raw = value.as_uint().ok_or_else(|| {
+/// One `uint` argument, unchanged.
+fn unsigned(value: &Value, member: &str, position: &str) -> Result<u64, Fault> {
+    value.as_uint().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Str::{member} expected {:?} for {position}, got tag {}",
             Tag::Uint,
             value.tag_byte()
         ))
-    })?;
+    })
+}
+
+/// One `bool` argument.
+fn boolean(value: &Value, member: &str, position: &str) -> Result<bool, Fault> {
+    value.as_bool().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Str::{member} expected {:?} for {position}, got tag {}",
+            Tag::Bool,
+            value.tag_byte()
+        ))
+    })
+}
+
+/// One `uint` argument, as a `usize`.
+fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
+    let raw = unsigned(value, member, position)?;
     usize::try_from(raw).map_err(|_| {
         Fault::thrown(format!(
             "Core\\Str::{member}: {position} is {raw}, which is larger than any string this \
@@ -171,6 +187,89 @@ mwl_runtime::mwl_helper! {
             }
             out.push_str(text(&value, "join", "an element")?);
         }
+        produced(&out)
+    }
+}
+
+/// Where `needle` next occurs in `haystack`, and how many bytes it matched —
+/// the two halves a replacement needs, and the reason this is not just
+/// `str::find`: a case-insensitive match can be a different byte length from
+/// the needle it matched (`İ` is two bytes more than `i`), so the length has to
+/// come out of the match rather than out of the pattern.
+///
+/// Case-insensitivity is compared one `char` at a time through Unicode's
+/// simple lowercase mapping, not full case folding — so `ß` does not match
+/// `SS`. That is the same boundary [`map_first`] already sits on, and it is
+/// what keeps a match's byte length derivable from the subject alone.
+fn find_from(haystack: &str, needle: &str, case_insensitive: bool) -> Option<(usize, usize)> {
+    if !case_insensitive {
+        return haystack.find(needle).map(|at| (at, needle.len()));
+    }
+    haystack
+        .char_indices()
+        .find_map(|(at, _)| match_at(&haystack[at..], needle).map(|len| (at, len)))
+}
+
+/// How many bytes of `rest` `needle` matches at its start, case-insensitively,
+/// or `None` for no match — see [`find_from`].
+fn match_at(rest: &str, needle: &str) -> Option<usize> {
+    let mut subject = rest.char_indices();
+    let mut matched = 0usize;
+    for wanted in needle.chars() {
+        let (at, found) = subject.next()?;
+        if !found.to_lowercase().eq(wanted.to_lowercase()) {
+            return None;
+        }
+        matched = at + found.len_utf8();
+    }
+    Some(matched)
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string`
+    /// — replacing PHP's `str_replace` **and** `str_ireplace`, which are one
+    /// member here because ADR 0063 R13/R20 leave no room for a second
+    /// spelling of one operation.
+    ///
+    /// Matches are non-overlapping and taken left to right, and the
+    /// replacement is never rescanned — `replace("aaa", "aa", "a")` is `"aa"`,
+    /// PHP's answer too.
+    ///
+    /// Two option decisions, both recorded here because the spec's table
+    /// states the option's *type* and not its default:
+    ///
+    /// * **`limit` defaults to `uint`'s maximum**, which is "every
+    ///   occurrence" — a string that fits in memory can never hold that many.
+    ///   A sentinel `0` would have been a magic value, and `?uint = null` is
+    ///   the shape `mwl_types::defaults` cannot state yet
+    ///   (`mwl-stdlib`'s known gap 3). A `limit` of `0` therefore means
+    ///   exactly what it says: replace nothing.
+    /// * **An empty `$search` replaces nothing**, rather than inserting the
+    ///   replacement between every character or looping forever. PHP returns
+    ///   the subject unchanged too.
+    fn mwl_core_str_replace(_ctx, args: [5]) {
+        let subject = text(&args[0], "replace", "the subject")?;
+        let search = text(&args[1], "replace", "the search string")?;
+        let replacement = text(&args[2], "replace", "the replacement")?;
+        let case_insensitive = boolean(&args[3], "replace", "the `caseInsensitive` option")?;
+        let limit = unsigned(&args[4], "replace", "the `limit` option")?;
+
+        if search.is_empty() || limit == 0 {
+            return produced(subject);
+        }
+        let mut out = String::with_capacity(subject.len());
+        let mut rest = subject;
+        let mut done = 0u64;
+        while done < limit {
+            let Some((at, matched)) = find_from(rest, search, case_insensitive) else {
+                break;
+            };
+            out.push_str(&rest[..at]);
+            out.push_str(replacement);
+            rest = &rest[at + matched..];
+            done += 1;
+        }
+        out.push_str(rest);
         produced(&out)
     }
 }
@@ -426,6 +525,86 @@ mod tests {
             ),
             "a|b|c"
         );
+    }
+
+    /// `replace` with both options at their defaults, which is what a call
+    /// site that writes no bag at all passes. Every row verified against PHP
+    /// 8.5's `str_replace`.
+    fn replaced(subject: &str, search: &str, replacement: &str) -> String {
+        taken(
+            run(
+                super::mwl_core_str_replace,
+                &[
+                    s(subject),
+                    s(search),
+                    s(replacement),
+                    Value::bool(false),
+                    Value::uint(u64::MAX),
+                ],
+            )
+            .expect("replace never fails"),
+        )
+    }
+
+    #[test]
+    fn replace_substitutes_every_occurrence_left_to_right() {
+        assert_eq!(replaced("a-b-c", "-", "+"), "a+b+c");
+        // The replacement is never rescanned, so this is "aa" and not "a".
+        assert_eq!(replaced("aaa", "aa", "a"), "aa");
+        assert_eq!(replaced("abc", "z", "y"), "abc");
+        // An empty search replaces nothing rather than looping.
+        assert_eq!(replaced("abc", "", "x"), "abc");
+        assert_eq!(replaced("", "a", "b"), "");
+    }
+
+    /// The `caseInsensitive` option is what makes this member subsume
+    /// `str_ireplace` as well, and the match's byte length comes out of the
+    /// subject — the whole reason `find_from` returns one.
+    #[test]
+    fn replace_is_case_insensitive_only_when_the_option_says_so() {
+        let run_ci = |ci: bool| {
+            taken(
+                run(
+                    super::mwl_core_str_replace,
+                    &[
+                        s("Hello HELLO hello"),
+                        s("hello"),
+                        s("hi"),
+                        Value::bool(ci),
+                        Value::uint(u64::MAX),
+                    ],
+                )
+                .expect("replace never fails"),
+            )
+        };
+        assert_eq!(run_ci(false), "Hello HELLO hi");
+        assert_eq!(run_ci(true), "hi hi hi");
+    }
+
+    /// `limit` counts replacements, and `0` means none — the consequence of
+    /// spelling "every occurrence" as `uint`'s maximum rather than as a
+    /// sentinel zero.
+    #[test]
+    fn replace_stops_after_the_limit_and_does_nothing_at_zero() {
+        let capped = |limit: u64| {
+            taken(
+                run(
+                    super::mwl_core_str_replace,
+                    &[
+                        s("a-b-c-d"),
+                        s("-"),
+                        s("+"),
+                        Value::bool(false),
+                        Value::uint(limit),
+                    ],
+                )
+                .expect("replace never fails"),
+            )
+        };
+        assert_eq!(capped(0), "a-b-c-d");
+        assert_eq!(capped(1), "a+b-c-d");
+        assert_eq!(capped(2), "a+b+c-d");
+        assert_eq!(capped(99), "a+b+c+d");
     }
 
     /// The separator lands between elements even when one of them is empty —

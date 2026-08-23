@@ -1530,6 +1530,23 @@ echo \"|\", Core\\Arr::count(Core\\Arr::range(10, 1, {step: 2}));
     assert_eq!(output_of(source), "10|4|5");
 }
 
+/// A bag with *two* options, written in every combination: neither, one, the
+/// other, both, and the second one written first. Options are named rather
+/// than positional, so the written order is not the ABI order — this is what
+/// holds `lower_options_arg`'s "walk the declared options, look each one up"
+/// against the easier and wrong "walk the written fields".
+#[test]
+fn an_option_is_matched_by_name_not_by_the_order_it_was_written() {
+    let source = "<?mwl
+var $s = \"a-b-A-b\";
+echo Core\\Str::replace($s, \"-\", \"+\");
+echo \"|\", Core\\Str::replace($s, \"-\", \"+\", {limit: 2});
+echo \"|\", Core\\Str::replace($s, \"a\", \"z\", {caseInsensitive: true});
+echo \"|\", Core\\Str::replace($s, \"a\", \"z\", {limit: 1, caseInsensitive: true});
+";
+    assert_eq!(output_of(source), "a+b+A+b|a+b+A-b|z-b-z-b|z-b-A-b");
+}
+
 /// A `Core` member may throw over an option it was given: `range`'s `step`
 /// must be positive, PHP 8.5's own rule. Proves the option reached the helper
 /// as a real argument rather than being dropped on the way — an option that

@@ -111,6 +111,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 "mwl_core_str_starts_with" => (str::mwl_core_str_starts_with as *const ()).cast(),
                 "mwl_core_str_ends_with" => (str::mwl_core_str_ends_with as *const ()).cast(),
                 "mwl_core_str_join" => (str::mwl_core_str_join as *const ()).cast(),
+                "mwl_core_str_replace" => (str::mwl_core_str_replace as *const ()).cast(),
                 "mwl_core_str_pad_start" => (str::mwl_core_str_pad_start as *const ()).cast(),
                 "mwl_core_str_pad_end" => (str::mwl_core_str_pad_end as *const ()).cast(),
                 "mwl_core_str_repeat" => (str::mwl_core_str_repeat as *const ()).cast(),

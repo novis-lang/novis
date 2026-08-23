@@ -280,6 +280,18 @@ pub const CLASSES: &[CoreClass] = &[
                 symbol: "mwl_core_str_join",
             },
             CoreMethod {
+                name: "replace",
+                params: &[
+                    CoreTy::Str,
+                    CoreTy::Str,
+                    CoreTy::Str,
+                    CoreTy::Options(REPLACE_OPTIONS),
+                ],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_replace",
+            },
+            CoreMethod {
                 name: "padStart",
                 params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
                 defaults: &[Const::Str(" ")],
@@ -362,6 +374,24 @@ pub const CLASSES: &[CoreClass] = &[
                 symbol: "mwl_core_arr_range",
             },
         ],
+    },
+];
+
+/// `Core\Str::replace`'s `{caseInsensitive?: bool, limit?: uint}`.
+///
+/// `crate::str::mwl_core_str_replace`'s own docs own both defaults — in
+/// particular why "every occurrence" is spelled as `uint`'s maximum rather
+/// than as a sentinel `0` or a `null` the registry cannot state yet.
+const REPLACE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "caseInsensitive",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "limit",
+        ty: CoreTy::Uint,
+        default: Const::Uint(u64::MAX),
     },
 ];
 
