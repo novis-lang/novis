@@ -108,6 +108,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             let address: *const u8 = match method.symbol {
                 "mwl_core_arr_count" => (arr::mwl_core_arr_count as *const ()).cast(),
                 "mwl_core_arr_filter" => (arr::mwl_core_arr_filter as *const ()).cast(),
+                "mwl_core_arr_map" => (arr::mwl_core_arr_map as *const ()).cast(),
                 "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
                 "mwl_core_arr_has_key" => (arr::mwl_core_arr_has_key as *const ()).cast(),
                 "mwl_core_arr_range" => (arr::mwl_core_arr_range as *const ()).cast(),

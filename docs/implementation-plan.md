@@ -20,7 +20,7 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Core\Arr` × 4, `Core\Str` × 13), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
+> `mwl-stdlib` (`Core\Arr` × 6, `Core\Str` × 13), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
 > `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -33,15 +33,15 @@
 > 0065, and **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this
 > field.
 >
-> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag and a union
-> parameter both work end to end. `examples/core.mwl` needs three separate unblocks: `Arr::map`'s
-> unbound `U`, `Arr::sort`'s `Order` enum plus its absent-callable options, and `Str::length`'s ADR 0009
-> granularity. Then `crates/mwl-test`/`mwl test`. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
+> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag, a union parameter
+> and a callback-bound result type all work end to end. `examples/core.mwl` needs two more unblocks:
+> `Arr::sort`'s `Order` enum plus its absent-callable options, and `Str::length`'s ADR 0009 granularity.
+> Then `crates/mwl-test`/`mwl test`. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
 >
 > **Blocking:** nothing external. **Stages 1, 2 and `report.mwl` are green on both legs** — byte for
 > byte on Windows and under WSL against a Linux build, `valgrind --leak-check=full` clean on all twelve
 > fixtures. That leg earned its keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now
-> fixed. `examples/core.mwl` reaches its **line 9**.
+> fixed. `examples/core.mwl` reaches its **line 11**.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

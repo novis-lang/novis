@@ -74,6 +74,24 @@ pub enum Ty {
     Iterable,
     /// `callable`
     Callable,
+    /// `callable`, plus the name of the type variable its **result** binds —
+    /// `U` in `Core\Arr::map(array<T> $a, callable $fn): array<U>`.
+    ///
+    /// The third type in this enum no source text can spell, and the only one
+    /// that is not really a type at all: it accepts exactly what
+    /// [`Self::Callable`] accepts (ADR 0027 § 2 keeps a `callable` opaque, and
+    /// this changes nothing about that), and exists only to say *where a
+    /// variable comes from* at a position whose own type cannot say it. It
+    /// enters the interner only from `mwl_stdlib::registry`'s `CoreTy::CallableTo`
+    /// through [`crate::core_lib`].
+    ///
+    /// Like [`Self::TypeVar`], it never survives a call site:
+    /// [`crate::generics::substitute`] rewrites it to [`Self::Callable`], so
+    /// `mwl-ir` and every diagnostic only ever meet the plain type. That is also
+    /// why [`TypeInterner::describe`] renders it as `callable` — the variable
+    /// name is a fact about the registry row, and a message quoting it would be
+    /// naming something no program can write.
+    CallableTo(String),
     /// A resolved class or interface name, plus the type arguments it was
     /// written with — the type grammar does not distinguish a class from an
     /// interface (ADR 0007 § 3); which one `QName` names is a question for
@@ -282,7 +300,10 @@ impl TypeInterner {
             Ty::True => "true".to_owned(),
             Ty::False => "false".to_owned(),
             Ty::Iterable => "iterable".to_owned(),
-            Ty::Callable => "callable".to_owned(),
+            // Deliberately the same rendering as `Ty::Callable` — see that
+            // variant's own doc comment for why the bound variable's name is
+            // never quoted at a user.
+            Ty::Callable | Ty::CallableTo(_) => "callable".to_owned(),
             Ty::Enum(q, _) => q.to_string(),
             Ty::Class(q, args) if args.is_empty() => q.to_string(),
             Ty::Class(q, args) => {
@@ -453,6 +474,13 @@ impl TypeInterner {
     #[must_use]
     pub fn callable(&mut self) -> TypeId {
         self.intern(Ty::Callable)
+    }
+
+    /// The interned `callable` that binds `name` from its result — see
+    /// [`Ty::CallableTo`], which owns why nothing outside a `Core` signature
+    /// ever calls this.
+    pub fn callable_to(&mut self, name: impl Into<String>) -> TypeId {
+        self.intern(Ty::CallableTo(name.into()))
     }
 
     /// Interns `array<elem>`.

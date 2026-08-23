@@ -626,6 +626,77 @@ mod tests {
         );
     }
 
+    /// `Core\Arr::map(array<T> $a, callable $fn): array<U>` — the `U` binds
+    /// from the `fn` literal's own return type, so the result is `array<string>`
+    /// and reaches `Core\Str::join`, which takes exactly that.
+    /// `crate::generics` owns the rule; this is it end to end through the
+    /// checker.
+    #[test]
+    fn a_callback_result_binds_the_members_result_element_type() {
+        let inferred = check_in_method(
+            "array<int> $a = [1, 2];\n\
+             array<string> $out = Core\\Arr::map($a, fn(int $n) => \"n\" . $n);\n\
+             echo Core\\Str::join($out, \",\");\n",
+        );
+        assert!(!inferred.has_errors(), "{inferred:?}");
+
+        // The declared-return spelling of the same closure binds identically —
+        // `ExprInfo::Closure`'s `return_ty` is the declared type where one is
+        // written and the inferred one where it is not.
+        let declared = check_in_method(
+            "array<int> $a = [1, 2];\n\
+             array<string> $out = Core\\Arr::map($a, fn(int $n): string => \"n\" . $n);\n\
+             echo Core\\Str::join($out, \",\");\n",
+        );
+        assert!(!declared.has_errors(), "{declared:?}");
+
+        // And it is a real binding, not a widening: a callback answering `int`
+        // makes the result `array<int>`, which an `array<string>` binding
+        // refuses.
+        let wrong = check_in_method(
+            "array<int> $a = [1, 2];\n\
+             array<string> $out = Core\\Arr::map($a, fn(int $n): int => $n);\n",
+        );
+        assert!(
+            wrong.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{wrong:?}"
+        );
+    }
+
+    /// The gap `crate::generics` records: only a written `fn` literal has a
+    /// recorded return type to bind from, so a callable reached through a
+    /// variable leaves the result `array<mixed>` — honest, and diagnosed at the
+    /// point it is used as something narrower rather than silently accepted.
+    #[test]
+    fn a_callback_that_is_not_a_literal_leaves_the_result_unbound() {
+        let diags = check_in_method(
+            "array<int> $a = [1, 2];\n\
+             var $fn = fn(int $n): string => \"n\" . $n;\n\
+             array<string> $out = Core\\Arr::map($a, $fn);\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    /// A `Ty::CallableTo` parameter accepts exactly what a `callable` one
+    /// accepts — it is a binding site, not a constraint — and refuses what a
+    /// `callable` refuses.
+    #[test]
+    fn a_callback_result_parameter_still_accepts_any_callable() {
+        let ok = check_in_method(
+            "array<int> $a = [1, 2];\n\
+             var $fn = fn(int $n): string => \"n\" . $n;\n\
+             var $out = Core\\Arr::map($a, $fn);\n\
+             echo Core\\Arr::count($out);\n",
+        );
+        assert!(!ok.has_errors(), "{ok:?}");
+
+        let refused = check_in_method("array<int> $a = [1];\nvar $out = Core\\Arr::map($a, 7);\n");
+        assert!(refused.has_errors(), "{refused:?}");
+    }
+
     /// The rule that makes a bag its own type rather than an ADR 0036 shape:
     /// a field the member does not declare is an error, where § 3's width
     /// subtyping would have accepted it silently. The help names the real

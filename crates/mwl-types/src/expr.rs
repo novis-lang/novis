@@ -2461,6 +2461,12 @@ fn check_by_ref_arg(arg: &Arg, actual: TypeId, expected: Option<TypeId>, env: &m
 /// assignability against its now-known parameter type. One pass over the
 /// arguments, so nothing is diagnosed twice.
 ///
+/// One binding does not come from an argument's *type* at all: a
+/// [`Ty::CallableTo`] parameter takes its variable from the closure literal's
+/// recorded return type, which the first pass has just produced by checking
+/// that literal. [`crate::generics`] owns why, and owns the case that binds
+/// nothing.
+///
 /// An ADR 0063 R2 options bag is the one argument left out of the first pass
 /// and checked entirely in the second. It is always the last parameter, so
 /// nothing it could bind is ever needed by an earlier one; and its own option
@@ -2492,9 +2498,23 @@ fn check_generic_args(
         if deferred == Some(index) {
             continue;
         }
-        if let Some(declared) = sig.param_at(index) {
-            crate::generics::bind(declared, *actual, env.interner, &mut bindings);
+        let Some(declared) = sig.param_at(index) else {
+            continue;
+        };
+        // The one binding that is not read out of a type. A `callable`
+        // parameter's argument type says nothing about the value the callback
+        // produces (ADR 0027 § 2), so `Core\Arr::map`'s `U` comes from the
+        // closure literal's own recorded return type instead — and from
+        // nowhere else, which is `crate::generics`' own known gap.
+        if let Some(name) = crate::generics::callback_result_var(declared, env.interner) {
+            if let Some(ExprInfo::Closure { return_ty, .. }) =
+                env.exprs.lookup(list[index].value.span)
+            {
+                bindings.entry(name).or_insert(*return_ty);
+            }
+            continue;
         }
+        crate::generics::bind(declared, *actual, env.interner, &mut bindings);
     }
     let sig = sig.substituted(&bindings, env.interner);
 

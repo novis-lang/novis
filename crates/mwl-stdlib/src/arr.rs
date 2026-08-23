@@ -158,6 +158,85 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::map(array<T> $a, callable $fn): array<U>` — every entry
+    /// replaced by what the callback answers for it, replacing PHP's
+    /// `array_map`.
+    ///
+    /// **Keys are preserved**, which is PHP's own single-array behaviour and
+    /// the one `Core\Arr::filter` already keeps: `array_map` renumbers only in
+    /// its multi-array form, which ADR 0063 R20 leaves no room for anyway.
+    /// Re-keying is `mapKeys`, its own member in the spec's § 2 table.
+    ///
+    /// The callback receives `($value, $key)` and may declare fewer parameters,
+    /// the same rule and the same `mwl_runtime::call_closure` trimming
+    /// [`mwl_core_arr_filter`] documents.
+    ///
+    /// **The `U` in the signature is real.** `map`'s result type is the
+    /// callback's own return type, bound at the call site from the `fn`
+    /// literal's recorded return — `mwl_types::generics` owns that rule and the
+    /// one argument shape that still leaves it `mixed`. Nothing here depends on
+    /// it: the helper stores whatever `Value` the callback produced.
+    ///
+    /// The mapped value is *owned* by this frame — `call_closure` returns one
+    /// fresh reference — so it is stored without a retain and never released.
+    /// That is the difference from `filter`, which stores a value belonging to
+    /// the subject array and therefore has to retain one first.
+    fn mwl_core_arr_map(ctx, args: [2]) {
+        let subject = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::map expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array argument owns a reference to a live \
+                          allocation, so it is live for the length of this \
+                          call, and `from` only ever advances past a slot \
+                          this same cursor reported"
+            )]
+            let (slot, key, value) = unsafe {
+                let slot = mwl_runtime::mwl_array_next_slot(subject, from);
+                let Ok(slot) = usize::try_from(slot) else {
+                    break;
+                };
+                let key = MwlStr::from_raw(mwl_runtime::mwl_array_key_at(subject, slot));
+                let mut value = Value::null();
+                mwl_runtime::mwl_array_value_at(subject, slot, &raw mut value);
+                (slot, key, value)
+            };
+            from = slot + 1;
+
+            // One reference for the duration of the call, released right
+            // after — `call_closure` takes its own. `key` itself is still owed
+            // to `out.set` below.
+            let key_arg = Value::str(key.clone());
+            let mapped = mwl_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns exactly the reference `key.clone()` \
+                          just produced"
+            )]
+            unsafe {
+                key_arg.release();
+            }
+            // Unwrapped into a local of its own *before* `key` is moved: a
+            // throw partway through then frees the partial result and this
+            // entry's key by dropping two named locals, which `MwlArray` and
+            // `MwlStr` both do by releasing.
+            let mapped = mapped?;
+            out.set(key, mapped);
+        }
+        Ok(Value::array(out))
+    }
+}
+
 /// One `int` argument's value, as a contained `FATAL` if the tag is wrong —
 /// the same "the checker let a call through it should have refused" failure
 /// [`crate::str::text`] reports for a `string` position.
@@ -472,6 +551,18 @@ mod tests {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let status = call(super::mwl_core_arr_count, &mut ctx, &[Value::int(7)])
             .expect_err("an int is not an array");
+        assert_eq!(status, mwl_runtime::FATAL);
+
+        // `map` decodes its subject before it ever looks at the callback, so a
+        // wrong subject is reported rather than reaching `call_closure` with a
+        // value that is not a closure either.
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(
+            super::mwl_core_arr_map,
+            &mut ctx,
+            &[Value::int(7), Value::int(7)],
+        )
+        .expect_err("an int is not an array");
         assert_eq!(status, mwl_runtime::FATAL);
     }
 }

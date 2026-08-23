@@ -42,15 +42,31 @@
 //! before it checks a single argument or records a `ResolvedCall`, so
 //! `mwl-ir`, `mwl-codegen` and every diagnostic only ever see concrete types.
 //!
+//! # The one variable that is not at a position
+//!
+//! `map(array<T> $a, callable $fn): array<U>` has nowhere for the walk above
+//! to find `U`: the argument's own type is `callable`, and ADR 0027 § 2 keeps
+//! that opaque, so no structural position holds the answer. The narrow answer
+//! is [`Ty::CallableTo`] — a parameter type that *is* `callable` for every
+//! purpose the checker has, and additionally names the variable its result
+//! binds. [`callback_result_var`] reads that name, and [`crate::expr`]'s
+//! `check_generic_args` binds it from the `ExprInfo::Closure { return_ty }`
+//! the checker already recorded at the `fn` literal's own span.
+//!
+//! It is a binding site, not a constraint. A `callable` value is still
+//! assignable to it unchanged, because [`substitute`] rewrites it to plain
+//! [`Ty::Callable`] before a single argument is checked — so nothing in
+//! `is_assignable` learned a new rule, and the "a type variable never survives
+//! a call site" property above covers this variant too.
+//!
 //! # Known gap
 //!
-//! Binding is *positional and structural*, never inferential: it reads a
-//! variable out of a matching position and no further. `map(array<T> $a,
-//! callable $f): array<U>` cannot bind `U` from the closure's return type,
-//! because a `callable` carries no signature in the type grammar at all
-//! (ADR 0027 § 2 keeps it opaque). Such a member's result substitutes to
-//! `mixed`, which is correct but weaker than the spec's row promises;
-//! closing it needs a typed `callable`, which is its own decision.
+//! **Only a written `fn` literal binds.** The return type comes from the
+//! closure literal's own recorded entry, so an argument that is a variable, a
+//! parameter, or first-class callable syntax has none to read: it binds
+//! nothing, and the variable substitutes to `mixed` exactly as before. Closing
+//! that needs `callable` to carry a signature in the type grammar — a typed
+//! `callable` is its own decision, and ADR 0027 § 2 is where it would be taken.
 
 use rustc_hash::FxHashMap;
 
@@ -65,7 +81,9 @@ pub(crate) type Bindings = FxHashMap<String, TypeId>;
 #[must_use]
 pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(id) {
-        Ty::TypeVar(_) => true,
+        // `CallableTo` names a variable rather than being one, but it still has
+        // to be rewritten before the signature is used — see [`substitute`].
+        Ty::TypeVar(_) | Ty::CallableTo(_) => true,
         Ty::Array(elem) => mentions_type_var(*elem, interner),
         Ty::Class(_, args) => args.iter().any(|arg| mentions_type_var(*arg, interner)),
         Ty::Union(members) | Ty::Intersection(members) => members
@@ -75,6 +93,23 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
             .iter()
             .any(|(_, field)| mentions_type_var(*field, interner)),
         _ => false,
+    }
+}
+
+/// The variable a parameter binds from its callback's *result*, if it is
+/// [`Ty::CallableTo`] — the one binding [`bind`] cannot perform, because the
+/// answer is not at any position in the argument's type. See this module's own
+/// docs; [`crate::expr`]'s `check_generic_args` is the only caller.
+///
+/// Deliberately shallow: a binding site means nothing nested inside another
+/// type, and `mwl_stdlib::registry`'s
+/// `a_callback_result_type_is_only_ever_a_whole_parameter` holds that no row
+/// writes one there.
+#[must_use]
+pub(crate) fn callback_result_var(id: TypeId, interner: &TypeInterner) -> Option<String> {
+    match interner.get(id) {
+        Ty::CallableTo(name) => Some(name.clone()),
+        _ => None,
     }
 }
 
@@ -146,6 +181,11 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
             .get(&name)
             .copied()
             .unwrap_or_else(|| interner.mixed()),
+        // A binding site has done its job by the time anything substitutes, so
+        // it collapses to the type it always accepted. This is what keeps
+        // `is_assignable`, `mwl-ir` and every diagnostic from ever meeting the
+        // variant at all.
+        Ty::CallableTo(_) => interner.callable(),
         Ty::Array(elem) => {
             let elem = substitute(elem, bindings, interner);
             interner.array(elem)
@@ -257,6 +297,57 @@ mod tests {
         let mut bindings = Bindings::default();
         bind(declared, int, &interner, &mut bindings);
         assert!(bindings.is_empty());
+    }
+
+    /// `Core\Arr::map`'s second parameter: `bind` finds nothing in it, which
+    /// is exactly why [`callback_result_var`] exists.
+    #[test]
+    fn a_callback_result_parameter_names_its_variable_and_binds_nothing_structurally() {
+        let mut interner = TypeInterner::new();
+        let declared = interner.callable_to("U");
+        let callable = interner.callable();
+        assert_eq!(
+            callback_result_var(declared, &interner).as_deref(),
+            Some("U")
+        );
+        assert_eq!(callback_result_var(callable, &interner), None);
+
+        let mut bindings = Bindings::default();
+        bind(declared, callable, &interner, &mut bindings);
+        assert!(bindings.is_empty());
+    }
+
+    /// The property everything downstream rests on: the variant is gone by the
+    /// time the signature is checked against, bound or not.
+    #[test]
+    fn a_callback_result_parameter_substitutes_to_plain_callable() {
+        let mut interner = TypeInterner::new();
+        let declared = interner.callable_to("U");
+        let callable = interner.callable();
+        assert!(mentions_type_var(declared, &interner));
+
+        let empty = Bindings::default();
+        assert_eq!(substitute(declared, &empty, &mut interner), callable);
+
+        let string = interner.string();
+        let mut bound = Bindings::default();
+        bound.insert("U".to_owned(), string);
+        assert_eq!(substitute(declared, &bound, &mut interner), callable);
+    }
+
+    /// And the variable it names is what the *return* type reads back —
+    /// `array<U>` becomes `array<string>` for a callback returning `string`.
+    #[test]
+    fn the_bound_callback_result_reaches_the_return_type() {
+        let mut interner = TypeInterner::new();
+        let u = interner.type_var("U");
+        let declared = interner.array(u);
+        let string = interner.string();
+        let expected = interner.array(string);
+
+        let mut bindings = Bindings::default();
+        bindings.insert("U".to_owned(), string);
+        assert_eq!(substitute(declared, &bindings, &mut interner), expected);
     }
 
     #[test]

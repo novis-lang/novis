@@ -160,6 +160,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         }
         CoreTy::Var(name) => interner.type_var(*name),
         CoreTy::Callable => interner.callable(),
+        CoreTy::CallableTo(name) => interner.callable_to(*name),
         // Canonicalized by the interner, unlike an options bag: a union has no
         // ABI order to preserve, so `int|string` and `string|int` are one type
         // here exactly as they are when written in source.
@@ -245,6 +246,32 @@ mod tests {
                 ConstArg::Int(1)
             )]))
         );
+    }
+
+    /// `CoreTy::CallableTo` lowers to a parameter that *describes* as
+    /// `callable` — the variable name it carries is a registry fact, and
+    /// [`crate::ty::Ty::CallableTo`] owns why no diagnostic ever quotes it.
+    #[test]
+    fn a_callback_result_parameter_lowers_to_something_that_reads_as_callable() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (_, sig) = resolve_method(
+            &QName::parse(r"Core\Arr"),
+            "map",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Arr::map is registered");
+        assert_eq!(sig.params.len(), 2);
+        assert_eq!(interner.describe(sig.params[0]), "array<T>");
+        assert_eq!(interner.describe(sig.params[1]), "callable");
+        assert_eq!(interner.describe(sig.return_ty), "array<U>");
+        // Distinct from a plain `callable` all the same, or it would have
+        // nowhere to carry the name it binds.
+        let plain = interner.callable();
+        assert_ne!(sig.params[1], plain);
     }
 
     #[test]

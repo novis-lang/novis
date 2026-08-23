@@ -98,6 +98,23 @@ pub enum CoreTy {
     /// § 2 — `($value, $key)`, with fewer parameters allowed — and enforced
     /// at the call by `mwl_runtime::call_closure`, not by this type.
     Callable,
+    /// `callable`, plus the name of the type variable its **result** binds —
+    /// `U` in `map(array<T> $a, callable $fn): array<U>`.
+    ///
+    /// The same opaque `callable` at the call site: it constrains nothing a
+    /// [`Self::Callable`] parameter does not, and a closure value satisfies it
+    /// by ADR 0027 § 2 exactly as before. What it adds is a *binding site* for
+    /// a variable that appears at no argument position at all — `U` is the type
+    /// of a value the callback produces, which the argument's own type
+    /// (`callable`, and opaque) cannot say. `mwl_types::generics` binds it from
+    /// the closure literal's recorded return type and owns the one case that
+    /// still binds nothing: an argument that is not a written `fn` literal.
+    ///
+    /// **Parameter position only, and never nested.** It is a declaration of
+    /// where a variable comes from, so it means nothing inside an
+    /// [`Self::Array`], a [`Self::Union`], a [`CoreOption`] or a return type —
+    /// `a_callback_result_type_is_only_ever_a_whole_parameter` holds that.
+    CallableTo(&'static str),
     /// A type *variable*, named — `T` in `count(array<T> $a): uint`.
     ///
     /// The spec's `Core\Arr` section states the rule this exists for: "`T` is
@@ -398,6 +415,13 @@ pub const CLASSES: &[CoreClass] = &[
                 symbol: "mwl_core_arr_filter",
             },
             CoreMethod {
+                name: "map",
+                params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::CallableTo("U")],
+                defaults: &[],
+                return_ty: CoreTy::Array(&CoreTy::Var("U")),
+                symbol: "mwl_core_arr_map",
+            },
+            CoreMethod {
                 name: "isEmpty",
                 params: &[CoreTy::Array(&CoreTy::Var("T"))],
                 defaults: &[],
@@ -626,6 +650,74 @@ mod tests {
                         class.name,
                         method.name,
                         member.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// [`CoreTy::CallableTo`] is a *binding site*, so it only means anything
+    /// as a whole parameter: nested in an array, a union or an option it would
+    /// name a variable nothing ever binds, and in return position it would name
+    /// one at the moment it is meant to be read.
+    #[test]
+    fn a_callback_result_type_is_only_ever_a_whole_parameter() {
+        fn nests_one(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::CallableTo(_) => true,
+                CoreTy::Array(elem) => nests_one(elem),
+                CoreTy::Union(members) => members.iter().any(nests_one),
+                CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
+                _ => false,
+            }
+        }
+        for class in CLASSES {
+            for method in class.methods {
+                assert!(
+                    !nests_one(&method.return_ty),
+                    "{}::{} returns a callback result type",
+                    class.name,
+                    method.name
+                );
+                for param in method.params {
+                    if matches!(param, CoreTy::CallableTo(_)) {
+                        continue;
+                    }
+                    assert!(
+                        !nests_one(param),
+                        "{}::{} nests a callback result type inside a parameter",
+                        class.name,
+                        method.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// The variable a [`CoreTy::CallableTo`] binds is one the member actually
+    /// reads back — a row naming `U` in the callback and `V` in the result
+    /// would type-check every call to `mixed` with nothing to say why.
+    #[test]
+    fn a_callback_result_variable_is_mentioned_by_the_return_type() {
+        fn mentions(ty: &CoreTy, name: &str) -> bool {
+            match ty {
+                CoreTy::Var(var) => *var == name,
+                CoreTy::Array(elem) => mentions(elem, name),
+                CoreTy::Union(members) => members.iter().any(|member| mentions(member, name)),
+                _ => false,
+            }
+        }
+        for class in CLASSES {
+            for method in class.methods {
+                for param in method.params {
+                    let CoreTy::CallableTo(name) = param else {
+                        continue;
+                    };
+                    assert!(
+                        mentions(&method.return_ty, name),
+                        "{}::{} binds `{name}` from its callback but never returns it",
+                        class.name,
+                        method.name
                     );
                 }
             }

@@ -1493,6 +1493,55 @@ echo Core\\Arr::count($big);
     assert_eq!(output_of(source), "3");
 }
 
+/// `Core\Arr::map` end to end, and with it the `U` binding under it: the
+/// result is `array<string>` because the callback's return type is, which is
+/// what lets `Core\Str::join` — declared `array<string>` — take it at all.
+/// `mwl_types::generics` owns that rule.
+#[test]
+fn a_core_member_takes_its_result_element_type_from_its_callback() {
+    let source = "<?mwl
+array<string> $words = [\"pear\", \"Apple\", \"fig\"];
+var $upper = Core\\Arr::map($words, fn(string $w) => Core\\Str::upper($w));
+echo Core\\Str::join($upper, \"|\");
+";
+    assert_eq!(output_of(source), "PEAR|APPLE|FIG");
+}
+
+/// Keys survive a `map`, which is PHP's own single-array `array_map`
+/// behaviour and the one `Core\Arr::filter` already keeps — re-keying is
+/// `mapKeys`, its own member. The callback's second parameter is the key, so
+/// this also holds that `map` offers both arguments the way `filter` does.
+#[test]
+fn a_mapped_array_keeps_the_keys_it_was_built_with() {
+    let source = "<?mwl
+array<int> $a = [\"x\" => 1, \"y\" => 2];
+var $labelled = Core\\Arr::map($a, fn(int $v, string $k): string => $k . ($v * 2));
+echo Core\\Str::join($labelled, \";\");
+if (Core\\Arr::hasKey($labelled, \"x\")) { echo \"|kept\"; } else { echo \"|lost\"; }
+";
+    assert_eq!(output_of(source), "x2;y4|kept");
+}
+
+/// The mapped value is the *callback's* fresh reference, stored without a
+/// retain — one retain too many here is a leak per entry, and one too few a
+/// double free. Ten thousand iterations over string results is what makes
+/// either loud rather than theoretical.
+#[test]
+fn a_map_producing_strings_in_a_loop_leaks_nothing() {
+    let source = "<?mwl
+array<int> $nums = [1, 2, 3];
+var $i = 0;
+var $seen = 0;
+while ($i < 10000) {
+    var $tags = Core\\Arr::map($nums, fn(int $n): string => \"t\" . $n);
+    $seen = $seen + Core\\Arr::count($tags) as int;
+    $i = $i + 1;
+}
+echo $seen;
+";
+    assert_eq!(output_of(source), "30000");
+}
+
 #[test]
 fn a_core_str_member_runs_and_hands_its_result_back_as_a_string() {
     let source = "<?mwl
