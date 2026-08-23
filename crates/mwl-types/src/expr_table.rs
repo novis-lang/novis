@@ -95,6 +95,23 @@ pub struct ResolvedCall {
     pub is_static: bool,
     /// The declared return type.
     pub return_ty: TypeId,
+    /// The class the call site *named*, resolved — `Some` only for a static
+    /// call written with an explicit class (`LeafRegistry::make()`), `None`
+    /// for an instance call, for `self::`/`static::`/`parent::`, and for
+    /// `new`'s own constructor invocation.
+    ///
+    /// Distinct from [`Self::class`], which is where the method is *declared*:
+    /// `LeafRegistry::make()` resolves to `Registry::make`, and late static
+    /// binding needs both — the declaring class to know which code to call,
+    /// and the named class because that is what `static` means inside it.
+    /// PHP's own rule, and the reason `self::`/`parent::`/`static::` record
+    /// `None`: those three forward the caller's called class rather than
+    /// setting a new one.
+    ///
+    /// Recorded rather than left to `mwl-ir` for [`ExprInfo::InstanceOf`]'s
+    /// reason: resolving a bare `LeafRegistry` against the active namespace
+    /// and imports needs context only this crate and `mwl-hir` have.
+    pub static_class: Option<QName>,
 }
 
 /// One resolved expression a later pass (today, only `mwl-ir`) needs more

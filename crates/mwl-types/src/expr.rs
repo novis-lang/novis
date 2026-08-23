@@ -132,6 +132,9 @@ fn resolved_call(qname: QName, name: String, sig: &MethodSig) -> ResolvedCall {
         variadic: sig.variadic,
         is_static: sig.is_static,
         return_ty: sig.return_ty,
+        // Set only by the `StaticCall` arm, and only for an explicitly named
+        // class — see the field's own doc comment.
+        static_class: None,
     }
 }
 
@@ -808,10 +811,14 @@ fn infer(
             // survives a call site, and this record is the one thing that
             // carries a signature past it.
             if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-                env.exprs.record(
-                    expr.span,
-                    ExprInfo::Call(resolved_call(qname.clone(), name.clone(), sig)),
-                );
+                let mut call = resolved_call(qname.clone(), name.clone(), sig);
+                // Late static binding: an explicitly named class *sets* the
+                // called class, while `self`/`static`/`parent` forward the
+                // caller's. See `ResolvedCall::static_class`.
+                if matches!(class.kind, ExprKind::ConstFetch(_)) {
+                    call.static_class = resolve_class_expr(class, ctx, env);
+                }
+                env.exprs.record(expr.span, ExprInfo::Call(call));
             }
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }

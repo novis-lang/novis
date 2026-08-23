@@ -10,11 +10,12 @@ fn m(object) -> int {
     v1 = const.int 1  ; int
     v2 = array.new ["0": v1]  ; array
     ; stmt s1 @5:5-5:27
+    v3 = class.of v0  ; classdesc
     retain v2
-    v3 = call T::take(v2) ! bb1  ; int
+    v4 = call T::take(this: v3, v2) ! bb1  ; int
     release v2
     release v0
-    return v3
+    return v4
   bb1:
     release v2
     release v0

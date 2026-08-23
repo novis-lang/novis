@@ -359,7 +359,32 @@ impl Emitter<'_, '_> {
                 return self.emit_call(cur, inst, target, *receiver, args);
             }
             InstKind::New { class, ctor, args } => {
-                return self.emit_new(cur, inst, class, ctor.as_deref(), args);
+                let desc = self.class_desc_const(class)?;
+                return self.emit_new(cur, inst, desc, ctor.as_deref(), false, args);
+            }
+            InstKind::NewDynamic { desc, ctor, args } => {
+                let (desc, _) = self.value(*desc)?;
+                return self.emit_new(cur, inst, desc, ctor.as_deref(), true, args);
+            }
+            InstKind::ClassDescConst { class } => {
+                let desc = self.class_desc_const(class)?;
+                self.define(inst, desc)?;
+            }
+            InstKind::ClassDescOf { object } => {
+                let (object, _) = self.value(*object)?;
+                let offset = i32::try_from(mwl_runtime::OBJ_CLASS_OFFSET)
+                    .map_err(|_| internal("a class-pointer offset past i32"))?;
+                let desc = self.b.ins().load(types::I64, trusted(), object, offset);
+                self.define(inst, desc)?;
+            }
+            InstKind::CallVirtual {
+                lsb,
+                method,
+                fallback,
+                receiver,
+                args,
+            } => {
+                return self.emit_call_virtual(inst, *lsb, method, fallback, *receiver, args);
             }
             InstKind::FieldGet {
                 object,
@@ -793,6 +818,80 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
+    /// `static::method(...)`: look the method up on the late-static-binding
+    /// class, then call whatever came back through the ordinary ADR 0002
+    /// signature.
+    ///
+    /// The lookup is one call to `mwl_runtime::mwl_class_method` with the
+    /// statically resolved target's own address as the fallback, so there is
+    /// no branch and no null to guard — see that helper's docs. Everything
+    /// after it (both probes, the argument slots, the status check, the
+    /// landing block) is [`Self::emit_invoke`]'s, unchanged: an indirect call
+    /// differs from a direct one only in where the callee comes from.
+    ///
+    /// Unlike [`Self::emit_call`] this takes no current block: it has no use
+    /// for one, and the argument budget is already full.
+    fn emit_call_virtual(
+        &mut self,
+        inst: &Inst,
+        lsb: ValueId,
+        method: &str,
+        fallback: &str,
+        receiver: Option<ValueId>,
+        args: &[ValueId],
+    ) -> Result<Block, CodegenError> {
+        let (lsb, _) = self.value(lsb)?;
+        let callee = self.method_address(lsb, method, fallback)?;
+        let receiver = receiver.map(|id| self.value(id)).transpose()?;
+        let receiver = match receiver {
+            Some(pair) => Some(pair),
+            // A `static` target's slot 0 is the called class itself — the same
+            // value the lookup dispatched on. See
+            // `mwl_ir::ir::InstKind::CallVirtual`.
+            None => Some((lsb, Ty::ClassDesc)),
+        };
+        let (cont, out_p) =
+            self.emit_invoke_at(inst, Callee::Indirect(callee), fallback, receiver, args)?;
+        if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
+            let value = self.load_value(out_p, 0, ty)?;
+            self.define(inst, value)?;
+        }
+        Ok(cont)
+    }
+
+    /// The address `class` answers `method` with, falling back to the
+    /// statically resolved `fallback` label's own address.
+    ///
+    /// `fallback` is passed as a `func_addr` rather than resolved here: the
+    /// unit is not finalized yet, so a compiled function has no address until
+    /// Cranelift relocates one in.
+    fn method_address(
+        &mut self,
+        class: Value,
+        method: &str,
+        fallback: &str,
+    ) -> Result<Value, CodegenError> {
+        let (name, len) = self.emit_bytes(method.as_bytes())?;
+        let target = self.callee_ref(fallback)?;
+        let fallback = self.b.ins().func_addr(types::I64, target);
+        let lookup = self.runtime_ref("mwl_class_method", RuntimeSig::ClassMethod)?;
+        let call = self.b.ins().call(lookup, &[class, name, len, fallback]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
+    /// The class descriptor address for a label named in the IR, as one
+    /// `iconst` — see [`crate::Classes`] for why a JIT can bake one in.
+    fn class_desc_const(&mut self, class: &str) -> Result<Value, CodegenError> {
+        let desc = self.classes.desc(class).ok_or_else(|| {
+            CodegenError::Unsupported(format!(
+                "a reference to class `{class}`, which this unit declares no descriptor for"
+            ))
+        })?;
+        let address = i64::try_from(desc.addr())
+            .map_err(|_| internal("a class descriptor above i64::MAX"))?;
+        Ok(self.b.ins().iconst(types::I64, address))
+    }
+
     /// The call itself, shared by [`Self::emit_call`] and the constructor
     /// invocation inside [`Self::emit_new`]: arguments materialized, both
     /// probes emitted, the status checked. Returns the block execution
@@ -807,7 +906,24 @@ impl Emitter<'_, '_> {
         args: &[ValueId],
     ) -> Result<(Block, Value), CodegenError> {
         let callee = self.callee_ref(target)?;
-        let label = self.emit_bytes(target.as_bytes())?;
+        self.emit_invoke_at(inst, Callee::Direct(callee), target, receiver, args)
+    }
+
+    /// [`Self::emit_invoke`]'s body, with the callee already decided — a
+    /// `FuncRef` for a statically resolved target, or a code address for
+    /// [`Self::emit_call_virtual`]'s runtime-resolved one. `label` is what the
+    /// call probes report either way, which for a virtual call is the
+    /// statically resolved target: the probe names the *call site*, and that
+    /// is the only spelling of it a compile-time data section can hold.
+    fn emit_invoke_at(
+        &mut self,
+        inst: &Inst,
+        callee: Callee,
+        label: &str,
+        receiver: Option<(Value, Ty)>,
+        args: &[ValueId],
+    ) -> Result<(Block, Value), CodegenError> {
+        let label = self.emit_bytes(label.as_bytes())?;
         self.emit_call_probe("mwl_probe_call_enter", RuntimeSig::ProbeCall, label, None)?;
 
         // One slot per argument, plus the implicit receiver at index 0.
@@ -838,7 +954,17 @@ impl Emitter<'_, '_> {
         ));
         let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
 
-        let call = self.b.ins().call(callee, &[self.ctx_p, args_p, out_p]);
+        let call = match callee {
+            Callee::Direct(func) => self.b.ins().call(func, &[self.ctx_p, args_p, out_p]),
+            // An indirect call through ADR 0002's one signature — every
+            // caller-side obligation above and below it is identical.
+            Callee::Indirect(address) => {
+                let sig = self.b.import_signature(self.sigs.helper.clone());
+                self.b
+                    .ins()
+                    .call_indirect(sig, address, &[self.ctx_p, args_p, out_p])
+            }
+        };
         let status = self.b.inst_results(call)[0];
         // Before the status check, so a thrown or `FATAL` exit is traced as it
         // happened rather than skipped along with the rest of the frame.
@@ -870,18 +996,11 @@ impl Emitter<'_, '_> {
         &mut self,
         cur: Block,
         inst: &Inst,
-        class: &str,
+        desc: Value,
         ctor: Option<&str>,
+        dynamic: bool,
         args: &[ValueId],
     ) -> Result<Block, CodegenError> {
-        let desc = self.classes.desc(class).ok_or_else(|| {
-            CodegenError::Unsupported(format!(
-                "`new {class}(...)`, whose class this unit declares no layout for"
-            ))
-        })?;
-        let address = i64::try_from(desc.addr())
-            .map_err(|_| internal("a class descriptor above i64::MAX"))?;
-        let desc = self.b.ins().iconst(types::I64, address);
         let callee = self.runtime_ref("mwl_object_new", RuntimeSig::PtrToPtr)?;
         let call = self.b.ins().call(callee, &[desc]);
         let object = self.b.inst_results(call)[0];
@@ -896,7 +1015,17 @@ impl Emitter<'_, '_> {
         };
         let retain = self.runtime_ref("mwl_object_retain", RuntimeSig::Refcount)?;
         self.b.ins().call(retain, &[object]);
-        let (cont, _out) = self.emit_invoke(inst, ctor, Some((object, Ty::Object)), args)?;
+        // `new Foo(...)` names a class, so its constructor is settled at
+        // compile time and costs a direct call. Only `new static(...)`, whose
+        // class is a run-time value, pays for a lookup — see
+        // `mwl_runtime::mwl_class_method`.
+        let callee = if dynamic {
+            Callee::Indirect(self.method_address(desc, "constructor", ctor)?)
+        } else {
+            Callee::Direct(self.callee_ref(ctor)?)
+        };
+        let (cont, _out) =
+            self.emit_invoke_at(inst, callee, ctor, Some((object, Ty::Object)), args)?;
         Ok(cont)
     }
 
@@ -1457,6 +1586,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
             RuntimeSig::Raise => &self.sigs.raise,
             RuntimeSig::InstanceOf => &self.sigs.instanceof,
+            RuntimeSig::ClassMethod => &self.sigs.class_method,
             RuntimeSig::ArrayNew => &self.sigs.array_new,
             RuntimeSig::ArrayGet => &self.sigs.array_get,
             RuntimeSig::ArraySet => &self.sigs.array_set,
@@ -1478,6 +1608,19 @@ impl Emitter<'_, '_> {
     }
 }
 
+/// Which form a call's target takes: a `FuncRef` Cranelift relocates, or a
+/// code address computed at run time.
+///
+/// The two differ in exactly one instruction. Everything ADR 0002 asks of a
+/// call site — the argument slots, both probes, the status check, the landing
+/// block — is identical, which is why `Self::emit_invoke_at` takes this rather
+/// than there being a second call path.
+#[derive(Clone, Copy)]
+enum Callee {
+    Direct(codegen::ir::FuncRef),
+    Indirect(Value),
+}
+
 /// Which of [`Signatures`]' shapes a runtime symbol has.
 #[derive(Clone, Copy)]
 enum RuntimeSig {
@@ -1493,6 +1636,7 @@ enum RuntimeSig {
     PtrToPtr,
     Raise,
     InstanceOf,
+    ClassMethod,
     ArrayNew,
     ArrayGet,
     ArraySet,

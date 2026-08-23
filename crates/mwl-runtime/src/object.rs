@@ -63,6 +63,48 @@
 //! The descriptors themselves are owned by a [`ClassTable`], one per compiled
 //! unit, which the unit must keep alive for as long as its code is callable.
 //!
+//! # Decision: the called class travels in the receiver slot, and a descriptor
+//! carries a method table
+//!
+//! Late static binding ([`docs/implementation-plan.md`](../../../docs/implementation-plan.md)'s
+//! M4: `new static()` through two levels of inheritance returns the *called*
+//! class) needs two things compiled code did not have: the called class at the
+//! callee, and a way to find that class's own method from it.
+//!
+//! **The called class travels in argument slot 0.** Every lowered method
+//! already has an implicit receiver there, and a static method's caller
+//! already fills it — with `null`, because a static method has no `$this`.
+//! That slot now carries the late-static-binding class instead: the tag byte
+//! stays [`Tag::Null`] (as an MWL *value* the slot still holds nothing, so
+//! nothing sweeping a `Value` ever sees a class descriptor) and the payload
+//! half carries the [`ClassDesc`] address. Compiled code reads the payload
+//! without consulting the tag, exactly as it already does for every other
+//! statically-typed slot. So late static binding costs **no new parameter, no
+//! second calling convention and not one extra instruction** at a call site
+//! that does not use it — the store was always there. Inside an *instance*
+//! method the called class is the receiver's own, one load at
+//! [`OBJ_CLASS_OFFSET`], so nothing is passed at all.
+//!
+//! **A descriptor carries its methods by name.** [`ClassDesc::method`] binary-
+//! searches a flattened, name-sorted table — every method the class declares
+//! plus every one it inherits, own-first — and `mwl-codegen` fills it in after
+//! `finalize_definitions`, which is the first moment a compiled function has
+//! an address.
+//!
+//! That is a *name* lookup, not a vtable index, and deliberately: the only
+//! call shape that reaches it today is `static::method()`/`new static()`,
+//! where the class is unknown until run time. An ordinary `$obj->method()` is
+//! still resolved statically from the receiver's declared type
+//! (`mwl-codegen`'s known gap 1), so nothing on the hot path pays for this.
+//! Turning that gap into real virtual dispatch wants a compile-time slot index
+//! rather than a name — a separate decision, on a table this one already
+//! builds.
+//!
+//! Cost, as [CLAUDE.md](../../../CLAUDE.md) requires: one `(String, *const u8)`
+//! pair per method *reachable* on each class — so a deep hierarchy holds its
+//! ancestors' entries once per descendant — charged to the compiled unit, not
+//! to a request, and freed with it.
+//!
 //! # Decision: releasing a graph is iterative, never recursive
 //!
 //! [`release_graph`] drives an explicit worklist. A recursive release would
@@ -125,6 +167,13 @@ pub struct ClassDesc {
     /// Does not include this descriptor itself; [`ClassDesc::conforms_to`]
     /// checks identity first.
     conforms: Vec<*const ClassDesc>,
+    /// Every method callable on an instance of this class — its own plus
+    /// every inherited one — as `(name, code address)`, sorted by name so
+    /// [`ClassDesc::method`] is a binary search. Empty until
+    /// [`ClassTable::set_methods`] fills it, which `mwl-codegen` does after
+    /// the unit is finalized: see this module's docs for why a name and not a
+    /// slot index.
+    methods: Vec<(String, *const u8)>,
 }
 
 impl ClassDesc {
@@ -157,6 +206,28 @@ impl ClassDesc {
     pub unsafe fn conforms_to(&self, other: *const ClassDesc) -> bool {
         std::ptr::eq(self, other) || self.conforms.contains(&other)
     }
+
+    /// The compiled address of the method this class answers `name` with —
+    /// its own override if it declares one, otherwise the nearest ancestor's
+    /// — or `None` if nothing in the chain declares a *body* for it.
+    ///
+    /// `None` is an ordinary answer, not a failure: an interface method with
+    /// no default body has no code, and [`mwl_class_method`]'s caller supplies
+    /// the statically resolved target as the fallback.
+    #[must_use]
+    pub fn method(&self, name: &str) -> Option<*const u8> {
+        self.methods
+            .binary_search_by(|(have, _)| have.as_str().cmp(name))
+            .ok()
+            .map(|index| self.methods[index].1)
+    }
+
+    /// How many methods this descriptor answers for — its own plus every
+    /// inherited one.
+    #[must_use]
+    pub fn method_count(&self) -> usize {
+        self.methods.len()
+    }
 }
 
 impl fmt::Debug for ClassDesc {
@@ -165,6 +236,7 @@ impl fmt::Debug for ClassDesc {
             .field("name", &self.name)
             .field("field_count", &self.field_count)
             .field("conforms", &self.conforms.len())
+            .field("methods", &self.methods.len())
             .finish()
     }
 }
@@ -243,8 +315,29 @@ impl ClassTable {
             name: name.into(),
             field_count,
             conforms,
+            methods: Vec::new(),
         }));
         id
+    }
+
+    /// Fills in `id`'s method table — `(name, code address)` pairs, which this
+    /// sorts by name so [`ClassDesc::method`] can binary-search them.
+    ///
+    /// Separate from [`ClassTable::define`] because a compiled function has no
+    /// address until its module is finalized, which is long after every class
+    /// is defined. `mwl-codegen` calls this in its own `finish`.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_methods(&mut self, id: ClassId, methods: Vec<(String, *const u8)>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.methods = methods;
+        desc.methods.sort_by(|(a, _), (b, _)| a.cmp(b));
+        desc.methods.dedup_by(|(a, _), (b, _)| a == b);
     }
 
     /// The descriptor pointer for `id` — the token compiled code holds.
@@ -887,6 +980,49 @@ pub unsafe extern "C" fn mwl_object_instanceof(
     }
 }
 
+/// The code address `class` answers the method `name` with, or `fallback` if
+/// it answers none — the whole of `static::method(...)`'s dispatch, and of
+/// `new static(...)`'s constructor lookup.
+///
+/// `name` is a UTF-8 byte range in the compiled unit's own data section, so it
+/// is neither owned nor freed here. A null `class` answers `fallback`, the
+/// same "a null payload *is* `null`" treatment every primitive in this module
+/// gives one.
+///
+/// `fallback` is what the compiler statically resolved for the same call site.
+/// A subclass can override a method but never remove one, so the fallback is
+/// unreachable for any class the unit compiled a table for — it is what keeps
+/// a descriptor the unit never filled in (an interface, a class from another
+/// unit) a correct call rather than a jump through null.
+///
+/// # Safety
+///
+/// `class` must be null or refer to a live descriptor, and `name`/`len` must
+/// describe a live, initialized byte range.
+#[must_use]
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a descriptor pointer and a data-section \
+              byte range whose liveness the signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_class_method(
+    class: *const ClassDesc,
+    name: *const u8,
+    len: usize,
+    fallback: *const u8,
+) -> *const u8 {
+    if class.is_null() {
+        return fallback;
+    }
+    #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
+    let (desc, bytes) = unsafe { (&*class, std::slice::from_raw_parts(name, len)) };
+    let Ok(name) = std::str::from_utf8(bytes) else {
+        return fallback;
+    };
+    desc.method(name).unwrap_or(fallback)
+}
+
 /// The class name of the object at `ptr`, as a fresh MWL string —
 /// `Core\Reflect`'s eventual `nameOf`, and what a diagnostic renders.
 ///
@@ -1001,6 +1137,47 @@ mod tests {
         assert_eq!(object.field_count(), 2);
         assert_eq!(object.field(0).tag(), Some(Tag::Null));
         assert_eq!(object.field(1).tag(), Some(Tag::Null));
+    }
+
+    #[test]
+    fn a_descriptors_method_table_answers_by_name_and_falls_back() {
+        // The dispatch `static::method(...)` and `new static(...)` run on.
+        // Two distinct addresses stand in for two compiled functions; what is
+        // under test is that a name reaches the right one, that an unknown
+        // name reaches the caller's fallback rather than null, and that a
+        // descriptor nobody filled in is a fallback rather than a crash.
+        let (mut table, animal, dog, _greets) = hierarchy();
+        let base: *const u8 = (mwl_object_new as *const ()).cast();
+        let over: *const u8 = (mwl_object_retain as *const ()).cast();
+        let miss: *const u8 = (mwl_object_release as *const ()).cast();
+        table.set_methods(animal, vec![("describe".to_owned(), base)]);
+        table.set_methods(
+            dog,
+            vec![("describe".to_owned(), over), ("bark".to_owned(), base)],
+        );
+
+        #[expect(unsafe_code, reason = "the table outlives every borrow here")]
+        unsafe {
+            assert_eq!((*table.desc(animal)).method("describe"), Some(base));
+            assert_eq!((*table.desc(dog)).method("describe"), Some(over));
+            assert_eq!((*table.desc(dog)).method_count(), 2);
+            assert_eq!((*table.desc(animal)).method("bark"), None);
+
+            let name = "describe";
+            assert_eq!(
+                mwl_class_method(table.desc(dog), name.as_ptr(), name.len(), miss),
+                over
+            );
+            let absent = "bark";
+            assert_eq!(
+                mwl_class_method(table.desc(animal), absent.as_ptr(), absent.len(), miss),
+                miss
+            );
+            assert_eq!(
+                mwl_class_method(std::ptr::null(), name.as_ptr(), name.len(), miss),
+                miss
+            );
+        }
     }
 
     #[test]

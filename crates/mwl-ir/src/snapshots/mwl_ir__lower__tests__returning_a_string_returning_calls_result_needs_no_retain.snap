@@ -7,9 +7,10 @@ fn m(object) -> string {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @4:5-4:25
-    v1 = call T::make() ! bb1  ; string
+    v1 = class.of v0  ; classdesc
+    v2 = call T::make(this: v1) ! bb1  ; string
     release v0
-    return v1
+    return v2
   bb1:
     release v0
     propagate "m() at t.mwl:4"

@@ -40,6 +40,13 @@ pub struct Class {
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,
+    /// Every method an instance of this class answers, as `(method name,
+    /// declaring class label)` — a straight copy of
+    /// `mwl_types::layout::ClassLayout::methods`, which owns the precedence
+    /// rule. `mwl-codegen` turns each pair into the compiled address the
+    /// runtime descriptor's method table holds, which is what
+    /// [`InstKind::CallVirtual`] dispatches through.
+    pub methods: Vec<(String, String)>,
 }
 
 /// One lowered method or function.
@@ -109,7 +116,8 @@ pub struct Inst {
     /// branches to.
     ///
     /// `Some` for the instructions that can actually fail: [`InstKind::Call`],
-    /// [`InstKind::New`], and the one [`InstKind::HelperCall`] with a real
+    /// [`InstKind::CallVirtual`], [`InstKind::New`],
+    /// [`InstKind::NewDynamic`], and the one [`InstKind::HelperCall`] with a real
     /// failure mode, [`Helper::EchoStr`]'s write. `None` everywhere else,
     /// which is not a gap in two different ways — a [`InstKind::BinOp`] or a
     /// [`InstKind::Concat`] returns no status at all, and a *conversion*
@@ -240,6 +248,83 @@ pub enum InstKind {
         /// and calls `Animal::constructor`. Only `mwl_types` knows which
         /// class actually declares it, so recovering it downstream would mean
         /// re-walking a hierarchy this crate cannot see.
+        ctor: Option<String>,
+        /// Each constructor argument, already lowered — empty when `ctor` is
+        /// `None`.
+        args: Vec<ValueId>,
+    },
+    /// The [`Ty::ClassDesc`] of a class named in source — `Foo::bar()`'s
+    /// `Foo`, or the enclosing class for `self::`/`parent::`. One `iconst` of
+    /// the descriptor address, exactly what [`InstKind::New`] already bakes in
+    /// for its own class.
+    ///
+    /// This is late static binding's *non*-forwarding source: `Foo::bar()`
+    /// sets the called class to `Foo` regardless of where the call is written,
+    /// which is PHP's own rule and the reason `self::`/`static::`/`parent::`
+    /// forward the caller's instead of producing one of these.
+    ClassDescConst {
+        /// The class, rendered the same way [`InstKind::New::class`] is.
+        class: String,
+    },
+    /// The [`Ty::ClassDesc`] of the class `object` is actually an instance of
+    /// — one load at `mwl_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a
+    /// descriptor is owned by the unit, not reference counted).
+    ///
+    /// This is where an *instance* method gets its late-static-binding class
+    /// from: `$leaf->label()` enters `Registry::label` with `$this` pointing
+    /// at a `LeafRegistry`, so `static::` inside it means `LeafRegistry`
+    /// without anything being passed at the call site.
+    ClassDescOf {
+        /// The receiver, already lowered — a [`Ty::Object`].
+        object: ValueId,
+    },
+    /// `static::method(...)` — a call whose *target* is decided at run time by
+    /// the late-static-binding class, not by the checker.
+    ///
+    /// Lowers to a `mwl_runtime::mwl_class_method` lookup of `method` on
+    /// `lsb`, falling back to `fallback` (the label `mwl_types` statically
+    /// resolved, which a class the unit compiled no method table for still
+    /// needs), then an indirect call through the ordinary
+    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md) signature — so
+    /// every probe, status check and landing block is identical to
+    /// [`InstKind::Call`]'s. Ownership is identical too: `receiver` and each
+    /// argument are transferred, and the callee releases them.
+    ///
+    /// Deliberately *not* what an ordinary `$obj->method(...)` lowers to: that
+    /// stays statically resolved (`mwl-codegen`'s known gap 1), so nothing on
+    /// the hot path pays for a name lookup. See `mwl_runtime::object`'s docs
+    /// for why the table is keyed by name and what real virtual dispatch would
+    /// want instead.
+    CallVirtual {
+        /// The late-static-binding class to dispatch on — a
+        /// [`Ty::ClassDesc`].
+        lsb: ValueId,
+        /// The method's own name, the key into the runtime method table.
+        method: String,
+        /// The statically resolved `"Class::method"` label, used when `lsb`
+        /// answers nothing for `method`.
+        fallback: String,
+        /// The receiver value for an instance target (`Some`) — `None` for a
+        /// `static` one, whose slot 0 carries `lsb` instead, exactly the way
+        /// [`InstKind::Call`]'s does.
+        receiver: Option<ValueId>,
+        /// Each positional argument, already lowered.
+        args: Vec<ValueId>,
+    },
+    /// `new static(...)` — [`InstKind::New`] with the class taken from a
+    /// [`Ty::ClassDesc`] value rather than a label, and the constructor
+    /// dispatched through the same runtime method table
+    /// [`InstKind::CallVirtual`] uses.
+    ///
+    /// This is the instruction M4's acceptance names: `new static()` reached
+    /// through two levels of inheritance allocates the *called* class.
+    NewDynamic {
+        /// The class to allocate — a [`Ty::ClassDesc`].
+        desc: ValueId,
+        /// The `Class::constructor` label `mwl_types` resolved for the
+        /// statically known class, or `None` if nothing in that chain declares
+        /// one. Used as the lookup's fallback; the lookup itself always asks
+        /// the allocated class first, so a subclass's own constructor wins.
         ctor: Option<String>,
         /// Each constructor argument, already lowered — empty when `ctor` is
         /// `None`.

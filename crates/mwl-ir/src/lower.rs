@@ -47,8 +47,8 @@
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
     AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
-    ForeachBinding, MethodMember, Modifier, NamespaceDecl, Stmt, StmtKind, StringPart, Type,
-    TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    ForeachBinding, MethodMember, Modifier, NamespaceDecl, NewTarget, Stmt, StmtKind, StringPart,
+    Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
 use mwl_types::layout::ClassLayoutTable;
@@ -252,6 +252,7 @@ pub fn lower_file(
             label: label.to_owned(),
             fields: layout.fields.clone(),
             conforms: layout.conforms.clone(),
+            methods: layout.methods.clone(),
         })
         .collect();
     // The table behind `iter()` is a hash map, so its order varies run to run.
@@ -304,7 +305,7 @@ pub fn lower_method(
     // and why this slice reserves only the shape, not a functional check.
     low.emit_safepoint(entry);
 
-    // The implicit receiver (`$this`), always parameter index 0 — seeded
+    // The implicit receiver, always parameter index 0 — seeded
     // unconditionally, the same way `mwl_types::check.rs`'s `check_method`
     // seeds `$this` into its own `LocalScope` regardless of a `static`
     // modifier (see that function's own comment for why: a static method's
@@ -316,15 +317,20 @@ pub fn lower_method(
     // chosen over a receiver-only special case so `ExprKind::MethodCall`'s
     // `$this`/an arbitrary receiver both flow through the ordinary
     // `ExprKind::Variable`/`Env` lookup path with no new machinery.
-    let (this_v, _) = low.emit(entry, Ty::Object, InstKind::Param(0));
-    env.insert("this".to_owned(), (this_v, Ty::Object));
-    param_tys.push(Ty::Object);
-    // ...but a `static` method's caller fills that slot with `null`, so this
-    // frame holds no reference to release at scope exit. See
-    // `Lowering::borrowed`, which is what that costs: one skipped release, no
-    // second parameter shape and no second call convention.
-    if m.modifiers.contains(&Modifier::Static) {
-        low.borrowed = Some("this".to_owned());
+    //
+    // A `static` method has no `$this` to put there, so that slot carries the
+    // *called* class instead — late static binding's whole mechanism, and the
+    // reason it costs no second parameter and no second call convention. See
+    // `mwl_runtime::object`'s module docs, which own the decision.
+    let is_static = m.modifiers.contains(&Modifier::Static);
+    let recv_ty = if is_static { Ty::ClassDesc } else { Ty::Object };
+    let (this_v, _) = low.emit(entry, recv_ty, InstKind::Param(0));
+    param_tys.push(recv_ty);
+    if is_static {
+        low.lsb = Some(this_v);
+    } else {
+        env.insert("this".to_owned(), (this_v, Ty::Object));
+        low.this = Some(this_v);
     }
 
     for (i, p) in m.params.iter().enumerate() {
@@ -455,17 +461,19 @@ struct Lowering<'a> {
     /// The stack of enclosing `try` regions currently being lowered, innermost
     /// last — see [`TryFrame`].
     try_stack: Vec<TryFrame<'a>>,
-    /// The one local name this frame holds *without* owning a reference to,
-    /// or `None`.
-    ///
-    /// Exactly one thing is ever in it: a `static` method's `$this`. Every
-    /// lowered method carries a receiver at parameter index 0 whether or not
-    /// it has one (see [`lower_method`]), and a static call fills that slot
-    /// with `null` — so the frame was handed no reference there and must not
-    /// release one at scope exit. Every other refcounted parameter *was*
-    /// retained by its caller, which is what makes the release correct for all
-    /// of them.
-    borrowed: Option<String>,
+    /// This frame's late-static-binding class as a [`Ty::ClassDesc`] value,
+    /// once something has asked for one — see [`Self::lsb`], which is the only
+    /// thing that sets it after [`lower_method`] seeds a `static` method's
+    /// parameter 0 here.
+    lsb: Option<ValueId>,
+    /// This frame's `$this`, for an *instance* method — the value
+    /// [`Self::lsb`] loads the late-static-binding class out of. `None` for a
+    /// static method and for the script frame.
+    this: Option<ValueId>,
+    /// The block [`Self::lsb`] appends its one load to. Always the function's
+    /// entry block, so the value dominates every use no matter which block
+    /// asked for it.
+    entry: Option<BlockId>,
     /// This function's own `Class::method` label, for the backtrace frame
     /// [`Terminator::Propagate`] carries. The caller of [`lower_method`]/
     /// [`lower_script`] picks the spelling; this is the same string.
@@ -503,7 +511,9 @@ impl<'a> Lowering<'a> {
             block_terms: Vec::new(),
             loop_stack: Vec::new(),
             try_stack: Vec::new(),
-            borrowed: None,
+            lsb: None,
+            this: None,
+            entry: None,
             fn_label: name.to_owned(),
             cur_stmt_span: Span::at(src.id(), 0),
             foreach_seq: 0,
@@ -515,7 +525,47 @@ impl<'a> Lowering<'a> {
         self.block_ids.push(id);
         self.block_insts.push(Vec::new());
         self.block_terms.push(None);
+        if self.entry.is_none() {
+            self.entry = Some(id);
+        }
         id
+    }
+
+    /// This frame's late-static-binding class, as a [`Ty::ClassDesc`].
+    ///
+    /// A `static` method already has it in parameter 0 ([`lower_method`]). An
+    /// *instance* method loads it from `$this` — one load at
+    /// `mwl_runtime::OBJ_CLASS_OFFSET`, emitted into the **entry block** and
+    /// cached, so it dominates every block that could ask and so a method
+    /// whose body never says `static` pays nothing at all.
+    ///
+    /// Appending to the entry block after other blocks exist is safe by
+    /// construction: a block's terminator is a separate field from its
+    /// instruction list, so a later append still lands before the entry
+    /// block's own terminator, and the only operand is parameter 0.
+    ///
+    /// # Panics
+    ///
+    /// Panics for a frame with neither — the script frame. `mwl_types` refuses
+    /// `static::`/`new static()` outside a class (`E_UNDEFINED_CLASS`), so
+    /// lowering never reaches this on one.
+    fn lsb(&mut self) -> ValueId {
+        if let Some(v) = self.lsb {
+            return v;
+        }
+        let this = self.this.unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: `{}` names `static` but has neither a receiver nor a called class — \
+                 mwl_types is expected to have refused that outside a class",
+                self.fn_label
+            )
+        });
+        let entry = self
+            .entry
+            .expect("a frame asking for its called class has at least one block");
+        let (v, _) = self.emit(entry, Ty::ClassDesc, InstKind::ClassDescOf { object: this });
+        self.lsb = Some(v);
+        v
     }
 
     fn is_terminated(&self, b: BlockId) -> bool {
@@ -808,13 +858,14 @@ impl<'a> Lowering<'a> {
     /// return value at all) has no local to exclude, so every live local is
     /// released.
     ///
-    /// [`Self::borrowed`] is skipped for a second, unrelated reason: that
-    /// slot is one the frame never owned a reference to at all.
+    /// A `static` method's parameter 0 needs no exclusion here: it is a
+    /// [`Ty::ClassDesc`], which is not refcounted and never enters `env` at
+    /// all (see [`lower_method`]).
     fn release_all_locals(&mut self, cur: BlockId, env: &Env, except: Option<&str>) {
         let mut names: Vec<&String> = env.keys().collect();
         names.sort();
         for name in names {
-            if Some(name.as_str()) == except || self.borrowed.as_deref() == Some(name.as_str()) {
+            if Some(name.as_str()) == except {
                 continue;
             }
             let &(v, ty) = env.get(name).expect("just listed from env.keys()");
@@ -2519,7 +2570,7 @@ impl<'a> Lowering<'a> {
             // itself: `target` may be `self`/`static`/`parent`, which this
             // crate has no enclosing-class context to resolve on its own
             // (see `lower_decl_type`'s doc comment).
-            ExprKind::New { args, .. } => {
+            ExprKind::New { target, args } => {
                 let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
                     panic!(
                         "mwl-ir: `new` at {:?} has no resolved class recorded in the \
@@ -2568,16 +2619,27 @@ impl<'a> Lowering<'a> {
                         Vec::new()
                     }
                 };
-                self.emit_fallible(
-                    cur,
-                    Ty::Object,
+                // `new static()` — ADR-free by construction: the class comes
+                // from this frame's called class rather than from the label
+                // `mwl_types` resolved, which is the enclosing class and so
+                // would allocate the *base* through two levels of
+                // inheritance. `new self()`/`new parent()`/`new Foo()` all
+                // name a fixed class and keep the constant form.
+                let kind = if matches!(target, NewTarget::StaticTy) {
+                    let desc = self.lsb();
+                    InstKind::NewDynamic {
+                        desc,
+                        ctor: ctor_label,
+                        args: arg_values,
+                    }
+                } else {
                     InstKind::New {
                         class: target_label,
                         ctor: ctor_label,
                         args: arg_values,
-                    },
-                    env,
-                )
+                    }
+                };
+                self.emit_fallible(cur, Ty::Object, kind, env)
             }
             // `$obj->method(...)`/`$this->method(...)` — the receiver is
             // lowered like any other expression (for `$this`, that's just an
@@ -2608,17 +2670,34 @@ impl<'a> Lowering<'a> {
                 let variadic = call.variadic;
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                 let checked_types = self.checked_types;
-                let (receiver_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-                // The receiver is parameter 0, so it is an ordinary argument
-                // for ownership purposes: MWL's convention is that the caller
-                // retains an aliasing argument and the callee releases every
-                // refcounted parameter at scope exit (see
-                // `Self::release_all_locals`). `$this->m()` and `$obj->m()`
-                // both read an existing slot, so both need the retain
-                // `Self::lower_call_args` already inserts for one.
-                if receiver_ty.is_refcounted() && is_aliasing_read(&object.kind) {
-                    self.emit_retain(cur, receiver_v);
-                }
+                let is_static = call.is_static;
+                let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                // A `static` method reached through an instance
+                // (`$obj->staticMethod()`, which PHP allows) takes no
+                // receiver: its parameter 0 is the *called* class, which here
+                // is the receiver's own — see `mwl_runtime::object`'s module
+                // docs. Nothing is retained for it; a descriptor is not
+                // refcounted.
+                let receiver_v = if is_static {
+                    let (v, _) = self.emit(
+                        cur,
+                        Ty::ClassDesc,
+                        InstKind::ClassDescOf { object: object_v },
+                    );
+                    v
+                } else {
+                    // The receiver is parameter 0, so it is an ordinary
+                    // argument for ownership purposes: MWL's convention is
+                    // that the caller retains an aliasing argument and the
+                    // callee releases every refcounted parameter at scope exit
+                    // (see `Self::release_all_locals`). `$this->m()` and
+                    // `$obj->m()` both read an existing slot, so both need the
+                    // retain `Self::lower_call_args` already inserts for one.
+                    if receiver_ty.is_refcounted() && is_aliasing_read(&object.kind) {
+                        self.emit_retain(cur, object_v);
+                    }
+                    object_v
+                };
                 let arg_values = self.lower_call_args(
                     args,
                     &param_tys,
@@ -2648,7 +2727,13 @@ impl<'a> Lowering<'a> {
             // `ResolvedCall::is_static` rather than by the `::` in the source
             // — passing `null` to a method that reads `$this` would be a
             // null-pointer write into a field slot, not a diagnostic.
-            ExprKind::StaticCall { args, .. } => {
+            //
+            // The `::`'s left-hand side decides the *called* class the callee
+            // sees (`mwl_runtime::object`'s late-static-binding decision):
+            // `Foo::m()` sets it to `Foo`, `self::`/`parent::` forward this
+            // frame's, and `static::m()` additionally resolves the target
+            // itself at run time through `InstKind::CallVirtual`.
+            ExprKind::StaticCall { class, args, .. } => {
                 let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
                     panic!(
                         "mwl-ir: a static call at {:?} has no resolved target recorded in the \
@@ -2689,12 +2774,32 @@ impl<'a> Lowering<'a> {
                     );
                 }
                 let target_label = format!("{}::{}", call.class, call.method);
+                let method = call.method.clone();
                 let param_tys = call.param_tys.clone();
                 let variadic = call.variadic;
+                let is_static = call.is_static;
+                let named_class = call.static_class.as_ref().map(ToString::to_string);
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                 let checked_types = self.checked_types;
-                let receiver = if call.is_static {
-                    None
+                let late_bound = matches!(class.kind, ExprKind::StaticExpr);
+                let receiver = if is_static {
+                    // A static callee has no `$this`, so its receiver slot
+                    // carries the *called* class instead — an explicitly named
+                    // one sets it, `self::`/`parent::`/`static::` forward this
+                    // frame's. See `mwl_runtime::object`'s module docs.
+                    Some(match &named_class {
+                        Some(label) => {
+                            let (v, _) = self.emit(
+                                cur,
+                                Ty::ClassDesc,
+                                InstKind::ClassDescConst {
+                                    class: label.clone(),
+                                },
+                            );
+                            v
+                        }
+                        None => self.lsb(),
+                    })
                 } else {
                     // The enclosing frame's own `$this`, retained the same way
                     // an explicit `$obj->m()` receiver is — the callee will
@@ -2720,16 +2825,29 @@ impl<'a> Lowering<'a> {
                     env,
                     cur,
                 );
-                self.emit_fallible(
-                    cur,
-                    return_ty,
+                let kind = if late_bound {
+                    // `static::m()` — the target is whichever class this frame
+                    // was *called* on, which is only known at run time.
+                    let lsb = self.lsb();
+                    InstKind::CallVirtual {
+                        lsb,
+                        method,
+                        fallback: target_label,
+                        // A static target's slot 0 already holds `lsb`, so the
+                        // dispatch value and the receiver are the same value;
+                        // saying it once keeps `emit_invoke`'s slot rule
+                        // identical to `InstKind::Call`'s.
+                        receiver: if is_static { None } else { receiver },
+                        args: arg_values,
+                    }
+                } else {
                     InstKind::Call {
                         target: target_label,
                         receiver,
                         args: arg_values,
-                    },
-                    env,
-                )
+                    }
+                };
+                self.emit_fallible(cur, return_ty, kind, env)
             }
             // `$obj->prop` — the receiver's declaring class comes from
             // `self.exprs`, exactly like a call's resolved target; a shape or
@@ -3001,7 +3119,13 @@ impl<'a> Lowering<'a> {
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
                     Ty::Float => Helper::FloatToString,
-                    Ty::Str | Ty::Bytes | Ty::Void | Ty::Object | Ty::Array | Ty::Mixed => {
+                    Ty::Str
+                    | Ty::Bytes
+                    | Ty::Void
+                    | Ty::Object
+                    | Ty::Array
+                    | Ty::Mixed
+                    | Ty::ClassDesc => {
                         unreachable!("matched above")
                     }
                 };
@@ -3060,7 +3184,13 @@ impl<'a> Lowering<'a> {
                     Ty::Uint => Helper::UintTruthy,
                     Ty::Float => Helper::FloatTruthy,
                     Ty::Str => Helper::StrTruthy,
-                    Ty::Bool | Ty::Void | Ty::Object | Ty::Array | Ty::Bytes | Ty::Mixed => {
+                    Ty::Bool
+                    | Ty::Void
+                    | Ty::Object
+                    | Ty::Array
+                    | Ty::Bytes
+                    | Ty::Mixed
+                    | Ty::ClassDesc => {
                         unreachable!("matched above")
                     }
                 };
@@ -3806,11 +3936,18 @@ fn binding_ty(binding: &ForeachBinding, which: &str) -> Ty {
 /// answering until a call/`new` on it does, via [`lower_checked_ty`] instead.
 /// `array<T>`'s own type argument is discarded the same way — [`Ty::Array`]'s
 /// own doc comment explains why no lowering decision needs it at this level.
-/// `self`/`static`/`parent` are not handled: resolving those needs the
-/// enclosing class, which this crate's straight-off-the-AST design (see the
-/// crate docs) has never needed to track before now.
+///
+/// `self`/`static`/`parent` lower to [`Ty::Object`] alongside a plain name,
+/// and need no enclosing-class context to do it: each resolves to *some*
+/// class, and this crate erases which one. That erasure is exactly why the
+/// three cannot be left here — the class a `static` return type names is
+/// decided at the call site, not the declaration, and nothing about that
+/// question is a *representation* question. `new static()`'s and
+/// `static::m()`'s actual class travels as a value instead
+/// ([`Ty::ClassDesc`]), which is what [`Lowering::lsb`] produces.
 fn lower_decl_type(ty: &Type) -> Ty {
     match &ty.kind {
+        TypeKind::Atom(TypeAtom::SelfTy | TypeAtom::StaticTy | TypeAtom::Parent) => Ty::Object,
         TypeKind::Atom(TypeAtom::Bool) => Ty::Bool,
         TypeKind::Atom(TypeAtom::Int) => Ty::Int,
         TypeKind::Atom(TypeAtom::Uint) => Ty::Uint,

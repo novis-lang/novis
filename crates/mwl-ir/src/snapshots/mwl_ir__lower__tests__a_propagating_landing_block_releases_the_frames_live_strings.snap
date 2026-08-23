@@ -8,7 +8,8 @@ fn <script>() -> mixed {
     ; stmt s0 @5:1-5:20
     v0 = const.str "held"  ; string
     ; stmt s1 @6:1-6:9
-    v1 = call T::go() ! bb1  ; void
+    v1 = class.desc T  ; classdesc
+    v2 = call T::go(this: v1) ! bb1  ; void
     ; stmt s2 @7:1-7:9
     helper.echo_str v0 ! bb2
     release v0

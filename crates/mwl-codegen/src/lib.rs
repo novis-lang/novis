@@ -50,6 +50,12 @@
 //! both halves. [`mwl_runtime::object`]'s own docs own that decision and state
 //! its cost; this crate only queries the offset.
 //!
+//! The same is true of late static binding: a static method's argument slot 0
+//! carries the called class rather than `null`, and a `ClassDescOf` is one
+//! load at [`mwl_runtime::OBJ_CLASS_OFFSET`]. That decision — including why the
+//! slot keeps a `null` *tag* — is `mwl_runtime::object`'s too; this crate emits
+//! the load and the [`mwl_runtime::mwl_class_method`] lookup it feeds.
+//!
 //! ## Values are native, not tagged, wherever the type is known
 //!
 //! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) settles every
@@ -99,7 +105,12 @@
 //! 1. **A call does not dispatch virtually.** Its target is whatever
 //!    `mwl_types` resolved from the receiver's *static* type, so an overridden
 //!    method reached through a base-typed variable still calls the base's.
-//!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
+//!    The one exception is the shape with no static answer at all:
+//!    `static::method(...)` and `new static(...)`
+//!    ([`mwl_ir::ir::InstKind::CallVirtual`]/`NewDynamic`) resolve against the
+//!    late-static-binding class through [`mwl_runtime::mwl_class_method`], and
+//!    call the address it returns indirectly under the same ADR 0002
+//!    signature. Everything else about objects and arrays compiles: `New`, `FieldGet`,
 //!    `FieldSet`, an instance `Call`, every array instruction — `ArrayNew`,
 //!    `ArrayGet`, `ArraySet`, `ArrayAppend`, `ArrayUnset` and `foreach`'s
 //!    `ArrayNextSlot`/`ArrayKeyAt`/`ArrayValueAt` cursor — and a
@@ -348,6 +359,13 @@ struct ClassEntry {
     /// `mwl_ir::ir::Class::fields` carries, so a slot looked up through the
     /// declaring class is valid for every subclass.
     slots: FxHashMap<String, usize>,
+    /// This class's own id in `Classes::table`, and every method it answers as
+    /// `(method name, declaring class label)` — kept until [`Jit::finish`],
+    /// which is the first moment a compiled function has an address to put in
+    /// the runtime descriptor's method table. See
+    /// `mwl_runtime::ClassTable::set_methods`.
+    id: mwl_runtime::ClassId,
+    methods: Vec<(String, String)>,
 }
 
 impl Classes {
@@ -406,6 +424,8 @@ impl Classes {
             ClassEntry {
                 desc: self.table.desc(id),
                 slots,
+                id,
+                methods: class.methods.clone(),
             },
         );
     }
@@ -464,6 +484,10 @@ struct Signatures {
     /// Cranelift comparison produces and the one [`ty::clif_ty`] gives
     /// [`mwl_ir::Ty::Bool`].
     instanceof: Signature,
+    /// `mwl_class_method(class, name, len, fallback) -> code address` — the
+    /// runtime half of `static::method(...)`'s dispatch. See
+    /// `mwl_runtime::mwl_class_method`.
+    class_method: Signature,
     /// `mwl_array_new() -> *mut ArrayHeader`.
     array_new: Signature,
     /// `mwl_array_get(array, key, out)` — the read primitive, whose result
@@ -649,6 +673,7 @@ impl Jit {
                 function: "<unit>".to_owned(),
                 source: Box::new(source),
             })?;
+        self.bind_method_tables();
         let entries = self
             .entries
             .iter()
@@ -659,6 +684,31 @@ impl Jit {
             classes: std::rc::Rc::new(self.classes.table),
             entries,
         })
+    }
+
+    /// Hands every runtime `ClassDesc` the compiled addresses of the methods
+    /// its class answers — what `mwl_ir::ir::InstKind::CallVirtual` and
+    /// `InstKind::NewDynamic` dispatch through.
+    ///
+    /// Runs only after `finalize_definitions`, because that is the first
+    /// moment a compiled function has an address at all. A `(method,
+    /// declaring class)` pair naming a function the unit does not define is
+    /// skipped rather than being an error: the same treatment `Classes::define`
+    /// gives a `conforms` entry it cannot resolve, and for the same reason —
+    /// the front end has already reported whatever left it behind, and
+    /// `mwl_class_method`'s fallback keeps the call correct regardless.
+    fn bind_method_tables(&mut self) {
+        for entry in self.classes.by_label.values() {
+            let methods = entry
+                .methods
+                .iter()
+                .filter_map(|(method, declaring)| {
+                    let id = self.functions.get(&format!("{declaring}::{method}"))?;
+                    Some((method.clone(), self.module.get_finalized_function(*id)))
+                })
+                .collect();
+            self.classes.table.set_methods(entry.id, methods);
+        }
     }
 }
 
@@ -719,6 +769,13 @@ impl Signatures {
         instanceof.params.push(AbiParam::new(ptr)); // class descriptor
         instanceof.returns.push(AbiParam::new(types::I8));
 
+        let mut class_method = module.make_signature();
+        class_method.params.push(AbiParam::new(ptr)); // class descriptor
+        class_method.params.push(AbiParam::new(ptr)); // method name bytes
+        class_method.params.push(AbiParam::new(ptr)); // method name length
+        class_method.params.push(AbiParam::new(ptr)); // fallback address
+        class_method.returns.push(AbiParam::new(ptr));
+
         let mut array_new = module.make_signature();
         array_new.returns.push(AbiParam::new(ptr));
 
@@ -763,6 +820,7 @@ impl Signatures {
             ptr_to_ptr,
             raise,
             instanceof,
+            class_method,
             array_new,
             array_get,
             array_set,

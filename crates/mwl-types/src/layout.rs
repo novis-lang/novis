@@ -69,6 +69,17 @@ pub struct ClassLayout {
     /// deliberately excluding the class itself — `instanceof` checks identity
     /// separately (`mwl_runtime::ClassDesc::conforms_to`).
     pub conforms: Vec<String>,
+    /// Every method callable on an instance of this class, as `(method name,
+    /// declaring class label)` — its own first, then the nearest ancestor
+    /// declaring each name it does not. Only methods with a *body*: an
+    /// abstract or bodiless interface method has no code to name.
+    ///
+    /// This is what `mwl_runtime::ClassDesc::method` answers a
+    /// `static::method(...)` dispatch from, so the precedence has to be the
+    /// language's: a class's own override, then its superclass chain, then an
+    /// interface default (ADR 0043 § 2). A depth-first walk that takes
+    /// `extends` before `implements` produces exactly that order.
+    pub methods: Vec<(String, String)>,
 }
 
 impl ClassLayout {
@@ -143,6 +154,7 @@ pub fn build_class_layouts(
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
     let mut own: FxHashMap<QName, Vec<String>> = FxHashMap::default();
+    let mut own_methods: FxHashMap<QName, Vec<String>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
     // (`mwl_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
@@ -155,9 +167,18 @@ pub fn build_class_layouts(
         } else {
             Vec::new()
         };
+        // The root's constructor is synthesized rather than written
+        // (`mwl_ir::lower`'s `synthesized_throwable_constructor`), so it is
+        // the one method with a body that no source walk can find.
+        let methods = if *name == mwl_hir::errors::ROOT {
+            vec!["constructor".to_owned()]
+        } else {
+            Vec::new()
+        };
         own.insert(QName::parse(name), fields);
+        own_methods.insert(QName::parse(name), methods);
     }
-    collect_own(stmts, src, &[], &mut own);
+    collect_own(stmts, src, &[], &mut own, &mut own_methods);
 
     let mut table = ClassLayoutTable::default();
     for qname in own.keys() {
@@ -169,11 +190,16 @@ pub fn build_class_layouts(
         let mut visited = vec![qname.clone()];
         collect_conforms(qname, graph, &mut conforms, &mut visited);
 
+        let mut methods = Vec::new();
+        let mut walked = Vec::new();
+        flatten_methods(qname, graph, &own_methods, &mut methods, &mut walked);
+
         table.by_label.insert(
             qname.to_string(),
             ClassLayout {
                 fields,
                 conforms: conforms.iter().map(QName::to_string).collect(),
+                methods,
             },
         );
     }
@@ -187,6 +213,7 @@ fn collect_own(
     src: &SourceFile,
     namespace: &[String],
     out: &mut FxHashMap<QName, Vec<String>>,
+    methods: &mut FxHashMap<QName, Vec<String>>,
 ) {
     let mut current = namespace.to_vec();
     for stmt in stmts {
@@ -196,25 +223,43 @@ fn collect_own(
                     .as_ref()
                     .map_or_else(Vec::new, |n| qname_segments(src, n));
                 match body {
-                    Some(block) => collect_own(&block.stmts, src, &scoped, out),
+                    Some(block) => collect_own(&block.stmts, src, &scoped, out, methods),
                     None => current = scoped,
                 }
             }
             StmtKind::ClassDecl(decl) => {
                 let qname = QName::join(&current, span_text(src, decl.name.span));
-                out.insert(qname, own_properties(&decl.members, src));
+                out.insert(qname.clone(), own_properties(&decl.members, src));
+                methods.insert(qname, own_methods(&decl.members, src));
             }
             // An interface declares no instance property (ADR 0043 § 2 gives
             // it method bodies, not state), but it still needs an entry: it is
             // a legal `instanceof` target and a legal `catch` type, so
-            // `mwl-codegen` must have a descriptor to point at.
+            // `mwl-codegen` must have a descriptor to point at. Its *default*
+            // method bodies are real code, though, so they are collected the
+            // same way a class's are.
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current, span_text(src, decl.name.span));
-                out.insert(qname, Vec::new());
+                out.insert(qname.clone(), Vec::new());
+                methods.insert(qname, own_methods(&decl.members, src));
             }
             _ => {}
         }
     }
+}
+
+/// One declaration's own method names — only those with a body, since a
+/// bodiless one has no compiled code for a descriptor to point at.
+fn own_methods(members: &[mwl_syntax::ast::ClassMember], src: &SourceFile) -> Vec<String> {
+    members
+        .iter()
+        .filter_map(|member| match &member.kind {
+            ClassMemberKind::Method(m) if m.body.is_some() => {
+                Some(span_text(src, m.name).to_owned())
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// One declaration's own instance-property names, in declaration order.
@@ -265,6 +310,42 @@ fn flatten_fields(
                 fields.push(name.clone());
             }
         }
+    }
+}
+
+/// Appends every method `qname` answers to `methods`, as `(name, declaring
+/// class label)` — its own first, then its superclass chain's, then any
+/// interface default it inherits. The first entry for a name wins, which is
+/// what makes an override beat the declaration it overrides.
+///
+/// `walked` guards the cyclic `extends` the hierarchy pass has already
+/// diagnosed, exactly like [`flatten_fields`]' own `seen`.
+fn flatten_methods(
+    qname: &QName,
+    graph: &ClassGraph,
+    own: &FxHashMap<QName, Vec<String>>,
+    methods: &mut Vec<(String, String)>,
+    walked: &mut Vec<QName>,
+) {
+    if walked.contains(qname) {
+        return;
+    }
+    walked.push(qname.clone());
+    let label = qname.to_string();
+    if let Some(names) = own.get(qname) {
+        for name in names {
+            if !methods.iter().any(|(have, _)| have == name) {
+                methods.push((name.clone(), label.clone()));
+            }
+        }
+    }
+    let Some(links) = graph.get(qname) else {
+        return;
+    };
+    // `extends` before `implements`: a superclass's concrete method beats an
+    // interface default of the same name (ADR 0043 § 2's conflict rule).
+    for parent in links.extends.iter().chain(links.implements.iter()) {
+        flatten_methods(parent, graph, own, methods, walked);
     }
 }
 

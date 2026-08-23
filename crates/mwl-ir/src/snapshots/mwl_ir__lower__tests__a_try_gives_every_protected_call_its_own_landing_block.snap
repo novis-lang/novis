@@ -7,16 +7,17 @@ fn <script>() -> mixed {
     safepoint
     ; stmt s0 @5:1-10:2
     ; stmt s1 @6:3-6:11
-    v0 = call T::go() ! bb3  ; void
+    v0 = class.desc T  ; classdesc
+    v1 = call T::go(this: v0) ! bb3  ; void
     ; stmt s2 @7:3-7:15
-    v1 = const.str "fine"  ; string
-    helper.echo_str v1 ! bb4
-    release v1
+    v2 = const.str "fine"  ; string
+    helper.echo_str v2 ! bb4
+    release v2
     jump bb2
   bb1:
-    v2 = take.thrown  ; object
-    v3 = instanceof v2, Throwable  ; bool
-    branch v3 -> bb5 (e0), bb6 (e1)
+    v3 = take.thrown  ; object
+    v4 = instanceof v3, Throwable  ; bool
+    branch v4 -> bb5 (e0), bb6 (e1)
   bb2:
     return
   bb3:
@@ -25,14 +26,14 @@ fn <script>() -> mixed {
     catch -> bb1
   bb5:
     ; stmt s3 @9:3-9:20
-    v4 = field.get v2, Throwable::message  ; string
-    helper.echo_str v4 ! bb7
-    release v2
+    v5 = field.get v3, Throwable::message  ; string
+    helper.echo_str v5 ! bb7
+    release v3
     jump bb2
   bb6:
-    throw v2 -> bb8
+    throw v3 -> bb8
   bb7:
-    release v2
+    release v3
     propagate "<script>() at t.mwl:9"
   bb8:
     propagate "<script>() at t.mwl:9"

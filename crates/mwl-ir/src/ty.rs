@@ -143,6 +143,26 @@ pub enum Ty {
     /// separate, still-open gap named elsewhere in this crate) rather than a
     /// mechanical extension of it.
     Mixed,
+    /// A `mwl_runtime::ClassDesc` address — the *class* a frame was called on,
+    /// not a value of any MWL type at all.
+    ///
+    /// This is late static binding's whole representation. It is produced by
+    /// [`crate::ir::InstKind::ClassDescConst`] (a class named in source),
+    /// [`crate::ir::InstKind::ClassDescOf`] (an instance's own class) and by a
+    /// static method's [`crate::ir::InstKind::Param`] 0, and consumed by
+    /// [`crate::ir::InstKind::NewDynamic`] and
+    /// [`crate::ir::InstKind::CallVirtual`]. Nothing else can hold one: no
+    /// declared type lowers to it, so it never reaches a local, a field or a
+    /// return value.
+    ///
+    /// Not refcounted — a descriptor is owned by the compiled unit's class
+    /// table for that unit's whole life (`mwl_runtime::object`), so there is
+    /// nothing to retain and nothing to free. Materialized into a
+    /// `mwl_runtime::Value` it keeps a `Tag::Null` tag byte and carries the
+    /// address in the payload half, which is why nothing sweeping a `Value`
+    /// can ever mistake one for a heap reference — see
+    /// `mwl_runtime::object`'s own docs for that decision.
+    ClassDesc,
 }
 
 impl Ty {

@@ -877,17 +877,21 @@
 //!   expected to reuse the exact same
 //!   `bind_local`/`lower_call_args`/`release_all_locals` insertion points
 //!   `Ty::Str`/`Ty::Bytes`/`Ty::Array` already use, not new ones.
-//! - **No virtual dispatch** — [`ir::InstKind::Call`]'s `target` is always the
-//!   statically resolved declaring class from
-//!   `mwl_types::expr_table::ResolvedCall`, exactly as MWL's checker resolved
-//!   it, for a static call, `new`'s constructor, and now an instance method
-//!   call alike. Every instance call lowered so far still has its receiver's
-//!   *static* type equal to its *runtime* class (a concrete, non-interface
-//!   local/`new` result) — whether a real vtable/interface-dispatch lookup is
-//!   ever needed at this IR level (as opposed to purely at codegen) remains a
-//!   question for whichever session first lowers a call through an
-//!   interface-typed or overridden-method receiver, where the two can
-//!   actually differ.
+//! - **No virtual dispatch, except where the class is a run-time value** —
+//!   [`ir::InstKind::Call`]'s `target` is still always the statically resolved
+//!   declaring class from `mwl_types::expr_table::ResolvedCall`, for a static
+//!   call, `new`'s constructor and an instance method call alike, so an
+//!   overridden method reached through a base-typed local still calls the
+//!   base's. What *is* dispatched at run time is the one shape where no
+//!   static answer exists at all: `static::method(...)` and `new static(...)`
+//!   lower to [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`],
+//!   which look the method up on the late-static-binding class carried in
+//!   [`ty::Ty::ClassDesc`]. That is late static binding, not virtual
+//!   dispatch — but it builds the per-class method table
+//!   ([`ir::Class::methods`]) a real vtable would index, so closing this gap
+//!   is now a question of picking a compile-time slot index over a name, not
+//!   of building a table. `mwl_runtime::object`'s module docs own that
+//!   decision.
 //! - **No variadic, named, or spread call argument** —
 //!   `Lowering::lower_call_args` (in [`lower`]) panics naming any of the
 //!   three; `mwl_types` itself doesn't fully positionally type-check a

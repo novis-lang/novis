@@ -148,6 +148,37 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                 None => format!("new {class}({})", parts.join(", ")),
             }
         }
+        InstKind::ClassDescConst { class } => format!("class.desc {class}"),
+        InstKind::ClassDescOf { object } => format!("class.of v{}", object.index()),
+        InstKind::CallVirtual {
+            lsb,
+            method,
+            fallback,
+            receiver,
+            args,
+        } => {
+            let mut parts: Vec<String> = receiver
+                .iter()
+                .map(|r| format!("this: v{}", r.index()))
+                .collect();
+            parts.extend(args.iter().map(|a| format!("v{}", a.index())));
+            format!(
+                "call.virtual v{}::{method} else {fallback}({})",
+                lsb.index(),
+                parts.join(", ")
+            )
+        }
+        InstKind::NewDynamic { desc, ctor, args } => {
+            let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
+            match ctor {
+                Some(ctor) => format!(
+                    "new.dynamic v{} via {ctor}({})",
+                    desc.index(),
+                    parts.join(", ")
+                ),
+                None => format!("new.dynamic v{}({})", desc.index(), parts.join(", ")),
+            }
+        }
         InstKind::FieldGet {
             object,
             class,
@@ -290,6 +321,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Bytes => "bytes",
         Ty::Array => "array",
         Ty::Mixed => "mixed",
+        Ty::ClassDesc => "classdesc",
     }
 }
 

@@ -222,6 +222,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::mwl_object_instanceof as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_class_method",
+            (crate::object::mwl_class_method as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_object_class_name",
             (crate::object::mwl_object_class_name as *const ()).cast::<u8>(),
         ),

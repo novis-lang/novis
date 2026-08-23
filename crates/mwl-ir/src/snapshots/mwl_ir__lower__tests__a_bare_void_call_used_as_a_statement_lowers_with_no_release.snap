@@ -7,7 +7,8 @@ fn m(object) -> void {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @4:5-4:20
-    v1 = call T::helper() ! bb1  ; void
+    v1 = class.of v0  ; classdesc
+    v2 = call T::helper(this: v1) ! bb1  ; void
     release v0
     return
   bb1:

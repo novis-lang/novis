@@ -8,20 +8,21 @@ fn m(object) -> int {
     v0 = param 0  ; object
     ; stmt s0 @4:5-8:6
     ; stmt s1 @5:7-5:25
-    v1 = call T::inner() ! bb3  ; int
+    v1 = class.desc T  ; classdesc
+    v2 = call T::inner(this: v1) ! bb3  ; int
     ; stmt s2 @7:7-7:19
-    v2 = const.str "done"  ; string
-    helper.echo_str v2 ! bb4
-    release v2
+    v3 = const.str "done"  ; string
+    helper.echo_str v3 ! bb4
+    release v3
     release v0
-    return v1
+    return v2
   bb1:
-    v3 = take.thrown  ; object
+    v4 = take.thrown  ; object
     ; stmt s3 @7:7-7:19
-    v4 = const.str "done"  ; string
-    helper.echo_str v4 ! bb5
-    release v4
-    throw v3 -> bb6
+    v5 = const.str "done"  ; string
+    helper.echo_str v5 ! bb5
+    release v5
+    throw v4 -> bb6
   bb2:
     release v0
     return

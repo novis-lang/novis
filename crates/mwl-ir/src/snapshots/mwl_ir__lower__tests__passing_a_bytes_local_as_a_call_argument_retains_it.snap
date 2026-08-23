@@ -8,11 +8,12 @@ fn m(object, bytes) -> int {
     v0 = param 0  ; object
     v1 = param 1  ; bytes
     ; stmt s0 @4:5-4:27
+    v2 = class.of v0  ; classdesc
     retain v1
-    v2 = call T::take(v1) ! bb1  ; int
+    v3 = call T::take(this: v2, v1) ! bb1  ; int
     release v1
     release v0
-    return v2
+    return v3
   bb1:
     release v1
     release v0

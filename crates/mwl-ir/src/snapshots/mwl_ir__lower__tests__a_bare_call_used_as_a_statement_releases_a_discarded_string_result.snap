@@ -7,8 +7,9 @@ fn m(object) -> void {
     safepoint
     v0 = param 0  ; object
     ; stmt s0 @4:5-4:18
-    v1 = call T::make() ! bb1  ; string
-    release v1
+    v1 = class.of v0  ; classdesc
+    v2 = call T::make(this: v1) ! bb1  ; string
+    release v2
     release v0
     return
   bb1:

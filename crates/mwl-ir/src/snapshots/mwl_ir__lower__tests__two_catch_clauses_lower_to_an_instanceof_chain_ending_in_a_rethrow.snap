@@ -7,40 +7,41 @@ fn <script>() -> mixed {
     safepoint
     ; stmt s0 @5:1-11:2
     ; stmt s1 @6:3-6:11
-    v0 = call T::go() ! bb3  ; void
+    v0 = class.desc T  ; classdesc
+    v1 = call T::go(this: v0) ! bb3  ; void
     jump bb2
   bb1:
-    v1 = take.thrown  ; object
-    v2 = instanceof v1, LogicError  ; bool
-    branch v2 -> bb4 (e0), bb5 (e1)
+    v2 = take.thrown  ; object
+    v3 = instanceof v2, LogicError  ; bool
+    branch v3 -> bb4 (e0), bb5 (e1)
   bb2:
     return
   bb3:
     catch -> bb1
   bb4:
     ; stmt s2 @8:3-8:16
-    v3 = const.str "logic"  ; string
-    helper.echo_str v3 ! bb6
-    release v3
-    release v1
+    v4 = const.str "logic"  ; string
+    helper.echo_str v4 ! bb6
+    release v4
+    release v2
     jump bb2
   bb5:
-    v4 = instanceof v1, IOError  ; bool
-    branch v4 -> bb7 (e2), bb8 (e3)
+    v5 = instanceof v2, IOError  ; bool
+    branch v5 -> bb7 (e2), bb8 (e3)
   bb6:
-    release v1
+    release v2
     propagate "<script>() at t.mwl:8"
   bb7:
     ; stmt s3 @10:3-10:13
-    v5 = const.str "io"  ; string
-    helper.echo_str v5 ! bb9
-    release v5
-    release v1
+    v6 = const.str "io"  ; string
+    helper.echo_str v6 ! bb9
+    release v6
+    release v2
     jump bb2
   bb8:
-    throw v1 -> bb10
+    throw v2 -> bb10
   bb9:
-    release v1
+    release v2
     propagate "<script>() at t.mwl:10"
   bb10:
     propagate "<script>() at t.mwl:10"

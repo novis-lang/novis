@@ -22,7 +22,7 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Bool => types::I8,
         Ty::Int | Ty::Uint => types::I64,
         Ty::Float => types::F64,
-        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed => types::I64,
+        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed | Ty::ClassDesc => types::I64,
         Ty::Void => return None,
         _ => types::I64,
     })
@@ -51,6 +51,11 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         Ty::Str | Ty::Bytes => Tag::Str,
         Ty::Array => Tag::Array,
         Ty::Object => Tag::Object,
+        // Not an MWL value at all: a class descriptor rides in the payload
+        // half of an otherwise-`null` slot, so nothing sweeping a `Value` can
+        // mistake it for a heap reference. `mwl_runtime::object`'s module docs
+        // own that decision; `mwl_ir::Ty::ClassDesc` restates the consequence.
+        Ty::ClassDesc => Tag::Null,
         Ty::Mixed => {
             return Err(CodegenError::Unsupported(
                 "a `mixed` value crossing a call boundary — its runtime type \
