@@ -17,8 +17,8 @@
 //!   compiler (`mwl-types`) seeds its own signature table from it, so
 //!   `Core\Arr::count($a)` resolves through exactly the machinery a
 //!   user-declared static call already does.
-//! * The per-domain modules ([`arr`]) hold the implementations, each an
-//!   ADR 0002 helper entry point.
+//! * The per-domain modules ([`arr`], [`str`]) hold the implementations, each
+//!   an ADR 0002 helper entry point.
 //!
 //! Keeping them together is what makes a member impossible to half-add: a
 //! registry entry naming a symbol nothing defines fails to link, and an
@@ -47,15 +47,23 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The registry holds three members.** `Core\Arr::count` was the first,
-//!    and landed with the mechanism rather than after it, on this
-//!    repository's standing "narrow slice, end to end" rule — it compiles and
-//!    runs, so every later member is a registry row plus a body rather than
-//!    more machinery. `filter` is the second thing the mechanism had to
-//!    prove: a member that calls *back* into MWL code, through
-//!    `mwl_runtime::call_closure`. The spec file's §§ 1–12 are the work list,
-//!    and `.claude/loop-goal.md`'s Stage 4 holds the coverage gate that will
-//!    name every member still missing one.
+//! 1. **The registry holds part of §§ 1–2 and none of §§ 3–12.**
+//!    `Core\Arr::count` was the first, and landed with the mechanism rather
+//!    than after it, on this repository's standing "narrow slice, end to end"
+//!    rule. Two more members proved the two things the mechanism still had to:
+//!    `Arr::filter`, which calls *back* into MWL code through
+//!    `mwl_runtime::call_closure`, and `Str::join`, the first with an optional
+//!    parameter. Everything registered since is a registry row plus a body and
+//!    nothing else. The spec file's §§ 1–12 are the work list, and
+//!    `.claude/loop-goal.md`'s Stage 4 holds the coverage gate that will name
+//!    every member still missing a conformance case.
+//!
+//!    Within § 1, the members still absent are the ones waiting on something:
+//!    every option-bag member (`indexOf`, `replace`, `trim`, …) on gap 3
+//!    below, and `length`/`at`/`slice` on
+//!    [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s open
+//!    granularity question — which [`str`]'s own docs record as the one thing
+//!    that can still change an already-registered member's answer.
 //! 3. **No member takes an options shape yet.** An optional *positional*
 //!    parameter is expressible now — [`registry::CoreMethod::defaults`] states
 //!    one and `mwl_types::defaults` materializes it at the call site — but
@@ -74,6 +82,7 @@
 
 pub mod arr;
 pub mod registry;
+pub mod str;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve
 /// against — the same shape and the same purpose as
@@ -99,6 +108,18 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 "mwl_core_arr_count" => (arr::mwl_core_arr_count as *const ()).cast(),
                 "mwl_core_arr_filter" => (arr::mwl_core_arr_filter as *const ()).cast(),
                 "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
+                "mwl_core_str_is_empty" => (str::mwl_core_str_is_empty as *const ()).cast(),
+                "mwl_core_str_contains" => (str::mwl_core_str_contains as *const ()).cast(),
+                "mwl_core_str_starts_with" => (str::mwl_core_str_starts_with as *const ()).cast(),
+                "mwl_core_str_ends_with" => (str::mwl_core_str_ends_with as *const ()).cast(),
+                "mwl_core_str_join" => (str::mwl_core_str_join as *const ()).cast(),
+                "mwl_core_str_pad_start" => (str::mwl_core_str_pad_start as *const ()).cast(),
+                "mwl_core_str_pad_end" => (str::mwl_core_str_pad_end as *const ()).cast(),
+                "mwl_core_str_repeat" => (str::mwl_core_str_repeat as *const ()).cast(),
+                "mwl_core_str_lower" => (str::mwl_core_str_lower as *const ()).cast(),
+                "mwl_core_str_upper" => (str::mwl_core_str_upper as *const ()).cast(),
+                "mwl_core_str_upper_first" => (str::mwl_core_str_upper_first as *const ()).cast(),
+                "mwl_core_str_lower_first" => (str::mwl_core_str_lower_first as *const ()).cast(),
                 other => panic!("mwl-stdlib registers `{other}` with no implementation address"),
             };
             (method.symbol, address)

@@ -146,32 +146,123 @@ pub struct CoreClass {
 ///
 /// The single home for "does `Core\X::y` exist, and what shape is it" — see
 /// [`crate`]'s own known gap 1 for how much of the spec is here so far.
-pub const CLASSES: &[CoreClass] = &[CoreClass {
-    name: r"Core\Arr",
-    methods: &[
-        CoreMethod {
-            name: "count",
-            params: &[CoreTy::Array(&CoreTy::Var("T"))],
-            defaults: &[],
-            return_ty: CoreTy::Uint,
-            symbol: "mwl_core_arr_count",
-        },
-        CoreMethod {
-            name: "filter",
-            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
-            defaults: &[],
-            return_ty: CoreTy::Array(&CoreTy::Var("T")),
-            symbol: "mwl_core_arr_filter",
-        },
-        CoreMethod {
-            name: "isEmpty",
-            params: &[CoreTy::Array(&CoreTy::Var("T"))],
-            defaults: &[],
-            return_ty: CoreTy::Bool,
-            symbol: "mwl_core_arr_is_empty",
-        },
-    ],
-}];
+pub const CLASSES: &[CoreClass] = &[
+    CoreClass {
+        name: r"Core\Str",
+        methods: &[
+            CoreMethod {
+                name: "isEmpty",
+                params: &[CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Bool,
+                symbol: "mwl_core_str_is_empty",
+            },
+            CoreMethod {
+                name: "contains",
+                params: &[CoreTy::Str, CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Bool,
+                symbol: "mwl_core_str_contains",
+            },
+            CoreMethod {
+                name: "startsWith",
+                params: &[CoreTy::Str, CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Bool,
+                symbol: "mwl_core_str_starts_with",
+            },
+            CoreMethod {
+                name: "endsWith",
+                params: &[CoreTy::Str, CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Bool,
+                symbol: "mwl_core_str_ends_with",
+            },
+            CoreMethod {
+                name: "join",
+                params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Str],
+                defaults: &[Const::Str("")],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_join",
+            },
+            CoreMethod {
+                name: "padStart",
+                params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
+                defaults: &[Const::Str(" ")],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_pad_start",
+            },
+            CoreMethod {
+                name: "padEnd",
+                params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
+                defaults: &[Const::Str(" ")],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_pad_end",
+            },
+            CoreMethod {
+                name: "repeat",
+                params: &[CoreTy::Str, CoreTy::Uint],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_repeat",
+            },
+            CoreMethod {
+                name: "lower",
+                params: &[CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_lower",
+            },
+            CoreMethod {
+                name: "upper",
+                params: &[CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_upper",
+            },
+            CoreMethod {
+                name: "upperFirst",
+                params: &[CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_upper_first",
+            },
+            CoreMethod {
+                name: "lowerFirst",
+                params: &[CoreTy::Str],
+                defaults: &[],
+                return_ty: CoreTy::Str,
+                symbol: "mwl_core_str_lower_first",
+            },
+        ],
+    },
+    CoreClass {
+        name: r"Core\Arr",
+        methods: &[
+            CoreMethod {
+                name: "count",
+                params: &[CoreTy::Array(&CoreTy::Var("T"))],
+                defaults: &[],
+                return_ty: CoreTy::Uint,
+                symbol: "mwl_core_arr_count",
+            },
+            CoreMethod {
+                name: "filter",
+                params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+                defaults: &[],
+                return_ty: CoreTy::Array(&CoreTy::Var("T")),
+                symbol: "mwl_core_arr_filter",
+            },
+            CoreMethod {
+                name: "isEmpty",
+                params: &[CoreTy::Array(&CoreTy::Var("T"))],
+                defaults: &[],
+                return_ty: CoreTy::Bool,
+                symbol: "mwl_core_arr_is_empty",
+            },
+        ],
+    },
+];
 
 /// Looks a class up by its fully-qualified name.
 #[must_use]

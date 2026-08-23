@@ -1494,6 +1494,28 @@ echo Core\\Arr::count($big);
 }
 
 #[test]
+fn a_core_str_member_runs_and_hands_its_result_back_as_a_string() {
+    let source = "<?mwl
+echo Core\\Str::upper(\"mwl\"), \"|\", Core\\Str::upperFirst(\"runs\"), \"|\", Core\\Str::repeat(\"ab\", 2);
+";
+    assert_eq!(output_of(source), "MWL|Runs|abab");
+}
+
+/// The `Core` half of the parameter-default mechanism: `join`'s separator and
+/// `padStart`'s padding come from `mwl_stdlib::registry::CoreMethod::defaults`
+/// through the same call-site materialization a written `= expr` uses, so the
+/// helper still receives its declared arity.
+#[test]
+fn a_core_member_may_have_its_trailing_argument_omitted() {
+    let source = "<?mwl
+array<string> $parts = [\"a\", \"b\", \"c\"];
+echo Core\\Str::join($parts), \"|\", Core\\Str::join($parts, \"-\");
+echo \"|\", Core\\Str::padStart(\"7\", 3, \"0\"), \"|\", Core\\Str::padStart(\"7\", 3);
+";
+    assert_eq!(output_of(source), "abc|a-b-c|007|  7");
+}
+
+#[test]
 fn a_closure_object_carries_its_own_arity_in_slot_zero() {
     // The two-parameter predicate and the one-parameter one run over the same
     // array through the same `Core` member. `mwl_runtime::CLOSURE_ARITY_SLOT`
