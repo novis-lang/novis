@@ -7,75 +7,84 @@ authoritative for the acceptance list, for the ten standing decisions already se
 the gaps that sit on the path. Do not re-open any of those decisions. Re-run the Linux leg by hand with
 `wsl.exe -- bash /mnt/<drive>/<repo>/.claude/wsl-acceptance.sh` from a **PowerShell** call.
 
-**Both Stage 1 representations are closed.** The array landed this session, end to end:
+**Stage 1's array gate is closed end to end.** `examples/arrays.mwl` prints all seven of its frozen lines on
+Windows and under WSL against a Linux build, byte for byte, and is valgrind-clean. Three things landed:
 
-- `crates/mwl-runtime/src/array.rs` — ADR 0007 § 5's insertion-ordered, string-keyed hash, refcounted and
-  copy-on-write. Its module doc is the one home for its four decisions: the container is opaque to compiled
-  code and therefore ordinary safe Rust; the index map keeps std's keyed SipHash rather than a fast
-  non-keyed one, because array keys are where attacker-controlled bytes become hash inputs; deletion leaves
-  a tombstone with amortized compaction; and **every mutating primitive consumes one reference to its array
-  and returns one**, which is the only shape a separation can take when a backend keeps a local in an SSA
-  register.
-- `crates/mwl-runtime/src/release.rs` — new, and shared. An array can hold an object that holds an array, so
-  a per-kind worklist would only move the recursion to the boundary between them. `object::dismantle` and
-  `array::dismantle` both hand their children to that one drain.
-- `mwl_ir::InstKind::ArraySet`/`ArrayAppend` now **define a value**, and `Lowering::write_back_array`
-  re-points the holder — a local's `Env` binding or the property slot a `FieldSet` writes back into — with
-  no retain and no release, because the consumed reference and the produced one are the holder's same slot.
-- `mwl-codegen` compiles `ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend`, `Helper::ArrayTruthy` and a
-  `Ty::Array` retain/release. A `Value` crosses a primitive boundary through a caller-owned 16-byte stack
-  slot, never in registers — a struct that size is classified differently by the SysV and Windows x64 ABIs.
+- **`foreach` over an `array<T>`** (`mwl_ir::lower::Lowering::lower_foreach`, which owns the whole policy).
+  It is `lower_while`'s shape with a synthesized condition, plus three things of its own: the loop retains
+  its **own** reference to the array for the loop's duration, which is what makes PHP's by-value `foreach`
+  fall out of copy-on-write rather than needing a snapshot; that reference and the cursor live in the
+  lowering `Env` under reserved `foreach#N`/`foreach#N$cursor` names (no identifier can contain `#`), which
+  is what gets them a loop-header phi and a release on a `return`/throw for free; and the key/value
+  bindings are owned for **one iteration**, released at every point an iteration ends —
+  `LoopFrame::iteration_owned`, which `lower_break`/`lower_continue` now consult.
+- **`unset($a[$k])`**, on `ArraySet`'s consume-one-yield-one protocol, written back through the same
+  `write_back_array`. Its key is *borrowed*, which inverts the retain a stored key gets.
+- **The whole Tier 0 path**: `crates/mwl-stdlib` (registry + `Core\Arr::count` + `symbols()`),
+  `mwl_types::core_lib` seeding the signature table from it, `mwl_types::generics` binding and substituting
+  type variables, `mwl_ir::ir::InstKind::CoreCall`, and `mwl-codegen` emitting it through the helper path
+  unchanged.
 
-Verified: `cargo test` green, `clippy`/`fmt` clean, six new end-to-end array tests in `mwl-codegen`
-(including copy-on-write separation and a 10 000-write in-place loop that leaks nothing),
-`a_refcount_one_array_member_mutates_in_place` measuring 25 ns in place against 34 µs separating, and the
-Linux leg agreeing with Windows fixture for fixture with valgrind clean on everything that runs.
+One bug was fixed on the way: `collect_reassigned_locals` only recognised a bare `$x` assignment target, so
+a loop body writing an array *element* got no loop-header phi. Invisible while the array was solely owned —
+and an infinite loop the moment a `foreach` held the second reference that makes it separate.
 
-## Next: `foreach`, then `unset($a[$k])`
+## Next: the exception surface, or more `Core` rows
 
-`examples/arrays.mwl` and `examples/report.mwl` both stop at `foreach` and nothing else does.
-`mwl_ir::lower` panics naming it at `lower.rs:916`.
+Two independent lines. Pick the one that fits a session; the first is the bigger and the more blocking.
 
-1. **`foreach` in `mwl-ir`.** The runtime side is already built and unit-tested: `mwl_array_next_slot`
-   (returns `-1` when exhausted), `mwl_array_key_at` (+1 retained) and `mwl_array_value_at` (borrowed, into
-   a caller slot). A cursor rather than a borrowed iterator on purpose — the loop holds its own reference,
-   so a write inside the body separates and the cursor keeps walking the snapshot the loop started on,
-   which is exactly PHP's by-value `foreach`. Reuse `LoopFrame` the way `while` does; the key/value
-   bindings are ordinary locals whose refcounting `bind_local` already covers.
-2. **`unset($a[$k])`.** No `InstKind` exists for it; `mwl_array_unset` does, on the same
-   consume-one-return-one protocol as `ArraySet`, so lowering reuses `write_back_array` unchanged.
-   `examples/arrays.mwl` needs it, and ADR 0028 already fixes that `unset` on a declared *property* is a
-   diagnostic — this is only the array-element form.
-3. **`foreach` over an array of arrays** is the second half of `arrays.mwl` (`$grid`), so nested loops have
-   to work before that fixture's `total=10` line does.
+### 1. The exception surface (`examples/errors.mwl`, Stage 1's last unclosed fixture)
 
-After that, `arrays.mwl` still needs `Core\Arr::count` — the first `mwl-stdlib` member, whose entry point
-(`mwl_array_count`) is already exported.
+`.claude/loop-goal.md`'s standing decision fixes it: **[docs/spec/01-core-library.md](docs/spec/01-core-library.md)
+§ 10, not ADR 0020 § 1.** `Throwable` is the root and user classes extend it directly; the tree is
+`LogicError`, `RuntimeError` (with `IOError`, `ParseError`, `TimeoutError`) and `ArithmeticError`; members
+are **readonly properties** (`$e->message`, `$e->previous`, `$e->backtrace`, `$e->location`), not
+`getMessage()` accessors; there is **no `Exception` and no `Error`** class. Amend ADR 0020 § 1 to point at
+§ 10 rather than restate it, and migrate `throw.mwl`/`trace.mwl`/`uncaught.mwl`, whose output must stay
+byte-identical — that is the point of migrating them.
+
+What it needs, in dependency order:
+
+- **`instanceof`** — `mwl_object_instanceof` exists and is tested; nothing emits it yet.
+- **A typed `catch`**, which needs the above, plus `lower_try` handling a **second `catch` clause** and
+  `finally` (it panics on both today). `mwl_ir::lower::is_global_throwable` accepts exactly three names.
+- Deciding whether `Ty::Throwable`'s opaque runtime value becomes an ordinary `Ty::Object`, now that
+  objects have a representation. `mwl-codegen`'s known gap 0 states the choice.
+- A **`catch` binding is function-scoped** today, so two clauses on one `try` cannot both bind `$e`
+  (`E0406` on the second). PHP allows it. `.claude/loop-goal.md` names this a decide-and-record call, not a
+  `BLOCKED`; `errors.mwl` sidesteps it with four distinct names either way.
+
+### 2. More `Core` rows (`examples/core.mwl`, `examples/report.mwl`)
+
+The mechanism is done, so a member is now **one registry row plus one body**. Add rows to
+`mwl_stdlib::registry::CLASSES`, a `mwl_helper!` body per row, and an arm in `mwl_stdlib::symbols`.
+Read `crates/mwl-stdlib/src/lib.rs`'s module docs first — they own the argument-borrowing rule and why a
+`Core` call needs no Cranelift signature of its own.
+
+`report.mwl` needs `Core\Str` and more of `Core\Arr`; `core.mwl` additionally needs closures (`fn`), an
+option-bag shape argument, and integer `%`. Registry types not yet expressible: a union (`int|string`), a
+nullable (`?T`), a shape, `callable`, `decimal` — each is a `CoreTy` variant plus a `core_lib::lower` arm.
 
 ## Backlog
 
 Ordered roughly by how cheap each is.
 
-- **The exception surface**, `.claude/loop-goal.md`'s standing decision: spec § 10's `Throwable` tree as
-  real classes with readonly properties, replacing `Ty::Throwable`'s opaque runtime value.
-  `examples/errors.mwl` needs `LogicError` and `$e->message`. Needs a typed `catch`, which needs
-  `instanceof` — `mwl_object_instanceof` exists and is tested; nothing emits it yet.
-- **`lower_try` still panics on a second `catch` clause and on `finally`**, and
-  `mwl_ir::lower::is_global_throwable` accepts exactly three names.
-- Integer `Div`/`Mod`, still refused in `mwl-codegen` because `sdiv` traps on a zero divisor. The throw path
-  exists, so this is a checked divisor plus a `Terminator::Throw`. `examples/core.mwl` needs it, and two
-  codegen tests now use `%` as their "an unlowered shape is named, not panicked on" fixture — they will
-  need a different one.
+- **`static`/`self` as a *declared type*** — `mwl_ir::lower_decl_type` panics naming `Atom(StaticTy)`/
+  `Atom(SelfTy)`, which is where `examples/objects.mwl` and `enums.mwl` both stop. Cheap: this crate erases
+  class identity entirely, so all three spellings are `Ty::Object`. Late static binding for
+  `new static()`/`static::tag()` is the real work behind those fixtures.
+- Integer `Div`/`Mod`, still refused in `mwl-codegen` because `sdiv` traps on a zero divisor. The throw
+  path exists, so `%` is a checked divisor plus a `Terminator::Throw`. Note ADR 0007 § 4 makes `int / int`
+  return the *union* `int|float`, which is a separate and larger piece than `%`. Two codegen tests use `%`
+  as their "an unlowered shape is named, not panicked on" fixture and will need a different one.
 - **Virtual dispatch.** A call's target is whatever `mwl_types` resolved from the receiver's *static* type,
-  so an override reached through a base-typed variable calls the base's. `ClassDesc` is the natural place to
-  hang a vtable.
+  so an override reached through a base-typed variable calls the base's. `ClassDesc` is the natural place
+  to hang a vtable.
 - **ADR 0014's property hooks.** `examples/hooks.mwl` runs and prints the raw slot (`0`/`0`/`n=1` against a
   wanted `6`/`20`/`n=6`) — the hook bodies are parsed, checked, and ignored.
 - A `throw` satisfying the return check: a method declared `: int` whose body always throws counts as
   returning.
 - ADR 0043 `by`-delegation resolution + `E_DELEGATE_TYPE_MISMATCH`, then `E_INTERFACE_MEMBER_CONFLICT`.
-- `static`/`self` as a *declared type* (`mwl-ir` panics naming `Atom(StaticTy)`/`Atom(SelfTy)`), and late
-  static binding for `new static()`/`static::tag()`. `examples/objects.mwl` and `enums.mwl` both stop here.
 - **Interfaces and enums are still skipped by `mwl_ir::lower::lower_file`'s walk**, so an ADR 0043 default
   interface method body is never lowered even though the checker accepts it.
 - **A nested subscript write (`$grid[0][1] = 5`) panics naming itself** in `Lowering::write_back_array`: it
@@ -83,8 +92,12 @@ Ordered roughly by how cheap each is.
 - **A `THROWN` still leaks a temporary in flight** inside the expression that threw
   (`mwl_ir::lower::Lowering::landing_block`); it needs an owned-temporaries stack threaded through
   `lower_expr`. A `FATAL` leaking the frame's locals is deliberate while a `FATAL` ends the request.
+  Related and narrower: a `foreach` inside a `try` whose body throws carries its two reserved `Env` names
+  into the handler only if every landing edge has them — see `lower_foreach`'s own doc comment.
 - `for` and `switch` in `mwl-ir` (`for` reuses `LoopFrame`; `switch` needs the N-way terminator ADR 0053's
   generator resumption also wants, so the two pair naturally).
+- **`foreach (… as &$v)`** panics naming itself: a by-reference value binding writes back through the array
+  it is walking, the one shape copy-on-write has to be told *not* to separate.
 - ADR 0018's `BRANCH` probe — the last of that ADR's three sites still not emitted.
 - A string literal still allocates per evaluation (`mwl-runtime` known gap 3 / `mwl-codegen` known gap 4).
 - **An array header carries no interned element-type descriptor** (ADR 0007 § 5). Nothing reaches an array
@@ -96,6 +109,7 @@ Ordered roughly by how cheap each is.
   resolver half. Three new `E03xx` codes, starting at **`E0315`**.
 - `crates/mwl-test` and the `mwl test` subcommand — Stage 4's two suites hold most of this loop's coverage,
   and hand-writing them as PowerShell assertions instead is the trap. Worth starting before the suites grow.
+  `every_part_one_member_has_a_conformance_case` is now cheap to write: it can read the registry.
 - **Docs-only:** `crates/mwl-ir/src/lib.rs`'s module doc has become a slice-by-slice changelog of exactly
   the kind CLAUDE.md forbids. It is the one doc in the repo genuinely owed a trim pass.
 
@@ -109,10 +123,12 @@ exact line and byte count to cut. That is a one-line fix, never a reason to run 
 
 Four tooling notes worth keeping:
 
-- **The Bash tool eats a backslash inside a heredoc** — including inside a `python - <<'PY'` script, where
-  a `\\` in a Rust raw string turns into a line continuation and silently breaks the match. Use Write and
-  Edit for any content with escapes, and write a Python helper to a *file* before running it.
+- **The Bash tool eats a backslash inside a heredoc** — including inside a `python - <<'PY'` script, and
+  including a `\\` inside a `cat >> file <<'RS'` block, which silently becomes a single backslash and
+  breaks the Rust string literal it lands in. Write a Python helper to a *file* with the Write tool and run
+  the file; use Write/Edit for any content with escapes.
 - `python`, not `python3`, is what is on `PATH` here.
 - **`wsl.exe` paths need PowerShell, not the Bash tool**, which rewrites `/mnt/d/…` first.
-- `cargo insta test --accept -p <crate>` is installed, and is how a deliberate lowering change gets its
-  snapshots updated. Read the diffs first — a renamed test needs its `.snap` file renamed with `git mv`.
+- `cargo insta test --accept -p <crate>` is installed (note `test --accept`, not `accept -p`, which does
+  not take `-p`), and is how a deliberate lowering change gets its snapshots updated. Read the diffs first
+  — a renamed test needs its `.snap` file renamed with `git mv`.
