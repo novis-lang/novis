@@ -36,6 +36,9 @@
 
 use std::borrow::Cow;
 use std::io::{self, Write};
+use std::rc::Rc;
+
+use crate::throwable::ThrowableHeader;
 
 bitflags::bitflags! {
     /// What a safepoint poll has been asked to do.
@@ -100,15 +103,10 @@ pub struct Ctx {
     safepoint: SafepointFlags,
     /// Hot. Read inline by every ADR 0018 probe site; see the module docs.
     debug: DebugFlags,
-    /// The message behind a pending `THROWN` or `FATAL` status.
-    ///
-    /// `Cow` rather than `String` deliberately: `benches/abi-probe` measured a
-    /// throw at 2.8x a normal return when the message allocated, versus
-    /// *cheaper* than a return when it does not — and PHP code throws on
-    /// ordinary control-flow paths. [ADR 0002](../../../docs/adr/0002-error-propagation.md)
-    /// § *Measured cost* holds the numbers; this field is the property they
-    /// depend on.
-    pending: Option<Cow<'static, str>>,
+    /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
+    /// for why one field carries both shapes rather than two sitting beside
+    /// each other.
+    pending: Option<Pending>,
     /// Where `echo` writes.
     output: OutputSink,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
@@ -150,6 +148,60 @@ pub struct Ctx {
     /// How many runtime helpers this request has entered, counted only while
     /// `fault` is armed. See [`FaultSite::HelperPanic`].
     helper_calls: u32,
+}
+
+/// What is behind a pending non-[`crate::OK`] status.
+///
+/// One field on [`Ctx`], not two: the [`ThrowableHeader`] **subsumes** the
+/// message a [`crate::Fault`] used to leave behind, rather than sitting beside
+/// it. Two fields would mean two places to ask "what failed", and every read
+/// would have to state which one wins.
+///
+/// The two variants are not two kinds of failure — they are the same failure
+/// at two levels of detail:
+///
+/// * [`Pending::Message`] is what a runtime helper's [`crate::Fault`] and
+///   every [`crate::FATAL`] produce. It allocates nothing when the message is
+///   `'static`, which is the property
+///   [ADR 0002](../../../docs/adr/0002-error-propagation.md) § *Measured cost*
+///   depends on: `benches/abi-probe` measured a throw at 2.8x a normal return
+///   with an allocating message and *cheaper* than a return without one, and
+///   PHP code throws on ordinary control-flow paths.
+/// * [`Pending::Thrown`] is what MWL's own `throw` produces, and the only one
+///   carrying a backtrace. A `Message` is promoted to one on demand — by
+///   [`Ctx::take_thrown`] when a `catch` binds it, or by [`Ctx::push_frame`]
+///   when a `THROWN` unwinds a compiled frame — so a helper-raised throw is
+///   catchable and traceable without every helper paying for an allocation it
+///   usually does not need.
+///
+/// A [`crate::FATAL`] never becomes a `Thrown`: compiled code only ever pushes
+/// a frame for a `THROWN` status, and no `catch` is ever entered for a
+/// `FATAL` ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)).
+#[derive(Debug)]
+enum Pending {
+    /// A message alone, with no exception object behind it yet.
+    Message(Cow<'static, str>),
+    /// MWL's own runtime-owned exception value.
+    Thrown(Rc<ThrowableHeader>),
+}
+
+impl Pending {
+    /// The message, whichever shape this is.
+    fn message(&self) -> &str {
+        match self {
+            Self::Message(message) => message,
+            Self::Thrown(thrown) => thrown.message(),
+        }
+    }
+
+    /// This failure as an exception object, allocating one around a bare
+    /// message if that is all there is.
+    fn into_thrown(self) -> Rc<ThrowableHeader> {
+        match self {
+            Self::Message(message) => ThrowableHeader::new(message),
+            Self::Thrown(thrown) => thrown,
+        }
+    }
 }
 
 /// A failure a run can be *asked* to produce, for a mode that by definition
@@ -315,20 +367,55 @@ impl Ctx {
 
     /// Records the message behind a `THROWN` or `FATAL` status.
     pub fn set_pending(&mut self, message: impl Into<Cow<'static, str>>) {
-        self.pending = Some(message.into());
+        self.pending = Some(Pending::Message(message.into()));
+    }
+
+    /// Records an already-built exception as the pending `THROWN` — what
+    /// [`mwl_raise`] does for MWL's own `throw`, taking ownership of the
+    /// reference it was handed.
+    pub fn raise(&mut self, thrown: Rc<ThrowableHeader>) {
+        self.pending = Some(Pending::Thrown(thrown));
     }
 
     /// The pending message, if any, without clearing it.
     #[must_use]
     pub fn pending(&self) -> Option<&str> {
-        self.pending.as_deref()
+        self.pending.as_ref().map(Pending::message)
     }
 
-    /// Takes the pending message, clearing it — what a `catch` does once it
-    /// has handled the throw.
+    /// Takes the pending message, clearing it — and dropping the exception
+    /// object behind it, if there was one.
     #[must_use]
     pub fn take_pending(&mut self) -> Option<Cow<'static, str>> {
-        self.pending.take()
+        Some(match self.pending.take()? {
+            Pending::Message(message) => message,
+            Pending::Thrown(thrown) => Cow::Owned(thrown.message().to_owned()),
+        })
+    }
+
+    /// Takes the pending failure as an exception object, clearing it — what a
+    /// `catch` binds to its variable, and what `mwl run` reports a backtrace
+    /// from.
+    ///
+    /// Promotes a bare [`Pending::Message`] rather than returning `None` for
+    /// one: a helper-raised `THROWN` is as catchable as MWL's own, it just has
+    /// no backtrace to show.
+    #[must_use]
+    pub fn take_thrown(&mut self) -> Option<Rc<ThrowableHeader>> {
+        Some(self.pending.take()?.into_thrown())
+    }
+
+    /// Records one more frame a pending `THROWN` has unwound out of.
+    ///
+    /// A bare message is promoted to a real exception here, so a helper-raised
+    /// throw accumulates a backtrace from the first compiled frame it leaves.
+    pub fn push_frame(&mut self, label: &str) {
+        let Some(pending) = self.pending.take() else {
+            return;
+        };
+        let thrown = pending.into_thrown();
+        thrown.push_frame(label);
+        self.pending = Some(Pending::Thrown(thrown));
     }
 
     /// Writes raw bytes to this request's output, unescaped.

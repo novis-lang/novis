@@ -50,6 +50,14 @@
 //!   § 1's probe sites check, with [`mwl_probe_stmt`] as the
 //!   statement-boundary probe's slow path;
 //! * nine of the ten `mwl_ir::Helper` variants — see [`helpers`];
+//! * [`ThrowableHeader`], the runtime-owned exception value MWL's `throw`
+//!   raises and a `catch` binds, with the `mwl_exception_new`/
+//!   `mwl_throwable_message`/`mwl_throwable_trace`/`mwl_raise`/
+//!   `mwl_trace_push`/`mwl_take_thrown` primitives behind it. It **subsumes**
+//!   the message [`Ctx`] used to carry on its own rather than sitting beside
+//!   it — see that module's `Pending` for why one field carries both levels of
+//!   detail, and [`throwable`]'s own docs for why the backtrace is built as
+//!   the throw propagates rather than at construction;
 //! * [`FaultSite`], the closed set of failures a run can be *asked* to
 //!   produce, so a contained engine panic — which has no user-facing trigger
 //!   by definition — is testable at all.
@@ -86,12 +94,20 @@
 //! 6. **`mwl_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `mwl dap` exists.
+//! 7. **An exception carries a message and a backtrace and nothing else.** No
+//!    code, no previous-exception chain, no file/line pair of its own, and no
+//!    `getTrace()` array — that last one is M4's explicit carry-over, since it
+//!    returns `array<…>` and nothing lowers an array yet. A user class
+//!    `extends Exception` is accepted by the checker and has no runtime shape
+//!    at all: every exception is a [`ThrowableHeader`] until M4's object
+//!    representation lands.
 
 mod abi;
 mod ctx;
 mod fmt;
 pub mod helpers;
 mod string;
+pub mod throwable;
 mod value;
 
 pub use abi::{FATAL, Fault, HelperFn, HelperResult, MwlFn, OK, THROWN, call, run_helper};
@@ -104,5 +120,9 @@ pub use helpers::symbols;
 pub use string::{
     LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_concat, mwl_str_new,
     mwl_str_release, mwl_str_retain,
+};
+pub use throwable::{
+    ThrowableHeader, mwl_exception_new, mwl_raise, mwl_take_thrown, mwl_throwable_message,
+    mwl_throwable_release, mwl_throwable_retain, mwl_throwable_trace, mwl_trace_push,
 };
 pub use value::{Tag, Value};
