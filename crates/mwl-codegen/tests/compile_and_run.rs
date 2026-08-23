@@ -583,6 +583,48 @@ echo $cat->front()->length();
 }
 
 #[test]
+fn instanceof_sees_the_class_its_parent_and_its_interface() {
+    // Three answers out of one `mwl_object_instanceof` call each: the
+    // descriptor address is baked in, and `mwl_types::layout` gives the
+    // *interface* a descriptor with no slots purely so this test can name it.
+    let source = "<?mwl
+interface Greets {
+    public function greeting(): string;
+}
+
+class Animal implements Greets {
+    public string $animalName;
+    public function constructor(string $animalName) { $this->animalName = $animalName; }
+    public function greeting(): string { return $this->animalName; }
+}
+
+class Dog extends Animal {
+}
+
+class Rock {
+}
+
+var $d = new Dog(\"rex\");
+if ($d instanceof Dog) { echo \"dog \"; }
+if ($d instanceof Animal) { echo \"animal \"; }
+if ($d instanceof Greets) { echo \"greets \"; }
+if ($d instanceof Rock) { echo \"rock \"; }
+";
+    assert_eq!(output_of(source), "dog animal greets ");
+}
+
+#[test]
+fn an_inherited_constructor_is_invoked_through_its_declaring_class() {
+    // `new Dog(...)` on a subclass that declares no `constructor` of its own
+    // must name `Animal::constructor`, the class that actually declares it —
+    // naming `Dog::constructor` compiles to a call this unit never defined.
+    let source = format!(
+        "{SHAPES}\nclass Puppy extends Animal {{\n}}\nvar $p = new Puppy(\"pip\", 4);\necho $p->name(), \"/\", $p->legCount();\n"
+    );
+    assert_eq!(output_of(&source), "pip/4");
+}
+
+#[test]
 fn a_string_field_overwritten_in_a_loop_leaks_nothing() {
     // Each write releases what the slot held — `mwl_ir::lower` emits the
     // `FieldGet`/`Release` pair and this backend emits the store. A missing

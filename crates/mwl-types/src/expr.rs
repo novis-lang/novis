@@ -684,7 +684,21 @@ fn infer(
         }
         ExprKind::InstanceOf { expr: inner, class } => {
             check_expr(inner, None, live, scope, ctx, env);
-            check_expr(class, None, live, scope, ctx, env);
+            // A bare `Foo` on the right of `instanceof` is a class name, not a
+            // constant read — recorded here so `mwl-ir` never has to resolve
+            // one (see `crate::expr_table::ExprInfo::InstanceOf`). Anything
+            // else is the dynamic form, which still checks as an ordinary
+            // expression and records nothing.
+            if let ExprKind::ConstFetch(name) = &class.kind {
+                let text = span_text(env.src, name.span);
+                let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+                if env.symbols.get(&qname).is_some() || qname.is_reserved_global_class() {
+                    env.exprs
+                        .record(expr.span, ExprInfo::InstanceOf { class: qname });
+                }
+            } else {
+                check_expr(class, None, live, scope, ctx, env);
+            }
             env.interner.bool_ty()
         }
         ExprKind::Call { callee, args } => {
@@ -868,9 +882,16 @@ fn infer(
             // A class with no explicit `constructor` accepts a bare `new
             // Foo()` in PHP; not diagnosing an arity mismatch against zero
             // parameters here is deliberate — see the crate docs' known gaps.
-            let sig = target_qname.clone().and_then(|qname| {
-                resolve_method(&qname, "constructor", env.signatures, env.graph).map(|(_, sig)| sig)
-            });
+            // The *declaring* class is kept, not the constructed one: `new
+            // Dog(...)` on a `Dog extends Animal` that declares no constructor
+            // of its own invokes `Animal::constructor`, and `mwl-ir` cannot
+            // re-walk the hierarchy to find that out (see
+            // `crate::expr_table::ExprInfo::New::ctor`).
+            let resolved = target_qname
+                .clone()
+                .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
+            let ctor_owner = resolved.as_ref().map(|(owner, _)| owner.clone());
+            let sig = resolved.map(|(_, sig)| sig);
             let (arg_types, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             if let Some(qname) = &target_qname {
                 reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
@@ -879,7 +900,8 @@ fn infer(
                 // `crate::expr_table`'s own module docs.
                 let ctor = sig
                     .as_ref()
-                    .map(|s| resolved_call(qname.clone(), "constructor".to_owned(), s));
+                    .zip(ctor_owner)
+                    .map(|(s, owner)| resolved_call(owner, "constructor".to_owned(), s));
                 env.exprs.record(
                     expr.span,
                     ExprInfo::New {

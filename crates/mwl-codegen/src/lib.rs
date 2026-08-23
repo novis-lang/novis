@@ -435,6 +435,10 @@ struct Signatures {
     ptr_to_ptr: Signature,
     /// `mwl_raise(ctx, throwable)`.
     raise: Signature,
+    /// `mwl_object_instanceof(object, desc) -> bool` — `I8`, the width a
+    /// Cranelift comparison produces and the one [`ty::clif_ty`] gives
+    /// [`mwl_ir::Ty::Bool`].
+    instanceof: Signature,
     /// `mwl_array_new() -> *mut ArrayHeader`.
     array_new: Signature,
     /// `mwl_array_get(array, key, out)` — the read primitive, whose result
@@ -680,6 +684,11 @@ impl Signatures {
         raise.params.push(AbiParam::new(ptr));
         raise.params.push(AbiParam::new(ptr));
 
+        let mut instanceof = module.make_signature();
+        instanceof.params.push(AbiParam::new(ptr)); // object
+        instanceof.params.push(AbiParam::new(ptr)); // class descriptor
+        instanceof.returns.push(AbiParam::new(types::I8));
+
         let mut array_new = module.make_signature();
         array_new.returns.push(AbiParam::new(ptr));
 
@@ -722,6 +731,7 @@ impl Signatures {
             refcount,
             ptr_to_ptr,
             raise,
+            instanceof,
             array_new,
             array_get,
             array_set,

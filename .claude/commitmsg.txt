@@ -1,0 +1,26 @@
+feat(ir,codegen): lower `instanceof`, and fix an inherited constructor's label
+
+`instanceof` is the first of the three things the exception surface needs
+(`NEXT_SESSION_PROMPT.md`): `mwl_object_instanceof` and the per-class
+descriptor have existed since the object slice landed, and nothing emitted
+either.
+
+The class the test names is resolved by the *checker*, not by lowering:
+`ExprInfo::InstanceOf` joins `New`/`Property`/`Index` in the typed-expression
+table, because turning a bare `Animal` into `Ns\Animal` needs the namespace and
+import context `mwl-ir` deliberately cannot see. The dynamic
+`$x instanceof $name` form records nothing and lowering refuses it rather than
+guessing. An interface is as legal a target as a class — `mwl_types::layout`
+already gives one a slotless descriptor for exactly this.
+
+Codegen emits one call with the descriptor address baked in as an `iconst`,
+the same move `emit_new` already makes, and nothing is retained: the receiver
+is only read.
+
+One bug found on the way, on the acceptance path: `ExprInfo::New::ctor` named
+the *constructed* class rather than the one that declares the constructor, so
+`new Dog(...)` on a `Dog extends Animal` that declares none of its own compiled
+to a call on `Dog::constructor`, which no unit defines. `resolve_method`
+already returned the declaring `QName`; the arm discarded it.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>

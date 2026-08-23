@@ -2825,11 +2825,42 @@ impl<'a> Lowering<'a> {
                 }
                 result
             }
+            // `$x instanceof Name` — the tested class comes from
+            // `self.exprs`, exactly like a property access's declaring class,
+            // because resolving a bare `Animal` to `Ns\Animal` needs the
+            // namespace/import context this crate cannot see. The dynamic
+            // form (`$x instanceof $name`) records nothing and is refused.
+            ExprKind::InstanceOf { expr: inner, .. } => {
+                let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
+                    panic!(
+                        "mwl-ir: an `instanceof` at {:?} has no resolved class recorded in the \
+                         typed-expression table — either it wasn't checked with the same table, \
+                         or its right-hand side is the dynamic `$x instanceof $name` form, which \
+                         this crate does not lower (see the crate docs' known gaps)",
+                        expr.span
+                    );
+                };
+                let class_label = class.to_string();
+                let (value, ty) = self.lower_expr(inner, None, env, cur);
+                assert!(
+                    matches!(ty, Ty::Object),
+                    "mwl-ir lowers `instanceof` only against an object receiver — got \
+                     representation {ty:?}"
+                );
+                self.emit(
+                    cur,
+                    Ty::Bool,
+                    InstKind::InstanceOf {
+                        value,
+                        class: class_label,
+                    },
+                )
+            }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
                  operators, `new`, a static or instance method call, property access, an array \
-                 literal, and an array-element read — got {other:?}; see the crate docs' known \
-                 gaps"
+                 literal, an array-element read, and `instanceof` — got {other:?}; see the crate \
+                 docs' known gaps"
             ),
         }
     }
@@ -5549,6 +5580,42 @@ class T {
             "}\n",
         ));
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$x instanceof Name` — one `instanceof` naming the *resolved* class
+    /// label the checker recorded, with no retain of the receiver.
+    #[test]
+    fn an_instanceof_names_the_class_the_checker_resolved() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl
+class Animal {
+}
+class T {
+  function m(Animal $a): bool {
+    return $a instanceof Animal;
+  }
+}
+",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The dynamic `$x instanceof $name` form has no class to name, so the
+    /// checker records nothing and lowering refuses it rather than guessing.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn a_dynamic_instanceof_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl
+class Animal {
+}
+class T {
+  function m(Animal $a, string $n): bool {
+    return $a instanceof $n;
+  }
+}
+",
+        );
     }
 
     /// A file declaring no class still lowers, with an empty class table —

@@ -288,6 +288,22 @@ pub enum InstKind {
         /// The new value, already lowered.
         value: ValueId,
     },
+    /// `$obj instanceof Class` — one linear scan of the receiver's flattened
+    /// supertype set, defining a [`Ty::Bool`].
+    ///
+    /// `class` is a label into [`crate::ir::Program::classes`], exactly like
+    /// [`InstKind::New::class`], and it may name an *interface* as readily as
+    /// a class: `mwl_types::layout` gives an interface a descriptor with no
+    /// slots for precisely this test (and for a typed `catch`, which lowers
+    /// to the same instruction). Reads `value` without retaining it, the way
+    /// [`InstKind::FieldGet`] reads its receiver.
+    InstanceOf {
+        /// The receiver, already lowered — a [`Ty::Object`].
+        value: ValueId,
+        /// The class or interface tested against, rendered the same way
+        /// `New::class` is.
+        class: String,
+    },
     /// `.` string concatenation: builds a fresh [`Ty::Str`] value from the
     /// cooked bytes of `lhs` and `rhs`, both already [`Ty::Str`] by the time
     /// this instruction sees them — see

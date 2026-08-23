@@ -154,6 +154,21 @@ pub enum ExprInfo {
         /// The element's declared type.
         elem_ty: TypeId,
     },
+    /// `$x instanceof Name`, keyed by the *`instanceof` expression's* own
+    /// span, whose right-hand side named a class or interface this program
+    /// declares (or a reserved global one). Never recorded for the dynamic
+    /// `$x instanceof $classNameExpr` form: there is no compile-time-known
+    /// class to name, exactly the way [`ExprInfo::Property`] records nothing
+    /// for an erased receiver.
+    ///
+    /// Recorded rather than left to the consumer because resolving a bare
+    /// `Animal` to `Ns\Animal` needs the namespace and import context only
+    /// this crate and `mwl-hir` have — `mwl-ir` deliberately depends on
+    /// neither.
+    InstanceOf {
+        /// The class or interface tested against.
+        class: QName,
+    },
 }
 
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
@@ -360,6 +375,41 @@ mod tests {
         };
         assert_eq!(class.to_string(), "Foo");
         assert!(ctor.is_none());
+    }
+
+    #[test]
+    fn an_inherited_constructor_records_the_class_that_declares_it() {
+        // `new Bar()` allocates a `Bar` and calls `Foo::constructor`. Naming
+        // `Bar::constructor` instead leaves `mwl-codegen` looking for a
+        // function the unit never compiled.
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass Foo {\n  function constructor() {}\n}\nclass Bar extends Foo {}\nclass T {\n  function m(): void {\n    new Bar();\n  }\n}\n",
+        );
+        let Some(ExprInfo::New { class, ctor, .. }) = exprs.lookup(span) else {
+            panic!("expected a recorded `New` entry");
+        };
+        assert_eq!(class.to_string(), "Bar");
+        let ctor = ctor.as_ref().expect("Bar inherits a constructor");
+        assert_eq!(ctor.class.to_string(), "Foo");
+    }
+
+    #[test]
+    fn an_instanceof_records_the_resolved_class() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    return $f instanceof Foo;\n  }\n}\n",
+        );
+        let Some(ExprInfo::InstanceOf { class }) = exprs.lookup(span) else {
+            panic!("expected a recorded `InstanceOf` entry");
+        };
+        assert_eq!(class.to_string(), "Foo");
+    }
+
+    #[test]
+    fn a_dynamic_instanceof_records_nothing() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?mwl\nclass Foo {}\nclass T {\n  function m(Foo $f, string $n): bool {\n    return $f instanceof $n;\n  }\n}\n",
+        );
+        assert!(exprs.lookup(span).is_none());
     }
 
     #[test]

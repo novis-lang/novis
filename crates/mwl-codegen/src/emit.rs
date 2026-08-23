@@ -379,6 +379,10 @@ impl Emitter<'_, '_> {
             } => {
                 self.emit_field_set(*object, class, field, *value)?;
             }
+            InstKind::InstanceOf { value, class } => {
+                let result = self.emit_instanceof(*value, class)?;
+                self.define(inst, result)?;
+            }
             InstKind::Concat { lhs, rhs } => {
                 let value = self.emit_concat(*lhs, *rhs)?;
                 self.define(inst, value)?;
@@ -898,6 +902,26 @@ impl Emitter<'_, '_> {
         self.b.ins().call(retain, &[object]);
         let (cont, _out) = self.emit_invoke(inst, ctor, Some((object, Ty::Object)), args)?;
         Ok(cont)
+    }
+
+    /// `$obj instanceof Class`: one call, with the descriptor address baked in
+    /// exactly the way [`Self::emit_new`] bakes the allocated class's.
+    ///
+    /// Nothing is retained: the receiver is only read, the way a `FieldGet`
+    /// reads its own.
+    fn emit_instanceof(&mut self, value: ValueId, class: &str) -> Result<Value, CodegenError> {
+        let desc = self.classes.desc(class).ok_or_else(|| {
+            CodegenError::Unsupported(format!(
+                "`instanceof {class}`, whose class this unit declares no descriptor for"
+            ))
+        })?;
+        let address = i64::try_from(desc.addr())
+            .map_err(|_| internal("a class descriptor above i64::MAX"))?;
+        let desc = self.b.ins().iconst(types::I64, address);
+        let (object, _) = self.value(value)?;
+        let callee = self.runtime_ref("mwl_object_instanceof", RuntimeSig::InstanceOf)?;
+        let call = self.b.ins().call(callee, &[object, desc]);
+        Ok(self.b.inst_results(call)[0])
     }
 
     /// `$obj->prop`: one load out of the receiver's field slot.
@@ -1437,6 +1461,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::Refcount => &self.sigs.refcount,
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
             RuntimeSig::Raise => &self.sigs.raise,
+            RuntimeSig::InstanceOf => &self.sigs.instanceof,
             RuntimeSig::ArrayNew => &self.sigs.array_new,
             RuntimeSig::ArrayGet => &self.sigs.array_get,
             RuntimeSig::ArraySet => &self.sigs.array_set,
@@ -1471,6 +1496,7 @@ enum RuntimeSig {
     Refcount,
     PtrToPtr,
     Raise,
+    InstanceOf,
     ArrayNew,
     ArrayGet,
     ArraySet,
@@ -1512,6 +1538,7 @@ fn describe(kind: &InstKind) -> String {
         InstKind::New { .. } => "`new`",
         InstKind::FieldGet { .. } => "a property read",
         InstKind::FieldSet { .. } => "a property write",
+        InstKind::InstanceOf { .. } => "`instanceof`",
         InstKind::Concat { .. } => "`.` string concatenation",
         _ => "this instruction",
     };

@@ -1,0 +1,15 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, object) -> bool {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; object
+    ; stmt s0 @6:5-6:33
+    v2 = instanceof v1, Animal  ; bool
+    release v1
+    release v0
+    return v2
+}

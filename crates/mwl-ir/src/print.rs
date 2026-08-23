@@ -155,6 +155,9 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
+        InstKind::InstanceOf { value, class } => {
+            format!("instanceof v{}, {class}", value.index())
+        }
         InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
         InstKind::HelperCall { helper, args } => {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();

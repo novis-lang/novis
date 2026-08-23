@@ -722,8 +722,10 @@
 //!   global-`Throwable`-only restriction and the `catch` variable's
 //!   clause-scoped lifetime. Out of scope, each panicking rather than
 //!   miscompiling: `finally`, a second `catch` clause, a user exception class
-//!   (all three need M4's object representation or its `instanceof` test),
-//!   `throw` in expression position, and `Throwable::getTrace()`, which
+//!   (all three now want only the exception *surface* decision
+//!   `.claude/loop-goal.md` records — [`ir::InstKind::InstanceOf`], the type
+//!   test each needs, already lowers), `throw` in expression position, and
+//!   `Throwable::getTrace()`, which
 //!   returns `array<…>` and is `.claude/loop-goal.md`'s explicit M4
 //!   carry-over. One narrower gap sits inside what *does* lower: the landing
 //!   sweep covers the frame's locals, not a temporary still in flight inside
