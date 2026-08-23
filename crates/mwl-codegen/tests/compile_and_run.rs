@@ -1225,3 +1225,27 @@ echo (new Box(2))->doubled;
     assert!(unit.function("Box::$doubled::get").is_some());
     assert!(unit.function("Box::$doubled::set").is_none());
 }
+
+/// A hook that throws propagates through
+/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s checked-return
+/// path like any other call, because it *is* one — the read carries the same
+/// error edge a method call does, so the throw reaches an ordinary `catch`
+/// rather than escaping the expression that triggered it.
+#[test]
+fn a_throwing_property_hook_reaches_an_ordinary_catch() {
+    let source = "<?mwl
+class Guard {
+    public int $n;
+    public int $checked { get => $this->fail(); }
+    public function constructor(int $n) { $this->n = $n; }
+    public function fail(): int { throw new LogicError(\"hook said no\"); }
+}
+var $g = new Guard(1);
+try {
+    echo $g->checked;
+} catch (LogicError $e) {
+    echo \"caught: \", $e->message;
+}
+";
+    assert_eq!(output_of(source), "caught: hook said no");
+}
