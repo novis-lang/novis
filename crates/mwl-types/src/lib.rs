@@ -126,10 +126,9 @@
 //!   within that ADR specifically. ADR 0013 (`Comparable`) is now done too
 //!   — see [`expr`]'s `object_comparison_result` for the one thing it
 //!   doesn't check: that a class claiming `implements Comparable` actually
-//!   declares a matching `compareTo` at all, since no ADR has asked for
-//!   general interface-method-completeness checking yet (no interface's
-//!   methods are verified against its implementers today, for any
-//!   interface). ADR 0028 (`Stringable`, `unset()` refusal) is done too —
+//!   declares a matching `compareTo`. [`conformance`] checks every *other*
+//!   interface's members against its implementers, and its own docs say why
+//!   `Comparable`/`Stringable` are the two it deliberately leaves out. ADR 0028 (`Stringable`, `unset()` refusal) is done too —
 //!   see [`expr::require_stringable`]/[`expr::check_property_access`]. ADR
 //!   0036's checker semantics are now done as well: `object` carries real
 //!   subtyping (every class or shape type is `<: object`), a shape type
@@ -164,6 +163,7 @@
 //!   arity check on `new` — see [`expr`]'s `New` handling.
 
 pub mod check;
+pub(crate) mod conformance;
 pub mod core_lib;
 pub mod ctor_init;
 pub mod enums;

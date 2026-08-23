@@ -522,6 +522,11 @@ pub mod code {
     /// the first as the second spelling of an explicit re-yield loop; § 1
     /// gives `Iterator<T>` no key for the second to produce.
     pub const E_YIELD_FORM_UNSUPPORTED: Code = Code::new("E0448");
+    /// A concrete class that reaches an interface method nothing gives a
+    /// body. Harmless while no syntax dispatched through an interface; ADR
+    /// 0053 § 1's `Iterator<T>` made it a dispatch to nothing, since its
+    /// members are bodiless by design.
+    pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

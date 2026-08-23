@@ -26,17 +26,14 @@
 //! so it dispatches on the receiver's runtime class — which is precisely what
 //! driving a cursor whose concrete class the loop never knows requires.
 //!
-//! # Known gap
+//! # Conformance is checked, and this is what asked for it
 //!
-//! **Nothing checks that a class claiming `implements Iterator<int>` actually
-//! declares `advance`/`current`.** Interface conformance is unchecked for
-//! every interface in the language today, `Comparable` included (see
-//! [`crate::lib`](crate)'s own module docs), so these two are no worse off —
-//! but they are the first where a *missing* member ends in a dispatch to
-//! nothing rather than in a call the author wrote by hand. Closing it is one
-//! check over [`ClassSignature::implements`](crate::signatures::ClassSignature::implements),
-//! which is why that field records the resolved arguments rather than a bare
-//! name.
+//! A class claiming `implements Iterator<int>` and forgetting `advance` would
+//! end in a dispatch to nothing rather than in a call the author wrote by
+//! hand — which is why [`crate::conformance`] exists and why it landed
+//! alongside these two. That module owns the rule and its three exemptions;
+//! `Comparable`/`Stringable` still require nothing there, for the reason it
+//! gives.
 
 use mwl_hir::QName;
 use mwl_hir::interfaces::{ITERABLE, ITERATOR};

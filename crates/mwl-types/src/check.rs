@@ -145,6 +145,7 @@ fn check_stmts(
                 check_members(&decl.members, &ctx, env);
                 check_class_init(decl, &qname, env);
                 check_class_lateinit_reads(decl, &qname, env);
+                crate::conformance::check_class_conformance(decl, &qname, env);
             }
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current_ns, span_text(env.src, decl.name.span));
