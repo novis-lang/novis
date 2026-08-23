@@ -11,7 +11,9 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's atom grammar gains `StringLiteral`, `IntLiteral`,
   a class-constant reference, and an enum-case reference as four new atom productions, alongside the
   existing `true`/`false` literal atoms this ADR generalises.
-- **Amended by:** none.
+- **Amended by:** [0066](0066-nullable-conversion-operator.md) — the checked conversion into a literal or
+  enum-case type gains a non-throwing form, `as ?T`, yielding `null` where it would throw. What counts as
+  success is unchanged.
 - **Relates to:** [0010](0010-enums-are-a-value-type.md) (an enum-case type is a checker-only narrowed view
   of a case that already exists — it reuses that ADR's zero-byte runtime representation verbatim, never
   folding a case to its backing integer the way *Decision § 3* explains), [0046](0046-attributes-shape-literal-metadata.md)

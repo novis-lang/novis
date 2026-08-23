@@ -549,17 +549,13 @@ dropped, because half-escaping produces exactly the false confidence
 launders anything.**
 
 `isEmail`, `isUrl`, `isIp`, `isIpV4`, `isIpV6`, `isMac`, `isDomain`, `isAscii`, `isPrintable`,
-`isInteger`, `isFloat`, `isBoolean`, `oneOf(mixed $value, array<mixed> $allowed): bool` — all
-`(subject, …): bool`, all neutral. Replaces `filter_var`'s validate half and its 20 `FILTER_*` constants.
+`oneOf(mixed $value, array<mixed> $allowed): bool` — all `(subject, …): bool`, all neutral. Replaces
+`filter_var`'s validate half and its 20 `FILTER_*` constants.
 
-`isInteger`, `isFloat` and `isBoolean` are defined **against the conversion operator**: each returns `true`
-exactly when `as int`/`as float`/`as bool` on that string would succeed, over **one shared implementation**
-— not a second opinion on what a number looks like. Since `as` requires the whole string to be an exact
-numeric literal ([ADR 0007](../adr/0007-explicit-type-system.md) § 2, so no `"12abc"`), two definitions
-would let `Validate::isInteger($s) && $s as int` throw inside the branch that just checked, which reads as
-unreachable. Same one-implementation rule [ADR 0057](../adr/0057-intrinsic-literal-folding.md) applies to a
-prepared literal and `$d->shift` to a folded format; it also means the check-then-convert pair costs one
-scan, not two, on the request path.
+**There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool !== null`
+([ADR 0066](../adr/0066-nullable-conversion-operator.md)), and R17 forbids the second spelling. Every
+member that remains names a *format*; only a *type* has an `as`, which is why the roster looks uneven and
+is not.
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|

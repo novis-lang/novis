@@ -208,6 +208,10 @@ document fixes that spelling as **final**: `as` is the conversion operator, with
 none is planned. Its precedence and throwing behaviour are exactly as ADR 0007 § 2 already states and are
 not repeated here.
 
+The target may be nullable, and `expr as ?T` is **not** a second spelling — it is the same operator over a
+type the grammar already accepted, yielding `null` where the throwing form would throw
+([ADR 0066](../adr/0066-nullable-conversion-operator.md), which owns which conversions admit it).
+
 ### 3.5 `type` aliases
 
 ```

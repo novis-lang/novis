@@ -100,6 +100,7 @@ bytes, and that any `|` inside it is written `\|`; `python .claude/brief.py --ch
 | [0063](0063-core-api-conventions.md) | Twenty rules fix every `Core` member's shape: subject first, options as one shape, nothing mutates, failure throws, no operation reachable two ways | Accepted |
 | [0064](0064-configuration-file-format.md) | Configuration is TOML in `mwl.toml`; `ini_set` becomes `Core\Config::set` | Accepted |
 | [0065](0065-third-party-attribution-and-mwl-info.md) | Third-party attribution is generated from the dependency graph, committed and embedded in the binary; `mwl info` prints it with the build facts | Accepted |
+| [0066](0066-nullable-conversion-operator.md) | `expr as ?T` converts without throwing, yielding `null` on failure; `Core\Validate`'s three numeric predicates go | Accepted |
 
 ## Decisions taken at project start
 

@@ -496,7 +496,9 @@ structural checking ([ADR 0036](adr/0036-anonymous-object-shapes.md)); `foreach`
 ([ADR 0053](adr/0053-iteration-and-generators.md)); and `decimal`'s conversion and arithmetic rows,
 including `decimal + float` refused on the same grounds as `int + uint`
 ([ADR 0054](adr/0054-decimal-scalar-type.md), whose literals are target-typed with no suffix, so `as T`
-must place one).
+must place one); and the nullable target form `as ?T`, which needs no parser work and reuses § 6's `?T`
+narrowing, refusing the conversions that cannot fail or do not exist
+([ADR 0066](adr/0066-nullable-conversion-operator.md)).
 
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls, with a
 stable per-statement/per-edge id reserved for

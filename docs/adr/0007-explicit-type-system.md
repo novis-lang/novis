@@ -45,6 +45,9 @@
   its enum — generalising the `true`/`false` literal atoms already in this section's grammar.
   [0063](0063-core-api-conventions.md) — § 5's illustrative stdlib signatures are restated subject-first
   (`Core\Arr::map(array<T>, callable): array<U>`); the parametric-in-`T` rule itself is unchanged.
+  [0066](0066-nullable-conversion-operator.md) — § 2's conversion table gains a nullable-target form of
+  every row: `expr as ?T` yields `null` exactly where `expr as T` throws. The rows, and the throwing form,
+  are unchanged.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion is a throw, so it propagates as
   a checked status), [0003](0003-extension-system.md) (WIT's `u64` finally has an exact MWL type),
   [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
