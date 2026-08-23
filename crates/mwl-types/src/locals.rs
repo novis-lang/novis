@@ -169,7 +169,7 @@ pub(crate) fn check_block(
     clippy::too_many_lines,
     reason = "one match arm per AST statement variant, each a couple of lines"
 )]
-fn check_stmt(
+pub(crate) fn check_stmt(
     stmt: &Stmt,
     live: &mut FxHashSet<String>,
     scope: &mut LocalScope,

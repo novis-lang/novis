@@ -1,6 +1,12 @@
 //! Entry point: walks a resolved [`Module`]'s classes and methods, type-
 //! checking each method body against ADR 0007 §§ 1-4 (see the crate docs for
-//! the exact scope of this slice).
+//! the exact scope of this slice), plus the file's own top-level statements
+//! as one synthesized frame ([`ScriptFrame`]) — ADR 0008 § 2's "the script
+//! body is a function, so its variables are locals". That frame is threaded
+//! across `namespace { ... }` blocks, since a namespace scopes names rather
+//! than storage, and it is entirely separate from every method's own frame:
+//! a file-scope local is unreachable from a function, exactly as that ADR's
+//! storage-class table says.
 //!
 //! Mirrors [`mwl_hir::members`]'s own walk shape: [`check_stmts`] tracks
 //! namespace/`use` scope the same way (there is no enclosing-class scope to
@@ -33,7 +39,7 @@ use crate::ctor_init::check_class_init;
 use crate::expr::class_of_ctx;
 use crate::expr_table::ExprTypeTable;
 use crate::lateinit::check_class_lateinit_reads;
-use crate::locals::{LocalScope, check_block};
+use crate::locals::{LocalScope, check_block, check_stmt};
 use crate::lower::lower_optional_type;
 use crate::signatures::build_signatures;
 use crate::ty::TypeInterner;
@@ -78,13 +84,33 @@ pub fn check_program(
         exprs,
         diags,
     };
-    check_stmts(stmts, &[], &FxHashMap::default(), &mut env);
+    let mut frame = ScriptFrame {
+        scope: LocalScope::new(),
+        live: FxHashSet::default(),
+        // ADR 0021 § 3: `require`'s value is what a `return`-ing target file
+        // hands back, typed `mixed` at the boundary — so the synthesized
+        // frame's return type is `mixed`, not `void`.
+        return_ty: env.interner.mixed(),
+    };
+    check_stmts(stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
+}
+
+/// The one synthesized frame a file's top-level statements share
+/// (ADR 0008 § 2: "the script body is a function, so its variables are
+/// locals"). Threaded through [`check_stmts`] so that a `namespace { ... }`
+/// block's own top-level statements land in the *same* frame as the ones
+/// outside it — a namespace scopes names, not storage.
+struct ScriptFrame {
+    scope: LocalScope,
+    live: FxHashSet<String>,
+    return_ty: crate::ty::TypeId,
 }
 
 fn check_stmts(
     stmts: &[Stmt],
     namespace: &[String],
     imports: &FxHashMap<String, QName>,
+    frame: &mut ScriptFrame,
     env: &mut Env<'_>,
 ) {
     let mut current_ns: Vec<String> = namespace.to_vec();
@@ -98,7 +124,7 @@ fn check_stmts(
                     .map_or_else(Vec::new, |n| qname_segments(env.src, n));
                 match body {
                     Some(block) => {
-                        check_stmts(&block.stmts, &new_ns, &FxHashMap::default(), env);
+                        check_stmts(&block.stmts, &new_ns, &FxHashMap::default(), frame, env);
                     }
                     None => {
                         current_ns = new_ns;
@@ -139,7 +165,28 @@ fn check_stmts(
                 };
                 check_members(&decl.members, &ctx, env);
             }
-            _ => {}
+            // Everything else is a *statement* of the script body, not a
+            // declaration: one synthesized frame for the whole file, whose
+            // variables are ordinary locals (ADR 0008 § 2). Reuses
+            // `check_stmt` verbatim rather than adding a second walk, so a
+            // top-level `echo $missing;` reports exactly what the same line
+            // inside a method reports. `current_class` is `None` — there is
+            // no `$this` at file scope.
+            _ => {
+                let ctx = Ctx {
+                    namespace: &current_ns,
+                    imports: &current_imports,
+                    current_class: None,
+                };
+                check_stmt(
+                    stmt,
+                    &mut frame.live,
+                    &mut frame.scope,
+                    frame.return_ty,
+                    &ctx,
+                    env,
+                );
+            }
         }
     }
 }
@@ -1752,6 +1799,125 @@ mod tests {
             diags
                 .iter()
                 .any(|d| d.code == Some(code::E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE)),
+            "{diags:?}"
+        );
+    }
+
+    // ADR 0008 § 2: a file's top-level statements are one synthesized frame
+    // whose variables are locals. Each of these has an exact counterpart in
+    // the `check_in_method` fixtures above — the point is that the two
+    // report identically.
+
+    #[test]
+    fn reading_an_undeclared_local_at_file_scope_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl
+echo $missing;
+",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_declared_and_assigned_file_scope_local_reads_fine() {
+        let diags = check_src(
+            "<?mwl
+int $n = 1;
+$n = $n + 1;
+echo $n;
+",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn redeclaring_a_file_scope_local_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl
+int $n = 1;
+int $n = 2;
+",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_REDECLARED_LOCAL)),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn a_file_scope_type_mismatch_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl
+int $n = 1;
+$n = \"x\";
+",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    /// `$this` has no meaning at file scope — there is no enclosing class,
+    /// so it is an ordinary undeclared name rather than a special case.
+    #[test]
+    fn this_at_file_scope_is_an_undeclared_local() {
+        let diags = check_src(
+            "<?mwl
+echo $this;
+",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A `namespace { ... }` block scopes *names*, not storage: its top-level
+    /// statements land in the same synthesized frame as every other one in
+    /// the file, so a redeclaration across two blocks still conflicts.
+    #[test]
+    fn a_namespace_block_shares_the_one_script_frame() {
+        let diags = check_src(
+            "<?mwl
+namespace A { int $n = 1; }
+namespace B { int $n = 2; }
+",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_REDECLARED_LOCAL)),
+            "{diags:?}"
+        );
+    }
+
+    /// A class body is still its own frame — a file-scope local is not
+    /// visible from inside a method (ADR 0008's table: "unreachable from a
+    /// function").
+    #[test]
+    fn a_file_scope_local_is_not_visible_inside_a_method() {
+        let diags = check_src(
+            "<?mwl
+int $n = 1;
+class T {
+  function m(): void { echo $n; }
+}
+",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNDEFINED_VARIABLE)),
             "{diags:?}"
         );
     }
