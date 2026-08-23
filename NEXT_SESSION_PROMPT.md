@@ -13,11 +13,11 @@ callable from native `Core` code, with `Core\Arr::filter` as the first member th
 owned by `mwl_types::expr::check_fn_literal`, `mwl_ir::lower::lower_closure` and `mwl_runtime::closure`
 — read those three doc comments rather than looking for a summary here.
 
-Two documentation-only decisions landed alongside, both M6-scope and neither touching the loop:
-[ADR 0064](docs/adr/0064-configuration-file-format.md) (TOML in `mwl.toml`, `Core\Config::set`) and
-[ADR 0065](docs/adr/0065-third-party-attribution-and-mwl-info.md) (attribution and `mwl info`). Nothing
-on disk parses `mwl.toml` yet. **Nothing is blocked**; `examples/core.mwl` now stops at its *first* line,
-on an unregistered `Core\Arr::range`.
+Two decisions landed alongside, neither touching the loop. [ADR 0064](docs/adr/0064-configuration-file-format.md)
+(TOML in `mwl.toml`, `Core\Config::set`) is M6-scope and documentation-only — nothing on disk parses it yet.
+[ADR 0065](docs/adr/0065-third-party-attribution-and-mwl-info.md) is **done end to end**: the generator
+`tools/gen-attribution.py`, the committed notice it embeds, `mwl info`/`mwl -i`, and CI's `attribution` job.
+**Nothing is blocked**; `examples/core.mwl` now stops at its *first* line, on an unregistered `Core\Arr::range`.
 
 ## Next
 
