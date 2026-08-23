@@ -180,10 +180,21 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
   `mwl_types::expr::foreach_source`, with `E_FOREACH_SUBJECT_NOT_ITERABLE` for a fourth and
   `E_FOREACH_KEY_ON_CURSOR` for a key binding a cursor cannot have. `mwl_types::check`'s
   `a_foreach_over_a_class_reaches_its_implements_clause_for_the_element_type` and its eight neighbours hold
-  all of it. Still open here: `yield`'s own diagnostics, which arrive with § 4's lowering.
+  all of it. **§§ 4-5's checker slice has landed too**: `mwl_syntax::ast::is_generator_body` decides what a
+  generator is, `mwl_types::Ctx::generator_elem` carries the `T` every operand is checked against, and
+  E0445-E0448 cover a stray `yield`, a return type that is not `Iterator<T>`, a `return expr;` in a
+  generator, and `yield from`/a keyed `yield`. `mwl_types::conformance` additionally holds a class to every
+  member its interfaces declare without a body, which § 1's deliberately bodiless `advance`/`current` are
+  what asked for.
 - **M3/M4:** an IR snapshot test for a generator with a `yield` inside a loop, asserting the resumption
   states and the lifted locals; a runtime test that a generator consumed twice reports exhaustion rather
-  than restarting.
+  than restarting. **§ 4's lowering has landed**: `mwl_ir::lower::lower_generator` owns the transform,
+  `mwl_ir::ir::Terminator::Switch` is the N-way resumption dispatch, and `mwl-ir`'s two generator snapshots
+  hold both a `yield` inside a loop and a refcounted local parked across two suspensions. § 3's other two
+  subjects lower in `lower_foreach_cursor`. `examples/iterate.mwl` runs on Windows and on Linux, and under
+  `valgrind --leak-check=full` with no definite loss. Still open here: `current()` called before the first
+  `advance()` or after one returned `false` does not yet throw, and a generator consumed twice has no test
+  of its own.
 - **M8:** `Core\Db`'s streaming result set is an `Iterator<T>` and iterating a large table holds one row
   at a time, asserted against the request's memory accounting rather than by inspection.
 - **M14:** the browser target compiles and runs a generator, which is the property § 4 exists to preserve.

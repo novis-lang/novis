@@ -6,79 +6,79 @@
 authoritative for the acceptance list and for the ten standing decisions already settled with the user;
 do not re-open any of them. The plan's status block says what is on disk and what is open.
 
-**Stage 1 is green in full** and stayed green through this session. **Stage 2's type side is now done
-too**: `examples/iterate.mwl` passes `mwl check` with no errors, and everything left in it is lowering.
-The shape is owned by doc comments rather than summarised here:
+**Stages 1 and 2 are green on both legs.** Every command, byte for byte, on Windows and under WSL against
+a Linux build, with `valgrind --leak-check=full` clean on all eleven runnable fixtures —
+`examples/iterate.mwl` prints `generator=15` then `iterable=10`. **ADR 0053 is done in full**; its own
+*Verification* section says what that covers and the two small things still open inside it. The shape is
+owned by doc comments rather than summarised here:
 
-- **`mwl_hir::interfaces::RESERVED`** is the roster of every global interface the compiler declares,
-  with each one's type parameters — `Comparable`, `Stringable`, `Iterable<T>`, `Iterator<T>`. Same
-  seeded-from-data footing `mwl_hir::errors` gives the exception tree, and
-  `QName::is_reserved_global_interface` reads it rather than matching names inline.
-- **`mwl_types::iter_lib`** turns the two generic entries into ADR 0053 § 1's member set. Every member
-  is bodiless *on purpose* — that module's docs own why: a call resolving to a bodiless declaration has
-  no compiled function to name, so it dispatches on the receiver's runtime class, which is exactly what
-  driving a cursor of unknown concrete class needs.
-- **`mwl_types::ty::Ty::Class` carries type arguments.** Interning is structural, so `Iterator<int>` and
-  `Iterator<string>` are two `TypeId`s. They are **erased at the `mwl-ir` boundary** — that doc comment
-  states it, and `lower_checked_ty` maps every class to one pointer type.
-- **`crate::generics` now has two binding sites, not one.** A `Core` member takes its variable from an
-  *argument*; an iteration interface takes it from the *receiver*
-  (`mwl_types::expr::substitute_receiver_args`), since `$cursor->current()` has no argument list to read
-  `T` out of. Both end at the same `substitute`, and the "a type variable never survives a call site"
-  property is unchanged.
-- **`mwl_types::expr::foreach_source`** is ADR 0053 § 3's three-shapes rule. A class's element type comes
-  from `ClassSignature::implements`, walked through `extends`/`implements` by
-  `signatures::resolve_iteration_element`. `E0443` refuses a fourth shape, `E0444` refuses a key binding
-  over a cursor. `E0441`/`E0442` refuse a type-argument list on a name that takes none, and a wrong count
-  on one that does.
+- **`mwl_ir::lower::lower_generator`** owns § 4's transform: one source declaration becomes a factory
+  (which runs no user code — it parks the receiver and every argument in a state object and returns it),
+  an `advance()` holding the original body, a `current()`, and a synthesized state class. A `yield` spills
+  every `Env` binding into that class and leaves the frame with `true`; the resume block reads them all
+  back. So a value never lives *across* a suspension in SSA form, and the resume block is an ordinary
+  block the enclosing `while`/`if`/`try` carries on from.
+- **`Lowering::seed_generator_loop_carried`** is the one place a generator changes the surrounding
+  lowering: the entry switch enters a resume block that may sit *inside* a loop body, so a pre-loop value
+  no longer dominates the header — every binding gets a header phi in a generator, and nothing else.
+- **`mwl_ir::ir::Terminator::Switch`** is the N-way terminator the crate docs predicted resumption and
+  `switch` would share. Built general (unsorted, non-dense, one `EdgeId` per arm). `mwl-codegen` lowers it
+  to a compare chain — its known gap 6.
+- **`Lowering::lower_foreach_cursor`** is § 3's other two subjects. `mwl_types::ExprTypeTable::foreach_drive`
+  is how `mwl-ir` learns which of the three shapes a subject is (it cannot re-derive it — reaching
+  `Iterable` through a base class is a `ClassGraph` walk).
+- **`mwl_types::conformance`** holds a class to every interface method it inherits without a body. Its
+  docs own the three exemptions. § 1's deliberately bodiless `advance`/`current` are what asked for it.
+- **`mwl_types::expr::class_satisfied`** is MWL's one nominal subtyping rule, added because without it no
+  `iterate()` can return a concrete cursor class: a class satisfies anything it reaches through
+  `extends`/`implements`, invariantly in a generic target's arguments.
 
 ## Next
 
-**Stage 2's lowering half — generators, and `foreach` over a cursor.** ADR 0053 § 4 settles the design;
-none of this is a design call. Expect this to be the bulk of the session.
+**Stage 3 — `Core` §§ 1–12, and the two language features `examples/core.mwl` calls them through.**
+This is the bulk of M4S and will take several sessions; the loop goal's *Standing decisions* already
+settle every design question it raises (`Core` is native Rust in `crates/mwl-stdlib`, reached through a
+signature table the checker knows and a helper symbol codegen emits; dependencies are picked against
+ADR 0051 § 4 and recorded in the module's own doc comment; ADR 0009 is settled by measurement *before*
+`Core\Str`'s conformance cases are written).
 
-1. **`yield` panics in `mwl_ir::lower`** — `lower_stmts` refuses `StmtKind::Yield` as "not a plain
-   assignment or bare call". § 4 fixes the transform: a function whose body contains `yield` is a
-   generator, calling it runs no user code but allocates and returns a state object implementing
-   `Iterator<T>`, and the body is split at each `yield` into resumption states with every local live
-   across one stored in the state object rather than on a stack. **Not** the coroutine substrate — that
-   is the whole point of § 4, and ADR 0025's cross-target claim rests on it.
-2. **`switch` is still absent from `mwl-ir`**, and the loop goal notes the two pair naturally: resumption
-   wants the same N-way terminator `switch` does. Build the terminator once.
-3. **`Lowering::lower_foreach` asserts on a non-`array<T>` subject** — its own `# Panics` doc names the
-   case. The checker now hands it a fully resolved element type either way, so what is left is emitting
-   `iterate()` once for an `Iterable` and then the `advance()`/`current()` drive loop, both as ordinary
-   instance calls on a bodiless declaration.
+Read `examples/core.mwl` and `examples/report.mwl` — they are the acceptance, and between them they name
+exactly what the first session needs. Two of those needs are *language*, not library, and are the natural
+place to start because nothing in `Core` can be exercised without them:
 
-Expect this to want its own representation paragraph in `mwl_ir::lower`'s or `mwl_ir::ir`'s module doc,
-not a numbered ADR — the loop goal's *Standing decisions* pre-authorizes exactly that.
+1. **Closures.** `Core\Arr::filter($nums, fn(int $n) => $n % 2 === 0)` needs ADR 0031's `fn` literal to
+   parse (it does), check and lower. `mwl_ir::lower` has no `ExprKind::Fn` arm at all.
+2. **Shape literals in argument position.** `Core\Arr::sort($words, {by: fn(string $w) => ...})` is ADR
+   0063's trailing options shape, checked structurally per ADR 0036 § 3.
+3. **Integer `%`** — `mwl-codegen` still refuses `Div`/`Mod` because `sdiv` traps the whole process on a
+   zero divisor, which is a request-isolation failure. The throw path exists now, so this is a checked
+   divisor plus a `Terminator::Throw`. `examples/core.mwl` uses `%`, so it is on the path.
 
-Also worth doing while you are in ADR 0053: **`yield`'s own diagnostics** are still missing on the
-checker side (a generator whose declared return type is not `Iterator<T>`; a `yield` whose operand does
-not satisfy `T`; a `yield` outside a generator body). ADR 0053's *Verification* M2 bullet names them as
-the one thing still open there.
+Pick the slice that fits one session. Closures first is the obvious order — everything else in
+`core.mwl` is a `Core` row, and a row with no way to pass it a callback cannot be conformance-tested.
 
 ## Backlog
 
 Each crate's own module doc is the home for its known gaps; these are the ones worth surfacing.
 
-- **Interface conformance is unchecked, for every interface in the language.** A class claiming
-  `implements Iterator<int>` need not declare `advance`/`current` — `mwl_types::iter_lib`'s *Known gap*
-  owns this. It was harmless while `Comparable` was the only case; it is not harmless for a cursor, where
-  a missing member ends in a dispatch to nothing rather than in a call the author wrote. The fix is one
-  check over `ClassSignature::implements`, which is why that field records resolved arguments.
+- **`Iterator::current()` does not throw before the first `advance()` or after one returns `false`** —
+  ADR 0053 § 1 says it must. `mwl_ir::lower::lower_generator_current`'s doc owns the gap; a `foreach`, the
+  only thing driving a cursor today, never calls it at either point.
+- **A generator with a `&$x` parameter, or a `Ty::Ref` binding live across a `yield`, panics naming
+  itself** — the cell it addresses is the caller's, and the caller is gone by the time it resumes.
+- **`static::`/`new static()` inside a generator body** reaches `Lowering::lsb`'s panic: `Lowering::this`
+  is `None` there, because `$this` is an ordinary reloaded local rather than a value from a block that
+  dominates every resume point.
 - **A `foreach` key binding over an array is unchecked**, because `array<T>` records no key type at all —
   `mwl_types::expr::check_foreach_key`'s doc comment owns the reasoning and names `array<K, V>` as the
   prerequisite. Not a bug; a bounded decision deferred.
 - **A name in type position is lowered twice**, so `E0441`/`E0442`/`E0303` on a parameter type each print
-  twice. Pre-existing (an undeclared class already did this) and cosmetic, but loud.
+  twice. Pre-existing and cosmetic, but loud.
 - **A by-reference call is lowered in two positions only** — `Lowering::pending_refs` owns why, and the
   fix is threading `&mut Env` through `lower_expr`, the same widening `landing_block`'s in-flight-
   temporary gap needs.
 - **A callee that throws never reaches its by-reference copy-back**, leaking the staging retain — never
   dangling. `mwl_ir::Ty::Ref`'s *Known gap* names the exact fix.
-- **`is_assignable` models no class subtyping at all** — `Dog` into an `Animal` parameter is
-  `E_TYPE_MISMATCH`. Not on the acceptance path, but every PHP program in existence relies on it.
 - **An array-element write through a hooked property** (`$obj->hooked[0] = v`) panics naming itself —
   `mwl_ir::lower::Lowering::write_back_array`.
 - **ADR 0014's `PropertyObserver` half** is untouched — § 2/§ 3's declared interface, called after the
@@ -97,8 +97,10 @@ Each crate's own module doc is the home for its known gaps; these are the ones w
   of a protected region. `mwl_ir::lower::Lowering::lower_try`'s doc comment owns both.
 - **A `catch` clause inside a `namespace` block will not resolve** — `catch_clause_type` takes the
   written text. Fix as `instanceof` did: have `mwl_types` record a resolved `QName` per clause.
-- **Integer `Div`/`Mod` are still refused** in `mwl-codegen` (`sdiv` traps on a zero divisor).
-  `examples/core.mwl` needs `%`; ADR 0007 § 4's `int / int` union is separate and larger.
+- **`for`/`switch`/`match` are still unlowered.** Every shape they need now exists, `Terminator::Switch`
+  included — it was built general rather than resumption-specific precisely so `switch` reaches for it.
+- **ADR 0043's `by`-delegation** is unimplemented, and `mwl_types::conformance` exempts any class using
+  one *whole* because of that — closing the delegation gap and narrowing that exemption go together.
 - **`crates/mwl-test` and `mwl test`** — Stage 4's two suites hold most of this loop's coverage.
   `every_part_one_member_has_a_conformance_case` is cheap now: it can read the registry.
 - **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of exactly the kind CLAUDE.md
@@ -111,12 +113,14 @@ Every fact has exactly one home; if two documents state the same thing, the one 
 authoritative and the other is a bug — including this file, which is overwritten, never appended to.
 After editing any doc, run `python .claude/brief.py --check`.
 
-Six tooling notes worth keeping:
+Seven tooling notes worth keeping:
 
 - **The Bash tool eats a backslash inside a heredoc**, including inside a `python - <<'PY'` script: a
   trailing `\` silently vanishes (joining a wrapped Rust string into one long line) and `\\` becomes one
-  backslash. This bit again this session on a `\`-continued Rust string literal. Write the Python helper
-  to a *file* with the Write tool and run the file, or use the Edit tool.
+  backslash. This bit again this session, on a `\`-continued Rust string inside a diagnostic's help text.
+  Write the Python helper to a *file* with the Write tool and run the file, or use the Edit tool.
+- **`gen` is a reserved keyword in Rust 2024.** A field or local named `gen` is a parse error with a
+  confusing message; `generator` is what `mwl_ir::lower` uses.
 - **`rustfmt` rewrites a `"...\n..."` literal in a test into a real multi-line string.** So a Python
   patch that matches on `\\n` inside a fixture string will stop matching after the first `cargo fmt`.
   Match on the formatted form, or use the Edit tool.
@@ -126,7 +130,8 @@ Six tooling notes worth keeping:
 - **`wsl.exe` needs PowerShell**, not the Bash tool (which rewrites `/mnt/d/…`), and a **script file** —
   an inline `bash -lc "…"` mangles. Do not pipe its output through `Select-Object -First N`: that closes
   the pipe and kills the run partway. The Linux leg is
-  `wsl.exe -- bash /mnt/<drive>/<repo>/.claude/wsl-acceptance.sh`.
+  `wsl.exe -- bash /mnt/<drive>/<repo>/.claude/wsl-acceptance.sh`, and it is worth running: it is the only thing
+  that catches a leak in a hand-written refcount protocol.
 - `cargo insta test --accept -p <crate>` is installed (note `test --accept`, not `accept -p`). Read the
   diffs first; a renamed test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe`
   takes over two minutes — run it in the background.

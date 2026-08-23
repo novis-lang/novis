@@ -6,10 +6,10 @@
      field is capped at 400 bytes. History lives in `git log`, per-crate gaps in each crate's module
      doc — see CLAUDE.md's "Keep work small" section. -->
 
-> **Status:** 2026-08-23. **M3 is done**: every acceptance command in `.claude/loop-goal.md` passed on
-> Windows and under WSL against a Linux build, byte for byte, with `build`/`test`/`clippy`/`fmt`/`deny`
-> green. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
-> array, and building that array without its only real consumer produces one that must be rebuilt.
+> **Status:** 2026-08-23. **M3 is done**, and the loop goal's Stages 1-2 are green on Windows and Linux
+> alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
+> array, and building that array without its only real consumer produces one that must be rebuilt. M4's
+> language surface is now what Stage 3's `Core` work needs from it, not the other way round.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -19,7 +19,7 @@
 >
 > **On disk:** the workspace, CI across three platforms, the lint/deny/fmt policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir` (+ `errors`, `interfaces`), `mwl-types` (+ `layout`, `core_lib`, `error_lib`,
-> `iter_lib`, `generics`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`), `mwl-stdlib`
+> `iter_lib`, `generics`, `conformance`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`), `mwl-stdlib`
 > (registry + `Core\Arr::count`/`isEmpty`), `mwl-codegen`, `mwl-cli`, `fuzz/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -27,19 +27,19 @@
 > WSL nightly toolchain (CLAUDE.md says why).
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
-> 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, 0053 §§ 1-3, and 0043's syntax +
-> default/private-method slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1 and 0035 § 4.
-> Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
+> 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
+> slice; end-to-end for 0007 § 2, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4 and **0053 in full**. Each
+> ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, ADR 0043's
-> `by`-delegation, virtual dispatch through a base-typed local, ADR 0053 § 4's generators and the IR half
-> of its `foreach`, ADR 0014's `PropertyObserver`, `crates/mwl-test` and `mwl test`. `as` lowers every row
-> but one — an integer *into* an enum. Alongside ADR 0009's measurement and 0024/0033's sinks.
+> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows, plus the closures and shape
+> literals `examples/core.mwl` calls them through. Then `crates/mwl-test` and `mwl test`. Language gaps
+> off that path: `for`/`switch`, integer `/`/`%`, ADR 0043's `by`-delegation, virtual dispatch through a
+> base-typed local, ADR 0014's `PropertyObserver`, an integer *into* an enum, ADR 0009's measurement.
 >
-> **Blocking:** nothing external. **Stage 1 is green**: all thirteen of its commands, including
-> `examples/hooks.mwl`'s four frozen lines — `&$x` parameters landed as a caller-staged one-cell slot
-> (`mwl_ir::Ty::Ref` owns the representation and its two known gaps). Stage 2 is next, and starts on
-> `implements Iterable<int>` not parsing — a generic interface in an `implements` clause.
+> **Blocking:** nothing external. **Stages 1 and 2 are green on both legs**: every command, byte for
+> byte, on Windows and under WSL against a Linux build, and `valgrind --leak-check=full` clean on all
+> eleven runnable fixtures. Stage 3 is next and needs `Core` itself: `examples/core.mwl` fails only
+> because every `Core\Arr`/`Core\Str` member it calls is still an unregistered row.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
