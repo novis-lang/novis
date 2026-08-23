@@ -42,7 +42,8 @@ fn lower(source: &str) -> mwl_ir::Program {
         diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
     );
 
-    mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner)
+    let layouts = mwl_types::build_class_layouts(&stmts, src, &module.graph);
+    mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &layouts)
 }
 
 /// Compiles and runs `source` against `ctx`, returning the compiled status.

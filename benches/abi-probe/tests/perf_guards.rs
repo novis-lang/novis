@@ -384,7 +384,8 @@ fn compile_arith() -> (mwl_ir::Program, mwl_codegen::Unit) {
     mwl_types::check_program(&stmts, src, &module, &mut interner, &mut exprs, &mut diags);
     assert!(!diags.has_errors(), "the fixture stopped type-checking");
 
-    let program = mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner);
+    let layouts = mwl_types::build_class_layouts(&stmts, src, &module.graph);
+    let program = mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &layouts);
     let unit = mwl_codegen::compile(&program).expect("the fixture compiles");
     (program, unit)
 }

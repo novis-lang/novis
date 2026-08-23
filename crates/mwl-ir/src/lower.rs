@@ -51,6 +51,7 @@ use mwl_syntax::ast::{
     UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
+use mwl_types::layout::ClassLayoutTable;
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -137,6 +138,7 @@ pub fn lower_file(
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
+    layouts: &ClassLayoutTable,
 ) -> crate::ir::Program {
     fn walk(
         stmts: &[Stmt],
@@ -176,7 +178,26 @@ pub fn lower_file(
     let mut functions = Vec::new();
     walk(stmts, src, exprs, checked_types, &mut functions);
     functions.push(lower_script(script, stmts, src, exprs, checked_types));
-    crate::ir::Program { functions }
+
+    // Copied straight across rather than recomputed: `mwl-types` already
+    // resolved the slot order and the supertype set against the class graph,
+    // which this crate cannot see — see `crate::ir::Class`.
+    let mut classes: Vec<crate::ir::Class> = layouts
+        .iter()
+        .map(|(label, layout)| crate::ir::Class {
+            label: label.to_owned(),
+            fields: layout.fields.clone(),
+            conforms: layout.conforms.clone(),
+        })
+        .collect();
+    // The table behind `iter()` is a hash map, so its order varies run to run.
+    // Sorting here is what makes a lowered `Program` — and therefore the
+    // `--dump-ir` listing and every snapshot taken of it — reproducible for an
+    // unchanged file, the same stability `crate::ids` already guarantees for a
+    // statement id.
+    classes.sort_by(|a, b| a.label.cmp(&b.label));
+
+    crate::ir::Program { functions, classes }
 }
 
 /// Lowers `m` — which must have a body, and whose body must stay within this
@@ -4676,5 +4697,80 @@ class T {
         lower_first_method(
             "<?mwl\nclass T {\n  function m(int $n): void {\n    while ($n > 0) {\n      continue 2;\n    }\n  }\n}\n",
         );
+    }
+
+    /// Runs the whole front end over `src` and lowers the file — every class
+    /// method, the script frame, and the class table.
+    fn lower_whole_file(src: &str) -> crate::ir::Program {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        let mut checked_types = TypeInterner::new();
+        let mut exprs = ExprTypeTable::new();
+        mwl_types::check_program(
+            &stmts,
+            map.file(file),
+            &module,
+            &mut checked_types,
+            &mut exprs,
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+        let layouts = mwl_types::build_class_layouts(&stmts, map.file(file), &module.graph);
+        lower_file(
+            "<script>",
+            &stmts,
+            map.file(file),
+            &exprs,
+            &checked_types,
+            &layouts,
+        )
+    }
+
+    /// The class table is carried straight through from `mwl-types`, sorted
+    /// by label so an unchanged file lowers identically every time.
+    #[test]
+    fn a_lowered_file_carries_its_class_table_in_label_order() {
+        let program = lower_whole_file(concat!(
+            "<?mwl\n",
+            "interface Greets { public function greet(): string; }\n",
+            "class Animal {\n",
+            "  public int $legs;\n",
+            "  function constructor(int $legs) { $this->legs = $legs; }\n",
+            "}\n",
+            "class Dog extends Animal implements Greets {\n",
+            "  public string $name;\n",
+            "  function constructor(string $name) {\n",
+            "    parent::constructor(4);\n",
+            "    $this->name = $name;\n",
+            "  }\n",
+            "  public function greet(): string { return $this->name; }\n",
+            "}\n",
+        ));
+
+        let labels: Vec<&str> = program
+            .classes
+            .iter()
+            .map(|class| class.label.as_str())
+            .collect();
+        assert_eq!(labels, ["Animal", "Dog", "Greets"]);
+
+        let dog = &program.classes[1];
+        assert_eq!(dog.fields, ["legs", "name"]);
+        assert_eq!(dog.conforms, ["Animal", "Greets"]);
+        assert!(program.classes[2].fields.is_empty());
+    }
+
+    /// A file declaring no class still lowers, with an empty class table —
+    /// the `hello.mwl` shape.
+    #[test]
+    fn a_file_with_no_class_lowers_to_an_empty_class_table() {
+        let program = lower_whole_file("<?mwl\necho \"hi\";\n");
+        assert!(program.classes.is_empty());
+        assert_eq!(program.functions.len(), 1);
     }
 }

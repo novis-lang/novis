@@ -8,11 +8,38 @@ use mwl_diagnostics::Span;
 use crate::ids::{BlockId, EdgeId, StmtId, ValueId};
 use crate::ty::Ty;
 
-/// Every function this compilation unit lowered.
+/// Every function this compilation unit lowered, and every class it can
+/// instantiate.
 #[derive(Debug, Default)]
 pub struct Program {
     /// The lowered functions, in no particular order.
     pub functions: Vec<Function>,
+    /// Every class and interface declared in the unit, in no particular
+    /// order — see [`Class`].
+    pub classes: Vec<Class>,
+}
+
+/// One class's or interface's runtime shape: what an instance's field slots
+/// hold, and what it is an instance *of*.
+///
+/// A straight copy of `mwl_types::layout::ClassLayout`, carried here so that
+/// `mwl-codegen` can build the `mwl_runtime::ClassTable` a compiled unit owns
+/// without depending on `mwl-types`. The resolution behind it — a subclass's
+/// slots following its parent's, a transitive supertype set — happens once, in
+/// that module, for the reason its own docs give: it needs `mwl_hir::ClassGraph`,
+/// and this crate deliberately depends on neither.
+#[derive(Clone, Debug)]
+pub struct Class {
+    /// The class's rendered `Class`/`Ns\Class` label — the same spelling
+    /// [`InstKind::New::class`] and [`InstKind::FieldGet::class`] carry, and
+    /// the same one a method label's class half uses.
+    pub label: String,
+    /// Every field slot in index order: every ancestor's first, then this
+    /// class's own in declaration order. `$`-sigil not included.
+    pub fields: Vec<String>,
+    /// Every *other* class and interface an instance of this one also is,
+    /// transitively, as labels. Excludes the class itself.
+    pub conforms: Vec<String>,
 }
 
 /// One lowered method or function.

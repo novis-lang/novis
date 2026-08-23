@@ -54,6 +54,10 @@
 //!   to lower one — see that module's own docs for the full design and why
 //!   `mwl-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
 //!   directly.
+//! - [`layout`] — [`layout::build_class_layouts`]: every declared class's
+//!   instance-field *slot order* and its flattened supertype set, the second
+//!   thing this crate publishes for `mwl-ir` to read back. See that module's
+//!   own docs for why the resolution has to happen here rather than there.
 //! - [`string_lit`] — [`string_lit::cook_double_quoted_text`]: cooks a
 //!   double-quoted string literal's (or an interpolated-heredoc text run's)
 //!   escapes into the `string` it denotes, diagnosing the two ways cooking
@@ -164,6 +168,7 @@ pub mod ctor_init;
 pub mod expr;
 pub mod expr_table;
 pub mod lateinit;
+pub mod layout;
 pub mod locals;
 pub mod lower;
 pub mod signatures;
@@ -172,6 +177,7 @@ pub mod ty;
 
 pub use check::check_program;
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ResolvedCall};
+pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 pub use ty::{Ty, TypeId, TypeInterner};
 
 use mwl_diagnostics::{SourceFile, Span};

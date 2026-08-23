@@ -133,15 +133,17 @@ fn run_ast(path: &std::path::Path) -> ExitCode {
 
 /// A file that has been through the whole front end with no error.
 ///
-/// `run` needs everything `check` produces plus the two tables `mwl-ir`
-/// lowering reads back — the resolved-target table and the type interner that
-/// backs it — so the pipeline is shared rather than written twice.
+/// `run` needs everything `check` produces plus the three tables `mwl-ir`
+/// lowering reads back — the resolved-target table, the type interner that
+/// backs it, and the class-layout table — so the pipeline is shared rather
+/// than written twice.
 struct Checked {
     map: SourceMap,
     id: mwl_diagnostics::SourceId,
     stmts: Vec<mwl_syntax::ast::Stmt>,
     interner: mwl_types::TypeInterner,
     exprs: mwl_types::ExprTypeTable,
+    layouts: mwl_types::ClassLayoutTable,
 }
 
 /// Parses, resolves and type-checks `path`, rendering every diagnostic.
@@ -176,12 +178,14 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
     if diags.has_errors() {
         return Err(ExitCode::FAILURE);
     }
+    let layouts = mwl_types::build_class_layouts(&stmts, map.file(id), &module.graph);
     Ok(Checked {
         map,
         id,
         stmts,
         interner,
         exprs,
+        layouts,
     })
 }
 
@@ -219,6 +223,7 @@ fn run_run(
         src,
         &checked.exprs,
         &checked.interner,
+        &checked.layouts,
     );
     if dump_ir {
         for function in &program.functions {
