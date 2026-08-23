@@ -46,8 +46,8 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MethodMember, Stmt, StmtKind, StringPart, Type,
-    TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    AssignOp, BinaryOp, CallArgs, Expr, ExprKind, MethodMember, NamespaceDecl, Stmt, StmtKind,
+    StringPart, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable};
 use mwl_types::ty::{Ty as CheckedTy, TypeId, TypeInterner};
@@ -172,6 +172,66 @@ pub fn lower_method(
     Function {
         name: name.to_owned(),
         params: param_tys,
+        ret: ret_ty,
+        blocks,
+        entry,
+        stmt_spans,
+        edge_spans,
+    }
+}
+
+/// Lowers a file's own top-level statements into one synthesized function
+/// — [ADR 0008](../../../docs/adr/0008-static-and-global.md) § 2's "the
+/// script body is a function, so its variables are locals". `name` is the
+/// label the listing/a future codegen symbol table uses; the caller picks
+/// it, exactly as for [`lower_method`].
+///
+/// Two things differ from [`lower_method`], and nothing else does:
+///
+/// - **No implicit receiver.** A script frame has no `$this`, so parameter
+///   index 0 is not reserved and `params` is empty — matching
+///   `mwl_types::check`'s own script frame, which seeds `$this` only when
+///   there is an enclosing class.
+/// - **The return representation is [`Ty::Mixed`].** A top-level `return`
+///   hands a value back to whatever `require`d the file, and
+///   [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+///   types that boundary `mixed`. A file that never returns falls through to
+///   the same `Terminator::Return(None)` seal `lower_method` uses.
+///
+/// Declarations are skipped rather than lowered: a class's methods are
+/// lowered separately, one [`lower_method`] call each. A
+/// `namespace X { ... }` block's *own* top-level statements are not skipped
+/// — a namespace scopes names, not storage, so they belong to this same one
+/// frame, which is exactly how `mwl_types::check::check_stmts` threads its
+/// own [`Env`] through them.
+pub fn lower_script(
+    name: &str,
+    stmts: &[Stmt],
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Function {
+    let ret_ty = Ty::Mixed;
+    let mut low = Lowering::new(src, ret_ty, exprs, checked_types);
+    let entry = low.new_block();
+    let mut cur = entry;
+    let mut env = Env::default();
+
+    // The same reserved function-entry safepoint poll site `lower_method`
+    // emits — a script body is a function, so it is one of the two fixed
+    // sites for the same reason.
+    low.emit_safepoint(entry);
+
+    low.lower_script_stmts(stmts, &mut cur, &mut env);
+    if !low.is_terminated(cur) {
+        low.release_all_locals(cur, &env, None);
+        low.seal(cur, Terminator::Return(None));
+    }
+
+    let (blocks, stmt_spans, edge_spans) = low.finish();
+    Function {
+        name: name.to_owned(),
+        params: Vec::new(),
         ret: ret_ty,
         blocks,
         entry,
@@ -434,6 +494,36 @@ impl<'a> Lowering<'a> {
         (blocks, stmt_spans, edge_spans)
     }
 
+    /// [`lower_script`]'s own walk: like [`Self::lower_stmts`], but over a
+    /// file's top level, where a *declaration* is not part of the frame at
+    /// all (a class's methods are lowered separately, one [`lower_method`]
+    /// call each) and a `namespace X { ... }` block's body is — a namespace
+    /// scopes names, not storage, so its statements share this one frame.
+    /// The unbraced `namespace X;` form declares no statements of its own,
+    /// so it is skipped like any other declaration; the statements that
+    /// follow it are siblings and are reached by the ordinary loop.
+    fn lower_script_stmts(&mut self, stmts: &[Stmt], cur: &mut BlockId, env: &mut Env) {
+        for stmt in stmts {
+            if self.is_terminated(*cur) {
+                break;
+            }
+            match &stmt.kind {
+                StmtKind::NamespaceDecl(NamespaceDecl {
+                    body: Some(block), ..
+                }) => self.lower_script_stmts(&block.stmts, cur, env),
+                StmtKind::NamespaceDecl(_)
+                | StmtKind::UseDecl(_)
+                | StmtKind::ClassDecl(_)
+                | StmtKind::InterfaceDecl(_)
+                | StmtKind::EnumDecl(_)
+                | StmtKind::TypeAliasDecl(_)
+                | StmtKind::TopLevelFunction(_)
+                | StmtKind::TopLevelConst(_) => {}
+                _ => self.lower_stmt(stmt, cur, env),
+            }
+        }
+    }
+
     /// Lowers a statement list into `cur`, stopping early once `cur` is
     /// sealed (dead code after a `return` inside the list is simply never
     /// lowered — nothing downstream needs it modeled).
@@ -525,10 +615,12 @@ impl<'a> Lowering<'a> {
             StmtKind::While { cond, body } => self.lower_while(cond, body, cur, env),
             StmtKind::Break(level) => self.lower_break(level, cur, env),
             StmtKind::Continue(level) => self.lower_continue(level, cur, env),
+            StmtKind::Echo(operands) => self.lower_echo(operands, *cur, env),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration, a plain \
-                 reassignment, `return`, a nested block, `if`, `while` and a `while`-scoped \
-                 `break`/`continue` — got {other:?}; see the crate docs' known gaps"
+                 reassignment, `echo`, `return`, a nested block, `if`, `while` and a \
+                 `while`-scoped `break`/`continue` — got {other:?}; see the crate docs' known \
+                 gaps"
             ),
         }
     }
@@ -1596,6 +1688,45 @@ impl<'a> Lowering<'a> {
         }
     }
 
+    /// `echo $a, $b;` — writes each operand's bytes to standard output in
+    /// order, with no separator and no escaping: `.claude/loop-goal.md`
+    /// records that ADR 0024 § 5's auto-escaping sink is the HTTP *response*
+    /// write, not this one, and that whether `echo` under a future
+    /// `mwl serve` becomes that sink is an M7 decision this does not
+    /// pre-empt.
+    ///
+    /// Each operand is converted to [`Ty::Str`] by [`Self::concat_operand`]
+    /// — the same shared path `.` concatenation already uses, so a scalar
+    /// goes through its own [`Helper`] conversion and a `Stringable`-object
+    /// operand panics naming the identical gap — and then handed to one
+    /// [`Helper::EchoStr`] [`InstKind::HelperCall`] each. That call defines
+    /// no value, so it is pushed with `result: None` rather than emitted
+    /// through [`Self::emit`].
+    ///
+    /// An operand `concat_operand` reports as non-aliasing (a literal, a
+    /// nested `Concat`'s own result, or a freshly converted `HelperCall`
+    /// result) is released right after the write reads it, since nothing
+    /// else ever will — the same "release a fresh value once its one and
+    /// only use is done" policy the [`ExprKind::Binary`] concatenation arm
+    /// already applies. No safepoint is emitted: `echo` is neither of the
+    /// two reserved sites (function entry, a loop's back edge).
+    fn lower_echo(&mut self, operands: &[Expr], cur: BlockId, env: &Env) {
+        for operand in operands {
+            let (v, aliasing) = self.concat_operand(operand, env, cur);
+            self.block_insts[cur.index() as usize].push(Inst {
+                result: None,
+                ty: None,
+                kind: InstKind::HelperCall {
+                    helper: Helper::EchoStr,
+                    args: vec![v],
+                },
+            });
+            if !aliasing {
+                self.emit_release(cur, v);
+            }
+        }
+    }
+
     /// Lowers one `.` operand and, if it isn't already [`Ty::Str`], converts
     /// it through a new [`InstKind::HelperCall`] — `mwl_types::expr::
     /// check_expr`'s own `require_stringable` already accepts a scalar or a
@@ -2554,6 +2685,65 @@ mod tests {
         let name = span_text(map.file(file), method.name).to_owned();
         let f = lower_method(&name, method, map.file(file), &exprs, &checked_types);
         (f, map, file)
+    }
+
+    /// Parses, resolves and checks `src` exactly as [`lower_first_method`]
+    /// does, then lowers the file's *own* top-level statements through
+    /// [`lower_script`] instead of pulling a method out of a class.
+    fn lower_script_src(src: &str) -> (Function, SourceMap, SourceId) {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = mwl_hir::resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        let mut checked_types = TypeInterner::new();
+        let mut exprs = ExprTypeTable::new();
+        mwl_types::check_program(
+            &stmts,
+            map.file(file),
+            &module,
+            &mut checked_types,
+            &mut exprs,
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
+
+        let f = lower_script("<script>", &stmts, map.file(file), &exprs, &checked_types);
+        (f, map, file)
+    }
+
+    /// The acceptance program of `.claude/loop-goal.md`, lowered: one
+    /// synthesized frame, no receiver parameter, a `ConstStr` handed straight
+    /// to `Helper::EchoStr`, and the literal released right after the write
+    /// reads it (nothing else ever owns it).
+    #[test]
+    fn a_script_body_echoes_a_string_literal() {
+        let (f, map, file) = lower_script_src("<?mwl\necho \"Hello, World!\";\n");
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A file-scope local is an ordinary local of the synthesized frame
+    /// (ADR 0008 § 2) — declared, reassigned and read with exactly the
+    /// machinery a method body already uses. `echo` of an `int` converts
+    /// through the same `Helper::IntToString` `.` concatenation uses.
+    #[test]
+    fn a_script_body_local_is_an_ordinary_local() {
+        let (f, map, file) = lower_script_src("<?mwl\nint $n = 1;\n$n = $n + 2;\necho $n;\n");
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A declaration is skipped by the script frame — `T`'s method is
+    /// `lower_method`'s job, not this walk's — while a
+    /// `namespace X { ... }` block's own statements are not: a namespace
+    /// scopes names, not storage, so they share this one frame.
+    #[test]
+    fn a_script_body_skips_declarations_and_enters_a_namespace_block() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl\nclass T {\n  function m(): void { }\n}\nnamespace A { echo \"in-ns\"; }\necho \"after\";\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     #[test]

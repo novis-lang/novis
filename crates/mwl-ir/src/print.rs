@@ -110,6 +110,17 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         );
         return;
     }
+    // The one value-less `HelperCall`: `Helper::EchoStr` is invoked for its
+    // effect, so it has no `result` for the general arm below to print.
+    if let InstKind::HelperCall {
+        helper: Helper::EchoStr,
+        ref args,
+    } = inst.kind
+    {
+        let operands: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
+        let _ = writeln!(out, "    helper.echo_str {}", operands.join(", "));
+        return;
+    }
     let v = inst
         .result
         .expect("every non-marker instruction defines a value");
@@ -271,5 +282,6 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::FloatTruthy => "float_truthy",
         Helper::StrTruthy => "str_truthy",
         Helper::ArrayTruthy => "array_truthy",
+        Helper::EchoStr => "echo_str",
     }
 }

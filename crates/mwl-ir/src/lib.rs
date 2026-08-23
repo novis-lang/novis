@@ -34,7 +34,12 @@
 //! through arithmetic, `.` concatenation, ADR 0035's truthy table or an
 //! array-element access, and now `$a[] = expr;` append syntax on the write
 //! side (`$a[]` as a read has no PHP meaning at all, so it stays unsupported
-//! by design, not by gap) — [`lower::lower_method`] is the entry point. No
+//! by design, not by gap) — [`lower::lower_method`] is the entry point for
+//! one method, and [`lower::lower_script`] the entry point for a file's own
+//! top-level statements, which are one synthesized frame of ordinary locals
+//! with no receiver parameter (ADR 0008 § 2 — see that function's own doc
+//! comment for the only two ways it differs from `lower_method`, and the
+//! `echo`/script-body slice paragraph below). No
 //! `for`/`switch`/`try`, no `break N`/`continue N` for `N > 1`, no `...spread`/`&value`
 //! array-literal element, no concatenation of a `Stringable`-object operand (a class/enum
 //! value itself also has a representation, [`ty::Ty::Object`], just not a
@@ -464,6 +469,21 @@
 //! caught, defensively, rather than building a `Jump` to a block that was
 //! never created.
 //!
+//! `echo` and the **script body as a function** are the latest slice, and the
+//! two that put the whole front end on `.claude/loop-goal.md`'s acceptance
+//! program. [`lower::lower_script`] synthesizes one frame from a file's own
+//! top-level statements — skipping declarations, whose methods
+//! [`lower::lower_method`] lowers separately, and descending into a
+//! `namespace X { ... }` block's body, since a namespace scopes names rather
+//! than storage. Its return representation is [`ty::Ty::Mixed`], because
+//! ADR 0021 types what a `require`d file hands back that way. `echo` itself
+//! needed no new instruction: [`lower::Lowering::lower_echo`] reuses
+//! `.` concatenation's own [`lower::Lowering::concat_operand`] to get each
+//! operand to [`ty::Ty::Str`], then emits one [`ir::Helper::EchoStr`]
+//! [`ir::InstKind::HelperCall`] per operand — the first [`ir::Helper`]
+//! invoked for an effect rather than a conversion, and so the first
+//! `HelperCall` emitted with no `result` at all.
+//!
 //! # Design choices worth knowing before widening this further
 //!
 //! - **SSA, not a plain CFG.** `docs/implementation-plan.md`'s M2 paragraph
@@ -678,6 +698,15 @@
 //!
 //! # Known gaps (all deliberate, all deferred to a later widening session)
 //!
+//! - **Inline HTML at file scope is not lowered.** `?>text<?mwl` reaches
+//!   [`lower::lower_script`] as an [`mwl_syntax::ast::StmtKind::InlineHtml`]
+//!   statement, which `lower::Lowering::lower_stmt` panics on like any other
+//!   unsupported shape. PHP writes such a run to output verbatim, so the
+//!   lowering is the same [`ir::Helper::EchoStr`] call `echo` already emits,
+//!   over a [`ir::InstKind::ConstStr`] of the raw span — left out here only
+//!   because `.claude/loop-goal.md`'s acceptance program has none, and
+//!   `mwl_types` does not check one either (its own `check_stmt` treats
+//!   `InlineHtml` as a no-op), so landing it would widen two crates at once.
 //! - `for`/`switch`/`match`/`try` are still unsupported: lowering panics
 //!   naming the statement. [`ir::Terminator::Branch`] and [`ids::EdgeId`]
 //!   are both already exercised by `if`/`while`, so widening to the rest is

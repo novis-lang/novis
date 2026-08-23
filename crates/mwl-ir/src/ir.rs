@@ -22,15 +22,19 @@ pub struct Function {
     /// `crate::lower::lower_method`'s caller decides how it is qualified
     /// (bare method name, `Class::method`, ...).
     pub name: String,
-    /// Each parameter's representation, positional. Index 0 is always the
-    /// implicit receiver (`$this`) — every lowered method carries it, whether
-    /// or not its body ever reads `$this`, mirroring
+    /// Each parameter's representation, positional. For a *method*, index 0
+    /// is always the implicit receiver (`$this`) — every lowered method
+    /// carries it, whether or not its body ever reads `$this`, mirroring
     /// `mwl_types::check.rs`'s `check_method` seeding `$this` into its own
     /// `LocalScope` unconditionally (not gated on a `static` modifier — see
     /// that function's own comment for why). Every explicit
     /// `MethodMember` parameter follows, starting at index 1. See
     /// `crate::lower::lower_method`'s own doc comment for where the
     /// receiver's value comes from.
+    ///
+    /// A *script body* — `crate::lower::lower_script`'s synthesized frame for
+    /// a file's own top-level statements — has no receiver and no
+    /// parameters at all, so this is empty for one.
     pub params: Vec<Ty>,
     /// The return representation, [`Ty::Void`] for a `void`-returning
     /// method.
@@ -477,6 +481,17 @@ pub enum Helper {
     StrTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
     ArrayTruthy,
+    /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
+    /// the process's standard output, unescaped — `echo`'s one and only
+    /// effect under `mwl run`, decided in `.claude/loop-goal.md`. Defines no
+    /// value: the only [`Helper`] so far that is invoked for an effect
+    /// rather than a conversion, so its [`InstKind::HelperCall`] is emitted
+    /// with `result: None` and every other variant's "the result is a fresh
+    /// `Ty::Str` nothing else owns" release policy does not apply to it.
+    /// ADR 0024 § 5's auto-escaping sink is the *HTTP response* write, not
+    /// this one — whether `echo` under `mwl serve` becomes that sink is an
+    /// M7 decision this deliberately does not pre-empt.
+    EchoStr,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single
