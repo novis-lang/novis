@@ -199,7 +199,7 @@ impl<'a> Lexer<'a> {
 
     // --- HTML mode ------------------------------------------------------------
 
-    fn lex_html(&mut self, _diags: &mut Diagnostics) {
+    fn lex_html(&mut self, diags: &mut Diagnostics) {
         let start = self.pos;
         loop {
             if self.eof() {
@@ -213,7 +213,24 @@ impl<'a> Lexer<'a> {
                 }
                 let tag_start = self.pos;
                 self.pos += u32::try_from(len).expect("tag length is at most 5 bytes");
-                self.push(kind, self.mk_span(tag_start, self.pos));
+                let tag_span = self.mk_span(tag_start, self.pos);
+                // ADR 0062 § 2: `<?mwl` has exactly one spelling. `<?PHP` is
+                // left alone — it is rejected outright by
+                // `E_PHP_OPEN_TAG_UNSUPPORTED` (ADR 0049 § 2) whatever case
+                // it was typed in, and two diagnostics for one tag would
+                // point at two different fixes.
+                if kind == TokenKind::OpenTagMwl
+                    && &self.text[tag_start as usize..self.pos as usize] != "<?mwl"
+                {
+                    diags.report(
+                        Diagnostic::error(
+                            code::E_RESERVED_SPELLING_CASE,
+                            "`<?mwl` must be written in lower case",
+                        )
+                        .with_primary(tag_span, "write `<?mwl`"),
+                    );
+                }
+                self.push(kind, tag_span);
                 *self.modes.last_mut().expect("mode stack never empty") = Mode::Code {
                     interpolation: false,
                     brace_depth: 0,
@@ -230,6 +247,12 @@ impl<'a> Lexer<'a> {
     /// Checks (without consuming) whether one of the three open-tag spellings
     /// begins at the current position. `<?php`/`<?mwl` must be followed by
     /// whitespace, `?` or end of input, so `<?phpx` is not mistaken for a tag.
+    ///
+    /// Both are still *recognised* case-insensitively, the way ADR 0049 § 2
+    /// already recognises `<?php` purely so the diagnostic can name the fix:
+    /// a file opening `<?MWL` must keep lexing as code, or every later line
+    /// collapses into one useless `InlineHtml` token. [`Self::lex_html`]
+    /// reports the casing.
     fn match_open_tag(&self) -> Option<(TokenKind, usize)> {
         for (spelling, kind) in [
             ("<?php", TokenKind::OpenTagPhp),
@@ -400,6 +423,14 @@ impl<'a> Lexer<'a> {
         Some(self.mk_span(start, self.pos))
     }
 
+    /// A reserved word is matched **exactly**, in lower case only
+    /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// § 2). `IF` is therefore an ordinary [`TokenKind::Ident`], not a
+    /// mis-cased `if`, and gets no diagnostic here: ADR 0029/0032 make `IF` a
+    /// perfectly legal class name, so nothing lexical distinguishes the two.
+    /// It also means `Core\Bytes` needs no special handling — `Bytes` is an
+    /// `Ident`, where PHP-style case-insensitive matching made it collide
+    /// with the `bytes` type keyword.
     fn lex_ident_or_keyword(&mut self) {
         let start = self.pos;
         while self.peek().is_some_and(Self::is_ident_continue) {
@@ -407,8 +438,7 @@ impl<'a> Lexer<'a> {
         }
         let span = self.mk_span(start, self.pos);
         let text = &self.text[start as usize..self.pos as usize];
-        let lower = text.to_ascii_lowercase();
-        let kind = Keyword::from_lowercase(&lower).map_or(TokenKind::Ident, TokenKind::Keyword);
+        let kind = Keyword::from_lowercase(text).map_or(TokenKind::Ident, TokenKind::Keyword);
         self.push(kind, span);
     }
 
@@ -1153,10 +1183,52 @@ mod tests {
     }
 
     #[test]
-    fn keywords_are_case_insensitive_but_idents_are_not() {
+    fn keywords_are_lower_case_only() {
+        // ADR 0062 § 2. `ECHO` is an ordinary identifier, with no diagnostic
+        // of its own: ADR 0029/0032 make it a legal class name, so nothing
+        // here can tell a mis-typed `echo` from a deliberate `ECHO`.
         assert_eq!(
             kinds_ok("<?mwl ECHO myVar"),
+            vec![OpenTagMwl, Ident, Ident, Eof]
+        );
+        assert_eq!(
+            kinds_ok("<?mwl echo myVar"),
             vec![OpenTagMwl, Keyword(super::Keyword::Echo), Ident, Eof]
+        );
+    }
+
+    #[test]
+    fn mixed_case_bytes_is_an_ident_not_the_type_keyword() {
+        // The concrete payoff of exact keyword matching: `Core\Bytes` is
+        // three ordinary name tokens, where case-insensitive matching made
+        // `Bytes` collide with the `bytes` type atom.
+        assert_eq!(
+            kinds_ok(r"<?mwl Core\Bytes"),
+            vec![OpenTagMwl, Ident, Backslash, Ident, Eof]
+        );
+    }
+
+    #[test]
+    fn mis_cased_open_tag_is_reported_but_still_opens_code_mode() {
+        // ADR 0062 § 2: recognised so the rest of the file keeps lexing as
+        // code and the diagnostic can name the fix — ADR 0049 § 2's treatment
+        // of `<?php`, applied to casing.
+        let (kinds, diags) = kinds("<?MWL echo 1;");
+        assert_eq!(
+            kinds,
+            vec![
+                OpenTagMwl,
+                Keyword(super::Keyword::Echo),
+                IntLiteral,
+                Semicolon,
+                Eof
+            ]
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(mwl_diagnostics::code::E_RESERVED_SPELLING_CASE)),
+            "expected E_RESERVED_SPELLING_CASE, got {diags:?}"
         );
     }
 

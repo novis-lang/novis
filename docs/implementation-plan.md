@@ -22,12 +22,15 @@
 > look for it here. Verified: `crates/mwl-syntax/tests/corpus_parse.rs` parses the full local `php-src`
 > checkout with zero panics, and a 5-minute WSL `cargo fuzz run lex`/`run parse` found zero panics. That
 > test's "clean" file count is not re-measured: every corpus file opens with `<?php`, so every one now
-> also trips `E0229`. Known parser gaps live in `mwl-syntax`'s module docs.
+> also trips `E0229`, and — since
+> [ADR 0062](adr/0062-case-sensitivity-is-a-compiler-property.md) made keyword matching exact — every
+> corpus file's mixed-case keywords now lex as plain identifiers. Both widenings are deliberate. Known
+> parser gaps live in `mwl-syntax`'s module docs.
 >
 > **M2 — in progress.** Name resolution (`mwl-hir`) and the type checker (`mwl-types`) are well underway;
 > `mwl-ir` is the remaining bulk. Checker-side rules landed for ADRs 0007, 0010, 0013, 0014, 0015, 0021,
-> 0022, 0024, 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, and 0043's syntax + default/private-method
-> slice. Still open: 0011/0024/0033's stdlib-dependent sinks (blocked on `Core` classes until M7/M8),
+> 0022, 0024, 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax +
+> default/private-method slice. Still open: 0011/0024/0033's stdlib-dependent sinks (blocked on `Core` classes until M7/M8),
 > 0043's `by`-delegation type-matching and its `E_INTERFACE_MEMBER_CONFLICT`/`E_DELEGATE_TYPE_MISMATCH`,
 > 0047 (docs only so far), and finishing `mwl-ir`. Each ADR's own *Verification* section says what its
 > slice covers — that is the one home for it.

@@ -94,6 +94,7 @@ live, so a new row is picked up automatically (up to its own byte budget — see
 | [0059](0059-cross-request-state-is-explicit.md) | `Core\Cache` is per-core, copied in and out, and charged to the core rather than a request | Accepted |
 | [0060](0060-application-security-protocols.md) | A closed roster of application-layer security protocols lives in `Core` | Accepted |
 | [0061](0061-compile-time-autoload-and-program-discovery.md) | `autoload` maps names to files at compile time; `Core\Program::implementing<T>()` enumerates classes nothing names | Accepted |
+| [0062](0062-case-sensitivity-is-a-compiler-property.md) | Names resolve case-sensitively, reserved spellings are lower case only, and a `require`/`autoload` path must match the on-disk entry exactly | Accepted |
 
 ## Decisions taken at project start
 

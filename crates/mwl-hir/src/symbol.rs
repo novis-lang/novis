@@ -50,7 +50,9 @@ pub struct Symbol {
 /// Every type-level declaration collected from one compilation, keyed by its
 /// fully-qualified name.
 ///
-/// Keying is case-sensitive, matching [`QName`]'s own known gap — see its
+/// Keying is case-sensitive, matching [`QName`]'s own decided behaviour
+/// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// § 1) — see its
 /// docs.
 #[derive(Debug, Default)]
 pub struct SymbolTable {

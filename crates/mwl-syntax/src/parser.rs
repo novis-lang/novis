@@ -353,15 +353,17 @@ impl<'src, 'd> Parser<'src, 'd> {
             .unwrap_or_else(|| self.error_expected(what))
     }
 
-    /// The lower-cased text of an identifier-shaped span, for matching a
-    /// contextual keyword (`spawn`, `script`, `with`) by spelling rather than
-    /// token kind — see [`crate::token`]'s module docs for why these three
-    /// stay plain [`TokenKind::Ident`]s instead of reserved words.
-    fn ident_text_ci(&self, span: Span) -> String {
-        self.file
-            .span_text(span)
-            .unwrap_or_default()
-            .to_ascii_lowercase()
+    /// The text of an identifier-shaped span, for matching a contextual
+    /// keyword (`spawn`, `script`, `with`) by spelling rather than token kind
+    /// — see [`crate::token`]'s module docs for why these three stay plain
+    /// [`TokenKind::Ident`]s instead of reserved words.
+    ///
+    /// The comparison is exact: a contextual keyword is a reserved spelling
+    /// like any other, so it is lower case only
+    /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// § 2). `SPAWN` is just an identifier.
+    fn ident_text(&self, span: Span) -> &str {
+        self.file.span_text(span).unwrap_or_default()
     }
 
     fn at_contextual(&mut self, word: &str) -> bool {
@@ -369,7 +371,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             return false;
         }
         let span = self.peek().span;
-        self.ident_text_ci(span) == word
+        self.ident_text(span) == word
     }
 
     fn error_expected(&mut self, what: &str) -> Span {
@@ -791,11 +793,14 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// A possibly-namespace-qualified name: `Foo`, `Core\Bytes`,
     /// `\Fully\Qualified`.
     ///
-    /// A segment may be a reserved word's spelling — `Core\Bytes` collides
-    /// with the `bytes` type keyword under the lexer's case-insensitive
-    /// keyword matching, exactly the way `Core\Bytes::fromHex` already needs
-    /// to parse per
-    /// [`docs/spec/00-overview.md` § 5](../../../docs/spec/00-overview.md).
+    /// A segment may be a reserved word's spelling: a `camelCase` segment
+    /// such as `list` lexes as a keyword, and `Foo\list` still has to parse
+    /// per [`docs/spec/00-overview.md` § 5](../../../docs/spec/00-overview.md).
+    /// `Core\Bytes` no longer needs this tolerance —
+    /// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// § 2 made keyword matching exact, so `Bytes` is an ordinary
+    /// [`TokenKind::Ident`] instead of colliding with the `bytes` type
+    /// keyword.
     /// Once a name is expected at all (this is only ever called after an
     /// `Ident` or `Backslash` was already seen), a keyword spelling here is
     /// unambiguous — the same reasoning already applied to a member name
@@ -1759,7 +1764,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 if self.at_contextual("spawn") && self.peek_at(1).kind == TokenKind::Ident =>
             {
                 let second = self.peek_at(1).span;
-                if self.ident_text_ci(second) == "script" {
+                if self.ident_text(second) == "script" {
                     self.parse_spawn_script()
                 } else {
                     self.parse_name_expr()
@@ -2635,8 +2640,8 @@ impl<'src, 'd> Parser<'src, 'd> {
     fn parse_spawn_option(&mut self) -> SpawnOption {
         let start = self.peek().span;
         let key_span = self.expect(TokenKind::Ident, "a `with(...)` option name");
-        let key_text = self.ident_text_ci(key_span);
-        let key = match key_text.as_str() {
+        let key_text = self.ident_text(key_span);
+        let key = match key_text {
             "args" => SpawnOptionKey::Args,
             "limits" => SpawnOptionKey::Limits,
             "grants" => SpawnOptionKey::Grants,

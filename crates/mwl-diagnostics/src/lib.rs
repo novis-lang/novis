@@ -234,6 +234,16 @@ pub mod code {
     /// `list(...)` as a destructuring target: MWL keeps exactly one
     /// destructuring spelling, `[...]`. See ADR 0050.
     pub const E_LIST_DESTRUCTURING_UNSUPPORTED: Code = Code::new("E0230");
+    /// A reserved lexical spelling written in anything but lower case —
+    /// `<?MWL` rather than `<?mwl`. PHP matches its reserved spellings
+    /// case-insensitively; MWL accepts exactly one spelling of each, so a
+    /// program's meaning never depends on the case a reserved word was typed
+    /// in. See [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// § 2. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
+    /// own — it is simply an ordinary identifier, since ADR 0029/0032 make
+    /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
+    /// `if`.
+    pub const E_RESERVED_SPELLING_CASE: Code = Code::new("E0231");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
@@ -277,6 +287,15 @@ pub mod code {
     /// `__get`/`__set` fallback" for the one receiver shape resolvable
     /// without a type checker.
     pub const E_UNDEFINED_PROPERTY: Code = Code::new("E0313");
+    /// A `require` whose literal path resolves on disk only because the
+    /// filesystem is case-insensitive — `require 'mailer.mwl';` finding
+    /// `Mailer.mwl`. Reported on Windows/macOS so the same source is not a
+    /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
+    /// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// § 3, which extends
+    /// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// § 1's exact-name rule from `autoload` to `require`.
+    pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

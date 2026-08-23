@@ -9,10 +9,14 @@ use std::fmt;
 /// `namespace App\Models;` and one declared inside `namespace App\Http;` never
 /// collide even when both are named `User`.
 ///
-/// **Known gap:** comparison is case-sensitive. PHP treats a class/namespace
-/// segment case-insensitively; MWL does not do that yet, since no ADR has
-/// decided whether to keep that divergence-prone PHP behaviour. Revisit before
-/// this leaves M2.
+/// Comparison is **case-sensitive**, deliberately: PHP resolves a class or
+/// namespace segment case-insensitively, which is what lets a name work on one
+/// machine and not another. This is a decided property, not a gap —
+/// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// § 1 states it, and
+/// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// § 1 already relies on it to keep an autoloaded file's on-disk name exact.
+/// Do not "fix" it back toward PHP.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct QName {
     segments: Vec<String>,

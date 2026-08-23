@@ -26,7 +26,11 @@
 //! (`resolve_imports`, `hierarchy.resolve`, `members.check`, `aliases.resolve`)
 //! run once over the whole graph.
 //!
-//! A literal path that resolves to nothing loadable is
+//! A literal path whose spelling differs from the on-disk entry's only in
+//! case is `code::E_REQUIRE_PATH_CASE_MISMATCH` — see [`check_path_case`],
+//! which is what stops a `require` from compiling on Windows/macOS and then
+//! failing on Linux ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//! § 3). A literal path that resolves to nothing loadable is
 //! `code::E_REQUIRE_TARGET_NOT_FOUND`. A literal path that leads back to a
 //! file already on the current chain is `code::E_CIRCULAR_REQUIRE` rather
 //! than infinite recursion — the same cycle-to-diagnostic treatment
@@ -130,6 +134,13 @@ pub fn resolve_program(
             .and_then(|p| p.parent().map(Path::to_path_buf));
 
         if let Some(base_dir) = base_dir {
+            // Canonicalized once per file rather than once per `require`, so
+            // `check_path_case` can line its simulated walk up positionally
+            // against each target's own canonical path. An entry file named
+            // on the command line as `tests/main.mwl` has a relative,
+            // as-typed parent; every other file in the graph was already
+            // loaded by its canonical path.
+            let canonical_base = base_dir.canonicalize().ok();
             for (literal, span) in targets {
                 let target = base_dir.join(&literal);
                 let Ok(canonical) = target.canonicalize() else {
@@ -142,6 +153,9 @@ pub fn resolve_program(
                     );
                     continue;
                 };
+                if let Some(base) = &canonical_base {
+                    check_path_case(base, &literal, &canonical, span, diags);
+                }
                 if chain.contains(&canonical) {
                     let mut names: Vec<String> =
                         chain.iter().map(|p| p.display().to_string()).collect();
@@ -200,6 +214,86 @@ pub fn resolve_program(
 
 fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
     src.path().and_then(|p| p.canonicalize().ok())
+}
+
+/// Reports a `require` whose literal path resolved only because the
+/// filesystem folds case —
+/// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// § 3, extending [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// § 1's exact-name rule from `autoload` to `require`.
+///
+/// The comparison is free of extra syscalls: `canonicalize` on Windows and
+/// macOS already hands back the entry's true on-disk spelling, so this is a
+/// component-wise string compare of a path both sides already hold. On a
+/// case-sensitive filesystem it can only ever pass — a mis-cased path failed
+/// to resolve at all and was reported as `E_REQUIRE_TARGET_NOT_FOUND` one
+/// branch earlier.
+///
+/// `base` must be canonical. The literal's components are replayed onto it —
+/// `.` skipped, `..` popped — which reproduces exactly what `canonicalize`
+/// did, *unless* a symlink was crossed or the literal was absolute. Both show
+/// up as a length or shape mismatch against `canonical`, and both mean the
+/// positional alignment this relies on is gone, so the check is skipped
+/// rather than guessed at: this diagnostic only ever fires on a difference
+/// that is purely one of case.
+fn check_path_case(
+    base: &Path,
+    literal: &str,
+    canonical: &Path,
+    span: Span,
+    diags: &mut Diagnostics,
+) {
+    if Path::new(literal).is_absolute() {
+        return;
+    }
+    // `true` marks a component the literal wrote, and so the only kind this
+    // may report on: `base`'s own components are canonical already, and a
+    // mismatch there would be about how the *entry* file was named.
+    let mut walked: Vec<(String, bool)> = base
+        .components()
+        .map(|c| (c.as_os_str().to_string_lossy().into_owned(), false))
+        .collect();
+    for component in Path::new(literal).components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if walked.pop().is_none() {
+                    return;
+                }
+            }
+            std::path::Component::Normal(name) => {
+                walked.push((name.to_string_lossy().into_owned(), true));
+            }
+            std::path::Component::Prefix(_) | std::path::Component::RootDir => return,
+        }
+    }
+
+    let actual: Vec<String> = canonical
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    if actual.len() != walked.len() {
+        return;
+    }
+    for ((written, from_literal), on_disk) in walked.iter().zip(&actual) {
+        if written == on_disk {
+            continue;
+        }
+        if !*from_literal || !written.eq_ignore_ascii_case(on_disk) {
+            return;
+        }
+        diags.report(
+            Diagnostic::error(
+                code::E_REQUIRE_PATH_CASE_MISMATCH,
+                format!("`{written}` is spelled `{on_disk}` on disk"),
+            )
+            .with_primary(
+                span,
+                "this path resolves only on a case-insensitive filesystem",
+            ),
+        );
+        return;
+    }
 }
 
 /// Walks `stmts` looking for every `require` expression whose path is a
@@ -649,6 +743,97 @@ mod tests {
         let stmts = parse_file(map.file(entry_id), &mut diags);
         let module = resolve_program(entry_id, stmts, &mut map, &mut diags);
         (module, diags)
+    }
+
+    /// ADR 0062 § 3's whole point, stated as the invariant that holds on
+    /// every OS: a mis-cased `require` never compiles clean. *Which*
+    /// diagnostic it gets is the filesystem's business — Linux never finds
+    /// the file at all, Windows/macOS find it and reject the spelling.
+    #[test]
+    fn a_mis_cased_require_never_compiles_clean() {
+        let dir = TempDir::new("case");
+        dir.write(
+            "Lib.mwl",
+            "<?mwl
+class Helper {}
+",
+        );
+        dir.write(
+            "main.mwl",
+            "<?mwl
+require 'lib.mwl';
+",
+        );
+
+        let (_, diags) = resolve_entry(&dir, "main.mwl");
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert!(
+            codes.contains(&code::E_REQUIRE_PATH_CASE_MISMATCH)
+                || codes.contains(&code::E_REQUIRE_TARGET_NOT_FOUND),
+            "expected a case-mismatch or not-found diagnostic, got {diags:?}"
+        );
+    }
+
+    #[test]
+    fn an_exactly_spelled_require_in_a_subdirectory_is_clean() {
+        let dir = TempDir::new("subdir");
+        fs::create_dir_all(dir.path.join("Lib")).expect("create subdir");
+        dir.write(
+            "Lib/Helper.mwl",
+            "<?mwl
+class Helper {}
+",
+        );
+        dir.write(
+            "main.mwl",
+            "<?mwl
+require './Lib/Helper.mwl';
+",
+        );
+
+        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(
+            module
+                .symbols
+                .contains(&crate::qname::QName::parse("Helper"))
+        );
+    }
+
+    /// `check_path_case` drives off two paths it is handed, so its whole
+    /// decision table is testable without a case-insensitive filesystem to
+    /// run on.
+    #[test]
+    fn check_path_case_only_fires_on_a_pure_case_difference() {
+        fn run(base: &str, literal: &str, canonical: &str) -> bool {
+            let mut map = SourceMap::new();
+            let id = map.add("case.mwl", "");
+            let mut diags = Diagnostics::new();
+            check_path_case(
+                Path::new(base),
+                literal,
+                Path::new(canonical),
+                Span::new(id, 0, 0),
+                &mut diags,
+            );
+            diags.has_errors()
+        }
+
+        // The case the ADR exists for, at the file and at a directory.
+        assert!(run("/app", "lib.mwl", "/app/Lib.mwl"));
+        assert!(run("/app", "lib/helper.mwl", "/app/Lib/helper.mwl"));
+        // `.` and `..` are replayed, not compared.
+        assert!(run("/app/src", "../lib.mwl", "/app/Lib.mwl"));
+        assert!(!run("/app/src", "./lib.mwl", "/app/src/lib.mwl"));
+        // An exact spelling, and a difference that is not one of case (a
+        // symlink resolved elsewhere), are both silent.
+        assert!(!run("/app", "Lib.mwl", "/app/Lib.mwl"));
+        assert!(!run("/app", "lib.mwl", "/app/other.mwl"));
+        assert!(!run("/app", "lib.mwl", "/elsewhere/deeper/Lib.mwl"));
+        // A component `base` contributed is never reported: how the entry
+        // file was spelled on the command line is not this diagnostic's
+        // business.
+        assert!(!run("/App", "lib.mwl", "/app/lib.mwl"));
     }
 
     #[test]

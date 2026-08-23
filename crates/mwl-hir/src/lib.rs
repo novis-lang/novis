@@ -43,8 +43,7 @@
 //! static types); [`aliases`]'s [`AliasTable`] has no consumer yet — nothing
 //! in `mwl-hir` walks a property/parameter/return-type position for it to
 //! feed, so that arrives with `mwl-types` too; [`requires`] only recognises a
-//! plain quoted-string literal path. [`QName`] also compares segments
-//! case-sensitively, unlike PHP — see its own docs.
+//! plain quoted-string literal path.
 
 pub mod aliases;
 pub mod hierarchy;
