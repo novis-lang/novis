@@ -802,6 +802,36 @@ pub enum Helper {
     StrTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
     ArrayTruthy,
+    /// `$n as uint` — ADR 0007 § 2's `int` ↔ `uint` row. Exact, or **throws**
+    /// on a negative value. The first of nine helpers that can fail rather
+    /// than convert, so each is emitted through
+    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// edge like any call.
+    IntToUint,
+    /// `$n as int` — the same row the other way. Exact, or throws above
+    /// `i64::MAX`.
+    UintToInt,
+    /// `$n as float` — exact, or throws above 2^53, where `f64` stops
+    /// representing every integer. ADR 0007 § 2 says so outright: `as` "never
+    /// rounds, truncates, or substitutes a default."
+    IntToFloat,
+    /// `$n as float` from a `uint` — [`Self::IntToFloat`]'s row, unsigned.
+    UintToFloat,
+    /// `$f as int` — integral and in range, or throws. Rounding is
+    /// `floor`/`ceil`/`round`, "said out loud" (ADR 0007 § 2), so this
+    /// deliberately refuses `1.5` rather than picking one of the three.
+    FloatToInt,
+    /// `$f as uint` — [`Self::FloatToInt`]'s row, unsigned.
+    FloatToUint,
+    /// `$s as int` — the *whole* string must be an exact decimal integer
+    /// literal, or this throws. ADR 0007 § 2: "No leading-garbage rule, no
+    /// `0`" — PHP's `(int)"12abc" === 12` and `(int)"abc" === 0` are both
+    /// gone.
+    StrToInt,
+    /// `$s as uint` — [`Self::StrToInt`]'s row, unsigned.
+    StrToUint,
+    /// `$s as float` — the whole string must be an exact numeric literal.
+    StrToFloat,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `mwl run`, decided in `.claude/loop-goal.md`. Defines no

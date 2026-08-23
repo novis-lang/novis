@@ -3106,7 +3106,7 @@ impl<'a> Lowering<'a> {
                 // the same reason it is there.
                 let (v, from) = self.lower_expr(inner, None, env, cur);
                 let to = lower_decl_type(ty, self.exprs, self.checked_types);
-                self.convert(v, from, to, inner, cur)
+                self.convert(v, from, to, inner, env, cur)
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
@@ -3233,12 +3233,13 @@ impl<'a> Lowering<'a> {
     ///   truthy table ([`Self::truthy_convert`]) — `as bool` is the explicit
     ///   spelling of exactly the test a condition applies implicitly, so
     ///   giving it a second table would be two answers to one question.
-    /// * **Checked.** `int` ↔ `uint`, `float` → an integer, `string` → a
-    ///   number, and an integer → an enum all either produce the value or
-    ///   throw. None is lowered yet; each panics naming itself. They need a
-    ///   throwing helper apiece (and, for the enum row, the case set carried
-    ///   to the runtime), which is the next slice — see the crate docs' known
-    ///   gaps.
+    /// * **Checked.** `int` ↔ `uint`, `float` → an integer and `string` → a
+    ///   number each go through a [`Helper`] that either produces the value or
+    ///   throws, emitted through [`Self::emit_fallible`] so it carries
+    ///   ADR 0002's error edge like any other call. ADR 0010 § 5's remaining
+    ///   row — an integer *into* an enum — is the one still missing: it throws
+    ///   on a value no case names, which needs the declaration's case set
+    ///   carried to the check. It panics naming itself.
     ///
     /// `operand` is the un-lowered source expression, used only to decide
     /// whether a refcounted operand this conversion consumed was borrowed
@@ -3250,6 +3251,7 @@ impl<'a> Lowering<'a> {
         from: Ty,
         to: Ty,
         operand: &Expr,
+        env: &Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
         if from == to {
@@ -3283,12 +3285,48 @@ impl<'a> Lowering<'a> {
                     },
                 )
             }
+            // ADR 0007 § 2's checked rows. Each either produces the value or
+            // throws, so each is a fallible helper carrying ADR 0002's error
+            // edge — the same call shape a method call already has. The
+            // operand is a scalar in every one of these except the `string`
+            // rows, whose operand is released once the helper has read it if
+            // nothing else owns it (`Self::concat_operand`'s caller's policy).
+            (Ty::Int, Ty::Uint)
+            | (Ty::Uint, Ty::Int)
+            | (Ty::Int | Ty::Uint, Ty::Float)
+            | (Ty::Float, Ty::Int | Ty::Uint)
+            | (Ty::Str, Ty::Int | Ty::Uint | Ty::Float) => {
+                let helper = match (from, to) {
+                    (Ty::Int, Ty::Uint) => Helper::IntToUint,
+                    (Ty::Uint, Ty::Int) => Helper::UintToInt,
+                    (Ty::Int, _) => Helper::IntToFloat,
+                    (Ty::Uint, _) => Helper::UintToFloat,
+                    (Ty::Float, Ty::Int) => Helper::FloatToInt,
+                    (Ty::Float, _) => Helper::FloatToUint,
+                    (_, Ty::Int) => Helper::StrToInt,
+                    (_, Ty::Uint) => Helper::StrToUint,
+                    _ => Helper::StrToFloat,
+                };
+                let out = self.emit_fallible(
+                    cur,
+                    to,
+                    InstKind::HelperCall {
+                        helper,
+                        args: vec![v],
+                    },
+                    env,
+                );
+                if from.is_refcounted() && !is_aliasing_read(&operand.kind) {
+                    self.emit_release(cur, v);
+                }
+                out
+            }
             _ => panic!(
-                "mwl-ir lowers only ADR 0007 § 2's free and total conversion rows so far — got \
-                 `{from:?} as {to:?}`, which is one of the checked rows (`int` ↔ `uint`, `float` \
-                 to an integer, `string` to a number, an integer into an enum). Each throws \
-                 rather than rounding or substituting, and needs a throwing runtime helper this \
-                 crate has no tag for yet; see the crate docs' known gaps"
+                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows and ADR 0010 § 5's \
+                 enum-to-backing one — got `{from:?} as {to:?}`. An integer into an *enum* is \
+                 the row still missing: it throws on a value no case names, which needs the \
+                 declaration's case set carried to the check, and nothing in this IR expresses \
+                 one. See the crate docs' known gaps"
             ),
         }
     }
@@ -6245,14 +6283,37 @@ bool $b = 0 as bool;
         assert!(text.contains("helper.int_truthy"), "{text}");
     }
 
-    /// The checked rows of ADR 0007 § 2 are not lowered yet, and say so.
+    /// ADR 0007 § 2's checked rows go through a fallible helper — the same
+    /// call shape a method call has, error edge included, because either one
+    /// can throw. The error edge is what this asserts: a checked conversion
+    /// that skipped it would drop the throw on the floor.
     #[test]
-    #[should_panic(expected = "one of the checked rows")]
-    fn a_checked_conversion_row_panics_naming_itself() {
-        let _ = lower_script_src(
+    fn a_checked_conversion_row_carries_adr_0002_s_error_edge() {
+        let (f, map, file) = lower_script_src(
             "<?mwl
 uint $u = 1;
 int $n = $u as int;
+",
+        );
+        let text = print_function(&f, map.file(file));
+        // `! bbN` is how `crate::print` renders `Inst::on_error`.
+        assert!(
+            text.lines()
+                .any(|l| l.contains("helper.uint_to_int") && l.contains(" ! bb")),
+            "{text}"
+        );
+    }
+
+    /// The one conversion row still missing, named rather than miscompiled:
+    /// ADR 0010 § 5's integer *into* an enum throws on a value no case names.
+    #[test]
+    #[should_panic(expected = "An integer into an *enum* is")]
+    fn converting_into_an_enum_panics_naming_itself() {
+        let _ = lower_script_src(
+            "<?mwl
+enum Rank { Bronze, Gold }
+int $n = 1;
+Rank $r = $n as Rank;
 ",
         );
     }

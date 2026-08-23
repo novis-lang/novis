@@ -133,6 +133,170 @@ crate::mwl_helper! {
     }
 }
 
+/// The [`Fault::Thrown`] a checked conversion produces when the value does not
+/// fit — ADR 0007 § 2's "`as` ... either produces a value of the target type or
+/// throws. It never rounds, truncates, or substitutes a default."
+///
+/// Known gap: the message is all a helper failure can carry, so the driver
+/// promotes every one of these to spec § 10's `RuntimeError`. ADR 0007 § 4
+/// names `ArithmeticError` for a numeric overflow, which is the closer class —
+/// reaching it needs a helper failure to name its own class, which nothing in
+/// `crate::abi` expresses yet.
+fn does_not_fit(what: &str, target: &str) -> Fault {
+    Fault::thrown(format!("cannot convert {what} to `{target}`"))
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::IntToUint`.
+    fn mwl_int_to_uint(_ctx, args: [1]) {
+        let value = expect_tag!("mwl_int_to_uint", args[0], as_int, Tag::Int);
+        u64::try_from(value)
+            .map(Value::uint)
+            .map_err(|_| does_not_fit(&format!("`int` {value}"), "uint"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::UintToInt`.
+    fn mwl_uint_to_int(_ctx, args: [1]) {
+        let value = expect_tag!("mwl_uint_to_int", args[0], as_uint, Tag::Uint);
+        i64::try_from(value)
+            .map(Value::int)
+            .map_err(|_| does_not_fit(&format!("`uint` {value}"), "int"))
+    }
+}
+
+/// The magnitude past which an `f64` no longer represents every integer —
+/// ADR 0007 § 2's 2^53 boundary, shared by both integer-to-`float` helpers.
+const F64_EXACT_INT_LIMIT: u64 = 1 << 53;
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::IntToFloat`.
+    fn mwl_int_to_float(_ctx, args: [1]) {
+        let value = expect_tag!("mwl_int_to_float", args[0], as_int, Tag::Int);
+        if value.unsigned_abs() > F64_EXACT_INT_LIMIT {
+            return Err(does_not_fit(&format!("`int` {value}"), "float"));
+        }
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the magnitude check above is exactly what makes this exact"
+        )]
+        Ok(Value::float(value as f64))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::UintToFloat`.
+    fn mwl_uint_to_float(_ctx, args: [1]) {
+        let value = expect_tag!("mwl_uint_to_float", args[0], as_uint, Tag::Uint);
+        if value > F64_EXACT_INT_LIMIT {
+            return Err(does_not_fit(&format!("`uint` {value}"), "float"));
+        }
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "the magnitude check above is exactly what makes this exact"
+        )]
+        Ok(Value::float(value as f64))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::FloatToInt`.
+    fn mwl_float_to_int(_ctx, args: [1]) {
+        let value = expect_tag!("mwl_float_to_int", args[0], as_float, Tag::Float);
+        exact_integral(value)
+            .and_then(|v| i64::try_from(v).ok())
+            .map(Value::int)
+            .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "int"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::FloatToUint`.
+    fn mwl_float_to_uint(_ctx, args: [1]) {
+        let value = expect_tag!("mwl_float_to_uint", args[0], as_float, Tag::Float);
+        exact_integral(value)
+            .and_then(|v| u64::try_from(v).ok())
+            .map(Value::uint)
+            .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "uint"))
+    }
+}
+
+/// `value` as an exact integer, or `None` if it is not integral, is not
+/// finite, or is too large for the `i128` both integer targets fit inside.
+///
+/// ADR 0007 § 2: "integral and in range, or throws. Rounding is
+/// `floor`/`ceil`/`round`, said out loud" — so `1.5` is refused here rather
+/// than silently becoming any of `1`, `2`, or `1`.
+fn exact_integral(value: f64) -> Option<i128> {
+    if !value.is_finite() || value.fract() != 0.0 {
+        return None;
+    }
+    // Every `f64` with a zero fractional part and a magnitude below 2^127 is
+    // exactly an integer, and `i128` holds all of them.
+    if value.abs() >= 2.0_f64.powi(127) {
+        return None;
+    }
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the two guards above leave only values `i128` represents exactly"
+    )]
+    Some(value as i128)
+}
+
+/// The one shape ADR 0007 § 2's `string` → number row accepts: the *whole*
+/// string, with no surrounding whitespace, no leading `+`-and-garbage rule, and
+/// no PHP-style prefix parse. Returned as `&str` so each caller can hand it to
+/// the standard library's own exact parser.
+fn numeric_text<'a>(bytes: &'a [u8], helper: &'static str, value: Value) -> Result<&'a str, Fault> {
+    str::from_utf8(bytes).map_err(|_| wrong_tag(helper, Tag::Str, value))
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::StrToInt`.
+    fn mwl_str_to_int(_ctx, args: [1]) {
+        let bytes = args[0]
+            .as_str_bytes()
+            .ok_or_else(|| wrong_tag("mwl_str_to_int", Tag::Str, args[0]))?;
+        let text = numeric_text(bytes, "mwl_str_to_int", args[0])?;
+        text.parse::<i64>()
+            .map(Value::int)
+            .map_err(|_| does_not_fit(&format!("string {text:?}"), "int"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::StrToUint`.
+    fn mwl_str_to_uint(_ctx, args: [1]) {
+        let bytes = args[0]
+            .as_str_bytes()
+            .ok_or_else(|| wrong_tag("mwl_str_to_uint", Tag::Str, args[0]))?;
+        let text = numeric_text(bytes, "mwl_str_to_uint", args[0])?;
+        text.parse::<u64>()
+            .map(Value::uint)
+            .map_err(|_| does_not_fit(&format!("string {text:?}"), "uint"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::StrToFloat`.
+    fn mwl_str_to_float(_ctx, args: [1]) {
+        let bytes = args[0]
+            .as_str_bytes()
+            .ok_or_else(|| wrong_tag("mwl_str_to_float", Tag::Str, args[0]))?;
+        let text = numeric_text(bytes, "mwl_str_to_float", args[0])?;
+        // `f64::from_str` accepts `inf`/`nan`/`infinity` in any case; none is
+        // an "exact numeric literal", so each is refused here rather than
+        // becoming a value no source literal could have written.
+        if text.parse::<f64>().is_ok_and(f64::is_finite) {
+            #[expect(clippy::unwrap_used, reason = "the `is_ok_and` above proved it parses")]
+            Ok(Value::float(text.parse::<f64>().unwrap()))
+        } else {
+            Err(does_not_fit(&format!("string {text:?}"), "float"))
+        }
+    }
+}
+
 crate::mwl_helper! {
     /// `mwl_ir::Helper::EchoStr` — raw bytes to the request's own output, with
     /// no escaping. `.claude/loop-goal.md` records that decision and why
@@ -172,6 +336,15 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_float_truthy", address(mwl_float_truthy)),
         ("mwl_str_truthy", address(mwl_str_truthy)),
         ("mwl_array_truthy", address(mwl_array_truthy)),
+        ("mwl_int_to_uint", address(mwl_int_to_uint)),
+        ("mwl_uint_to_int", address(mwl_uint_to_int)),
+        ("mwl_int_to_float", address(mwl_int_to_float)),
+        ("mwl_uint_to_float", address(mwl_uint_to_float)),
+        ("mwl_float_to_int", address(mwl_float_to_int)),
+        ("mwl_float_to_uint", address(mwl_float_to_uint)),
+        ("mwl_str_to_int", address(mwl_str_to_int)),
+        ("mwl_str_to_uint", address(mwl_str_to_uint)),
+        ("mwl_str_to_float", address(mwl_str_to_float)),
         ("mwl_echo_str", address(mwl_echo_str)),
         (
             "mwl_str_new",
@@ -336,6 +509,22 @@ mod tests {
         text
     }
 
+    /// Calls a checked conversion helper, expecting it to succeed.
+    fn converted(helper: HelperFn, argument: Value) -> Value {
+        let mut ctx = Ctx::buffered();
+        call(helper, &mut ctx, &[argument]).expect("the conversion succeeded")
+    }
+
+    /// Calls a checked conversion helper, expecting ADR 0007 § 2's throw.
+    fn refused(helper: HelperFn, argument: Value) {
+        let mut ctx = Ctx::buffered();
+        assert_eq!(
+            call(helper, &mut ctx, &[argument]).unwrap_err(),
+            crate::abi::THROWN,
+            "the conversion should have thrown rather than substituting a value"
+        );
+    }
+
     fn truthy(helper: HelperFn, argument: Value) -> bool {
         let mut ctx = Ctx::buffered();
         call(helper, &mut ctx, &[argument])
@@ -475,5 +664,101 @@ mod tests {
         let count = names.len();
         names.dedup();
         assert_eq!(names.len(), count, "a symbol name is registered twice");
+    }
+
+    /// ADR 0007 § 2's `int` ↔ `uint` row: exact, or throws. The two ends that
+    /// have no counterpart on the other side are the whole content of the row.
+    #[test]
+    fn int_and_uint_convert_where_the_ranges_overlap_and_throw_where_they_do_not() {
+        assert_eq!(converted(mwl_int_to_uint, Value::int(0)).as_uint(), Some(0));
+        assert_eq!(
+            converted(mwl_int_to_uint, Value::int(i64::MAX)).as_uint(),
+            Some(i64::MAX.cast_unsigned())
+        );
+        refused(mwl_int_to_uint, Value::int(-1));
+
+        assert_eq!(
+            converted(mwl_uint_to_int, Value::uint(i64::MAX.cast_unsigned())).as_int(),
+            Some(i64::MAX)
+        );
+        refused(mwl_uint_to_int, Value::uint(i64::MAX.cast_unsigned() + 1));
+        refused(mwl_uint_to_int, Value::uint(u64::MAX));
+    }
+
+    /// ADR 0007 § 2: an integer to `float` is "exact, or throws above 2^53,
+    /// where `f64` stops representing every integer."
+    #[test]
+    fn an_integer_to_float_throws_past_the_point_it_would_stop_being_exact() {
+        assert_eq!(
+            converted(mwl_int_to_float, Value::int(-9007199254740992)).as_float(),
+            Some(-9007199254740992.0)
+        );
+        assert_eq!(
+            converted(mwl_uint_to_float, Value::uint(9007199254740992)).as_float(),
+            Some(9007199254740992.0)
+        );
+        refused(mwl_int_to_float, Value::int(9007199254740993));
+        refused(mwl_uint_to_float, Value::uint(u64::MAX));
+    }
+
+    /// ADR 0007 § 2: "integral and in range, or throws. Rounding is
+    /// `floor`/`ceil`/`round`, said out loud" — so a fractional value is
+    /// refused rather than silently picking one of the three.
+    #[test]
+    fn a_float_to_an_integer_refuses_anything_it_would_have_to_round() {
+        assert_eq!(
+            converted(mwl_float_to_int, Value::float(-3.0)).as_int(),
+            Some(-3)
+        );
+        assert_eq!(
+            converted(mwl_float_to_uint, Value::float(3.0)).as_uint(),
+            Some(3)
+        );
+        refused(mwl_float_to_int, Value::float(1.5));
+        refused(mwl_float_to_uint, Value::float(-1.0));
+        refused(mwl_float_to_int, Value::float(f64::NAN));
+        refused(mwl_float_to_int, Value::float(f64::INFINITY));
+        refused(mwl_float_to_int, Value::float(1e30));
+    }
+
+    /// ADR 0007 § 2: "the whole string must be an exact numeric literal, or
+    /// throws. No leading-garbage rule, no `0`" — PHP's `(int)"12abc" === 12`
+    /// and `(int)"abc" === 0` are both gone.
+    #[test]
+    fn a_string_to_a_number_takes_the_whole_string_or_nothing() {
+        /// Runs `check` over a fresh string argument and releases it after —
+        /// a conversion helper only *reads* its operand (compiled code emits
+        /// the release itself, see `mwl_ir::lower::Lowering::convert`), so a
+        /// test that dropped the value here would leak it.
+        fn with(text: &str, check: impl FnOnce(Value)) {
+            let value = Value::str(MwlStr::new(text.as_bytes()));
+            check(value);
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference the fresh `MwlStr` \
+                          was built with, and the helper borrowed it"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+
+        with("-42", |v| {
+            assert_eq!(converted(mwl_str_to_int, v).as_int(), Some(-42));
+        });
+        with("18446744073709551615", |v| {
+            assert_eq!(converted(mwl_str_to_uint, v).as_uint(), Some(u64::MAX));
+        });
+        with("3.5", |v| {
+            assert_eq!(converted(mwl_str_to_float, v).as_float(), Some(3.5));
+        });
+        for bad in ["12abc", "abc", "", " 12", "12 ", "0x10", "1.5"] {
+            with(bad, |v| refused(mwl_str_to_int, v));
+        }
+        with("-1", |v| refused(mwl_str_to_uint, v));
+        // Not "an exact numeric literal": no MWL source literal writes one.
+        for bad in ["inf", "NaN", "infinity"] {
+            with(bad, |v| refused(mwl_str_to_float, v));
+        }
     }
 }

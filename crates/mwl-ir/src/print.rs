@@ -363,6 +363,15 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::FloatTruthy => "float_truthy",
         Helper::StrTruthy => "str_truthy",
         Helper::ArrayTruthy => "array_truthy",
+        Helper::IntToUint => "int_to_uint",
+        Helper::UintToInt => "uint_to_int",
+        Helper::IntToFloat => "int_to_float",
+        Helper::UintToFloat => "uint_to_float",
+        Helper::FloatToInt => "float_to_int",
+        Helper::FloatToUint => "float_to_uint",
+        Helper::StrToInt => "str_to_int",
+        Helper::StrToUint => "str_to_uint",
+        Helper::StrToFloat => "str_to_float",
         Helper::EchoStr => "echo_str",
     }
 }

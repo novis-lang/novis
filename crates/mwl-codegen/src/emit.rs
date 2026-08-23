@@ -1695,6 +1695,15 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::StrTruthy => "mwl_str_truthy",
         Helper::EchoStr => "mwl_echo_str",
         Helper::ArrayTruthy => "mwl_array_truthy",
+        Helper::IntToUint => "mwl_int_to_uint",
+        Helper::UintToInt => "mwl_uint_to_int",
+        Helper::IntToFloat => "mwl_int_to_float",
+        Helper::UintToFloat => "mwl_uint_to_float",
+        Helper::FloatToInt => "mwl_float_to_int",
+        Helper::FloatToUint => "mwl_float_to_uint",
+        Helper::StrToInt => "mwl_str_to_int",
+        Helper::StrToUint => "mwl_str_to_uint",
+        Helper::StrToFloat => "mwl_str_to_float",
         other => {
             return Err(CodegenError::Unsupported(format!(
                 "the runtime helper {other:?}"
