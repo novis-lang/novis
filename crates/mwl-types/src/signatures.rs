@@ -401,6 +401,7 @@ fn collect_stmts(
                     imports: &current_imports,
                     current_class: Some(&qname),
                     current_hook: None,
+                    generator_elem: None,
                 };
                 // Before the members: ADR 0053 § 2's type arguments are part
                 // of the declaration's own shape, not of any one member's.
@@ -419,6 +420,7 @@ fn collect_stmts(
                     imports: &current_imports,
                     current_class: Some(&qname),
                     current_hook: None,
+                    generator_elem: None,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }
@@ -429,6 +431,7 @@ fn collect_stmts(
                     imports: &current_imports,
                     current_class: Some(&qname),
                     current_hook: None,
+                    generator_elem: None,
                 };
                 collect_members(&decl.members, &qname, &ctx, table, env);
             }

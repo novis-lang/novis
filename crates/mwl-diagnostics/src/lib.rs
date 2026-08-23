@@ -504,6 +504,24 @@ pub mod code {
     /// `current()`; there is no key, and inventing a position counter would
     /// be a second thing `foreach` means.
     pub const E_FOREACH_KEY_ON_CURSOR: Code = Code::new("E0444");
+    /// A `yield` in a body that is not a generator's own — at file scope, or
+    /// inside an ADR 0031 closure. ADR 0053 § 4 confines `yield` lexically to
+    /// the generator's own body, which is the stated price of lowering to a
+    /// state machine rather than to a coroutine.
+    pub const E_YIELD_OUTSIDE_GENERATOR: Code = Code::new("E0445");
+    /// A generator — a function whose body contains `yield` — declaring a
+    /// return type other than `Iterator<T>`. ADR 0053 § 4: calling one runs
+    /// no user code and returns the state object, which implements exactly
+    /// that interface.
+    pub const E_GENERATOR_RETURN_TYPE: Code = Code::new("E0446");
+    /// A `return expr;` inside a generator. ADR 0053 § 5 makes a generator a
+    /// lazy sequence and nothing more — there is no generator return value to
+    /// retrieve, so a bare `return;` (stop here) is the only form.
+    pub const E_GENERATOR_RETURNS_A_VALUE: Code = Code::new("E0447");
+    /// `yield from`, or a `yield` with a `key =>` half. ADR 0053 § 5 rejects
+    /// the first as the second spelling of an explicit re-yield loop; § 1
+    /// gives `Iterator<T>` no key for the second to produce.
+    pub const E_YIELD_FORM_UNSUPPORTED: Code = Code::new("E0448");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

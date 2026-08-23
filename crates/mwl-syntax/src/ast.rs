@@ -1370,3 +1370,61 @@ pub struct TypeAliasDecl {
     /// The type it stands for.
     pub ty: Type,
 }
+
+/// Whether `body` is a generator's body — ADR 0053 § 4's rule that "a
+/// function whose body contains `yield` is a generator".
+///
+/// A purely syntactic question, which is why it lives here rather than in
+/// `mwl-types` or `mwl-ir`: both of those need the same answer, and a fact
+/// with two consumers gets one home.
+///
+/// # What counts, and what deliberately does not
+///
+/// The scan walks *statements* — every nesting construct a body can contain
+/// — and recognises a `yield` written as a whole expression statement,
+/// through any number of parentheses. That is the only shape the language
+/// actually supports: ADR 0053 § 5 gives a generator no `send()`, so `yield`
+/// produces nothing for a surrounding expression to consume, and a `yield`
+/// buried inside one is refused where it is *checked*, not here.
+///
+/// It never descends into a nested `fn` body, because a closure appears only
+/// as an *expression* and this walk visits none — so ADR 0031's closures
+/// cannot make their enclosing method a generator, which is exactly ADR 0053
+/// § 4's "`yield` is lexically confined to the generator's own body".
+#[must_use]
+pub fn is_generator_body(body: &Block) -> bool {
+    body.stmts.iter().any(stmt_yields)
+}
+
+fn stmt_yields(stmt: &Stmt) -> bool {
+    match &stmt.kind {
+        StmtKind::Expr(e) => is_yield_expr(e),
+        StmtKind::Block(b) => is_generator_body(b),
+        StmtKind::If { then, else_, .. } => {
+            stmt_yields(then) || else_.as_deref().is_some_and(stmt_yields)
+        }
+        StmtKind::While { body, .. }
+        | StmtKind::DoWhile { body, .. }
+        | StmtKind::For { body, .. }
+        | StmtKind::Foreach { body, .. } => stmt_yields(body),
+        StmtKind::Switch { cases, .. } => cases.iter().any(|c| c.body.iter().any(stmt_yields)),
+        StmtKind::Try {
+            body,
+            catches,
+            finally,
+        } => {
+            is_generator_body(body)
+                || catches.iter().any(|c| is_generator_body(&c.body))
+                || finally.as_ref().is_some_and(is_generator_body)
+        }
+        _ => false,
+    }
+}
+
+fn is_yield_expr(e: &Expr) -> bool {
+    match &e.kind {
+        ExprKind::Yield { .. } | ExprKind::YieldFrom(_) => true,
+        ExprKind::Paren(inner) => is_yield_expr(inner),
+        _ => false,
+    }
+}

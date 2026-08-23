@@ -416,6 +416,7 @@ mod tests {
             imports: &empty_imports,
             current_class: None,
             current_hook: None,
+            generator_elem: None,
         };
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();

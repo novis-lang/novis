@@ -28,7 +28,7 @@
 //! not descended into here at all — only top-level declarations (and ones
 //! nested in a `namespace { ... }` block) are found by [`check_stmts`].
 
-use mwl_diagnostics::{Diagnostics, SourceFile};
+use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, code};
 use mwl_hir::{Module, QName};
 use mwl_syntax::ast::{
     ClassMember, ClassMemberKind, MethodMember, Name, NamespaceDecl, Stmt, StmtKind,
@@ -140,6 +140,7 @@ fn check_stmts(
                     imports: &current_imports,
                     current_class: Some(&qname),
                     current_hook: None,
+                    generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
                 check_class_init(decl, &qname, env);
@@ -152,6 +153,7 @@ fn check_stmts(
                     imports: &current_imports,
                     current_class: Some(&qname),
                     current_hook: None,
+                    generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
             }
@@ -162,6 +164,7 @@ fn check_stmts(
                     imports: &current_imports,
                     current_class: Some(&qname),
                     current_hook: None,
+                    generator_elem: None,
                 };
                 check_members(&decl.members, &ctx, env);
             }
@@ -178,6 +181,7 @@ fn check_stmts(
                     imports: &current_imports,
                     current_class: None,
                     current_hook: None,
+                    generator_elem: None,
                 };
                 check_stmt(
                     stmt,
@@ -230,6 +234,7 @@ fn check_property_hooks(p: &mwl_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
         imports: ctx.imports,
         current_class: ctx.current_class,
         current_hook: Some(&name),
+        generator_elem: None,
     };
     for hook in hooks {
         env.exprs.record_method(
@@ -309,7 +314,69 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
     let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
 
-    check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
+    // ADR 0053 § 4: a body containing `yield` is a generator, and everything
+    // that follows from that is decided here rather than at each `yield` —
+    // the declared return type must be `Iterator<T>`, and `T` is what every
+    // `yield` operand in the body is checked against.
+    let Some(elem) = generator_element(m, body, return_ty, ctx, env) else {
+        check_block(&body.stmts, &mut live, &mut scope, return_ty, ctx, env);
+        return;
+    };
+    let inner = Ctx {
+        namespace: ctx.namespace,
+        imports: ctx.imports,
+        current_class: ctx.current_class,
+        current_hook: ctx.current_hook,
+        generator_elem: Some(elem),
+    };
+    // A generator's body returns nothing: calling it produced the cursor, and
+    // ADR 0053 § 5 leaves no return value to retrieve. So the body is checked
+    // against `void` — which is what makes `return $x;` inside one report
+    // `E0447` from `crate::expr::check_return` rather than a mismatch against
+    // the `Iterator<T>` the *declaration* names.
+    let void = env.interner.void();
+    check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
+}
+
+/// ADR 0053 § 4's `T`, for a method whose body makes it a generator —
+/// `None` for an ordinary method, and `None` (after a diagnostic) for a
+/// generator whose declared return type is not an `Iterator<T>`.
+fn generator_element(
+    m: &MethodMember,
+    body: &mwl_syntax::ast::Block,
+    return_ty: crate::ty::TypeId,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<crate::ty::TypeId> {
+    if !mwl_syntax::ast::is_generator_body(body) {
+        return None;
+    }
+    if let crate::ty::Ty::Class(qname, args) = env.interner.get(return_ty)
+        && qname.short_name() == mwl_hir::interfaces::ITERATOR
+        && qname.is_reserved_global_interface()
+        && let Some(&elem) = args.first()
+    {
+        return Some(elem);
+    }
+    let got = env.interner.describe(return_ty);
+    let span = m.return_type.as_ref().map_or(m.name, |t| t.span);
+    let name = span_text(env.src, m.name);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_GENERATOR_RETURN_TYPE,
+            format!("`{name}` contains `yield`, so it must return an `Iterator<T>`"),
+        )
+        .with_primary(span, format!("this declares `{got}`"))
+        .with_help(
+            "ADR 0053 § 4: calling a generator runs no user code — it allocates and returns \
+             the state object, which implements `Iterator<T>`",
+        ),
+    );
+    let _ = ctx;
+    // Still a generator, with an unchecked element type: `mixed` accepts
+    // every `yield` operand, so one wrong return type reports once instead of
+    // once plus a stray-`yield` diagnostic per `yield` in the body.
+    Some(env.interner.mixed())
 }
 
 #[cfg(test)]
@@ -2544,6 +2611,131 @@ class T {
                 .any(|d| d.code == Some(code::E_BAD_RETURN_TYPE)),
             "{diags:?}"
         );
+    }
+
+    /// ADR 0053 § 4: a body containing `yield` is a generator, its declared
+    /// return type must be `Iterator<T>`, and each operand is checked
+    /// against that `T`.
+    #[test]
+    fn a_generator_declaring_iterator_of_its_yield_type_checks_clean() {
+        let diags = check_src(
+            "<?mwl\n\
+             class G {\n\
+             \x20 static function upTo(int $n): Iterator<int> {\n\
+             \x20\x20 var $i = 1;\n\
+             \x20\x20 while ($i <= $n) { yield $i; $i = $i + 1; }\n\
+             \x20 }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The return type is checked against the body, not the other way round:
+    /// `yield` makes it a generator and `int` is then wrong.
+    #[test]
+    fn a_generator_declaring_anything_but_a_cursor_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\n\
+             class G {\n\
+             \x20 static function bad(): int { yield 1; }\n\
+             }\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_GENERATOR_RETURN_TYPE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A wrong return type reports once — every `yield` in the body is left
+    /// unchecked rather than each reporting a stray-`yield` diagnostic too.
+    #[test]
+    fn a_generator_with_a_wrong_return_type_reports_exactly_once() {
+        let diags = check_src(
+            "<?mwl\n\
+             class G {\n\
+             \x20 static function bad(): int { yield 1; yield 2; }\n\
+             }\n",
+        );
+        assert_eq!(
+            diags.iter().filter(|d| d.code.is_some()).count(),
+            1,
+            "{diags:?}"
+        );
+    }
+
+    /// The operand is checked against `T`.
+    #[test]
+    fn a_yield_operand_must_satisfy_the_declared_element_type() {
+        let diags = check_src(
+            "<?mwl\n\
+             class G {\n\
+             \x20 static function g(): Iterator<int> { yield \"x\"; }\n\
+             }\n",
+        );
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    /// ADR 0053 § 5: no generator return value to retrieve.
+    #[test]
+    fn a_generator_returning_a_value_is_diagnosed() {
+        let diags = check_src(
+            "<?mwl\n\
+             class G {\n\
+             \x20 static function g(): Iterator<int> { yield 1; return 5; }\n\
+             }\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_GENERATOR_RETURNS_A_VALUE)),
+            "{diags:?}"
+        );
+    }
+
+    /// ...but a bare `return;` stops the sequence and is fine.
+    #[test]
+    fn a_generator_may_stop_early_with_a_bare_return() {
+        let diags = check_src(
+            "<?mwl\n\
+             class G {\n\
+             \x20 static function g(): Iterator<int> { yield 1; return; }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// ADR 0053 § 4's lexical confinement: a file-scope `yield` has no
+    /// generator to belong to.
+    #[test]
+    fn a_yield_outside_any_generator_is_diagnosed() {
+        let diags = check_src("<?mwl\nyield 3;\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_YIELD_OUTSIDE_GENERATOR)),
+            "{diags:?}"
+        );
+    }
+
+    /// ADR 0053 § 5 rejects `yield from`, and § 1 leaves a cursor no key.
+    #[test]
+    fn yield_from_and_a_keyed_yield_are_both_refused() {
+        for body in ["yield from G::g();", "yield 1 => 2;"] {
+            let diags = check_src(&format!(
+                "<?mwl\nclass G {{\n  static function g(): Iterator<int> {{ {body} }}\n}}\n"
+            ));
+            assert!(
+                diags
+                    .iter()
+                    .any(|d| d.code == Some(code::E_YIELD_FORM_UNSUPPORTED)),
+                "{body}: {diags:?}"
+            );
+        }
     }
 
     /// `mixed` is the one unchecked position (ADR 0007 § 1), so it neither

@@ -171,6 +171,22 @@ pub(crate) fn check_expr(
 /// generic `E_TYPE_MISMATCH` [`is_assignable`] would otherwise report for
 /// the same expression. Returns whether it reported one, so the caller can
 /// skip its own generic check for this expression.
+/// ADR 0053 § 4's lexical confinement, reported once per stray `yield`.
+fn report_yield_outside_generator(span: Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_YIELD_OUTSIDE_GENERATOR,
+            "`yield` is only allowed in a generator's own body",
+        )
+        .with_primary(span, "this is not inside a generator")
+        .with_help(
+            "ADR 0053 § 4 lowers a generator to a state machine rather than to a coroutine, \
+             which is what confines `yield` to the body it is written in — a closure, or a \
+             helper it calls, cannot yield into it",
+        ),
+    );
+}
+
 fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env<'_>) -> bool {
     match &expr.kind {
         ExprKind::Str(_) | ExprKind::Interpolated(_) => {
@@ -346,6 +362,26 @@ pub(crate) fn check_return(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
+    // ADR 0053 § 5: a generator is a lazy sequence and nothing more, so a
+    // bare `return;` (stop here) is the only form its body may write. Its own
+    // diagnostic rather than the mismatch below, which would report the
+    // `void` `crate::check::check_method` checks a generator body against and
+    // never mention why.
+    if ctx.generator_elem.is_some() {
+        infer(expr, None, live, scope, ctx, env);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_GENERATOR_RETURNS_A_VALUE,
+                "a generator cannot return a value",
+            )
+            .with_primary(expr.span, "this value has nowhere to go")
+            .with_help(
+                "ADR 0053 § 5: there is no generator return value to retrieve — write \
+                 `return;` to stop the sequence, or `yield` this value",
+            ),
+        );
+        return;
+    }
     let actual = infer(expr, Some(return_ty), live, scope, ctx, env);
     if !is_assignable(actual, return_ty, env.interner, env.graph, env.signatures) {
         let expected_desc = env.interner.describe(return_ty);
@@ -991,18 +1027,64 @@ fn infer(
                 env.interner.make_union(arm_types)
             }
         }
+        // ADR 0053 § 4. Whether this is legal here at all, and what the
+        // operand has to satisfy, are the same question — see
+        // `Ctx::generator_elem`, which `crate::check::check_method` set from
+        // the enclosing body's own shape.
         ExprKind::Yield { key, value } => {
             if let Some(k) = key {
                 check_expr(k, None, live, scope, ctx, env);
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_YIELD_FORM_UNSUPPORTED,
+                        "a `yield` has no key half in MWL",
+                    )
+                    .with_primary(k.span, "no key exists here")
+                    .with_help(
+                        "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and \
+                         `current()`; drop the `key =>`",
+                    ),
+                );
             }
-            if let Some(v) = value {
-                check_expr(v, None, live, scope, ctx, env);
+            match (ctx.generator_elem, value) {
+                (Some(elem), Some(v)) => {
+                    check_expr(v, Some(elem), live, scope, ctx, env);
+                }
+                (Some(_), None) => {
+                    // ADR 0007 leaves no position untyped, and a bare `yield`
+                    // would have to produce a `T` out of nothing.
+                    env.diags.report(
+                        Diagnostic::error(
+                            code::E_YIELD_FORM_UNSUPPORTED,
+                            "a `yield` needs a value",
+                        )
+                        .with_primary(expr.span, "nothing is yielded here")
+                        .with_help("ADR 0053 § 1: `current()` returns a `T`, never nothing"),
+                    );
+                }
+                (None, _) => {
+                    if let Some(v) = value {
+                        check_expr(v, None, live, scope, ctx, env);
+                    }
+                    report_yield_outside_generator(expr.span, env);
+                }
             }
-            env.interner.mixed()
+            env.interner.void()
         }
         ExprKind::YieldFrom(inner) => {
             check_expr(inner, None, live, scope, ctx, env);
-            env.interner.mixed()
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_YIELD_FORM_UNSUPPORTED,
+                    "`yield from` does not exist in MWL",
+                )
+                .with_primary(expr.span, "this delegation form")
+                .with_help(
+                    "ADR 0053 § 5: write `foreach ($inner as T $v) { yield $v; }`, which is \
+                     what it is a second spelling of",
+                ),
+            );
+            env.interner.void()
         }
         ExprKind::Print(inner) => {
             let ty = check_expr(inner, None, live, scope, ctx, env);

@@ -211,6 +211,14 @@ pub(crate) struct Ctx<'a> {
     /// stored value terminate, and it is the only place the checker needs to
     /// know *which* accessor it is inside.
     pub current_hook: Option<&'a str>,
+    /// The element type `T` of the `Iterator<T>` the enclosing body is a
+    /// generator for (ADR 0053 § 4), or `None` in an ordinary body.
+    ///
+    /// One field answers both of `yield`'s questions: whether it is legal
+    /// here at all, and what its operand has to satisfy. `crate::check`'s
+    /// `check_method` is the only place it is ever set, from
+    /// `mwl_syntax::ast::is_generator_body` plus the declared return type.
+    pub generator_elem: Option<crate::ty::TypeId>,
 }
 
 /// The read-only tables, the source text, the type interner and the
