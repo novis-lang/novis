@@ -202,7 +202,7 @@ diagnostic saying exactly that. There is no literal suffix.
 | `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
 | `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
 | `int` against `uint` in `< <= > >= == ===` | `bool`, mathematically exact over the full range of both | — |
-| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `DivisionByZeroError` |
+| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
 | either operand a `float` | `float` | — |
 | `>>` | arithmetic on `int`, **logical on `uint`** | — |
 | `& \| ^ ~ <<` | the operand type, preserved | — |

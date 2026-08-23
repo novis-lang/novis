@@ -94,7 +94,7 @@ Added to [ADR 0007](0007-explicit-type-system.md) § 3's table:
 | `decimal ⊕ decimal` for `+ - * %` | `decimal` | **throws `ArithmeticError`** — no wrap, no promotion |
 | `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` — the integer is exact in 96 bits | as above |
 | `decimal ⊕ float` arithmetic | **compile error** | no representable common type; convert one side explicitly |
-| `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws `DivisionByZeroError` |
+| `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws `ArithmeticError` |
 | `decimal` against `int`/`uint`/`float` in `< <= > >= == ===` | `bool`, mathematically exact over the full range of both | — |
 | `**` with a `decimal` base | **compile error** — use `Core\Decimal::pow` | — |
 
