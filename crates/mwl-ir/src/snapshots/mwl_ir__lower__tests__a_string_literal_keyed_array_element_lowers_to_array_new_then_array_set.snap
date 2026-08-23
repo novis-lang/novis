@@ -10,8 +10,8 @@ fn m(object) -> void {
     v1 = array.new []  ; array
     v2 = const.str "k"  ; string
     v3 = const.int 1  ; int
-    array.set v1, v2, v3
-    release v1
+    v4 = array.set v1, v2, v3  ; array
+    release v4
     release v0
     return
 }

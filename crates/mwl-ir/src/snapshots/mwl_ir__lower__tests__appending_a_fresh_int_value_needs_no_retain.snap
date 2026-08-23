@@ -9,8 +9,8 @@ fn m(object, array) -> void {
     v1 = param 1  ; array
     ; stmt s0 @4:5-4:14
     v2 = const.int 1  ; int
-    array.append v1, v2
-    release v1
+    v3 = array.append v1, v2  ; array
+    release v3
     release v0
     return
 }

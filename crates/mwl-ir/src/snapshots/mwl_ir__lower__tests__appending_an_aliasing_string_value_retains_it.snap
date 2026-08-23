@@ -10,8 +10,8 @@ fn m(object, array, string) -> void {
     v2 = param 2  ; string
     ; stmt s0 @4:5-4:15
     retain v2
-    array.append v1, v2
-    release v1
+    v3 = array.append v1, v2  ; array
+    release v3
     release v0
     release v2
     return

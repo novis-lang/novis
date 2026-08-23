@@ -12,7 +12,12 @@ fn m(object, array) -> void {
     v3 = helper.int_to_string v2  ; string
     v4 = const.int 5  ; int
     v5 = array.set v1, v3, v4  ; array
-    release v5
+    ; stmt s1 @5:5-5:15
+    v6 = const.int 1  ; int
+    v7 = helper.int_to_string v6  ; string
+    v8 = const.int 6  ; int
+    v9 = array.set v5, v7, v8  ; array
+    release v9
     release v0
     return
 }

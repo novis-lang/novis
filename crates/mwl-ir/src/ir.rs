@@ -412,8 +412,9 @@ pub enum InstKind {
     /// numbered from `0` exactly like PHP's own `[$a, $b]` shorthand — known
     /// statically without a runtime index-tracking instruction. A literal
     /// with at least one explicit `key =>` element instead lowers to an
-    /// *empty* `ArrayNew` (`entries` is `Vec::new()`) followed by one
-    /// [`InstKind::ArraySet`] per element in source order —
+    /// *empty* `ArrayNew` (`entries` is `Vec::new()`) followed by a chain of
+    /// [`InstKind::ArraySet`]s, one per element in source order, each writing
+    /// into the value the last one defined —
     /// `crate::lower::Lowering::lower_array_key` gives every key (explicit or
     /// positional alike) a real `Ty::Str` `ValueId` there, which this fixed-
     /// entries shape has no field for. See
@@ -499,8 +500,21 @@ pub enum InstKind {
     /// retains `key`/`value` first when either is
     /// [`crate::ty::Ty::is_refcounted`] and an aliasing read (the same
     /// caller-side retain a call argument/array-literal element already
-    /// gets) — `array` durably owns both after this instruction runs.
-    /// Defines no value; operates on `array` in place.
+    /// gets) — the array durably owns both after this instruction runs.
+    ///
+    /// **Defines a fresh [`crate::ty::Ty::Array`] value: the array that now
+    /// holds the entry.** ADR 0007 § 5's copy-on-write value semantics mean a
+    /// write into an array a second binding also holds must separate, which
+    /// produces a *different* allocation — so this instruction consumes one
+    /// reference to `array` and yields one reference to the result, which is
+    /// the same pointer whenever `array` was solely owned. `mwl_runtime`'s
+    /// `array` module owns that protocol and why it is the only shape open to
+    /// a backend that keeps a local in an SSA register rather than a memory
+    /// slot a callee could write back through. The consequence for lowering is
+    /// that the *holder* of `array` — a local's `Env` binding, or the property
+    /// slot an [`InstKind::FieldSet`] writes back into — is re-pointed at the
+    /// result, with no retain or release of either: the consumed reference and
+    /// the produced one are the holder's same one slot.
     ArraySet {
         /// The array, already lowered.
         array: ValueId,
@@ -530,8 +544,11 @@ pub enum InstKind {
     /// gives an explicit key's value. `$a[]` as a *read* (no subscript, no
     /// assignment) has no PHP meaning at all and stays a permanent panic in
     /// [`crate::lower::Lowering::lower_expr`]'s `Index` arm — unrelated to
-    /// this instruction, which only ever appears on the write side. Defines
-    /// no value; operates on `array` in place.
+    /// this instruction, which only ever appears on the write side.
+    ///
+    /// **Defines a fresh [`crate::ty::Ty::Array`] value**, on exactly
+    /// [`InstKind::ArraySet`]'s consume-one-reference-yield-one protocol —
+    /// see that variant's own doc comment, which is the one home for it.
     ArrayAppend {
         /// The array, already lowered.
         array: ValueId,

@@ -615,28 +615,28 @@ impl<'a> Lowering<'a> {
         });
     }
 
-    /// Appends an [`InstKind::ArraySet`] to `b` — see
-    /// [`Self::lower_reassignment`]'s `Index`-target arm for the retain
-    /// policy wrapped around this.
-    fn emit_array_set(&mut self, b: BlockId, array: ValueId, key: ValueId, value: ValueId) {
-        self.block_insts[b.index() as usize].push(Inst {
-            result: None,
-            ty: None,
-            kind: InstKind::ArraySet { array, key, value },
-            on_error: None,
-        });
+    /// Appends an [`InstKind::ArraySet`] to `b`, yielding the array that now
+    /// holds the entry — see that variant's own doc comment for the
+    /// consume-one-reference-yield-one protocol, and
+    /// [`Self::lower_reassignment`]'s `Index`-target arm for the retain policy
+    /// wrapped around this and for where the result is written back to.
+    fn emit_array_set(
+        &mut self,
+        b: BlockId,
+        array: ValueId,
+        key: ValueId,
+        value: ValueId,
+    ) -> ValueId {
+        self.emit(b, Ty::Array, InstKind::ArraySet { array, key, value })
+            .0
     }
 
-    /// Appends an [`InstKind::ArrayAppend`] to `b` — see
-    /// [`Self::lower_reassignment`]'s `Index`-target arm (the `index: None`
-    /// case) for the retain policy wrapped around this.
-    fn emit_array_append(&mut self, b: BlockId, array: ValueId, value: ValueId) {
-        self.block_insts[b.index() as usize].push(Inst {
-            result: None,
-            ty: None,
-            kind: InstKind::ArrayAppend { array, value },
-            on_error: None,
-        });
+    /// Appends an [`InstKind::ArrayAppend`] to `b`, yielding the array that
+    /// now holds the entry — see [`Self::emit_array_set`], whose protocol this
+    /// shares.
+    fn emit_array_append(&mut self, b: BlockId, array: ValueId, value: ValueId) -> ValueId {
+        self.emit(b, Ty::Array, InstKind::ArrayAppend { array, value })
+            .0
     }
 
     /// Binds `name` to `(v, ty)` in `env` — every `var`/typed local
@@ -673,6 +673,57 @@ impl<'a> Lowering<'a> {
             self.emit_release(cur, old_v);
         }
         env.insert(name, (v, ty));
+    }
+
+    /// Re-points whatever holds `base` at `written`, the array an
+    /// [`InstKind::ArraySet`]/[`InstKind::ArrayAppend`] just yielded.
+    ///
+    /// **No retain and no release.** Those two instructions consume one
+    /// reference to the array they were given and produce one to the array
+    /// they yield (see [`InstKind::ArraySet`]'s own doc comment); the
+    /// reference consumed is the holder's, and the one produced replaces it in
+    /// the same slot. When nothing else held the array the two are the same
+    /// reference to the same allocation and this is a pure bookkeeping change
+    /// with no runtime cost at all — which is the whole point of ADR 0007
+    /// § 5's copy-on-write being a *write*-side cost.
+    ///
+    /// Exactly two holders can be written back to today, which are the two
+    /// [`is_aliasing_read`] already recognises as durable storage: a bare
+    /// local, and a compile-time-known property. A nested subscript
+    /// (`$grid[0][1] = 5`) would have to separate every level of the chain and
+    /// write each back in turn, so it panics naming itself rather than
+    /// silently dropping the outer levels' separation; so does any other base,
+    /// which is a write into a temporary and has no holder to speak of.
+    fn write_back_array(&mut self, base: &Expr, written: ValueId, env: &mut Env, cur: BlockId) {
+        match &base.kind {
+            ExprKind::Variable(name_span) => {
+                let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
+                env.insert(name, (written, Ty::Array));
+            }
+            ExprKind::PropertyAccess { object, .. } => {
+                let Some(ExprInfo::Property { class, name, .. }) = self.exprs.lookup(base.span)
+                else {
+                    panic!(
+                        "mwl-ir: an array-index assignment whose base is the property at {:?} \
+                         has no resolved declaring class recorded in the typed-expression table \
+                         — either it wasn't checked with the same table, or its receiver erased \
+                         to a shape/plain `object` (ADR 0036 § 4), which this crate does not yet \
+                         lower (see the crate docs' known gaps)",
+                        base.span
+                    );
+                };
+                let class_label = class.to_string();
+                let field_name = name.clone();
+                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                self.emit_field_set(cur, object_v, class_label, field_name, written);
+            }
+            other => panic!(
+                "mwl-ir lowers an array-element write only through a bare local or a \
+                 compile-time-known property, because ADR 0007 § 5's copy-on-write separation \
+                 has to be written back to whatever holds the array — not through {other:?}; \
+                 see the crate docs' known gaps"
+            ),
+        }
     }
 
     /// Releases every refcounted local still live in `env`, in a fixed
@@ -1277,6 +1328,13 @@ impl<'a> Lowering<'a> {
             // `InstKind::ArrayAppend` instead: see that variant's own doc
             // comment for why no key is lowered or even computed here at all,
             // unlike every other `Index`-target write.
+            //
+            // Both instructions *yield* the array that now holds the entry
+            // (ADR 0007 § 5's copy-on-write separation produces a different
+            // allocation), so the write is not finished until the base's
+            // holder has been re-pointed at that result —
+            // `Self::write_back_array` does exactly that, and its own doc
+            // comment owns why no retain or release goes with it.
             ExprKind::Index { base, index } => {
                 let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(target.span) else {
                     panic!(
@@ -1290,13 +1348,13 @@ impl<'a> Lowering<'a> {
                 };
                 let elem_ty = lower_checked_ty(*elem_ty, self.checked_types);
                 let (array_v, _) = self.lower_expr(base, None, env, *cur);
-                match index {
+                let written = match index {
                     None => {
                         let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
                         if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
                             self.emit_retain(*cur, v);
                         }
-                        self.emit_array_append(*cur, array_v, v);
+                        self.emit_array_append(*cur, array_v, v)
                     }
                     Some(index) => {
                         let (key_v, key_aliasing) = self.lower_array_key(index, env, *cur);
@@ -1307,9 +1365,10 @@ impl<'a> Lowering<'a> {
                         if elem_ty.is_refcounted() && is_aliasing_read(&value.kind) {
                             self.emit_retain(*cur, v);
                         }
-                        self.emit_array_set(*cur, array_v, key_v, v);
+                        self.emit_array_set(*cur, array_v, key_v, v)
                     }
-                }
+                };
+                self.write_back_array(base, written, env, *cur);
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \
@@ -2203,6 +2262,11 @@ impl<'a> Lowering<'a> {
                         },
                     );
                     let mut next_index = 0usize;
+                    // Each write yields the array the next one writes into —
+                    // the same pointer every time here, since a literal under
+                    // construction is solely owned, but threaded rather than
+                    // assumed so the one protocol has no exception.
+                    let mut array_v = array.0;
                     for item in items {
                         let (key_v, key_aliasing) = match &item.key {
                             Some(key) => self.lower_array_key(key, env, cur),
@@ -2220,9 +2284,9 @@ impl<'a> Lowering<'a> {
                         if ty.is_refcounted() && is_aliasing_read(&item.value.kind) {
                             self.emit_retain(cur, v);
                         }
-                        self.emit_array_set(cur, array.0, key_v, v);
+                        array_v = self.emit_array_set(cur, array_v, key_v, v);
                     }
-                    array
+                    (array_v, Ty::Array)
                 }
             }
             // `$arr[$i]` — the element's declared type comes from
@@ -4503,6 +4567,43 @@ class T {
             "<?mwl\nclass T {\n  function m(array<string> $a, string $v): void {\n    $a[] = $v;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// Two writes into one local: the second reads the array the *first*
+    /// yielded, not the one the parameter arrived as, and the exit sweep
+    /// releases the last one only. That chain is ADR 0007 § 5's copy-on-write
+    /// separation being written back — see `Lowering::write_back_array` — and
+    /// it is the whole reason `InstKind::ArraySet` defines a value.
+    #[test]
+    fn a_second_write_reads_the_array_the_first_one_yielded() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<int> $a): void {\n    $a[0] = 5;\n    $a[1] = 6;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$this->rows[$k] = $v;` — the other holder a separation can be written
+    /// back to. The yielded array goes straight into the property slot with a
+    /// bare `field.set` and no retain or release: the reference the write
+    /// consumed was the slot's own, and the one it produced replaces it there.
+    #[test]
+    fn writing_an_element_through_a_property_base_stores_the_result_back() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  public array<int> $rows;\n  function m(): void {\n    $this->rows[0] = 5;\n  }\n  function constructor() { $this->rows = []; }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$grid[0][1] = 5;` — a nested subscript would have to separate every
+    /// level of the chain and write each one back in turn, so it panics
+    /// naming itself rather than silently dropping the outer levels'
+    /// separation. See `Lowering::write_back_array`.
+    #[test]
+    #[should_panic(expected = "known gaps")]
+    fn writing_through_a_nested_subscript_is_still_out_of_scope() {
+        lower_first_method(
+            "<?mwl\nclass T {\n  function m(array<array<int>> $g): void {\n    $g[0][1] = 5;\n  }\n}\n",
+        );
     }
 
     /// A `bool` subscript isn't one of ADR 0007 § 5's three legal key source

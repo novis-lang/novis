@@ -10,14 +10,14 @@ fn m(object) -> void {
     v1 = array.new []  ; array
     v2 = const.str "0"  ; string
     v3 = const.int 1  ; int
-    array.set v1, v2, v3
-    v4 = const.str "k"  ; string
-    v5 = const.int 2  ; int
-    array.set v1, v4, v5
-    v6 = const.str "1"  ; string
-    v7 = const.int 3  ; int
-    array.set v1, v6, v7
-    release v1
+    v4 = array.set v1, v2, v3  ; array
+    v5 = const.str "k"  ; string
+    v6 = const.int 2  ; int
+    v7 = array.set v4, v5, v6  ; array
+    v8 = const.str "1"  ; string
+    v9 = const.int 3  ; int
+    v10 = array.set v7, v8, v9  ; array
+    release v10
     release v0
     return
 }

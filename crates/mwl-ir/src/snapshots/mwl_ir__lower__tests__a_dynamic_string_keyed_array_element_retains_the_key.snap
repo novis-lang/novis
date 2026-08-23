@@ -11,8 +11,8 @@ fn m(object, string) -> void {
     v2 = array.new []  ; array
     retain v1
     v3 = const.int 1  ; int
-    array.set v2, v1, v3
-    release v2
+    v4 = array.set v2, v1, v3  ; array
+    release v4
     release v1
     release v0
     return

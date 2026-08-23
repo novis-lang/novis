@@ -12,8 +12,8 @@ fn m(object, array, string, string) -> void {
     ; stmt s0 @4:5-4:17
     retain v2
     retain v3
-    array.set v1, v2, v3
-    release v1
+    v4 = array.set v1, v2, v3  ; array
+    release v4
     release v2
     release v0
     release v3

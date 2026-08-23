@@ -93,25 +93,6 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         );
         return;
     }
-    if let InstKind::ArraySet { array, key, value } = inst.kind {
-        let _ = writeln!(
-            out,
-            "    array.set v{}, v{}, v{}",
-            array.index(),
-            key.index(),
-            value.index()
-        );
-        return;
-    }
-    if let InstKind::ArrayAppend { array, value } = inst.kind {
-        let _ = writeln!(
-            out,
-            "    array.append v{}, v{}",
-            array.index(),
-            value.index()
-        );
-        return;
-    }
     // The one value-less `HelperCall`: `Helper::EchoStr` is invoked for its
     // effect, so it has no `result` for the general arm below to print.
     if let InstKind::HelperCall {
@@ -189,6 +170,15 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ArrayGet { array, key } => {
             format!("array.get v{}, v{}", array.index(), key.index())
         }
+        InstKind::ArraySet { array, key, value } => format!(
+            "array.set v{}, v{}, v{}",
+            array.index(),
+            key.index(),
+            value.index()
+        ),
+        InstKind::ArrayAppend { array, value } => {
+            format!("array.append v{}, v{}", array.index(), value.index())
+        }
         InstKind::TakeThrown => "take.thrown".to_owned(),
         InstKind::Throwable { op, operand } => {
             format!("throwable.{} v{}", throwable_op_name(*op), operand.index())
@@ -197,9 +187,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         | InstKind::Safepoint
         | InstKind::Retain { .. }
         | InstKind::Release { .. }
-        | InstKind::FieldSet { .. }
-        | InstKind::ArraySet { .. }
-        | InstKind::ArrayAppend { .. } => {
+        | InstKind::FieldSet { .. } => {
             unreachable!("returned above")
         }
     };
