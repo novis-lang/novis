@@ -5378,6 +5378,24 @@ impl<'a> Lowering<'a> {
         );
         let mut out = LoweredArgs::default();
         for (index, (arg, &pty)) in list.iter().zip(&sig.param_tys).enumerate() {
+            // ADR 0063 R2's options bag: not one argument but one *per
+            // declared option*, so it never reaches `lower_checked_ty` — it
+            // has no IR type at all. See [`Self::lower_options_arg`].
+            if let CheckedTy::Options(options) = checked_types.get(pty) {
+                let options = options.clone();
+                let defaults = options_defaults(&sig.defaults, index);
+                self.lower_options_arg(
+                    Some(&arg.value),
+                    &options,
+                    defaults,
+                    checked_types,
+                    ownership,
+                    env,
+                    cur,
+                    &mut out,
+                );
+                continue;
+            }
             let expected = lower_checked_ty(pty, checked_types);
             if sig.is_by_ref(index) {
                 out.values
@@ -5385,22 +5403,8 @@ impl<'a> Lowering<'a> {
                 continue;
             }
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
-            if ty.is_refcounted() {
-                match (ownership, self.aliasing_read(&arg.value)) {
-                    // A borrowed argument some other binding already owns is
-                    // that binding's to release, not this call site's.
-                    (ArgOwnership::Borrowed, true) => {}
-                    // A borrowed argument this expression built — a `fn`
-                    // literal, a nested call's result, a concatenation — has
-                    // exactly one owner, and it is this frame.
-                    (ArgOwnership::Borrowed, false) => out.temporaries.push(v),
-                    // The callee's exit sweep releases it either way; a copy
-                    // of storage someone else owns needs a second reference
-                    // first, a freshly built value does not.
-                    (ArgOwnership::Transferred, true) => self.emit_retain(cur, v),
-                    (ArgOwnership::Transferred, false) => {}
-                }
-            }
+            let aliasing = self.aliasing_read(&arg.value);
+            self.account_for_arg(v, ty, ownership, aliasing, &mut out, cur);
             out.values.push(v);
         }
         for (index, default) in sig.defaults.iter().enumerate().skip(list.len()) {
@@ -5410,18 +5414,137 @@ impl<'a> Lowering<'a> {
                      this crate trusts mwl_types::check_program already enforced arity"
                 )
             });
+            // A bag omitted whole is every one of its options taking its own
+            // default, in the same declared order a written one flattens in.
+            if let mwl_types::ConstArg::Options(options) = default {
+                for (_, value) in options {
+                    let (v, ty) = self.emit_const_arg(value, cur);
+                    self.account_for_arg(v, ty, ownership, false, &mut out, cur);
+                    out.values.push(v);
+                }
+                continue;
+            }
             let (v, ty) = self.emit_const_arg(default, cur);
             // A materialized default is always freshly built, never a read of
-            // storage someone else owns — so it lands on exactly the two arms
-            // of the ownership table below that describe that case: a
-            // transferred one simply moves into the callee's slot, a borrowed
-            // one is this frame's to release once the call returns.
-            if ty.is_refcounted() && ownership == ArgOwnership::Borrowed {
-                out.temporaries.push(v);
-            }
+            // storage someone else owns — so `aliasing` is `false` here by
+            // construction.
+            self.account_for_arg(v, ty, ownership, false, &mut out, cur);
             out.values.push(v);
         }
         out
+    }
+
+    /// Which frame owes a release for one lowered argument, and whether it has
+    /// to take a reference first — the caller-side half of the refcount
+    /// protocol, in one table:
+    ///
+    /// * A **borrowed** argument some other binding already owns (`aliasing`)
+    ///   is that binding's to release, not this call site's.
+    /// * A **borrowed** argument this expression built — a `fn` literal, a
+    ///   nested call's result, a concatenation, a materialized default — has
+    ///   exactly one owner, and it is this frame.
+    /// * A **transferred** argument is released by the callee's own exit sweep
+    ///   either way; a copy of storage someone else owns needs a second
+    ///   reference first, a freshly built value does not.
+    ///
+    /// Shared by the written arguments, the materialized defaults and each
+    /// flattened option, so a bag's options are accounted exactly as the
+    /// arguments beside them are.
+    fn account_for_arg(
+        &mut self,
+        v: ValueId,
+        ty: Ty,
+        ownership: ArgOwnership,
+        aliasing: bool,
+        out: &mut LoweredArgs,
+        cur: BlockId,
+    ) {
+        if !ty.is_refcounted() {
+            return;
+        }
+        match (ownership, aliasing) {
+            (ArgOwnership::Borrowed, true) | (ArgOwnership::Transferred, false) => {}
+            (ArgOwnership::Borrowed, false) => out.temporaries.push(v),
+            (ArgOwnership::Transferred, true) => self.emit_retain(cur, v),
+        }
+    }
+
+    /// Flattens one ADR 0063 R2 options bag into `out`: one value per option
+    /// `options` declares, in that declared order — the written field's value
+    /// where the call site gave one, the option's own default where it did
+    /// not.
+    ///
+    /// `written` is the object literal the call site passed, or `None` for a
+    /// bag omitted entirely. This is why an options argument has to be a
+    /// literal at the call site (`mwl_types` reports `E_OPTIONS_NOT_A_LITERAL`
+    /// for anything else): the flattening is per-option and static, so there
+    /// is nothing to read a variable's fields out of. Nothing below this line
+    /// — not `mwl-codegen`, not the helper convention a `Core` member is
+    /// reached through — learns that bags exist, exactly as nothing learns
+    /// that defaults do ([`Self::emit_const_arg`]).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `written` is not an object literal, or if an option has
+    /// neither a written field nor a default: both are shapes
+    /// `mwl_types::check_program` and `mwl_types::core_lib` are trusted to
+    /// have made impossible.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the call-lowering context `Self::lower_call_args` already \
+                  threads — expectation, ownership, environment, block — plus \
+                  the bag's own two halves; bundling them into a struct would \
+                  be one type used at one call site"
+    )]
+    fn lower_options_arg(
+        &mut self,
+        written: Option<&Expr>,
+        options: &[(String, TypeId)],
+        defaults: &[(String, mwl_types::ConstArg)],
+        checked_types: &TypeInterner,
+        ownership: ArgOwnership,
+        env: &Env,
+        cur: BlockId,
+        out: &mut LoweredArgs,
+    ) {
+        let fields: Vec<(String, &Expr)> = match written {
+            Some(expr) => match &expr.kind {
+                ExprKind::ObjectLiteral(fields) => fields
+                    .iter()
+                    .map(|field| (span_text(self.src, field.name).to_owned(), &field.value))
+                    .collect(),
+                other => panic!(
+                    "mwl-ir: an options argument lowered from {other:?} rather than an object \
+                     literal — mwl_types::check_program is trusted to have reported \
+                     E_OPTIONS_NOT_A_LITERAL for anything else"
+                ),
+            },
+            None => Vec::new(),
+        };
+        for (name, option_ty) in options {
+            if let Some((_, value)) = fields.iter().find(|(field, _)| field == name) {
+                let expected = lower_checked_ty(*option_ty, checked_types);
+                let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
+                let aliasing = self.aliasing_read(value);
+                self.account_for_arg(v, ty, ownership, aliasing, out, cur);
+                out.values.push(v);
+                continue;
+            }
+            let default = defaults
+                .iter()
+                .find(|(option, _)| option == name)
+                .map(|(_, value)| value)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "mwl-ir: the option `{name}` was omitted at a call site and has no \
+                         default — mwl_types::core_lib is trusted to record one per declared \
+                         option"
+                    )
+                });
+            let (v, ty) = self.emit_const_arg(default, cur);
+            self.account_for_arg(v, ty, ownership, false, out, cur);
+            out.values.push(v);
+        }
     }
 
     /// Materializes one omitted parameter's default as an ordinary constant in
@@ -5445,6 +5568,12 @@ impl<'a> Lowering<'a> {
             mwl_types::ConstArg::Uint(v) => (Ty::Uint, InstKind::ConstUint(*v)),
             mwl_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
             mwl_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
+            // A bag has no single constant to emit — it is one per option, so
+            // its own two call sites expand it before reaching here.
+            mwl_types::ConstArg::Options(_) => panic!(
+                "mwl-ir: an options bag has no IR constant of its own; \
+                 `Lowering::lower_options_arg` expands it per option"
+            ),
         };
         self.emit(cur, ty, kind)
     }
@@ -5692,6 +5821,28 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 /// have an IR representation yet (see the crate docs' known gaps). `mixed`
 /// erases to [`Ty::Mixed`] — see that variant's own doc comment for exactly
 /// how much this boundary does and doesn't do with one yet.
+/// The per-option defaults recorded for the options-bag parameter at `index` —
+/// `mwl_types::core_lib` synthesizes exactly one `ConstArg::Options` entry per
+/// bag, so a bag parameter always has one.
+///
+/// # Panics
+///
+/// Panics if that parameter's recorded default is absent or is not a bag,
+/// which would mean the signature table and the parameter type disagree about
+/// what the parameter is.
+fn options_defaults(
+    defaults: &[Option<mwl_types::ConstArg>],
+    index: usize,
+) -> &[(String, mwl_types::ConstArg)] {
+    match defaults.get(index) {
+        Some(Some(mwl_types::ConstArg::Options(options))) => options,
+        other => panic!(
+            "mwl-ir: parameter {index} is an options bag but its recorded default is {other:?} \
+             — mwl_types::core_lib is trusted to record one `ConstArg::Options` per bag"
+        ),
+    }
+}
+
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
     match checked_types.get(id) {
         CheckedTy::Bool => Ty::Bool,
@@ -8587,6 +8738,27 @@ class T {
             "class T {\n",
             "  function m(array<int> $a): uint {\n",
             "    return Core\\Arr::count($a);\n",
+            "  }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// ADR 0063 R2's options bag, flattened: `Core\Arr::range` takes two
+    /// positional arguments and one bag declaring one option, and both calls
+    /// below emit a `core.call` with **three** arguments — the written
+    /// `{step: 3}` in the first, the materialized default `1` in the second.
+    /// The bag itself never appears in the IR at all, which is the property
+    /// that keeps `mwl-codegen` and the ADR 0002 helper convention from
+    /// learning that options exist.
+    #[test]
+    fn an_options_bag_flattens_into_one_argument_per_option() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(): void {\n",
+            "    echo Core\\Arr::count(Core\\Arr::range(1, 10, {step: 3}));\n",
+            "    echo Core\\Arr::count(Core\\Arr::range(1, 10));\n",
             "  }\n",
             "}\n",
         ));

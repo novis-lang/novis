@@ -546,6 +546,17 @@ pub mod code {
     /// behind an optional one could never be reached — PHP diagnoses the same
     /// shape.
     pub const E_PARAM_DEFAULT_ORDER: Code = Code::new("E0452");
+    /// Something other than an ADR 0036 object literal written at a `Core`
+    /// member's trailing options-bag parameter (ADR 0063 R2). The bag has no
+    /// runtime representation — it flattens into one argument per declared
+    /// option at the call site — so it must be written out there or omitted
+    /// entirely; a variable holding one cannot be passed.
+    pub const E_OPTIONS_NOT_A_LITERAL: Code = Code::new("E0453");
+    /// A field name in an options bag that the member does not declare —
+    /// usually a typo. Unlike ADR 0036 § 3's width subtyping, which accepts an
+    /// extra field on purpose, an options bag refuses one: a misspelled option
+    /// that is silently ignored is the failure ADR 0063 R2 exists to prevent.
+    pub const E_UNKNOWN_OPTION: Code = Code::new("E0454");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

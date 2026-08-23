@@ -68,6 +68,18 @@ pub enum ConstArg {
     /// other string literal in the program goes through, so a default is never
     /// a second escape grammar.
     Str(String),
+    /// ADR 0063 R2's options bag, wholly omitted at the call site: one entry
+    /// per declared option, in the bag's own declared order, each holding that
+    /// option's default.
+    ///
+    /// The one variant with no single `mwl_ir::ir::InstKind` constant under
+    /// it, and deliberately so — a bag has no runtime representation at all.
+    /// `mwl_ir::lower::lower_call_args` expands it into one ordinary constant
+    /// per entry, which is why the "one variant per instruction" rule above
+    /// still holds one level down. Never produced by
+    /// [`eval_param_default`]: user code cannot declare a bag, so this only
+    /// ever comes from [`crate::core_lib`].
+    Options(Vec<(String, ConstArg)>),
 }
 
 /// Evaluates a written `= expr` parameter default against the parameter's own

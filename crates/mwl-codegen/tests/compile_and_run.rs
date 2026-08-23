@@ -1515,6 +1515,40 @@ echo \"|\", Core\\Str::padStart(\"7\", 3, \"0\"), \"|\", Core\\Str::padStart(\"7
     assert_eq!(output_of(source), "abc|a-b-c|007|  7");
 }
 
+/// ADR 0063 R2's options bag end to end. The bag has no runtime
+/// representation at all — `mwl_ir::lower::lower_call_args` flattens it into
+/// one ordinary argument per declared option — so this is the check that the
+/// flattened arity and the helper's own `args: [3]` agree, in both the
+/// written and the omitted case.
+#[test]
+fn a_core_member_takes_an_options_shape_that_may_be_omitted() {
+    let source = "<?mwl
+echo Core\\Arr::count(Core\\Arr::range(1, 10));
+echo \"|\", Core\\Arr::count(Core\\Arr::range(1, 10, {step: 3}));
+echo \"|\", Core\\Arr::count(Core\\Arr::range(10, 1, {step: 2}));
+";
+    assert_eq!(output_of(source), "10|4|5");
+}
+
+/// A `Core` member may throw over an option it was given: `range`'s `step`
+/// must be positive, PHP 8.5's own rule. Proves the option reached the helper
+/// as a real argument rather than being dropped on the way — an option that
+/// never arrived would have taken its default of `1` and succeeded.
+///
+/// Asserted as a status rather than through a `catch`: this harness installs
+/// no runtime error class, and `mwl_runtime::Ctx::set_runtime_error_class`
+/// owns why a helper-raised message is not catchable without one. The
+/// `mwl_stdlib` unit test beside the member covers the message itself.
+#[test]
+fn an_option_a_core_member_rejects_throws_through_the_helper_boundary() {
+    let source = "<?mwl
+echo Core\\Arr::count(Core\\Arr::range(1, 5, {step: 0}));
+";
+    let mut ctx = Ctx::buffered();
+    let status = run_with(&mut ctx, source).expect_err("a step of 0 is refused");
+    assert_eq!(status, mwl_runtime::THROWN);
+}
+
 #[test]
 fn a_closure_object_carries_its_own_arity_in_slot_zero() {
     // The two-parameter predicate and the one-parameter one run over the same

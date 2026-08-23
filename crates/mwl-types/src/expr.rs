@@ -2231,13 +2231,126 @@ fn check_args_typed(
         } else {
             sig.params.get(i).copied()
         };
-        let actual = check_expr(&arg.value, expected, live, scope, ctx, env);
+        let actual = check_arg(&arg.value, expected, live, scope, ctx, env);
         if sig.is_by_ref(i) {
             check_by_ref_arg(arg, actual, expected, env);
         }
         arg_types.push(actual);
     }
     (arg_types, Some(sig))
+}
+
+/// One argument against its parameter's declared type — [`check_expr`] for
+/// every position but ADR 0063 R2's trailing options bag, which is checked by
+/// [`check_options_arg`] instead.
+///
+/// The fork exists because a bag is a *type* with no assignability rule: an
+/// ADR 0036 object literal infers to a [`Ty::Shape`], and a shape is never
+/// assignable to a [`Ty::Options`] — deliberately, since the two are checked
+/// by opposite rules (width subtyping accepts an unnamed extra field, an
+/// options bag refuses one). Routing the argument here rather than teaching
+/// [`is_assignable`] about bags keeps that asymmetry in one place, and keeps
+/// `{...}` in every *other* position meaning exactly what ADR 0036 says.
+fn check_arg(
+    value: &Expr,
+    expected: Option<TypeId>,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if let Some(id) = expected
+        && let Ty::Options(options) = env.interner.get(id)
+    {
+        let options = options.clone();
+        return check_options_arg(value, id, &options, live, scope, ctx, env);
+    }
+    check_expr(value, expected, live, scope, ctx, env)
+}
+
+/// ADR 0063 R2's options bag at a call site: it must be written out as an
+/// object literal (or omitted, which never reaches here), every field must be
+/// an option the member declares, and each field's value must be assignable to
+/// that option's own declared type.
+///
+/// Returns the bag's own type either way, so one malformed bag never also
+/// produces an `E_TYPE_MISMATCH` for the same span.
+///
+/// **Why the literal must be written here.** A bag has no runtime
+/// representation at all: `mwl_ir::lower::lower_call_args` flattens it into
+/// one ordinary argument per declared option, taking the written value where
+/// there is one and the option's default where there is not. A variable
+/// holding a shape could not be flattened without a per-call runtime lookup
+/// per option, which is the allocation-on-the-common-path that
+/// `mwl_stdlib::registry`'s own docs record rejecting.
+fn check_options_arg(
+    value: &Expr,
+    options_ty: TypeId,
+    options: &[(String, TypeId)],
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let ExprKind::ObjectLiteral(fields) = &value.kind else {
+        // Walked anyway, so a local it reads is still marked live and its own
+        // errors are still reported — the argument is wrong, not unwritten.
+        infer(value, None, live, scope, ctx, env);
+        let names = option_names(options);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_OPTIONS_NOT_A_LITERAL,
+                "an options argument must be written out as `{...}` at the call site",
+            )
+            .with_primary(value.span, "not an option shape literal")
+            .with_help(format!(
+                "the options are flattened into one argument each at the call, so they cannot \
+                 come from a variable — write the ones you want inline: {names}"
+            )),
+        );
+        return options_ty;
+    };
+    let mut seen: Vec<&str> = Vec::with_capacity(fields.len());
+    for field in fields {
+        let name = span_text(env.src, field.name);
+        let declared = options
+            .iter()
+            .find(|(option, _)| option == name)
+            .map(|(_, ty)| *ty);
+        check_arg(&field.value, declared, live, scope, ctx, env);
+        if declared.is_none() {
+            let names = option_names(options);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_UNKNOWN_OPTION,
+                    format!("`{name}` is not an option of this member"),
+                )
+                .with_primary(field.span, "no such option")
+                .with_help(format!("the options are: {names}")),
+            );
+        } else if seen.contains(&name) {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("the option `{name}` is given twice"),
+                )
+                .with_primary(field.span, "already set above"),
+            );
+        }
+        seen.push(name);
+    }
+    options_ty
+}
+
+/// The declared option names, comma-separated — the help text every
+/// [`check_options_arg`] diagnostic ends with, so a typo is answered with the
+/// list rather than with a type spelling nobody wrote.
+fn option_names(options: &[(String, TypeId)]) -> String {
+    options
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// The two extra obligations an argument at a `&$x` parameter position
@@ -2347,6 +2460,12 @@ fn check_by_ref_arg(arg: &Arg, actual: TypeId, expected: Option<TypeId>, env: &m
 /// signature is rewritten concrete, and only then is each argument checked for
 /// assignability against its now-known parameter type. One pass over the
 /// arguments, so nothing is diagnosed twice.
+///
+/// An ADR 0063 R2 options bag is the one argument left out of the first pass
+/// and checked entirely in the second. It is always the last parameter, so
+/// nothing it could bind is ever needed by an earlier one; and its own option
+/// types may mention a variable the earlier arguments bind, so checking it
+/// first would check a field against an unsubstituted `T`.
 fn check_generic_args(
     list: &[Arg],
     sig: MethodSig,
@@ -2355,27 +2474,52 @@ fn check_generic_args(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> (Vec<TypeId>, Option<MethodSig>) {
-    let arg_types: Vec<TypeId> = list
-        .iter()
-        .map(|Arg { value, .. }| check_expr(value, None, live, scope, ctx, env))
-        .collect();
+    let deferred = options_param(&sig, env.interner);
+    let mut arg_types: Vec<TypeId> = Vec::with_capacity(list.len());
+    for (index, Arg { value, .. }) in list.iter().enumerate() {
+        // A placeholder for the bag: overwritten in the second pass below,
+        // and never read in between — `crate::generics::bind` is skipped for
+        // this index too.
+        arg_types.push(if deferred == Some(index) {
+            env.interner.mixed()
+        } else {
+            check_expr(value, None, live, scope, ctx, env)
+        });
+    }
 
     let mut bindings = crate::generics::Bindings::default();
     for (index, actual) in arg_types.iter().enumerate() {
+        if deferred == Some(index) {
+            continue;
+        }
         if let Some(declared) = sig.param_at(index) {
             crate::generics::bind(declared, *actual, env.interner, &mut bindings);
         }
     }
     let sig = sig.substituted(&bindings, env.interner);
 
-    for (index, (arg, actual)) in list.iter().zip(&arg_types).enumerate() {
-        if let Some(declared) = sig.param_at(index)
-            && !is_assignable(*actual, declared, env.interner, env.graph, env.signatures)
-        {
-            report_mismatch(arg.value.span, declared, *actual, env);
+    for (index, arg) in list.iter().enumerate() {
+        let Some(declared) = sig.param_at(index) else {
+            continue;
+        };
+        if deferred == Some(index) {
+            arg_types[index] = check_arg(&arg.value, Some(declared), live, scope, ctx, env);
+            continue;
+        }
+        let actual = arg_types[index];
+        if !is_assignable(actual, declared, env.interner, env.graph, env.signatures) {
+            report_mismatch(arg.value.span, declared, actual, env);
         }
     }
     (arg_types, Some(sig))
+}
+
+/// The index of `sig`'s trailing options-bag parameter, if it has one — ADR
+/// 0063 R2 puts at most one, and always last, which `mwl_stdlib::registry`'s
+/// own `an_options_bag_is_last_and_never_empty` holds mechanically.
+fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<usize> {
+    let last = sig.params.len().checked_sub(1)?;
+    matches!(interner.get(sig.params[last]), Ty::Options(_)).then_some(last)
 }
 
 /// Whether `qname` is `Throwable` or reaches it by walking its `extends`

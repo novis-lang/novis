@@ -71,7 +71,7 @@ pub(crate) fn mentions_type_var(id: TypeId, interner: &TypeInterner) -> bool {
         Ty::Union(members) | Ty::Intersection(members) => members
             .iter()
             .any(|member| mentions_type_var(*member, interner)),
-        Ty::Shape(fields) => fields
+        Ty::Shape(fields) | Ty::Options(fields) => fields
             .iter()
             .any(|(_, field)| mentions_type_var(*field, interner)),
         _ => false,
@@ -108,7 +108,14 @@ pub(crate) fn bind(declared: TypeId, actual: TypeId, interner: &TypeInterner, ou
                 bind(declared_arg, actual_arg, interner, out);
             }
         }
-        (Ty::Shape(declared_fields), Ty::Shape(actual_fields)) => {
+        // A bag never appears on the `actual` side — a call site writes an
+        // object literal, which infers to a `Ty::Shape` — so the pair below
+        // covers both, and binding a bag's option types against a matching
+        // written field is the same walk either way.
+        (
+            Ty::Shape(declared_fields) | Ty::Options(declared_fields),
+            Ty::Shape(actual_fields) | Ty::Options(actual_fields),
+        ) => {
             let pairs: Vec<(TypeId, TypeId)> = declared_fields
                 .iter()
                 .filter_map(|(name, declared_field)| {
@@ -163,6 +170,15 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
                 .map(|(name, field)| (name.clone(), substitute(*field, bindings, interner)))
                 .collect();
             interner.shape(fields)
+        }
+        // Substituted in place, never through `shape`: an options bag keeps
+        // its declared order because that order is its ABI (`Ty::Options`).
+        Ty::Options(options) => {
+            let options: Vec<(String, TypeId)> = options
+                .iter()
+                .map(|(name, ty)| (name.clone(), substitute(*ty, bindings, interner)))
+                .collect();
+            interner.options(options)
         }
         Ty::Class(qname, args) => {
             let args: Vec<TypeId> = args

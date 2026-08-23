@@ -588,6 +588,87 @@ mod tests {
         );
     }
 
+    /// ADR 0063 R2's options bag at a call site: written, and omitted whole.
+    /// `Core\Arr::range`'s `{step?: int}` is the first one in the roster, and
+    /// `MethodSig::required()` has to say 2 either way — the bag is optional
+    /// by construction, so nothing about the arity check changed to allow it.
+    #[test]
+    fn an_options_bag_may_be_written_or_omitted() {
+        let diags = check_in_method(
+            "array<int> $a = Core\\Arr::range(1, 5);\n\
+             array<int> $b = Core\\Arr::range(1, 5, {step: 2});\n\
+             echo Core\\Arr::count($a), Core\\Arr::count($b);\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The rule that makes a bag its own type rather than an ADR 0036 shape:
+    /// a field the member does not declare is an error, where § 3's width
+    /// subtyping would have accepted it silently. The help names the real
+    /// options, which is the whole value of catching the typo here.
+    #[test]
+    fn an_unknown_option_is_diagnosed_and_the_real_ones_are_named() {
+        let diags = check_in_method("array<int> $a = Core\\Arr::range(1, 5, {stepp: 2});\n");
+        let unknown = diags
+            .iter()
+            .find(|d| d.code == Some(code::E_UNKNOWN_OPTION))
+            .unwrap_or_else(|| panic!("{diags:?}"));
+        assert!(
+            unknown.notes.iter().any(|note| note.contains("step")),
+            "{unknown:?}"
+        );
+    }
+
+    /// An option's value is checked against the option's own declared type,
+    /// through the same assignability rule every other argument goes through.
+    #[test]
+    fn an_option_value_is_checked_against_its_declared_type() {
+        let diags = check_in_method("array<int> $a = Core\\Arr::range(1, 5, {step: \"two\"});\n");
+        assert!(
+            diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+            "{diags:?}"
+        );
+    }
+
+    /// A bag flattens per-option at the call site, so there is nothing to read
+    /// a variable's fields out of — the one restriction the design costs, and
+    /// it is a diagnostic rather than silence.
+    #[test]
+    fn an_options_argument_that_is_not_a_literal_is_diagnosed() {
+        let diags = check_in_method(
+            "var $bag = {step: 2};\narray<int> $a = Core\\Arr::range(1, 5, $bag);\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_OPTIONS_NOT_A_LITERAL)),
+            "{diags:?}"
+        );
+    }
+
+    /// Flattening takes the first field of a given name, so a repeated option
+    /// would silently drop the second — diagnosed instead.
+    #[test]
+    fn a_repeated_option_is_diagnosed() {
+        let diags =
+            check_in_method("array<int> $a = Core\\Arr::range(1, 5, {step: 1, step: 2});\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DUPLICATE_DECLARATION)),
+            "{diags:?}"
+        );
+    }
+
+    /// The bag is not a shape *target* either: `{...}` written anywhere else
+    /// still means ADR 0036's anonymous object, width subtyping and all, so
+    /// this change is scoped to the one parameter position it describes.
+    #[test]
+    fn an_object_literal_outside_an_options_position_is_still_a_shape() {
+        let diags = check_in_method("var $point = {x: 1, y: 2};\necho $point->x;\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
     #[test]
     fn a_call_may_omit_a_parameter_that_has_a_default() {
         let diags = check_src(

@@ -1,0 +1,49 @@
+---
+source: crates/mwl-ir/src/lower.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @4:5-4:61
+    v1 = const.int 1  ; int
+    v2 = const.int 10  ; int
+    v3 = const.int 3  ; int
+    v4 = core.call mwl_core_arr_range(v1, v2, v3) ! bb1  ; array
+    v5 = core.call mwl_core_arr_count(v4) ! bb2  ; uint
+    release v4
+    v6 = helper.uint_to_string v5  ; string
+    helper.echo_str v6 ! bb3
+    release v6
+    ; stmt s1 @5:5-5:50
+    v7 = const.int 1  ; int
+    v8 = const.int 10  ; int
+    v9 = const.int 1  ; int
+    v10 = core.call mwl_core_arr_range(v7, v8, v9) ! bb4  ; array
+    v11 = core.call mwl_core_arr_count(v10) ! bb5  ; uint
+    release v10
+    v12 = helper.uint_to_string v11  ; string
+    helper.echo_str v12 ! bb6
+    release v12
+    release v0
+    return
+  bb1:
+    release v0
+    propagate "m() at t.mwl:4"
+  bb2:
+    release v0
+    propagate "m() at t.mwl:4"
+  bb3:
+    release v0
+    propagate "m() at t.mwl:4"
+  bb4:
+    release v0
+    propagate "m() at t.mwl:5"
+  bb5:
+    release v0
+    propagate "m() at t.mwl:5"
+  bb6:
+    release v0
+    propagate "m() at t.mwl:5"
+}

@@ -115,6 +115,28 @@ pub enum Ty {
     /// no flattening to do, since a shape field's type is never itself
     /// required to be a shape.
     Shape(Vec<(String, TypeId)>),
+    /// ADR 0063 R2's trailing options bag — `{step?: int}`, one entry per
+    /// declared option.
+    ///
+    /// The second type in this enum no source text can spell (see
+    /// [`Self::TypeVar`] for the first): it only ever enters the interner from
+    /// `mwl_stdlib::registry`'s `CoreTy::Options` through [`crate::core_lib`].
+    /// A *value* of this type is still written by hand — an ADR 0036 object
+    /// literal at the call site — but the type itself is never written, which
+    /// is why there is no `?` in the surface type grammar.
+    ///
+    /// Deliberately not a [`Self::Shape`]. A shape is checked by ADR 0036 § 3's
+    /// **width** subtyping, which accepts a field the target does not name; an
+    /// options bag must refuse one, because a mistyped option name that is
+    /// silently ignored is exactly the failure ADR 0063 R2 exists to prevent.
+    /// [`crate::expr`] owns that check.
+    ///
+    /// Fields keep their **declared order** rather than being sorted the way
+    /// [`TypeInterner::shape`] sorts a shape's: that order is the order
+    /// `mwl_ir::lower::lower_call_args` flattens the bag into ABI arguments,
+    /// so two members whose options differ only in order are genuinely two
+    /// different types and must not intern to one.
+    Options(Vec<(String, TypeId)>),
     /// `A|B|...` — flattened, deduplicated, and sorted by member `TypeId`.
     /// Always at least two members; a one-member union collapses to that
     /// member directly (see [`TypeInterner::make_union`]).
@@ -275,6 +297,14 @@ impl TypeInterner {
                 let inner = fields
                     .iter()
                     .map(|(name, ty)| format!("{name}: {}", self.describe(*ty)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{{{inner}}}")
+            }
+            Ty::Options(options) => {
+                let inner = options
+                    .iter()
+                    .map(|(name, ty)| format!("{name}?: {}", self.describe(*ty)))
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("{{{inner}}}")
@@ -462,6 +492,15 @@ impl TypeInterner {
     pub fn shape(&mut self, mut fields: Vec<(String, TypeId)>) -> TypeId {
         fields.sort_by(|a, b| a.0.cmp(&b.0));
         self.intern(Ty::Shape(fields))
+    }
+
+    /// Interns ADR 0063 R2's options bag — see [`Ty::Options`], which owns why
+    /// `options` is interned in the order given rather than sorted the way
+    /// [`Self::shape`] sorts, and why nothing outside [`crate::core_lib`]
+    /// calls this.
+    #[must_use]
+    pub fn options(&mut self, options: Vec<(String, TypeId)>) -> TypeId {
+        self.intern(Ty::Options(options))
     }
 
     /// Whether `id` is `null` itself, or a union with `null` as one of its

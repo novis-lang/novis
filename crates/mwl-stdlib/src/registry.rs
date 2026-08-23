@@ -28,36 +28,36 @@
 //! same shape of gap: no `null`, so a spec signature ending `= null` cannot be
 //! stated here until `mwl_types::defaults` can emit one.
 //!
-//! # The options bag, and the shape it will take
+//! # The options bag
 //!
 //! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R2 makes a
-//! trailing options shape (`{step?: int}`) the form of *every* optioned member,
-//! so this is the largest single gap in the roster — it is what keeps
-//! `Core\Arr::range`, `Core\Str::replace` and most of §§ 1–2's remaining rows
-//! unregistered. The design is settled and unimplemented; recorded here rather
-//! than re-derived, since the fork below is the expensive part:
+//! trailing options shape (`{step?: int}`) the form of *every* optioned
+//! member. It is [`CoreTy::Options`], and the four properties below are what
+//! it costs and what it buys — recorded here because the fork is the
+//! expensive part, not the code:
 //!
 //! * **A bag is its own type, not an ADR 0036 shape.** `mwl_types::ty::Ty`
-//!   grows an `Options` variant beside `Shape`, spellable only from here the
+//!   has an `Options` variant beside `Shape`, spellable only from here the
 //!   way `TypeVar` already is. Reusing `Shape` would need an `optional` flag
 //!   on its fields *and* a `?` in the surface type grammar, and would leave an
 //!   unknown option accepted — ADR 0036 § 3's width subtyping allows an extra
 //!   field on purpose, while a mistyped option name must be an error.
 //! * **A bag is always last and always optional**, because every option is.
-//!   Its `MethodSig::defaults` entry is a `ConstArg::Options(...)` carrying each
-//!   option's own default, so `MethodSig::required()` already excludes it and
-//!   the arity check needs no change at all.
-//! * **A bag flattens at the ABI.** `mwl_ir::lower::lower_call_args` expands it
-//!   into one argument per declared option, in registry order — the literal's
-//!   value where written, the option's default where not — so
-//!   `mwl_core_arr_range` is an ordinary `args: [3]` helper and no runtime
-//!   representation of a shape is needed. The rejected alternative was building
-//!   an `array<mixed>` per call: it allocates on the common path, and needs a
-//!   `null`/empty spelling the IR does not have.
+//!   Its `MethodSig::defaults` entry is a `ConstArg::Options(...)` carrying
+//!   each option's own default, synthesized by `mwl_types::core_lib` from the
+//!   type itself — so a row never states the bag twice, `MethodSig::required()`
+//!   already excludes it, and the arity check needed no change at all.
+//! * **A bag flattens at the ABI.** `mwl_ir::lower::lower_call_args` expands
+//!   it into one argument per declared option, in the order [`CoreOption`]s
+//!   are written here — the literal's value where written, the option's
+//!   default where not — so `mwl_core_arr_range` is an ordinary `args: [3]`
+//!   helper and no runtime representation of a shape exists. The rejected
+//!   alternative was building an `array<mixed>` per call: it allocates on the
+//!   common path, and needs a `null`/empty spelling the IR does not have.
 //! * **The cost is one restriction:** an options argument must be written as a
 //!   shape literal at the call site, or omitted — a diagnostic, never silence.
 //!   That is exactly the set of programs that can run today, since
-//!   `ExprKind::ObjectLiteral` has no lowering at all.
+//!   `ExprKind::ObjectLiteral` has no lowering of its own at all.
 
 /// One type in a `Core` member's signature.
 ///
@@ -65,7 +65,11 @@
 /// *spec* wrote, not what the checker interns. `mwl-types` lowers each of
 /// these into its own interner, which is where qualifiers, unions and class
 /// identity live.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+// No `PartialEq`/`Eq`: [`Self::Options`] carries [`CoreOption`]s, which carry
+// [`Const`]s, which carry an `f64` — and there is nothing here to compare
+// anyway, since a registry row is matched structurally and interned into
+// `mwl_types::ty::Ty` before any consumer asks whether two types are equal.
+#[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum CoreTy {
     /// `bool`
@@ -104,6 +108,38 @@ pub enum CoreTy {
     /// declare one, which is `.claude/loop-goal.md`'s standing decision that
     /// type variables stay compiler-owned.
     Var(&'static str),
+    /// ADR 0063 R2's trailing options shape — `{step?: int}`, one
+    /// [`CoreOption`] per declared option, in the order the ABI passes them.
+    /// See this module's own docs for why it is its own type rather than a
+    /// [`CoreTy`] wrapping an ADR 0036 shape.
+    ///
+    /// Only ever the **last** entry of [`CoreMethod::params`], and never
+    /// listed in [`CoreMethod::defaults`]: every option has a default of its
+    /// own, so the bag itself is optional by construction rather than by
+    /// declaration. `an_options_bag_is_last_and_never_empty` holds both.
+    Options(&'static [CoreOption]),
+}
+
+/// One option inside a [`CoreTy::Options`] bag: its name, its type, and the
+/// value a call that leaves it out passes.
+///
+/// The default is stated here rather than in [`CoreMethod::defaults`] because
+/// an option is named, not positional — there is no end-alignment rule that
+/// could relate a run of defaults to a set of names, and stating it beside the
+/// name is the only arrangement in which the two cannot drift apart.
+#[derive(Clone, Copy, Debug)]
+pub struct CoreOption {
+    /// The option's own name, `camelCase` per ADR 0029 — what a call site
+    /// writes on the left of the `:` in `{step: 2}`.
+    pub name: &'static str,
+    /// Its declared type. Never itself a [`CoreTy::Options`]: a bag flattens
+    /// to one ABI argument per option, and a nested one would have nothing to
+    /// flatten into.
+    pub ty: CoreTy,
+    /// The constant a call that omits this option passes — materialized at the
+    /// call site by `mwl_ir::lower::lower_call_args`, exactly as an omitted
+    /// positional parameter's default is.
+    pub default: Const,
 }
 
 /// One optional parameter's default value.
@@ -138,12 +174,17 @@ pub struct CoreMethod {
     /// The member's own name, `camelCase` per ADR 0029.
     pub name: &'static str,
     /// Each parameter's declared type, positional. ADR 0063 R1 puts the
-    /// subject first.
+    /// subject first, and R2 puts an options bag ([`CoreTy::Options`]) last if
+    /// the member has one.
     pub params: &'static [CoreTy],
-    /// Defaults for the *trailing* optional parameters, aligned to the end of
-    /// [`Self::params`] — so `params.len() - defaults.len()` is how many
-    /// arguments a call must supply, and an empty slice means every parameter
-    /// is required.
+    /// Defaults for the *trailing* optional positional parameters, aligned to
+    /// the end of [`Self::positional`] — so `positional().len() -
+    /// defaults.len()` is how many arguments a call must supply, and an empty
+    /// slice means every positional parameter is required.
+    ///
+    /// A trailing options bag is excluded on both sides of that subtraction:
+    /// it is optional by construction and carries its own per-option defaults,
+    /// so it never appears here. See [`CoreTy::Options`].
     ///
     /// Aligned to the end rather than carrying one entry per parameter because
     /// that is the only arrangement the language allows: a required parameter
@@ -159,6 +200,29 @@ pub struct CoreMethod {
     /// member is never mistakable for a `mwl_runtime` primitive in a
     /// disassembly.
     pub symbol: &'static str,
+}
+
+impl CoreMethod {
+    /// This member's trailing options bag, or `None` for a member with none —
+    /// the one place the "always last" rule of [`CoreTy::Options`] is read,
+    /// so no consumer scans [`Self::params`] for it a second time.
+    #[must_use]
+    pub fn options(&self) -> Option<&'static [CoreOption]> {
+        match self.params.last() {
+            Some(CoreTy::Options(options)) => Some(options),
+            _ => None,
+        }
+    }
+
+    /// The positional parameters — [`Self::params`] without a trailing options
+    /// bag. What [`Self::defaults`] aligns to the end of.
+    #[must_use]
+    pub fn positional(&self) -> &'static [CoreTy] {
+        match self.options() {
+            Some(_) => &self.params[..self.params.len() - 1],
+            None => self.params,
+        }
+    }
 }
 
 /// One `Core` domain class — ADR 0011's "every callable is a class member,"
@@ -290,9 +354,27 @@ pub const CLASSES: &[CoreClass] = &[
                 return_ty: CoreTy::Bool,
                 symbol: "mwl_core_arr_is_empty",
             },
+            CoreMethod {
+                name: "range",
+                params: &[CoreTy::Int, CoreTy::Int, CoreTy::Options(RANGE_OPTIONS)],
+                defaults: &[],
+                return_ty: CoreTy::Array(&CoreTy::Int),
+                symbol: "mwl_core_arr_range",
+            },
         ],
     },
 ];
+
+/// `Core\Arr::range`'s `{step?: int}` — the first options bag in the roster.
+///
+/// A named constant rather than an inline slice because a bag is referenced
+/// twice in practice: once as a parameter type here, and once by
+/// `crate::arr`'s own doc comment naming what its flattened arguments are.
+const RANGE_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "step",
+    ty: CoreTy::Int,
+    default: Const::Int(1),
+}];
 
 /// Looks a class up by its fully-qualified name.
 #[must_use]
@@ -344,24 +426,90 @@ mod tests {
         assert_eq!(names.len(), total);
     }
 
-    /// No member declares more defaults than it has parameters —
-    /// [`CoreMethod::defaults`] is aligned to the end of `params`, so a longer
-    /// slice has nowhere to align to and would make the required count
-    /// underflow.
+    /// No member declares more defaults than it has positional parameters —
+    /// [`CoreMethod::defaults`] is aligned to the end of
+    /// [`CoreMethod::positional`], so a longer slice has nowhere to align to
+    /// and would make the required count underflow.
     #[test]
     fn no_member_declares_more_defaults_than_parameters() {
         for class in CLASSES {
             for method in class.methods {
                 assert!(
-                    method.defaults.len() <= method.params.len(),
-                    "{}::{} declares {} defaults for {} parameters",
+                    method.defaults.len() <= method.positional().len(),
+                    "{}::{} declares {} defaults for {} positional parameters",
                     class.name,
                     method.name,
                     method.defaults.len(),
-                    method.params.len()
+                    method.positional().len()
                 );
             }
         }
+    }
+
+    /// ADR 0063 R2, mechanically: at most one options bag per member, always
+    /// last, never empty, and never nested inside another type. Every one of
+    /// those is load-bearing — [`CoreMethod::options`] reads only the last
+    /// parameter, and `mwl_types::core_lib` synthesizes exactly one
+    /// `ConstArg::Options` entry from it.
+    #[test]
+    fn an_options_bag_is_last_and_never_empty() {
+        for class in CLASSES {
+            for method in class.methods {
+                for (index, param) in method.params.iter().enumerate() {
+                    let CoreTy::Options(options) = param else {
+                        continue;
+                    };
+                    assert_eq!(
+                        index,
+                        method.params.len() - 1,
+                        "{}::{} puts its options bag at {index} of {} parameters",
+                        class.name,
+                        method.name,
+                        method.params.len()
+                    );
+                    assert!(
+                        !options.is_empty(),
+                        "{}::{} declares an empty options bag",
+                        class.name,
+                        method.name
+                    );
+                    for option in *options {
+                        assert!(
+                            option.name.starts_with(|c: char| c.is_ascii_lowercase()),
+                            "{}::{}'s option `{}` is not camelCase",
+                            class.name,
+                            method.name,
+                            option.name
+                        );
+                        assert!(
+                            !matches!(option.ty, CoreTy::Options(_)),
+                            "{}::{}'s option `{}` nests a second bag",
+                            class.name,
+                            method.name,
+                            option.name
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The one member that has a bag today, spelled out — so a paste error
+    /// that dropped `step` would fail here rather than only at
+    /// `examples/core.mwl`.
+    #[test]
+    fn range_declares_one_step_option_defaulting_to_one() {
+        let range = class(r"Core\Arr")
+            .expect(r"Core\Arr is registered")
+            .methods
+            .iter()
+            .find(|method| method.name == "range")
+            .expect("range is registered");
+        assert_eq!(range.positional().len(), 2);
+        let options = range.options().expect("range takes an options bag");
+        assert_eq!(options.len(), 1);
+        assert_eq!(options[0].name, "step");
+        assert!(matches!(options[0].default, Const::Int(1)));
     }
 
     #[test]

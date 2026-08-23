@@ -87,7 +87,7 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
         .map(|found| found.symbol)
 }
 
-/// A registry row's end-aligned [`CoreMethod::defaults`] as the per-parameter
+/// A registry row's end-aligned `CoreMethod::defaults` as the per-parameter
 /// [`MethodSig::defaults`] the checker and `mwl-ir` read — a run of `None` for
 /// the required parameters, then one entry per declared default.
 ///
@@ -96,10 +96,28 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
 /// positional one because every consumer indexes it by parameter. This is the
 /// one place that has to agree with `CoreMethod::defaults`' own alignment
 /// rule, which is why the slice is taken from the end rather than the start.
+///
+/// A trailing options bag gets its entry **synthesized** here from the bag's
+/// own [`CoreOption::default`](mwl_stdlib::registry::CoreOption::default)s
+/// rather than read from `defaults`, which is what makes the bag optional
+/// without a registry row ever saying so twice — see
+/// `mwl_stdlib::registry::CoreTy::Options`.
 fn defaults_of(method: &mwl_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg>> {
-    let required = method.params.len() - method.defaults.len();
+    let positional = method.positional().len();
+    let required = positional - method.defaults.len();
     (0..method.params.len())
         .map(|index| {
+            if index == positional {
+                let options = method
+                    .options()
+                    .expect("an index past the positional parameters is the options bag");
+                return Some(ConstArg::Options(
+                    options
+                        .iter()
+                        .map(|option| (option.name.to_owned(), lower_const(&option.default)))
+                        .collect(),
+                ));
+            }
             index
                 .checked_sub(required)
                 .map(|offset| lower_const(&method.defaults[offset]))
@@ -142,6 +160,15 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         }
         CoreTy::Var(name) => interner.type_var(*name),
         CoreTy::Callable => interner.callable(),
+        // The registry's order is kept, not sorted: it is the order the bag
+        // flattens into ABI arguments. `Ty::Options` owns why.
+        CoreTy::Options(options) => {
+            let options = options
+                .iter()
+                .map(|option| (option.name.to_owned(), lower(&option.ty, interner)))
+                .collect();
+            interner.options(options)
+        }
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
         // answer for a variant this arm has not learned yet, since `Ty` and
@@ -175,6 +202,39 @@ mod tests {
         assert_eq!(sig.params.len(), 1);
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
         assert_eq!(interner.describe(sig.return_ty), "uint");
+    }
+
+    /// The bag's two halves, both derived from one registry row: the
+    /// parameter's type carries the option names and types, and its
+    /// [`MethodSig::defaults`] entry carries each option's default. Nothing in
+    /// `mwl_stdlib::registry` states either twice, so this is the one place
+    /// they could disagree.
+    #[test]
+    fn an_options_bag_lowers_to_one_parameter_and_one_synthesized_default() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (_, sig) = resolve_method(
+            &QName::parse(r"Core\Arr"),
+            "range",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Arr::range is registered");
+        assert_eq!(sig.params.len(), 3);
+        assert_eq!(interner.describe(sig.params[2]), "{step?: int}");
+        // The bag is optional by construction: two arguments are required, so
+        // `Core\Arr::range(1, 10)` is a legal call with no registry row saying
+        // the bag has a default.
+        assert_eq!(sig.required(), 2);
+        assert_eq!(
+            sig.defaults[2],
+            Some(ConstArg::Options(vec![(
+                "step".to_owned(),
+                ConstArg::Int(1)
+            )]))
+        );
     }
 
     #[test]

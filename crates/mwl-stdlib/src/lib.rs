@@ -59,20 +59,17 @@
 //!    every member still missing a conformance case.
 //!
 //!    Within § 1, the members still absent are the ones waiting on something:
-//!    every option-bag member (`indexOf`, `replace`, `trim`, …) on gap 3
-//!    below, and `length`/`at`/`slice` on
+//!    `length`/`at`/`slice` on
 //!    [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s open
 //!    granularity question — which [`str`]'s own docs record as the one thing
 //!    that can still change an already-registered member's answer.
-//! 3. **No member takes an options shape yet.** An optional *positional*
-//!    parameter is expressible now — [`registry::CoreMethod::defaults`] states
-//!    one and `mwl_types::defaults` materializes it at the call site — but
-//!    [`registry::CoreTy`] still cannot express an option bag, which is why
-//!    `Core\Arr::range`, whose spec signature ends in `{step?: int}`, is not
-//!    registered alongside `filter`: registering it without the bag would put
-//!    a signature in the compiler that the spec does not describe. `Const`
-//!    also has no `null` variant, so a member whose spec signature defaults to
-//!    `null` waits on `mwl_types::defaults` growing one.
+//! 3. **`Const` has no `null` variant**, so a member whose spec signature
+//!    defaults to `null` — `Core\Str::slice`'s `?int $length = null` and the
+//!    rest of the spec's most common optional shape — waits on
+//!    `mwl_types::defaults` growing one, and on the IR constant under it.
+//!    ADR 0063 R2's options bag is *not* on that list any more:
+//!    [`registry::CoreTy::Options`] expresses it and `Core\Arr::range` is the
+//!    first member registered with one.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
 //!    *Revisiting* section and `.claude/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what
@@ -108,6 +105,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 "mwl_core_arr_count" => (arr::mwl_core_arr_count as *const ()).cast(),
                 "mwl_core_arr_filter" => (arr::mwl_core_arr_filter as *const ()).cast(),
                 "mwl_core_arr_is_empty" => (arr::mwl_core_arr_is_empty as *const ()).cast(),
+                "mwl_core_arr_range" => (arr::mwl_core_arr_range as *const ()).cast(),
                 "mwl_core_str_is_empty" => (str::mwl_core_str_is_empty as *const ()).cast(),
                 "mwl_core_str_contains" => (str::mwl_core_str_contains as *const ()).cast(),
                 "mwl_core_str_starts_with" => (str::mwl_core_str_starts_with as *const ()).cast(),

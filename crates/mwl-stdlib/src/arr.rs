@@ -158,6 +158,78 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+/// One `int` argument's value, as a contained `FATAL` if the tag is wrong —
+/// the same "the checker let a call through it should have refused" failure
+/// [`crate::str::text`] reports for a `string` position.
+fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
+    value.as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?} for {position}, got tag {}",
+            Tag::Int,
+            value.tag_byte()
+        ))
+    })
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::range(int $start, int $end, {step?: int}): array<int>` — the
+    /// integers from `$start` to `$end` inclusive, replacing PHP's `range`.
+    ///
+    /// The first member with an ADR 0063 R2 options bag, and therefore the
+    /// first whose arity says something the spec's signature does not:
+    /// `{step?: int}` is flattened into one ordinary argument by
+    /// `mwl_ir::lower::lower_call_args`, so this is an `args: [3]` helper and
+    /// `args[2]` is always present — the call site materialized the default
+    /// where it was not written. `mwl_stdlib::registry`'s own docs own why.
+    ///
+    /// Three behaviours, all PHP 8.5's and all verified against it:
+    ///
+    /// * **The direction comes from the arguments, not the step.** `$start >
+    ///   $end` counts down; there is no negative step.
+    /// * **A `step` of zero or less throws**, rather than looping forever or
+    ///   silently reversing. PHP raises `ValueError`; this raises the tree's
+    ///   root, because a `Core` helper cannot yet name the class it throws
+    ///   (`mwl_runtime::Ctx::set_runtime_error_class`) — spec § 10's
+    ///   `LogicError` is the class this owes once it can.
+    /// * **A step that overshoots stops at the last in-range value**, so
+    ///   `range(1, 10, {step: 3})` is `1, 4, 7, 10` and
+    ///   `range(1, 10, {step: 4})` is `1, 5, 9`.
+    ///
+    /// The cursor advances by `checked_add`/`checked_sub` rather than by
+    /// multiplying an index: a range whose next step would leave `int` stops
+    /// instead of wrapping, which is ADR 0007 § 4's rule applied to a loop
+    /// this member owns rather than to arithmetic a program wrote.
+    fn mwl_core_arr_range(_ctx, args: [3]) {
+        let start = integer(&args[0], "range", "the start")?;
+        let end = integer(&args[1], "range", "the end")?;
+        let step = integer(&args[2], "range", "the `step` option")?;
+        if step <= 0 {
+            return Err(Fault::thrown(format!(
+                "Core\\Arr::range(): the `step` option must be greater than 0, got {step}"
+            )));
+        }
+
+        let mut out = MwlArray::new();
+        let mut cursor = start;
+        loop {
+            out.append(Value::int(cursor));
+            let next = if start <= end {
+                match cursor.checked_add(step) {
+                    Some(next) if next <= end => next,
+                    _ => break,
+                }
+            } else {
+                match cursor.checked_sub(step) {
+                    Some(next) if next >= end => next,
+                    _ => break,
+                }
+            };
+            cursor = next;
+        }
+        Ok(Value::array(out))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use mwl_runtime::{Ctx, MwlArray, MwlStr, OutputSink, Value, call};
@@ -185,6 +257,80 @@ mod tests {
         unsafe {
             subject.release();
         }
+    }
+
+    /// The values `range` produces, in order — read back through the array's
+    /// own cursor rather than by key, so a wrong *order* fails here and not
+    /// only a wrong set.
+    fn range_of(start: i64, end: i64, step: i64) -> Vec<i64> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::mwl_core_arr_range,
+            &mut ctx,
+            &[Value::int(start), Value::int(end), Value::int(step)],
+        )
+        .expect("a positive step never fails");
+        #[expect(
+            unsafe_code,
+            reason = "the helper returned one fresh reference, which the \
+                      handle takes over and releases on drop"
+        )]
+        let array =
+            unsafe { MwlArray::from_raw(result.array_ptr().expect("range returns an array")) };
+        let mut out = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            out.push(
+                array
+                    .value_at(slot)
+                    .and_then(Value::as_int)
+                    .expect("every entry is an int"),
+            );
+            from = slot + 1;
+        }
+        out
+    }
+
+    /// Every row verified against PHP 8.5's own `range`, which is what the
+    /// spec's **Replaces** column promises this subsumes.
+    #[test]
+    fn range_matches_phps_ascending_descending_and_stepped_forms() {
+        assert_eq!(range_of(1, 5, 1), vec![1, 2, 3, 4, 5]);
+        assert_eq!(range_of(1, 10, 3), vec![1, 4, 7, 10]);
+        // A step that overshoots stops at the last in-range value.
+        assert_eq!(range_of(1, 10, 4), vec![1, 5, 9]);
+        // The direction is the arguments', not the step's — there is no
+        // negative step to write.
+        assert_eq!(range_of(10, 1, 1), vec![10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+        assert_eq!(range_of(10, 1, 2), vec![10, 8, 6, 4, 2]);
+        // A one-element range, both ways round.
+        assert_eq!(range_of(5, 5, 1), vec![5]);
+        assert_eq!(range_of(5, 5, 3), vec![5]);
+        assert_eq!(range_of(-2, 2, 2), vec![-2, 0, 2]);
+    }
+
+    /// A step of zero or less is `THROWN`, not a hang and not a silent
+    /// reversal — PHP raises `ValueError` for both.
+    #[test]
+    fn a_step_of_zero_or_less_throws() {
+        for step in [0, -1] {
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            let status = call(
+                super::mwl_core_arr_range,
+                &mut ctx,
+                &[Value::int(1), Value::int(5), Value::int(step)],
+            )
+            .expect_err("a non-positive step is refused");
+            assert_eq!(status, mwl_runtime::THROWN);
+        }
+    }
+
+    /// The cursor stops rather than wrapping when the next step would leave
+    /// `int` — ADR 0007 § 4's rule applied to a loop this member owns.
+    #[test]
+    fn a_range_whose_next_step_would_overflow_stops() {
+        assert_eq!(range_of(i64::MAX - 1, i64::MAX, 4), vec![i64::MAX - 1]);
+        assert_eq!(range_of(i64::MIN + 1, i64::MIN, 4), vec![i64::MIN + 1]);
     }
 
     /// A wrong tag is a contained `FATAL`, not a panic that takes the process
