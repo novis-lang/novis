@@ -77,10 +77,10 @@ fn rustc_version() -> String {
 /// `MWL_BUILD_COMMIT` wins if set, so a distribution packaging MWL from a
 /// tarball can supply the revision it built from without a `.git` present.
 fn commit(workspace: &Path) -> String {
-    if let Ok(supplied) = std::env::var("MWL_BUILD_COMMIT") {
-        if !supplied.trim().is_empty() {
-            return supplied.trim().to_owned();
-        }
+    if let Ok(supplied) = std::env::var("MWL_BUILD_COMMIT")
+        && !supplied.trim().is_empty()
+    {
+        return supplied.trim().to_owned();
     }
 
     let git = workspace.join(".git");
@@ -130,10 +130,8 @@ fn locked_version(workspace: &Path, name: &str) -> String {
             in_package = false;
         } else if let Some(value) = line.strip_prefix("name = ") {
             in_package = value.trim_matches('"') == name;
-        } else if in_package {
-            if let Some(value) = line.strip_prefix("version = ") {
-                return value.trim_matches('"').to_owned();
-            }
+        } else if in_package && let Some(value) = line.strip_prefix("version = ") {
+            return value.trim_matches('"').to_owned();
         }
     }
     unknown()

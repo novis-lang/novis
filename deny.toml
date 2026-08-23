@@ -26,6 +26,12 @@ ignore = []
 # Licences. MWL itself ships as MIT; anything we link must be compatible with
 # distributing a permissively licensed binary. Apache-2.0 dependencies are
 # fine (cranelift and wasmtime are Apache-2.0 WITH LLVM-exception).
+#
+# This list decides what MWL may *link*. What it must then *ship* — the
+# reproduced notice for each component — is ADR 0065 and its generator,
+# `tools/gen-attribution.py`, whose `PREFERENCE` must name exactly the
+# identifiers below, in preference order. The generator fails if the two ever
+# drift, so edit both together.
 # ---------------------------------------------------------------------------
 [licenses]
 version = 2

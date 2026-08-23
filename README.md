@@ -77,7 +77,7 @@ crates/
   mwl-ir            CFG/SSA IR, safepoints, refcount ops                               M2
   mwl-codegen       Cranelift backend  [audited unsafe]                                M3
   mwl-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3
-  mwl-cli           the `mwl` binary (`ast`, `check` so far)                exists / M3
+  mwl-cli           the `mwl` binary (`ast`, `check`, `run`, `info`)       exists / M3
   mwl-stdlib        Core domain classes, native builtin static methods                 M4S
   mwl-test          .mwlt runner                                                       M4
   mwl-host          Transport trait, unit cache, the Isolate boundary                  M5
@@ -98,6 +98,8 @@ editors/
   phpstorm          file-type registration, LSP-bridge plugin (Kotlin/Gradle)         M10
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]     exists
+tools/
+  gen-attribution   generates THIRD-PARTY-LICENSES.txt from the dep graph          exists
 docs/adr/           architecture decision records                                  exists
 docs/spec/          normative language reference                                unwritten
 ```

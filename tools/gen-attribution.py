@@ -56,6 +56,13 @@ BINARY = "mwl"
 # An identifier absent from this list is an error. That is deliberate — a
 # new license entering the tree should be a decision someone makes, not a
 # line that appears in a generated file.
+#
+# This must hold exactly the same identifiers as `deny.toml`'s `licenses.allow`,
+# only ordered: that file decides what MWL may *link*, this decides what it
+# ships and under which half of a choice. `check_policies_agree` below fails
+# if the two ever drift, in either direction — a license allowed but unranked
+# would have no notice policy, and one ranked but not allowed would be a
+# preference for something CI already refuses.
 PREFERENCE = [
     "MIT",
     "Apache-2.0 WITH LLVM-exception",
@@ -65,7 +72,6 @@ PREFERENCE = [
     "ISC",
     "Zlib",
     "Unicode-3.0",
-    "Unlicense",
     "CC0-1.0",
     "MPL-2.0",
 ]
@@ -436,10 +442,41 @@ def render(components: list[dict], groups: list[dict], notices: list[tuple[str, 
 # ---------------------------------------------------------------------------
 
 
+def check_policies_agree(allowed: set[str]) -> None:
+    """Fails if PREFERENCE and deny.toml's allow list have drifted apart.
+
+    Two lists naming the same thing is exactly the duplication CLAUDE.md
+    warns about, and they cannot be merged — `deny.toml` is cargo-deny's
+    format and carries no ordering. Checking them against each other on
+    every run is the next best thing, and it catches the realistic mistake:
+    a license added to one file and not the other.
+    """
+    if not allowed:
+        return
+    unranked = sorted(allowed - set(PREFERENCE))
+    unallowed = sorted(set(PREFERENCE) - allowed)
+    problems = []
+    if unranked:
+        problems.append(
+            f"allowed by deny.toml but absent from PREFERENCE: {', '.join(unranked)}"
+        )
+    if unallowed:
+        problems.append(
+            f"ranked in PREFERENCE but not allowed by deny.toml: {', '.join(unallowed)}"
+        )
+    if problems:
+        detail = "\n".join(f"  - {problem}" for problem in problems)
+        raise SystemExit(
+            f"error: the two license policies disagree:\n{detail}\n"
+            f"       Both files must name the same identifiers; only the order differs."
+        )
+
+
 def build() -> str:
     meta = cargo_metadata()
     packages = shipped_packages(meta)
     allowed = deny_allowlist()
+    check_policies_agree(allowed)
 
     components: list[dict] = []
     # Keyed by the license text itself, so identical texts collapse and a
