@@ -108,6 +108,25 @@ struct LoopFrame {
     loop_private: Vec<String>,
 }
 
+/// Who owns a call argument's reference once the call runs.
+///
+/// The two conventions MWL has, and the one thing that differs between
+/// lowering an [`InstKind::Call`] and an [`InstKind::CoreCall`] beyond which
+/// instruction is emitted.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ArgOwnership {
+    /// The callee owns it — an MWL method or constructor, whose parameter is
+    /// bound into its own `Env` like a local and released at its exit sweep.
+    /// The caller therefore retains an aliasing refcounted argument first, so
+    /// the pair balances.
+    Transferred,
+    /// The callee borrows it — every ADR 0002 helper, including a `Core`
+    /// member, which receives a `&[Value]` and releases nothing. No retain,
+    /// and the caller keeps owning what it passed; `mwl_stdlib`'s own docs own
+    /// why ADR 0063's purity rule is what makes that safe.
+    Borrowed,
+}
+
 /// One `try` statement's protected region, gathered while its body is lowered.
 ///
 /// [`Lowering::lower_try`] pushes one before lowering the body and pops it
@@ -2448,7 +2467,15 @@ impl<'a> Lowering<'a> {
                         let param_tys = call.param_tys.clone();
                         let variadic = call.variadic;
                         let checked_types = self.checked_types;
-                        self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur)
+                        self.lower_call_args(
+                            args,
+                            &param_tys,
+                            variadic,
+                            checked_types,
+                            ArgOwnership::Transferred,
+                            env,
+                            cur,
+                        )
                     }
                     None => {
                         let CallArgs::List(list) = args else {
@@ -2527,8 +2554,15 @@ impl<'a> Lowering<'a> {
                 if receiver_ty.is_refcounted() && is_aliasing_read(&object.kind) {
                     self.emit_retain(cur, receiver_v);
                 }
-                let arg_values =
-                    self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur);
+                let arg_values = self.lower_call_args(
+                    args,
+                    &param_tys,
+                    variadic,
+                    checked_types,
+                    ArgOwnership::Transferred,
+                    env,
+                    cur,
+                );
                 self.emit_fallible(
                     cur,
                     return_ty,
@@ -2558,6 +2592,37 @@ impl<'a> Lowering<'a> {
                         expr.span
                     );
                 };
+                // A Tier 0 `Core` member is native Rust behind a helper
+                // symbol, not a compiled MWL function, so it takes a
+                // different instruction and a different argument-ownership
+                // rule — see `InstKind::CoreCall`, which owns both. Resolved
+                // through the identical `ResolvedCall` up to this point,
+                // which is the whole reason `mwl_types` seeds a signature
+                // table rather than special-casing `Core` at each call site.
+                if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+                    let param_tys = call.param_tys.clone();
+                    let variadic = call.variadic;
+                    let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+                    let checked_types = self.checked_types;
+                    let arg_values = self.lower_call_args(
+                        args,
+                        &param_tys,
+                        variadic,
+                        checked_types,
+                        ArgOwnership::Borrowed,
+                        env,
+                        cur,
+                    );
+                    return self.emit_fallible(
+                        cur,
+                        return_ty,
+                        InstKind::CoreCall {
+                            symbol,
+                            args: arg_values,
+                        },
+                        env,
+                    );
+                }
                 let target_label = format!("{}::{}", call.class, call.method);
                 let param_tys = call.param_tys.clone();
                 let variadic = call.variadic;
@@ -2581,8 +2646,15 @@ impl<'a> Lowering<'a> {
                     }
                     Some(this_v)
                 };
-                let arg_values =
-                    self.lower_call_args(args, &param_tys, variadic, checked_types, env, cur);
+                let arg_values = self.lower_call_args(
+                    args,
+                    &param_tys,
+                    variadic,
+                    checked_types,
+                    ArgOwnership::Transferred,
+                    env,
+                    cur,
+                );
                 self.emit_fallible(
                     cur,
                     return_ty,
@@ -3442,12 +3514,19 @@ impl<'a> Lowering<'a> {
     /// match `param_tys`' length (this crate trusts
     /// `mwl_types::check_program` already enforced arity for a non-variadic
     /// signature).
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one resolved signature's three fields plus the interner they \
+                  are read against, the ownership rule, and the `(env, cur)` \
+                  pair every lowering method threads"
+    )]
     fn lower_call_args(
         &mut self,
         args: &CallArgs,
         param_tys: &[TypeId],
         variadic: bool,
         checked_types: &TypeInterner,
+        ownership: ArgOwnership,
         env: &Env,
         cur: BlockId,
     ) -> Vec<ValueId> {
@@ -3477,7 +3556,10 @@ impl<'a> Lowering<'a> {
         for (arg, &pty) in list.iter().zip(param_tys) {
             let expected = lower_checked_ty(pty, checked_types);
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
-            if ty.is_refcounted() && is_aliasing_read(&arg.value.kind) {
+            if ownership == ArgOwnership::Transferred
+                && ty.is_refcounted()
+                && is_aliasing_read(&arg.value.kind)
+            {
                 self.emit_retain(cur, v);
             }
             out.push(v);
@@ -5449,6 +5531,24 @@ class T {
 }
 ",
         );
+    }
+
+    /// A Tier 0 `Core` member call: `core.call` naming the symbol
+    /// `mwl_stdlib::registry` registered, with **no retain** on the array
+    /// argument even though it is a refcounted aliasing read — a `Core` member
+    /// borrows what it is handed. Contrast the ordinary static call in
+    /// `a_self_static_call_with_a_scalar_return`'s snapshot, which retains.
+    #[test]
+    fn a_core_member_call_lowers_to_a_symbol_and_borrows_its_argument() {
+        let (f, map, file) = lower_first_method(concat!(
+            "<?mwl\n",
+            "class T {\n",
+            "  function m(array<int> $a): uint {\n",
+            "    return Core\\Arr::count($a);\n",
+            "  }\n",
+            "}\n",
+        ));
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A file declaring no class still lowers, with an empty class table —

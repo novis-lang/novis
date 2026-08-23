@@ -37,7 +37,11 @@
 //! by design, not by gap), and now `foreach` over an `array<T>` and
 //! `unset($a[$k])`, the array's two remaining consumers — see
 //! [`lower::Lowering::lower_foreach`] and [`lower::Lowering::lower_unset`],
-//! which own those two policies — [`lower::lower_method`] is the entry point for
+//! which own those two policies — and now a Tier 0 `Core` member call, which
+//! resolves through the same `ResolvedCall` a user-declared static call does
+//! but lowers to [`ir::InstKind::CoreCall`], naming a helper symbol rather
+//! than a compiled MWL function and *borrowing* its arguments rather than
+//! transferring them — [`lower::lower_method`] is the entry point for
 //! one method, and [`lower::lower_script`] the entry point for a file's own
 //! top-level statements, which are one synthesized frame of ordinary locals
 //! with no receiver parameter (ADR 0008 § 2 — see that function's own doc

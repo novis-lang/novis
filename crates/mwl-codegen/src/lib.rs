@@ -106,7 +106,10 @@
 //!    `Ty::Object`/`Ty::Array` retain/release, against
 //!    [`mwl_runtime::object`]'s layout, the per-class slot table
 //!    [`mwl_ir::ir::Program::classes`] carries, and [`mwl_runtime::array`]'s
-//!    primitives.
+//!    primitives. A Tier 0 `Core` member call
+//!    ([`mwl_ir::ir::InstKind::CoreCall`]) compiles too, through the helper
+//!    path unchanged — [`mwl_stdlib`]'s own docs own why it needs no path of
+//!    its own.
 //! 2. **ADR 0018's `BRANCH` probe is not emitted.** It needs a per-edge site
 //!    at [`mwl_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe

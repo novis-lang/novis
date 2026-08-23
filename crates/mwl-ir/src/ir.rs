@@ -620,6 +620,36 @@ pub enum InstKind {
         /// A position [`InstKind::ArrayNextSlot`] returned, already lowered.
         slot: ValueId,
     },
+    /// A call to a Tier 0 `Core` member — `Core\Arr::count($a)`.
+    ///
+    /// Written like [`InstKind::Call`] in the source and resolved through the
+    /// same `mwl_types::expr_table::ResolvedCall`, but lowered separately for
+    /// one reason: there is no compiled MWL function to name. A `Core` member
+    /// is native Rust behind an [ADR 0002](../../../docs/adr/0002-error-propagation.md)
+    /// *helper* entry point, so this carries the linker symbol
+    /// `mwl_stdlib::registry` registered rather than a `Class::method` label,
+    /// and `mwl-codegen` emits it through the same path
+    /// [`InstKind::HelperCall`] takes. It is not a [`Helper`], though: that
+    /// enum is a closed set this crate owns, and `Core`'s membership is
+    /// `mwl-stdlib`'s to decide.
+    ///
+    /// **Arguments are borrowed, never consumed** — the helper convention,
+    /// which is the opposite of `InstKind::Call`'s. So
+    /// `crate::lower::Lowering::lower_call_args` inserts no retain here, and
+    /// the caller keeps owning every reference it passed;
+    /// `mwl_stdlib`'s own docs own that rule and why ADR 0063's purity
+    /// requirement is what makes it safe. A refcounted *result* is a fresh
+    /// reference this frame owns, exactly like a `Call`'s.
+    ///
+    /// There is no receiver field at all: ADR 0063 R20 makes every `Core`
+    /// member static, so `$a->count()` resolves to nothing.
+    CoreCall {
+        /// The linker symbol the implementation is reachable at, from
+        /// `mwl_stdlib::registry::CoreMethod::symbol`.
+        symbol: &'static str,
+        /// The already-lowered arguments, positional.
+        args: Vec<ValueId>,
+    },
 }
 
 /// One member of the closed set of engine-owned runtime conversions

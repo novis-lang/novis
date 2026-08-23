@@ -49,10 +49,11 @@
 //!
 //! 1. **The registry holds one member.** `Core\Arr::count` is the first, and
 //!    landed with the mechanism rather than after it, on this repository's
-//!    standing "narrow slice, end to end" rule. Widening is adding rows to
-//!    [`registry::CLASSES`] and a body per row; the spec file's §§ 1–12 are
-//!    the work list, and `.claude/loop-goal.md`'s Stage 4 holds the coverage
-//!    gate that will name every member still missing one.
+//!    standing "narrow slice, end to end" rule — it compiles and runs, so
+//!    every later member is a registry row plus a body rather than more
+//!    machinery. The spec file's §§ 1–12 are the work list, and
+//!    `.claude/loop-goal.md`'s Stage 4 holds the coverage gate that will name
+//!    every member still missing one.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
 //!    *Revisiting* section and `.claude/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what

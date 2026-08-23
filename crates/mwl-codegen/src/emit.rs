@@ -342,7 +342,16 @@ impl Emitter<'_, '_> {
                 self.define(inst, value)?;
             }
             InstKind::HelperCall { helper, args } => {
-                return self.emit_helper(cur, inst, *helper, args);
+                let symbol = helper_symbol(*helper)?;
+                return self.emit_helper(cur, inst, symbol, args);
+            }
+            // A `Core` member is native Rust behind the same ADR 0002 helper
+            // entry point every runtime helper uses, so it needs no path of
+            // its own here beyond naming a symbol `mwl-stdlib` registered
+            // instead of one this crate's own `Helper` table does. See
+            // `mwl_ir::ir::InstKind::CoreCall`.
+            InstKind::CoreCall { symbol, args } => {
+                return self.emit_helper(cur, inst, symbol, args);
             }
             InstKind::Call {
                 target,
@@ -698,11 +707,9 @@ impl Emitter<'_, '_> {
         &mut self,
         cur: Block,
         inst: &Inst,
-        helper: Helper,
+        symbol: &'static str,
         args: &[ValueId],
     ) -> Result<Block, CodegenError> {
-        let symbol = helper_symbol(helper)?;
-
         let count =
             i32::try_from(args.len()).map_err(|_| internal("a helper call past i32 args"))?;
         let args_p = if args.is_empty() {

@@ -191,6 +191,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::ArrayValueAt { array, slot } => {
             format!("array.value_at v{}, v{}", array.index(), slot.index())
         }
+        InstKind::CoreCall { symbol, args } => {
+            let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
+            format!("core.call {symbol}({})", parts.join(", "))
+        }
         InstKind::TakeThrown => "take.thrown".to_owned(),
         InstKind::Throwable { op, operand } => {
             format!("throwable.{} v{}", throwable_op_name(*op), operand.index())
