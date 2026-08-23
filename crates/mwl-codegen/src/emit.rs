@@ -374,6 +374,34 @@ impl Emitter<'_, '_> {
                 let value = self.emit_concat(*lhs, *rhs)?;
                 self.define(inst, value)?;
             }
+            InstKind::ArrayNew { entries } => {
+                let value = self.emit_array_new(entries)?;
+                self.define(inst, value)?;
+            }
+            InstKind::ArrayGet { array, key } => {
+                let value = self.emit_array_get(inst, *array, *key)?;
+                self.define(inst, value)?;
+            }
+            InstKind::ArraySet { array, key, value } => {
+                let result = self.emit_array_write(
+                    "mwl_array_set",
+                    RuntimeSig::ArraySet,
+                    *array,
+                    Some(*key),
+                    *value,
+                )?;
+                self.define(inst, result)?;
+            }
+            InstKind::ArrayAppend { array, value } => {
+                let result = self.emit_array_write(
+                    "mwl_array_append",
+                    RuntimeSig::ArrayAppend,
+                    *array,
+                    None,
+                    *value,
+                )?;
+                self.define(inst, result)?;
+            }
             InstKind::Retain { operand } => {
                 let (value, ty) = self.value(*operand)?;
                 self.emit_refcount(true, value, ty)?;
@@ -980,22 +1008,121 @@ impl Emitter<'_, '_> {
         Ok(self.b.inst_results(call)[0])
     }
 
+    /// A 16-byte stack slot and its address — the one shape a [`MwlValue`]
+    /// crosses a runtime-primitive boundary in, since a struct that size is
+    /// classified differently by the SysV and Windows x64 ABIs (see
+    /// `mwl_runtime::array`'s own note).
+    fn value_slot(&mut self) -> Value {
+        let slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        self.b.ins().stack_addr(types::I64, slot, 0)
+    }
+
+    /// `[...]`: one allocation, then one write per entry.
+    ///
+    /// `mwl_ir::ir::InstKind::ArrayNew` carries each key as a decimal string
+    /// computed at lowering time, so each one is emitted here exactly like a
+    /// `ConstStr` — a fresh allocation whose single reference transfers
+    /// straight into the array, which is why no retain accompanies it. Each
+    /// write yields the array the next one writes into, per that instruction's
+    /// consume-one-reference-yield-one protocol; the pointer never actually
+    /// changes here, because a literal under construction is solely owned, but
+    /// threading it is what keeps this on the one protocol rather than beside
+    /// it.
+    fn emit_array_new(&mut self, entries: &[(String, ValueId)]) -> Result<Value, CodegenError> {
+        let callee = self.runtime_ref("mwl_array_new", RuntimeSig::ArrayNew)?;
+        let call = self.b.ins().call(callee, &[]);
+        let mut array = self.b.inst_results(call)[0];
+
+        for (key, value) in entries {
+            let (address, len) = self.emit_bytes(key.as_bytes())?;
+            let new_str = self.runtime_ref("mwl_str_new", RuntimeSig::StrNew)?;
+            let call = self.b.ins().call(new_str, &[address, len]);
+            let key = self.b.inst_results(call)[0];
+
+            let slot = self.value_slot();
+            let (value, ty) = self.value(*value)?;
+            self.store_value(slot, 0, value, ty)?;
+
+            let set = self.runtime_ref("mwl_array_set", RuntimeSig::ArraySet)?;
+            let call = self.b.ins().call(set, &[array, key, slot]);
+            array = self.b.inst_results(call)[0];
+        }
+        Ok(array)
+    }
+
+    /// `$a[$k]`: one call, reading the result back out of a stack slot.
+    ///
+    /// Nothing is retained here. `mwl_ir::ir::InstKind::ArrayGet` reads the
+    /// element without taking ownership, exactly like a `FieldGet`, and
+    /// `mwl_ir::lower::is_aliasing_read` makes the consumer insert the retain
+    /// if it keeps the value.
+    fn emit_array_get(
+        &mut self,
+        inst: &Inst,
+        array: ValueId,
+        key: ValueId,
+    ) -> Result<Value, CodegenError> {
+        let ty = inst
+            .ty
+            .ok_or_else(|| internal("an array read with no representation"))?;
+        let (array, _) = self.value(array)?;
+        let (key, _) = self.value(key)?;
+        let out = self.value_slot();
+        let callee = self.runtime_ref("mwl_array_get", RuntimeSig::ArrayGet)?;
+        self.b.ins().call(callee, &[array, key, out]);
+        self.load_value(out, 0, ty)
+    }
+
+    /// `$a[$k] = expr;` and `$a[] = expr;`: one call that consumes the array
+    /// and yields the array that now holds the entry.
+    ///
+    /// No refcount operation of any kind. `mwl_ir::ir::InstKind::ArraySet`'s
+    /// own doc comment owns that rule: the reference the primitive consumes
+    /// and the one it yields are the holder's same one slot, and `mwl-ir`
+    /// already emitted whatever retain the key and value needed.
+    fn emit_array_write(
+        &mut self,
+        symbol: &'static str,
+        sig: RuntimeSig,
+        array: ValueId,
+        key: Option<ValueId>,
+        value: ValueId,
+    ) -> Result<Value, CodegenError> {
+        let (array, _) = self.value(array)?;
+        let key = key.map(|k| self.value(k)).transpose()?.map(|(v, _)| v);
+        let slot = self.value_slot();
+        let (value, ty) = self.value(value)?;
+        self.store_value(slot, 0, value, ty)?;
+
+        let callee = self.runtime_ref(symbol, sig)?;
+        let call = match key {
+            Some(key) => self.b.ins().call(callee, &[array, key, slot]),
+            None => self.b.ins().call(callee, &[array, slot]),
+        };
+        Ok(self.b.inst_results(call)[0])
+    }
+
     /// A retain or release of one refcounted value.
     ///
     /// [`Ty::Str`] and [`Ty::Bytes`] share the `StrHeader` representation, so
-    /// they share the primitive. [`Ty::Array`] is [`mwl_ir::Ty::is_refcounted`]
-    /// too, but has no runtime representation at all yet, so its refcount
-    /// operation has nothing to call.
+    /// they share the primitive.
     ///
-    /// An object's release is where a whole graph can be freed at once —
-    /// `mwl_runtime::object`'s own docs explain why that sweep is iterative,
-    /// which is what keeps this one call rather than a depth-bounded one.
+    /// An object's or an array's release is where a whole graph can be freed
+    /// at once — `mwl_runtime::release`'s own docs explain why that sweep is
+    /// one iterative worklist shared by both, which is what keeps this a
+    /// single call rather than a depth-bounded one.
     fn emit_refcount(&mut self, retain: bool, value: Value, ty: Ty) -> Result<(), CodegenError> {
         let symbol = match (ty, retain) {
             (Ty::Str | Ty::Bytes, true) => "mwl_str_retain",
             (Ty::Str | Ty::Bytes, false) => "mwl_str_release",
             (Ty::Object, true) => "mwl_object_retain",
             (Ty::Object, false) => "mwl_object_release",
+            (Ty::Array, true) => "mwl_array_retain",
+            (Ty::Array, false) => "mwl_array_release",
             (Ty::Throwable, true) => "mwl_throwable_retain",
             (Ty::Throwable, false) => "mwl_throwable_release",
             (other, _) => {
@@ -1267,6 +1394,10 @@ impl Emitter<'_, '_> {
             RuntimeSig::Refcount => &self.sigs.refcount,
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
             RuntimeSig::Raise => &self.sigs.raise,
+            RuntimeSig::ArrayNew => &self.sigs.array_new,
+            RuntimeSig::ArrayGet => &self.sigs.array_get,
+            RuntimeSig::ArraySet => &self.sigs.array_set,
+            RuntimeSig::ArrayAppend => &self.sigs.array_append,
         };
         let id = self
             .module
@@ -1294,6 +1425,10 @@ enum RuntimeSig {
     Refcount,
     PtrToPtr,
     Raise,
+    ArrayNew,
+    ArrayGet,
+    ArraySet,
+    ArrayAppend,
 }
 
 /// The symbol name `mwl-runtime` exports for one [`Helper`] tag.
@@ -1312,15 +1447,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::FloatTruthy => "mwl_float_truthy",
         Helper::StrTruthy => "mwl_str_truthy",
         Helper::EchoStr => "mwl_echo_str",
-        // `mwl-runtime`'s known gap 1: `Tag::Array` has no representation, so
-        // there is no entry point to call.
-        Helper::ArrayTruthy => {
-            return Err(CodegenError::Unsupported(
-                "`array` truthiness, which has no runtime entry point until \
-                 arrays have a representation"
-                    .to_owned(),
-            ));
-        }
+        Helper::ArrayTruthy => "mwl_array_truthy",
         other => {
             return Err(CodegenError::Unsupported(format!(
                 "the runtime helper {other:?}"
@@ -1337,10 +1464,6 @@ fn describe(kind: &InstKind) -> String {
         InstKind::FieldGet { .. } => "a property read",
         InstKind::FieldSet { .. } => "a property write",
         InstKind::Concat { .. } => "`.` string concatenation",
-        InstKind::ArrayNew { .. } => "an array literal",
-        InstKind::ArrayGet { .. } => "an array read",
-        InstKind::ArraySet { .. } => "an array write",
-        InstKind::ArrayAppend { .. } => "an array append",
         _ => "this instruction",
     };
     what.to_owned()

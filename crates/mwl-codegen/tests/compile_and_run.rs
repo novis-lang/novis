@@ -340,18 +340,20 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
 
 #[test]
 fn disassembling_an_unlowered_shape_reports_it_rather_than_printing_half_a_unit() {
-    let error = mwl_codegen::disassemble(&lower("<?mwl\narray<int> $a = [1, 2];\n")).unwrap_err();
-    assert!(error.to_string().contains("array literal"), "{error}");
+    let error = mwl_codegen::disassemble(&lower("<?mwl\nint $q = 7 % 2;\n")).unwrap_err();
+    assert!(error.to_string().contains("Mod"), "{error}");
 }
 
 #[test]
 fn an_unlowered_shape_is_an_error_naming_it_rather_than_a_panic() {
-    // An array has no runtime representation yet — the crate docs' known gap
-    // 1. What matters is that the backend *says so* instead of panicking or,
-    // worse, emitting something.
-    let error = compile("<?mwl\narray<int> $a = [1, 2];\n").unwrap_err();
+    // Integer modulo still has no lowering — a zero divisor has to throw
+    // rather than trap the process, and that needs a checked divisor plus a
+    // `Terminator::Throw` (the crate docs' known gaps). What matters is that
+    // the backend *says so* instead of panicking or, worse, emitting
+    // something.
+    let error = compile("<?mwl\nint $q = 7 % 2;\n").unwrap_err();
     let message = error.to_string();
-    assert!(message.contains("array literal"), "{message}");
+    assert!(message.contains("Mod"), "{message}");
 }
 
 #[test]
@@ -623,4 +625,103 @@ fn a_throw_out_of_a_frame_holding_an_object_releases_it() {
         "{SHAPES}\nclass Boom {{\n    public static function go(): void {{\n        throw new Exception(\"boom\");\n    }}\n}}\ntry {{\n    var $d = new Dog(\"rex\");\n    Boom::go();\n    echo $d->name();\n}} catch (Throwable $e) {{\n    echo \"caught: \" . $e->getMessage();\n}}\n"
     );
     assert_eq!(output_of(&source), "caught: boom");
+}
+
+#[test]
+fn an_array_literal_reads_back_the_element_it_stored() {
+    // The whole array path end to end: `mwl_array_new`, one `mwl_array_set`
+    // per literal entry, and `mwl_array_get` reading one back.
+    assert_eq!(
+        output_of("<?mwl\narray<int> $a = [10, 20, 30];\necho $a[1];\n"),
+        "20"
+    );
+    assert_eq!(
+        output_of("<?mwl\narray<string> $a = [\"k\" => \"v\"];\necho $a[\"k\"];\n"),
+        "v"
+    );
+}
+
+#[test]
+fn a_written_element_is_visible_through_the_same_local() {
+    // The write-back `mwl_ir::lower::write_back_array` emits: the local is
+    // re-pointed at whatever `mwl_array_set` yielded, so the read that follows
+    // sees the entry. Without it the read would still name the pre-write
+    // array.
+    assert_eq!(
+        output_of("<?mwl\narray<int> $a = [];\n$a[\"k\"] = 7;\necho $a[\"k\"];\n"),
+        "7"
+    );
+    assert_eq!(
+        output_of(
+            "<?mwl\narray<int> $a = [];\n$a[] = 4;\n$a[] = 5;\necho $a[\"0\"] . $a[\"1\"];\n"
+        ),
+        "45"
+    );
+    assert_eq!(
+        output_of("<?mwl\narray<int> $a = [1, 2];\n$a[0] = 9;\necho $a[0];\n"),
+        "9"
+    );
+}
+
+#[test]
+fn a_copy_written_after_aliasing_leaves_the_original_alone() {
+    // ADR 0007 § 5's copy-on-write value semantics, which is the whole reason
+    // an array write yields the array it wrote into.
+    assert_eq!(
+        output_of(
+            "<?mwl\narray<int> $a = [\"k\" => 1];\nvar $b = $a;\n$b[\"k\"] = 99;\necho $a[\"k\"] . \"/\" . $b[\"k\"];\n"
+        ),
+        "1/99"
+    );
+}
+
+#[test]
+fn an_array_is_truthy_unless_it_is_empty() {
+    // `Helper::ArrayTruthy`, whose entry point landed with the representation.
+    assert_eq!(
+        output_of("<?mwl\narray<int> $a = [];\nif ($a) {\n    echo \"full\";\n}\necho \"done\";\n"),
+        "done"
+    );
+    assert_eq!(
+        output_of("<?mwl\narray<int> $a = [1];\nif ($a) {\n    echo \"full\";\n}\n"),
+        "full"
+    );
+}
+
+#[test]
+fn an_array_of_strings_rewritten_in_a_loop_leaks_nothing() {
+    // Ten thousand writes into one solely-owned array: each one replaces a
+    // stored string, which the table releases as it displaces it. A missing
+    // release would leak the buffers; a doubled one would crash. This is also
+    // the in-place fast path running ten thousand times without separating.
+    let source = "<?mwl
+array<string> $a = [];
+var $i = 0;
+while ($i < 10000) {
+    $a[\"k\"] = \"n\" . $i;
+    $i = $i + 1;
+}
+echo $a[\"k\"];
+";
+    assert_eq!(output_of(source), "n9999");
+}
+
+#[test]
+fn an_array_element_written_through_a_property_survives_the_write_back() {
+    // The other holder a separation is written back to: the property slot,
+    // through a `field.set` of whatever the write yielded.
+    let source = "<?mwl
+class Bag {
+    public array<int> $items;
+    public function constructor() { $this->items = []; }
+    public function put(string $k, int $v): void { $this->items[$k] = $v; }
+    public function get(string $k): int { return $this->items[$k]; }
+}
+
+var $bag = new Bag();
+$bag->put(\"a\", 1);
+$bag->put(\"b\", 2);
+echo $bag->get(\"a\") . $bag->get(\"b\");
+";
+    assert_eq!(output_of(source), "12");
 }

@@ -657,6 +657,14 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
 // checked-return shape. Every one is `extern "C"` and never
 // `extern "C-unwind"`.
 //
+// **A `Value` crosses this boundary through a pointer, never by value.** A
+// 16-byte struct is classified differently by the SysV and Windows x64 ABIs —
+// two integer registers on one, a hidden pointer on the other — and
+// `mwl-codegen` would have to encode that difference to call these at all.
+// Every site that needs one therefore passes the address of a 16-byte slot the
+// caller owns, which is exactly what ADR 0002's own `(ctx, args, out)` helper
+// shape already does, so codegen reuses `store_value`/`load_value` unchanged.
+//
 // Every mutator consumes one reference to its `array` argument and returns
 // one — see this module's copy-on-write decision, which is the whole reason
 // the signatures are shaped that way rather than returning nothing.
@@ -723,23 +731,29 @@ pub unsafe extern "C" fn mwl_array_release(ptr: *mut ArrayHeader) {
 /// A missing key reads back `null`, which is the only thing this instruction
 /// can do until `Core\Arr` and the checker settle what an absent key means
 /// (that variant's own doc comment names the gap). Neither the array nor the
-/// key is consumed.
+/// key is consumed, and the value written to `out` is *borrowed*: the array
+/// keeps its reference, so a caller that stores the result retains it itself.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation and `key` to a live MWL
-/// string allocation.
+/// `array` must refer to a live MWL array allocation, `key` to a live MWL
+/// string allocation, and `out` to a writable, aligned 16-byte slot.
 #[expect(
     unsafe_code,
     reason = "compiled code passes two raw pointers whose liveness the \
               signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_get(array: *mut ArrayHeader, key: *const StrHeader) -> Value {
-    #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
+pub unsafe extern "C" fn mwl_array_get(
+    array: *mut ArrayHeader,
+    key: *const StrHeader,
+    out: *mut Value,
+) {
+    #[expect(unsafe_code, reason = "the caller guarantees every pointee is live")]
     unsafe {
         let bytes = MwlStr::bytes_of(key);
-        (*array).table.borrow().get(bytes).unwrap_or_default()
+        let value = (*array).table.borrow().get(bytes).unwrap_or_default();
+        out.write(value);
     }
 }
 
@@ -784,15 +798,16 @@ pub unsafe extern "C" fn mwl_array_has_key(array: *mut ArrayHeader, key: *const 
 pub unsafe extern "C" fn mwl_array_set(
     array: *mut ArrayHeader,
     key: *mut StrHeader,
-    value: Value,
+    value: *const Value,
 ) -> *mut ArrayHeader {
     #[expect(
         unsafe_code,
-        reason = "the caller guarantees it owns one reference to each argument"
+        reason = "the caller guarantees it owns one reference to each argument \
+                  and that `value` points at a readable 16-byte slot"
     )]
     unsafe {
         let mut handle = MwlArray::from_raw(array);
-        handle.set(MwlStr::from_raw(key), value);
+        handle.set(MwlStr::from_raw(key), value.read());
         handle.into_raw()
     }
 }
@@ -816,15 +831,16 @@ pub unsafe extern "C" fn mwl_array_set(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_array_append(
     array: *mut ArrayHeader,
-    value: Value,
+    value: *const Value,
 ) -> *mut ArrayHeader {
     #[expect(
         unsafe_code,
-        reason = "the caller guarantees it owns one reference to each argument"
+        reason = "the caller guarantees it owns one reference to each argument \
+                  and that `value` points at a readable 16-byte slot"
     )]
     unsafe {
         let mut handle = MwlArray::from_raw(array);
-        handle.append(value);
+        handle.append(value.read());
         handle.into_raw()
     }
 }
@@ -941,32 +957,38 @@ pub unsafe extern "C" fn mwl_array_key_at(
     key.into_raw()
 }
 
-/// The value at `slot`, borrowed rather than retained — `foreach`'s `$v`
-/// binding. Consumes nothing.
+/// Writes the value at `slot` into `out`, borrowed rather than retained —
+/// `foreach`'s `$v` binding. Consumes nothing.
 ///
 /// # Safety
 ///
-/// `array` must refer to a live MWL array allocation, and `slot` must be a
-/// position [`mwl_array_next_slot`] returned and nothing has removed since.
+/// `array` must refer to a live MWL array allocation, `slot` must be a
+/// position [`mwl_array_next_slot`] returned and nothing has removed since,
+/// and `out` must be a writable, aligned 16-byte slot.
 #[expect(
     unsafe_code,
-    reason = "compiled code passes a raw array pointer and a slot the \
-              signature cannot bound"
+    reason = "compiled code passes raw pointers and a slot the signature \
+              cannot bound"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn mwl_array_value_at(array: *const ArrayHeader, slot: usize) -> Value {
+pub unsafe extern "C" fn mwl_array_value_at(
+    array: *const ArrayHeader,
+    slot: usize,
+    out: *mut Value,
+) {
     #[expect(
         unsafe_code,
-        reason = "the caller guarantees the allocation is live and the slot is \
-                  a live entry's"
+        reason = "the caller guarantees the allocation is live, that the slot \
+                  is a live entry's, and that `out` is a writable 16-byte slot"
     )]
     unsafe {
-        (*array)
+        let value = (*array)
             .table
             .borrow()
             .at(slot)
             .expect("a foreach cursor only names live entries")
-            .value
+            .value;
+        out.write(value);
     }
 }
 

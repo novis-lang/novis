@@ -96,15 +96,16 @@
 //!    representation, joining the two is a decision about the exception
 //!    *surface* (`.claude/loop-goal.md` § *Standing decisions*) rather than a
 //!    missing shape to attach it to.
-//! 1. **No array representation.** [`mwl_ir::ir::InstKind::ArrayNew`]/
-//!    `ArrayGet`/`ArraySet`/`ArrayAppend` all report
-//!    [`CodegenError::Unsupported`] naming the instruction. Objects are done:
-//!    `New`, `FieldGet`, `FieldSet`, an instance `Call` and a `Ty::Object`
-//!    retain/release all compile, against [`mwl_runtime::object`]'s layout and
-//!    the per-class slot table [`mwl_ir::ir::Program::classes`] carries. What
-//!    they do *not* yet do is dispatch virtually: a call's target is whatever
-//!    `mwl_types` resolved from the receiver's static type, so an overridden
+//! 1. **A call does not dispatch virtually.** Its target is whatever
+//!    `mwl_types` resolved from the receiver's *static* type, so an overridden
 //!    method reached through a base-typed variable still calls the base's.
+//!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
+//!    `FieldSet`, an instance `Call`, `ArrayNew`, `ArrayGet`, `ArraySet`,
+//!    `ArrayAppend` and a `Ty::Object`/`Ty::Array` retain/release, against
+//!    [`mwl_runtime::object`]'s layout, the per-class slot table
+//!    [`mwl_ir::ir::Program::classes`] carries, and [`mwl_runtime::array`]'s
+//!    primitives. `unset($a[$k])` and `foreach` are not lowered by `mwl-ir`
+//!    yet, so neither has a site here.
 //! 2. **ADR 0018's `BRANCH` probe is not emitted.** It needs a per-edge site
 //!    at [`mwl_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe
@@ -430,6 +431,17 @@ struct Signatures {
     ptr_to_ptr: Signature,
     /// `mwl_raise(ctx, throwable)`.
     raise: Signature,
+    /// `mwl_array_new() -> *mut ArrayHeader`.
+    array_new: Signature,
+    /// `mwl_array_get(array, key, out)` — the read primitive, whose result
+    /// travels through a caller-owned 16-byte slot rather than by value; see
+    /// `mwl_runtime::array`'s "the primitives compiled code calls" note for
+    /// why no `Value` crosses this boundary in a register.
+    array_get: Signature,
+    /// `mwl_array_set(array, key, value) -> *mut ArrayHeader`.
+    array_set: Signature,
+    /// `mwl_array_append(array, value) -> *mut ArrayHeader`.
+    array_append: Signature,
 }
 
 impl Jit {
@@ -644,6 +656,22 @@ impl Signatures {
         raise.params.push(AbiParam::new(ptr));
         raise.params.push(AbiParam::new(ptr));
 
+        let mut array_new = module.make_signature();
+        array_new.returns.push(AbiParam::new(ptr));
+
+        let mut array_get = module.make_signature();
+        array_get.params.push(AbiParam::new(ptr)); // array
+        array_get.params.push(AbiParam::new(ptr)); // key
+        array_get.params.push(AbiParam::new(ptr)); // out
+
+        let mut array_set = array_get.clone();
+        array_set.returns.push(AbiParam::new(ptr));
+
+        let mut array_append = module.make_signature();
+        array_append.params.push(AbiParam::new(ptr)); // array
+        array_append.params.push(AbiParam::new(ptr)); // value
+        array_append.returns.push(AbiParam::new(ptr));
+
         Self {
             helper,
             safepoint,
@@ -655,6 +683,10 @@ impl Signatures {
             refcount,
             ptr_to_ptr,
             raise,
+            array_new,
+            array_get,
+            array_set,
+            array_append,
         }
     }
 }
