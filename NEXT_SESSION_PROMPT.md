@@ -6,49 +6,54 @@
 authoritative for the acceptance list and for the ten standing decisions already settled with the user;
 do not re-open any of them. The plan's status block says what is on disk and what is open.
 
-Stage 1's **exception gate is closed**: `examples/errors.mwl` prints its seven frozen lines, and
-`throw`/`trace`/`uncaught.mwl` keep theirs byte for byte after migrating to spec § 10's object-shaped
-`Throwable`. All four are valgrind-clean under WSL against a Linux build. `mwl_ir::Ty::Throwable` no longer
-exists — an exception is an ordinary object, which closes `mwl-codegen`'s known gap 0. Its shape lives in
-[`mwl_hir::errors`](crates/mwl-hir/src/errors.rs) (the tree and slot order),
-`mwl_types::error_lib` (signatures), `mwl_ir::lower::Lowering::lower_try` (dispatch and `finally` policy)
-and `mwl_runtime::throwable` (the pending value) — read those, not a summary here.
+Stage 1's **object gate is closed**: `examples/objects.mwl` prints its seven frozen lines, including late
+static binding (`new static()` through two levels of inheritance, `static::tag()` from an instance method)
+and ADR 0043 § 2's interface default method bodies. Arrays and exceptions were already closed.
 
-Stage 1 still fails on `objects.mwl`/`enums.mwl` (`static`/`self` as a declared type) and `hooks.mwl`
-(ADR 0014's hooks are parsed, checked and ignored). Stages 2–4 are untouched.
+Two mechanisms landed together, both owned by [`mwl_runtime::object`](crates/mwl-runtime/src/object.rs)'s
+module doc — read that, not a summary here: the called class rides in a static method's argument slot 0
+(the slot its caller already filled with `null`), and a `ClassDesc` carries a name-keyed method table
+`mwl-codegen`'s `bind_method_tables` fills in after `finalize_definitions`. Exactly two call shapes
+dispatch through it, both because no static answer exists — `static::m()`/`new static()`, and a call
+resolving to a declaration with no *body*. Every other call is still statically resolved.
+
+Stage 1 still fails on `examples/hooks.mwl` (ADR 0014's hooks are parsed, checked and ignored — it prints
+`0`/`0`/`Counter(10)`/`n=1` instead of `6`/`20`/`Counter(10)`/`n=6`) and on `examples/enums.mwl`, which now
+reaches `mwl_ir`'s panic on a `Conversion` expression. Stages 2–4 are untouched. The Linux leg was run this
+session: everything Stage 1 already passes is byte-identical and valgrind-clean there, `objects.mwl`
+included.
 
 ## Next
 
-**`static`/`self` as a declared type, with late static binding** — `objects.mwl` and `enums.mwl` both stop
-at `mwl_ir::lower_decl_type`'s panic naming `Atom(StaticTy)`/`Atom(SelfTy)`. Scoped by the plan's **M4**
-paragraph (`new static()` through two levels of inheritance returns the called class).
+**The `as` conversion operator**, starting with the rows `examples/enums.mwl` needs: `$this->rank as int`
+(an enum to its backing `int`) and `Rank::Gold as int`. `mwl_ir::lower`'s expression arm panics naming
+`Conversion { .. }`; ADR 0007's conversion table is the scope, and M4's acceptance wants *every* row of it
+both succeeding and throwing. Doing the enum rows first is what unblocks Stage 1; `int`↔`string`↔`float`
+is the natural second sweep and the one `Core\Str`'s conformance cases will lean on.
 
-**Do not land only the cheap half.** Mapping all three spellings to `Ty::Object` is five lines, but
-`new static()` would then allocate the *base* class and `static::tag()` would call the base's, so
-`objects.mwl` would print `base`/`base is a mid` — a loud panic turned into a silent wrong answer. The work
-is making the *called* class travel to the callee, which is the same mechanism virtual dispatch needs
-(`mwl_runtime::ClassDesc` is the natural place to hang a vtable). Settle it under
-`.claude/loop-goal.md`'s decide-and-record rule, record it in `mwl-runtime::object`'s module doc, and land
-both halves together.
+`enums.mwl` needs three more things after that, each small on its own: `Comparable` reaching `$ana > $bo`
+(ADR 0013), `clone` (ADR 0023 § 1's shallow same-heap copy, which `mwl_runtime::MwlObj` already expresses),
+and enum declarations reaching `mwl_ir::lower_file` at all — it still skips `StmtKind::EnumDecl` the way it
+skipped interfaces until this session.
 
-The alternative slice, if that one does not fit: **more `Core` rows** for `examples/core.mwl` and
-`report.mwl`. A member is one `mwl_stdlib::registry::CLASSES` row, one `mwl_helper!` body and one arm in
-`mwl_stdlib::symbols` — `Core\Arr::isEmpty` is the worked example (note the macro takes exactly one
-function per block). Read `crates/mwl-stdlib/src/lib.rs`'s module docs first.
+The alternative slice, if that one does not fit: **ADR 0014's property hooks**, the other half of Stage 1
+and independent of the conversion work. `examples/hooks.mwl` is the fixture, ADR 0014 the rule.
 
 ## Backlog
 
 Each crate's own module doc is the home for its known gaps; these are the six worth surfacing.
 
+- **Virtual dispatch through a base-typed local** — `mwl-codegen`'s known gap 1, narrowed not closed. The
+  method table it needs exists (`mwl_ir::ir::Class::methods`); what is left is a compile-time slot index
+  over a name lookup, which is a latency question, not a missing mechanism.
+- **`new static()` calls no constructor when the statically resolved chain declares none**, even if the
+  called class adds one — `mwl_ir::ir::InstKind::NewDynamic` owns the note.
 - **`finally` misses two exits** — a throw out of a `catch` clause's own body, and `break`/`continue` out
   of a protected region. `mwl_ir::lower::Lowering::lower_try`'s doc comment owns both.
 - **A `catch` clause inside a `namespace` block will not resolve** — `catch_clause_type` takes the written
   text. Fix as `instanceof` did: have `mwl_types` record a resolved `QName` per clause.
-- **`Throwable::$previous` can never be set** — `MethodSig` cannot model an optional parameter. See
-  `mwl_types::error_lib`'s known gaps.
 - **Integer `Div`/`Mod` are still refused** in `mwl-codegen` (`sdiv` traps on a zero divisor). `examples/core.mwl`
   needs `%`; ADR 0007 § 4's `int / int` union is separate and larger.
-- **ADR 0014's property hooks** — `examples/hooks.mwl` prints the raw slot instead of the hook's answer.
 - **`crates/mwl-test` and `mwl test`** — Stage 4's two suites hold most of this loop's coverage, and
   hand-writing them as PowerShell assertions is the trap. `every_part_one_member_has_a_conformance_case`
   is cheap now: it can read the registry.
