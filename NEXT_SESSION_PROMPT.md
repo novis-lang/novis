@@ -7,11 +7,14 @@ for the acceptance list and for the ten standing decisions already settled with 
 any of them. The plan's status block says what is on disk and what is open.
 
 Stages 1 and 2 are green on both legs, byte for byte, with `valgrind --leak-check=full` clean. ADR 0053 is
-done in full; ADR 0031 §§ 1–2 and ADR 0065 landed end to end. **Integer `%` landed this session** — a zero
-divisor throws spec § 10's `ArithmeticError` instead of trapping the process, raised inline by
-`mwl_runtime::mwl_raise_new` off `Inst::on_error`'s edge; `Emitter::emit_int_mod` and
-`mwl_ir::ir::Inst::on_error` own the shape, and PHP 8.5 agrees on every sign case. **Nothing is blocked**;
+done in full; ADR 0031 §§ 1–2, ADR 0065 and integer `%` landed end to end. **Nothing is blocked**;
 `examples/core.mwl` still stops at its *first* line, on an unregistered `Core\Arr::range`.
+
+**Last session was docs-only: [ADR 0054](docs/adr/0054-decimal-scalar-type.md) lost the `m` literal suffix**
+— a second spelling of `19.99 as decimal` (C# needs `m` only because it rejects `decimal d = 19.99;`). § 2
+now states what makes that safe and nothing had written down: **`expr as T` is a placing position**, so a
+literal under it takes `T` rather than becoming an `f64` first — load-bearing, as `float → decimal` keeps
+only ~17 of the 29 digits M8 needs. No code changed. **M2 must place at `as T`; `19.99m` must not lex.**
 
 ## Next
 
