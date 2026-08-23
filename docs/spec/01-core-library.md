@@ -552,6 +552,15 @@ launders anything.**
 `isInteger`, `isFloat`, `isBoolean`, `oneOf(mixed $value, array<mixed> $allowed): bool` — all
 `(subject, …): bool`, all neutral. Replaces `filter_var`'s validate half and its 20 `FILTER_*` constants.
 
+`isInteger`, `isFloat` and `isBoolean` are defined **against the conversion operator**: each returns `true`
+exactly when `as int`/`as float`/`as bool` on that string would succeed, over **one shared implementation**
+— not a second opinion on what a number looks like. Since `as` requires the whole string to be an exact
+numeric literal ([ADR 0007](../adr/0007-explicit-type-system.md) § 2, so no `"12abc"`), two definitions
+would let `Validate::isInteger($s) && $s as int` throw inside the branch that just checked, which reads as
+unreachable. Same one-implementation rule [ADR 0057](../adr/0057-intrinsic-literal-folding.md) applies to a
+prepared literal and `$d->shift` to a folded format; it also means the check-then-convert pair costs one
+scan, not two, on the request path.
+
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | `str_getcsv`, the parsing half of `fgetcsv` | |

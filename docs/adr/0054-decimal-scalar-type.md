@@ -5,8 +5,8 @@
 - **Scope:** a `decimal` scalar type, its literal form, its place in the conversion and arithmetic tables,
   its division policy, and what replaces PHP's `bcmath` and `gmp`. Not in scope: `Core\Decimal`'s full
   method roster, which M8 designs.
-- **Amends:** [0007](0007-explicit-type-system.md) — § 1's scalar list, § 2's conversion table and § 3's
-  arithmetic result table each gain `decimal`; § 5's divergence list gains one entry. This ADR is the only
+- **Amends:** [0007](0007-explicit-type-system.md) — § 2's conversion table, § 3's type grammar and § 4's
+  arithmetic result table each gain `decimal`; § 7's divergence list gains one entry. This ADR is the only
   home for those rows.
 - **Amended by:** none.
 - **Relates to:** [0013](0013-comparable-interface.md) (`decimal` is a scalar, so ordering it needs no
@@ -95,7 +95,7 @@ a second spelling of what `as decimal` already says, in the only two positions t
 
 ### 3. Arithmetic
 
-Added to [ADR 0007](0007-explicit-type-system.md) § 3's table:
+Added to [ADR 0007](0007-explicit-type-system.md) § 4's table:
 
 | operation | result | on overflow / edge |
 |---|---|---|
@@ -148,7 +148,7 @@ Scale is carried for rendering, and does not affect equality or hashing: `1.10 =
 loses trailing-zero information at every step and every application re-derives it with `number_format`.
 
 `decimal` is not an enum backing type ([ADR 0010](0010-enums-are-a-value-type.md) keeps `int`/`uint`), and
-array keys are unaffected — [ADR 0007](0007-explicit-type-system.md) § 5's first divergence already makes
+array keys are unaffected — [ADR 0007](0007-explicit-type-system.md) § 7's first divergence already makes
 every key a `string`.
 
 ### 5. `bcmath` is retired, not ported
