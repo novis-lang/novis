@@ -882,12 +882,15 @@
 //!   declaring class from `mwl_types::expr_table::ResolvedCall`, for a static
 //!   call, `new`'s constructor and an instance method call alike, so an
 //!   overridden method reached through a base-typed local still calls the
-//!   base's. What *is* dispatched at run time is the one shape where no
-//!   static answer exists at all: `static::method(...)` and `new static(...)`
-//!   lower to [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`],
-//!   which look the method up on the late-static-binding class carried in
-//!   [`ty::Ty::ClassDesc`]. That is late static binding, not virtual
-//!   dispatch — but it builds the per-class method table
+//!   base's. What *is* dispatched at run time are the two shapes where no
+//!   static answer exists at all: `static::method(...)`/`new static(...)`,
+//!   and a call resolving to a declaration with no *body* (an `abstract`
+//!   method, or the interface method an ADR 0043 § 2 default body calls back
+//!   into). Both lower to
+//!   [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`], which look
+//!   the method up on the class carried in [`ty::Ty::ClassDesc`] — the
+//!   receiver's own, or the late-static-binding one. That is not general
+//!   virtual dispatch — but it builds the per-class method table
 //!   ([`ir::Class::methods`]) a real vtable would index, so closing this gap
 //!   is now a question of picking a compile-time slot index over a name, not
 //!   of building a table. `mwl_runtime::object`'s module docs own that

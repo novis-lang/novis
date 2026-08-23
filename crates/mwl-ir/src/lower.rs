@@ -215,8 +215,14 @@ pub fn lower_file(
                 StmtKind::NamespaceDecl(NamespaceDecl {
                     body: Some(block), ..
                 }) => walk(&block.stmts, src, exprs, checked_types, out),
-                StmtKind::ClassDecl(decl) => {
-                    for member in &decl.members {
+                // An `interface`'s default and private method bodies (ADR
+                // 0043 § 2/§ 3) are ordinary compiled methods — the interface
+                // is where they are *declared*, which is all that differs.
+                // Every bodiless member is skipped by the same `m.body`
+                // check an `abstract` class method already went through.
+                StmtKind::ClassDecl(mwl_syntax::ast::ClassDecl { members, .. })
+                | StmtKind::InterfaceDecl(mwl_syntax::ast::InterfaceDecl { members, .. }) => {
+                    for member in members {
                         let ClassMemberKind::Method(m) = &member.kind else {
                             continue;
                         };
@@ -2707,16 +2713,34 @@ impl<'a> Lowering<'a> {
                     env,
                     cur,
                 );
-                self.emit_fallible(
-                    cur,
-                    return_ty,
+                // A resolved declaration with no body names no compiled
+                // function — an `abstract` method, or the interface method an
+                // interface *default* body calls back into (`$this->name()`
+                // inside `Greets::greet`). There is nothing to call
+                // statically, so the receiver's own class answers it. Every
+                // other instance call stays statically resolved
+                // (`mwl-codegen`'s known gap 1).
+                let kind = if call.has_body {
                     InstKind::Call {
                         target: target_label,
                         receiver: Some(receiver_v),
                         args: arg_values,
-                    },
-                    env,
-                )
+                    }
+                } else {
+                    let (lsb, _) = self.emit(
+                        cur,
+                        Ty::ClassDesc,
+                        InstKind::ClassDescOf { object: object_v },
+                    );
+                    InstKind::CallVirtual {
+                        lsb,
+                        method: call.method.clone(),
+                        fallback: None,
+                        receiver: if is_static { None } else { Some(receiver_v) },
+                        args: arg_values,
+                    }
+                };
+                self.emit_fallible(cur, return_ty, kind, env)
             }
             // `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
             //
@@ -2778,10 +2802,14 @@ impl<'a> Lowering<'a> {
                 let param_tys = call.param_tys.clone();
                 let variadic = call.variadic;
                 let is_static = call.is_static;
+                let has_body = call.has_body;
                 let named_class = call.static_class.as_ref().map(ToString::to_string);
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                 let checked_types = self.checked_types;
-                let late_bound = matches!(class.kind, ExprKind::StaticExpr);
+                // `static::m()` never has a compile-time target; a resolved
+                // declaration with no body has none either, for a different
+                // reason — see `InstKind::CallVirtual::fallback`.
+                let late_bound = matches!(class.kind, ExprKind::StaticExpr) || !has_body;
                 let receiver = if is_static {
                     // A static callee has no `$this`, so its receiver slot
                     // carries the *called* class instead — an explicitly named
@@ -2832,7 +2860,7 @@ impl<'a> Lowering<'a> {
                     InstKind::CallVirtual {
                         lsb,
                         method,
-                        fallback: target_label,
+                        fallback: has_body.then_some(target_label),
                         // A static target's slot 0 already holds `lsb`, so the
                         // dispatch value and the receiver are the same value;
                         // saying it once keeps `emit_invoke`'s slot rule

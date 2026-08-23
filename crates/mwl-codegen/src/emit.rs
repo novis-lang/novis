@@ -384,7 +384,14 @@ impl Emitter<'_, '_> {
                 receiver,
                 args,
             } => {
-                return self.emit_call_virtual(inst, *lsb, method, fallback, *receiver, args);
+                return self.emit_call_virtual(
+                    inst,
+                    *lsb,
+                    method,
+                    fallback.as_deref(),
+                    *receiver,
+                    args,
+                );
             }
             InstKind::FieldGet {
                 object,
@@ -836,7 +843,7 @@ impl Emitter<'_, '_> {
         inst: &Inst,
         lsb: ValueId,
         method: &str,
-        fallback: &str,
+        fallback: Option<&str>,
         receiver: Option<ValueId>,
         args: &[ValueId],
     ) -> Result<Block, CodegenError> {
@@ -850,8 +857,11 @@ impl Emitter<'_, '_> {
             // `mwl_ir::ir::InstKind::CallVirtual`.
             None => Some((lsb, Ty::ClassDesc)),
         };
+        // The probe label names the *call site*, which for a bodiless target
+        // is the declaration it resolved to.
+        let label = fallback.unwrap_or(method).to_owned();
         let (cont, out_p) =
-            self.emit_invoke_at(inst, Callee::Indirect(callee), fallback, receiver, args)?;
+            self.emit_invoke_at(inst, Callee::Indirect(callee), &label, receiver, args)?;
         if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
             let value = self.load_value(out_p, 0, ty)?;
             self.define(inst, value)?;
@@ -860,7 +870,10 @@ impl Emitter<'_, '_> {
     }
 
     /// The address `class` answers `method` with, falling back to the
-    /// statically resolved `fallback` label's own address.
+    /// statically resolved `fallback` label's own address — or, when the
+    /// resolved declaration has no body at all, to
+    /// [`mwl_runtime::mwl_abstract_method`], whose whole job is to make that
+    /// a reported `FATAL` instead of a jump through null.
     ///
     /// `fallback` is passed as a `func_addr` rather than resolved here: the
     /// unit is not finalized yet, so a compiled function has no address until
@@ -869,10 +882,13 @@ impl Emitter<'_, '_> {
         &mut self,
         class: Value,
         method: &str,
-        fallback: &str,
+        fallback: Option<&str>,
     ) -> Result<Value, CodegenError> {
         let (name, len) = self.emit_bytes(method.as_bytes())?;
-        let target = self.callee_ref(fallback)?;
+        let target = match fallback {
+            Some(label) => self.callee_ref(label)?,
+            None => self.runtime_ref("mwl_abstract_method", RuntimeSig::Helper)?,
+        };
         let fallback = self.b.ins().func_addr(types::I64, target);
         let lookup = self.runtime_ref("mwl_class_method", RuntimeSig::ClassMethod)?;
         let call = self.b.ins().call(lookup, &[class, name, len, fallback]);
@@ -1020,7 +1036,7 @@ impl Emitter<'_, '_> {
         // class is a run-time value, pays for a lookup — see
         // `mwl_runtime::mwl_class_method`.
         let callee = if dynamic {
-            Callee::Indirect(self.method_address(desc, "constructor", ctor)?)
+            Callee::Indirect(self.method_address(desc, "constructor", Some(ctor))?)
         } else {
             Callee::Direct(self.callee_ref(ctor)?)
         };

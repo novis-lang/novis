@@ -1057,6 +1057,33 @@ echo $n . \"/\" . $m . \"/\" . $a[\"1\"];
     assert_eq!(output_of(source), "2/2/8");
 }
 
+#[test]
+fn an_interface_default_body_calls_back_through_the_receivers_own_class() {
+    // ADR 0043 § 2's default method, compiled: `greet()` has a body declared
+    // on the *interface*, and its body calls `name()`, which the interface
+    // only declares. There is no `Greets::name` function to call, so the call
+    // dispatches on the receiver's runtime class — the one shape a bodiless
+    // resolved target leaves no alternative for.
+    let source = "<?mwl
+interface Greets {
+    public function name(): string;
+    public function greet(): string { return \"Hello, \" . $this->name() . \"!\"; }
+}
+class Animal implements Greets {
+    protected string $animalName;
+    public function constructor(string $animalName) { $this->animalName = $animalName; }
+    public function name(): string { return $this->animalName; }
+}
+class Dog extends Animal {
+    public function name(): string { return \"dog \" . $this->animalName; }
+}
+var $a = new Animal(\"cat\");
+var $d = new Dog(\"rex\");
+echo $a->greet() . \"/\" . $d->greet();
+";
+    assert_eq!(output_of(source), "Hello, cat!/Hello, dog rex!");
+}
+
 /// The source of every fixture below: `Registry` declares `tag()`, `make()`
 /// and `label()` once, and two levels of subclass override `tag()` only.
 /// Written out here rather than in each test so what each one actually

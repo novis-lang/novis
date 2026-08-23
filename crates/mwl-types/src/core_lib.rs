@@ -53,6 +53,10 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                     return_ty: lower(&method.return_ty, interner),
                     is_static: true,
                     interface_private: false,
+                    // Native Rust behind a helper symbol, not a compiled MWL
+                    // function — but it is code, so a call never needs to go
+                    // looking for an override.
+                    has_body: true,
                 },
             );
         }

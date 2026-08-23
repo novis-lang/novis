@@ -31,15 +31,15 @@
 > 0027, 0028, 0029/0030/0032, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
 > slice. Each ADR's own *Verification* section says what its slice covers; do not look for the rule here.
 >
-> **Open now:** the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, `static`/`self` as declared
-> types and late static binding, virtual dispatch, generators and ADR 0053's two iteration interfaces,
-> ADR 0043's `by`-delegation, ADR 0014's hooks, `crates/mwl-test` and `mwl test`. Alongside ADR 0009's
-> measurement and 0024/0033's sinks.
+> **Open now:** the rest of `Core` §§ 1–12 as registry rows; `for`/`switch`, the `as` conversion
+> operator, ADR 0043's `by`-delegation, virtual dispatch through a base-typed local, generators and ADR
+> 0053's two iteration interfaces, ADR 0014's hooks, `crates/mwl-test` and `mwl test`. Alongside ADR
+> 0009's measurement and 0024/0033's sinks.
 >
-> **Blocking:** nothing external. Stage 1 is closed for arrays and for exceptions: `examples/errors.mwl`
-> prints its seven frozen lines, and `throw`/`trace`/`uncaught.mwl` keep theirs byte for byte after
-> migrating to spec § 10's object-shaped `Throwable`. Dispatch stays static: an override through a
-> base-typed local calls the base. `objects.mwl`/`enums.mwl` stop at `static` as a declared type.
+> **Blocking:** nothing external. Stage 1 is closed for arrays, exceptions and objects —
+> `examples/objects.mwl` prints its seven frozen lines, including late static binding and ADR 0043 § 2's
+> interface default bodies. A call with no static answer dispatches on the runtime class; every other
+> call is still statically resolved. `hooks.mwl` and `enums.mwl` are what remain of Stage 1.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

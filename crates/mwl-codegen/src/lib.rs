@@ -105,12 +105,16 @@
 //! 1. **A call does not dispatch virtually.** Its target is whatever
 //!    `mwl_types` resolved from the receiver's *static* type, so an overridden
 //!    method reached through a base-typed variable still calls the base's.
-//!    The one exception is the shape with no static answer at all:
-//!    `static::method(...)` and `new static(...)`
-//!    ([`mwl_ir::ir::InstKind::CallVirtual`]/`NewDynamic`) resolve against the
-//!    late-static-binding class through [`mwl_runtime::mwl_class_method`], and
-//!    call the address it returns indirectly under the same ADR 0002
-//!    signature. Everything else about objects and arrays compiles: `New`, `FieldGet`,
+//!    The exceptions are the two shapes with no static answer at all:
+//!    `static::method(...)`/`new static(...)`, and a call resolving to a
+//!    declaration with no *body* (an `abstract` method, or the interface
+//!    method an ADR 0043 § 2 default body calls back into). Both lower to
+//!    [`mwl_ir::ir::InstKind::CallVirtual`]/`NewDynamic`, resolve against the
+//!    receiver's or the late-static-binding class through
+//!    [`mwl_runtime::mwl_class_method`], and call the address it returns
+//!    indirectly under the same ADR 0002 signature.
+//!
+//!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
 //!    `FieldSet`, an instance `Call`, every array instruction — `ArrayNew`,
 //!    `ArrayGet`, `ArraySet`, `ArrayAppend`, `ArrayUnset` and `foreach`'s
 //!    `ArrayNextSlot`/`ArrayKeyAt`/`ArrayValueAt` cursor — and a

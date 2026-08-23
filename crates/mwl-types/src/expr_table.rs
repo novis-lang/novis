@@ -95,6 +95,12 @@ pub struct ResolvedCall {
     pub is_static: bool,
     /// The declared return type.
     pub return_ty: TypeId,
+    /// Whether the resolved declaration has a body —
+    /// [`crate::signatures::MethodSig::has_body`], which owns the reason this
+    /// has to be recorded rather than read off the call's own syntax. A `false`
+    /// here means [`Self::class`] names no compiled function at all, so the
+    /// call has to dispatch on the receiver's runtime class.
+    pub has_body: bool,
     /// The class the call site *named*, resolved — `Some` only for a static
     /// call written with an explicit class (`LeafRegistry::make()`), `None`
     /// for an instance call, for `self::`/`static::`/`parent::`, and for

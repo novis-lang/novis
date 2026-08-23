@@ -302,8 +302,12 @@ pub enum InstKind {
         /// The method's own name, the key into the runtime method table.
         method: String,
         /// The statically resolved `"Class::method"` label, used when `lsb`
-        /// answers nothing for `method`.
-        fallback: String,
+        /// answers nothing for `method` — `None` when the resolved
+        /// declaration has no body at all (an `abstract` method, or a
+        /// bodiless interface one), which names no compiled function to fall
+        /// back to. Codegen substitutes `mwl_runtime::mwl_abstract_method`,
+        /// so a miss is a reported `FATAL` rather than a jump through null.
+        fallback: Option<String>,
         /// The receiver value for an instance target (`Some`) — `None` for a
         /// `static` one, whose slot 0 carries `lsb` instead, exactly the way
         /// [`InstKind::Call`]'s does.

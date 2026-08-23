@@ -132,6 +132,7 @@ fn resolved_call(qname: QName, name: String, sig: &MethodSig) -> ResolvedCall {
         variadic: sig.variadic,
         is_static: sig.is_static,
         return_ty: sig.return_ty,
+        has_body: sig.has_body,
         // Set only by the `StaticCall` arm, and only for an explicitly named
         // class — see the field's own doc comment.
         static_class: None,

@@ -146,6 +146,7 @@ use std::cell::Cell;
 use std::fmt;
 use std::ptr::NonNull;
 
+use crate::abi::Fault;
 use crate::value::{Tag, Value};
 
 /// What every instance of one class shares: its name, how many field slots it
@@ -1021,6 +1022,28 @@ pub unsafe extern "C" fn mwl_class_method(
         return fallback;
     };
     desc.method(name).unwrap_or(fallback)
+}
+
+crate::mwl_helper! {
+    /// The floor under [`mwl_class_method`]: what a call to a method with no
+    /// body reaches when the receiver's own class declares no override either.
+    ///
+    /// An `abstract` method and a bodiless interface method name no compiled
+    /// function, so a call resolving to one has no static target to fall back
+    /// to — `mwl_ir::ir::InstKind::CallVirtual` passes this instead of a null
+    /// pointer, which would turn a compiler bug into a jump to address zero.
+    /// Reaching it is an engine fault, never user error: the checker refuses a
+    /// concrete class that leaves an interface method unimplemented.
+    ///
+    /// Takes no arguments *by declaration* — it is called with whatever the
+    /// original call site passed, and reads none of them.
+    fn mwl_abstract_method(_ctx, _args: [0]) {
+        Err(Fault::fatal(
+            "internal error: a method with no body was called, and no class in the \
+             receiver's chain declared one"
+                .to_owned(),
+        ))
+    }
 }
 
 /// The class name of the object at `ptr`, as a fresh MWL string —

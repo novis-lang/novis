@@ -162,6 +162,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
                 .map(|r| format!("this: v{}", r.index()))
                 .collect();
             parts.extend(args.iter().map(|a| format!("v{}", a.index())));
+            let fallback = fallback.as_deref().unwrap_or("<abstract>");
             format!(
                 "call.virtual v{}::{method} else {fallback}({})",
                 lsb.index(),

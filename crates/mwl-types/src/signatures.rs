@@ -73,6 +73,17 @@ pub struct MethodSig {
     /// interface's contract, so it is never reachable outside that
     /// interface's own method bodies, not even from an implementing class.
     pub interface_private: bool,
+    /// Whether the declaration carries a *body* — false for an `abstract`
+    /// method and for an interface method declared without a default (ADR
+    /// 0043 § 2).
+    ///
+    /// Recorded for the same reason [`Self::is_static`] is: the call site
+    /// cannot see it. A call resolving to a bodiless declaration has no
+    /// compiled function to name, so it must dispatch on the receiver's
+    /// runtime class instead — which is exactly what an interface default
+    /// method calling back into the contract it declares
+    /// (`$this->name()` inside `Greets::greet`) does.
+    pub has_body: bool,
 }
 
 impl MethodSig {
@@ -375,6 +386,7 @@ fn collect_members(
                         return_ty,
                         is_static,
                         interface_private,
+                        has_body: m.body.is_some(),
                     },
                 );
             }
