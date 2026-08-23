@@ -10,8 +10,8 @@
   home for those rows.
 - **Amended by:** none.
 - **Relates to:** [0013](0013-comparable-interface.md) (`decimal` is a scalar, so ordering it needs no
-  interface), [0037](0037-var-local-type-inference.md) (§ 2's suffix exists for exactly the positions where
-  `var` leaves no target type), [0047](0047-literal-and-enum-case-types.md) (a numeric literal's typing,
+  interface), [0037](0037-var-local-type-inference.md) (§ 2's placing rule is what lets `var` reach
+  `decimal` at all), [0047](0047-literal-and-enum-case-types.md) (a numeric literal's typing,
   seen from the other side), [0051](0051-standard-library-tiers.md) (`Core\Decimal`, `Core\BigInt` and
   `Core\BigDecimal`'s placement).
 
@@ -20,7 +20,8 @@
 > two decades. It is a **scalar rather than a class** because MWL has no operator overloading, so a class
 > would mean `$price->mul($qty)->add($shipping)` forever — and unreadable money arithmetic is precisely why
 > PHP developers reach for `float` and eat the rounding. A numeric literal takes `decimal` or `float` from
-> its target type; an `m` suffix forces `decimal` where there is no target. **`decimal ⊕ float` is a compile
+> its target type, and `as T` is itself such a target, so **there is no literal suffix** — C#'s `m` exists
+> only because C# rejects `decimal d = 19.99;`, a constraint MWL designed away. **`decimal ⊕ float` is a compile
 > error**, on the same grounds `int ⊕ uint` already is. Division rounds half-even at a fixed, unconfigurable
 > scale. `bcmath` and `gmp` are retired: exact fractional arithmetic is `decimal`, arbitrary-magnitude
 > integers are `Core\BigInt`, and the rare remainder is a `Core\BigDecimal` class.
@@ -63,7 +64,7 @@ are C (`libdecnumber`), failing the pure-Rust default and
 [ADR 0051](0051-standard-library-tiers.md) § 4's second question, and its cohort semantics — several
 representations of one value — add subtlety that buys nothing monetary.
 
-### 2. Literals: target-typed, with `m` where there is no target
+### 2. Literals: target-typed, with no suffix
 
 A numeric literal carrying a fractional part or an exponent is **untyped until placed**, and takes
 `decimal` or `float` from the type of the position it appears in. This needs no new mechanism:
@@ -77,13 +78,20 @@ float   $ratio = 19.99;          // an f64
 public const decimal VAT = 0.19; // a compile-time constant
 
 var $x = 19.99;                  // no target type: float
-var $y = 19.99m;                 // no target type: decimal
+var $y = 19.99 as decimal;       // `as` supplies one: decimal, exact
 ```
 
-The `m` suffix exists for exactly the positions with no target type — [ADR 0037](0037-var-local-type-inference.md)'s
-`var`, and a `mixed` or generic argument. It is `m`, following C#, and **not** `d`: in C# and Java `d`
-already means *double*, so `19.99d` would read as precisely the wrong thing. An `m`-suffixed literal in a
-`float` position is a compile error, not a conversion.
+**`expr as T` is itself a placing position.** A literal written directly under a conversion takes `T` as its
+target, rather than being typed first and converted afterwards. So `19.99 as decimal` is exact to the full
+29 significant digits and never becomes an `f64` on the way. That is not merely notational: § 4's
+`float → decimal` recovers only the ~17 digits an `f64` round-trips, so without this rule a literal wider
+than that would be unwritable in any position lacking an annotation.
+
+**There is no literal suffix, and in particular no `m`.** C# needs one because it rejects
+`decimal d = 19.99;` outright — there a fractional literal is born a `double` and no implicit conversion
+rescues it. MWL removed that constraint by making literals untyped-until-placed, so a suffix would buy only
+a second spelling of what `as decimal` already says, in the only two positions that lack a target:
+[ADR 0037](0037-var-local-type-inference.md)'s `var`, and a `mixed` or generic argument.
 
 ### 3. Arithmetic
 
@@ -157,8 +165,9 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
 
 ## Consequences
 
-- **M1's lexer gains the `m` suffix**, and a fractional literal becomes untyped-until-placed rather than
-  immediately `float`. **M2's checker** gains § 3's and § 4's rows. **M3/M4's backend** gains i128
+- **M1's lexer gains nothing** — with no suffix there is no new token, and a fractional literal simply
+  becomes untyped-until-placed rather than immediately `float`. **M2's checker** gains § 3's and § 4's rows,
+  plus § 2's rule that `as T` supplies a placement. **M3/M4's backend** gains i128
   arithmetic with scale reconciliation: `+`, `-` and comparison at equal scale inline to i128 operations,
   while `*`, `/` and mixed-scale operands go through a runtime helper that needs a wider intermediate.
   That helper is the real implementation cost of this ADR and is worth planning as such.
@@ -192,18 +201,25 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
   type instead of three. Rejected on priority 3: it puts an allocation on every intermediate of every money
   expression, which is the cost the fixed layout exists to avoid, for a range essentially no web
   application needs.
-- **No suffix at all**, requiring a declared `decimal` type wherever one is introduced. Smallest possible
-  surface. Rejected narrowly: it would make [ADR 0037](0037-var-local-type-inference.md)'s `var` unable to
-  ever produce a `decimal`, which is an odd hole in a feature whose whole purpose is to infer from the
-  initializer.
+- **An `m` suffix (`19.99m`), following C#.** Rejected on priority 4, and note the reason it looked
+  necessary does not survive inspection: C# needs the suffix because it rejects `decimal d = 19.99;`, and
+  § 2's untyped-until-placed rule designs that constraint away. What remains is a decimal-specific lexer
+  production plus its own diagnostics — a suffix in a `float` position, a suffix on a hex literal — spelling
+  in two positions what the general `as decimal` already spells everywhere. It would also make `19.99m` and
+  `19.99 as decimal` two ways to write one value, the duplication
+  [ADR 0063](0063-core-api-conventions.md) refuses across `Core`. `d` was never a candidate either: in C#
+  and Java it already means *double*, so `19.99d` would read as precisely the wrong thing.
 
 ## Verification
 
-- **M1:** lexer fixtures for `19.99m`, `19.99`, `1m`, `1.0e3m`, a suffix on a hex literal (rejected), and a
-  literal whose mantissa exceeds 96 bits (rejected at parse time, not at runtime).
+- **M1:** lexer fixtures for `19.99` and `1.0e3`; a trailing `m` (`19.99m`) rejected as an unknown token
+  rather than accepted as a suffix; and a literal whose mantissa exceeds 96 bits (rejected at parse time,
+  not at runtime).
 - **M2:** checker fixtures for each row of § 3 and § 4 — in particular `decimal + float` rejected,
-  `decimal < 1.5` accepted, `19.99m` in a `float` position rejected, `var $y = 19.99m;` inferring `decimal`,
-  and `const decimal VAT = 0.19;` accepted as a compile-time constant.
+  `decimal < 1.5` accepted, `19.99 as decimal` in a `float` position rejected,
+  `var $y = 19.99 as decimal;` inferring `decimal`, a 25-significant-digit literal under `as decimal`
+  exact — which fails if § 2's placing rule is dropped, since an `f64` round-trip loses it — and
+  `const decimal VAT = 0.19;` accepted as a compile-time constant.
 - **M3/M4:** a runtime suite asserting `0.1 + 0.2 == 0.3`; that mantissa overflow throws `ArithmeticError`
   rather than wrapping; that `1.00 / 3` rounds half-even and `Core\Decimal::divExact` on the same operands
   throws; that `Core\Decimal::allocate(100.00, [1, 1, 1])` sums back to `100.00` exactly; and that

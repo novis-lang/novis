@@ -495,7 +495,8 @@ structural checking ([ADR 0036](adr/0036-anonymous-object-shapes.md)); `foreach`
 `array<T>`, an `Iterable<T>` or an `Iterator<T>`, with `$obj[$k]` on a non-array refused
 ([ADR 0053](adr/0053-iteration-and-generators.md)); and `decimal`'s conversion and arithmetic rows,
 including `decimal + float` refused on the same grounds as `int + uint`
-([ADR 0054](adr/0054-decimal-scalar-type.md), which also adds the `m` literal suffix to M1's lexer).
+([ADR 0054](adr/0054-decimal-scalar-type.md), whose literals are target-typed with no suffix, so `as T`
+must place one).
 
 Lowering to a CFG/SSA IR carrying explicit safepoints, refcount operations and runtime-helper calls, with a
 stable per-statement/per-edge id reserved for
