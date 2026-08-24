@@ -191,6 +191,16 @@ pub mod registry;
 pub mod str;
 pub mod time;
 
+/// ADR 0071's derived-codec field list, re-exported from where it is
+/// *consumed*.
+///
+/// The struct lives in `mwl-runtime` because that is the deepest crate that
+/// holds one — `mwl_runtime::ClassDesc` carries the finished list. `mwl-types`
+/// and `mwl-ir` each produce a stage of it and neither depends on the runtime
+/// directly, so they reach it through this crate, which they already treat as
+/// the home of the `Core` contract.
+pub use mwl_runtime::{CodecField, CodecTy};
+
 use registry::CoreClass;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve

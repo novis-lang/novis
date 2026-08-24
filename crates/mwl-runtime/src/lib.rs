@@ -210,10 +210,11 @@ pub use fmt::php_float_to_string;
 pub use helpers::{symbols, value_to_string, value_truthy};
 pub use identity::{value_hash, value_identical};
 pub use object::{
-    ClassDesc, ClassId, ClassTable, FIELD_STRIDE, FIELDS_OFFSET, MwlObj, OBJ_CLASS_OFFSET,
-    OBJ_REFCOUNT_OFFSET, ObjHeader, field_offset, mwl_abstract_method, mwl_class_method,
-    mwl_object_class_name, mwl_object_field_get, mwl_object_field_set, mwl_object_instanceof,
-    mwl_object_new, mwl_object_release, mwl_object_retain,
+    CONSTRUCTOR, ClassDesc, ClassId, ClassTable, CodecField, CodecTy, FIELD_STRIDE, FIELDS_OFFSET,
+    MwlObj, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, construct, field_offset,
+    mwl_abstract_method, mwl_class_method, mwl_object_class_name, mwl_object_field_get,
+    mwl_object_field_set, mwl_object_instanceof, mwl_object_new, mwl_object_release,
+    mwl_object_retain,
 };
 pub use string::{
     LEN_OFFSET, MwlStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, mwl_str_concat, mwl_str_eq,

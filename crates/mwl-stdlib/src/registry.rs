@@ -646,6 +646,33 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
     CLASSES.iter().find(|class| class.name == name)
 }
 
+/// The closed roster of members whose helper is handed the **class written at
+/// the call site**, as an extra leading argument.
+///
+/// [`CoreTy::Written`] tells the *checker* what a `<...>` list binds; it says
+/// nothing to the runtime, because a type argument is erased like every other
+/// one ([ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)). A
+/// member like `Core\Json::decodeAs<User>` needs more than the erasure: it has
+/// to build a `User`, which means reaching that class's
+/// `mwl_runtime::ClassDesc` from native Rust.
+///
+/// A roster rather than a field on [`CoreMethod`] because it is one entry
+/// today against two hundred member rows, and a field would be `false` on
+/// every one of them. `mwl-ir` reads this to decide whether to emit an
+/// `InstKind::ClassDescConst` ahead of the call's own arguments; the helper's
+/// `args: [N]` therefore counts one more than [`CoreMethod::params`] does, and
+/// the descriptor is always **argument 0** — the same slot an instance
+/// member's receiver takes, so nothing else about the ABI moves.
+pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[(r"Core\Json", "decodeAs")];
+
+/// Whether `class::method` is one of [`WRITTEN_CLASS_MEMBERS`].
+#[must_use]
+pub fn takes_written_class(class: &str, method: &str) -> bool {
+    WRITTEN_CLASS_MEMBERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// Looks a `Core`-owned enum up by its fully-qualified name.
 #[must_use]
 pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {

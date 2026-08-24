@@ -465,7 +465,8 @@ impl Classes {
             .table
             .define(&class.label, class.fields.len(), &parents);
         if !class.codec.is_empty() {
-            self.table.set_codec(id, class.codec.clone());
+            self.table
+                .set_codec(id, class.codec.clone(), class.ctor_arity);
         }
         let slots = class
             .fields

@@ -766,6 +766,32 @@ impl<'a> Lowering<'a> {
                     let sig = ArgSig::of_helper(call);
                     let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                     let checked_types = self.checked_types;
+                    // A member on `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS`
+                    // is handed the class its call site wrote, as argument 0 —
+                    // that roster owns the ABI. A descriptor is not
+                    // refcounted, so it is neither retained nor released here.
+                    let written_class = mwl_types::core_takes_written_class(
+                        &call.class.to_string(),
+                        &call.method,
+                    )
+                    .then(|| {
+                        let label = call.written_class.as_ref().unwrap_or_else(|| {
+                            panic!(
+                                "mwl-ir: `{}::{}` needs the class written at its call site, \
+                                 and mwl_types recorded none — did this program pass \
+                                 mwl_types::check_program with the same table?",
+                                call.class, call.method
+                            )
+                        });
+                        let (v, _) = self.emit(
+                            *cur,
+                            Ty::ClassDesc,
+                            InstKind::ClassDescConst {
+                                class: label.to_string(),
+                            },
+                        );
+                        v
+                    });
                     let lowered = self.lower_call_args(
                         args,
                         &sig,
@@ -774,12 +800,16 @@ impl<'a> Lowering<'a> {
                         env,
                         cur,
                     );
+                    let arg_values = written_class
+                        .into_iter()
+                        .chain(lowered.values)
+                        .collect::<Vec<_>>();
                     let result = self.emit_fallible(
                         *cur,
                         return_ty,
                         InstKind::CoreCall {
                             symbol,
-                            args: lowered.values,
+                            args: arg_values,
                         },
                         env,
                     );

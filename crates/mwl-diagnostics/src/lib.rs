@@ -627,6 +627,12 @@ pub mod code {
     /// A `#[Json\Field(...)]` argument that is not one of ADR 0071 § 3's two
     /// options, or whose value is not a literal of that option's type.
     pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464");
+    /// A type argument written where the member needs a *class* rather than
+    /// any type — `Core\Json::decodeAs<int>`. The members that do are
+    /// `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS`, and each of them reaches
+    /// the written class's runtime descriptor from native code, which only a
+    /// class has.
+    pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

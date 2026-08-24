@@ -137,6 +137,18 @@ pub struct ResolvedCall {
     /// reason: resolving a bare `LeafRegistry` against the active namespace
     /// and imports needs context only this crate and `mwl-hir` have.
     pub static_class: Option<QName>,
+    /// The class named by the **first written type argument**, for a member on
+    /// `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` — `Core\Json::decodeAs<User>`
+    /// records `User`, and every other call records `None`.
+    ///
+    /// A type argument is erased like every other one
+    /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md)), so this
+    /// is deliberately not "what `T` bound to": it is the one fact a *native*
+    /// member needs that erasure removes, namely which class's
+    /// `mwl_runtime::ClassDesc` to build an instance of. `mwl-ir` turns it
+    /// into an `InstKind::ClassDescConst` ahead of the call's own arguments;
+    /// that roster's docs own the ABI half.
+    pub written_class: Option<QName>,
     /// Whether some subtype of [`Self::class`] redeclares [`Self::method`],
     /// so a receiver's runtime class can answer it with different code than
     /// the label [`Self::class`] names —

@@ -25,7 +25,7 @@ use std::fmt;
 
 use crate::array::{ArrayHeader, MwlArray};
 use crate::decimal::Decimal;
-use crate::object::{MwlObj, ObjHeader};
+use crate::object::{ClassDesc, MwlObj, ObjHeader};
 use crate::string::{MwlStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
@@ -345,6 +345,31 @@ impl Value {
     pub const fn obj_ptr(self) -> Option<*mut ObjHeader> {
         match self.tag() {
             Some(Tag::Object) => Some(self.bits as usize as *mut ObjHeader),
+            _ => None,
+        }
+    }
+
+    /// The [`ClassDesc`] an argument slot carries, if it carries one.
+    ///
+    /// `mwl_ir::ty::Ty::ClassDesc` is not an MWL value: a descriptor rides in
+    /// the payload half of an otherwise-`null` slot, so nothing sweeping a
+    /// [`Value`] can mistake it for a heap reference (`mwl_codegen::ty::tag_of`
+    /// is the encoding side). This is the one read of that convention from
+    /// native code, and it is named for its single purpose rather than exposing
+    /// the raw payload: a by-reference parameter's staged slot address rides in
+    /// the same place, and a generic accessor would let one be read as the
+    /// other.
+    ///
+    /// `None` for a genuine `null` — a descriptor is never at address zero —
+    /// and for every other tag.
+    #[must_use]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the payload is a pointer `mwl-codegen` widened to u64 when it stored the slot, so narrowing it back is exact on every target"
+    )]
+    pub const fn as_class_desc(self) -> Option<*const ClassDesc> {
+        match self.tag() {
+            Some(Tag::Null) if self.bits != 0 => Some(self.bits as usize as *const ClassDesc),
             _ => None,
         }
     }

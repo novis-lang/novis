@@ -68,28 +68,39 @@
 //!    through a private map token and is a workspace-wide switch, or a
 //!    `RawValue` pre-pass. Neither is worth a whole document's re-scan for a
 //!    band that starts at 1.8e19.
-//! 2. **`#[Json\Derive]` generates only the encode half.**
-//!    [`Encodable::serialize_object`] writes an instance from the field list
-//!    `mwl_types::derive` read off its declaration, so § 6's `encode` is whole;
-//!    `decodeAs<T>` and the generated decoder
-//!    ([ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5) are still
-//!    owed, and until they land § 6 is three of its four members. The issue
-//!    list those will report *through* is built: [`crate::issue`] is the shape,
-//!    `ParseError::issues` is the property, and
-//!    [`mwl_core_json_decode`] already records the one issue a malformed
-//!    document has.
-//! 3. **A hand-written `Core\Json\Codec` is not consulted.** ADR 0071 § 7 lets
+//! 2. **A derived field's type roster is narrower than ADR 0071 § 2's.**
+//!    [`decode_field`] has a case for a `bool`, an `int`, a `uint`, a `float`,
+//!    a `string`, a `mixed` and a `?T` of any of them — the whole of
+//!    [`mwl_runtime::CodecTy`] but its last variant. An enum, a `decimal`, an
+//!    `Instant`, an `array<T>`, an inline shape and a nested derived class are
+//!    all codec-reachable by that ADR and all land on `CodecTy::Opaque`, which
+//!    [`decode_as`] refuses **before reading the document**, naming the field.
+//!    Encoding is unaffected: [`Encodable`] walks the value rather than the
+//!    declared type, so a field this cannot decode still round-trips out.
+//! 3. **A parameter default does not make a key optional.** ADR 0071 § 4's
+//!    two default-bearing rows are unimplemented: an absent key is always
+//!    *required field missing*, and a `#[Json\Field(skip: true)]` property
+//!    that is also a constructor parameter leaves a position nothing fills,
+//!    which [`decode_as`] reports as an engine fault rather than passing
+//!    `null`. `mwl_types::defaults` evaluates a default into a constant the
+//!    *call site* emits, and a native decoder is not a call site — closing
+//!    this means carrying the constant onto `mwl_runtime::CodecField`.
+//! 4. **A hand-written `Core\Json\Codec` is not consulted.** ADR 0071 § 7 lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
 //!    encoder and no attribute still refuses. Closing it is a
 //!    `ClassDesc::method("toJson")` lookup and a call back into compiled code.
-//! 4. **The encoder walks a per-class field list rather than straight-line
+//! 5. **Both halves walk a per-class field list rather than straight-line
 //!    code.** ADR 0071 § 8 asks for IR emitted per derived class; what is built
 //!    is one compile-time-built descriptor per class, read by native Rust. No
 //!    reflection and nothing per object either way — the difference is one
 //!    bounded loop and one `String` compare per field, against a table that is
 //!    O(derived classes) in the artifact.
-//! 5. **`isValid` decodes and discards.** It answers exactly what [`mwl_core_json_decode`]
+//! 6. **An issue's `path` is a field's own wire key, never a dotted path.**
+//!    ADR 0071 § 5 asks for `"address.city"` so a nested class's issues arrive
+//!    at the top-level `catch` already located; nesting is gap 2's, so there
+//!    is nothing to prefix yet.
+//! 7. **`isValid` decodes and discards.** It answers exactly what [`mwl_core_json_decode`]
 //!    would accept, which is the property that matters, but it allocates the
 //!    document to do it. A second `()`-producing visitor would avoid that; it
 //!    is a duplicate of [`Decode`] with every body replaced by `Ok(())`, and
@@ -97,7 +108,7 @@
 
 use std::fmt;
 
-use mwl_runtime::{Fault, MwlArray, MwlObj, MwlStr, Tag, ThrownClass, Value};
+use mwl_runtime::{CodecTy, Fault, MwlArray, MwlObj, MwlStr, Tag, ThrownClass, Value};
 use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -107,10 +118,12 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// `Core\Json`'s registry rows, in the spec's own order.
+/// `Core\Json`'s registry rows, in the spec's own order — all four of § 6's
+/// members.
 ///
-/// Three of § 6's four members; gap 2 above owns `decodeAs<T>` and what it
-/// waits on.
+/// `decodeAs` is the one row in the whole registry whose helper takes an
+/// argument its `params` does not declare: `registry::WRITTEN_CLASS_MEMBERS`
+/// puts the class its call site wrote in slot 0, and that roster owns why.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Json",
     methods: &[
@@ -127,6 +140,13 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Mixed,
             symbol: "mwl_core_json_decode",
+        },
+        CoreMethod {
+            name: "decodeAs",
+            params: &[CoreTy::Str, CoreTy::Options(DECODE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Written("T"),
+            symbol: "mwl_core_json_decode_as",
         },
         CoreMethod {
             name: "isValid",
@@ -174,6 +194,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "mwl_core_json_encode" => (mwl_core_json_encode as *const ()).cast(),
         "mwl_core_json_decode" => (mwl_core_json_decode as *const ()).cast(),
+        "mwl_core_json_decode_as" => (mwl_core_json_decode_as as *const ()).cast(),
         "mwl_core_json_is_valid" => (mwl_core_json_is_valid as *const ()).cast(),
         _ => return None,
     })
@@ -361,11 +382,11 @@ impl Encodable {
             )));
         }
         let mut map = ser.serialize_map(Some(fields.len()))?;
-        for (key, slot) in fields {
+        for field in fields {
             // A borrowed read, exactly as `mwl_ir::InstKind::FieldGet` is: the
             // object holds the reference for the length of this call and
             // nothing here hands the value on to MWL code.
-            map.serialize_entry(key, &self.child(object.field(*slot)))?;
+            map.serialize_entry(&field.key, &self.child(object.field(field.slot)))?;
         }
         map.end()
     }
@@ -667,6 +688,290 @@ mwl_runtime::mwl_helper! {
             let issues = crate::issue::list([("", message.as_str())]);
             Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
         })
+    }
+}
+
+// ============================================================================
+// Decoding into a class — ADR 0071's generated decoder
+// ============================================================================
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T` — replacing
+    /// hand-written hydration.
+    ///
+    /// **Argument 0 is the class written at the call site**, not a value:
+    /// `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` puts this member on the
+    /// roster whose helper is handed a `mwl_runtime::ClassDesc` ahead of its
+    /// declared parameters, and that roster's docs own why. So the arity here
+    /// is one more than the registry row's.
+    fn mwl_core_json_decode_as(ctx, args: [3]) {
+        let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
+            "internal error: `Core\\Json::decodeAs` was called with no class in argument 0",
+        ))?;
+        let text = text_of(&args[1], "decodeAs")?;
+        let max = max_depth(&args[2])?;
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor came out of a `ClassDescConst` the compiled \
+                      unit owns, so it outlives this call and every object made \
+                      from it"
+        )]
+        unsafe {
+            decode_as(ctx, class, text, max)
+        }
+    }
+}
+
+/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's decode: every
+/// field read into a local, **every** failure accumulated, and the constructor
+/// run only if none was.
+///
+/// # Safety
+///
+/// `class` must refer to a live descriptor whose method table `mwl-codegen`
+/// has filled.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn decode_as(
+    ctx: &mut mwl_runtime::Ctx,
+    class: *const mwl_runtime::ClassDesc,
+    text: &str,
+    max: u32,
+) -> Result<Value, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let desc = unsafe { &*class };
+    let fields = desc.codec();
+    if fields.is_empty() {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Json::decodeAs(): `{}` has no JSON codec — a class participates by \
+                 carrying `#[Json\\Derive]`",
+                desc.name()
+            ),
+        ));
+    }
+    // Checked before the document is even read: an `Opaque` field is a decoder
+    // this crate has not written yet (gap 6), not something the input did, so
+    // it is an engine fault rather than an issue in a list a program shows a
+    // user.
+    if let Some(field) = fields.iter().find(|field| field.ty == CodecTy::Opaque) {
+        return Err(Fault::fatal(format!(
+            "Core\\Json::decodeAs(): `{}`'s `{}` field has a declared type this decoder \
+             has no case for yet — ADR 0071 § 2's wider codec-reachable set is \
+             `mwl_stdlib::json`'s own known gap",
+            desc.name(),
+            field.key
+        )));
+    }
+
+    let document = read(text, max).map_err(|why| {
+        let message = format!("Core\\Json::decodeAs(): {why}");
+        let issues = crate::issue::list([("", message.as_str())]);
+        Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+    })?;
+    let Some(ptr) = document.array_ptr() else {
+        #[expect(
+            unsafe_code,
+            reason = "this frame holds the only reference `read` handed back"
+        )]
+        unsafe {
+            document.release();
+        }
+        let message = format!(
+            "Core\\Json::decodeAs(): a `{}` decodes from a JSON object",
+            desc.name()
+        );
+        let issues = crate::issue::list([("", message.as_str())]);
+        return Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            message,
+            issues,
+        ));
+    };
+
+    let source = crate::arr::borrowed(ptr);
+    let mut ctor_args = vec![Value::null(); desc.ctor_arity()];
+    let mut filled = vec![false; desc.ctor_arity()];
+    let mut issues: Vec<(String, String)> = Vec::new();
+    for field in fields {
+        match decode_field(field, &source) {
+            Ok(value) => match ctor_args.get_mut(field.param) {
+                Some(slot) => {
+                    *slot = value;
+                    filled[field.param] = true;
+                }
+                None => {
+                    release_all(&ctor_args);
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame holds this value's only reference, and \
+                                  the argument vector it was destined for has no room"
+                    )]
+                    unsafe {
+                        value.release();
+                        document.release();
+                    }
+                    return Err(Fault::fatal(format!(
+                        "internal error: `{}`'s `{}` field names constructor parameter {} of {}",
+                        desc.name(),
+                        field.key,
+                        field.param,
+                        desc.ctor_arity()
+                    )));
+                }
+            },
+            Err(why) => issues.push((field.key.clone(), why)),
+        }
+    }
+    #[expect(
+        unsafe_code,
+        reason = "every value kept out of the document was retained above, so \
+                  releasing it now frees exactly what nothing else holds"
+    )]
+    unsafe {
+        document.release();
+    }
+
+    if !issues.is_empty() {
+        release_all(&ctor_args);
+        let list = crate::issue::list(
+            issues
+                .iter()
+                .map(|(path, message)| (path.as_str(), message.as_str())),
+        );
+        return Err(Fault::thrown_with_issues(
+            ThrownClass::Parse,
+            format!(
+                "Core\\Json::decodeAs(): {} field(s) of `{}` did not match",
+                issues.len(),
+                desc.name()
+            ),
+            list,
+        ));
+    }
+    // ADR 0071 § 3's skipped field with a constructor default is the one shape
+    // that leaves a position unfilled, and this crate has no way to
+    // materialize that default — `mwl_types::defaults` evaluates it into a
+    // constant the *call site* emits, and there is no call site here. Loud
+    // rather than passing `null`, which would be right for `?T $x = null` and
+    // silently wrong for everything else.
+    if let Some(index) = filled.iter().position(|done| !done) {
+        release_all(&ctor_args);
+        return Err(Fault::fatal(format!(
+            "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
+             field, and a skipped field's default is `mwl_stdlib::json`'s own known gap",
+            desc.name()
+        )));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the same live descriptor, and every argument is one this frame \
+                  owns and hands over"
+    )]
+    unsafe {
+        mwl_runtime::construct(ctx, class, &ctor_args)
+    }
+}
+
+/// One field's value, taken over, or the ADR 0071 § 5 issue message it failed
+/// with.
+///
+/// ADR 0071 § 4's table, minus its two default-bearing rows: a parameter
+/// default is `mwl_types::defaults`' constant and no call site emits one here,
+/// so an absent key is always *required field missing* today.
+fn decode_field(field: &mwl_runtime::CodecField, source: &MwlArray) -> Result<Value, String> {
+    let Some(found) = source.get(field.key.as_bytes()) else {
+        return Err("required field missing".to_owned());
+    };
+    if found.tag() == Some(Tag::Null) {
+        if field.nullable {
+            return Ok(Value::null());
+        }
+        return Err("null is not permitted".to_owned());
+    }
+    let converted = match field.ty {
+        // A `mixed` field is exactly as checked as `mixed` ever is (ADR 0071
+        // § 2), so whatever the document held is the value.
+        CodecTy::Mixed => Some(found),
+        CodecTy::Bool => found.as_bool().map(Value::bool),
+        CodecTy::Int => found.as_int().map(Value::int),
+        CodecTy::Uint => found
+            .as_int()
+            .and_then(|number| u64::try_from(number).ok())
+            .map(Value::uint),
+        // A JSON `1` reaching a `float` field widens, which is the one place
+        // MWL does that — ADR 0007 § 2 has no int-to-float widening in the
+        // language, but a wire format has one number type and refusing an
+        // unfractional literal would make `1.0` and `1` different documents.
+        CodecTy::Float => found
+            .as_float()
+            .or_else(|| found.as_int().map(|number| number as f64))
+            .map(Value::float),
+        CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
+        CodecTy::Opaque => None,
+    };
+    let Some(value) = converted else {
+        return Err(format!(
+            "expected {}, found {}",
+            wanted(field.ty),
+            describe(found)
+        ));
+    };
+    // Every arm above either built a fresh scalar or passed the document's own
+    // value through; the pass-through arms are the ones that need a reference
+    // of their own, since the document is released before the constructor runs.
+    #[expect(
+        unsafe_code,
+        reason = "the document owns this value for the length of this call, so \
+                  taking a second reference to it is sound"
+    )]
+    unsafe {
+        value.retain();
+    }
+    Ok(value)
+}
+
+/// What a [`CodecTy`] is called in an issue message — the MWL type name, since
+/// that is what the reader has in front of them in the class declaration.
+const fn wanted(ty: CodecTy) -> &'static str {
+    match ty {
+        CodecTy::Bool => "bool",
+        CodecTy::Int => "int",
+        CodecTy::Uint => "uint",
+        CodecTy::Float => "float",
+        CodecTy::Str => "string",
+        CodecTy::Mixed => "mixed",
+        CodecTy::Opaque => "a decodable type",
+    }
+}
+
+/// What the document actually held there, named the way JSON names it.
+const fn describe(value: Value) -> &'static str {
+    match value.tag() {
+        Some(Tag::Null) => "null",
+        Some(Tag::Bool) => "a boolean",
+        Some(Tag::Int | Tag::Uint | Tag::Float) => "a number",
+        Some(Tag::Str) => "a string",
+        Some(Tag::Array) => "an object or array",
+        _ => "an unrepresentable value",
+    }
+}
+
+/// Releases every value in `values` — what a decode that is about to throw
+/// owes for the fields it had already decoded.
+fn release_all(values: &[Value]) {
+    for value in values {
+        #[expect(
+            unsafe_code,
+            reason = "each entry is either `null` or a value this frame took a \
+                      reference to in `decode_field`"
+        )]
+        unsafe {
+            value.release();
+        }
     }
 }
 

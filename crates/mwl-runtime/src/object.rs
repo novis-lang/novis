@@ -147,6 +147,7 @@ use std::fmt;
 use std::ptr::NonNull;
 
 use crate::abi::Fault;
+use crate::ctx::Ctx;
 use crate::value::{Tag, Value};
 
 /// What every instance of one class shares: its name, how many field slots it
@@ -176,15 +177,87 @@ pub struct ClassDesc {
     /// slot index.
     methods: Vec<(String, *const u8)>,
     /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
-    /// field list, as `(wire key, field slot)` in declaration order — empty
-    /// for every class not carrying `#[Json\Derive]`, which is the default and
-    /// costs one empty `Vec` per descriptor.
+    /// field list, in declaration order — empty for every class not carrying
+    /// `#[Json\Derive]`, which is the default and costs one empty `Vec` per
+    /// descriptor.
     ///
     /// Compiled in rather than reflected: `mwl_types::derive` reads the
     /// attribute, `mwl-codegen` copies the answer here, and
-    /// `mwl_stdlib::json`'s encoder walks it. Filled by
+    /// `mwl_stdlib::json`'s encoder and decoder walk it. Filled by
     /// [`ClassTable::set_codec`].
-    codec: Vec<(String, usize)>,
+    codec: Vec<CodecField>,
+    /// How many parameters this class's `constructor` declares — what a
+    /// derived *decoder* has to fill before it can run one, and zero for
+    /// every class with no codec.
+    ///
+    /// Carried beside [`Self::codec`] rather than derived from it because a
+    /// skipped field ([ADR 0071](../../../docs/adr/0071-derived-codecs.md)
+    /// § 3) leaves a parameter no field names, and a decoder that silently
+    /// shortened its argument list would call the constructor with the wrong
+    /// arity.
+    ctor_arity: usize,
+}
+
+/// What one [`CodecField`] decodes to: the closed set of runtime
+/// representations [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 2's
+/// codec-reachable types collapse to once the checker's qualifiers and
+/// nominal identity are erased.
+///
+/// Deliberately not `Tag`: a wire type is a *decode target* rather than a
+/// value's current shape, so `Mixed` and `Opaque` have no tag and `Tag::Str`
+/// would answer for both `string` and `bytes`, only one of which JSON can
+/// carry.
+///
+/// Deliberately **not** `#[non_exhaustive]`: a variant added here is a wire
+/// type gained, and every decoder in the workspace should stop compiling until
+/// it has a case for it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CodecTy {
+    /// `bool`.
+    Bool,
+    /// `int`.
+    Int,
+    /// `uint` — the same JSON number as [`Self::Int`], range-checked.
+    Uint,
+    /// `float`; a JSON integer widens into one.
+    Float,
+    /// `string`.
+    Str,
+    /// `mixed` — whatever the document held, unchecked
+    /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md)).
+    Mixed,
+    /// A declared type this decoder has no case for yet — an `array<T>`, a
+    /// nested class, an enum, a `decimal`, an `Instant`. Encoding one still
+    /// works; decoding into one is `mwl_stdlib::json`'s own known gap, and it
+    /// faults naming the field rather than guessing a value.
+    Opaque,
+}
+
+/// One field of a class's derived JSON codec: the wire key, the slot it is
+/// read from, the constructor position it is written to, and what a decode
+/// must produce for it.
+///
+/// One struct shared by all four crates that touch it — `mwl_types::derive`
+/// produces the declaration half, `mwl_ir::lower::lower_file` joins the slot
+/// and constructor indices in, `mwl-codegen` copies it here — so a field
+/// added to the wire contract cannot reach the runtime under a different
+/// shape than it left the checker.
+#[derive(Clone, Debug)]
+pub struct CodecField {
+    /// The JSON key: the property's own name, or `#[Json\Field(name: "…")]`.
+    pub key: String,
+    /// The field slot an encode reads and a decode's `new` ends up writing.
+    pub slot: usize,
+    /// This field's position in the constructor's parameter list — ADR 0071
+    /// § 2's "every field is a same-named constructor parameter", resolved to
+    /// an index so a decoder needs no name lookup.
+    pub param: usize,
+    /// What a decode has to produce for this field.
+    pub ty: CodecTy,
+    /// Whether the declared type admits `null` — ADR 0071 § 4's second
+    /// column, which is a property of the *type* and says nothing about
+    /// whether the key may be absent.
+    pub nullable: bool,
 }
 
 impl ClassDesc {
@@ -240,14 +313,21 @@ impl ClassDesc {
         self.methods.len()
     }
 
-    /// ADR 0071's derived JSON field list — `(wire key, field slot)` in
-    /// declaration order, empty for a class carrying no `#[Json\Derive]`.
+    /// ADR 0071's derived JSON field list, in declaration order — empty for a
+    /// class carrying no `#[Json\Derive]`.
     ///
     /// Declaration order is the encode order, which is what makes an encoded
     /// document byte-deterministic across runs and machines (that ADR § 2).
     #[must_use]
-    pub fn codec(&self) -> &[(String, usize)] {
+    pub fn codec(&self) -> &[CodecField] {
         &self.codec
+    }
+
+    /// How many parameters this class's `constructor` declares — see
+    /// [`Self::codec`]'s companion field.
+    #[must_use]
+    pub fn ctor_arity(&self) -> usize {
+        self.ctor_arity
     }
 }
 
@@ -338,6 +418,7 @@ impl ClassTable {
             conforms,
             methods: Vec::new(),
             codec: Vec::new(),
+            ctor_arity: 0,
         }));
         id
     }
@@ -353,12 +434,13 @@ impl ClassTable {
     /// # Panics
     ///
     /// If `id` does not belong to this table.
-    pub fn set_codec(&mut self, id: ClassId, codec: Vec<(String, usize)>) {
+    pub fn set_codec(&mut self, id: ClassId, codec: Vec<CodecField>, ctor_arity: usize) {
         let desc = self
             .classes
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.codec = codec;
+        desc.ctor_arity = ctor_arity;
     }
 
     /// Fills in `id`'s method table — `(name, code address)` pairs, which this
@@ -1118,6 +1200,111 @@ pub unsafe extern "C" fn mwl_class_method(
         return fallback;
     };
     desc.method(name).unwrap_or(fallback)
+}
+
+/// The one method [`construct`] runs — ADR 0030 fixes the spelling.
+pub const CONSTRUCTOR: &str = "constructor";
+
+/// Builds an instance of `class` by running its own `constructor` — what a
+/// native member does where compiled code would emit
+/// `mwl_ir::ir::InstKind::New`.
+///
+/// **Every argument's reference is transferred**, exactly as an ordinary MWL
+/// call's is: the callee releases each of its parameters at scope exit, so the
+/// caller hands over values it owns and never releases them again. That holds
+/// on the error paths too — an argument is consumed whether or not the
+/// constructor ran. The returned value is one fresh reference the caller owns.
+///
+/// This is the second half of the mismatch [`crate::closure::call_closure`]
+/// exists for, in the other direction: a helper *borrows* its own arguments
+/// and a compiled method *owns* its parameters, so the reconciliation lives
+/// here once rather than in each `Core` member that builds an object.
+///
+/// # Errors
+///
+/// [`Fault::Pending`] carrying the callee's status when the constructor
+/// throws, so the exception it recorded in `ctx` reaches the request
+/// unchanged. [`Fault::Fatal`] when `class` declares no [`CONSTRUCTOR`], or
+/// when the argument count is not its declared arity — both engine faults:
+/// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+/// gives every class exactly one nameable constructor, and the caller reads
+/// its arity off the same descriptor.
+///
+/// # Safety
+///
+/// `class` must refer to a live descriptor whose method table `mwl-codegen`
+/// has already filled.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub unsafe fn construct(
+    ctx: &mut Ctx,
+    class: *const ClassDesc,
+    args: &[Value],
+) -> Result<Value, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let desc = unsafe { &*class };
+    let Some(target) = desc.method(CONSTRUCTOR) else {
+        release_all(args);
+        return Err(Fault::fatal(format!(
+            "internal error: `{}` was constructed from native code and declares no \
+             `{CONSTRUCTOR}`",
+            desc.name()
+        )));
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the address came out of a live descriptor's method table, which \
+                  `mwl-codegen` fills only with compiled functions of exactly this \
+                  signature"
+    )]
+    let target: crate::abi::MwlFn = unsafe { std::mem::transmute::<*const u8, _>(target) };
+
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let object = unsafe { MwlObj::new(class) };
+    let value = Value::object(object);
+    #[expect(
+        unsafe_code,
+        reason = "the allocation is one line old and this frame holds its only \
+                  reference; the second is the one the callee will release"
+    )]
+    unsafe {
+        value.retain();
+    }
+
+    let mut slots = Vec::with_capacity(args.len() + 1);
+    slots.push(value);
+    slots.extend_from_slice(args);
+    match crate::abi::call(target, ctx, &slots) {
+        Ok(_) => Ok(value),
+        Err(status) => {
+            #[expect(
+                unsafe_code,
+                reason = "the callee released the reference it was given; this is the \
+                          other one, which nothing will ever read now"
+            )]
+            unsafe {
+                value.release();
+            }
+            Err(Fault::Pending(status))
+        }
+    }
+}
+
+/// Releases every reference in `values` — [`construct`]'s "an argument is
+/// consumed whether or not the constructor ran".
+fn release_all(values: &[Value]) {
+    for value in values {
+        #[expect(
+            unsafe_code,
+            reason = "each value's reference was transferred to this frame by the \
+                      caller, so this frame owes exactly one release for it"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
 }
 
 crate::mwl_helper! {

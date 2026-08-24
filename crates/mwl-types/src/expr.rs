@@ -150,6 +150,9 @@ fn resolved_call(
         // Set only by the `StaticCall` arm, and only for an explicitly named
         // class — see the field's own doc comment.
         static_class: None,
+        // Set only by the `StaticCall` arm, and only for a member on
+        // `registry::WRITTEN_CLASS_MEMBERS` — see the field's own doc comment.
+        written_class: None,
     }
 }
 
@@ -1011,7 +1014,7 @@ fn infer(
             let label = resolved
                 .as_ref()
                 .map(|(owner, name, _)| format!("{owner}::{name}"));
-            let sig =
+            let (sig, _written) =
                 check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
             let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // ADR 0027: `$obj->method(...)` (first-class callable syntax)
@@ -1090,7 +1093,7 @@ fn infer(
             let label = resolved
                 .as_ref()
                 .map(|(owner, name, _)| format!("{owner}::{name}"));
-            let sig =
+            let (sig, written) =
                 check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
             let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // See the `MethodCall` arm above: first-class callable syntax
@@ -1112,6 +1115,8 @@ fn infer(
                 if matches!(class.kind, ExprKind::ConstFetch(_)) {
                     call.static_class = resolve_class_expr(class, ctx, env);
                 }
+                call.written_class =
+                    written_class_of(qname, name, &written, type_args, expr.span, env);
                 env.exprs.record(expr.span, ExprInfo::Call(call));
             }
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
@@ -2716,6 +2721,9 @@ fn check_interface_private_visibility(
 /// class named inside one is reported even when the list itself is refused.
 /// A wrong count is recovered from by binding what *was* written, positionally;
 /// [`crate::generics`] substitutes any variable left over to `mixed`.
+/// Returns the checked signature alongside **what was written**, positional:
+/// the bindings are erased into the signature, and one consumer needs the
+/// written types themselves — see [`ResolvedCall::written_class`].
 fn check_written_type_args(
     type_args: &[Type],
     sig: Option<MethodSig>,
@@ -2723,12 +2731,14 @@ fn check_written_type_args(
     call_span: Span,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> Option<MethodSig> {
+) -> (Option<MethodSig>, Vec<TypeId>) {
     let written: Vec<TypeId> = type_args
         .iter()
         .map(|ty| lower_type(ty, ctx, env))
         .collect();
-    let sig = sig?;
+    let Some(sig) = sig else {
+        return (None, written);
+    };
     let member = label.unwrap_or("this member");
     let Some(span) = type_args
         .first()
@@ -2739,7 +2749,7 @@ fn check_written_type_args(
         if !sig.type_params.is_empty() {
             report_type_arg_count(&sig, member, call_span, env);
         }
-        return Some(sig);
+        return (Some(sig), written);
     };
     if sig.type_params.is_empty() {
         env.diags.report(
@@ -2752,14 +2762,55 @@ fn check_written_type_args(
                 "user-declared type parameters are deferred (ADR 0007 § 1), and a `Core` member                  whose spec signature writes none infers every type it needs from its arguments",
             ),
         );
-        return Some(sig);
+        return (Some(sig), written);
     }
     if written.len() != sig.type_params.len() {
         report_type_arg_count(&sig, member, span, env);
     }
-    let bindings: crate::generics::Bindings =
-        sig.type_params.iter().cloned().zip(written).collect();
-    Some(sig.substituted(&bindings, env.interner))
+    let bindings: crate::generics::Bindings = sig
+        .type_params
+        .iter()
+        .cloned()
+        .zip(written.iter().copied())
+        .collect();
+    (Some(sig.substituted(&bindings, env.interner)), written)
+}
+
+/// The class a member on `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` was
+/// asked to build, reporting `E_TYPE_ARG_NOT_A_CLASS` when what was written is
+/// not a class at all.
+///
+/// `None` for every member not on that roster, which is all but one of them —
+/// so this is a table lookup on the ordinary path and nothing more.
+fn written_class_of(
+    owner: &QName,
+    method: &str,
+    written: &[TypeId],
+    type_args: &[Type],
+    call_span: Span,
+    env: &mut Env<'_>,
+) -> Option<QName> {
+    if !mwl_stdlib::registry::takes_written_class(&owner.to_string(), method) {
+        return None;
+    }
+    let first = *written.first()?;
+    if let Ty::Class(qname, _) = env.interner.get(first) {
+        return Some(qname.clone());
+    }
+    let found = env.interner.describe(first);
+    let span = type_args.first().map_or(call_span, |ty| ty.span);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_ARG_NOT_A_CLASS,
+            format!("`{owner}::{method}` builds a class, and `{found}` is not one"),
+        )
+        .with_primary(span, format!("`{found}` written here"))
+        .with_help(
+            "ADR 0071 § 2: a decode is an ordinary `new`, so the type argument names the \
+             class to construct — write a class carrying `#[Json\\Derive]`",
+        ),
+    );
+    None
 }
 
 /// `E_TYPE_ARG_COUNT` for a call site, from both places [`check_written_type_args`]

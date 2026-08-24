@@ -48,17 +48,23 @@ pub struct Class {
     /// [`InstKind::CallVirtual`] dispatches through.
     pub methods: Vec<(String, String)>,
     /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
-    /// codec, as `(wire key, field slot index)` in declaration order — empty
-    /// for a class carrying no `#[Json\Derive]`, which is every class in a
-    /// program that never writes the attribute.
+    /// codec, in declaration order — empty for a class carrying no
+    /// `#[Json\Derive]`, which is every class in a program that never writes
+    /// the attribute.
     ///
     /// The join of two tables neither crate holds alone:
-    /// `mwl_types::derive` reads the attribute and the wire keys off the
-    /// declaration, and `mwl_types::layout` fixes the slot order — see
-    /// `crate::lower::lower_file`, which is where the two meet. Carried
-    /// through to `mwl_runtime::ClassDesc` so `Core\Json::encode` can write an
-    /// instance without asking the program anything.
-    pub codec: Vec<(String, usize)>,
+    /// `mwl_types::derive` reads the attribute, the wire keys and each field's
+    /// declared type off the declaration, and `mwl_types::layout` fixes the
+    /// slot order — see `crate::lower::lower_file`, which is where the two
+    /// meet. Carried through to `mwl_runtime::ClassDesc` so `Core\Json`'s
+    /// encoder and decoder can work an instance without asking the program
+    /// anything.
+    pub codec: Vec<mwl_types::CodecField>,
+    /// How many parameters this class's `constructor` declares — see
+    /// `mwl_runtime::ClassDesc::ctor_arity`, which is where it ends up and
+    /// which owns why it is carried beside the field list rather than derived
+    /// from it. Zero for a class with no codec.
+    pub ctor_arity: usize,
 }
 
 /// One lowered method or function.

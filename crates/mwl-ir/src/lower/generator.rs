@@ -368,6 +368,7 @@ pub(super) fn lower_generator(
         // A generator state class is synthesized, so nothing wrote an
         // attribute on it.
         codec: Vec::new(),
+        ctor_arity: 0,
     });
     (functions, classes)
 }

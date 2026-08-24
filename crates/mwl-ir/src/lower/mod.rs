@@ -415,9 +415,23 @@ pub fn lower_file(
                 codec
                     .fields
                     .iter()
-                    .filter_map(|field| Some((field.key.clone(), layout.slot_of(&field.property)?)))
+                    .filter_map(|field| {
+                        Some(mwl_types::CodecField {
+                            key: field.key.clone(),
+                            slot: layout.slot_of(&field.property)?,
+                            // A field whose declaration named no constructor
+                            // parameter is dropped for the same reason a
+                            // slotless one is: `mwl_types::derive` has already
+                            // reported it, and inventing a position would pass
+                            // this field's value as another parameter.
+                            param: field.param?,
+                            ty: field.ty,
+                            nullable: field.nullable,
+                        })
+                    })
                     .collect()
             }),
+            ctor_arity: exprs.codec(label).map_or(0, |codec| codec.ctor_arity),
         })
         .collect();
     // ADR 0053 § 4's generator state classes have no source declaration and

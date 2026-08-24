@@ -74,6 +74,10 @@ is why" — is this file.
   `args: [3]`. A **variadic tail is one argument**, whatever the call writes. **An instance member's
   receiver is argument slot 0 and is not in `params`**, so `plus(Duration)` is `args: [2]`. A mismatch is
   an index-out-of-bounds panic at the first call.
+- **A member on `registry::WRITTEN_CLASS_MEMBERS` takes one argument its row does not declare** — the
+  class its call site wrote, in slot 0 — so its helper's `args: [N]` is `params` + 1 (+ the options bag's
+  flattening). `tests/conformance_coverage.rs` looks for such a member spelled `Class::name<`, not
+  `Class::name(`, because that is what every call site writes.
 - **Registering a `Core` class narrows `Core`'s blanket trust for that name.** An unregistered
   `Core\X::y()` is waved through by `mwl_hir::members`; once `X` is in `registry::CLASSES`, an unknown
   member on it is a diagnostic. So adding a class can turn a fixture that "compiled" into one that

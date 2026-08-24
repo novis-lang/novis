@@ -77,8 +77,15 @@ fn every_part_one_member_has_a_conformance_case() {
     for class in registry::CLASSES {
         for method in class.methods {
             // The call spelling, with the open parenthesis, so `Str::trim`
-            // does not answer for `Str::trimStart`.
-            let call = format!("{}::{}(", class.name, method.name);
+            // does not answer for `Str::trimStart`. A member declaring a
+            // written type parameter is spelled `decodeAs<User>(` at every
+            // call site, so its own boundary is the `<`.
+            let opener = if method.written().is_empty() {
+                '('
+            } else {
+                '<'
+            };
+            let call = format!("{}::{}{opener}", class.name, method.name);
             if !source.contains(&call) {
                 uncovered.insert(call);
             }

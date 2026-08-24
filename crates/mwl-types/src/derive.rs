@@ -25,28 +25,25 @@
 //! `mwl-ir` to read back. It carries the *property* name rather than a slot
 //! index, because the slot order is
 //! [`crate::layout::ClassLayout`]'s and that table is built after checking; the
-//! two are joined in `mwl_ir::lower::lower_file`, which holds both.
+//! two are joined in `mwl_ir::lower::lower_file`, which holds both. Each field
+//! also carries the declared type a decoder checks against, erased to
+//! [`mwl_stdlib::CodecTy`], and the *constructor position* it fills — ADR 0071
+//! § 2's "a decode is an ordinary `new`" resolved to an index, so that nothing
+//! below this line looks a parameter up by name.
 //!
 //! # Known gaps
 //!
-//! 1. **Only the encode half is built.** `#[Json\Derive]` today produces the
-//!    field list `Core\Json::encode` writes an object from; the generated
-//!    decoder and `Core\Json::decodeAs<T>` are still owed, and
-//!    `mwl_stdlib::json`'s own gap 2 tracks them. § 5's `issues` list is not
-//!    among them any more — it is a property of `ParseError`
-//!    ([`crate::error_lib`]) and a value `mwl_stdlib::issue` builds — but
-//!    [`CodecField`] still carries no declared *type*, which is what a decoder
-//!    needs to check a field against and to name in an issue's message.
-//! 2. **A promoted constructor parameter is not a field**, because
+//! 1. **A promoted constructor parameter is not a field**, because
 //!    [`crate::layout`] does not give one a slot yet (its own gap 1) and
 //!    [`crate::signatures`] does not record it as a property. ADR 0071 § 1's
 //!    own example is written with promotion, so this is the first thing to
 //!    close — until then a deriving class must declare its properties.
-//! 3. **§ 2's codec-reachable type test is not applied**, and neither is § 7's
-//!    refusal of a class that hand-writes both halves. Both are decode-side
-//!    rules; a field of an unencodable type is refused at run time by
-//!    `mwl_stdlib::json`'s encoder rather than while compiling.
-//! 4. **`#[Db\Derive]`/`#[Db\Field]` resolve to nothing.** `Core\Db` is M8's,
+//! 2. **§ 2's codec-reachable type test is not applied**, and neither is § 7's
+//!    refusal of a class that hand-writes both halves. A field whose declared
+//!    type has no decoder is [`CodecTy::Opaque`] and is refused by
+//!    `mwl_stdlib::json` when a `decodeAs<T>` actually runs, rather than at
+//!    the declaration that wrote it.
+//! 3. **`#[Db\Derive]`/`#[Db\Field]` resolve to nothing.** `Core\Db` is M8's,
 //!    so the two names are deliberately not in [`ATTRIBUTES`] yet: a closed
 //!    list that names something with no pass behind it is worse than a short
 //!    one.
@@ -57,6 +54,8 @@ use mwl_syntax::ast::{
     Arg, AttributeGroup, CallArgs, ClassDecl, ClassMemberKind, ExprKind, Modifier, Param,
     PropertyMember,
 };
+
+use mwl_stdlib::CodecTy;
 
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -85,18 +84,59 @@ pub const FIELD: &str = r"Core\Json\Field";
 pub struct DerivedCodec {
     /// Every field the codec reads and writes, in declaration order. A
     /// `#[Json\Field(skip: true)]` property is absent rather than marked.
-    pub fields: Vec<CodecField>,
+    pub fields: Vec<DerivedField>,
+    /// How many parameters the class's `constructor` declares — what a
+    /// generated decoder has to fill before it can run one. Zero for a class
+    /// that declares none, which [`check_constructor_parameter`] has already
+    /// reported through [`crate::ctor_init`].
+    pub ctor_arity: usize,
 }
 
-/// One field of a [`DerivedCodec`].
+/// One field of a [`DerivedCodec`], as read off the *declaration*.
+///
+/// The slot-resolved half is [`mwl_stdlib::CodecField`]; the two are joined in
+/// `mwl_ir::lower::lower_file`, which is the one place both this table and
+/// [`crate::layout`]'s slot order are in hand.
 #[derive(Clone, Debug)]
-pub struct CodecField {
+pub struct DerivedField {
     /// The declaring property's own name, `$`-sigil stripped — the key into
     /// [`crate::layout::ClassLayout::slot_of`].
     pub property: String,
     /// The JSON key this field is written under: the property's own name, or
     /// `#[Json\Field(name: "...")]`'s override.
     pub key: String,
+    /// What a decode has to produce for this field — the declared property
+    /// type, erased to the closed roster a native decoder branches on.
+    pub ty: CodecTy,
+    /// Whether the declared type admits `null` (ADR 0071 § 4's second column).
+    pub nullable: bool,
+    /// This field's position in the constructor's parameter list, or `None`
+    /// when the class declares no matching parameter — which
+    /// [`check_constructor_parameter`] has already reported.
+    pub param: Option<usize>,
+}
+
+/// `declared`, erased to what a native decoder branches on.
+///
+/// ADR 0071 § 2's codec-reachable set is wider than this: an enum, a
+/// `decimal`, an `Instant`, an `array<T>`, a nested derived class and an
+/// inline shape are all reachable and all land on [`CodecTy::Opaque`] today —
+/// `mwl_stdlib::json`'s own gap owns the decoders they still need, and § 2's
+/// compile-time refusal of a genuinely unreachable type is this module's
+/// gap 3. Nothing here narrows what *encodes*, which walks the value rather
+/// than the declared type.
+fn codec_ty(declared: TypeId, env: &Env<'_>) -> CodecTy {
+    match env.interner.get(declared) {
+        Ty::Bool => CodecTy::Bool,
+        Ty::Int => CodecTy::Int,
+        Ty::Uint => CodecTy::Uint,
+        Ty::Float => CodecTy::Float,
+        // A `tainted` string is still a string on the wire; ADR 0071 § 6 makes
+        // the qualifier a call-site question, not a decoder one.
+        Ty::String | Ty::TaintedString => CodecTy::Str,
+        Ty::Mixed => CodecTy::Mixed,
+        _ => CodecTy::Opaque,
+    }
 }
 
 /// Records `decl`'s [`DerivedCodec`] if it carries `#[Json\Derive]`, reporting
@@ -115,7 +155,10 @@ pub(crate) fn check_class_derive(
         return;
     }
     let params = constructor_params(decl, env);
-    let mut codec = DerivedCodec::default();
+    let mut codec = DerivedCodec {
+        ctor_arity: params.map_or(0, <[Param]>::len),
+        ..DerivedCodec::default()
+    };
     for member in &decl.members {
         let ClassMemberKind::Property(p) = &member.kind else {
             continue;
@@ -131,13 +174,13 @@ pub(crate) fn check_class_derive(
     env.exprs.record_codec(class.to_string(), codec);
 }
 
-/// One property's [`CodecField`], or `None` when it is skipped or refused.
+/// One property's [`DerivedField`], or `None` when it is skipped or refused.
 fn codec_field(
     p: &PropertyMember,
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> Option<CodecField> {
+) -> Option<DerivedField> {
     let name = strip_sigil(span_text(env.src, p.name)).to_owned();
     let overrides = field_overrides(&p.attributes, ctx, env);
     if overrides.skip {
@@ -178,18 +221,31 @@ fn codec_field(
         );
         return None;
     }
-    check_constructor_parameter(p, &name, declared, params, ctx, env);
-    Some(CodecField {
+    let param = check_constructor_parameter(p, &name, declared, params, ctx, env);
+    let nullable = env.interner.is_nullable(declared);
+    // The `null` arm is what nullability *is*, so the decode target is the
+    // rest of the union — `?int` decodes an `int` or a JSON null, never a
+    // third thing.
+    let carried = if nullable {
+        env.interner.without_null(declared)
+    } else {
+        declared
+    };
+    Some(DerivedField {
         key: overrides.name.unwrap_or_else(|| name.clone()),
         property: name,
+        ty: codec_ty(carried, env),
+        nullable,
+        param,
     })
 }
 
 /// ADR 0071 § 2's "every non-skipped field must also be a constructor
 /// parameter of the same name and the same type".
 ///
-/// Reports and returns; the field is recorded either way, so one bad property
-/// does not silently drop the rest of the wire contract.
+/// Reports and returns the parameter's *position*, which is what a generated
+/// decoder fills; the field is recorded either way, so one bad property does
+/// not silently drop the rest of the wire contract.
 fn check_constructor_parameter(
     p: &PropertyMember,
     name: &str,
@@ -197,15 +253,16 @@ fn check_constructor_parameter(
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) {
+) -> Option<usize> {
     // A class with no written constructor has no parameter list to disagree
     // with, and `mwl_types::ctor_init` has already reported that its properties
     // are not definitely assigned (ADR 0022) — a second diagnostic here would
     // only bury that one.
-    let Some(params) = params else { return };
-    let Some(param) = params
+    let params = params?;
+    let Some((index, param)) = params
         .iter()
-        .find(|param| strip_sigil(span_text(env.src, param.name)) == name)
+        .enumerate()
+        .find(|(_, param)| strip_sigil(span_text(env.src, param.name)) == name)
     else {
         env.diags.report(
             Diagnostic::error(
@@ -219,11 +276,11 @@ fn check_constructor_parameter(
                  `#[Json\\Field(skip: true)]`",
             ),
         );
-        return;
+        return None;
     };
     let param_ty = crate::lower::lower_optional_type(param.ty.as_ref(), ctx, env);
     if param_ty == declared {
-        return;
+        return Some(index);
     }
     let want = env.interner.describe(declared);
     let got = env.interner.describe(param_ty);
@@ -239,6 +296,7 @@ fn check_constructor_parameter(
              it to the constructor, so the two have to agree",
         ),
     );
+    Some(index)
 }
 
 /// Whether `ty` carries ADR 0033's `secret` qualifier.

@@ -1,0 +1,63 @@
+--TEST--
+`Core\Json::decodeAs<T>` runs the class's own constructor, and one failed decode reports every bad field at once — ADR 0071 §§ 2, 4 and 5
+--FILE--
+<?mwl
+#[Core\Json\Derive]
+class Row {
+    public string $name;
+    // ADR 0071 § 4: nullability is a property of the *type*, so `null` is a
+    // legal value here and an issue on every other field.
+    public ?int $rank;
+    #[Core\Json\Field(name: "is_live")]
+    public bool $live;
+
+    public function constructor(string $name, ?int $rank, bool $live) {
+        $this->name = $name;
+        $this->rank = $rank;
+        $this->live = $live;
+    }
+}
+
+// § 2: a decode is an ordinary `new`, so the decoded object is the one the
+// constructor built and encodes back to the document it came from.
+var $row = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":1,\"is_live\":true}");
+echo "name=", $row->name, "\n";
+echo "round=", Core\Json::encode($row), "\n";
+
+// § 4's third row: `?T` accepts a present `null`.
+var $blank = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":null,\"is_live\":false}");
+echo "blank=", Core\Json::encode($blank), "\n";
+
+// § 5: one throw, carrying every field that failed — a missing key, a wrong
+// type and a `null` where the type does not admit one.
+try {
+    Core\Json::decodeAs<Row>("{\"rank\":\"first\",\"is_live\":null}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+}
+
+// A renamed field is read under its wire key and nothing else: `live` is not
+// `is_live`, so this is one missing field rather than none.
+try {
+    Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":1,\"live\":true}");
+    echo "not reached\n";
+} catch (ParseError $renamed) {
+    echo "renamed=", Core\Arr::count($renamed->issues), "\n";
+}
+
+// A malformed document is one issue with no field to point at, so a caller
+// reads the same shape whichever half failed.
+try {
+    Core\Json::decodeAs<Row>("{oops}");
+    echo "not reached\n";
+} catch (ParseError $malformed) {
+    echo "malformed=", Core\Arr::count($malformed->issues), "\n";
+}
+--EXPECT--
+name=ada
+round={"name":"ada","rank":1,"is_live":true}
+blank={"name":"ada","rank":null,"is_live":false}
+issues=3
+renamed=1
+malformed=1

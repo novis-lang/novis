@@ -224,11 +224,13 @@ pub mod ty;
 pub use check::{HOOK_VALUE_PARAM, check_program};
 pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
-pub use derive::{CodecField, DerivedCodec};
+pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
+pub use mwl_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use mwl_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
+pub use mwl_stdlib::{CodecField, CodecTy};
 pub use ty::{Ty, TypeId, TypeInterner};
 
 use mwl_diagnostics::{SourceFile, Span};
