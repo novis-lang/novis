@@ -22,6 +22,16 @@
 //! variable — it is exactly that shape of identifier, just spelled without a
 //! `$` sigil.
 //!
+//! # Who calls it
+//!
+//! **Whoever parses a file checks that file's casing**, which is what makes
+//! the check fire exactly once per file no matter which entry point compiled
+//! it: `mwl-cli` calls this straight after [`crate::parse_file`] on the file
+//! it was pointed at, and `mwl_hir::resolve_program` calls it on each file
+//! it parses for a `require`. Nothing else parses a file, so there is no
+//! third call site and no path that skips the rule ADR 0029 says has no
+//! suppression.
+//!
 //! Only a *declaration* site is checked, never a reference: `Class::method`,
 //! `$obj->prop`, and an `extends`/`implements` target all name something
 //! declared elsewhere, which was (or will be) checked once, at that other

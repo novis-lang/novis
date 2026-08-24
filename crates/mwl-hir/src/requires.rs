@@ -70,7 +70,7 @@ use mwl_syntax::ast::{
     DestructureTarget, Expr, ExprKind, FnBody, MemberName, NamespaceDecl, Stmt, StmtKind,
     StringPart,
 };
-use mwl_syntax::parse_file;
+use mwl_syntax::{check_casing, parse_file};
 use rustc_hash::FxHashSet;
 
 use crate::aliases::AliasResolver;
@@ -184,6 +184,7 @@ pub fn resolve_program(
                     continue;
                 };
                 let new_stmts = parse_file(map.file(new_id), diags);
+                check_casing(&new_stmts, map.file(new_id), diags);
                 let mut new_chain = chain.clone();
                 new_chain.push(canonical);
                 work.push((new_id, new_stmts, new_chain));

@@ -987,7 +987,7 @@ fn infer(
                 MemberName::Ident(name_span) => {
                     resolve_class_expr(class, ctx, env).and_then(|qname| {
                         let name = span_text(env.src, *name_span).to_owned();
-                        resolve_method(&qname, &name, env.signatures, env.graph).map(
+                        let found = resolve_method(&qname, &name, env.signatures, env.graph).map(
                             |(owner, sig)| {
                                 check_interface_private_visibility(
                                     &owner, &name, &sig, *name_span, ctx, env,
@@ -995,9 +995,21 @@ fn infer(
                                 // The declaring class — see the `MethodCall`
                                 // arm above for why the receiver's own is the
                                 // wrong label.
-                                (owner, name, sig)
+                                (owner, name.clone(), sig)
                             },
-                        )
+                        );
+                        // The same narrowing of `Core`'s blanket trust the
+                        // `ClassConstAccess` arm below explains: `mwl_hir`
+                        // waves every `Core\…::anything` through because
+                        // nothing declares it, but `mwl_stdlib::registry`
+                        // states every member `Core` has, so a name that is
+                        // not one is knowably wrong *here*. Without this a
+                        // typo reaches `mwl-ir` as a static call with no
+                        // resolved target recorded, which panics.
+                        if found.is_none() && qname.is_core() {
+                            report_unknown_member(expr.span, &qname, &name, "member", env);
+                        }
+                        found
                     })
                 }
                 _ => None,
@@ -1067,8 +1079,10 @@ fn infer(
                     if let Some(value) = env.enums.case(&qname, &case) {
                         env.exprs.record(expr.span, ExprInfo::EnumCase { value });
                     } else if qname.is_core() {
-                        // The one place `Core`'s blanket trust is *narrowed*
-                        // rather than relied on: `mwl_hir::members` waves a
+                        // One of the two places `Core`'s blanket trust is
+                        // *narrowed* rather than relied on — the `StaticCall`
+                        // arm above does the same for a member name:
+                        // `mwl_hir::members` waves a
                         // `Core\…::Anything` through because nothing declares
                         // it, but `mwl_stdlib::registry::ENUMS` states every
                         // case a `Core` enum has, so a name that is not one is

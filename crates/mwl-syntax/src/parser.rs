@@ -2656,7 +2656,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             Diagnostic::error(code::E_EVAL_UNSUPPORTED, "`eval` is not supported")
                 .with_primary(span, "MWL compiles ahead of execution")
                 .with_help(
-                    "give the code a path: `include` it to share this frame, or `spawn script` \
+                    "give the code a path: `require` it to share this frame, or `spawn script` \
                      it to isolate it",
                 ),
         );
