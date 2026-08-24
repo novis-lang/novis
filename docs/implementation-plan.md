@@ -29,8 +29,9 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 252 (in
+> `mwl-stdlib` (`Arr` × 12, `Str` × 15, `granularity`, `Order`, and the conformance-coverage gate),
+> `mwl-codegen`, `mwl-cli` (`ast`, `check`,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 255 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -45,9 +46,10 @@
 > full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification*
 > section says what its slice covers, not this field.
 >
-> **Open now:** **both Stage 4 suites are over their thresholds — conformance 252 against 250,
-> differential 82 against 60** — and the acceptance test now stops one check later, at `mwl-stdlib`'s
-> `every_part_one_member_has_a_conformance_case`, which does not exist yet. The corpus stays the fastest
+> **Open now:** **both Stage 4 suites are over their thresholds — conformance 255 against 250,
+> differential 82 against 60 — and `mwl-stdlib`'s
+> `every_part_one_member_has_a_conformance_case` now exists and passes**: every registered `Core` member
+> is called by a `.mwlt` case, and a new member cannot land without one. The corpus stays the fastest
 > bug-finder there is: writing it turned up, and this milestone fixed, a loop-header phi that skipped
 > `try`/`catch`/`finally` bodies, an enum auto-increment that could not follow a negative case, a
 > `parent::constructor(...)` obligation demanded of subclasses whose parent declares no constructor, four
@@ -62,8 +64,10 @@
 > `finally` it is suspended inside**, `mwl-ir`'s known gap 18.
 > Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
 > rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
-> type, a `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one
-> shape still unstatable. Also two re-opened M1 grammar slices (`autoload`, the duration literal) — see
+> type, a `Core`-owned enum and an absent option all work end to end; a `?T` parameter is still
+> unstatable, and `array<T>`'s invariance is what keeps `Arr::flip`'s spec signature from taking an
+> `array<string>` (both in `mwl-stdlib`'s own gap list).
+> Also two re-opened M1 grammar slices (`autoload`, the duration literal) — see
 > M1 — plus ADR 0047's now-unblocked M2 checker row, and **class-member `private`/`protected` visibility,
 > which nothing enforces** (`mwl-types`' own gap list). In docs, one thing remains:
 > `docs/spec/02-php-migration.md` is 31% classified (strings, arrays, numbers, conversions), the rest one
@@ -72,8 +76,9 @@
 >
 > **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
 > under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
-> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed. The first check still failing
-> is Stage 4's `mwl-stdlib` guard test, which is written when `Core` §§ 1–2 are.
+> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed, and the three `Core\Arr`
+> members added since were leak-checked the same way before they landed. Stage 4's `mwl-stdlib` guard
+> test now passes, so the acceptance run reaches Stage 5's three named guards.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
