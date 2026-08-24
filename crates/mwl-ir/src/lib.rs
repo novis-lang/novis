@@ -24,8 +24,9 @@
 //!   array-element read and write, array literals including an explicit
 //!   `key =>` and `$a[] =` append, `&&`/`||`/`!` and the ternary/elvis
 //!   operator, ADR 0035's truthy conversion, ADR 0031 closure literals,
-//!   `instanceof`, `??`, the literal `null`, and ADR 0007 § 2's free and total
-//!   conversion rows.
+//!   `instanceof`, `??`, the literal `null`, ADR 0007 § 2's scalar conversion
+//!   rows — free, total and checked alike — and ADR 0066's non-throwing
+//!   `as ?T` over the checked numeric targets.
 //! - **Types** — `int`/`uint`/`float`/`bool` scalars, `string`, `bytes`,
 //!   `array<T>` (element type erased — see [`ty::Ty`]), `object` (a class or
 //!   enum, likewise erased), `mixed`, `null`, `?T` and any other union (all
@@ -114,17 +115,27 @@
 //!    a declared type ([`lower::Lowering::coerce`]); and `??`
 //!    ([`lower::Lowering::lower_coalesce`]), whose non-`null` arm narrows
 //!    against the type `mwl_types::expr_table::ExprInfo::Coalesce` records.
+//!    ADR 0066's `as ?T` ([`lower::Lowering::convert_or_null`]) is the first
+//!    thing here that *reads* a tag instead — its helper dispatches on the
+//!    operand's, which is what a `mixed` source costs, and is the shape the
+//!    rest of this gap closes in.
 //!    What does not: reading a tagged value *without* a checker-proven
 //!    narrowing — arithmetic on a `mixed`, `.` concatenation, ADR 0035's
 //!    truthy table, an array access through a tagged base, `?->`. Each panics
 //!    naming itself, and closing them adds [`ir::Helper`] variants dispatching
 //!    on the tag, not a second representation.
-//! 4. **Only ADR 0007 § 2's free and total conversion rows lower.** Every
-//!    *checked* row — `int` ↔ `uint`, `float` to an integer, `string` to a
-//!    number, ADR 0010 § 5's integer-into-an-enum — needs a throwing helper
-//!    [`ir::Helper`] has no tag for, and the enum row additionally needs its
-//!    case set carried to the check. `EnumName` ↔ `string` is not a gap: ADR
-//!    0010 § 5 leaves it out of the language.
+//! 4. **One conversion row is missing, and every ADR 0066 § 3 refusal is.**
+//!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both
+//!    the throwing form ([`lower::Lowering::convert`]) and ADR 0066's
+//!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
+//!    still absent is ADR 0010 § 5's integer *into* an enum, in either form:
+//!    it throws on a value no case names, which needs the declaration's case
+//!    set carried to the check, and nothing here expresses one. `EnumName` ↔
+//!    `string` is not a gap — ADR 0010 § 5 leaves it out of the language.
+//!    Separately, ADR 0066 § 3 makes `as ?T` a **compile error** where the
+//!    conversion cannot fail (`$i as ?string`) or does not exist at all
+//!    (`$arr as ?int`); `mwl_types` refuses neither yet, so both reach
+//!    lowering and panic naming that ADR instead of being diagnosed.
 //! 5. **A ternary whose branches lower to two different [`ty::Ty`]
 //!    representations panics.** It has no recorded result type to widen both
 //!    arms to, which is the one thing `mwl_types::expr_table::ExprInfo::Coalesce`

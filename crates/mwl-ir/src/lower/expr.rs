@@ -956,8 +956,21 @@ impl<'a> Lowering<'a> {
                 // so a bare integer literal inside one is an `int` here for
                 // the same reason it is there.
                 let (v, from) = self.lower_expr(inner, None, env, cur);
-                let to = lower_decl_type(ty, self.exprs, self.checked_types);
-                self.convert(v, from, to, inner, env, *cur)
+                // ADR 0066's `as ?T` is read off the *annotation*, before
+                // `lower_decl_type` erases it: `?string` and `?int` are both
+                // `Ty::Tagged`, so a conversion between them would look like
+                // `from == to` — the one shape `Self::convert` answers by
+                // doing nothing at all.
+                match nullable_target(ty) {
+                    Some(target) => {
+                        let to = lower_decl_type(target, self.exprs, self.checked_types);
+                        self.convert_or_null(v, from, to, inner, *cur)
+                    }
+                    None => {
+                        let to = lower_decl_type(ty, self.exprs, self.checked_types);
+                        self.convert(v, from, to, inner, env, *cur)
+                    }
+                }
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
@@ -1263,6 +1276,75 @@ impl<'a> Lowering<'a> {
                  one. See the crate docs' known gaps"
             ),
         }
+    }
+    /// Lowers one `expr as ?T` —
+    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// § 1's non-throwing form of [`Self::convert`], where `to` is the target
+    /// *inside* the `?`.
+    ///
+    /// One [`InstKind::HelperCall`] per target type, and no error edge: the
+    /// helper answers `null` where the throwing row would throw, so it cannot
+    /// fail and needs neither [`Self::emit_fallible`] nor a landing block. The
+    /// result is [`Ty::Tagged`] — the one representation `?T` has
+    /// ([`Ty::Tagged`]'s own doc comment) — and every source is one helper,
+    /// because the helper dispatches on the operand's runtime tag rather than
+    /// on a statically chosen row. That is what makes § 2's "a `null` operand
+    /// yields `null`" and § 3's "from `mixed` every target has a checked path"
+    /// need no branch here: a [`Ty::Tagged`] operand is already the `Value`
+    /// the helper reads.
+    ///
+    /// Ownership matches the checked rows exactly: a refcounted operand this
+    /// conversion consumed is released once the helper has read it, unless a
+    /// durable slot still owns it ([`is_aliasing_read`]). The result never
+    /// carries a refcounted payload — every target is a scalar — so nothing is
+    /// retained.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming ADR 0066 § 3 for the two shapes that ADR makes a compile
+    /// error and `mwl_types` does not yet refuse: a conversion that **cannot
+    /// fail** (`$i as ?int`, `$i as ?string`), which the target-type match and
+    /// the `from == to` guard catch between them, and a target with no
+    /// conversion at all. An enum or literal-type target is that ADR's other
+    /// available form and is not built either — it needs the case set
+    /// [`Self::convert`]'s own gap already names.
+    pub(super) fn convert_or_null(
+        &mut self,
+        v: ValueId,
+        from: Ty,
+        to: Ty,
+        operand: &Expr,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
+        let helper = match to {
+            _ if from == to => panic!(
+                "mwl-ir: `{from:?} as ?{to:?}` converts a value to the representation it already \
+                 has, which cannot fail — ADR 0066 § 3 makes that a compile error naming `as T`, \
+                 and `mwl_types` does not refuse it yet"
+            ),
+            Ty::Int => Helper::ToIntOrNull,
+            Ty::Uint => Helper::ToUintOrNull,
+            Ty::Float => Helper::ToFloatOrNull,
+            other => panic!(
+                "mwl-ir lowers ADR 0066's `as ?T` for the checked numeric targets — got \
+                 `{from:?} as ?{other:?}`. A total conversion (`as ?string`, `as ?bool`) is that \
+                 ADR § 3's \"cannot fail\" row and a compile error; an enum or literal-type \
+                 target is its available form still missing here, blocked on the same case set \
+                 `Lowering::convert`'s own gap names. See the crate docs' known gaps"
+            ),
+        };
+        let out = self.emit(
+            cur,
+            Ty::Tagged,
+            InstKind::HelperCall {
+                helper,
+                args: vec![v],
+            },
+        );
+        if from.is_refcounted() && !self.aliasing_read(operand) {
+            self.emit_release(cur, v);
+        }
+        out
     }
     /// Converts an already-lowered `(v, ty)` pair through ADR 0035's truthy
     /// table, with no ownership decision attached — see [`Self::truthy_value`]
@@ -1905,5 +1987,23 @@ impl<'a> Lowering<'a> {
                  subscript and array-literal explicit-key sites, so this should be unreachable"
             ),
         }
+    }
+}
+
+/// The `T` of an `as ?T` annotation, or `None` for any other target.
+///
+/// Read off the AST rather than off the lowered [`Ty`] because that erasure is
+/// exactly what loses the distinction: `?string` and `?int` are both
+/// [`Ty::Tagged`] (see its own doc comment), so a conversion between them is
+/// indistinguishable from a conversion to the type the value already has.
+/// `(...)` is transparent here, the same way [`lower_decl_type`] treats it.
+/// A `null|T` *union* spelling is deliberately not folded in: ADR 0066 § 1
+/// defines the operator over `?T`, and a union target has no lowering at all
+/// yet — one gap is better than a second spelling that half works.
+fn nullable_target(ty: &Type) -> Option<&Type> {
+    match &ty.kind {
+        TypeKind::Nullable(inner) => Some(inner),
+        TypeKind::Paren(inner) => nullable_target(inner),
+        _ => None,
     }
 }

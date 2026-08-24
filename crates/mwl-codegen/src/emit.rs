@@ -2057,6 +2057,9 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::StrToInt => "mwl_str_to_int",
         Helper::StrToUint => "mwl_str_to_uint",
         Helper::StrToFloat => "mwl_str_to_float",
+        Helper::ToIntOrNull => "mwl_to_int_or_null",
+        Helper::ToUintOrNull => "mwl_to_uint_or_null",
+        Helper::ToFloatOrNull => "mwl_to_float_or_null",
         other => {
             return Err(CodegenError::Unsupported(format!(
                 "the runtime helper {other:?}"

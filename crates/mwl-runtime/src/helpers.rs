@@ -146,13 +146,98 @@ fn does_not_fit(what: &str, target: &str) -> Fault {
     Fault::thrown(format!("cannot convert {what} to `{target}`"))
 }
 
+/// ADR 0007 § 2's checked conversion rows, one function each, answering `None`
+/// exactly where the row fails.
+///
+/// Every row has two entry points and never a third: the throwing helper below
+/// it, which turns a `None` into [`does_not_fit`], and [`to_int`]/[`to_uint`]/
+/// [`to_float`], which turn the same `None` into `null` for
+/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)'s
+/// `expr as ?T`. That ADR's "one implementation now exists because there is one
+/// operation" is what this split makes true rather than promised — the throwing
+/// and the nullable form cannot drift apart, because there is one row.
+mod row {
+    /// The magnitude past which an `f64` no longer represents every integer —
+    /// ADR 0007 § 2's 2^53 boundary, shared by both integer-to-`float` rows.
+    const F64_EXACT_INT_LIMIT: u64 = 1 << 53;
+
+    pub(super) fn int_to_uint(value: i64) -> Option<u64> {
+        u64::try_from(value).ok()
+    }
+
+    pub(super) fn uint_to_int(value: u64) -> Option<i64> {
+        i64::try_from(value).ok()
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the magnitude check is exactly what makes this exact"
+    )]
+    pub(super) fn int_to_float(value: i64) -> Option<f64> {
+        (value.unsigned_abs() <= F64_EXACT_INT_LIMIT).then_some(value as f64)
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the magnitude check is exactly what makes this exact"
+    )]
+    pub(super) fn uint_to_float(value: u64) -> Option<f64> {
+        (value <= F64_EXACT_INT_LIMIT).then_some(value as f64)
+    }
+
+    pub(super) fn float_to_int(value: f64) -> Option<i64> {
+        exact_integral(value).and_then(|v| i64::try_from(v).ok())
+    }
+
+    pub(super) fn float_to_uint(value: f64) -> Option<u64> {
+        exact_integral(value).and_then(|v| u64::try_from(v).ok())
+    }
+
+    pub(super) fn str_to_int(text: &str) -> Option<i64> {
+        text.parse().ok()
+    }
+
+    pub(super) fn str_to_uint(text: &str) -> Option<u64> {
+        text.parse().ok()
+    }
+
+    /// `f64::from_str` accepts `inf`/`nan`/`infinity` in any case; none is an
+    /// "exact numeric literal", so each is refused here rather than becoming a
+    /// value no source literal could have written.
+    pub(super) fn str_to_float(text: &str) -> Option<f64> {
+        text.parse::<f64>().ok().filter(|value| value.is_finite())
+    }
+
+    /// `value` as an exact integer, or `None` if it is not integral, is not
+    /// finite, or is too large for the `i128` both integer targets fit inside.
+    ///
+    /// ADR 0007 § 2: "integral and in range, or throws. Rounding is
+    /// `floor`/`ceil`/`round`, said out loud" — so `1.5` is refused here rather
+    /// than silently becoming any of `1`, `2`, or `1`.
+    fn exact_integral(value: f64) -> Option<i128> {
+        if !value.is_finite() || value.fract() != 0.0 {
+            return None;
+        }
+        // Every `f64` with a zero fractional part and a magnitude below 2^127
+        // is exactly an integer, and `i128` holds all of them.
+        if value.abs() >= 2.0_f64.powi(127) {
+            return None;
+        }
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "the two guards above leave only values `i128` represents exactly"
+        )]
+        Some(value as i128)
+    }
+}
+
 crate::mwl_helper! {
     /// `mwl_ir::Helper::IntToUint`.
     fn mwl_int_to_uint(_ctx, args: [1]) {
         let value = expect_tag!("mwl_int_to_uint", args[0], as_int, Tag::Int);
-        u64::try_from(value)
+        row::int_to_uint(value)
             .map(Value::uint)
-            .map_err(|_| does_not_fit(&format!("`int` {value}"), "uint"))
+            .ok_or_else(|| does_not_fit(&format!("`int` {value}"), "uint"))
     }
 }
 
@@ -160,28 +245,19 @@ crate::mwl_helper! {
     /// `mwl_ir::Helper::UintToInt`.
     fn mwl_uint_to_int(_ctx, args: [1]) {
         let value = expect_tag!("mwl_uint_to_int", args[0], as_uint, Tag::Uint);
-        i64::try_from(value)
+        row::uint_to_int(value)
             .map(Value::int)
-            .map_err(|_| does_not_fit(&format!("`uint` {value}"), "int"))
+            .ok_or_else(|| does_not_fit(&format!("`uint` {value}"), "int"))
     }
 }
-
-/// The magnitude past which an `f64` no longer represents every integer —
-/// ADR 0007 § 2's 2^53 boundary, shared by both integer-to-`float` helpers.
-const F64_EXACT_INT_LIMIT: u64 = 1 << 53;
 
 crate::mwl_helper! {
     /// `mwl_ir::Helper::IntToFloat`.
     fn mwl_int_to_float(_ctx, args: [1]) {
         let value = expect_tag!("mwl_int_to_float", args[0], as_int, Tag::Int);
-        if value.unsigned_abs() > F64_EXACT_INT_LIMIT {
-            return Err(does_not_fit(&format!("`int` {value}"), "float"));
-        }
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "the magnitude check above is exactly what makes this exact"
-        )]
-        Ok(Value::float(value as f64))
+        row::int_to_float(value)
+            .map(Value::float)
+            .ok_or_else(|| does_not_fit(&format!("`int` {value}"), "float"))
     }
 }
 
@@ -189,14 +265,9 @@ crate::mwl_helper! {
     /// `mwl_ir::Helper::UintToFloat`.
     fn mwl_uint_to_float(_ctx, args: [1]) {
         let value = expect_tag!("mwl_uint_to_float", args[0], as_uint, Tag::Uint);
-        if value > F64_EXACT_INT_LIMIT {
-            return Err(does_not_fit(&format!("`uint` {value}"), "float"));
-        }
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "the magnitude check above is exactly what makes this exact"
-        )]
-        Ok(Value::float(value as f64))
+        row::uint_to_float(value)
+            .map(Value::float)
+            .ok_or_else(|| does_not_fit(&format!("`uint` {value}"), "float"))
     }
 }
 
@@ -204,8 +275,7 @@ crate::mwl_helper! {
     /// `mwl_ir::Helper::FloatToInt`.
     fn mwl_float_to_int(_ctx, args: [1]) {
         let value = expect_tag!("mwl_float_to_int", args[0], as_float, Tag::Float);
-        exact_integral(value)
-            .and_then(|v| i64::try_from(v).ok())
+        row::float_to_int(value)
             .map(Value::int)
             .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "int"))
     }
@@ -215,33 +285,10 @@ crate::mwl_helper! {
     /// `mwl_ir::Helper::FloatToUint`.
     fn mwl_float_to_uint(_ctx, args: [1]) {
         let value = expect_tag!("mwl_float_to_uint", args[0], as_float, Tag::Float);
-        exact_integral(value)
-            .and_then(|v| u64::try_from(v).ok())
+        row::float_to_uint(value)
             .map(Value::uint)
             .ok_or_else(|| does_not_fit(&format!("`float` {value}"), "uint"))
     }
-}
-
-/// `value` as an exact integer, or `None` if it is not integral, is not
-/// finite, or is too large for the `i128` both integer targets fit inside.
-///
-/// ADR 0007 § 2: "integral and in range, or throws. Rounding is
-/// `floor`/`ceil`/`round`, said out loud" — so `1.5` is refused here rather
-/// than silently becoming any of `1`, `2`, or `1`.
-fn exact_integral(value: f64) -> Option<i128> {
-    if !value.is_finite() || value.fract() != 0.0 {
-        return None;
-    }
-    // Every `f64` with a zero fractional part and a magnitude below 2^127 is
-    // exactly an integer, and `i128` holds all of them.
-    if value.abs() >= 2.0_f64.powi(127) {
-        return None;
-    }
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "the two guards above leave only values `i128` represents exactly"
-    )]
-    Some(value as i128)
 }
 
 /// The one shape ADR 0007 § 2's `string` → number row accepts: the *whole*
@@ -259,9 +306,9 @@ crate::mwl_helper! {
             .as_str_bytes()
             .ok_or_else(|| wrong_tag("mwl_str_to_int", Tag::Str, args[0]))?;
         let text = numeric_text(bytes, "mwl_str_to_int", args[0])?;
-        text.parse::<i64>()
+        row::str_to_int(text)
             .map(Value::int)
-            .map_err(|_| does_not_fit(&format!("string {text:?}"), "int"))
+            .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "int"))
     }
 }
 
@@ -272,9 +319,9 @@ crate::mwl_helper! {
             .as_str_bytes()
             .ok_or_else(|| wrong_tag("mwl_str_to_uint", Tag::Str, args[0]))?;
         let text = numeric_text(bytes, "mwl_str_to_uint", args[0])?;
-        text.parse::<u64>()
+        row::str_to_uint(text)
             .map(Value::uint)
-            .map_err(|_| does_not_fit(&format!("string {text:?}"), "uint"))
+            .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "uint"))
     }
 }
 
@@ -285,15 +332,84 @@ crate::mwl_helper! {
             .as_str_bytes()
             .ok_or_else(|| wrong_tag("mwl_str_to_float", Tag::Str, args[0]))?;
         let text = numeric_text(bytes, "mwl_str_to_float", args[0])?;
-        // `f64::from_str` accepts `inf`/`nan`/`infinity` in any case; none is
-        // an "exact numeric literal", so each is refused here rather than
-        // becoming a value no source literal could have written.
-        if text.parse::<f64>().is_ok_and(f64::is_finite) {
-            #[expect(clippy::unwrap_used, reason = "the `is_ok_and` above proved it parses")]
-            Ok(Value::float(text.parse::<f64>().unwrap()))
-        } else {
-            Err(does_not_fit(&format!("string {text:?}"), "float"))
-        }
+        row::str_to_float(text)
+            .map(Value::float)
+            .ok_or_else(|| does_not_fit(&format!("string {text:?}"), "float"))
+    }
+}
+
+/// The operand's bytes as text, for the two `string` rows — `None` where a
+/// `Tag::Str` payload is not UTF-8, which is a failed conversion for
+/// ADR 0066's form rather than the miscompile [`numeric_text`] reports.
+fn str_operand(value: &Value) -> Option<&str> {
+    str::from_utf8(value.as_str_bytes()?).ok()
+}
+
+/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 1's
+/// `expr as ?int`: the value `as int` would produce, or `null` where it would
+/// throw.
+///
+/// Dispatches on the operand's **tag**, which is why one function covers every
+/// source. That is not a shortcut: it is what makes § 2's "a `null` operand
+/// yields `null`" and § 3's "from `mixed` every target has a checked path" the
+/// same code as `"42" as ?int`, with no branch in lowering and no second
+/// implementation of any row (see [`row`]). A tag ADR 0007 § 2 defines no row
+/// from — an array, an object, a `bool` — is a conversion that does not exist,
+/// which § 3 makes a compile error for a statically-known operand and `null`
+/// for a `mixed` one; this is the `mixed` answer.
+fn to_int(value: Value) -> Value {
+    let converted = match value.tag() {
+        Some(Tag::Int) => value.as_int(),
+        Some(Tag::Uint) => value.as_uint().and_then(row::uint_to_int),
+        Some(Tag::Float) => value.as_float().and_then(row::float_to_int),
+        Some(Tag::Str) => str_operand(&value).and_then(row::str_to_int),
+        _ => None,
+    };
+    converted.map_or_else(Value::null, Value::int)
+}
+
+/// [`to_int`]'s row set, unsigned — ADR 0066 § 1's `expr as ?uint`.
+fn to_uint(value: Value) -> Value {
+    let converted = match value.tag() {
+        Some(Tag::Uint) => value.as_uint(),
+        Some(Tag::Int) => value.as_int().and_then(row::int_to_uint),
+        Some(Tag::Float) => value.as_float().and_then(row::float_to_uint),
+        Some(Tag::Str) => str_operand(&value).and_then(row::str_to_uint),
+        _ => None,
+    };
+    converted.map_or_else(Value::null, Value::uint)
+}
+
+/// [`to_int`]'s row set, landing on `float` — ADR 0066 § 1's `expr as ?float`.
+fn to_float(value: Value) -> Value {
+    let converted = match value.tag() {
+        Some(Tag::Float) => value.as_float(),
+        Some(Tag::Int) => value.as_int().and_then(row::int_to_float),
+        Some(Tag::Uint) => value.as_uint().and_then(row::uint_to_float),
+        Some(Tag::Str) => str_operand(&value).and_then(row::str_to_float),
+        _ => None,
+    };
+    converted.map_or_else(Value::null, Value::float)
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToIntOrNull` — see [`to_int`].
+    fn mwl_to_int_or_null(_ctx, args: [1]) {
+        Ok(to_int(args[0]))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToUintOrNull` — see [`to_uint`].
+    fn mwl_to_uint_or_null(_ctx, args: [1]) {
+        Ok(to_uint(args[0]))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToFloatOrNull` — see [`to_float`].
+    fn mwl_to_float_or_null(_ctx, args: [1]) {
+        Ok(to_float(args[0]))
     }
 }
 
@@ -385,6 +501,9 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_str_to_int", address(mwl_str_to_int)),
         ("mwl_str_to_uint", address(mwl_str_to_uint)),
         ("mwl_str_to_float", address(mwl_str_to_float)),
+        ("mwl_to_int_or_null", address(mwl_to_int_or_null)),
+        ("mwl_to_uint_or_null", address(mwl_to_uint_or_null)),
+        ("mwl_to_float_or_null", address(mwl_to_float_or_null)),
         ("mwl_echo_str", address(mwl_echo_str)),
         (
             "mwl_str_new",

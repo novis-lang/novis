@@ -993,6 +993,24 @@ pub enum Helper {
     StrToUint,
     /// `$s as float` — the whole string must be an exact numeric literal.
     StrToFloat,
+    /// `$x as ?int` — [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// § 1's non-throwing form of every row above that lands on `int`: the
+    /// value `as int` would produce, or `null` where it would throw. Cannot
+    /// fail, so unlike the nine throwing rows it carries no error edge, and
+    /// its result is a [`crate::ty::Ty::Tagged`] value rather than a bare
+    /// `int`.
+    ///
+    /// **One tag per target, not one per (source, target) pair.** This helper
+    /// dispatches on the operand's runtime tag, which is what makes ADR 0066
+    /// § 2's "a `null` operand yields `null`" and § 3's "from `mixed` every
+    /// target has a checked path" the same code as `"42" as ?int` rather than
+    /// three lowering branches — the operand is already a tagged `Value` by
+    /// the time any helper sees it (`mwl_codegen`'s `store_value`).
+    ToIntOrNull,
+    /// `$x as ?uint` — [`Self::ToIntOrNull`]'s row set, unsigned.
+    ToUintOrNull,
+    /// `$x as ?float` — [`Self::ToIntOrNull`]'s row set, landing on `float`.
+    ToFloatOrNull,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `mwl run`, decided in `docs/agent/loop-goal.md`. Defines no

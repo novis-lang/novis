@@ -36,7 +36,7 @@
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
 > `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `granularity`, `Order`, and the
 > conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 268 (in
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 269 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -48,9 +48,10 @@
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
 > 0065, **0029/0030** (the casing checker existed but no pipeline called it), **0053 and 0009 in full**,
-> and **0066's `?T` half** — a nullable binding, parameter, property and return, `null` itself and `??`
-> all run, leaving that ADR's `as ?T` operator owed. Instance calls dispatch on the receiver's runtime
-> class. Each ADR's own *Verification* section says what its slice covers, not this field.
+> and **0066 §§ 1–3 for the checked numeric targets** — a nullable binding, parameter, property and
+> return, `null` itself, `??` and now `as ?int`/`?uint`/`?float` all run, leaving that ADR's enum target
+> and every § 3 *refusal* owed. Instance calls dispatch on the receiver's runtime class. Each ADR's own
+> *Verification* section says what its slice covers, not this field.
 >
 > **Open now:** **`Core` breadth.** `?T` rows register and strict identity is defined, so the two answers
 > the last batches waited on are spent: `contains`, `keyOf`, `unique`, `min` and `max` run, and
@@ -72,8 +73,8 @@
 > own handler block, widening `array<T>` to element-covariant-on-read, object identity (now settled and
 > recorded in `mwl_runtime::identity`), and picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
 > so any failure below Stage 2 is a regression rather than unfinished work. Stage 2 stops on
-> `examples/nullable.mwl`, now inside ADR 0066's `as ?int` — `mwl-ir`'s gap 4, the checked conversion
-> rows in a non-throwing form.
+> `examples/nullable.mwl`'s **last** line, `?->` — `mwl-ir`'s gap 6, one `IsNull` over the receiver plus
+> the branch `lower_coalesce` already builds.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

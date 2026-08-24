@@ -160,6 +160,16 @@ in the language, which is a larger decision than this one and is not taken here.
 - **M3/M4:** a runtime suite asserting `"abc" as ?int`, `"12abc" as ?int` and `"" as ?int` are each `null`
   while `"42" as ?int` is `42` — the whole-string rule of ADR 0007 § 2 reaching the nullable form unchanged
   — and that `19.99 as ?int` is `null` rather than `19`.
+  **§§ 1–3's lowering has landed for the checked numeric targets.**
+  `tests/conformance/lang/a-nullable-conversion-yields-null-rather-than-throwing.mwlt` is that suite, and it
+  covers § 2's `null` operand and § 3's `mixed` one as well. `mwl_ir::lower::Lowering::convert_or_null`
+  emits one `mwl_ir::Helper` per target — `ToIntOrNull`/`ToUintOrNull`/`ToFloatOrNull`, with no error edge,
+  since the form cannot fail — and each dispatches on the operand's runtime tag, which is why § 2's and
+  § 3's rows need no lowering branch of their own. Each row has exactly one implementation, shared with the
+  throwing form: `mwl_runtime::helpers`' own `row` module. Still owed: the enum/literal-type target, blocked
+  on the same case set ADR 0010 § 5's integer-into-an-enum row waits for, and every § 3 **refusal** —
+  `mwl_types` does not yet reject a conversion that cannot fail or one that does not exist, so `mwl-ir`
+  panics naming this ADR where it should have been a diagnostic.
 - **M4B:** `mwl check` warns on `if ($s as ?int)` and on any `?T` condition, naming `!== null`, and does
   **not** warn on `($s as ?int) !== null`.
 - **M11:** `mwl convert` emits a diagnostic for PHP's `(int)$x` naming both `as int` and `as ?int ?? 0`,

@@ -2,45 +2,43 @@
 
 ## State
 
-**Strict identity is defined, and the five members that compare are registered.**
-`mwl_runtime::value_identical` is the one comparison `contains`, `keyOf`, `unique`, `diff`, `intersect`
-and every future `ObjectSet` ask; `mwl_runtime::value_hash` is the hash that agrees with it, so a set
-member indexes instead of scanning. What identity *means* — an object is itself and nothing else, `int`
-and `uint` are one integer domain, an array is compared entry by entry in order, `NaN` matches nothing —
-is `crates/mwl-runtime/src/identity.rs`'s own module doc, which is the home
-[`loop-goal.md`](loop-goal.md) § *Standing decisions* names for that call. `Core\Arr` gained `contains`,
-`keyOf`, `unique`, `min` and `max`, each with three conformance cases under `tests/conformance/core/`.
+**ADR 0066's `as ?T` runs end to end for the checked numeric targets.** `"42" as ?int` is `42`,
+`"4x" as ?int` is `null`, and so are a `null` operand (§ 2) and a `mixed` one holding something with no
+row into the target (§ 3) — all three are the same code, because the helper dispatches on the operand's
+runtime tag rather than on a statically chosen row. `mwl_ir::lower::Lowering::convert_or_null` and that
+ADR's own *Verification* section are the two homes; each conversion row now has exactly one
+implementation, shared with the throwing form, in `mwl_runtime::helpers`' `row` module. `mwl-ir`'s gap 4
+was stale — the *checked* rows have lowered for a while — and now says what is actually left: ADR 0010
+§ 5's integer-into-an-enum row, and every ADR 0066 § 3 **refusal**, which `mwl_types` does not make.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 350 cases through `mwl test tests/`, and
-`tools/leak-check.sh` reports zero definite losses over a fixture that exercises every new retain edge
-inside a loop body. Stage 2 of [`loop-goal.toml`](loop-goal.toml) now stops one line further into
-`examples/nullable.mwl`, on `"42" as ?int`.
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 351 cases through `mwl test tests/`, and
+`tools/leak-check.sh` reports zero losses over a fixture that converts a fresh string, an aliased one and
+a tagged local inside a loop body.
 
 ## Next
 
-**Lower ADR 0066's `as ?T`** — `mwl-ir`'s gap 4, the *checked* conversion rows (`Str as Int` and its
-siblings) in a non-throwing form that yields `null` where the throwing one would throw. It is what
-`examples/nullable.mwl` stops on, so it is the whole of Stage 2's remaining distance, and the
-representation it lands in already exists: `mwl_ir::Ty::Tagged`, with `Tag`/`IsNull` to build and test the
-answer. [ADR 0066](../adr/0066-nullable-conversion-operator.md) owns the semantics.
+**Lower `?->`** — `mwl-ir`'s gap 6, and the one line `examples/nullable.mwl` still stops on, so it is the
+whole of Stage 2's first check. The receiver is already `Ty::Tagged`; the shape is one
+`InstKind::IsNull` plus the branch/merge `Lowering::lower_coalesce` builds, with the null arm yielding
+`null` and the other arm `Untag`ing to the receiver before the call it already lowers. The checker
+already types the fixture's `$missing?->get("host")` — lowering is what panics.
 
 ## Backlog
 
 - **`Core\Arr::diff`/`intersect`** — the last two set members; they need a `Core\SetOn { Values, Keys,
   Both }` enum in `registry::ENUMS` and an `{on?, by?, comparator?}` bag, both shapes the registry can
   already state. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
+- **ADR 0066 § 3's refusals are `mwl_types`' half and are not built** — a conversion that cannot fail
+  (`$i as ?string`) and one that does not exist (`$arr as ?int`) both reach `mwl-ir` and panic naming
+  that ADR where a diagnostic belongs.
 - **A `?T` parameter defaulting to `null` is untried** — `Core\Str::slice`'s `?int $length = null`, the
   spec's most common optional shape. `mwl-stdlib`'s gap 3 says every piece is in place.
 - **A variadic parameter, and `CoreTy::Decimal`** — the two signature shapes still missing, blocking ADR
   0069's combination members and `Arr::sum`/`product`/`average`. `mwl-stdlib`'s gap 3 names both sets.
-- **`?->` does not lower on either side** — `mwl-ir` gap 6, also in `examples/nullable.mwl`. It is one
-  `IsNull` over the receiver plus the branch `lower_coalesce` already builds.
 - **`for`/`switch`/`match`, compound assignment and `decimal`'s IR** — `mwl-ir` gaps 1, 16 and 15, all
   in scope per [`loop-goal.md`](loop-goal.md). `examples/match.mwl` needs the first two.
 - **`private`/`protected` is not enforced at all**, and `Comparable`/`Stringable` carry no member
   signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the second.
-- **An abandoned generator skips the `finally` it is suspended inside** — `mwl-ir` gap 18, the one PHP
-  divergence the corpus has found and not closed.
 
 ## Standing rules for this repo
 
@@ -66,11 +64,12 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   a heap corruption rather than an assertion failure.
 - **`Core\Path` emits a platform separator**, so a fixture or case asserting a built path must normalize it
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
-- **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator, so
-  write `($a > $b) as string`; `bool as string` is PHP's `""`/`"1"`, not `"false"`/`"true"`; a bare array
-  literal in a `foreach` head or a call argument types as `mixed`; a `foreach` key binding must be declared
-  `string` even over a list; `Core\Str::length` and `Core\Arr::count` return `uint`; `Core\Str::join` takes
-  an `array<string>`, so an `array<int>` needs a `map` first; a union interns sorted by type id, so
+- **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator *and*
+  than unary minus, so write `($a > $b) as string` and `(0 - 3) as ?uint`; `bool as string` is PHP's
+  `""`/`"1"`; a bare array literal in a `foreach` head or a call argument types as `mixed`; a `foreach` key
+  binding must be declared `string` even over a list; `Core\Str::length` and `Core\Arr::count` return
+  `uint`, and `$u ?? -1` therefore unions to a `mixed` neither `.` nor `echo` can render — give a sentinel
+  the target's own type; `Core\Str::join` takes an `array<string>`; a union interns sorted by type id, so
   `?string` describes as `string|null`; a `catch` binding is function-scoped **until this loop re-scopes
   it** (pre-authorized); `Exception` is spelled `Core\Error` and a typed `catch` on a `Core` class does not
   lower yet.
