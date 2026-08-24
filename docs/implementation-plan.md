@@ -17,7 +17,10 @@
 > `mwl_runtime::value_identical` decides what one value being another means, object identity included,
 > and `value_hash` indexes it — `mwl_runtime::identity`'s own docs are the home. `examples/nullable.mwl`,
 > the fixture that exercises every part of that keystone, now runs whole: `?->` reads through one
-> `IsNull` guard (`mwl_ir::lower::Lowering::open_nullsafe`). A **variadic** parameter
+> `IsNull` guard (`mwl_ir::lower::Lowering::open_nullsafe`). A tagged value now **renders**, which is what
+> lets a `Core` member with a union return be called from a fixture at all: `.`, `echo` and `as string`
+> over a `mixed`, a `?T` or any other union all reach one `Helper::TaggedToString`, picking ADR 0007 § 2's
+> row from the tag and throwing where no row exists. A **variadic** parameter
 > is the one signature shape still missing, and `decimal` the one type. **Every M4 control-flow
 > statement now lowers but `do`/`while`**: `for` (`lower_for`), and now `switch` (`lower_switch`) and
 > `match` (`lower_match`), both an equality chain over the labels rather than
@@ -42,8 +45,8 @@
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
 > `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `granularity`, `Order`, and the
 > conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 280 (in
-> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 84,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 281 (in
+> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 85,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK

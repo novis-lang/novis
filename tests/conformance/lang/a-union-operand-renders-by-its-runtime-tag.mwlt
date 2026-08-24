@@ -1,0 +1,58 @@
+--TEST--
+`.`, `echo` and `as string` render a `mixed`, a `?T` and any other union by the tag the value carries
+--FILE--
+<?mwl
+// Every scalar row, reached through `mixed` — the same answers the statically
+// typed operand gives in `concatenation-renders-every-scalar`, so the runtime
+// table and the compile-time one cannot drift apart.
+mixed $m = 5;
+echo "int=" . $m . "\n";
+$m = 1.5;
+echo "float=" . $m . "\n";
+$m = 2.0;
+echo "whole=" . $m . "\n";
+$m = true;
+echo "t=" . $m . "|";
+$m = false;
+echo "f=" . $m . "|\n";
+$m = "text";
+echo "str=" . $m . "\n";
+$m = null;
+echo "null=[" . $m . "]\n";
+
+// `echo` takes the same path as `.`, so a bare union operand renders too.
+$m = 42;
+echo $m, "\n";
+
+// `as string` is the explicit spelling of the same conversion.
+echo "as=" . ($m as string) . "\n";
+
+// A `?T` a `Core` member returned, present and absent.
+array<int> $some = [3, 4];
+array<int> $none = [];
+echo "first=" . Core\Arr::first($some) . "|" . Core\Arr::first($none) . "|\n";
+
+// A `uint` sentinel'd with an `int` is a two-member union with no `null` in
+// it at all — the shape that used to force every case to give its sentinel
+// the subject's own type.
+echo "count=" . (Core\Arr::count($some) ?? -1) . "\n";
+
+// A tag with no row throws rather than substituting PHP's "Array".
+mixed $arr = [1, 2];
+try {
+    echo "unreachable=" . $arr . "\n";
+} catch (Throwable $e) {
+    echo "threw: " . $e->message . "\n";
+}
+--EXPECT--
+int=5
+float=1.5
+whole=2
+t=1|f=|
+str=text
+null=[]
+42
+as=42
+first=3||
+count=2
+threw: cannot convert an array to `string`

@@ -1029,7 +1029,9 @@ impl<'a> Lowering<'a> {
     /// check_expr`'s own `require_stringable` already accepts a scalar or a
     /// `Stringable`-implementing object on either side of `.` (PHP-style
     /// implicit stringification); this crate can express the scalar half
-    /// today (see [`crate::ir::Helper`]) but a `Stringable` object still has
+    /// today — statically, and through [`Helper::TaggedToString`] for a union
+    /// operand whose row only its runtime tag names — but a `Stringable`
+    /// object still has
     /// no resolved `toString` call to synthesize here (that identity isn't
     /// recorded anywhere `.` itself can read — a call's own resolved target
     /// only exists for an actual call *expression*, and a bare `.` operand
@@ -1079,8 +1081,29 @@ impl<'a> Lowering<'a> {
                 );
                 (sv, false)
             }
+            // A union operand — `mixed`, a `?T`, a `Core` member's
+            // `int|float`. The row is picked at runtime from the tag the
+            // value already carries, and it can fail, so this is the one
+            // conversion here that carries an error edge. The operand itself
+            // is refcounted: it is released once the helper has read it,
+            // unless a durable slot still owns it.
+            Ty::Tagged => {
+                let (sv, _) = self.emit_fallible(
+                    *cur,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper: Helper::TaggedToString,
+                        args: vec![v],
+                    },
+                    env,
+                );
+                if !self.aliasing_read(expr) {
+                    self.emit_release(*cur, v);
+                }
+                (sv, false)
+            }
             other => panic!(
-                "mwl-ir only converts a scalar operand to `string` for `.` so far — got \
+                "mwl-ir converts a scalar or a `Ty::Tagged` operand to `string` for `.` — got \
                  {other:?}; a `Stringable`-object operand needs a resolved `toString` call this \
                  crate can't synthesize yet, see the crate docs' known gaps"
             ),
@@ -1232,6 +1255,24 @@ impl<'a> Lowering<'a> {
                         args: vec![v],
                     },
                 )
+            }
+            // The same four rows again, from a union operand — one fallible
+            // helper picking by runtime tag, shared verbatim with `.` and
+            // `echo` (`Self::concat_operand`). See `Helper::TaggedToString`.
+            (Ty::Tagged, Ty::Str) => {
+                let out = self.emit_fallible(
+                    cur,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper: Helper::TaggedToString,
+                        args: vec![v],
+                    },
+                    env,
+                );
+                if !self.aliasing_read(operand) {
+                    self.emit_release(cur, v);
+                }
+                out
             }
             // ADR 0007 § 2's checked rows. Each either produces the value or
             // throws, so each is a fallible helper carrying ADR 0002's error

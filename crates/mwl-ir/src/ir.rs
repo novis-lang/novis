@@ -1011,6 +1011,23 @@ pub enum Helper {
     ToUintOrNull,
     /// `$x as ?float` — [`Self::ToIntOrNull`]'s row set, landing on `float`.
     ToFloatOrNull,
+    /// A [`crate::ty::Ty::Tagged`] operand to `string` — the four scalar
+    /// conversions above plus `null`, chosen by the operand's **runtime** tag
+    /// rather than by a static type, since a `mixed`, a `?T` or any other
+    /// union has none to choose by.
+    ///
+    /// One helper, reached from both spellings that render a value: `.`
+    /// concatenation and `echo` (`crate::lower::Lowering::concat_operand`),
+    /// and `expr as string` (`crate::lower::Lowering::convert`). That is the
+    /// same "one tag per target" arrangement [`Self::ToIntOrNull`] describes,
+    /// so `mixed` needs no lowering branch of its own in either place.
+    ///
+    /// **The one string conversion that can fail**, so unlike the four static
+    /// ones it is emitted through `crate::lower::Lowering::emit_fallible` and
+    /// carries ADR 0002's error edge: an array, an object, a closure and a
+    /// resource have no row, and `mwl_runtime::value_to_string` owns what each
+    /// throws and why.
+    TaggedToString,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `mwl run`, decided in `docs/agent/loop-goal.md`. Defines no

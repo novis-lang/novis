@@ -54,6 +54,11 @@
 //! new heap shape, no second release path: [`release`]'s one worklist already
 //! frees whatever the payload turns out to be.
 //!
+//! Everything else a tagged value needs is a *reader*, not a representation:
+//! [`value_truthy`] answers ADR 0035's table for one and [`value_to_string`]
+//! answers ADR 0007 § 2's string rows, each branching on the tag out of line so
+//! that compiled code keeps knowing exactly one tag layout.
+//!
 //! # What is here, and what is deliberately not
 //!
 //! This is the runtime half of milestone M3's vertical slice (see
@@ -72,7 +77,7 @@
 //!   [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's probe sites check, with [`mwl_probe_stmt`] as the
 //!   statement-boundary probe's slow path;
-//! * nine of the ten `mwl_ir::Helper` variants — see [`helpers`];
+//! * every `mwl_ir::Helper` variant — see [`helpers`];
 //! * the pending exception, with the [`mwl_raise`]/[`mwl_raise_new`]/
 //!   [`mwl_trace_push`]/[`mwl_take_thrown`] primitives behind it. The value
 //!   itself is an ordinary [`ObjHeader`] — see [`throwable`]'s own docs for
@@ -193,7 +198,7 @@ pub use ctx::{
     mwl_safepoint,
 };
 pub use fmt::php_float_to_string;
-pub use helpers::{symbols, value_truthy};
+pub use helpers::{symbols, value_to_string, value_truthy};
 pub use identity::{value_hash, value_identical};
 pub use object::{
     ClassDesc, ClassId, ClassTable, FIELD_STRIDE, FIELDS_OFFSET, MwlObj, OBJ_CLASS_OFFSET,

@@ -2,37 +2,41 @@
 
 ## State
 
-**Stage 2 of the acceptance list passes whole.** `switch` and `match` lower
-(`mwl_ir::lower::Lowering::lower_switch`/`lower_match`, each with its own doc comment), so
-`examples/match.mwl` produces its frozen output and the loop is on **Stage 3 — `Core` Part I across
-spec §§ 1–12**. `mwl-ir`'s gap 1 is now `do`/`while` alone.
+**Stage 2 passes whole and the loop is on Stage 3 — `Core` Part I across spec §§ 1–12.** Stage 3's
+seven fixtures stand at two passing (`examples/core.mwl`, `examples/report.mwl`); the other five each
+name a class that has no registry entry at all — `Regex` (text), `Math` (numbers), `Time` (dates),
+`Json` (json), `ObjectSet`/`ObjectMap` (collect).
 
-Both constructs are an equality chain of `Terminator::Branch`es rather than `Terminator::Switch`,
-which selects on an integer while a label is any expression of the subject's type. `switch` pushes a
-`LoopFrame` whose new `continue_target` is `None` — it owns `break` and nothing else — so a bare
-`continue` inside one continues the **enclosing loop**, PHP's `continue 2`. That divergence is
-recorded in `docs/adr/README.md` § *Decisions taken at project start* and pinned by
-`tests/differential/lang/a-switch-and-a-match-agree-with-php.mwlt`.
+**A tagged value now renders.** `.`, `echo` and `as string` over a `mixed`, a `?T` or any other union
+all reach one `mwl_ir::ir::Helper::TaggedToString`, which picks ADR 0007 § 2's row from the tag out of
+line in `mwl_runtime::value_to_string` and throws where no row exists (array, object, closure,
+resource). That unblocks every `Core` member whose spec signature returns a union — `Math::abs`,
+`Arr::sum` and the rest — because a fixture could not previously print one. `mwl_ir::ty::Ty::Tagged`'s
+own doc comment is the home for what compiled code may and may not do with a tag.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 364 cases through `mwl test tests/`
-(280 conformance + 84 differential), six new IR snapshots, and `tools/leak-check.sh` clean over four
-fixtures covering every new refcount edge (a retained `string` subject, a case-body local released on
-a fall-through, a `break` and a `return` out of a case body, a fresh vs. aliasing `match` subject).
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 366 cases through `mwl test tests/`
+(281 conformance + 85 differential), and `tools/leak-check.sh` clean over a fixture exercising all four
+new refcount edges (a retained string payload handed back as the result, a fresh tagged operand
+released after the helper read it, an aliasing one that must not be, and the throwing row's error path).
 
 ## Next
 
-**Stage 3: `Core` §§ 3–12 have no registry class at all.** Read `docs/agent/loop-goal.toml`'s Stage 3
-block for the fixture per domain and its frozen output, and `docs/spec/01-core-library.md` for the
-member rows. The two signature shapes still missing gate part of it: a **variadic** parameter (ADR
-0069's `overlay`/`underlay`/`appendAll`, `Arr::append`/`prepend`, `Path::join`) and `CoreTy::Decimal`
-(`Arr::sum`/`product`/`average`) — `mwl-stdlib`'s gap 3 names both sets. Picking whichever § 3–12
-class the next fixture needs and registering it end-to-end is the smallest slice that moves Stage 3.
+**Register `Core\Math`** — spec § 3, `docs/spec/01-core-library.md:331`. It is the natural next class:
+pure arithmetic, no outside dependency, and `examples/numbers.mwl` is its fixture. Two of its rows need
+work that is not a registry line: the `PI`/`TAU`/`E`/`INT_MAX`/… **constants** have no mechanism at all
+(`registry::CoreClass` holds `methods` and nothing else), and `round`'s `{mode?: RoundMode}` needs a
+`Core\RoundMode` entry in `registry::ENUMS`. Everything `decimal` appears in — `abs`/`ceil`/`floor`/
+`truncate`/`round`/`format`'s widest overload — registers at `int|float` today and widens when
+`CoreTy::Decimal` lands; say so in `mwl-stdlib`'s gap 3 rather than leaving the row out.
 
 ## Backlog
 
 - **`Core\Arr::diff`/`intersect`** — the last two set members; they need a `Core\SetOn { Values, Keys,
   Both }` enum in `registry::ENUMS` and an `{on?, by?, comparator?}` bag, both shapes the registry can
   already state. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
+- **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still panic** —
+  each closes the way rendering just did, with a `Helper` variant dispatching on the tag. That variant's
+  own doc comment lists them.
 - **`do`/`while` and `$i++`/`$i--` do not lower** — the first is `lower_while` with the branch moved
   below the body, the second is `lower_compound_assignment` with a synthesized `1`, but `mwl_types`
   types an inc/dec as its operand and checks no target, so that half is owed first.
@@ -42,8 +46,6 @@ class the next fixture needs and registering it end-to-end is the smallest slice
 - **ADR 0066 § 3's refusals are `mwl_types`' half and are not built** — a conversion that cannot fail
   (`$i as ?string`) and one that does not exist (`$arr as ?int`) both reach `mwl-ir` and panic naming
   that ADR where a diagnostic belongs.
-- **A `?T` parameter defaulting to `null` is untried** — `Core\Str::slice`'s `?int $length = null`,
-  the spec's most common optional shape. `mwl-stdlib`'s gap 3 says every piece is in place.
 - **`private`/`protected` is not enforced at all**, and `Comparable`/`Stringable` carry no member
   signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the second.
 - **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of the kind AGENTS.md
@@ -82,12 +84,10 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   than unary minus, so write `($a > $b) as string` and `(0 - 3) as ?uint`; a `for` header takes
   *expressions* only, so the loop variable is declared on the line above it; `bool as string` is PHP's
   `""`/`"1"`; a bare array literal in a `foreach` head or a call argument types as `mixed`; a `foreach` key
-  binding must be declared `string` even over a list; `Core\Str::length` and `Core\Arr::count` return
-  `uint`, and `$u ?? -1` therefore unions to a `mixed` neither `.` nor `echo` can render — give a sentinel
-  the target's own type; `Core\Str::join` takes an `array<string>`; a union interns sorted by type id, so
-  `?string` describes as `string|null`; a `catch` binding is function-scoped **until this loop re-scopes
-  it** (pre-authorized); `Exception` is spelled `Core\Error` and a typed `catch` on a `Core` class does not
-  lower yet.
+  binding must be declared `string` even over a list; a union interns sorted by type id, so `?string`
+  describes as `string|null`; a `catch` binding is function-scoped **until this loop re-scopes it**
+  (pre-authorized); `Exception` is spelled `Core\Error` and a typed `catch` on a `Core` class does not
+  lower yet — catch `Throwable` instead.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud

@@ -29,8 +29,7 @@ echo ($numeric as ?int) ?? -1, "\n";
 mixed $truthy = true;
 echo ($truthy as ?int) ?? -1, "\n";
 
-// The unsigned rows. The sentinel shares the target's type on purpose: `??`
-// over a `uint` and an `int` is a union, which `.`/`echo` cannot render yet.
+// The unsigned rows.
 int $negative = 0 - 3;
 uint $fallback = 99;
 echo ($negative as ?uint) ?? $fallback, "\n";

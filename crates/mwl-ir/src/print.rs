@@ -406,6 +406,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ToIntOrNull => "to_int_or_null",
         Helper::ToUintOrNull => "to_uint_or_null",
         Helper::ToFloatOrNull => "to_float_or_null",
+        Helper::TaggedToString => "tagged_to_string",
         Helper::EchoStr => "echo_str",
     }
 }

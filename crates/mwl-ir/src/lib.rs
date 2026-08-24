@@ -208,7 +208,11 @@
 //!     but neither a bare `.` operand nor an `as` subject is a call
 //!     expression, so no `ExprInfo::Call` is recorded for it. Either the
 //!     checker records that resolution too, or this crate re-resolves the
-//!     method itself — a second `mwl-types` dependency so far avoided.
+//!     method itself — a second `mwl-types` dependency so far avoided. A
+//!     *statically* object-typed operand still panics here; one arriving
+//!     inside a [`ty::Ty::Tagged`] value throws instead, because
+//!     [`ir::Helper::TaggedToString`] decides by tag at runtime and has no
+//!     row for it.
 //! 13. **Inline HTML at file scope is not lowered.** The lowering is the same
 //!     [`ir::Helper::EchoStr`] call `echo` emits over the raw span; it is out
 //!     only because `mwl_types` treats `InlineHtml` as a no-op too, so landing

@@ -413,6 +413,81 @@ crate::mwl_helper! {
     }
 }
 
+/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's
+/// scalar-to-`string` rows, applied to a value whose representation is
+/// `mwl_ir::ty::Ty::Tagged` — a `mixed`, a `?T`, or any other union.
+///
+/// The counterpart of [`value_truthy`], and for the same reason: compiled code
+/// that *knows* its operand is an `int` reaches `mwl_int_to_string` with no tag
+/// test at all, so this is only the case where the static type genuinely does
+/// not say which row applies. It dispatches on the tag the `Value` already
+/// carries, which is what makes `"a" . $mixed` one helper rather than one
+/// lowering branch per possible source — the same "one tag per target, not one
+/// per (source, target) pair" rule [`to_int`] already follows.
+///
+/// **Three tags convert to nothing, and each throws** rather than producing
+/// PHP's `"Array"`-plus-warning: [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// R4 makes failure a throw, and a silent placeholder is exactly the class of
+/// answer ADR 0007 § 2 removed from the language. An **object** is among them
+/// today for a narrower reason — ADR 0028 makes `Stringable` the one way an
+/// object renders, and that interface still carries no member signature for a
+/// dispatch to reach, so an object arriving here is a program the checker let
+/// through on a union it could not narrow.
+///
+/// A `Tag::Str` operand is returned as itself with one **fresh** reference, so
+/// the caller owns the result exactly as it owns a converted one; every other
+/// row builds a new string, which carries its one reference already.
+pub fn value_to_string(value: Value) -> Result<Value, Fault> {
+    let refused = |what: &str| Fault::thrown(format!("cannot convert {what} to `string`"));
+    match value.tag() {
+        Some(Tag::Null) | None => Ok(Value::str(MwlStr::new(b""))),
+        Some(Tag::Bool) => {
+            let set = value.as_bool() == Some(true);
+            Ok(Value::str(MwlStr::new(if set {
+                b"1".as_slice()
+            } else {
+                b"".as_slice()
+            })))
+        }
+        Some(Tag::Int) => {
+            let n = value.as_int().ok_or_else(|| refused("this value"))?;
+            Ok(Value::str(MwlStr::new(n.to_string().as_bytes())))
+        }
+        Some(Tag::Uint) => {
+            let n = value.as_uint().ok_or_else(|| refused("this value"))?;
+            Ok(Value::str(MwlStr::new(n.to_string().as_bytes())))
+        }
+        Some(Tag::Float) => {
+            let n = value.as_float().ok_or_else(|| refused("this value"))?;
+            Ok(Value::str(MwlStr::new(php_float_to_string(n).as_bytes())))
+        }
+        Some(Tag::Str) => {
+            let ptr = value.str_ptr().ok_or_else(|| refused("this value"))?;
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Str value's payload is a live allocation the \
+                          caller owns a reference to, and the result carries a \
+                          second one the caller will release"
+            )]
+            unsafe {
+                crate::string::mwl_str_retain(ptr);
+            }
+            Ok(value)
+        }
+        Some(Tag::Array) => Err(refused("an array")),
+        Some(Tag::Object) => Err(refused("an object")),
+        Some(Tag::Closure) => Err(refused("a closure")),
+        Some(Tag::Resource) => Err(refused("a resource")),
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::TaggedToString` — see [`value_to_string`].
+    fn mwl_tagged_to_string(_ctx, args: [1]) {
+        value_to_string(args[0])
+    }
+}
+
 crate::mwl_helper! {
     /// `mwl_ir::Helper::EchoStr` — raw bytes to the request's own output, with
     /// no escaping. `docs/agent/loop-goal.md` records that decision and why
@@ -504,6 +579,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_to_int_or_null", address(mwl_to_int_or_null)),
         ("mwl_to_uint_or_null", address(mwl_to_uint_or_null)),
         ("mwl_to_float_or_null", address(mwl_to_float_or_null)),
+        ("mwl_tagged_to_string", address(mwl_tagged_to_string)),
         ("mwl_echo_str", address(mwl_echo_str)),
         (
             "mwl_str_new",
@@ -934,6 +1010,67 @@ mod tests {
         // Not "an exact numeric literal": no MWL source literal writes one.
         for bad in ["inf", "NaN", "infinity"] {
             with(bad, |v| refused(mwl_str_to_float, v));
+        }
+    }
+
+    /// Every row [`value_to_string`] answers, against the statically-typed
+    /// helper for the same tag — the two tables are the same table, and a
+    /// program rendering a `mixed` must not get a second set of answers.
+    #[test]
+    fn a_tagged_operand_renders_by_its_tag() {
+        assert_eq!(string_result(mwl_tagged_to_string, Value::null()), "");
+        assert_eq!(string_result(mwl_tagged_to_string, Value::bool(true)), "1");
+        assert_eq!(string_result(mwl_tagged_to_string, Value::bool(false)), "");
+        assert_eq!(string_result(mwl_tagged_to_string, Value::int(-42)), "-42");
+        assert_eq!(
+            string_result(mwl_tagged_to_string, Value::uint(u64::MAX)),
+            "18446744073709551615"
+        );
+        assert_eq!(string_result(mwl_tagged_to_string, Value::float(2.0)), "2");
+        assert_eq!(
+            string_result(mwl_tagged_to_string, Value::float(1.5)),
+            "1.5"
+        );
+    }
+
+    /// A `Tag::Str` payload is handed back as itself, so the one thing that
+    /// could go wrong is the reference count: the result has to carry a
+    /// *fresh* reference, because its caller releases it exactly as it
+    /// releases a converted one.
+    #[test]
+    fn a_string_payload_comes_back_with_a_reference_of_its_own() {
+        let value = Value::str(MwlStr::new(b"text"));
+        let ptr = value.str_ptr().expect("a Tag::Str value carries a pointer");
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference the fresh `MwlStr` was \
+                      built with, so the allocation is live for every read below"
+        )]
+        unsafe {
+            assert_eq!(MwlStr::refcount_of(ptr), 1);
+            // `string_result` releases what the helper returned, so a helper
+            // that answered without retaining would leave zero here — and a
+            // use-after-free rather than an assertion failure.
+            assert_eq!(string_result(mwl_tagged_to_string, value), "text");
+            assert_eq!(MwlStr::refcount_of(ptr), 1);
+            value.release();
+        }
+    }
+
+    /// A tag ADR 0007 § 2 writes no row from throws rather than substituting
+    /// PHP's `"Array"`-plus-warning. An array stands for the four such tags:
+    /// they share one arm.
+    #[test]
+    fn a_tag_with_no_string_row_throws() {
+        let value = Value::array(crate::array::MwlArray::new());
+        refused(mwl_tagged_to_string, value);
+        #[expect(
+            unsafe_code,
+            reason = "the helper borrowed the array; this test still owns the \
+                      one reference it was built with"
+        )]
+        unsafe {
+            value.release();
         }
     }
 }

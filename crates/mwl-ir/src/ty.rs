@@ -171,13 +171,17 @@ pub enum Ty {
     ///
     /// # Getting in and out
     ///
-    /// Three instructions, and nothing else may read a tag:
+    /// Three instructions, and nothing *compiled inline* may read a tag:
     /// [`crate::ir::InstKind::Tag`] widens a statically-typed value into one,
     /// [`crate::ir::InstKind::Untag`] narrows one back to a representation the
     /// checker already proved it holds, and
     /// [`crate::ir::InstKind::IsNull`] tests it for `null`.
     /// [`crate::lower::Lowering::coerce`] is the one place the first two are
-    /// emitted, at every boundary carrying a declared type.
+    /// emitted, at every boundary carrying a declared type. A
+    /// [`crate::ir::Helper`] may branch on the tag as well, but only out of
+    /// line, inside `mwl-runtime` — [`crate::ir::Helper::TaggedToString`] is
+    /// the first, and that arrangement is what keeps the number of tag layouts
+    /// compiled code knows about at exactly one.
     ///
     /// **Refcounted** ([`Self::is_refcounted`]), because it may hold a
     /// payload that is — which is precisely what the runtime branch above is
@@ -188,11 +192,13 @@ pub enum Ty {
     /// # Known gap
     ///
     /// Reading a tagged value in a way that needs its *actual* type without a
-    /// checker-proven narrowing — arithmetic on a `mixed`, `.`
-    /// concatenation, ADR 0035's truthy table, an array access through a
-    /// `mixed`-erased base — still panics naming the case. Closing that adds
-    /// [`crate::ir::Helper`] variants dispatching on the tag, not a second
-    /// representation.
+    /// checker-proven narrowing still panics naming the case, everywhere but
+    /// one: rendering it — `.`, `echo` and `as string` — goes through
+    /// [`crate::ir::Helper::TaggedToString`]. Arithmetic on a `mixed`,
+    /// ADR 0035's truthy table and an array access through a `mixed`-erased
+    /// base are the ones left, and each closes the same way that one did, by
+    /// adding a [`crate::ir::Helper`] variant that dispatches on the tag
+    /// rather than a second representation.
     Tagged,
     /// An enum value — [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)'s
     /// closed, named integer type.
