@@ -111,6 +111,32 @@ is why" — is this file.
 - **Clippy refuses a float literal that approximates π or e**, and refuses `assert!` over two constants —
   a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
 
+## Splitting a file that got too big
+
+- **The mechanism is two lines, and it is a pure move.** Rust lets one inherent `impl` and one set of free
+  functions live in several modules of the same crate: each child starts with `use super::*;` (which
+  reaches the parent's private imports *and* its siblings' names once `mod.rs` globs them back), and every
+  item that crosses a seam becomes `pub(super)` — the reach it had as a private item of one file. A child
+  can also see the parent's private items, so plumbing stays private in `mod.rs`.
+- **A `pub(crate)` item needs an explicit `pub(crate) use` in `mod.rs`** or `crate::thing::name` stops
+  resolving for the rest of the crate. A glob `use self::child::*;` covers the in-directory names; the
+  re-export list covers the crate-facing ones, and the two coexist.
+- **Cut by *entity*, never by line number, and check the count afterwards.** A range that starts one line
+  late leaves a `#[test]` attached to the previous item — which is a *silent* lost test, not an error,
+  unless the function happens to take arguments. `grep -c '#\[test\]'` before and after, and the test count
+  in `verify.py`'s output, are the two checks that catch it.
+- **A moved test module also *renames* its snapshots**, on top of the *Tooling* bullet above: the file
+  name is the test's module path, so `parser::tests::foo` becoming `parser::tests::stmt::foo` needs the
+  `.snap` moved *and* its `source:` line updated. Do that by hand instead of accepting the `.new`, and the
+  diff stays a rename rather than a delete plus an unreviewable add.
+- **A big file hides doc comments attached to the wrong item.** Two of `mwl-types`' were 120 lines from the
+  function they described, invisible in a 3.5k-line file and obvious the moment it became eight. When a
+  carve leaves a doc block stranded above an unrelated item, that is a bug the split found, not one it
+  made.
+- **Header prose splits with the code.** A module doc that grew a paragraph per ADR slice *is* the split
+  plan: each paragraph already names the rule it belongs to. What is left in `mod.rs` afterwards is its
+  charter — see AGENTS.md's length-target table for why the charter is the part that matters.
+
 ## Writing MWL itself
 
 **The traps that cost the most time are not gaps.** A `"%1$s"` template must be written in **single**

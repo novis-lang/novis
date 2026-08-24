@@ -9,6 +9,15 @@ agent are in [AGENTS.md](../../AGENTS.md); `python tools/brief.py` is the rest o
 **`Core\Json::decodeAs<T>` runs**, so spec § 6 is whole and `examples/json.mwl` produces its frozen
 output. Stage 3 is six of seven fixtures; `examples/collect.mwl` is the first that does not.
 
+**Three files that every slice lands in were split, and nothing else changed** — 1291 tests before and
+after each commit. `mwl_types::expr`, `mwl_syntax::parser` and `mwl_ir::lower::lower_expr` are now a
+directory, a directory and a dispatch of seventeen methods; the seams are ADR- and grammar-shaped, and
+each `mod.rs` header states the charter that keeps it from growing back. AGENTS.md's length-target table
+carries the rule, and the playbook's *Splitting a file that got too big* carries the mechanism. What this
+changes for a reader: the checker's rules are in `expr/{args,assign,calls,iteration,literals,members,
+operators,quals}.rs`, the grammar in `parser/{ty,expr,stmt,decl}.rs` with its tests mirroring it, and a
+`lower_expr` arm's reasoning is now its method's doc comment.
+
 - **A `Core` member can now be handed the class its call site wrote.** The roster is
   `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` (one entry), and its docs own the ABI: the descriptor is
   argument 0, so the helper's `args: [N]` is one more than the row's `params`. The checker records it on
@@ -21,9 +30,9 @@ output. Stage 3 is six of seven fixtures; `examples/collect.mwl` is the first th
   twin of `call_closure`'s borrow direction; its own doc comment owns the ownership rule.
 - What the decoder still owes is `mwl_stdlib::json`'s gaps 2, 3 and 6: no enum/`decimal`/`Instant`/
   `array`/nested-class field, no parameter default making a key optional, no dotted issue path.
-- Verified: `python tools/verify.py` green, 1291 tests, 324 `.mwlt` cases. The new refcount edges are
-  `valgrind`-clean on the success path; a *throwing* `decodeAs` in a loop still loses one block per
-  iteration, sized exactly `literal + 16`, which is the backlog item below and not this edge.
+- Verified: `python tools/verify.py` green, 1291 tests, 324 `.mwlt` cases. The refcount edges added for
+  `decodeAs` are `valgrind`-clean on the success path; a *throwing* `decodeAs` in a loop still loses one
+  block per iteration, sized exactly `literal + 16`, which is the backlog item below.
 
 ## Next
 
