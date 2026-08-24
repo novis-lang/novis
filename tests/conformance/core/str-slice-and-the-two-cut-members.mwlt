@@ -1,0 +1,55 @@
+--TEST--
+Spec § 1: `Core\Str::slice` takes a `?int` length, and `before`/`after` cut at an occurrence without including it
+--FILE--
+<?mwl
+// `?int $length = null` is the first `Core` parameter whose default is `null`:
+// "to the end of the subject", spelled in the type rather than as a sentinel
+// (ADR 0063 R5).
+echo Core\Str::slice("abcdef", 2), "|\n";
+echo Core\Str::slice("abcdef", 2, 3), "|\n";
+// R8's sign rule, on both arguments: a negative offset counts from the end, and
+// a negative length stops that many characters short of it.
+echo Core\Str::slice("abcdef", -2), "|\n";
+echo Core\Str::slice("abcdef", 1, -1), "|\n";
+echo Core\Str::slice("abcdef", -4, 2), "|\n";
+// A window outside the subject, or one that closes before it opens, is the
+// empty string rather than a throw — PHP 8's answer too.
+echo Core\Str::slice("abcdef", 9), "|\n";
+echo Core\Str::slice("abcdef", 0, -9), "|\n";
+echo Core\Str::slice("abcdef", -9, 2), "|\n";
+// The unit is the one `length` counts in (ADR 0009 § 2), so a combining mark
+// travels with the letter it modifies rather than being cut off it.
+echo Core\Str::length(Core\Str::slice("cafe\u{301}s", 3, 1)) as string, "|\n";
+echo Core\Str::slice("cafe\u{301}s", 4, 1), "|\n";
+
+// `before`/`after` exclude the needle — both of them, which is the one place
+// `after` diverges from PHP's `strstr`.
+echo (Core\Str::before("a,b,c", ",") ?? "none"), "|\n";
+echo (Core\Str::after("a,b,c", ",") ?? "none"), "|\n";
+echo (Core\Str::before("a,b,c", ",", {last: true}) ?? "none"), "|\n";
+echo (Core\Str::after("a,b,c", ",", {last: true}) ?? "none"), "|\n";
+// A needle that does not occur is `null`, where PHP's `strstr` is `false`.
+echo (Core\Str::before("abc", "z") ?? "none"), "|\n";
+echo (Core\Str::after("abc", "z") ?? "none"), "|\n";
+// An occurrence at either end leaves one side empty, which is not absence.
+echo (Core\Str::before("=x", "=") ?? "none"), "|\n";
+echo (Core\Str::after("x=", "=") ?? "none"), "|\n";
+--EXPECT--
+cdef|
+cde|
+ef|
+bcde|
+cd|
+|
+|
+ab|
+1|
+s|
+a|
+b,c|
+a,b|
+c|
+none|
+none|
+|
+|

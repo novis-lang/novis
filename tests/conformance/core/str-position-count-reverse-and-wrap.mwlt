@@ -1,0 +1,90 @@
+--TEST--
+Spec § 1: `Core\Str::indexOf`/`lastIndexOf` answer `?uint`, `countOf` counts without overlapping, and `reverse`/`wrap` work in characters
+--FILE--
+<?mwl
+// ADR 0063 R5: absence is `null`, so PHP's `strpos(...) == false` bug family
+// has no spelling here — `0` and "not found" are different types of thing.
+echo (Core\Str::indexOf("The Quick, brown", "brown") ?? 99) as string, "|\n";
+echo (Core\Str::indexOf("abc", "a") ?? 99) as string, "|\n";
+echo (Core\Str::indexOf("abc", "zz") ?? 99) as string, "|\n";
+// PHP's `strpos("abc", "")` is 0 and its `strrpos` is 3; both kept.
+echo (Core\Str::indexOf("abc", "") ?? 99) as string, "|\n";
+echo (Core\Str::lastIndexOf("abc", "") ?? 99) as string, "|\n";
+// `from` is a position, so it takes R8's sign rule — the same option, spelled
+// the same way, as `Core\Regex::match`'s.
+echo (Core\Str::indexOf("a-b-a-b", "b", {from: 4}) ?? 99) as string, "|\n";
+echo (Core\Str::indexOf("a-b-a-b", "b", {from: -1}) ?? 99) as string, "|\n";
+// `caseInsensitive` is an option rather than a second member name, which is
+// what makes this one member subsume `stripos` and `mb_stripos` as well.
+echo (Core\Str::indexOf("HELLO", "l") ?? 99) as string, "|\n";
+echo (Core\Str::indexOf("HELLO", "l", {caseInsensitive: true}) ?? 99) as string, "|\n";
+
+// `lastIndexOf` walks overlapping occurrences — the last *position*, not the
+// last piece of a partition, so this is 1 and not 0 (PHP's `strrpos` agrees).
+echo (Core\Str::lastIndexOf("aaa", "aa") ?? 99) as string, "|\n";
+echo (Core\Str::lastIndexOf("hello world hello", "hello") ?? 99) as string, "|\n";
+// `before` bounds the window: only an occurrence ending at or before it counts.
+echo (Core\Str::lastIndexOf("hello world hello", "hello", {before: 12}) ?? 99) as string, "|\n";
+echo (Core\Str::lastIndexOf("abc", "zz") ?? 99) as string, "|\n";
+
+// `countOf` partitions instead, so its matches cannot overlap.
+echo Core\Str::countOf("banana", "an") as string, "|\n";
+echo Core\Str::countOf("aaa", "aa") as string, "|\n";
+echo Core\Str::countOf("abc", "zz") as string, "|\n";
+try {
+    echo Core\Str::countOf("abc", "") as string, "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "must not be empty") as string, "|\n";
+}
+
+// `reverse` is grapheme-aware, unlike PHP's byte-wise `strrev`: the accented
+// letter comes back whole rather than as two reversed bytes.
+echo Core\Str::reverse("stressed"), "|\n";
+var $back = Core\Str::reverse("cafe\u{301}");
+echo (Core\Str::at($back, 0) === "e\u{301}") as string, "|\n";
+echo (Core\Str::at($back, 3) === "c") as string, "|\n";
+
+// `wrap` is PHP's `wordwrap`, with its third and fourth arguments named. The
+// break is shown as `/` so the expectation stays on one line.
+class Show {
+    public static function wrapped(string $s): string {
+        return Core\Str::replace($s, "\n", "/");
+    }
+}
+echo Show::wrapped(Core\Str::wrap("one two three four", 9)), "|\n";
+echo Show::wrapped(Core\Str::wrap("The quick brown fox sat over the lazy dog", 15)), "|\n";
+// A word longer than the width stays whole unless `cutLongWords` says otherwise.
+echo Show::wrapped(Core\Str::wrap("A very looooooooooooong word.", 8)), "|\n";
+echo Show::wrapped(Core\Str::wrap("A very looooooooooooong word.", 8, {cutLongWords: true})), "|\n";
+// A break already in the subject starts the line measurement over.
+echo Show::wrapped(Core\Str::wrap("already\nwrapped text here", 9)), "|\n";
+echo Core\Str::wrap("one two three four", 9, {breakWith: "<>"}), "|\n";
+echo Core\Str::wrap("", 5), "|\n";
+--EXPECT--
+11|
+0|
+99|
+0|
+3|
+6|
+6|
+99|
+2|
+1|
+12|
+0|
+99|
+2|
+1|
+0|
+1|
+desserts|
+1|
+1|
+one two/three/four|
+The quick brown/fox sat over/the lazy dog|
+A very/looooooooooooong/word.|
+A very/looooooo/oooooong/word.|
+already/wrapped/text here|
+one two<>three<>four|
+|

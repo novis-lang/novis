@@ -142,7 +142,7 @@ MWL actually has.
 | `strripos` | member | `Core\Str::lastIndexOf` with `{caseInsensitive: true}` |
 | `strrpos` | member | `Core\Str::lastIndexOf` |
 | `strspn` | dropped | character-class scanning. `Core\Regex` |
-| `strstr` | member | `Core\Str::after`, `Core\Str::before` with the `true` third argument, or `Core\Str::contains` |
+| `strstr` | member | `Core\Str::before` for the `true` third argument; `$needle . Core\Str::after(…)` otherwise, since neither includes the needle; `Core\Str::contains` as a predicate |
 | `strtok` | dropped | a global cursor across calls. `Core\Str::split` |
 | `strtolower` | member | `Core\Str::lower` |
 | `strtoupper` | member | `Core\Str::upper` |

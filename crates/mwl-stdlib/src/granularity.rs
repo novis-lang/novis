@@ -165,6 +165,28 @@ impl Unit {
         self.length(&subject[..byte])
     }
 
+    /// The byte offset a **signed** unit index names, with a negative one
+    /// counting from the end and either end saturating.
+    ///
+    /// [`Self::byte_of_index`] with
+    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R8's sign
+    /// rule applied first, so every member that takes a *position* — the `from`
+    /// of `Core\Regex::match` and `Core\Str::indexOf`, the `before` of
+    /// `lastIndexOf`, the `offset` of `slice` — reads it the same way. It
+    /// saturates rather than answering `None` for the reason
+    /// [`Self::byte_of_index`] does: a search starting past the end finds
+    /// nothing, which composes with a loop where a throw would not.
+    #[must_use]
+    pub fn byte_of_signed_index(self, subject: &str, index: i64) -> usize {
+        let from_start = if index < 0 {
+            let total = i64::try_from(self.length(subject)).unwrap_or(i64::MAX);
+            total.saturating_add(index).max(0)
+        } else {
+            index
+        };
+        self.byte_of_index(subject, usize::try_from(from_start).unwrap_or(usize::MAX))
+    }
+
     /// The byte offset unit `index` of `subject` starts at, or the subject's
     /// whole length for an index at or past its end.
     ///

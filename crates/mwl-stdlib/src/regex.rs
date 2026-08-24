@@ -531,19 +531,11 @@ fn names_of(compiled: &Compiled) -> Vec<Option<&str>> {
     }
 }
 
-/// The byte offset a search starting at unit index `from` begins at.
-///
-/// Negative counts from the end ([`MATCH_OPTIONS`]), and either end saturates:
-/// a `from` past the subject searches an empty remainder and finds nothing,
-/// which composes with a loop where a throw would not.
+/// The byte offset a search starting at unit index `from` begins at —
+/// [`MATCH_OPTIONS`]'s option, read through the one place a signed position
+/// becomes a byte offset.
 fn start_byte(subject: &str, from: i64) -> usize {
-    let index = if from < 0 {
-        let total = i64::try_from(DEFAULT.length(subject)).unwrap_or(i64::MAX);
-        total.saturating_add(from).max(0)
-    } else {
-        from
-    };
-    DEFAULT.byte_of_index(subject, usize::try_from(index).unwrap_or(usize::MAX))
+    DEFAULT.byte_of_signed_index(subject, from)
 }
 
 /// One `Core\Regex\Match` over `captured`, as the value a member returns.

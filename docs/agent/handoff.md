@@ -2,52 +2,47 @@
 
 ## State
 
-**The `Core`-owned instance is built, and `Core\Regex\Match` is the first one.** A `Core` class may now
-carry an `instance` member roster and a `slots` layout (`mwl_stdlib::registry::CoreClass`), a
-`CoreTy::Instance` names one as a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it —
-that module's own doc comment is the home for the two decisions it records (a `Core` instance is an
-ordinary MWL object; the descriptors are one leaked `ClassTable` per core) and what each spends. The
-checker seeds an instance member with `is_static: false` and `mwl-ir`'s `MethodCall` arm lowers it to the
-same `InstKind::CoreCall` a static `Core` call uses, with the receiver in argument slot 0.
+**Spec § 1 is 27 of its 39 rows.** This session added `slice`, `before`, `after`, `indexOf`,
+`lastIndexOf`, `countOf`, `reverse` and `wrap` to `crates/mwl-stdlib/src/str.rs`; that crate's own gap 1
+lists the twelve § 1 rows still owed. Two things landed with them:
 
-§ 5 is now six of eight members: `match` (`?Match`) and `matchAll` (`array<Match>`) joined the four scalar
-ones, and `Match` answers `group`/`groups`/`offset`/`text`. `crates/mwl-stdlib/src/regex.rs` owns what a
-`Match` holds and why it is materialized eagerly; spec § 5 now states the four signatures.
+- **`Core\Str::slice`'s `?int $length = null` is the first `Core` parameter defaulting to `null`**, and it
+  works end to end — `registry::Const::Null` in a positional slot, `ConstArg::Null` at the call site,
+  `Tag::Null` in the helper. `mwl-stdlib`'s gap 3 no longer lists it as untried.
+- **A signed position becomes a byte offset in one place**,
+  `granularity::Unit::byte_of_signed_index`, which `Core\Regex::match`'s `from` now shares with
+  `Str::indexOf`/`lastIndexOf`/`slice`.
 
-Two holes this closed on the way, each with a reject case: `Core\Regex\Match::text()` written as a static
-call used to reach the helper with an empty argument slice and abort the process (**E0458**), and `->` on a
-nullable receiver used to panic `mwl-ir` (**E0459**).
-
-Verified: `cargo build`/`test`/`clippy`/`fmt` green, 300 conformance + 85 differential cases, the whole WSL
-leg including its valgrind sweep, and `tools/leak-check.sh` clean over a fixture that loops fifty times
-through every new refcount edge — including a freshly built receiver, which the borrow rule makes this
-frame's to release.
+Verified: `cargo build`/`test`/`clippy`/`fmt` green, 302 conformance + 85 differential cases, and
+`tools/leak-check.sh` clean over a fifty-iteration fixture through every new member. One `mwl-types` unit
+test (`a_nullable_return_carrying_a_variable_still_substitutes`) asserted a union's *rendering*, which
+flipped when the new rows shifted interning order; it now compares the interned union instead.
 
 ## Next
 
-**`Core\Str::wrap`/`reverse`/`format`/`indexOf`/`before`, then `!== null` narrowing.** Those five members
-are the rest of `examples/text.mwl`, and none needs a new signature shape —
-`docs/spec/01-core-library.md` § 1 has the rows. The fixture then still fails on one language hole: it
-writes `if ($found !== null) { $found->group(1); }`, and nothing narrows a local's type through a
-condition, so E0459 fires where `?->` would work. That narrowing is the smaller half of the two and it is
-what every migrated PHP program writes; `mwl_types::locals` is where a local's type lives.
+**`Core\Str::format`, which means a variadic parameter first.** `examples/text.mwl` has exactly two things
+left — `format` and the `!== null` narrowing — and `format`'s `mixed ...$arguments` is the last missing
+signature shape (`mwl-stdlib` gap 3 owns the registry half, `mwl-ir` gap 8 the lowering half: a helper's
+`args: [N]` is a fixed arity, so a variadic call collects its tail into an array first). It unblocks ADR
+0069's three combination members, `Arr::append`/`prepend` and `Path::join` at the same time.
+`docs/spec/01-core-library.md` § 1 has `format`'s `printf` grammar and the ADR 0057 rule over it.
 
 ## Backlog
 
-- **`Core\Str::slice` and `Arr::diff`/`intersect`** — the last of §§ 1–2 that need no new shape;
-  `diff`/`intersect` want a `Core\SetOn { Values, Keys, Both }` enum in `registry::ENUMS` and an
-  `{on?, by?, comparator?}` bag. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **`Core\Regex::compile`/`replaceWith`** — § 5's last two, both stated on `Pattern`, which is a pattern
-  plus four compilation flags reaching the cache key. `crates/mwl-stdlib/src/regex.rs`'s gap 1.
-- **A variadic parameter** is the one signature shape left — `mwl-stdlib`'s gap 3 owns the member list,
-  `mwl-ir`'s gap 8 the lowering half.
+- **Narrowing a local through `!== null`** — `if ($m !== null) { $m->text(); }` is E0459 where `?->` works;
+  `mwl_types::locals` is where a local's type lives. The other half of `examples/text.mwl`.
+- **`Core\Str::compare`, `chunk`, `lines`, `graphemes`, `codePoints`, `replaceAll`, `replaceRange`,
+  `fold`, `normalize`, `fromCodePoint(s)`** — the rest of § 1, none needing a new shape except a Unicode
+  normalization dependency for `normalize`. `mwl-stdlib`'s gap 1 is the list.
+- **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
+  `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
+- **`Core\Regex::compile`/`replaceWith`** — § 5's last two, both stated on `Pattern`.
+  `crates/mwl-stdlib/src/regex.rs`'s gap 1.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
-  *Known gap*; `Core\Str::padStart("ab", 10, "")` in a loop reproduces it under `tools/leak-check.sh`.
-- **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still panic** —
-  each closes the way rendering did, with a `Helper` variant dispatching on the tag.
-  `Core\Math::abs($x) < 1.0` is the shortest repro.
-- **`do`/`while`, `$i++`/`$i--` and every bitwise operator do not lower** (`mwl-ir` gaps 1, 15, 16), and
-  `<=>` lowers for no scalar operand at all.
+  *Known gap*, reconfirmed under valgrind this session: 50 loop iterations of
+  `Core\Str::padStart("ab", 10, "")` inside a `try` lose 100 blocks.
+- **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still panic**, and
+  **`do`/`while`, `$i++`/`$i--` and every bitwise operator do not lower** (`mwl-ir` gaps 1, 15, 16).
 
 ## Standing rules for this repo
 
@@ -83,6 +78,9 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own indentation, which widens
   with the line number. A trailing space before a `\n` is unreliable in an `--EXPECT--` block — echo a
   sentinel character after it.
+- **A `mwl-types` test that asserts an interned type's `describe` string is fragile.** A union orders its
+  members by type id, so registering a member anywhere can flip `T|null` to `null|T`. Compare against
+  `interner.make_union([...])` instead.
 - **`MwlStr::from_raw`/`MwlArray::from_raw` return an *owning* handle.** Reading a refcount through one in
   a unit test releases a reference when it drops — wrap it in `std::mem::ManuallyDrop`, or the test ends in
   a heap corruption rather than an assertion failure. `crate::arr::borrowed` is that wrapper for an
@@ -92,15 +90,15 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator *and*
   than unary minus, so write `($a > $b) as string` and `(0 - 3) as ?uint`; a `for` header takes
   *expressions* only, so the loop variable is declared on the line above it (`foreach (Core\Arr::range(…))`
-  is usually shorter); `Core\Str::length` answers `uint`, so a running total it feeds must be one too;
-  `bool as string` is PHP's `""`/`"1"`; a bare array literal in a `foreach` head or a call argument types as
-  `mixed`, and `var` refuses one outright — so `$m?->groups() ?? []` is `array<T>|array<mixed>` and
-  `foreach` refuses it; a `foreach` key binding must be declared `string` even over a list; a union interns
-  sorted by type id, so `?string` describes as `string|null`; there is no int-to-float widening, so
-  `Math::sqrt(2)` is a diagnostic and `2.0` is what a `float` parameter takes; a `catch` binding is
-  function-scoped **until this loop re-scopes it** (pre-authorized); `Exception` is spelled `Core\Error`, a
-  caught value's text is `$e->message` and not a getter, and a typed `catch` on a `Core` class does not
-  lower yet — catch `Throwable` instead.
+  is usually shorter); `Core\Str::length` answers `uint`, so a running total it feeds must be one too, and
+  `?? 0` against a `?uint` needs `?? 0 as uint` to stay one; `bool as string` is PHP's `""`/`"1"`; a bare
+  array literal in a `foreach` head or a call argument types as `mixed`, and `var` refuses one outright —
+  so `$m?->groups() ?? []` is `array<T>|array<mixed>` and `foreach` refuses it; a `foreach` key binding
+  must be declared `string` even over a list; there is no int-to-float widening, so `Math::sqrt(2)` is a
+  diagnostic and `2.0` is what a `float` parameter takes; a `catch` binding is function-scoped **until this
+  loop re-scopes it** (pre-authorized); `Exception` is spelled `Core\Error`, a caught value's text is
+  `$e->message` and not a getter, and a typed `catch` on a `Core` class does not lower yet — catch
+  `Throwable` instead.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud

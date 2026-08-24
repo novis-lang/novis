@@ -82,35 +82,29 @@
 //!    `docs/agent/loop-goal.md`'s Stage 4 names.
 //!
 //!    Within § 1, ADR 0009 § 2's granularity question is closed and
-//!    [`granularity::DEFAULT`] is its answer, so `length` and `at` are
-//!    registered; `slice` is not, and what it waits on is now only a session
-//!    to write it — see gap 3. Section 3 is whole: every one of
-//!    [`math::CLASS`]'s thirty-eight rows runs, and `abs`/`sign`/`format` take
-//!    the `int|float|decimal` the spec writes (see [`math`]'s own gap note for
-//!    the four rounding rows that do not yet). Section 5 is the first of
-//!    §§ 4–12 to exist at all: [`regex::CLASS`] holds the four members ADR
-//!    0056's two tiers can answer with no `Core`-owned object, and that
-//!    module's own gap 1 owns the four that need `Pattern` and `Match` —
-//!    which is the same missing capability wherever the spec writes an
-//!    instance rather than a scalar.
-//! 3. **Two shapes a §§ 1–12 signature writes still cannot be stated.** A
-//!    **variadic** parameter blocks ADR 0069's
+//!    [`granularity::DEFAULT`] is its answer, so `length`, `at`, `slice`,
+//!    `indexOf`, `lastIndexOf` and `wrap` all count in it. Twelve of that
+//!    section's rows are left: `compare`, `chunk`, `lines`, `graphemes`,
+//!    `codePoints`, `replaceAll`, `replaceRange`, `fold`, `normalize`, the two
+//!    `fromCodePoint` members, and `format`, which waits on gap 3's variadic.
+//!    Section 3 is whole: every one of [`math::CLASS`]'s thirty-eight rows
+//!    runs, and `abs`/`sign`/`format` take the `int|float|decimal` the spec
+//!    writes (see [`math`]'s own gap note for the four rounding rows that do
+//!    not yet). Section 5 is six of its eight: [`regex::CLASS`] holds both of
+//!    ADR 0056's tiers and the `Core`-owned `Match` they answer with, and that
+//!    module's own gap 1 owns `compile`/`replaceWith`, which need `Pattern`.
+//! 3. **One shape a §§ 1–12 signature writes still cannot be stated: a
+//!    variadic parameter.** It blocks ADR 0069's
 //!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
-//!    `Arr::prepend` and `Path::join`; it is a `registry::CoreMethod` field
-//!    plus `mwl-ir`'s gap 8, since a helper's `args: [N]` is a fixed arity and
-//!    a variadic call has to collect its tail into an array before it can
-//!    reach one.
+//!    `Arr::prepend`, `Path::join` and `Str::format`; it is a
+//!    `registry::CoreMethod` field plus `mwl-ir`'s gap 8, since a helper's
+//!    `args: [N]` is a fixed arity and a variadic call has to collect its tail
+//!    into an array before it can reach one.
 //!
-//!    The second is a **`Core`-owned instance**. A `registry::CoreClass` is a
-//!    namespace for static members: it has no representation for a *value* of
-//!    that class and no dispatch for a method called on one, so every spec row
-//!    returning or taking one is unstatable. § 5's `Pattern` and `Match` are
-//!    the first four ([`regex`]'s own gap 1), and § 9's `ObjectMap`,
-//!    `ObjectSet` and `Heap`, § 4's `Instant`/`DateTime`/`Duration`/`Zone` and
-//!    § 12's `Uri` are the same capability again. `mwl_types::error_lib`
-//!    already seeds a `Core`-owned class the checker resolves properties and
-//!    methods on, so the missing half is the value: what a native helper
-//!    returns and how a method call on it reaches native code.
+//!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
+//!    behind [`registry::CoreTy::Instance`], and that module's own docs own
+//!    what it is and what it spends — so § 4's four time types, § 9's three
+//!    collections and § 12's `Uri` need only their members written.
 //!
 //!    `decimal` is no longer one of them: [`registry::CoreTy::Decimal`] states
 //!    it and `mwl_runtime::Decimal` is the value behind it, so `Arr::sum`,
@@ -132,13 +126,10 @@
 //!    ([`registry::CoreTy::Enum`] over [`registry::ENUMS`], first used by
 //!    `Core\Arr::sort`), an **absent** option ([`registry::Const::Null`], the
 //!    same member), and ADR 0066's `?T`
-//!    ([`registry::CoreTy::Nullable`], first used by `Core\Arr::first`). The
-//!    last of those is untried in exactly one position: a `?T` **parameter**
-//!    defaulting to `null`, which is `Core\Str::slice`'s `?int $length = null`
-//!    and the spec's most common optional shape. Every piece it needs is in
-//!    place — the type interns as `null|int`, and `Const::Null` is already a
-//!    legal positional default — so the first member to declare one is the
-//!    check, not a further gap.
+//!    ([`registry::CoreTy::Nullable`], first used by `Core\Arr::first`) —
+//!    including as a **parameter** defaulting to `null`, the spec's most common
+//!    optional shape, which `Core\Str::slice`'s `?int $length = null` is the
+//!    first row to declare and the first call site to leave out.
 //!
 //!    Strict identity is no longer among them:
 //!    `mwl_runtime::value_identical` defines it and

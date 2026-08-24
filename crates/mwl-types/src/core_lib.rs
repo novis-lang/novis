@@ -403,7 +403,13 @@ mod tests {
             &ClassGraph::default(),
         )
         .expect("Core\\Arr::first is registered");
-        assert_eq!(interner.describe(sig.return_ty), "T|null");
+        // Compared as an interned union rather than as its rendering: a union's
+        // members are ordered by type id, so which of the two `describe` writes
+        // first is decided by the order the whole registry happened to be
+        // seeded in, and a member added to any other class can flip it.
+        let null = interner.null();
+        let var = interner.type_var("T");
+        assert_eq!(sig.return_ty, interner.make_union([null, var]));
     }
 
     #[test]

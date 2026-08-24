@@ -92,6 +92,52 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_str_ends_with",
         },
         CoreMethod {
+            name: "slice",
+            params: &[CoreTy::Str, CoreTy::Int, CoreTy::Nullable(&CoreTy::Int)],
+            defaults: &[Const::Null],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_slice",
+        },
+        CoreMethod {
+            name: "indexOf",
+            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(INDEX_OF_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            symbol: "mwl_core_str_index_of",
+        },
+        CoreMethod {
+            name: "lastIndexOf",
+            params: &[
+                CoreTy::Str,
+                CoreTy::Str,
+                CoreTy::Options(LAST_INDEX_OF_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            symbol: "mwl_core_str_last_index_of",
+        },
+        CoreMethod {
+            name: "countOf",
+            params: &[CoreTy::Str, CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "mwl_core_str_count_of",
+        },
+        CoreMethod {
+            name: "before",
+            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(AROUND_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_str_before",
+        },
+        CoreMethod {
+            name: "after",
+            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(AROUND_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_str_after",
+        },
+        CoreMethod {
             name: "join",
             params: &[CoreTy::Array(&CoreTy::Str), CoreTy::Str],
             defaults: &[Const::Str("")],
@@ -158,6 +204,20 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "mwl_core_str_repeat",
+        },
+        CoreMethod {
+            name: "reverse",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_reverse",
+        },
+        CoreMethod {
+            name: "wrap",
+            params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Options(WRAP_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_wrap",
         },
         CoreMethod {
             name: "lower",
@@ -232,6 +292,73 @@ const REPLACE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Str::indexOf`'s `{from?: int, caseInsensitive?: bool}`.
+///
+/// `from` is a **position**, so it obeys ADR 0063 R8's sign rule and reads
+/// through [`crate::granularity::Unit::byte_of_signed_index`] — the same option,
+/// spelled the same way and meaning the same thing, as `Core\Regex::match`'s.
+/// Its default is the start of the subject, which is a search of the whole of
+/// it.
+const INDEX_OF_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "from",
+        ty: CoreTy::Int,
+        default: Const::Int(0),
+    },
+    CoreOption {
+        name: "caseInsensitive",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// `Core\Str::lastIndexOf`'s `{before?: int, caseInsensitive?: bool}` — the
+/// mirror of [`INDEX_OF_OPTIONS`], whose bound runs the other way.
+///
+/// The default is `int`'s maximum rather than a sentinel, which
+/// [`crate::granularity::Unit::byte_of_index`] saturates to the subject's whole
+/// length: "no bound at all", spelled the way `Core\Str::replace`'s `limit`
+/// already spells it, because no string this process can hold is that long.
+const LAST_INDEX_OF_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "before",
+        ty: CoreTy::Int,
+        default: Const::Int(i64::MAX),
+    },
+    CoreOption {
+        name: "caseInsensitive",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// `Core\Str::before`/`after`'s `{last?: bool}`, shared by both — one bag, so
+/// the two members cannot drift apart on which occurrence they cut at.
+const AROUND_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "last",
+    ty: CoreTy::Bool,
+    default: Const::Bool(false),
+}];
+
+/// `Core\Str::wrap`'s `{breakWith?: string, cutLongWords?: bool}` — PHP's
+/// `wordwrap` third and fourth arguments, named rather than positional.
+///
+/// `breakWith` defaults to `"\n"` and **not** to PHP's `" \n"`: that default of
+/// PHP's is a two-character break inserted verbatim, which leaves a trailing
+/// space on every wrapped line. [`mwl_core_str_wrap`] owns the rest.
+const WRAP_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "breakWith",
+        ty: CoreTy::Str,
+        default: Const::Str("\n"),
+    },
+    CoreOption {
+        name: "cutLongWords",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain.
 ///
@@ -245,6 +372,14 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_contains" => (mwl_core_str_contains as *const ()).cast(),
         "mwl_core_str_starts_with" => (mwl_core_str_starts_with as *const ()).cast(),
         "mwl_core_str_ends_with" => (mwl_core_str_ends_with as *const ()).cast(),
+        "mwl_core_str_slice" => (mwl_core_str_slice as *const ()).cast(),
+        "mwl_core_str_index_of" => (mwl_core_str_index_of as *const ()).cast(),
+        "mwl_core_str_last_index_of" => (mwl_core_str_last_index_of as *const ()).cast(),
+        "mwl_core_str_count_of" => (mwl_core_str_count_of as *const ()).cast(),
+        "mwl_core_str_before" => (mwl_core_str_before as *const ()).cast(),
+        "mwl_core_str_after" => (mwl_core_str_after as *const ()).cast(),
+        "mwl_core_str_reverse" => (mwl_core_str_reverse as *const ()).cast(),
+        "mwl_core_str_wrap" => (mwl_core_str_wrap as *const ()).cast(),
         "mwl_core_str_join" => (mwl_core_str_join as *const ()).cast(),
         "mwl_core_str_split" => (mwl_core_str_split as *const ()).cast(),
         "mwl_core_str_replace" => (mwl_core_str_replace as *const ()).cast(),
@@ -669,6 +804,361 @@ mwl_runtime::mwl_helper! {
         out.push_str(rest);
         produced(&out)
     }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::slice(string $s, int $offset, ?int $length = null): string`
+    /// — replacing PHP's `substr` and `mb_substr`.
+    ///
+    /// **The first `Core` member whose default is `null`.** A `?int $length`
+    /// says "to the end of the subject" in the type rather than through a
+    /// sentinel, which is ADR 0063 R5 reaching a *parameter* for the first time;
+    /// `mwl_stdlib::registry::Const::Null` is what the call site materializes
+    /// for a call that omits it.
+    ///
+    /// Both arguments count in [`crate::granularity::DEFAULT`] and both follow
+    /// ADR 0063 R8's sign rule, which is PHP's here as well:
+    ///
+    /// * A **negative offset** counts from the end, and one before the start
+    ///   clamps to it.
+    /// * A **negative length** stops that many characters short of the end; a
+    ///   window that closes before it opens is the empty string.
+    ///
+    /// An offset past the end is `""` rather than a throw — PHP 8's answer, and
+    /// the one that composes with a loop.
+    fn mwl_core_str_slice(_ctx, args: [3]) {
+        let subject = text(&args[0], "slice", "the subject")?;
+        let offset = integer(&args[1], "slice", "the offset")?;
+        let unit = crate::granularity::DEFAULT;
+        let total = unit.length(subject);
+
+        let start = unit.byte_of_signed_index(subject, offset);
+        let end = match args[2].tag() {
+            Some(Tag::Null) => subject.len(),
+            _ => {
+                let length = integer(&args[2], "slice", "the length")?;
+                if length < 0 {
+                    // Counted from the *end*, not from the start: this is the
+                    // one place R8's sign rule means "stop short of" rather
+                    // than "begin at".
+                    let from_end = i64::try_from(total).unwrap_or(i64::MAX) + length;
+                    unit.byte_of_index(subject, usize::try_from(from_end).unwrap_or(0))
+                } else {
+                    let from = unit.index_of_byte(subject, start);
+                    let to = usize::try_from(length).unwrap_or(usize::MAX).saturating_add(from);
+                    unit.byte_of_index(subject, to)
+                }
+            }
+        };
+        produced(subject.get(start..end).unwrap_or(""))
+    }
+}
+
+/// [`find_from`] rebased onto the whole subject: where `needle` next occurs at
+/// or after byte offset `cursor`, and how many bytes it matched.
+///
+/// `None` once `cursor` has walked past the subject's end, which is what lets
+/// every scan below be a `while let` with no separate bound check.
+fn find_at(
+    haystack: &str,
+    needle: &str,
+    case_insensitive: bool,
+    cursor: usize,
+) -> Option<(usize, usize)> {
+    let rest = haystack.get(cursor..)?;
+    find_from(rest, needle, case_insensitive).map(|(at, matched)| (cursor + at, matched))
+}
+
+/// The byte offset a scan resumes at after a match of `matched` bytes at `at`.
+///
+/// Always a character boundary, and always **past** `at`: an empty needle
+/// matches at every position, so advancing by the match's own length would
+/// never terminate. Pass `0` for `matched` to walk overlapping occurrences,
+/// which is what `lastIndexOf` needs and `countOf` must not do.
+fn after_match(haystack: &str, at: usize, matched: usize) -> usize {
+    if matched > 0 {
+        return at + matched;
+    }
+    at + haystack[at..].chars().next().map_or(1, char::len_utf8)
+}
+
+/// A byte offset into `subject` as the `uint` position a member answers with —
+/// [`crate::granularity::DEFAULT`]'s unit, which is what ADR 0009 § 2 makes
+/// every `string` position MWL hands out.
+fn position(subject: &str, byte: usize) -> HelperResult {
+    let index = u64::try_from(crate::granularity::DEFAULT.index_of_byte(subject, byte))
+        .map_err(|_| Fault::fatal("Core\\Str counted a position past `uint`"))?;
+    Ok(Value::uint(index))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint`
+    /// — replacing PHP's `strpos`, `stripos`, `mb_strpos` and `mb_stripos`, all
+    /// four at once, because ADR 0063 R13 makes the encoding question moot and
+    /// R20 leaves no room for a second spelling of one operation.
+    ///
+    /// **Absence is `null`, not `false`.** That is R5, and it is the single
+    /// biggest correctness win in this member: PHP's `strpos(...) == false` bug
+    /// family cannot be written, because a `?uint` has no falsy member that
+    /// `0` could be confused with.
+    ///
+    /// The answer counts in [`crate::granularity::DEFAULT`], so it is directly
+    /// usable as `Core\Str::slice`'s offset — the property that would break if
+    /// this reported the engine's byte offset instead.
+    fn mwl_core_str_index_of(_ctx, args: [4]) {
+        let subject = text(&args[0], "indexOf", "the subject")?;
+        let needle = text(&args[1], "indexOf", "the needle")?;
+        let from = integer(&args[2], "indexOf", "the `from` option")?;
+        let case_insensitive = boolean(&args[3], "indexOf", "the `caseInsensitive` option")?;
+
+        let start = crate::granularity::DEFAULT.byte_of_signed_index(subject, from);
+        match find_at(subject, needle, case_insensitive, start) {
+            None => Ok(Value::null()),
+            Some((at, _)) => position(subject, at),
+        }
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::lastIndexOf(string $haystack, string $needle, {before?: int, caseInsensitive?: bool}): ?uint`
+    /// — replacing PHP's `strrpos`, `strripos` and `mb_strrpos`. See
+    /// [`mwl_core_str_index_of`] for what the two members share.
+    ///
+    /// **Occurrences may overlap**, so `lastIndexOf("aaa", "aa")` is 1 and not
+    /// 0 — PHP's `strrpos` answers 1 too, and the last occurrence of something
+    /// is a question about positions rather than about a partition.
+    ///
+    /// `before` bounds the search: only an occurrence that **ends at or before**
+    /// that position is considered, so it names the end of the window rather
+    /// than a place to start scanning from. [`LAST_INDEX_OF_OPTIONS`] owns why
+    /// its default is `int`'s maximum.
+    fn mwl_core_str_last_index_of(_ctx, args: [4]) {
+        let subject = text(&args[0], "lastIndexOf", "the subject")?;
+        let needle = text(&args[1], "lastIndexOf", "the needle")?;
+        let before = integer(&args[2], "lastIndexOf", "the `before` option")?;
+        let case_insensitive = boolean(&args[3], "lastIndexOf", "the `caseInsensitive` option")?;
+
+        let bound = crate::granularity::DEFAULT.byte_of_signed_index(subject, before);
+        let mut best = None;
+        let mut cursor = 0usize;
+        while let Some((at, matched)) = find_at(subject, needle, case_insensitive, cursor) {
+            if at + matched > bound {
+                break;
+            }
+            best = Some(at);
+            cursor = after_match(subject, at, 0);
+        }
+        match best {
+            None => Ok(Value::null()),
+            Some(at) => position(subject, at),
+        }
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::countOf(string $haystack, string $needle): uint` — replacing
+    /// PHP's `substr_count`.
+    ///
+    /// Matches are **non-overlapping**, which is what separates this from
+    /// [`mwl_core_str_last_index_of`]'s scan: `countOf("aaa", "aa")` is 1, PHP's
+    /// answer too, because a count partitions the subject where a position
+    /// search does not. An empty needle throws rather than answering the
+    /// character count, as PHP's own `ValueError` does.
+    fn mwl_core_str_count_of(_ctx, args: [2]) {
+        let subject = text(&args[0], "countOf", "the subject")?;
+        let needle = text(&args[1], "countOf", "the needle")?;
+        if needle.is_empty() {
+            return Err(Fault::thrown(
+                "Core\\Str::countOf(): the needle must not be empty",
+            ));
+        }
+        let mut found = 0u64;
+        let mut cursor = 0usize;
+        while let Some((at, matched)) = find_at(subject, needle, false, cursor) {
+            found += 1;
+            cursor = after_match(subject, at, matched);
+        }
+        Ok(Value::uint(found))
+    }
+}
+
+/// Where the occurrence `before`/`after` cut at begins, and how many bytes it
+/// matched — the first one, or the last when `last` is set.
+///
+/// Case-sensitive: neither member declares a `caseInsensitive` option, because
+/// the spec gives them one option and it is this one.
+fn cut_at(subject: &str, needle: &str, last: bool) -> Option<(usize, usize)> {
+    if !last {
+        return find_from(subject, needle, false);
+    }
+    let mut best = None;
+    let mut cursor = 0usize;
+    while let Some(found) = find_at(subject, needle, false, cursor) {
+        best = Some(found);
+        cursor = after_match(subject, found.0, 0);
+    }
+    best
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::before(string $s, string $needle, {last?: bool}): ?string` —
+    /// everything up to the first occurrence of `$needle`, replacing PHP's
+    /// `strstr($h, $n, true)` and `strrchr` used as a prefix.
+    ///
+    /// The needle itself is not included, and a needle that does not occur is
+    /// `null` rather than PHP's `false` (ADR 0063 R5) — spec § 1's *Extraction*
+    /// prose is the home for both, and for what `{last: true}` changes.
+    fn mwl_core_str_before(_ctx, args: [3]) {
+        let subject = text(&args[0], "before", "the subject")?;
+        let needle = text(&args[1], "before", "the needle")?;
+        let last = boolean(&args[2], "before", "the `last` option")?;
+        match cut_at(subject, needle, last) {
+            None => Ok(Value::null()),
+            Some((at, _)) => produced(&subject[..at]),
+        }
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::after(string $s, string $needle, {last?: bool}): ?string` —
+    /// everything past the first occurrence of `$needle`, replacing PHP's
+    /// `strstr`, `stristr` and `strrchr`.
+    ///
+    /// The needle is not included, which is the one place this diverges from
+    /// `strstr` — spec § 1's *Extraction* prose owns that rule and the port of
+    /// a program that wanted PHP's shape. Absence is `null`, not `false`.
+    fn mwl_core_str_after(_ctx, args: [3]) {
+        let subject = text(&args[0], "after", "the subject")?;
+        let needle = text(&args[1], "after", "the needle")?;
+        let last = boolean(&args[2], "after", "the `last` option")?;
+        match cut_at(subject, needle, last) {
+            None => Ok(Value::null()),
+            Some((at, matched)) => produced(&subject[at + matched..]),
+        }
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::reverse(string $s): string` — replacing PHP's `strrev`.
+    ///
+    /// **Grapheme-aware**, which PHP's byte-wise `strrev` is not: reversing
+    /// `"café"` there produces invalid UTF-8, and here it produces `"éfac"`.
+    /// The unit is [`crate::granularity::DEFAULT`], so a combining mark stays
+    /// attached to the letter it modifies.
+    ///
+    /// Spends one `Vec` of borrowed pieces per call — [`crate::granularity`]'s
+    /// iterator is forward-only, and a reverse needs the last piece first.
+    fn mwl_core_str_reverse(_ctx, args: [1]) {
+        let subject = text(&args[0], "reverse", "the subject")?;
+        let mut pieces: Vec<&str> = crate::granularity::DEFAULT.pieces(subject).collect();
+        pieces.reverse();
+        produced(&pieces.concat())
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::wrap(string $s, uint $width, {breakWith?: string, cutLongWords?: bool}): string`
+    /// — replacing PHP's `wordwrap`, whose third and fourth arguments become
+    /// this member's two options.
+    ///
+    /// [`wrapped`] owns the algorithm, which is PHP's own. Two arguments are
+    /// refused here rather than there, because neither has an answer:
+    ///
+    /// * **An empty `breakWith`** would insert nothing at a break, so the
+    ///   result would be the subject with the wrapping silently dropped.
+    /// * **A zero `width` with `cutLongWords`** asks for a break before every
+    ///   character *and* after it, which does not terminate. PHP raises
+    ///   `ValueError` for the same pair; a zero width without cutting is fine
+    ///   and breaks at every space.
+    fn mwl_core_str_wrap(_ctx, args: [4]) {
+        let subject = text(&args[0], "wrap", "the subject")?;
+        let width = count(&args[1], "wrap", "the width")?;
+        let break_with = text(&args[2], "wrap", "the `breakWith` option")?;
+        let cut = boolean(&args[3], "wrap", "the `cutLongWords` option")?;
+        if break_with.is_empty() {
+            return Err(Fault::thrown(
+                "Core\\Str::wrap(): the `breakWith` option must not be empty",
+            ));
+        }
+        if width == 0 && cut {
+            return Err(Fault::thrown(
+                "Core\\Str::wrap(): a width of 0 cannot cut long words, since every character \
+                 would have to be broken both before and after",
+            ));
+        }
+        produced(&wrapped(subject, width, break_with, cut))
+    }
+}
+
+/// `subject` with `break_with` inserted so no line exceeds `width` units —
+/// PHP's `wordwrap`, unit for unit.
+///
+/// **The width counts in [`crate::granularity::DEFAULT`]**, not in bytes, which
+/// is the one thing this does not inherit from PHP: a wrapped column of text is
+/// exactly the place where counting `"é"` as two would misalign the output.
+/// That is what the `starts` table is for — one byte offset per unit, plus a
+/// sentinel for the end, so a unit-counted line has a byte-slicable range.
+///
+/// A break string already present in the subject **resets the line**, so a
+/// paragraph that is already wrapped is re-wrapped rather than measured as one
+/// long line. It is matched by bytes and only accepted when it ends on a unit
+/// boundary — a break that splits a grapheme cluster is not a line ending.
+fn wrapped(subject: &str, width: usize, break_with: &str, cut: bool) -> String {
+    let unit = crate::granularity::DEFAULT;
+    let mut starts: Vec<usize> = Vec::new();
+    let mut at = 0usize;
+    for piece in unit.pieces(subject) {
+        starts.push(at);
+        at += piece.len();
+    }
+    starts.push(subject.len());
+    let total = starts.len() - 1;
+
+    let mut out = String::with_capacity(subject.len());
+    // Both are unit indices: where the line being measured began, and the last
+    // space seen on it. A `last_space` at or before `line_start` is one from a
+    // line already emitted, which is how "this line has no space to break at"
+    // is spelled.
+    let mut line_start = 0usize;
+    let mut last_space: Option<usize> = None;
+    let mut current = 0usize;
+    while current < total {
+        let byte = starts[current];
+        if subject[byte..].starts_with(break_with)
+            && let Ok(after) = starts.binary_search(&(byte + break_with.len()))
+        {
+            out.push_str(&subject[starts[line_start]..starts[after]]);
+            line_start = after;
+            last_space = None;
+            current = after;
+            continue;
+        }
+        let over = current - line_start >= width;
+        if &subject[byte..starts[current + 1]] == " " {
+            if over {
+                out.push_str(&subject[starts[line_start]..byte]);
+                out.push_str(break_with);
+                line_start = current + 1;
+            }
+            last_space = Some(current);
+        } else if over && last_space.is_none_or(|space| line_start >= space) {
+            if cut {
+                out.push_str(&subject[starts[line_start]..byte]);
+                out.push_str(break_with);
+                line_start = current;
+                last_space = None;
+            }
+        } else if over {
+            let space = last_space.expect("the previous arm covered the absent case");
+            out.push_str(&subject[starts[line_start]..starts[space]]);
+            out.push_str(break_with);
+            line_start = space + 1;
+            last_space = None;
+        }
+        current += 1;
+    }
+    out.push_str(&subject[starts[line_start]..]);
+    out
 }
 
 mwl_runtime::mwl_helper! {
@@ -1263,6 +1753,86 @@ mod tests {
         }
         let status = run(super::mwl_core_str_at, &[s(""), Value::int(0)])
             .expect_err("the empty string has no characters");
+        assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    /// Every row verified against PHP 8.5's `wordwrap`, which [`super::wrapped`]
+    /// reproduces one unit at a time instead of one byte at a time.
+    #[test]
+    fn wrapping_matches_phps_wordwrap() {
+        for (subject, width, cut, want) in [
+            ("one two three four", 9, false, "one two\nthree\nfour"),
+            (
+                "The quick brown fox sat over the lazy dog",
+                15,
+                false,
+                "The quick brown\nfox sat over\nthe lazy dog",
+            ),
+            (
+                "A very looooooooooooong word.",
+                8,
+                false,
+                "A very\nlooooooooooooong\nword.",
+            ),
+            (
+                "A very looooooooooooong word.",
+                8,
+                true,
+                "A very\nlooooooo\noooooong\nword.",
+            ),
+            // A break already in the subject restarts the measurement.
+            (
+                "already\nwrapped text here",
+                9,
+                false,
+                "already\nwrapped\ntext here",
+            ),
+            ("", 5, false, ""),
+            // No space to break at, and no cutting: the subject comes back
+            // whole even at a width of zero.
+            ("abc", 0, false, "abc"),
+        ] {
+            assert_eq!(
+                super::wrapped(subject, width, "\n", cut),
+                want,
+                "wrap({subject:?}, {width}, cut = {cut})"
+            );
+        }
+    }
+
+    /// The width counts characters, not bytes — the one thing `wrap` does not
+    /// inherit from PHP, and the reason a wrapped column of accented text lines
+    /// up here and does not there.
+    #[test]
+    fn wrapping_measures_the_same_unit_length_counts() {
+        // Each word is four characters and six bytes, so a byte-counting wrap
+        // would break after the first one.
+        assert_eq!(
+            super::wrapped("a\u{301}a\u{301} b\u{301}b\u{301}", 9, "\n", false),
+            "a\u{301}a\u{301} b\u{301}b\u{301}"
+        );
+    }
+
+    /// An empty needle matches at every position, so a scan that advanced by
+    /// the match's own length would never terminate — [`super::after_match`] is
+    /// what keeps both scans finite, and this is the shape that would hang.
+    #[test]
+    fn an_empty_needle_terminates_every_scan() {
+        let last = run(
+            super::mwl_core_str_last_index_of,
+            &[
+                s("caf\u{e9}"),
+                s(""),
+                Value::int(i64::MAX),
+                Value::bool(false),
+            ],
+        )
+        .expect("no failure");
+        assert_eq!(last.as_uint(), Some(4));
+        // `countOf` has no answer for it at all, so it throws rather than
+        // reporting the character count.
+        let status = run(super::mwl_core_str_count_of, &[s("abc"), s("")])
+            .expect_err("an empty needle is refused");
         assert_eq!(status, mwl_runtime::THROWN);
     }
 

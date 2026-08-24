@@ -44,11 +44,11 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
-> `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 19, `Math` × 38, `granularity`, `ordering`,
+> `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 27, `Math` × 38, `granularity`, `ordering`,
 > `instance`, `Order` and `RoundMode`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, and
 > the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 300 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/conformance` × 302 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
 > `tests/differential` × 85, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -69,11 +69,13 @@
 > ADR's own *Verification* section says what its slice covers, not this field.
 >
 > **Open now:** **`Core` breadth.** Spec § 3 is whole, § 2's aggregations are written and § 5 is six of
-> its eight members, so what is left of §§ 1–2 is `Core\Str::slice`/`wrap`/`reverse`/`format`/`indexOf`/
-> `before`, `Arr::diff`/`intersect` — which need only their `SetOn` enum and their `on`/`by`/`comparator`
-> bag, both shapes the registry can already state — and ADR 0069's combination members.
+> its eight members, and § 1's `slice`/`before`/`after`/`indexOf`/`lastIndexOf`/`countOf`/`reverse`/`wrap`
+> all landed — `slice`'s `?int $length = null` being the first `Core` parameter defaulting to `null`. What
+> is left of §§ 1–2 is `Core\Str::format` (variadic), that section's dozen text-shaping rows,
+> `Arr::diff`/`intersect` — which need only their `SetOn` enum and their `on`/`by`/`comparator` bag, both
+> shapes the registry can already state — and ADR 0069's combination members.
 > **One signature shape is still missing:** a **variadic** parameter (ADR 0069's three combination
-> members, `append`/`prepend`, `Path::join`). A **`Core`-owned instance** is no longer one:
+> members, `append`/`prepend`, `Path::join`, `Str::format`). A **`Core`-owned instance** is no longer one:
 > `registry::CoreClass` carries an `instance` roster and a `slots` layout, `CoreTy::Instance` names one as
 > a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it — so § 4's four time types, § 9's
 > three collections and § 12's `Uri` need only their members. Two language holes now sit on the path:
@@ -95,8 +97,9 @@
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
 > on **Stage 3**, `Core` Part I across all twelve spec sections: three of its seven fixtures produce their
 > frozen output — `examples/core.mwl`, `report.mwl` and `numbers.mwl` — and `text.mwl` is the first that
-> does not. Its whole `Core\Regex` half now runs, `Match` included; what it still needs is five `Core\Str`
-> members and the `!== null` narrowing its `if` writes.
+> does not. Its whole `Core\Regex` half now runs, `Match` included, and so do its `wrap`/`reverse`/
+> `indexOf`/`before` calls; what it still needs is `Core\Str::format` — which needs a variadic — and the
+> `!== null` narrowing its `if` writes.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

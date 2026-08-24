@@ -122,6 +122,12 @@ batch-shaped API.
 | `graphemes` | `graphemes(string $s): array<string>` | `grapheme_*` (intl, for the split case) | |
 | `codePoints` | `codePoints(string $s): array<uint>` | `mb_str_split` + `mb_ord`, `unpack("N*", …)` | neutral |
 
+`before` and `after` both **exclude the needle**, which is where `after` parts company with `strstr`: PHP
+returns the needle and everything past it, and the port of a program that wanted that is
+`$needle . Str::after(...)`. Two members named against the same needle that each drop it are the pair a
+reader can predict. `{last: true}` cuts at the last occurrence instead, which is all `strrchr` added, and a
+needle that does not occur is `null` where `strstr` is `false` (R5).
+
 `lines` splits on `\n`, `\r\n` and a lone `\r` alike, and a trailing terminator does **not** produce a final
 empty element — the platform's own line ending is never consulted, which is why there is no `PHP_EOL`
 equivalent to pass it.
