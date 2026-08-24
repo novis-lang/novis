@@ -1,0 +1,20 @@
+--TEST--
+a `while` loop runs its body until the condition is false
+--FILE--
+<?mwl
+var $i = 0;
+var $total = 0;
+while ($i < 5) {
+    $total = $total + $i;
+    $i = $i + 1;
+}
+echo $total, "\n";
+
+var $never = 0;
+while ($never > 0) {
+    $never = $never + 1;
+}
+echo $never, "\n";
+--EXPECT--
+10
+0

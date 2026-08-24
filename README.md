@@ -77,9 +77,9 @@ crates/
   mwl-ir            CFG/SSA IR, safepoints, refcount ops                               M2
   mwl-codegen       Cranelift backend  [audited unsafe]                                M3
   mwl-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3
-  mwl-cli           the `mwl` binary (`ast`, `check`, `run`, `info`)       exists / M3
+  mwl-cli           the `mwl` binary (`ast`, `check`, `run`, `test`, `info`)       exists
   mwl-stdlib        Core domain classes, native builtin static methods                 M4S
-  mwl-test          .mwlt runner                                                       M4
+  mwl-test          .mwlt runner                                                    exists
   mwl-host          Transport trait, unit cache, the Isolate boundary                  M5
   mwl-config        mwl.toml registry, changeability classes, overlays                  M6
   mwl-cache         content-addressed artifact cache                                   M6

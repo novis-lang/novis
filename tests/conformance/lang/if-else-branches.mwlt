@@ -1,0 +1,22 @@
+--TEST--
+`if`/`else if`/`else` takes exactly one branch
+--FILE--
+<?mwl
+class Sign {
+    public static function of(int $n): string {
+        if ($n > 0) {
+            return "positive";
+        } else if ($n < 0) {
+            return "negative";
+        } else {
+            return "zero";
+        }
+    }
+}
+echo Sign::of(7), "\n";
+echo Sign::of(-7), "\n";
+echo Sign::of(0), "\n";
+--EXPECT--
+positive
+negative
+zero

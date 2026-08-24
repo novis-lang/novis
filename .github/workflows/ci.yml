@@ -53,6 +53,15 @@ jobs:
       # library this API-heavy.
       - run: cargo test --workspace --doc
 
+      # The `.mwlt` conformance suite, on every platform for the reason the
+      # cost guards below are: each case runs generated machine code, and code
+      # generation is what differs per target. The *differential* suite is
+      # deliberately not here — it needs PHP 8.5 on `PATH`, which
+      # docs/agent/loop-goal.md's acceptance run guarantees and a hosted
+      # runner image does not.
+      - name: Conformance suite
+        run: cargo run --quiet -p mwl-cli -- test tests/conformance/
+
       # Runs on every platform on purpose. These are the invariants MWL's
       # execution model rests on, they are properties of native code generation,
       # and they differ per platform: Windows unwinds through SEH, and aarch64 is

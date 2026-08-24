@@ -1,0 +1,13 @@
+--TEST--
+Core\Str::upper is Unicode-aware where strtoupper is byte-wise
+--ORACLE-DIVERGES--
+ADR 0009: `string` is guaranteed-valid UTF-8, so case mapping is the Unicode one; `strtoupper` leaves every non-ASCII byte alone.
+--FILE--
+<?mwl
+echo Core\Str::upper("mwl"), "\n";
+echo Core\Str::upper("straße"), "\n";
+echo Core\Str::lower("ÉCOLE"), "\n";
+--EXPECT--
+MWL
+STRASSE
+école

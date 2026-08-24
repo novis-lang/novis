@@ -1,19 +1,22 @@
 //! The `mwl` binary.
 //!
-//! Four subcommands so far, one per milestone that needed one:
+//! Five subcommands so far, one per milestone that needed one:
 //!
 //! * `mwl ast` (M1) — dump what the parser produced.
 //! * `mwl check` (M2) — parse, resolve, type-check, report every diagnostic.
 //! * `mwl run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
+//! * `mwl test` (M4) — run a tree of `.mwlt` conformance cases. The format,
+//!   and every decision behind it, is [`mwl_test`]'s own module doc; this
+//!   crate contributes only the argument parsing and the exit code.
 //! * `mwl info` — build, host and third-party licensing facts, PHP's
 //!   `php -i` in shape and in purpose. Also spelled `mwl -i`, since that is
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
-//! rejected. `test`, `serve`, `fmt` and the rest of the architecture diagram
+//! rejected. `serve`, `fmt` and the rest of the architecture diagram
 //! (`docs/implementation-plan.md` § Architecture) arrive with the milestones
 //! that need them.
 //!
@@ -96,6 +99,21 @@ enum Command {
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
     },
+    /// Run `.mwlt` conformance cases.
+    ///
+    /// Each path is either one case file or a directory walked for `*.mwlt`.
+    /// Exits non-zero if any case failed; a skipped case is not a failure.
+    Test {
+        /// The case files and directories to run.
+        #[arg(required = true)]
+        paths: Vec<PathBuf>,
+        /// Run only cases whose path contains this text.
+        #[arg(long, value_name = "TEXT")]
+        filter: Option<String>,
+        /// The PHP binary a `--ORACLE--` case is compared against.
+        #[arg(long, value_name = "PATH", default_value = "php")]
+        php: PathBuf,
+    },
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -153,6 +171,7 @@ fn main() -> ExitCode {
             dump_asm,
             fault_inject,
         } => run_run(&file, dump_ir, dump_asm, fault_inject),
+        Command::Test { paths, filter, php } => run_test(&paths, filter, php),
         Command::Info { licenses } => info::run(licenses),
     }
 }
@@ -354,6 +373,33 @@ fn run_run(
             } else {
                 eprintln!("FATAL: {message}");
             }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Runs a tree of `.mwlt` cases and turns the summary into an exit code.
+///
+/// Each case is run by spawning **this** binary — `mwl_test::run` documents
+/// why a subprocess rather than an in-process compile — so a debug build
+/// tests itself and a release build tests itself, with nothing to configure.
+fn run_test(paths: &[PathBuf], filter: Option<String>, php: PathBuf) -> ExitCode {
+    let mut options = match mwl_test::Options::from_current_exe() {
+        Ok(options) => options,
+        Err(error) => {
+            eprintln!("error: could not locate this binary to run cases with: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    options.filter = filter;
+    options.php = php;
+
+    let mut out = std::io::stdout().lock();
+    match mwl_test::run(paths, &options, &mut out) {
+        Ok(summary) if summary.is_success() => ExitCode::SUCCESS,
+        Ok(_) => ExitCode::FAILURE,
+        Err(error) => {
+            eprintln!("error: {error}");
             ExitCode::FAILURE
         }
     }

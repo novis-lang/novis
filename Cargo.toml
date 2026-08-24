@@ -30,6 +30,7 @@ mwl-ir = { path = "crates/mwl-ir", version = "0.0.1" }
 mwl-codegen = { path = "crates/mwl-codegen", version = "0.0.1" }
 mwl-runtime = { path = "crates/mwl-runtime", version = "0.0.1" }
 mwl-stdlib = { path = "crates/mwl-stdlib", version = "0.0.1" }
+mwl-test = { path = "crates/mwl-test", version = "0.0.1" }
 
 # --- codegen backend (versions validated by the M0 spikes) ---
 cranelift = "0.135"

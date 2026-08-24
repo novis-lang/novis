@@ -1,0 +1,14 @@
+--TEST--
+`var` takes its type from the initializer and keeps it (ADR 0037)
+--FILE--
+<?mwl
+var $n = 41;
+$n = $n + 1;
+echo $n, "\n";
+
+var $s = "text";
+$s = $s . "!";
+echo $s, "\n";
+--EXPECT--
+42
+text!

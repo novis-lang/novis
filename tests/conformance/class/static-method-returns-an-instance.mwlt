@@ -1,0 +1,25 @@
+--TEST--
+a static method can build and return an instance of its own class
+--FILE--
+<?mwl
+class Counter {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+
+    public static function zero(): Counter {
+        return new Counter(0);
+    }
+
+    public function next(): Counter {
+        return new Counter($this->n + 1);
+    }
+}
+
+echo Counter::zero()->n, "\n";
+echo Counter::zero()->next()->next()->n, "\n";
+--EXPECT--
+0
+2

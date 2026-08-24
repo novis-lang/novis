@@ -103,6 +103,7 @@ so you never have to open this file to route a topic.
 | The PhpStorm plugin, `mwl-lsp`/`mwl fmt` client wiring, what "IDE integration" covers | [0016](0016-ide-integration.md) |
 | `mwl fmt`'s style — indentation, braces, quoting, trailing commas, why it never reflows | [0039](0039-canonical-code-formatting.md) |
 | The VS Code extension's feature catalog, why a minimal `mwl-lsp` ships in M4B, `mwl-syntax`'s resilient parse mode | [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) |
+| Writing a test case — the `.mwlt` sections, `--EXPECTF--`'s escapes, `--ORACLE--`/`--ORACLE-DIVERGES--`, how `mwl test` decides pass or fail, importing a `.phpt` | [crates/mwl-test/src/lib.rs](../../crates/mwl-test/src/lib.rs)'s module doc — the one home for the format |
 | Third-party licenses, attribution, what `mwl info` prints, whether a new dependency's license may ship | [0065](0065-third-party-attribution-and-mwl-info.md) |
 | Updating a crate, the Rust toolchain, a CI action or the PHP oracle; SemVer, what a break costs a release, deprecation, MSRV, pinning, a stale dependency | [0068](0068-dependency-currency-and-the-version-contract.md) for the policy; [docs/agent/dependency-update.md](../agent/dependency-update.md) for the procedure — a pass the user fires by hand |
 | Cross-machine performance history, callgrind instruction counts, why CI guards use wall-clock ratios | [0026](0026-performance-measurement-methodology.md) |

@@ -1,0 +1,15 @@
+--TEST--
+Core\Str::length counts extended grapheme clusters, not code points (ADR 0009 § 2)
+--FILE--
+<?mwl
+echo Core\Str::length(""), "\n";
+echo Core\Str::length("abc"), "\n";
+echo Core\Str::length("héllo"), "\n";
+echo Core\Str::length("e\u{0301}"), "\n";
+echo Core\Str::length("👍🏽"), "\n";
+--EXPECT--
+0
+3
+5
+1
+1

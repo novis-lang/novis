@@ -29,8 +29,9 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli`, `fuzz/`,
-> `tools/`, `benches/abi-probe`.
+> `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 18 and
+> `tests/differential` × 10, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -42,12 +43,13 @@
 > 0065, and **0053 and 0009 in full**. Each ADR's own *Verification* section says what its slice covers,
 > not this field.
 >
-> **Open now:** **`crates/mwl-test` and the `mwl test` subcommand** — the only thing between the
-> acceptance list and its two suites, and the last check either leg fails on. Beside it, the rest of
-> `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result type, a
-> `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one shape still
-> unstatable. Also two re-opened M1 grammar slices (`autoload`, the duration literal) — see M1 — plus
-> ADR 0047's now-unblocked M2 checker row. In docs, one thing remains:
+> **Open now:** **growing the two suites**. `mwl test` runs, and both suites are green — 18 conformance
+> cases and 10 differential, against thresholds of 250 and 60, so Stage 4 now fails on corpus size alone.
+> Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
+> rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
+> type, a `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one
+> shape still unstatable. Also two re-opened M1 grammar slices (`autoload`, the duration literal) — see
+> M1 — plus ADR 0047's now-unblocked M2 checker row. In docs, one thing remains:
 > `docs/spec/02-php-migration.md` is 31% classified (strings, arrays, numbers, conversions), the rest one
 > pass per PHP domain, reported by `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's
 > `by`-delegation.
@@ -55,7 +57,7 @@
 > **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
 > under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
 > keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed. The two suite checks are the
-> only ones left failing, and only because `mwl test` does not exist yet.
+> only ones left failing, and they now fail on a count rather than on a missing runner.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -574,9 +576,11 @@ declaration it attaches to, including the explicit `<T>` call-site type argument
 `Core\Attributes::get<T>`/`::all<T>` need even though their retrieval body doesn't land until M8
 ([ADR 0046](adr/0046-attributes-shape-literal-metadata.md)).
 
-Also in this milestone: `mwl test` and the `.mwlt` format — deliberately a **superset of `.phpt` sections**
-(`--TEST--`, `--FILE--`, `--EXPECT--`, `--EXPECTF--`, `--SKIPIF--`, `--INI--`, `--ARGS--`, `--ENV--`,
-`--CLEAN--`), so the M11 importer is mechanical rather than a rewrite.
+Also in this milestone: `mwl test` and the `.mwlt` format — deliberately a **superset of `.phpt`'s
+sections**, so the M11 importer is mechanical rather than a rewrite. Both are built;
+[`crates/mwl-test`](../crates/mwl-test/src/lib.rs)'s module doc is the one home for every section, what
+`--EXPECTF--`'s escapes match, and why a case runs in a subprocess. What is left here is the corpus, and
+the **Verify** list below is what it has to cover.
 
 **Verify:** hand-written conformance suite ≥ 1000 `.mwlt` cases green, including `uint` at `0`, `i64::MAX`,
 `i64::MAX + 1` and `2^64 − 1`; every conversion in ADR 0007 both succeeding and throwing; overflow throwing

@@ -1055,6 +1055,7 @@ dependencies = [
  "mwl-ir",
  "mwl-runtime",
  "mwl-syntax",
+ "mwl-test",
  "mwl-types",
 ]
 
@@ -1128,6 +1129,10 @@ dependencies = [
  "insta",
  "mwl-diagnostics",
 ]
+
+[[package]]
+name = "mwl-test"
+version = "0.0.1"
 
 [[package]]
 name = "mwl-types"

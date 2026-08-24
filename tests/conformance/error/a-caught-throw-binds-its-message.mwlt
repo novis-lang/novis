@@ -1,0 +1,13 @@
+--TEST--
+`catch` binds the thrown value, whose `message` is a readonly property
+--FILE--
+<?mwl
+try {
+    throw new RuntimeError("the world said no");
+} catch (Throwable $e) {
+    echo "caught: ", $e->message, "\n";
+}
+echo "after\n";
+--EXPECT--
+caught: the world said no
+after

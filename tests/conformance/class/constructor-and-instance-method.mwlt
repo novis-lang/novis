@@ -1,0 +1,24 @@
+--TEST--
+a constructor assigns every declared property, and a method reads them back
+--FILE--
+<?mwl
+class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+
+    public function sum(): int {
+        return $this->x + $this->y;
+    }
+}
+
+var $p = new Point(3, 4);
+echo $p->sum(), "\n";
+echo $p->x, ",", $p->y, "\n";
+--EXPECT--
+7
+3,4

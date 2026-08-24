@@ -158,7 +158,7 @@ distinct=6' examples/report.mwl
 
 for suite in conformance differential; do
     if cargo run --quiet -p mwl-cli -- test "tests/$suite/" > "/tmp/mwl-$suite" 2>&1; then
-        echo "ok   mwl test tests/$suite/ -- $(grep -o '[0-9]* passed, [0-9]* failed' "/tmp/mwl-$suite" | tail -1)"
+        echo "ok   mwl test tests/$suite/ -- $(grep -o '[0-9]* passed, [0-9]* failed, [0-9]* skipped' "/tmp/mwl-$suite" | tail -1)"
     else
         echo "FAIL mwl test tests/$suite/"
         tail -5 "/tmp/mwl-$suite"

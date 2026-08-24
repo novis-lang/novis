@@ -1,0 +1,14 @@
+--TEST--
+Core\Arr::range builds an inclusive run, and ::count measures one
+--FILE--
+<?mwl
+array<int> $ns = Core\Arr::range(1, 10);
+echo Core\Arr::count($ns), "\n";
+echo Core\Arr::count(Core\Arr::range(3, 3)), "\n";
+echo Core\Arr::count([]), "\n";
+echo Core\Arr::count(["a", "b"]), "\n";
+--EXPECT--
+10
+1
+0
+2

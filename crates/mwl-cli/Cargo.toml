@@ -1,6 +1,6 @@
 [package]
 name = "mwl-cli"
-description = "The mwl command-line binary: ast/check (M1-M2), run (M3), info, later test"
+description = "The mwl command-line binary: ast/check (M1-M2), run (M3), test (M4), info"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -20,6 +20,7 @@ mwl-types.workspace = true
 mwl-ir.workspace = true
 mwl-codegen.workspace = true
 mwl-runtime.workspace = true
+mwl-test.workspace = true
 clap.workspace = true
 
 [lints]

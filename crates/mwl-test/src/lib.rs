@@ -1,0 +1,255 @@
+//! The `.mwlt` conformance-case format and the runner behind `mwl test`.
+//!
+//! A `.mwlt` file is one case: a program, what it should print, and a title
+//! saying what it is for. The format is deliberately a **superset of PHP's
+//! `.phpt`**, so importing PHP's own test corpus at M11 is mechanical rather
+//! than a rewrite — `docs/implementation-plan.md` § M4 is where that decision
+//! lives.
+//!
+//! ```text
+//! --TEST--
+//! an int converts to a string
+//! --FILE--
+//! <?mwl
+//! echo 41 as string;
+//! --EXPECT--
+//! 41
+//! ```
+//!
+//! ## The sections
+//!
+//! Nine come straight from `.phpt` and mean what they mean there:
+//!
+//! | section | meaning |
+//! |---|---|
+//! | `--TEST--` | the one-line title, required |
+//! | `--FILE--` | the MWL program, required |
+//! | `--EXPECT--` | expected standard output, compared literally |
+//! | `--EXPECTF--` | expected standard output, with [`expect`]'s `%` escapes |
+//! | `--SKIPIF--` | a program whose output starting `skip` skips the case |
+//! | `--CLEAN--` | a program run afterwards, whose output is ignored |
+//! | `--INI--` | configuration for the run |
+//! | `--ARGS--` | extra arguments for the run |
+//! | `--ENV--` | environment variables for the run |
+//!
+//! Four are MWL's own. Two of those are the differential pair
+//! `docs/agent/loop-goal.md` names:
+//!
+//! | section | meaning |
+//! |---|---|
+//! | `--ORACLE--` | a PHP twin whose standard output this case's must equal |
+//! | `--ORACLE-DIVERGES--` | the one-line reason there is deliberately no twin |
+//! | `--EXPECT-ERROR--` | expected standard error, compared literally |
+//! | `--EXPECTF-ERROR--` | expected standard error, with `%` escapes |
+//!
+//! `--ORACLE--` is how the differential suite proves PHP compatibility
+//! instead of freezing a belief about it: the expectation is not a string
+//! someone typed, it is what PHP 8.5 does on the machine running the suite.
+//! `--ORACLE-DIVERGES--` is the other half — where MWL differs from PHP on
+//! purpose, the case states the reason and its own expectation, so a
+//! divergence is a named, reviewable line rather than a comparison quietly
+//! left out.
+//!
+//! The error pair exists because MWL writes a diagnostic and an uncaught
+//! throw to **standard error**, where PHP writes both to standard output.
+//! Without it, no case could cover a compile error at all. Their presence is
+//! also the one thing that says a case expects the run to fail; every other
+//! case must exit zero, so nothing can pass by printing the right prefix on
+//! its way to a crash.
+//!
+//! A `--ORACLE--` case is **skipped**, once and with the reason named, on a
+//! machine where the PHP binary cannot be run at all — that is an absent
+//! oracle, not a failing comparison, and reporting sixty identical failures
+//! would bury the one line that says PHP is missing. The count is what
+//! catches it: `docs/agent/loop-goal.toml` requires 60 *passing* differential
+//! cases, so a leg that silently lost its oracle fails there. As of this
+//! writing PHP 8.5 is on `PATH` under Windows but not inside the WSL distro,
+//! so the Linux leg skips the differential suite and covers conformance only.
+//!
+//! ## What is parsed but not yet honoured
+//!
+//! `--INI--`, `--ARGS--` and `--ENV--` parse — that is what keeps the M11
+//! importer mechanical — but nothing can act on them yet: `mwl.toml` is not
+//! read until M6 ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)),
+//! and argv and the environment are unreachable until `Core\Cli` and
+//! `Core\Env` land at M8. A case that uses one is reported as a **failure**
+//! naming the milestone, never run-and-half-ignored.
+//!
+//! ## Known gaps
+//!
+//! 1. Cases run one at a time. The suites are small enough that ordering the
+//!    output deterministically is worth more than the wall-clock; revisit
+//!    when a suite crosses the point where it is felt.
+//! 2. There is no `--EXPECTREGEX--`. `--EXPECTF--` covers what the corpus
+//!    needs so far, and a second pattern language is a second thing to learn.
+
+pub mod case;
+pub mod expect;
+pub mod run;
+
+use std::fs;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
+
+pub use case::{Case, Expectation, Oracle, ParseError};
+pub use run::{Options, Outcome};
+
+/// The extension a case file carries.
+pub const EXTENSION: &str = "mwlt";
+
+/// What a whole run came to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Summary {
+    /// Cases whose every expectation held.
+    pub passed: usize,
+    /// Cases that failed, including ones that could not be parsed or run.
+    pub failed: usize,
+    /// Cases `--SKIPIF--` declined.
+    pub skipped: usize,
+}
+
+impl Summary {
+    /// True when nothing failed.
+    #[must_use]
+    pub const fn is_success(self) -> bool {
+        self.failed == 0
+    }
+}
+
+/// Collects every `.mwlt` file under `paths`, sorted, directories walked.
+///
+/// A path naming a file is taken as-is whatever its extension, so a single
+/// case can be run by name.
+///
+/// # Errors
+///
+/// Fails when a path does not exist or a directory cannot be read.
+pub fn discover(paths: &[PathBuf]) -> io::Result<Vec<PathBuf>> {
+    let mut found = Vec::new();
+    for path in paths {
+        collect(path, &mut found)?;
+    }
+    found.sort();
+    Ok(found)
+}
+
+fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
+    let meta = fs::metadata(path)
+        .map_err(|error| io::Error::new(error.kind(), format!("{}: {error}", path.display())))?;
+    if meta.is_file() {
+        into.push(path.to_path_buf());
+        return Ok(());
+    }
+    let mut entries: Vec<PathBuf> = fs::read_dir(path)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<io::Result<_>>()?;
+    entries.sort();
+    for entry in entries {
+        if entry.is_dir() {
+            collect(&entry, into)?;
+        } else if entry.extension().is_some_and(|ext| ext == EXTENSION) {
+            into.push(entry);
+        }
+    }
+    Ok(())
+}
+
+/// Runs every case in `paths`, writing a report to `out`.
+///
+/// The last line is always `N passed, M failed, K skipped` — the shape
+/// `tools/loop.py` reads to decide whether a suite check held.
+///
+/// # Errors
+///
+/// Fails on a discovery error, or when `out` cannot be written to. A failing
+/// *case* is not an error: it is counted in the returned [`Summary`].
+pub fn run(paths: &[PathBuf], opts: &Options, out: &mut dyn Write) -> io::Result<Summary> {
+    // Everything is parsed before anything runs, for two reasons: a malformed
+    // case is reported without having spawned a compiler, and the PHP probe
+    // below only happens when some case actually wants an oracle.
+    let parsed: Vec<(String, Result<Case, String>)> = discover(paths)?
+        .into_iter()
+        .map(|path| (path.display().to_string(), read(&path)))
+        .filter(|(label, _)| {
+            opts.filter
+                .as_ref()
+                .is_none_or(|filter| label.contains(filter.as_str()))
+        })
+        .collect();
+
+    let wants_oracle = parsed
+        .iter()
+        .filter_map(|(_, case)| case.as_ref().ok())
+        .any(|case| matches!(case.oracle, Some(Oracle::Php(_))));
+    let php = !wants_oracle || run::php_available(opts);
+
+    let root = std::env::temp_dir().join(format!("mwl-test-{}", std::process::id()));
+    // A previous run that was killed before its cleanup leaves this behind.
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root)?;
+
+    let mut summary = Summary::default();
+    for (index, (label, case)) in parsed.iter().enumerate() {
+        let workdir = root.join(index.to_string());
+        fs::create_dir_all(&workdir)?;
+        let outcome = match case {
+            Ok(case) => run::run_case(case, opts, &workdir, php),
+            Err(error) => Outcome::Fail(vec![error.clone()]),
+        };
+        let _ = fs::remove_dir_all(&workdir);
+
+        match outcome {
+            Outcome::Pass => summary.passed += 1,
+            Outcome::Skip(reason) => {
+                summary.skipped += 1;
+                writeln!(out, "SKIP {label} — {reason}")?;
+            }
+            Outcome::Fail(report) => {
+                summary.failed += 1;
+                writeln!(out, "FAIL {label}")?;
+                for line in report {
+                    writeln!(out, "{line}")?;
+                }
+                writeln!(out)?;
+            }
+        }
+    }
+    let _ = fs::remove_dir_all(&root);
+
+    writeln!(
+        out,
+        "{} passed, {} failed, {} skipped",
+        summary.passed, summary.failed, summary.skipped
+    )?;
+    Ok(summary)
+}
+
+/// Reads and parses the case at `path`, or the line to report instead.
+fn read(path: &Path) -> Result<Case, String> {
+    let text = fs::read_to_string(path).map_err(|error| format!("could not read it: {error}"))?;
+    case::parse(path, &text).map_err(|error| format!("not a valid case: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_summary_with_no_failures_is_a_success() {
+        assert!(Summary::default().is_success());
+        assert!(
+            !Summary {
+                passed: 3,
+                failed: 1,
+                skipped: 0
+            }
+            .is_success()
+        );
+    }
+
+    #[test]
+    fn discovery_names_the_path_it_could_not_read() {
+        let error = discover(&[PathBuf::from("no/such/place")]).expect_err("a missing path fails");
+        assert!(error.to_string().contains("no/such/place"), "{error}");
+    }
+}

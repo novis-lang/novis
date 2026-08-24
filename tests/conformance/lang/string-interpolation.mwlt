@@ -1,0 +1,13 @@
+--TEST--
+a double-quoted string interpolates a variable; a single-quoted one does not
+--FILE--
+<?mwl
+string $who = "world";
+int $n = 3;
+echo "hello $who\n";
+echo "n is $n\n";
+echo 'hello $who' . "\n";
+--EXPECT--
+hello world
+n is 3
+hello $who

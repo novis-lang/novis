@@ -1,0 +1,17 @@
+[package]
+name = "mwl-test"
+description = "The `.mwlt` conformance-case format and the runner behind `mwl test`"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+# No dependencies on purpose. A test runner that fails is indistinguishable
+# from the thing it is testing failing, so this crate stays std-only and
+# hand-written rather than pulling a regex engine in for `--EXPECTF--`.
+[dependencies]
+
+[lints]
+workspace = true
