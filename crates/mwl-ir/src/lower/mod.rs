@@ -118,7 +118,9 @@ type Env = FxHashMap<String, (ValueId, Ty)>;
 /// [`Lowering::lower_while`]'s own doc comment for exactly how both are
 /// combined.
 struct LoopFrame {
-    /// Where a `continue` jumps — the loop header, re-running the condition.
+    /// Where a `continue` jumps: the loop header, re-running the condition —
+    /// except in a `for`, where it is the step block that runs the header's
+    /// third clause and *then* reaches the header ([`Lowering::lower_for`]).
     header_block: BlockId,
     /// Where a `break` jumps — the block right after the loop.
     after_block: BlockId,
@@ -2258,12 +2260,38 @@ class T {
         );
     }
 
+    /// A `for` loop: the initializer runs before the header, the step runs in
+    /// a block of its own between the body and the header, and the loop
+    /// variable's header phi is patched from that step block — see
+    /// [`Lowering::lower_for`].
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn for_loops_are_still_out_of_scope() {
-        lower_first_method(
-            "<?mwl\nclass T {\n  function m(): int {\n    int $i = 0;\n    for ($i = 0; $i < 1; $i = $i + 1) {}\n    return 0;\n  }\n}\n",
+    fn for_loop_runs_its_step_in_a_block_between_body_and_header() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function sum(int $n): int {\n    int $total = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      $total += $i;\n    }\n    return $total;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `continue` in a `for` jumps to the step block rather than the header,
+    /// so the step still runs on that path — the one structural difference
+    /// between [`Lowering::lower_for`] and [`Lowering::lower_while`].
+    #[test]
+    fn for_loop_continue_reaches_the_step_block() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      if ($i === 2) {\n        continue;\n      }\n      $hits += 1;\n    }\n    return $hits;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `for` whose body always returns: nothing reaches the step block, so
+    /// it is sealed with the environment the loop was entered with rather
+    /// than a merge of edges that do not exist. See [`Lowering::lower_for`].
+    #[test]
+    fn for_loop_whose_body_always_returns_leaves_a_dead_step_block() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function head(int $n): int {\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      return $i;\n    }\n    return -1;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// `new Foo(1)` with a resolved one-parameter constructor — the class's

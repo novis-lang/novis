@@ -39,10 +39,10 @@
 //!
 //! # Design choices worth knowing before widening this
 //!
-//! - **SSA, not a plain CFG.** `if`/`while` are each a hand-rolled
-//!   two-predecessor merge, not a dominance-based phi-placement algorithm —
-//!   sufficient for any structured nesting, since neither produces a join of
-//!   another shape. `for`/`switch` will reuse the same two building blocks:
+//! - **SSA, not a plain CFG.** `if`/`while`/`for` are each a hand-rolled
+//!   merge, not a dominance-based phi-placement algorithm — sufficient for any
+//!   structured nesting, since none produces a join of another shape. There
+//!   are two building blocks and `switch` will reuse them as `for` did:
 //!   `merge_envs` for a set of incoming edges known up front, and
 //!   `lower_while`'s seed-then-patch phi dance for a join whose back edge is
 //!   not known until its body is lowered.
@@ -94,11 +94,14 @@
 //!
 //! Each panics naming itself rather than miscompiling.
 //!
-//! 1. **`for`, `switch` and `match` do not lower at all.** Every shape they
-//!    need exists — [`ir::Terminator::Branch`] with an [`ids::EdgeId`], and
+//! 1. **`switch` and `match` do not lower at all**, and neither does
+//!    `do`/`while`. Every shape they need exists —
+//!    [`ir::Terminator::Branch`] with an [`ids::EdgeId`], and
 //!    [`ir::Terminator::Switch`], built general rather than
 //!    resumption-specific precisely so `switch` can reach for it — so widening
-//!    should add no new ones.
+//!    should add no new ones. `for` lowers
+//!    ([`lower::Lowering::lower_for`]); its one restriction is a condition
+//!    clause of more than one comma-separated expression.
 //! 2. **A `finally` does not run when a `catch` clause's own body throws.**
 //!    [`lower::Lowering::lower_try`] owns that one — every other exit from a
 //!    protected region runs its `finally`, including a `return`, a `break` and

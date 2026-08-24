@@ -1,0 +1,54 @@
+--TEST--
+`continue` in a `for` runs the step clause before the next test, and `break` skips it
+--FILE--
+<?mwl
+var $out = "";
+var $i = 0;
+for ($i = 0; $i < 6; $i += 1) {
+    if ($i === 2) {
+        continue;
+    }
+    if ($i === 5) {
+        break;
+    }
+    $out .= ($i as string);
+}
+echo "out=", $out, " i=", $i, "\n";
+
+// The inner `break` leaves only the inner loop.
+var $cells = "";
+var $r = 0;
+var $c = 0;
+for ($r = 0; $r < 3; $r += 1) {
+    for ($c = 0; $c < 3; $c += 1) {
+        if ($c === 2) {
+            break;
+        }
+        $cells .= ($r as string) . ($c as string) . " ";
+    }
+}
+echo "cells=", $cells, "|\n";
+
+// A `continue` out of a protected region runs its `finally` first, then the
+// step — the same order a `break` takes on its way out.
+var $log = "";
+var $j = 0;
+for ($j = 0; $j < 4; $j += 1) {
+    string $tag = "t" . ($j as string);
+    try {
+        if ($j === 1) {
+            continue;
+        }
+        if ($j === 3) {
+            break;
+        }
+        $log .= $tag;
+    } finally {
+        $log .= ".";
+    }
+}
+echo "log=", $log, " j=", $j, "\n";
+--EXPECT--
+out=0134 i=5
+cells=00 01 10 11 20 21 |
+log=t0..t2.. j=3

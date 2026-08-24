@@ -244,6 +244,202 @@ impl<'a> Lowering<'a> {
         *env = self.merge_envs(after_block, &after_incoming, &header_env);
         *cur = after_block;
     }
+    /// `for (init; cond; step) body` — [`Self::lower_while`]'s exact shape
+    /// with two clauses bolted onto it, and one structural consequence.
+    ///
+    /// * **`init` runs once, before the header exists**, so it is lowered
+    ///   straight into `cur` against the caller's own `env`: whatever it binds
+    ///   or re-points is simply part of the environment the loop is entered
+    ///   with, and needs no phi of its own beyond the one every reassigned
+    ///   local already gets.
+    /// * **`step` runs at the end of every iteration**, which is what makes a
+    ///   `for` structurally different from a `while` rather than sugar over
+    ///   one: `continue` has to run it too. So the loop gets a **step block**
+    ///   between the body and the header, and that — not the header — is what
+    ///   [`LoopFrame::header_block`] points a `continue` at. Every way an
+    ///   iteration can end (the body's fall-through, each `continue`) is an
+    ///   incoming edge to it, merged by the same [`Self::merge_envs`] a join
+    ///   uses; the step clause is then lowered *once*, over the merged
+    ///   environment, and the single back edge to the header leaves from it.
+    /// * **The header phis therefore see one back edge**, from the step block,
+    ///   rather than one per `continue` — the only place this differs from
+    ///   [`Self::lower_while`]'s patch loop, which is otherwise identical.
+    ///
+    /// A `continue` still emits its own safepoint poll ([`Self::lower_continue`])
+    /// and then reaches the step block's, so that path polls twice per
+    /// iteration. A poll is a load and a predicted-not-taken branch
+    /// ([`InstKind::Safepoint`]), and paying it twice on the rarer edge is
+    /// cheaper than teaching `continue` which loop shape it sits in.
+    ///
+    /// # Panics
+    ///
+    /// Panics for a `for` header whose condition is a comma list of more than
+    /// one expression — PHP evaluates and discards all but the last, and the
+    /// discarded ones may assign, which would need the header environment
+    /// rebuilt around them. Panics too for the cases
+    /// [`Self::lower_expr_stmt`] and [`Self::lower_truthy_cond`] already name.
+    pub(super) fn lower_for(
+        &mut self,
+        init: &[Expr],
+        cond: &[Expr],
+        step: &[Expr],
+        body: &'a Stmt,
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        assert!(
+            cond.len() <= 1,
+            "mwl-ir lowers a `for` header with at most one condition expression — a comma list \
+             there evaluates and discards every expression but the last, and a discarded one may \
+             assign; see the crate docs' known gaps"
+        );
+        for e in init {
+            self.lower_expr_stmt(e, env, cur);
+        }
+
+        let mut seen = FxHashSet::default();
+        let mut reassigned = Vec::new();
+        self.collect_reassigned_locals(body, &mut seen, &mut reassigned);
+        for e in step {
+            self.collect_reassigned_in_expr(e, &mut seen, &mut reassigned);
+        }
+        self.seed_generator_loop_carried(env, &mut seen, &mut reassigned);
+
+        let pre_block = *cur;
+        let header_block = self.new_block();
+        self.seal(pre_block, Terminator::Jump(header_block));
+
+        // Seeded exactly as `Self::lower_while` seeds them, and patched below
+        // once the step block's exit environment is known — see that method
+        // for why a `Ty::Ref` binding is skipped.
+        let mut header_env = env.clone();
+        let mut phi_slots: Vec<(String, usize)> = Vec::new();
+        for name in &reassigned {
+            let Some(&(pre_v, ty)) = env.get(name) else {
+                continue;
+            };
+            if ty == Ty::Ref {
+                continue;
+            }
+            let phi_v = self.ids.next_value();
+            let inst_index = self.block_insts[header_block.index() as usize].len();
+            self.block_insts[header_block.index() as usize].push(Inst {
+                result: Some(phi_v),
+                ty: Some(ty),
+                kind: InstKind::Phi {
+                    incoming: vec![(pre_block, pre_v)],
+                },
+                on_error: None,
+            });
+            header_env.insert(name.clone(), (phi_v, ty));
+            phi_slots.push((name.clone(), inst_index));
+        }
+
+        // An omitted condition is PHP's `for (;;)` — an unconditional loop,
+        // spelled here as the constant the branch then tests, so the block
+        // shape stays the one every other loop builds.
+        let mut cond_end = header_block;
+        let cond_v = match cond.first() {
+            Some(c) => self.lower_truthy_cond(c, &header_env, &mut cond_end),
+            None => {
+                self.emit(header_block, Ty::Bool, InstKind::ConstBool(true))
+                    .0
+            }
+        };
+
+        let body_block = self.new_block();
+        let step_block = self.new_block();
+        let after_block = self.new_block();
+        let body_edge = self.ids.next_edge(body.span);
+        let after_edge = self
+            .ids
+            .next_edge(cond.first().map_or(body.span, |c| c.span));
+        self.seal(
+            cond_end,
+            Terminator::Branch {
+                cond: cond_v,
+                then_block: body_block,
+                then_edge: body_edge,
+                else_block: after_block,
+                else_edge: after_edge,
+            },
+        );
+
+        self.loop_stack.push(LoopFrame {
+            header_block: step_block,
+            after_block,
+            continue_edges: Vec::new(),
+            break_edges: Vec::new(),
+            iteration_owned: Vec::new(),
+            carried: header_env.keys().cloned().collect(),
+            loop_private: Vec::new(),
+            try_depth: self.try_stack.len(),
+        });
+        let mut body_env = header_env.clone();
+        let mut body_cur = body_block;
+        self.lower_stmt(body, &mut body_cur, &mut body_env);
+        let reaches_step = !self.is_terminated(body_cur);
+        if reaches_step {
+            self.end_iteration(body_cur, &mut body_env);
+        }
+        let frame = self
+            .loop_stack
+            .pop()
+            .expect("just pushed this loop's own frame above");
+
+        let mut step_incoming: Vec<(BlockId, Env)> = Vec::new();
+        if reaches_step {
+            self.seal(body_cur, Terminator::Jump(step_block));
+            step_incoming.push((body_cur, body_env));
+        }
+        step_incoming.extend(frame.continue_edges);
+
+        let back_edges: Vec<(BlockId, Env)> = if step_incoming.is_empty() {
+            // Nothing reaches the step block — the body always `return`s,
+            // throws or `break`s, so no iteration ever completes. It still
+            // needs a terminator (`Self::finish` insists every block has one),
+            // and the header phis still need an entry for it, so it jumps
+            // back with the environment the loop was *entered* with: those
+            // values are defined before the header, which is the one thing
+            // that stays true on a block nothing can reach.
+            self.seal(step_block, Terminator::Jump(header_block));
+            vec![(step_block, env.clone())]
+        } else {
+            let mut step_env = self.merge_envs(step_block, &step_incoming, &header_env);
+            let mut step_cur = step_block;
+            for e in step {
+                self.lower_expr_stmt(e, &mut step_env, &mut step_cur);
+            }
+            // Reserved safepoint poll site (loop back edge) — placed here for
+            // `Self::lower_while`'s reason, on the edge itself rather than the
+            // header, so an iteration that never completes polls zero times.
+            self.emit_safepoint(step_cur);
+            self.seal(step_cur, Terminator::Jump(header_block));
+            vec![(step_cur, step_env)]
+        };
+
+        for (name, inst_index) in &phi_slots {
+            for (block, back_env) in &back_edges {
+                let &(back_v, _) = back_env.get(name).unwrap_or_else(|| {
+                    panic!(
+                        "mwl-ir: `{name}` was reassigned in a for body or step per the syntactic \
+                         scan but is missing from the back edge's exit environment — bug in \
+                         collect_reassigned_locals"
+                    )
+                });
+                let inst = &mut self.block_insts[header_block.index() as usize][*inst_index];
+                let InstKind::Phi { incoming } = &mut inst.kind else {
+                    unreachable!("phi_slots only ever indexes a Phi instruction");
+                };
+                incoming.push((*block, back_v));
+            }
+        }
+
+        let mut after_incoming: Vec<(BlockId, Env)> = vec![(cond_end, header_env.clone())];
+        after_incoming.extend(frame.break_edges);
+        *env = self.merge_envs(after_block, &after_incoming, &header_env);
+        *cur = after_block;
+    }
     /// `foreach ($subject as $k => $v) body` over an `array<T>` — ADR 0007
     /// § 5's insertion order, walked by the cursor
     /// [`InstKind::ArrayNextSlot`] steps.
@@ -1121,23 +1317,7 @@ impl<'a> Lowering<'a> {
             // loop header that misses its phi reads the pre-loop value on
             // every iteration — an infinite `while ($n < 4) { $n += 1; }`
             // rather than a diagnostic.
-            StmtKind::Expr(e) => {
-                if let ExprKind::Assign {
-                    target,
-                    by_ref: false,
-                    ..
-                } = &e.kind
-                    && let Some(name) = self.rebound_local(target)
-                    && seen.insert(name.clone())
-                {
-                    out.push(name);
-                }
-                // A `&$x` argument re-points its holder just as an assignment
-                // does — `Self::write_back_holder` is literally where — but
-                // nothing in the statement's *syntax* says so, since the `&`
-                // is on the callee's declaration. See below.
-                self.collect_by_ref_holders(e, seen, out);
-            }
+            StmtKind::Expr(e) => self.collect_reassigned_in_expr(e, seen, out),
             // `unset($a[$k]);` re-points `$a` at the separated array exactly
             // the way `$a[$k] = …;` does — see `Self::lower_unset` — so it
             // needs the identical loop-header phi.
@@ -1164,6 +1344,16 @@ impl<'a> Lowering<'a> {
             StmtKind::While { body, .. } | StmtKind::Foreach { body, .. } => {
                 self.collect_reassigned_locals(body, seen, out);
             }
+            // A `for`'s step clause writes the loop variable of the loop it
+            // belongs to, and an enclosing loop needs a header phi for it just
+            // as much as the inner one does — see `Self::lower_for`, which
+            // asks the same two questions of its own body and step.
+            StmtKind::For { step, body, .. } => {
+                self.collect_reassigned_locals(body, seen, out);
+                for e in step {
+                    self.collect_reassigned_in_expr(e, seen, out);
+                }
+            }
             // A protected region is three more places a local is written, and
             // a loop-header phi that misses one carries the pre-loop value
             // forever — silently, since nothing downstream can tell a missing
@@ -1189,6 +1379,33 @@ impl<'a> Lowering<'a> {
             }
             _ => {}
         }
+    }
+    /// One expression evaluated for its effect — an expression statement's own
+    /// expression, or one clause of a `for` header — scanned for the locals it
+    /// re-points, exactly as [`Self::collect_reassigned_locals`] scans a
+    /// statement. Split out because a `for`'s step clause is a bare [`Expr`]
+    /// with no [`Stmt`] wrapping it, and it owes the identical phi.
+    pub(super) fn collect_reassigned_in_expr(
+        &self,
+        e: &Expr,
+        seen: &mut FxHashSet<String>,
+        out: &mut Vec<String>,
+    ) {
+        if let ExprKind::Assign {
+            target,
+            by_ref: false,
+            ..
+        } = &e.kind
+            && let Some(name) = self.rebound_local(target)
+            && seen.insert(name.clone())
+        {
+            out.push(name);
+        }
+        // A `&$x` argument re-points its holder just as an assignment does —
+        // `Self::write_back_holder` is literally where — but nothing in the
+        // statement's *syntax* says so, since the `&` is on the callee's
+        // declaration. See below.
+        self.collect_by_ref_holders(e, seen, out);
     }
     /// [`Self::collect_reassigned_locals`]'s by-reference half: every local a
     /// call somewhere inside `e` re-points by handing it to a `&$x`

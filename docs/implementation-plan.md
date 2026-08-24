@@ -18,9 +18,10 @@
 > and `value_hash` indexes it — `mwl_runtime::identity`'s own docs are the home. `examples/nullable.mwl`,
 > the fixture that exercises every part of that keystone, now runs whole: `?->` reads through one
 > `IsNull` guard (`mwl_ir::lower::Lowering::open_nullsafe`). A **variadic** parameter
-> is the one signature shape still missing, and `decimal` the one type. **A compound assignment now
-> lowers as the `$x = $x op e` it means** (`mwl_ir::lower::Lowering::lower_compound_assignment`), so two
-> M4 holes stay folded in — `for`/`switch`/`match` and `decimal`'s IR — as is ADR 0070's duration
+> is the one signature shape still missing, and `decimal` the one type. **`for` lowers**
+> (`mwl_ir::lower::Lowering::lower_for`) — its step clause is a block of its own between body and
+> header, which is what a `continue` jumps to — so two M4 holes stay folded in: `switch`/`match` and
+> `decimal`'s IR, as is ADR 0070's duration
 > literal, which `Duration::parse` shares an implementation with. Dependencies: `regex` + `fancy-regex` and `jiff` are
 > named by the user; the rest the loop picks under ADR 0051 § 4.
 >
@@ -39,8 +40,8 @@
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
 > `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `granularity`, `Order`, and the
 > conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 275 (in
-> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 278 (in
+> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 83,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -63,7 +64,7 @@
 > three combination members, `append`/`prepend`, `Path::join`) and `CoreTy::Decimal`
 > (`sum`/`product`/`average`). `Core` §§ 3–12
 > have no registry class at all, and `Core\Str`/`Core\Arr` are incomplete. Folded in because the corpus
-> cannot route around them: `for`/`switch`/`match`, `decimal`'s IR, ADR 0070's duration literal. Also open: ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
+> cannot route around them: `switch`/`match`, `decimal`'s IR, ADR 0070's duration literal. Also open: ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
 > nothing enforces, and the reserved `Comparable`/`Stringable` interfaces, which carry no member signatures.
 > One PHP divergence stands unfixed — **an abandoned generator never runs the `finally` it is suspended
 > inside**, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP
@@ -75,8 +76,8 @@
 > own handler block, widening `array<T>` to element-covariant-on-read, object identity (now settled and
 > recorded in `mwl_runtime::identity`), and picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
 > so any failure below Stage 2 is a regression rather than unfinished work. Stage 2's first fixture,
-> `examples/nullable.mwl`, now passes whole; it stops on the second, `examples/match.mwl`, whose `+=` and
-> `.=` now lower, leaving `match`, `switch` and `for` — `mwl-ir`'s gap 1.
+> `examples/nullable.mwl`, now passes whole; it stops on the second, `examples/match.mwl`, whose `+=`,
+> `.=` and `for` now lower, leaving `match` and `switch` — `mwl-ir`'s gap 1.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

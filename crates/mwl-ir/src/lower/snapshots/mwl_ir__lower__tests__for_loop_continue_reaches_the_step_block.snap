@@ -1,0 +1,48 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn count(object, int) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-4:19
+    v2 = const.int 0  ; int
+    ; stmt s1 @5:5-5:16
+    v3 = const.int 0  ; int
+    ; stmt s2 @6:5-11:6
+    v4 = const.int 0  ; int
+    jump bb1
+  bb1:
+    v5 = phi [bb0: v2, bb3: v12]  ; int
+    v6 = phi [bb0: v4, bb3: v14]  ; int
+    v7 = lt v6, v1  ; bool
+    branch v7 -> bb2 (e0), bb4 (e1)
+  bb2:
+    ; stmt s3 @6:36-11:6
+    ; stmt s4 @7:7-9:8
+    v8 = const.int 2  ; int
+    v9 = eq v6, v8  ; bool
+    branch v9 -> bb6 (e2), bb5 (e3)
+  bb3:
+    v12 = phi [bb5: v11, bb6: v5]  ; int
+    v13 = const.int 1  ; int
+    v14 = add v6, v13  ; int
+    safepoint
+    jump bb1
+  bb4:
+    ; stmt s8 @12:5-12:18
+    release v0
+    return v5
+  bb5:
+    ; stmt s7 @10:7-10:18
+    v10 = const.int 1  ; int
+    v11 = add v5, v10  ; int
+    jump bb3
+  bb6:
+    ; stmt s5 @7:21-9:8
+    ; stmt s6 @8:9-8:18
+    safepoint
+    jump bb3
+}

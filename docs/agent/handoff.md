@@ -2,34 +2,42 @@
 
 ## State
 
-**A compound assignment lowers as the `$x = $x op e` it means**, so `examples/match.mwl`'s `+=` and `.=`
-are no longer what blocks Stage 2's second check — only `match`, `switch` and `for` are (`mwl-ir` gap 1).
-`AssignOp::binary_op` in `mwl-syntax`'s AST is the one home of the operator pairing; `mwl_types::expr`'s
-`check_compound_assign` types the rewrite (the target's type is a *hint* for the value, and the operator's
-result must be assignable back to the target, so `int $i; $i .= "x";` is `E0401`), and
-`mwl_ir::lower::Lowering::lower_compound_assignment` rewrites the AST node and hands it to
-`lower_reassignment`, so a local, a property, an array element and a `&$x` parameter all gained their
-compound form at once with no new refcount code. `collect_reassigned_locals` now counts *every* assignment
-operator: it counted only `=`, so `while ($n < 4) { $n += 1; }` got no loop-header phi and spun forever.
+**`for` lowers** (`mwl_ir::lower::Lowering::lower_for`), so `examples/match.mwl` — Stage 2's second
+check — is down to `match` and `switch`, `mwl-ir`'s gap 1. The shape: `init` is lowered into the
+caller's own block before the header exists; the header is `lower_while`'s seed-then-patch phi dance
+unchanged; and the step clause gets a **block of its own between the body and the header**, which is
+what `LoopFrame::header_block` points a `continue` at, so the step runs on that path too. Every way an
+iteration ends is an incoming edge to that block, merged by the ordinary `merge_envs`, so the header
+sees exactly one back edge. A body that always leaves the frame reaches the step block on no edge at
+all; it is still sealed back to the header carrying the pre-loop environment, which is the one thing
+that stays defined on a block nothing reaches. `collect_reassigned_locals` gained a `For` arm and an
+extracted `collect_reassigned_in_expr`, because a step clause is a bare `Expr` owed the same phi.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 357 cases through `mwl test tests/`,
-`tools/leak-check.sh` clean over three fixtures (`.=` in a loop into a local, a property and an element;
-and through a `&$s` parameter), and PHP 8.5 agrees line for line with all three new conformance cases.
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 361 cases through `mwl test tests/`,
+and `tools/leak-check.sh` clean over three fixtures (a body-local `string` per iteration, a
+loop-carried `string` and `array` accumulator, `continue`/`break` out of a `try`/`finally`, and a body
+that always returns). PHP 8.5 agrees line for line — `tests/differential/lang/a-for-loop-matches-php.mwlt`.
 
 ## Next
 
-**`for`, `switch` and `match`** — `mwl-ir` gap 1, and the last thing between the loop and Stage 3.
-`examples/match.mwl` needs all three. Every terminator they want already exists
-(`ir::Terminator::Branch`/`Switch`), and `lower_while`'s seed-then-patch phi dance is the pattern `for`'s
-header reuses; `lower_expr`'s catch-all arm panics naming the case. All three are pre-authorized in
-[`loop-goal.md`](loop-goal.md) § *Standing decisions*. `for` first — it is `while` plus an init and a step,
-and its step clause is the compound assignment that now lowers.
+**`switch`, then `match`** — `mwl-ir` gap 1, and the last thing between the loop and Stage 3.
+`ir::Terminator::Switch` was built general rather than resumption-specific precisely for this, but a
+`switch` over strings needs the equality chain instead; PHP's `switch` compares loosely (`==`), while
+`match` compares identically (`===`), which is `mwl_runtime::value_identical`. Fallthrough is the
+absence of a `break`, so each case body is one block falling into the next, and `LoopFrame`'s
+`after_block` is what a `break` inside one must target — a `switch` therefore pushes a frame whose
+`continue` still belongs to the enclosing loop. `match` is an *expression*: it needs a merge phi for
+its arm values and a throw when no arm matches. Both are pre-authorized in
+[`loop-goal.md`](loop-goal.md) § *Standing decisions*.
 
 ## Backlog
 
 - **`Core\Arr::diff`/`intersect`** — the last two set members; they need a `Core\SetOn { Values, Keys,
   Both }` enum in `registry::ENUMS` and an `{on?, by?, comparator?}` bag, both shapes the registry can
   already state. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
+- **`do`/`while` and `$i++`/`$i--` do not lower either** — the first is `lower_while` with the branch
+  moved below the body, the second is `lower_compound_assignment` with a synthesized `1`, but
+  `mwl_types` types an inc/dec as its operand and checks no target, so that half is owed first.
 - **The bitwise operators have no `ir::BinOp` variant**, so `&`/`|`/`^`/`<<`/`>>`/`**` and their compound
   forms all panic in lowering — `mwl-ir`'s gap 16. PHP throws `ArithmeticError` on a negative shift.
 - **ADR 0066 § 3's refusals are `mwl_types`' half and are not built** — a conversion that cannot fail
@@ -39,8 +47,6 @@ and its step clause is the compound assignment that now lowers.
   spec's most common optional shape. `mwl-stdlib`'s gap 3 says every piece is in place.
 - **A variadic parameter, and `CoreTy::Decimal`** — the two signature shapes still missing, blocking ADR
   0069's combination members and `Arr::sum`/`product`/`average`. `mwl-stdlib`'s gap 3 names both sets.
-- **`decimal` has no IR representation** — `mwl-ir` gap 15, ADR 0054 § 3's table; `examples/numbers.mwl`
-  declares two.
 - **`private`/`protected` is not enforced at all**, and `Comparable`/`Stringable` carry no member
   signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the second.
 
@@ -66,14 +72,16 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   against PHP while authoring (a `.php` twin under `.agent-tmp/`, `php` is on the Windows `PATH`), then
   drop the section or put the case in `tests/differential/`. The `.mwlt` format is `crates/mwl-test`'s
   module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own indentation, which widens
-  with the line number.
+  with the line number. A trailing space before a `\n` is unreliable in an `--EXPECT--` block — echo a
+  sentinel character after it.
 - **`MwlStr::from_raw`/`MwlArray::from_raw` return an *owning* handle.** Reading a refcount through one in
   a unit test releases a reference when it drops — wrap it in `std::mem::ManuallyDrop`, or the test ends in
   a heap corruption rather than an assertion failure.
 - **`Core\Path` emits a platform separator**, so a fixture or case asserting a built path must normalize it
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
 - **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator *and*
-  than unary minus, so write `($a > $b) as string` and `(0 - 3) as ?uint`; `bool as string` is PHP's
+  than unary minus, so write `($a > $b) as string` and `(0 - 3) as ?uint`; a `for` header takes
+  *expressions* only, so the loop variable is declared on the line above it; `bool as string` is PHP's
   `""`/`"1"`; a bare array literal in a `foreach` head or a call argument types as `mixed`; a `foreach` key
   binding must be declared `string` even over a list; `Core\Str::length` and `Core\Arr::count` return
   `uint`, and `$u ?? -1` therefore unions to a `mixed` neither `.` nor `echo` can render — give a sentinel

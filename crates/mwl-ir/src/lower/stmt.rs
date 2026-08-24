@@ -164,6 +164,12 @@ impl<'a> Lowering<'a> {
                 self.lower_if(cond, then, else_.as_deref(), cur, env);
             }
             StmtKind::While { cond, body } => self.lower_while(cond, body, cur, env),
+            StmtKind::For {
+                init,
+                cond,
+                step,
+                body,
+            } => self.lower_for(init, cond, step, body, cur, env),
             StmtKind::Foreach {
                 subject,
                 key,
@@ -190,7 +196,7 @@ impl<'a> Lowering<'a> {
             } => self.lower_try(body, catches, finally.as_ref(), cur, env),
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration, a plain \
-                 reassignment, `echo`, `unset`, `return`, a nested block, `if`, `while`, \
+                 reassignment, `echo`, `unset`, `return`, a nested block, `if`, `while`, `for`, \
                  `foreach`, `try`/`catch`, `throw` and a loop-scoped `break`/`continue` — got \
                  {other:?}; see the crate docs' known gaps"
             ),

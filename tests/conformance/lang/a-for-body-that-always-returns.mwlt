@@ -1,0 +1,34 @@
+--TEST--
+A `for` whose body always leaves the frame never runs its step clause
+--FILE--
+<?mwl
+class Scan {
+    public static function firstOver(array<int> $xs, int $limit): int {
+        var $i = 0;
+        for ($i = 0; $i < (Core\Arr::count($xs) as int); $i += 1) {
+            if ($xs[$i] > $limit) {
+                return $xs[$i];
+            }
+        }
+        return -1;
+    }
+    public static function head(array<int> $xs): int {
+        var $i = 0;
+        for ($i = 0; $i < (Core\Arr::count($xs) as int); $i += 1) {
+            return $xs[$i];
+        }
+        return -1;
+    }
+}
+
+array<int> $xs = [1, 5, 9];
+array<int> $none = [];
+echo Scan::firstOver($xs, 4), "\n";
+echo Scan::firstOver($xs, 20), "\n";
+echo Scan::head($xs), "\n";
+echo Scan::head($none), "\n";
+--EXPECT--
+5
+-1
+1
+-1

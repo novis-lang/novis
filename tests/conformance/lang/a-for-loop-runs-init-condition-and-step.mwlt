@@ -1,0 +1,50 @@
+--TEST--
+`for` runs its initializer once, its condition before each iteration and its step after one
+--FILE--
+<?mwl
+var $sum = 0;
+var $i = 0;
+for ($i = 0; $i < 5; $i += 1) {
+    $sum += $i;
+}
+echo "sum=", $sum, " i=", $i, "\n";
+
+// Each clause is a comma-separated list, and every one of them is optional.
+var $a = 0;
+var $b = 0;
+var $steps = 0;
+for ($a = 0, $b = 10; $a < $b; $a += 2, $b -= 1) {
+    $steps += 1;
+}
+echo "a=", $a, " b=", $b, " steps=", $steps, "\n";
+
+var $n = 0;
+for (;;) {
+    $n += 1;
+    if ($n === 3) {
+        break;
+    }
+}
+echo "n=", $n, "\n";
+
+var $k = 0;
+for ($k = 0; $k < 3;) {
+    $k += 1;
+}
+echo "k=", $k, "\n";
+
+// A body-declared local lives for one iteration; the loop variable outlives
+// the loop, holding the first value the condition rejected.
+var $line = "";
+var $c = 0;
+for ($c = 0; $c < 3; $c += 1) {
+    string $cell = "<" . ($c as string) . ">";
+    $line .= $cell;
+}
+echo "line=", $line, " c=", $c, "\n";
+--EXPECT--
+sum=10 i=5
+a=8 b=6 steps=4
+n=3
+k=3
+line=<0><1><2> c=3
