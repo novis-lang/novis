@@ -1,0 +1,30 @@
+--TEST--
+Core\Arr::reverse renumbers every key, and {preserveKeys: true} keeps every one
+--FILE--
+<?mwl
+array<string> $a = ["x" => "one", "10" => "two", "y" => "three"];
+
+// The values come back in the opposite order either way.
+echo Core\Str::join(Core\Arr::reverse($a), ","), "\n";
+echo Core\Str::join(Core\Arr::reverse($a, {preserveKeys: true}), ","), "\n";
+
+// The keys are where MWL and PHP part company: `array_reverse` renumbers the
+// integer keys and silently keeps the string ones, which is the key-type-
+// dependent behaviour ADR 0069 § 3 removes. The default discards *every* key.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::reverse($a)), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::reverse($a, {preserveKeys: true})), ","), "\n";
+
+// The subject is a value and is not touched, reversing twice is identity, and
+// an empty array reverses to an empty one.
+echo Core\Str::join(Core\Arr::keys($a), ","), "\n";
+echo Core\Str::join(Core\Arr::reverse(Core\Arr::reverse($a)), ","), "\n";
+array<string> $empty = [];
+echo Core\Arr::count(Core\Arr::reverse($empty)), "\n";
+--EXPECT--
+three,two,one
+three,two,one
+0,1,2
+y,10,x
+x,10,y
+one,two,three
+0

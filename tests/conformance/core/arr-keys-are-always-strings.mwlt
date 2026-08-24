@@ -1,0 +1,22 @@
+--TEST--
+Core\Arr::keys yields every key as a string, in insertion order
+--FILE--
+<?mwl
+array<string> $a = ["x" => "one", "10" => "two", "y" => "three"];
+array<string> $keys = Core\Arr::keys($a);
+echo Core\Str::join($keys, ","), "\n";
+echo Core\Arr::count($keys), "|", Core\Arr::isList($keys) as string, "|\n";
+
+// ADR 0007 § 5 stores every key as a `string`, so a key that looks like an
+// integer is one only in its spelling — PHP's `array_keys` hands back an `int`
+// there, and the caller who wants the number says so.
+array<string> $list = ["a", "b", "c"];
+echo Core\Str::join(Core\Arr::keys($list), ","), "\n";
+
+array<string> $empty = [];
+echo Core\Arr::count(Core\Arr::keys($empty)), "\n";
+--EXPECT--
+x,10,y
+3|1|
+0,1,2
+0

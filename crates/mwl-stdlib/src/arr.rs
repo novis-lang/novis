@@ -65,11 +65,35 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_is_list",
         },
         CoreMethod {
+            name: "keys",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "mwl_core_arr_keys",
+        },
+        CoreMethod {
             name: "values",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "mwl_core_arr_values",
+        },
+        CoreMethod {
+            name: "reverse",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Options(PRESERVE_KEYS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_reverse",
+        },
+        CoreMethod {
+            name: "flip",
+            params: &[CoreTy::Array(&CoreTy::Union(ARRAY_KEY))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "mwl_core_arr_flip",
         },
         CoreMethod {
             name: "sort",
@@ -105,6 +129,20 @@ pub const ORDER: CoreEnum = CoreEnum {
 /// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
 /// writes at every member taking or producing a key.
 const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
+
+/// `{preserveKeys?: bool}` — the bag the spec's § 2 *Structure* rows share.
+///
+/// The default is `false` everywhere it appears, and it means what that
+/// section says it means: **every** key is discarded and the result renumbered
+/// from `"0"`, rather than PHP's renumber-integers-keep-strings, which is the
+/// key-type-dependent behaviour
+/// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// § 3 removes.
+const PRESERVE_KEYS: &[CoreOption] = &[CoreOption {
+    name: "preserveKeys",
+    ty: CoreTy::Bool,
+    default: Const::Bool(false),
+}];
 
 /// `Core\Arr::range`'s `{step?: int}` — the first options bag in the roster.
 ///
@@ -165,7 +203,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_is_empty" => (mwl_core_arr_is_empty as *const ()).cast(),
         "mwl_core_arr_has_key" => (mwl_core_arr_has_key as *const ()).cast(),
         "mwl_core_arr_is_list" => (mwl_core_arr_is_list as *const ()).cast(),
+        "mwl_core_arr_keys" => (mwl_core_arr_keys as *const ()).cast(),
         "mwl_core_arr_values" => (mwl_core_arr_values as *const ()).cast(),
+        "mwl_core_arr_reverse" => (mwl_core_arr_reverse as *const ()).cast(),
+        "mwl_core_arr_flip" => (mwl_core_arr_flip as *const ()).cast(),
         "mwl_core_arr_sort" => (mwl_core_arr_sort as *const ()).cast(),
         "mwl_core_arr_range" => (mwl_core_arr_range as *const ()).cast(),
         _ => return None,
@@ -522,6 +563,155 @@ mwl_runtime::mwl_helper! {
             index += 1;
         }
         Ok(Value::bool(true))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::keys(array<T> $a): array<string>` — every key in insertion
+    /// order under fresh `0, 1, …` keys of its own, replacing PHP's
+    /// `array_keys`.
+    ///
+    /// **`array<string>`, never `array<int|string>`.** ADR 0007 § 5 stores
+    /// every key as a `string`, so a key that *looks* like an integer is one
+    /// only in its spelling — `Core\Arr::keys(["10" => "x"])` yields `["10"]`,
+    /// and PHP's `array_keys` yielding an `int` there is the key-type-dependent
+    /// behaviour ADR 0069 removes. A caller who wants the number writes
+    /// `$k as int`, which is the same thing a `foreach` key binding already
+    /// does.
+    ///
+    /// PHP's `array_keys($a, $search)` search form is not reproduced: that is
+    /// `Core\Arr::keyOf` for one and a `filter` for many, and folding two
+    /// unrelated questions into one name is what ADR 0063 R20 refuses.
+    fn mwl_core_arr_keys(_ctx, args: [1]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::keys expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            let key = subject
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+            // `key_at` hands back a fresh reference, which `append` takes over.
+            out.append(Value::str(key));
+            from = slot + 1;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::reverse(array<T> $a, {preserveKeys?: bool}): array<T>` —
+    /// the entries in the opposite order, replacing PHP's `array_reverse`.
+    ///
+    /// The option is [`PRESERVE_KEYS`], whose docs own what `false` means:
+    /// every key discarded and the result renumbered, rather than PHP's
+    /// renumber-the-integers-keep-the-strings. With `true` each entry keeps
+    /// its own key and only the order changes.
+    ///
+    /// The walk is forward and the writes are prepends-by-collection: the
+    /// ordered hash has no backward cursor, so this collects the slots first
+    /// and then writes them out in reverse. One `Vec<usize>` of scratch, which
+    /// ADR 0004's ordering buys without discussion.
+    fn mwl_core_arr_reverse(_ctx, args: [2]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::reverse expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let preserve_keys = args[1].as_bool().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::reverse expected {:?} for `preserveKeys`, got tag {}",
+                Tag::Bool,
+                args[1].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        let mut slots: Vec<usize> = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            slots.push(slot);
+            from = slot + 1;
+        }
+
+        let mut out = MwlArray::new();
+        for slot in slots.into_iter().rev() {
+            let value = subject
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            if preserve_keys {
+                let key = subject
+                    .key_at(slot)
+                    .expect("next_slot only names live entries");
+                out.set(key, value);
+            } else {
+                out.append(value);
+            }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::flip(array<int|string> $a): array<string>` — each value
+    /// becomes a key and each key becomes a value, replacing PHP's
+    /// `array_flip`.
+    ///
+    /// Duplicate values collapse, **the last occurrence winning**, which is
+    /// PHP's rule and the spec's § 2 *Structure* note. The result is keyed in
+    /// first-occurrence order all the same, because a re-`set` of an existing
+    /// key overwrites in place rather than moving the entry to the end —
+    /// ADR 0007 § 5's insertion order is a property of the *key*, not of the
+    /// most recent write.
+    ///
+    /// The values become keys through [`key_bytes`], the same normalization
+    /// `hasKey` uses, so an `int` value and its decimal spelling flip to the
+    /// same key. A value of any other type is the checker having let an
+    /// `array<int|string>` position take something else, and is reported as
+    /// such rather than skipped the way PHP's warning-and-continue does.
+    fn mwl_core_arr_flip(_ctx, args: [1]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::flip expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            let key = subject
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+            let value = subject
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            // The old key becomes the new *value*, and `key_at`'s fresh
+            // reference is exactly the one `set` takes over.
+            out.set(MwlStr::new(&key_bytes(&value, "flip")?), Value::str(key));
+            from = slot + 1;
+        }
+        Ok(Value::array(out))
     }
 }
 
@@ -1220,6 +1410,144 @@ mod tests {
                 .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
             Some(b"a".to_vec())
         );
+    }
+
+    /// The entries of an array a helper returned, in cursor order, as
+    /// `(key, value-as-string)` pairs — the shape the three key-shuffling
+    /// members below are all asserted in, so a wrong *order* fails and not
+    /// only a wrong set.
+    fn entries_of(result: Value) -> Vec<(Vec<u8>, Vec<u8>)> {
+        #[expect(
+            unsafe_code,
+            reason = "the helper returned one fresh reference, which the handle \
+                      takes over and releases on drop"
+        )]
+        let array =
+            unsafe { MwlArray::from_raw(result.array_ptr().expect("the member returns an array")) };
+        let mut out = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let key = array.key_at(slot).expect("a live entry has a key");
+            let value = array
+                .value_at(slot)
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec))
+                .expect("every entry here is a string");
+            out.push((key.as_bytes().to_vec(), value));
+            from = slot + 1;
+        }
+        out
+    }
+
+    /// `["x" => "a", "10" => "b", "y" => "c"]`, the mixed-looking-key subject
+    /// the three members share.
+    fn mixed_keys() -> Value {
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"x"), Value::str(MwlStr::new(b"a")));
+        array.set(MwlStr::new(b"10"), Value::str(MwlStr::new(b"b")));
+        array.set(MwlStr::new(b"y"), Value::str(MwlStr::new(b"c")));
+        Value::array(array)
+    }
+
+    /// Verified against PHP 8.5's `array_keys`, except that the `"10"` key
+    /// comes back as the string it is stored as rather than as an `int`.
+    #[test]
+    fn keys_yields_the_stored_spelling_of_every_key() {
+        let subject = mixed_keys();
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result =
+            call(super::mwl_core_arr_keys, &mut ctx, &[subject]).expect("taking keys never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"x".to_vec()),
+                (b"1".to_vec(), b"10".to_vec()),
+                (b"2".to_vec(), b"y".to_vec()),
+            ]
+        );
+
+        // The subject still holds its own keys, which is what `key_at`'s fresh
+        // reference bought.
+        #[expect(
+            unsafe_code,
+            reason = "this test still owns the one reference it built above"
+        )]
+        let still = unsafe { MwlArray::from_raw(subject.array_ptr().expect("an array")) };
+        assert_eq!(
+            still.keys(),
+            vec![b"x".to_vec(), b"10".to_vec(), b"y".to_vec()]
+        );
+    }
+
+    /// The default discards every key rather than PHP's renumber-the-integers-
+    /// keep-the-strings, which is ADR 0069 § 3's rule and the one place this
+    /// member is not `array_reverse`.
+    #[test]
+    fn reverse_renumbers_by_default_and_keeps_every_key_on_request() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let renumbered = call(
+            super::mwl_core_arr_reverse,
+            &mut ctx,
+            &[mixed_keys(), Value::bool(false)],
+        )
+        .expect("reversing never fails");
+        assert_eq!(
+            entries_of(renumbered),
+            vec![
+                (b"0".to_vec(), b"c".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+                (b"2".to_vec(), b"a".to_vec()),
+            ]
+        );
+
+        let kept = call(
+            super::mwl_core_arr_reverse,
+            &mut ctx,
+            &[mixed_keys(), Value::bool(true)],
+        )
+        .expect("reversing never fails");
+        assert_eq!(
+            entries_of(kept),
+            vec![
+                (b"y".to_vec(), b"c".to_vec()),
+                (b"10".to_vec(), b"b".to_vec()),
+                (b"x".to_vec(), b"a".to_vec()),
+            ]
+        );
+    }
+
+    /// Verified against PHP 8.5's `array_flip`, duplicate collapse included.
+    #[test]
+    fn flip_collapses_a_duplicate_value_in_its_first_position() {
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"a"), Value::str(MwlStr::new(b"p")));
+        array.set(MwlStr::new(b"b"), Value::int(7));
+        array.set(MwlStr::new(b"c"), Value::str(MwlStr::new(b"p")));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(super::mwl_core_arr_flip, &mut ctx, &[Value::array(array)])
+            .expect("an int|string value never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"p".to_vec(), b"c".to_vec()),
+                (b"7".to_vec(), b"b".to_vec()),
+            ]
+        );
+    }
+
+    /// A value that is neither an `int` nor a `string` is the checker having
+    /// let an `array<int|string>` position take something else — a contained
+    /// `FATAL`, not a skipped entry the way PHP's warning-and-continue leaves.
+    #[test]
+    fn flipping_a_value_that_is_not_a_key_is_a_contained_fault() {
+        let mut array = MwlArray::new();
+        array.set(MwlStr::new(b"a"), Value::bool(true));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(super::mwl_core_arr_flip, &mut ctx, &[Value::array(array)])
+            .expect_err("a bool is not a key");
+        assert_eq!(status, mwl_runtime::FATAL);
     }
 
     /// The values `range` produces, in order — read back through the array's

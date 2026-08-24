@@ -1,0 +1,29 @@
+--TEST--
+Core\Arr::flip swaps keys and values, the last duplicate winning in the first one's place
+--FILE--
+<?mwl
+array<string|int> $b = ["a" => "p", "b" => 7, "c" => "p"];
+array<string> $f = Core\Arr::flip($b);
+
+// "p" occurs twice: the later entry's key wins the value, and the result is
+// still keyed in first-occurrence order — a re-write of an existing key
+// overwrites in place rather than moving the entry to the end.
+echo Core\Str::join(Core\Arr::keys($f), ","), "\n";
+echo Core\Str::join($f, ","), "\n";
+echo Core\Arr::count($f), "\n";
+
+// An `int` value flips to the key an `int` subscript would have found, since
+// ADR 0007 § 5 stores every key under its decimal spelling.
+echo Core\Arr::hasKey($f, 7) as string, "|", Core\Arr::hasKey($f, "7") as string, "|\n";
+
+// Flipping a list yields its values as keys and its indices as values.
+array<string|int> $list = ["x", "y"];
+echo Core\Str::join(Core\Arr::keys(Core\Arr::flip($list)), ","), "\n";
+echo Core\Str::join(Core\Arr::flip($list), ","), "\n";
+--EXPECT--
+p,7
+c,b
+2
+1|1|
+x,y
+0,1
