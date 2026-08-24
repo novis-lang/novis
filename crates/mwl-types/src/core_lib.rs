@@ -67,6 +67,9 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                     // position onward.
                     variadic: method.variadic().is_some(),
                     defaults: defaults_of(method),
+                    // The registry's own first-appearance order, never
+                    // recomputed here — see `CoreMethod::written`.
+                    type_params: method.written().into_iter().map(str::to_owned).collect(),
                     return_ty: lower(&method.return_ty, interner),
                     // A `Core` member is reachable exactly one way (ADR 0063
                     // R20): a static one through its class name, an instance
@@ -242,7 +245,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // type *each* trailing argument is checked against. So this unwraps
         // rather than interning anything.
         CoreTy::Variadic(elem) => lower(elem, interner),
-        CoreTy::Var(name) => interner.type_var(*name),
+        // Both variable kinds intern as the same `Ty::TypeVar`: they differ
+        // only in where the binding comes from, and `MethodSig::type_params`
+        // is where that difference is recorded.
+        CoreTy::Var(name) | CoreTy::Written(name) => interner.type_var(*name),
         CoreTy::Callable => interner.callable(),
         // A `Core`-owned enum is interned exactly as a declared one is —
         // `crate::enums` has already seeded the same name into its own table,
@@ -320,6 +326,31 @@ mod tests {
         assert_eq!(sig.params.len(), 1);
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
         assert_eq!(interner.describe(sig.return_ty), "uint");
+    }
+
+    /// The two variable kinds part company here and nowhere else: both lower
+    /// to the same `Ty::TypeVar`, and only a `CoreTy::Written` one reaches
+    /// `MethodSig::type_params`, which is what `crate::expr` reads to decide
+    /// whether a call site may write `<...>` at all.
+    #[test]
+    fn only_a_written_variable_becomes_a_call_site_type_parameter() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (_, sig) = resolve_method(
+            &QName::parse(r"Core\Arr"),
+            "count",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("count is registered");
+        assert!(sig.is_generic(&interner), "`count` mentions `T`");
+        assert!(sig.type_params.is_empty(), "but infers it from the subject");
+
+        let written = lower(&CoreTy::Written("T"), &mut interner);
+        let inferred = lower(&CoreTy::Var("T"), &mut interner);
+        assert_eq!(written, inferred);
     }
 
     /// The bag's two halves, both derived from one registry row: the

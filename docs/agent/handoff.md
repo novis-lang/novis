@@ -2,33 +2,30 @@
 
 ## State
 
-**Spec § 6 is three of its four members, and a helper's throw now names its own spec § 10 class.**
-`Core\Json::encode`/`decode`/`isValid` run over `serde_json`; `examples/json.mwl` still reports, and what
-it reports is exactly `decodeAs<T>`. Stage 3 is unchanged at five of seven fixtures.
+**A call site can now write its own type argument.** `Core\Json::decodeAs<User>($body)` parses, resolves
+and binds; `docs/spec/01-core-library.md` § 6's fourth member is no longer blocked on the *language*, only
+on ADR 0071's derive. Stage 3 is unchanged at five of seven fixtures.
 
-- **`crates/mwl-stdlib/src/json.rs` owns all of § 6** — why `serde_json` and not another crate, why
-  `escapeUnicode` is a post-pass rather than a `Formatter`, the three places it refuses input
-  `json_decode` accepted, and its three gaps. `DEFAULT_MAX_DEPTH`/`DEPTH_CEILING` are why
-  `serde_json`'s own recursion limit is disabled and what makes that safe.
-- **`mwl_runtime::ThrownClass` is the closed roster of spec § 10's classes a helper may throw**, reached
-  through `Fault::thrown_as`; `Ctx::set_runtime_error_class` is now the *anchor* into the compiled unit's
-  table and `ErrorClass::sibling` resolves every other class from it. `mwl-codegen`'s
-  `every_thrown_class_is_in_the_compiler_s_exception_tree` holds the roster and `mwl_hir::errors::TREE`
-  together. `Core\Time::parse` and `Core\Json::decode` are the first members to use it.
-- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 403 `.mwlt` cases pass, `cargo deny check` and
-  `tools/gen-attribution.py` both re-run for the new dependency. `tools/leak-check.sh` is clean over a
-  fifty-iteration fixture exercising every new refcount edge; a *throwing* variant of it reproduces the
-  pre-existing `landing_block` leak below and nothing else.
+- **`mwl_stdlib::registry::CoreTy::Written` marks a variable the call site supplies** rather than one
+  inferred from an argument, and `CoreMethod::written` is the one place their order comes from. That
+  variant's own docs hold why the two kinds are separate; `MethodSig::type_params` is the checker's half
+  and `mwl_types::expr::check_written_type_args` the rule (`E0441`/`E0442`, reusing the type-position
+  codes). **No member declares one yet**, so every written list is refused today — which is what the new
+  `tests/conformance/reject/a-written-type-argument-needs-a-member-that-declares-one.mwlt` asserts.
+- **The `<` ambiguity is a checkpointed trial parse** in `Parser::parse_call_type_args`: it commits only
+  when the list parses with no diagnostic *and* a `(` follows, so `Foo::BAR < $c > $d` is untouched. ADR
+  0007 § 3 is folded — "`array<T>` is parsed only in type position" was the claim this changes.
+- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 404 `.mwlt` cases pass. No runtime or codegen change,
+  so no new refcount edge and no `valgrind` run.
 
 ## Next
 
-**`Core\Json::decodeAs<T>` and ADR 0071's `#[Json\Derive]`** — the last § 6 row and the frozen check
-`examples/json.mwl` is. Three things, in order: an **explicit type argument at a call site**
-(`decodeAs<User>(…)` parses as a chain of comparisons today, so this is grammar first, then a registry
-shape for a member whose return type is the written argument); [ADR 0071](../adr/0071-derived-codecs.md)'s
-derive pass, which is `mwl-types`→`mwl-ir` and generates whichever `Codec` half the class does not declare;
-and spec § 10's **`issues: array<Core\Issue>`** property on `ParseError`, which § 5 of that ADR makes the
-one throw carrying every failed field at once.
+**ADR 0071's `#[Json\Derive]`** — the pass that makes `decodeAs<T>` have something to decode *into*, and
+with it `examples/json.mwl`. [ADR 0071](../adr/0071-derived-codecs.md) § 1 is the nominal-match rule (a
+closed `Core`-owned attribute-name list, matched after resolution), § 2 the field list and its
+constructor-parameter requirement, § 5 the accumulating decoder. Register `Core\Json::decodeAs` with
+`CoreTy::Written("T")` in the same slice, and spec § 10's `issues: array<Core\Issue>` on `ParseError`
+alongside it — § 5 makes that the one throw carrying every failed field.
 
 ## Backlog
 
@@ -40,11 +37,9 @@ one throw carrying every failed field at once.
   declare the variadic that exists, so each is a registry row and a body.
 - **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **The rest of `Core` still throws `RuntimeError` for everything** — now that `ThrownClass` exists,
-  `Core\Math`'s overflow and zero-divisor rows are spec § 10's `ArithmeticError`, and a `Core\Regex`
-  budget exhaustion is arguably `TimeoutError`. One pass per module, each a `thrown` → `thrown_as`.
-- **`mwl run` reports `Uncaught Exception:` for every class** — the thrown object knows its own name now,
-  so the reporter could print it; check no frozen fixture asserts the current wording first.
+- **The rest of `Core` still throws `RuntimeError` for everything** — `Core\Math`'s overflow and
+  zero-divisor rows are spec § 10's `ArithmeticError`, a `Core\Regex` budget exhaustion arguably
+  `TimeoutError`. One pass per module, each a `thrown` → `thrown_as`.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
   *Known gap*: 50 loop iterations of a throwing `Core\Json::decode("{oops}")` inside a `try` lose 50
   blocks, one per string literal argument.
@@ -60,6 +55,10 @@ the current rule**; if it disagrees with a cross-link, the body is the bug. **No
 so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflow*: work, verify once, docs
 + handoff, commit, **stop** — no second `cargo` pass after the commit. Tooling notes:
 
+- **`D:` fills up.** `target/debug` reached 33 GB and `cargo test` failed as a wall of `link.exe` 1180/1318
+  errors — the real message (`no space on device`) only appears without a `Select-String` filter. `cargo
+  clean` frees it in seconds; the rebuild is a few minutes. Check `Get-PSDrive D` before diagnosing a
+  linker failure.
 - **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
   exact-match splice — a `\\` written in a `python - <<'PY'` heredoc arrives as `\`, and a `"\n"` arrives
   as a real newline, so a block containing either will silently fail to match. Use the Write/Edit tools, or

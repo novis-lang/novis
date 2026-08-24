@@ -148,6 +148,28 @@ pub enum CoreTy {
     /// declare one, which is `docs/agent/loop-goal.md`'s standing decision that
     /// type variables stay compiler-owned.
     Var(&'static str),
+    /// A type variable bound from the type argument **written at the call
+    /// site**, named — `T` in `decodeAs<T>(string $json): T`.
+    ///
+    /// The same `mwl_types::ty::Ty::TypeVar` as [`Self::Var`] once lowered,
+    /// and the same substitution afterwards; what differs is where the binding
+    /// comes from. [`Self::Var`] is *inferred* from an argument's type, which
+    /// only works where some parameter position holds the answer —
+    /// `Core\Json::decodeAs`'s `T` appears in no parameter at all, so the call
+    /// site has to say it. `docs/spec/01-core-library.md` § 6 writes exactly
+    /// that, and `docs/agent/loop-goal.md`'s standing decision names the
+    /// explicit call-site type argument as one of the two things user code
+    /// gets from the compiler-owned `<T>` machinery.
+    ///
+    /// **A member's written parameters are these variants, in first-appearance
+    /// order over `params` then `return_ty`** — [`CoreMethod::written`] is the
+    /// one place that traversal happens, so the order a call site's arguments
+    /// bind in cannot drift from the order the row declares them. A member
+    /// mixing this with [`Self::Var`] is legal and each half binds from its own
+    /// side; a member with none refuses a written type-argument list outright
+    /// (`E_TYPE_ARGS_NOT_GENERIC`), which is what keeps an *inferred* variable
+    /// from gaining a second, unchecked spelling.
+    Written(&'static str),
     /// `A|B|...` — ADR 0007 § 3's union, at least two members.
     ///
     /// Legal in **either** direction. A helper's argument slot is a whole
@@ -404,6 +426,23 @@ impl CoreMethod {
         }
     }
 
+    /// This member's **written** type parameters, in the order a call site's
+    /// `<...>` list binds them — [`CoreTy::Written`]'s first-appearance order
+    /// over [`Self::params`] and then [`Self::return_ty`], with a name that
+    /// appears twice counted once.
+    ///
+    /// Empty for all but a handful of members, and the cheap test a call site
+    /// runs before doing any of this work at all.
+    #[must_use]
+    pub fn written(&self) -> Vec<&'static str> {
+        let mut found = Vec::new();
+        for param in self.params {
+            collect_written(param, &mut found);
+        }
+        collect_written(&self.return_ty, &mut found);
+        found
+    }
+
     /// The positional parameters — [`Self::params`] without a trailing options
     /// bag. What [`Self::defaults`] aligns to the end of.
     #[must_use]
@@ -412,6 +451,35 @@ impl CoreMethod {
             Some(_) => &self.params[..self.params.len() - 1],
             None => self.params,
         }
+    }
+}
+
+/// [`CoreMethod::written`]'s walk: every [`CoreTy::Written`] name reachable
+/// from `ty`, appended to `found` in first-appearance order and never twice.
+///
+/// The wildcard arm is deliberate — [`CoreTy`] is `#[non_exhaustive]`, and a
+/// variant that carries no nested type carries no variable either.
+fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
+    match ty {
+        CoreTy::Written(name) => {
+            if !found.contains(name) {
+                found.push(name);
+            }
+        }
+        CoreTy::Array(inner) | CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => {
+            collect_written(inner, found);
+        }
+        CoreTy::Union(members) => {
+            for member in *members {
+                collect_written(member, found);
+            }
+        }
+        CoreTy::Options(options) => {
+            for option in *options {
+                collect_written(&option.ty, found);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -752,6 +820,67 @@ mod tests {
                     class.name,
                     method.name
                 );
+            }
+        }
+    }
+
+    /// [`CoreMethod::written`] is the one place a call site's `<...>` order
+    /// comes from, so the traversal it does — parameters left to right, then
+    /// the return type, a repeat counted once — is held here rather than
+    /// re-derived by a reader.
+    #[test]
+    fn a_written_type_parameter_is_ordered_and_deduplicated() {
+        const METHOD: CoreMethod = CoreMethod {
+            name: "sample",
+            params: &[
+                CoreTy::Array(&CoreTy::Written("K")),
+                CoreTy::Written("K"),
+                CoreTy::Options(&[CoreOption {
+                    name: "spare",
+                    ty: CoreTy::Nullable(&CoreTy::Written("V")),
+                    default: Const::Null,
+                }]),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Written("R"),
+            symbol: "mwl_core_sample",
+        };
+        assert_eq!(METHOD.written(), vec!["K", "V", "R"]);
+    }
+
+    /// One variable, one binding site. A name declared both
+    /// [`CoreTy::Written`] and [`CoreTy::Var`] in the same member would have
+    /// the call site and the arguments each claiming it, and
+    /// `mwl_types::generics`' "first binding wins" rule would settle that by
+    /// accident rather than by decision.
+    #[test]
+    fn a_variable_is_written_or_inferred_but_never_both() {
+        fn inferred(ty: &CoreTy, found: &mut Vec<&'static str>) {
+            match ty {
+                CoreTy::Var(name) | CoreTy::CallableTo(name) => found.push(name),
+                CoreTy::Array(inner) | CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => {
+                    inferred(inner, found);
+                }
+                CoreTy::Union(members) => members.iter().for_each(|m| inferred(m, found)),
+                CoreTy::Options(options) => {
+                    options.iter().for_each(|o| inferred(&o.ty, found));
+                }
+                _ => {}
+            }
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                let mut names = Vec::new();
+                method.params.iter().for_each(|p| inferred(p, &mut names));
+                inferred(&method.return_ty, &mut names);
+                for written in method.written() {
+                    assert!(
+                        !names.contains(&written),
+                        "{}::{} declares `{written}` both written and inferred",
+                        class.name,
+                        method.name
+                    );
+                }
             }
         }
     }

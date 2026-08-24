@@ -105,6 +105,7 @@ fn root_methods(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             by_ref: vec![false],
             variadic: false,
             defaults: vec![None],
+            type_params: Vec::new(),
             return_ty: void,
             is_static: false,
             interface_private: false,

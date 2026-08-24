@@ -620,6 +620,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             class,
             method,
             args,
+            ..
         } => {
             e!(class);
             walk_member_name(method, src, ctx, env);

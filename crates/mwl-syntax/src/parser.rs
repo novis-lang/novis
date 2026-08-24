@@ -1503,6 +1503,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     let nullsafe = matches!(self.peek().kind, TokenKind::NullsafeArrow);
                     self.bump();
                     let member = self.parse_member_name();
+                    let type_args = self.parse_call_type_args();
                     e = if self.at(TokenKind::LParen) {
                         let args = self.parse_call_args();
                         let span = e.span.to(self.last_span);
@@ -1512,6 +1513,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 object: Box::new(e),
                                 nullsafe,
                                 method: member,
+                                type_args,
                                 args,
                             },
                         }
@@ -1634,6 +1636,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             _ => {
                 let member = self.parse_member_name();
+                let type_args = self.parse_call_type_args();
                 if self.at(TokenKind::LParen) {
                     let args = self.parse_call_args();
                     let span = class.span.to(self.last_span);
@@ -1642,6 +1645,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         kind: ExprKind::StaticCall {
                             class: Box::new(class),
                             method: member,
+                            type_args,
                             args,
                         },
                     }
@@ -1670,6 +1674,43 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             }
         }
+    }
+
+    /// An optional `<T, U>` written between a member name and the `(` of a
+    /// call — `<User>` in `Core\Json::decodeAs<User>($body)`, which
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) and
+    /// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+    /// § 6 both write. Returns what was written, empty when this is not a
+    /// type-argument list at all.
+    ///
+    /// Unlike [`Self::parse_type_args`], which is only ever reached from a
+    /// type position, this one is genuinely ambiguous: `Foo::BAR < X > ($y)`
+    /// is also two comparisons. It is resolved by a **checkpointed trial
+    /// parse** — the `<` opens a type-argument list only when everything up
+    /// to a matching `>` parses as a type list with no diagnostic *and* the
+    /// very next token is `(`. Anything else rewinds to the `<` and leaves it
+    /// to the expression grammar, so `$a::$b < $c > ($d)` is still two
+    /// comparisons (a `$name` does not parse as a type) and so is every
+    /// `<`-then-no-call shape.
+    ///
+    /// The residue is that a comparison of a class constant against a
+    /// *class-shaped name*, immediately followed by a parenthesized operand,
+    /// now reads as a call with type arguments. That is the same trade C# and
+    /// Rust's turbofish-free method position make, it needs a `SCREAMING_CASE`
+    /// constant compared to an `UpperCamel` name to hit, and parentheses
+    /// (`(Foo::BAR < X) > ($y)`) say the other thing.
+    fn parse_call_type_args(&mut self) -> Vec<Type> {
+        if !self.at(TokenKind::Lt) {
+            return Vec::new();
+        }
+        let cp = self.checkpoint();
+        let before = self.diags.len();
+        let (args, _) = self.parse_type_args(self.last_span);
+        if self.diags.len() == before && self.at(TokenKind::LParen) {
+            return args;
+        }
+        self.restore(cp);
+        Vec::new()
     }
 
     /// The name on the right of `->`/`?->`/`::`: an ordinary identifier (any
@@ -6492,6 +6533,80 @@ mod tests {
             panic!("expected an expression statement: {s:?}");
         };
         assert!(matches!(e.kind, ExprKind::StaticCall { .. }));
+    }
+
+    /// `docs/spec/01-core-library.md` § 6's `decodeAs<T>` spelling: the
+    /// `<...>` between a member name and its `(` is a type-argument list, not
+    /// two comparisons.
+    #[test]
+    fn a_static_call_takes_a_written_type_argument() {
+        let s = parse_stmt_ok(r"Core\Json::decodeAs<User>($body);");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        let ExprKind::StaticCall { type_args, .. } = e.kind else {
+            panic!("expected a static call: {e:?}");
+        };
+        assert_eq!(type_args.len(), 1);
+    }
+
+    /// Two of them, the second nested — so the `>>` the lexer already
+    /// committed to has to be split, exactly as `array<array<uint>>` in type
+    /// position does.
+    #[test]
+    fn a_method_call_takes_written_type_arguments_and_closes_a_nested_one() {
+        let s = parse_stmt_ok("$db->queryAs<int, array<array<string>>>($sql);");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        let ExprKind::MethodCall { type_args, .. } = e.kind else {
+            panic!("expected a method call: {e:?}");
+        };
+        assert_eq!(type_args.len(), 2);
+    }
+
+    /// The trial parse only commits when a `(` follows the closing `>`, so a
+    /// bare comparison chain is untouched — and so is one whose operands
+    /// could never be types.
+    #[test]
+    fn a_comparison_chain_is_not_a_type_argument_list() {
+        for src in [
+            "$x = Foo::BAR < Baz;",
+            "$x = Foo::BAR < $baz > $qux;",
+            "$x = $a->count < $b > $c;",
+        ] {
+            let s = parse_stmt_ok(src);
+            let StmtKind::Expr(e) = s.kind else {
+                panic!("expected an expression statement for {src:?}: {s:?}");
+            };
+            let ExprKind::Assign { value, .. } = e.kind else {
+                panic!("expected an assignment for {src:?}: {e:?}");
+            };
+            assert!(
+                matches!(value.kind, ExprKind::Binary { .. }),
+                "expected a comparison for {src:?}: {value:?}"
+            );
+        }
+    }
+
+    /// A member name with no `<` at all keeps every existing shape: a call
+    /// with an empty list, and a property access that never looked for one.
+    #[test]
+    fn a_call_without_type_arguments_carries_an_empty_list() {
+        let s = parse_stmt_ok("$user->name();");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        let ExprKind::MethodCall { type_args, .. } = e.kind else {
+            panic!("expected a method call: {e:?}");
+        };
+        assert!(type_args.is_empty());
+
+        let s = parse_stmt_ok("$user->name;");
+        let StmtKind::Expr(e) = s.kind else {
+            panic!("expected an expression statement: {s:?}");
+        };
+        assert!(matches!(e.kind, ExprKind::PropertyAccess { .. }));
     }
 
     #[test]

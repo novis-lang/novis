@@ -588,6 +588,7 @@ impl<'a> Lowering<'a> {
                 method: _,
                 nullsafe,
                 args,
+                ..
             } => {
                 let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
                     panic!(

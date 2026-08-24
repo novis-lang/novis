@@ -562,6 +562,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
             class,
             method,
             args,
+            ..
         } => {
             e!(class);
             walk_member_name(method, src, out);

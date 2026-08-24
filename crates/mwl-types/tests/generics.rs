@@ -147,3 +147,59 @@ fn an_int_literal_reaches_a_uint_parameter_of_a_generic_core_member() {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+/// The call-site half of the same wall. `docs/spec/01-core-library.md` § 6
+/// writes `decodeAs<T>` because no parameter position holds `T`; every other
+/// `Core` member infers its variables from the arguments, so writing them is
+/// a second spelling of a fact those arguments already settle.
+#[test]
+fn a_core_member_that_infers_its_variables_refuses_a_written_type_argument() {
+    let diags = check_src(
+        "<?mwl\n\
+         array<string> $a = [\"one\"];\n\
+         echo Core\\Arr::count<string>($a);\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_ARGS_NOT_GENERIC)),
+        "{diags:?}"
+    );
+}
+
+/// A user-declared method is the same refusal from the other side: ADR 0007
+/// § 1 parks user-declared generics, so nothing a program writes has a type
+/// parameter to name.
+#[test]
+fn a_user_declared_method_refuses_a_written_type_argument() {
+    let diags = check_src(
+        "<?mwl\n\
+         class Box {\n\
+         \x20 static function of(int $n): int { return $n; }\n\
+         }\n\
+         echo Box::of<int>(1);\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_ARGS_NOT_GENERIC)),
+        "{diags:?}"
+    );
+}
+
+/// The refusal reports the list and stops there: the call itself is still
+/// typed from the member's own signature, so one mistake yields one
+/// diagnostic rather than a cascade off an unresolved return type.
+#[test]
+fn a_refused_type_argument_list_does_not_cascade() {
+    let diags = check_src(
+        "<?mwl\n\
+         array<string> $a = [\"one\"];\n\
+         uint $n = Core\\Arr::count<string>($a);\n\
+         echo $n;\n",
+    );
+    assert!(
+        !diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}

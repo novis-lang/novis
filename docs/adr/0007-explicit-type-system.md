@@ -148,8 +148,11 @@ field        := identifier ':' type
 
 Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and
 `string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never` are
-return-only. `array<T>` is parsed **only in type position**, so `<` never has to be disambiguated against
-comparison; that is also why user-defined generic *functions* are not part of this decision.
+return-only. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a type-argument
+list; the one expression position that also admits one is a **call site's own** `<...>`, written between a
+member name and its `(` (§ 5's third bullet), and there it is settled by a checkpointed trial parse that
+commits only when the list parses cleanly and a `(` follows. User-defined generic *functions* are still
+not part of this decision.
 
 `Name` covers four kinds of atom that share one lexical production and are told apart by resolution: a
 class/interface name, an enum's name, an enum case ([0047](0047-literal-and-enum-case-types.md)), and a
@@ -265,8 +268,12 @@ One type parameter, not two, because the key type is fixed by the language.
   (subject-first per [0063](0063-core-api-conventions.md) R1). Type variables are available to declarations
   the compiler owns: the built-ins, from M9 the WIT-declared extension functions, and — at a concrete
   argument only — a user class implementing a compiler-owned generic interface
-  ([0053](0053-iteration-and-generators.md) § 2). User-written generic functions are not part of this
-  decision.
+  ([0053](0053-iteration-and-generators.md) § 2). User code gets one further concrete-argument door and no
+  more: a **call site may write the type argument** for a compiler-owned member that declares one it cannot
+  infer, which is `Core\Json::decodeAs<User>($body)` (spec § 6) and `Core\Db`'s `queryAs<T>`
+  ([0067](0067-core-db.md) § 6). Every other member infers its variables from its arguments and refuses a
+  written list, so nothing gains a second, unchecked spelling. User-written generic functions are not part
+  of this decision.
 
 ### 6. Unions, narrowing, and `mixed`
 

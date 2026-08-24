@@ -94,6 +94,7 @@ fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
         defaults: vec![None; params.len()],
         params,
         variadic: false,
+        type_params: Vec::new(),
         return_ty,
         is_static: false,
         interface_private: false,

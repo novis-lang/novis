@@ -423,6 +423,7 @@ fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
             class,
             method,
             args,
+            ..
         } => {
             scan_call_args(args, state, env);
             scan_expr(class, state, env);

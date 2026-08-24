@@ -70,6 +70,18 @@ pub struct MethodSig {
     /// A parallel `Vec` for [`Self::by_ref`]'s reason, and read through
     /// [`Self::required`] rather than scanned at each call site.
     pub defaults: Vec<Option<crate::defaults::ConstArg>>,
+    /// The type parameters a **call site** must write, in the order its
+    /// `<...>` list binds them — `["T"]` for `Core\Json::decodeAs<T>`, and
+    /// empty for everything else.
+    ///
+    /// Only a `Core` member registered through [`crate::core_lib`] can have
+    /// any: ADR 0007 § 1 parks user-declared generics, so
+    /// [`build_signatures`] always writes an empty list here. It is *not* the
+    /// list of every variable the signature mentions — an inferred one
+    /// ([`mwl_stdlib::registry::CoreTy::Var`]) is bound from an argument's
+    /// type and is deliberately not writable, so the two kinds are separated
+    /// at the registry and stay separated here.
+    pub type_params: Vec<String>,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
     /// Whether the declaration carries the `static` modifier — ADR 0008 § 1's
@@ -639,6 +651,9 @@ fn collect_members(
                         by_ref,
                         variadic,
                         defaults,
+                        // ADR 0007 § 1: a user-declared method
+                        // has no type parameters to write.
+                        type_params: Vec::new(),
                         return_ty,
                         is_static,
                         interface_private,

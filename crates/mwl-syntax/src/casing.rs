@@ -646,6 +646,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
             class,
             method,
             args,
+            ..
         } => {
             check_expr(class, src, diags);
             check_member_name_expr(method, src, diags);

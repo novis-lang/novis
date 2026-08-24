@@ -22,8 +22,9 @@
 > document becomes `MwlArray`s directly; `decodeAs<T>` is `mwl_stdlib::json`'s gap 2. **A helper's failure
 > now names its own spec § 10 class**: `mwl_runtime::ThrownClass` is the closed roster,
 > `Fault::thrown_as` is how a member picks one, and `catch (ParseError $e)` matches a bad JSON document or
-> a bad `Core\Time::parse`. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user; the
-> rest the loop picks under ADR 0051 § 4.
+> a bad `Core\Time::parse`. **A call site can now write its own type argument** — `decodeAs<User>($b)`
+> parses, and a member declares which variables are written rather than inferred. Dependencies: `regex` +
+> `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -89,10 +90,12 @@
 > member that builds one and `mwl-ir` inlines that call at the use site. **A `!== null` test now narrows a
 > local**, so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's flow-sensitive rule, one of its four
 > spellings, with `mwl_types::locals` the home for what invalidates a narrowing and where the walk
-> refuses to prove one. **§ 6 is three of its four members**, and the fourth is not a signature but a
-> *language* hole: `Core\Json::decodeAs<User>(…)` needs an explicit type argument at a call site, which the
-> parser reads as a chain of comparisons today, plus ADR 0071's derived codec and spec § 10's `issues`
-> property on `ParseError`. Also open: ADR 0047's checker row,
+> refuses to prove one. **§ 6 is three of its four members**, and the fourth's *language* hole is now half
+> closed: an **explicit call-site type argument** parses (`Core\Json::decodeAs<User>($b)`, checkpointed
+> against the comparison chain it also spells) and binds, over `registry::CoreTy::Written` and
+> `MethodSig::type_params` — no member declares one yet, so every written list is refused today. What
+> `decodeAs` still needs is ADR 0071's derived codec and spec § 10's `issues` property on `ParseError`.
+> Also open: ADR 0047's checker row,
 > `autoload` (0061), a `decimal` parameter *default* (`mwl_types::defaults`), class-member
 > `private`/`protected`, which nothing enforces, and the reserved `Comparable`/`Stringable` interfaces,
 > which carry no member signatures — so `Duration` satisfies both by member and neither by declaration.

@@ -740,6 +740,9 @@ pub enum ExprKind {
         nullsafe: bool,
         /// The method being called.
         method: MemberName,
+        /// The type arguments written between the name and the `(`, empty
+        /// when none were — see [`ExprKind::StaticCall::type_args`].
+        type_args: Vec<Type>,
         /// The call's arguments.
         args: CallArgs,
     },
@@ -749,6 +752,15 @@ pub enum ExprKind {
         class: Box<Expr>,
         /// The method being called.
         method: MemberName,
+        /// The type arguments written between the name and the `(` —
+        /// `<User>` in `Core\Json::decodeAs<User>($body)` — and empty when
+        /// none were written.
+        ///
+        /// Grammar only: which members accept one, how many, and what a
+        /// written argument binds are all the checker's, and
+        /// `docs/agent/loop-goal.md`'s standing decision keeps type variables
+        /// compiler-owned, so a user-declared method never takes one.
+        type_args: Vec<Type>,
         /// The call's arguments.
         args: CallArgs,
     },

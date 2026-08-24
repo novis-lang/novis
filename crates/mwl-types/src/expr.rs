@@ -113,7 +113,7 @@ use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
-    MemberName, NewTarget, StringPart, UnaryOp,
+    MemberName, NewTarget, StringPart, Type, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 
@@ -973,6 +973,7 @@ fn infer(
             object,
             method,
             nullsafe,
+            type_args,
             args,
         } => {
             let object_ty = check_expr(object, None, live, scope, ctx, env);
@@ -1007,6 +1008,11 @@ fn infer(
             let sig = resolved
                 .as_ref()
                 .map(|(owner, _, sig)| substitute_receiver_args(receiver_ty, owner, sig, env));
+            let label = resolved
+                .as_ref()
+                .map(|(owner, name, _)| format!("{owner}::{name}"));
+            let sig =
+                check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
             let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // ADR 0027: `$obj->method(...)` (first-class callable syntax)
             // names a `Closure` value, not the method's return type — the
@@ -1032,6 +1038,7 @@ fn infer(
         ExprKind::StaticCall {
             class,
             method,
+            type_args,
             args,
         } => {
             check_expr(class, None, live, scope, ctx, env);
@@ -1080,6 +1087,11 @@ fn infer(
                 _ => None,
             };
             let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
+            let label = resolved
+                .as_ref()
+                .map(|(owner, name, _)| format!("{owner}::{name}"));
+            let sig =
+                check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
             let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // See the `MethodCall` arm above: first-class callable syntax
             // names a `Closure`, not the resolved method's return type.
@@ -2682,6 +2694,88 @@ fn check_interface_private_visibility(
 /// argument's own checked type, in call order — [`ExprKind::New`]'s arm reads
 /// the first one back to feed [`reject_secret_throwable_message`] without a
 /// second, diagnostic-duplicating pass over the same expression.
+/// The `<...>` list written between a member name and its `(`, checked
+/// against what the resolved member actually declares and bound into `sig`.
+///
+/// Two spellings of the same wall, both already coded for their type-position
+/// twins in [`crate::lower`]: a member declaring no type parameter refuses a
+/// written list (`E_TYPE_ARGS_NOT_GENERIC`), and one that declares some
+/// requires exactly that many (`E_TYPE_ARG_COUNT`, "including none at all").
+/// `docs/agent/loop-goal.md`'s standing decision is what draws the line —
+/// user-declared generics stay parked, and a call site may write the argument
+/// only where the compiler owns the declaration.
+///
+/// Only a variable the registry marks
+/// [`Written`](mwl_stdlib::registry::CoreTy::Written) is writable. An
+/// *inferred* one is bound from an argument's type by [`check_generic_args`]
+/// below, and letting a call site restate it would be a second, unchecked
+/// spelling of a fact the arguments already settle — `Core\Arr::first<string>`
+/// over an `array<int>` has no honest answer.
+///
+/// Every written argument is lowered whichever way this goes, so an unknown
+/// class named inside one is reported even when the list itself is refused.
+/// A wrong count is recovered from by binding what *was* written, positionally;
+/// [`crate::generics`] substitutes any variable left over to `mixed`.
+fn check_written_type_args(
+    type_args: &[Type],
+    sig: Option<MethodSig>,
+    label: Option<&str>,
+    call_span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<MethodSig> {
+    let written: Vec<TypeId> = type_args
+        .iter()
+        .map(|ty| lower_type(ty, ctx, env))
+        .collect();
+    let sig = sig?;
+    let member = label.unwrap_or("this member");
+    let Some(span) = type_args
+        .first()
+        .map(|first| first.span.to(type_args[type_args.len() - 1].span))
+    else {
+        // Nothing written. Only a member that *requires* one has anything to
+        // say about that; every other call takes this path and is unchanged.
+        if !sig.type_params.is_empty() {
+            report_type_arg_count(&sig, member, call_span, env);
+        }
+        return Some(sig);
+    };
+    if sig.type_params.is_empty() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_ARGS_NOT_GENERIC,
+                format!("`{member}` takes no type arguments"),
+            )
+            .with_primary(span, "type arguments written here")
+            .with_help(
+                "user-declared type parameters are deferred (ADR 0007 § 1), and a `Core` member                  whose spec signature writes none infers every type it needs from its arguments",
+            ),
+        );
+        return Some(sig);
+    }
+    if written.len() != sig.type_params.len() {
+        report_type_arg_count(&sig, member, span, env);
+    }
+    let bindings: crate::generics::Bindings =
+        sig.type_params.iter().cloned().zip(written).collect();
+    Some(sig.substituted(&bindings, env.interner))
+}
+
+/// `E_TYPE_ARG_COUNT` for a call site, from both places [`check_written_type_args`]
+/// reports it: a list of the wrong length, and no list at all.
+fn report_type_arg_count(sig: &MethodSig, member: &str, span: Span, env: &mut Env<'_>) {
+    let names = sig.type_params.join(", ");
+    let expected = sig.type_params.len();
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_ARG_COUNT,
+            format!("`{member}` takes {expected} type argument(s)"),
+        )
+        .with_primary(span, format!("write `{member}<{names}>(…)`")),
+    );
+}
+
 fn check_args_typed(
     args: &CallArgs,
     sig: Option<MethodSig>,
