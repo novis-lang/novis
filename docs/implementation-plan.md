@@ -7,8 +7,9 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-24. **M3 is done**, and the loop goal's Stages 1-3 are green on Windows and Linux
-> alike — every fixture, `examples/core.mwl` included. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
+> **Status:** 2026-08-24. **M3 is done, and the M4 + M4S loop's acceptance list is fully green** — all five
+> stages and the valgrind sweep, on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop
+> — `Core\Arr`'s contract rests on M4's copy-on-write
 > array, and building that array without its only real consumer produces one that must be rebuilt. M4's
 > language surface is now driven by what Stage 3's `Core` work needs. The docs track that was running
 > beside it is **finished**: a full `Core` roster review against ADR 0063, then all seven `Core` additions
@@ -74,13 +75,13 @@
 > pass per PHP domain, reported by `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's
 > `by`-delegation.
 >
-> **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
-> under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
-> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed, and every `Core\Arr`
-> member added since was leak-checked the same way before it landed. The acceptance run now reaches
-> **Stage 5 and stops there**: `loop-goal.toml`'s `abi-probe` check names five guards, and
-> `a_class_without_a_property_observer_costs_nothing_extra` — ADR 0014's claim as a measurement —
-> has never been written.
+> **Blocking:** nothing external, and **nothing left on the loop's acceptance list**: every check in
+> `docs/agent/loop-goal.toml` passes — all sixteen fixture runs byte for byte on Windows *and* under WSL
+> against a Linux build, both suites over their thresholds, every named guard including
+> `a_class_without_a_property_observer_costs_nothing_extra`, and the `valgrind --leak-check=full` sweep
+> clean over all thirteen acyclic fixtures. `python tools/loop.py --goal-only` reports GOAL REACHED. That
+> leg earned its keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed, and every
+> `Core\Arr` member added since was leak-checked the same way before it landed.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

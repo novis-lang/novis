@@ -370,10 +370,20 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
 /// compiled unit.
 fn compile_arith() -> (mwl_ir::Program, mwl_codegen::Unit) {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/arith.mwl");
+    let text = std::fs::read_to_string(path).expect("the frozen acceptance fixture is readable");
+    compile_source("arith.mwl", &text)
+}
+
+/// Compiles one source text through the whole real pipeline — parse, resolve,
+/// check, lower, codegen — and returns its lowered program alongside the
+/// compiled unit.
+///
+/// Every guard below that makes a claim about emitted code goes through this
+/// rather than hand-building IR: the claims are about what the *compiler*
+/// does, so an approximation of its output would not test them.
+fn compile_source(name: &str, text: &str) -> (mwl_ir::Program, mwl_codegen::Unit) {
     let mut map = mwl_diagnostics::SourceMap::new();
-    let id = map
-        .load(std::path::Path::new(path))
-        .expect("the frozen acceptance fixture is readable");
+    let id = map.add(name, text);
     let src = map.file(id);
 
     let mut diags = mwl_diagnostics::Diagnostics::new();
@@ -382,7 +392,7 @@ fn compile_arith() -> (mwl_ir::Program, mwl_codegen::Unit) {
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();
     mwl_types::check_program(&stmts, src, &module, &mut interner, &mut exprs, &mut diags);
-    assert!(!diags.has_errors(), "the fixture stopped type-checking");
+    assert!(!diags.has_errors(), "{name} stopped type-checking");
 
     let layouts = mwl_types::build_class_layouts(&stmts, src, &module.graph);
     let program = mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &layouts);
@@ -680,4 +690,280 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
              a real regression, that decision needs revisiting rather than this threshold."
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// ADR 0014 § 4's claim, tested rather than asserted
+// ---------------------------------------------------------------------------
+
+/// The fixture the ADR 0014 guard compiles, holding both sides of that ADR's
+/// § 4 claim in one class so they share a layout, a header and an allocation.
+///
+/// `$n` is an ordinary property on a class that declares neither a hook for it
+/// nor `PropertyObserver`; `$m` is the same `int` behind the cheapest possible
+/// opt-in, a pass-through `get`/`set` pair that does nothing but name its own
+/// backing slot. `Cell::touch` exists for the structural half and takes its
+/// receiver as a parameter, so that the one `Call` a `new` would contribute
+/// does not have to be excused; the four `plain*`/`hooked*` methods exist for
+/// the timing half and differ from each other by exactly three access pairs
+/// per iteration, which is what makes the slope between them the cost of an
+/// access rather than of a call frame.
+const OBSERVER_FIXTURE: &str = r#"<?mwl
+class Cell {
+    public int $n;
+
+    public int $m {
+        get => $this->m;
+        set => $value;
+    }
+
+    public function constructor(int $n) {
+        $this->n = $n;
+        $this->m = $n;
+    }
+
+    public static function touch(Cell $c, int $rounds): int {
+        var $i = 0;
+        while ($i < $rounds) {
+            $c->n = $c->n + 1;
+            $i = $i + 1;
+        }
+        return $c->n;
+    }
+
+    public static function plainOne(int $rounds): int {
+        var $c = new Cell(0);
+        var $i = 0;
+        while ($i < $rounds) {
+            $c->n = $c->n + 1;
+            $i = $i + 1;
+        }
+        return $c->n;
+    }
+
+    public static function plainFour(int $rounds): int {
+        var $c = new Cell(0);
+        var $i = 0;
+        while ($i < $rounds) {
+            $c->n = $c->n + 1;
+            $c->n = $c->n + 1;
+            $c->n = $c->n + 1;
+            $c->n = $c->n + 1;
+            $i = $i + 1;
+        }
+        return $c->n;
+    }
+
+    public static function hookedOne(int $rounds): int {
+        var $c = new Cell(0);
+        var $i = 0;
+        while ($i < $rounds) {
+            $c->m = $c->m + 1;
+            $i = $i + 1;
+        }
+        return $c->m;
+    }
+
+    public static function hookedFour(int $rounds): int {
+        var $c = new Cell(0);
+        var $i = 0;
+        while ($i < $rounds) {
+            $c->m = $c->m + 1;
+            $c->m = $c->m + 1;
+            $c->m = $c->m + 1;
+            $c->m = $c->m + 1;
+            $i = $i + 1;
+        }
+        return $c->m;
+    }
+}
+"#;
+
+/// The `call` instructions the emitted machine code for `name` contains, in
+/// order — returned rather than counted so a failure can name them.
+///
+/// Scanned line by line rather than by splitting on the section marker, for
+/// the reason `a_typed_arithmetic_loop_contains_no_call` gives: Cranelift
+/// renders a two-way branch as `jnz label3; j label2`, so a `"; "` split would
+/// cut the section short at the first branch.
+fn emitted_calls(program: &mwl_ir::Program, name: &str) -> Vec<String> {
+    let asm = mwl_codegen::disassemble(program).expect("the fixture compiles");
+    let mut in_section = false;
+    let mut emitted = Vec::new();
+    for line in asm.lines() {
+        if let Some(section) = line.strip_prefix("; ") {
+            in_section = section == name;
+        } else if in_section && line.trim_start().starts_with("call ") {
+            emitted.push(line.trim().to_string());
+        }
+    }
+    emitted
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_class_without_a_property_observer_costs_nothing_extra() {
+    use mwl_ir::ir::InstKind;
+
+    // ADR 0014 § 4: a property with no hook, on a class that does not
+    // implement `PropertyObserver`, compiles to a direct field load or store —
+    // "no branch, no virtual call, nothing paid by a class that never asked
+    // for either mechanism". That sentence is what buys the whole ADR: an
+    // observer is a language-wide mechanism, so it is only affordable if the
+    // classes that ignore it pay for it exactly nothing.
+    //
+    // `PropertyObserver` itself has no implementation yet — it is deliberately
+    // absent from `mwl_hir::interfaces::RESERVED`, which says so — so the
+    // reference this measures against is the ADR's *other* opt-in, a
+    // per-property hook. That is the stronger of the two references anyway: a
+    // hook is the cheapest thing an access can become once it stops being a
+    // slot touch, one ordinary call each way, and an observer would add a
+    // second on top of it. So if an unhooked access ever acquired a dispatch,
+    // its cost would climb into the hooked one's class and this ratio would
+    // approach 1.
+    //
+    // Self-relative, per ADR 0026: both legs are measured on this machine, in
+    // the same run, over the same class.
+    //
+    // Measured on x86_64-pc-windows-msvc: 0.29 ns for the unhooked read+write
+    // against 14.5 ns for the hooked one, a ratio of 0.02x, and three more
+    // unhooked accesses emit 0 machine-code calls against the hooked pair's
+    // 36. The guard sits this file's usual order of magnitude above that,
+    // which is still far below the ~1x an unhooked access would reach the
+    // moment it acquired a dispatch of its own — the change of kind this
+    // exists to catch.
+    const MAX_RATIO: f64 = 0.2;
+    const ROUNDS: i64 = 1_000;
+
+    let (program, unit) = compile_source("observer.mwl", OBSERVER_FIXTURE);
+
+    // Half one, and the honest form of the claim: the accesses reached no
+    // helper and no MWL function. `Cell::touch`'s body is nothing but a loop
+    // reading and writing `$n`, so an empty call list here *is* "no virtual
+    // call" — and the same body over the hooked `$m` would not have one, which
+    // `each_property_hook_is_compiled_under_its_own_label` in `mwl-codegen`
+    // holds from the other side.
+    let touch = program
+        .functions
+        .iter()
+        .find(|f| f.name == "Cell::touch")
+        .expect("the fixture declares Cell::touch");
+    let insts = || touch.blocks.iter().flat_map(|b| b.insts.iter());
+    let calls: Vec<&InstKind> = insts()
+        .map(|i| &i.kind)
+        .filter(|k| matches!(k, InstKind::Call { .. } | InstKind::HelperCall { .. }))
+        .collect();
+    assert!(
+        calls.is_empty(),
+        "an unhooked property access on an observer-free class now lowers to \
+         {} call instruction(s): {calls:?}. ADR 0014 § 4 makes that access a \
+         direct field load or store; if a call genuinely belongs here now, \
+         that ADR's zero-cost claim needs revisiting.",
+        calls.len()
+    );
+
+    // Not vacuous: the accesses are actually there, and they are field
+    // instructions rather than having been folded away.
+    let fields = insts()
+        .filter(|i| {
+            matches!(
+                i.kind,
+                InstKind::FieldGet { .. } | InstKind::FieldSet { .. }
+            )
+        })
+        .count();
+    println!("Cell::touch: {fields} field instructions, no call instructions");
+    assert!(
+        fields >= 2,
+        "Cell::touch lowered {fields} field instruction(s); its loop reads and \
+         writes $n, so this guard is measuring something other than it thinks."
+    );
+
+    // And the same tie to the *emitted* code the arithmetic guard makes,
+    // which is what turns the check above from a claim about IR into a claim
+    // about machine code. Taken as a slope between two bodies rather than as
+    // an absolute count, for the same reason the timing below is: a frame
+    // pays for things that are not this ADR's — a safepoint poll, an ADR 0018
+    // probe, the one refcount call `Cell::touch`'s object-typed parameter
+    // costs at its scope's end — and all of those are per-frame, so they
+    // cancel. What is left is exactly what three more access pairs added.
+    let slope = |one: &str, four: &str| -> (usize, isize) {
+        let sites = |name: &str| {
+            program
+                .functions
+                .iter()
+                .find(|f| f.name == name)
+                .unwrap_or_else(|| panic!("the fixture declares {name}"))
+                .blocks
+                .iter()
+                .flat_map(|b| b.insts.iter())
+                .filter(|i| matches!(i.kind, InstKind::Safepoint | InstKind::StmtMarker(_)))
+                .count()
+        };
+        let site_slope = sites(four) - sites(one);
+        let call_slope = emitted_calls(&program, four).len() as isize
+            - emitted_calls(&program, one).len() as isize;
+        (site_slope, call_slope - site_slope as isize)
+    };
+    let (plain_sites, plain_extra) = slope("Cell::plainOne", "Cell::plainFour");
+    let (_, hooked_extra) = slope("Cell::hookedOne", "Cell::hookedFour");
+    println!(
+        "three more access pairs: {plain_sites} more probe/safepoint sites, \
+         {plain_extra} more calls unhooked against {hooked_extra} hooked"
+    );
+
+    assert_eq!(
+        plain_extra, 0,
+        "three more unhooked property accesses now emit {plain_extra} call(s) \
+         beyond the {plain_sites} probe/safepoint site(s) they add. ADR 0014 \
+         § 4 makes an access on an observer-free class a direct field load or \
+         store; anything else there is a dispatch it did not ask for."
+    );
+    // Not vacuous: the same slope over the hooked property does show the calls
+    // an opt-in costs, so a measurement that found none anywhere would fail
+    // here instead of passing quietly.
+    assert!(
+        hooked_extra > 0,
+        "three more accesses through a property hook emitted no extra call at \
+         all, so this guard is no longer distinguishing an opted-in access \
+         from an unhooked one."
+    );
+
+    // Half two: what an access costs, taken as the slope between two bodies
+    // that differ by exactly three access pairs per iteration, so that the
+    // allocation, the loop and the call-out all cancel. The hooked pair is the
+    // identical measurement over `$m`.
+    let mut ctx = mwl_runtime::Ctx::new(mwl_runtime::OutputSink::Sink);
+    // Argument slot 0 is the implicit receiver every lowered method carries;
+    // these are static, so it is `null` — see `emit_call`'s own docs.
+    let args = [mwl_runtime::Value::null(), mwl_runtime::Value::int(ROUNDS)];
+    let mut per_pair = |one: &str, four: &str| -> f64 {
+        let one = unit.function(one).expect("the fixture declares it");
+        let four = unit.function(four).expect("the fixture declares it");
+        let t_one = ns_per_op(2_000, 5, || {
+            black_box(mwl_runtime::call(one, &mut ctx, &args)).expect("the loop ran");
+        });
+        let t_four = ns_per_op(2_000, 5, || {
+            black_box(mwl_runtime::call(four, &mut ctx, &args)).expect("the loop ran");
+        });
+        (t_four - t_one) / (3.0 * ROUNDS as f64)
+    };
+    let plain = per_pair("Cell::plainOne", "Cell::plainFour");
+    let hooked = per_pair("Cell::hookedOne", "Cell::hookedFour");
+
+    let ratio = plain / hooked;
+    println!(
+        "property read+write: {plain:.2} ns unhooked against {hooked:.2} ns \
+         through a pass-through hook pair, ratio {ratio:.3}x"
+    );
+
+    assert!(
+        ratio < MAX_RATIO,
+        "a read+write of an unhooked property on an observer-free class now \
+         costs {ratio:.3}x the same pair behind a hook ({plain:.2} ns vs \
+         {hooked:.2} ns), over the {MAX_RATIO}x guard. ADR 0014 § 4 rests on \
+         the unhooked access paying nothing for a mechanism it never asked \
+         for; if this is real, that claim needs revisiting rather than this \
+         threshold."
+    );
 }

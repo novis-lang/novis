@@ -256,8 +256,11 @@ Verification, in the order it becomes possible:
 - **M4**: a class implementing `PropertyObserver` runs its property's own hook (or storage) first and
   `onPropertyGet`/`onPropertySet` second, for both hooked and un-hooked properties, including a throwing
   observer method propagating correctly through [ADR 0002](0002-error-propagation.md)'s checked-return path;
-  a class that does not implement `PropertyObserver` shows no measurable overhead over plain field access,
-  committed alongside [ADR 0013](0013-comparable-interface.md)'s equivalent guard; a runtime-computed
+  § 4's zero cost is a measurement rather than an assertion — `benches/abi-probe`'s
+  `a_class_without_a_property_observer_costs_nothing_extra`, which holds that three more unhooked accesses
+  emit no machine-code call beyond the probe sites they add, and cost a fraction of the same accesses behind
+  the ADR's other opt-in, a per-property hook; that test's own comment carries the figures and the threshold.
+  A runtime-computed
   property-access expression naming an undeclared property throws rather than creating one; calling an
   undeclared method still fails even when the class defines `__call`.
 - **M11**: the converter flags PHP source that declares `__get`/`__set` as needing human review (observation
