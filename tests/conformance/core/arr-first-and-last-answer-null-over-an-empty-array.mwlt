@@ -1,0 +1,28 @@
+--TEST--
+Core\Arr::first, last, firstKey and lastKey answer the entry or null, never a throw
+--FILE--
+<?mwl
+array<int> $nums = [3, 7, 11];
+array<int> $empty = [];
+array<string> $map = ["b" => "bee", "a" => "ay"];
+
+echo Core\Arr::first($nums) ?? -1, "|", Core\Arr::last($nums) ?? -1, "\n";
+echo Core\Arr::firstKey($nums) ?? "none", "|", Core\Arr::lastKey($nums) ?? "none", "\n";
+echo Core\Arr::first($empty) ?? -1, "|", Core\Arr::last($empty) ?? -1, "\n";
+echo Core\Arr::firstKey($empty) ?? "none", "|", Core\Arr::lastKey($empty) ?? "none", "\n";
+echo Core\Arr::first($map) ?? "none", "|", Core\Arr::last($map) ?? "none", "\n";
+echo Core\Arr::firstKey($map) ?? "none", "|", Core\Arr::lastKey($map) ?? "none", "\n";
+
+// The answer is a value of its own, not a view into the subject: taking one
+// and then dropping every other reference has to leave it readable.
+?string $head = Core\Arr::first($map);
+$map = [];
+echo $head ?? "none", "|", Core\Arr::count($map), "\n";
+--EXPECT--
+3|11
+0|2
+-1|-1
+none|none
+bee|ay
+b|a
+bee|0

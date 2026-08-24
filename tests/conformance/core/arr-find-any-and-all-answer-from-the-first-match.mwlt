@@ -1,0 +1,34 @@
+--TEST--
+Core\Arr::find and findKey answer the first match or null; any and all answer the empty array vacuously
+--FILE--
+<?mwl
+array<int> $nums = [3, 7, 11];
+array<int> $empty = [];
+array<string> $map = ["b" => "bee", "a" => "ay"];
+
+// The *first* match, not the last — 11 also satisfies this predicate.
+echo Core\Arr::find($nums, fn(int $v) => $v > 5) ?? -1, "|",
+     Core\Arr::findKey($nums, fn(int $v) => $v > 5) ?? "none", "\n";
+echo Core\Arr::find($nums, fn(int $v) => $v > 50) ?? -1, "|",
+     Core\Arr::findKey($nums, fn(int $v) => $v > 50) ?? "none", "\n";
+echo Core\Arr::find($empty, fn(int $v) => true) ?? -1, "|",
+     Core\Arr::findKey($empty, fn(int $v) => true) ?? "none", "\n";
+
+// The predicate is offered ($value, $key) and may declare either arity.
+echo Core\Arr::find($map, fn(string $v, string $k) => $k === "a") ?? "none", "\n";
+
+echo Core\Arr::any($nums, fn(int $v) => $v > 5) as string, "|",
+     Core\Arr::all($nums, fn(int $v) => $v > 5) as string, "|\n";
+echo Core\Arr::any($nums, fn(int $v) => $v > 0) as string, "|",
+     Core\Arr::all($nums, fn(int $v) => $v > 0) as string, "|\n";
+// Nothing matches an empty array, and everything holds of it vacuously.
+echo Core\Arr::any($empty, fn(int $v) => true) as string, "|",
+     Core\Arr::all($empty, fn(int $v) => false) as string, "|\n";
+--EXPECT--
+7|1
+-1|none
+-1|none
+ay
+1||
+1|1|
+|1|

@@ -21,10 +21,15 @@
 //!
 //! # Known gap
 //!
-//! The enum covers exactly what the members registered so far need. §§ 1–12
-//! of the spec also use nullables (`?T`) and `decimal` — each is a variant to
-//! add here plus a lowering arm in `mwl_types`, and neither has a member
-//! registered yet that would exercise it.
+//! The enum covers exactly what the members registered so far need. Two
+//! shapes §§ 1–12 write are still missing. `decimal` is a variant to add here
+//! plus a lowering arm in `mwl_types`, and blocks `Core\Arr::sum`,
+//! `product` and `average`, whose subject is `array<int|float|decimal>`. A
+//! **variadic** parameter is that plus `mwl-ir`'s gap 8, because a helper's
+//! `args: [N]` is a fixed arity and a variadic call has to collect its tail
+//! into something before it can reach one; ADR 0069's
+//! `overlay`/`underlay`/`appendAll`, `Arr::append`/`prepend` and `Path::join`
+//! all wait on it.
 //!
 //! # A `Core` enum is declared here too
 //!
@@ -134,14 +139,34 @@ pub enum CoreTy {
     Var(&'static str),
     /// `A|B|...` — ADR 0007 § 3's union, at least two members.
     ///
-    /// **Parameter position only.** A helper's argument slot is a whole
-    /// `mwl_runtime::Value`, and `mwl-codegen` writes its tag from the
-    /// argument's own representation, so a union parameter needs no IR type of
-    /// its own and the body decodes by tag. A union *return* would hand the
-    /// caller a value whose representation `mwl_ir::ty::Ty::Tagged`'s own doc
-    /// comment records as still undecided, so no row states one —
-    /// `a_union_is_only_ever_a_parameter` holds that.
+    /// Legal in **either** direction. A helper's argument slot is a whole
+    /// `mwl_runtime::Value` whose tag `mwl-codegen` writes from the argument's
+    /// own representation, so a union parameter needs no IR type of its own
+    /// and the body decodes by tag; a union *return* lands in the same 16-byte
+    /// value, read back as `mwl_ir::ty::Ty::Tagged` — that variant's own doc
+    /// comment owns the representation and what it spends.
+    ///
+    /// **Never an option's type**, which is the one restriction left:
+    /// `CoreTy::Options` flattens a bag into one ABI argument per option, and
+    /// an omitted option passes a [`Const`], which has no union-shaped
+    /// spelling. `a_union_is_never_an_option_type` holds that.
     Union(&'static [CoreTy]),
+    /// `?T` — [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)'s
+    /// nullable, which the spec's own tables write at every member that
+    /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
+    /// — ADR 0063 R5 makes it the *only* absence spelling).
+    ///
+    /// A variant of its own rather than a [`Self::Union`] with a `Null`
+    /// member, because that is what the spec writes and because there is no
+    /// other position a bare `null` type would be legal in. It interns as
+    /// exactly `Union([Null, T])` all the same — the checker has no separate
+    /// nullable type — so it inherits everything the union arm above says,
+    /// including the `Ty::Tagged` representation the value comes back in.
+    ///
+    /// **Never wraps a nullable or a `void`**: `??T` is `?T` and the interner
+    /// would silently collapse it, while `?void` is not a type at all.
+    /// `a_nullable_wraps_something_that_can_be_null` holds both.
+    Nullable(&'static CoreTy),
     /// A `Core`-owned enum, named by its fully-qualified name — `Core\Order`
     /// in `sort(array<T> $a, {order?: Order, ...})`.
     ///
@@ -478,38 +503,64 @@ mod tests {
         }
     }
 
-    /// A union is a **parameter** type and nothing else — see
-    /// [`CoreTy::Union`], which owns why: a helper's argument slot is a tagged
-    /// value written from the argument's own representation, while its result
-    /// has to land in a caller-side value whose representation is still open.
-    /// Checked over return types and array element types alike, since either
-    /// would reach the caller.
+    /// A union is legal in either direction but never as an **option's**
+    /// type — see [`CoreTy::Union`], which owns why: a bag flattens to one ABI
+    /// argument per option, and the [`Const`] an omitted one passes has no
+    /// union-shaped spelling. [`CoreTy::Nullable`] interns as a union, so it
+    /// is refused here on the same terms.
     #[test]
-    fn a_union_is_only_ever_a_parameter() {
-        fn reaches_the_caller(ty: &CoreTy) -> bool {
-            match ty {
-                CoreTy::Union(_) => true,
-                CoreTy::Array(elem) => reaches_the_caller(elem),
-                _ => false,
-            }
-        }
+    fn a_union_is_never_an_option_type() {
         for class in CLASSES {
             for method in class.methods {
-                assert!(
-                    !reaches_the_caller(&method.return_ty),
-                    "{}::{} returns a union",
-                    class.name,
-                    method.name
-                );
                 for member in method.options().unwrap_or(&[]) {
                     assert!(
-                        !matches!(member.ty, CoreTy::Union(_)),
+                        !matches!(member.ty, CoreTy::Union(_) | CoreTy::Nullable(_)),
                         "{}::{}'s option `{}` is a union, which no option-bag \
                          flattening rule covers",
                         class.name,
                         method.name,
                         member.name
                     );
+                }
+            }
+        }
+    }
+
+    /// A [`CoreTy::Nullable`] wraps something a `null` can actually widen a
+    /// type of: never a second nullable, which the interner would collapse
+    /// into the first, and never `void`, which is a return-position marker
+    /// rather than a type a value can have.
+    #[test]
+    fn a_nullable_wraps_something_that_can_be_null() {
+        fn check(ty: &CoreTy, what: &str) {
+            match ty {
+                CoreTy::Nullable(inner) => {
+                    assert!(
+                        !matches!(**inner, CoreTy::Nullable(_) | CoreTy::Void),
+                        "{what} nests {inner:?} inside a nullable"
+                    );
+                    check(inner, what);
+                }
+                CoreTy::Array(elem) => check(elem, what),
+                CoreTy::Union(members) => {
+                    for member in *members {
+                        check(member, what);
+                    }
+                }
+                CoreTy::Options(options) => {
+                    for option in *options {
+                        check(&option.ty, what);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for class in CLASSES {
+            for method in class.methods {
+                let what = format!("{}::{}", class.name, method.name);
+                check(&method.return_ty, &what);
+                for param in method.params {
+                    check(param, &what);
                 }
             }
         }
@@ -524,7 +575,7 @@ mod tests {
         fn nests_one(ty: &CoreTy) -> bool {
             match ty {
                 CoreTy::CallableTo(_) => true,
-                CoreTy::Array(elem) => nests_one(elem),
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) => nests_one(elem),
                 CoreTy::Union(members) => members.iter().any(nests_one),
                 CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
                 _ => false,
@@ -561,7 +612,7 @@ mod tests {
         fn mentions(ty: &CoreTy, name: &str) -> bool {
             match ty {
                 CoreTy::Var(var) => *var == name,
-                CoreTy::Array(elem) => mentions(elem, name),
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) => mentions(elem, name),
                 CoreTy::Union(members) => members.iter().any(|member| mentions(member, name)),
                 _ => false,
             }

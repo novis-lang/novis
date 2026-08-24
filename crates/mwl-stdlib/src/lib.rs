@@ -76,21 +76,36 @@
 //!
 //!    Within § 1, ADR 0009 § 2's granularity question is closed and
 //!    [`granularity::DEFAULT`] is its answer, so `length` and `at` are
-//!    registered; `slice` is not, and waits on gap 3 below rather than on that
-//!    ADR.
-//! 3. **A `?T` parameter still cannot be stated**, so a member whose spec
-//!    signature declares one — `Core\Str::slice`'s `?int $length = null`, and
-//!    the rest of the spec's most common optional shape — waits on the
-//!    `mwl_ir::ty::Ty::Tagged` representation question a type admitting both
-//!    `null` and a `T` runs into. Four things are *off* that list now: ADR
-//!    0063 R2's options bag ([`registry::CoreTy::Options`], first used by
-//!    `Core\Arr::range`), a union parameter ([`registry::CoreTy::Union`],
-//!    first used by `Core\Arr::hasKey`), a `Core`-owned enum
+//!    registered; `slice` is not, and what it waits on is now only a session
+//!    to write it — see gap 3.
+//! 3. **Two shapes a §§ 1–12 signature writes still cannot be stated**, and
+//!    each blocks a named set of members. A **variadic** parameter blocks ADR
+//!    0069's `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
+//!    `Arr::prepend` and `Path::join`; it is a `registry::CoreMethod` field
+//!    plus `mwl-ir`'s gap 8, since a helper's `args: [N]` is a fixed arity and
+//!    a variadic call has to collect its tail into an array before it can
+//!    reach one. `decimal` blocks `Arr::sum`, `product` and `average`, whose
+//!    subject is `array<int|float|decimal>`; it is a [`registry::CoreTy`]
+//!    variant plus `mwl-ir`'s gap 15.
+//!
+//!    Everything else the spec writes is expressible: ADR 0063 R2's options
+//!    bag ([`registry::CoreTy::Options`], first used by `Core\Arr::range`), a
+//!    union in **either** direction ([`registry::CoreTy::Union`], first used
+//!    by `Core\Arr::hasKey`), a `Core`-owned enum
 //!    ([`registry::CoreTy::Enum`] over [`registry::ENUMS`], first used by
-//!    `Core\Arr::sort`), and an **absent** option
-//!    ([`registry::Const::Null`], the same member). A union *return* is not —
-//!    that one is genuinely blocked, on the same representation, and
-//!    `CoreTy::Union`'s own docs say why.
+//!    `Core\Arr::sort`), an **absent** option ([`registry::Const::Null`], the
+//!    same member), and ADR 0066's `?T`
+//!    ([`registry::CoreTy::Nullable`], first used by `Core\Arr::first`). The
+//!    last of those is untried in exactly one position: a `?T` **parameter**
+//!    defaulting to `null`, which is `Core\Str::slice`'s `?int $length = null`
+//!    and the spec's most common optional shape. Every piece it needs is in
+//!    place — the type interns as `null|int`, and `Const::Null` is already a
+//!    legal positional default — so the first member to declare one is the
+//!    check, not a further gap.
+//!
+//!    A third blocker is not a *shape*: `keyOf`, `contains`, `min`, `max`,
+//!    `unique`, `diff` and `intersect` all compare two values by **strict
+//!    identity**, and `mwl_runtime` defines no such comparison yet.
 //! 4. **`array<T>` is invariant, so a `array<int|string>` parameter takes
 //!    only that exact spelling.** `Core\Arr::flip` is the first member whose
 //!    spec signature declares one, and `Core\Arr::flip($stringArray)` is

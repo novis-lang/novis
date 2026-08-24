@@ -197,6 +197,15 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
                 .collect();
             interner.make_union(members)
         }
+        // `?T` is `null|T` and nothing else — the checker has no separate
+        // nullable type, so a registry row's `?T` and a source-written `?T`
+        // are the *same* interned id, and everything downstream (assignability,
+        // `??`, `mwl_ir::lower_checked_ty`'s `Ty::Tagged`) meets one shape.
+        CoreTy::Nullable(inner) => {
+            let inner = lower(inner, interner);
+            let null = interner.null();
+            interner.make_union([null, inner])
+        }
         // The registry's order is kept, not sorted: it is the order the bag
         // flattens into ABI arguments. `Ty::Options` owns why.
         CoreTy::Options(options) => {
@@ -298,6 +307,49 @@ mod tests {
         // nowhere to carry the name it binds.
         let plain = interner.callable();
         assert_ne!(sig.params[1], plain);
+    }
+
+    /// `CoreTy::Nullable` is `null|T` and *is* the union the checker already
+    /// had — the one property the whole `?T` half of ADR 0066 rests on, since
+    /// a registry row's `?string` and a source-written `?string` have to be
+    /// one interned id for `??` and assignability to meet a single shape.
+    #[test]
+    fn a_nullable_return_is_the_same_union_a_source_written_one_interns_to() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (_, sig) = resolve_method(
+            &QName::parse(r"Core\Arr"),
+            "firstKey",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Arr::firstKey is registered");
+        let null = interner.null();
+        let string = interner.string();
+        let expected = interner.make_union([null, string]);
+        assert_eq!(sig.return_ty, expected);
+        assert_eq!(interner.describe(sig.return_ty), "string|null");
+    }
+
+    /// A nullable *element* type substitutes like any other: `first`'s `?T`
+    /// carries the variable, so a call over `array<int>` answers `null|int`
+    /// rather than the `mixed` an unbound variable would give.
+    #[test]
+    fn a_nullable_return_carrying_a_variable_still_substitutes() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (_, sig) = resolve_method(
+            &QName::parse(r"Core\Arr"),
+            "first",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Arr::first is registered");
+        assert_eq!(interner.describe(sig.return_ty), "T|null");
     }
 
     #[test]

@@ -44,6 +44,34 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_map",
         },
         CoreMethod {
+            name: "find",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_find",
+        },
+        CoreMethod {
+            name: "findKey",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_arr_find_key",
+        },
+        CoreMethod {
+            name: "any",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_arr_any",
+        },
+        CoreMethod {
+            name: "all",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_arr_all",
+        },
+        CoreMethod {
             name: "isEmpty",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
@@ -77,6 +105,34 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "mwl_core_arr_values",
+        },
+        CoreMethod {
+            name: "first",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_first",
+        },
+        CoreMethod {
+            name: "last",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_last",
+        },
+        CoreMethod {
+            name: "firstKey",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_arr_first_key",
+        },
+        CoreMethod {
+            name: "lastKey",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_arr_last_key",
         },
         CoreMethod {
             name: "withoutFirst",
@@ -298,6 +354,14 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_fill" => (mwl_core_arr_fill as *const ()).cast(),
         "mwl_core_arr_fill_keys" => (mwl_core_arr_fill_keys as *const ()).cast(),
         "mwl_core_arr_count_by" => (mwl_core_arr_count_by as *const ()).cast(),
+        "mwl_core_arr_first" => (mwl_core_arr_first as *const ()).cast(),
+        "mwl_core_arr_last" => (mwl_core_arr_last as *const ()).cast(),
+        "mwl_core_arr_first_key" => (mwl_core_arr_first_key as *const ()).cast(),
+        "mwl_core_arr_last_key" => (mwl_core_arr_last_key as *const ()).cast(),
+        "mwl_core_arr_find" => (mwl_core_arr_find as *const ()).cast(),
+        "mwl_core_arr_find_key" => (mwl_core_arr_find_key as *const ()).cast(),
+        "mwl_core_arr_any" => (mwl_core_arr_any as *const ()).cast(),
+        "mwl_core_arr_all" => (mwl_core_arr_all as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1760,6 +1824,262 @@ where
     Ok(())
 }
 
+// ============================================================================
+// Absence — the members that answer `?T`
+// ============================================================================
+
+/// The subject array of a member whose first parameter is one, as the safe
+/// handle the walking members want.
+///
+/// Every member below decodes its subject the same way, so it is one function
+/// rather than the same seven lines per helper — see [`borrowed`] for why the
+/// handle it returns is never dropped.
+fn subject(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<MwlArray>, Fault> {
+    let array = args[0].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?}, got tag {}",
+            Tag::Array,
+            args[0].tag_byte()
+        ))
+    })?;
+    Ok(borrowed(array))
+}
+
+/// The value at `slot` as a fresh reference this frame owns — what a `?T`
+/// answer has to be.
+///
+/// [`MwlArray::value_at`] *borrows*, and a returned value belongs to the
+/// caller, so every one of these members retains before it answers. The
+/// [`Value::null`] answer needs no counterpart: `Tag::Null` releases to
+/// nothing.
+fn owned_value_at(subject: &MwlArray, slot: usize) -> Value {
+    let value = subject
+        .value_at(slot)
+        .expect("next_slot only names live entries");
+    #[expect(
+        unsafe_code,
+        reason = "the entry is owned by the subject array, which outlives this \
+                  call, so the value handed back needs a reference of its own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    value
+}
+
+/// The key at `slot` as a `?string` answer — already a fresh reference, since
+/// [`MwlArray::key_at`] clones.
+fn owned_key_at(subject: &MwlArray, slot: usize) -> Value {
+    Value::str(
+        subject
+            .key_at(slot)
+            .expect("next_slot only names live entries"),
+    )
+}
+
+/// The first slot `predicate` answers truthily for, or `None`.
+///
+/// Shared by all four predicate members below — `find` and `findKey` read a
+/// different half of the same entry, `any` asks only whether there was one,
+/// and `all` asks the same question of the *negated* predicate. Every one of
+/// them stops at the first match, which is what makes them one walk.
+///
+/// The callback receives `($value, $key)` and may declare fewer parameters,
+/// the same rule and the same `mwl_runtime::call_closure` trimming
+/// [`mwl_core_arr_filter`] documents; the retain/release around the key
+/// argument and around the verdict are that member's too, and for the same
+/// reasons.
+fn find_slot(
+    ctx: &mut mwl_runtime::Ctx,
+    subject: &MwlArray,
+    predicate: Value,
+    negate: bool,
+) -> Result<Option<usize>, Fault> {
+    let mut from = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        from = slot + 1;
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        let key = Value::str(
+            subject
+                .key_at(slot)
+                .expect("next_slot only names live entries"),
+        );
+        let verdict = mwl_runtime::call_closure(ctx, predicate, &[value, key]);
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns exactly the reference `key_at` cloned"
+        )]
+        unsafe {
+            key.release();
+        }
+        let verdict = verdict?;
+        let truthy = mwl_runtime::value_truthy(verdict);
+        #[expect(
+            unsafe_code,
+            reason = "the verdict is a fresh value this frame owns; a \
+                      predicate returning a heap value would otherwise leak \
+                      one reference per entry"
+        )]
+        unsafe {
+            verdict.release();
+        }
+        if truthy != negate {
+            return Ok(Some(slot));
+        }
+    }
+    Ok(None)
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::first(array<T> $a): ?T` — the value of the first entry in
+    /// insertion order, replacing PHP's `reset`, `current` and
+    /// `$a[array_key_first($a)]`.
+    ///
+    /// The first `Core` member to answer `?T`. The empty array is `null`, not
+    /// a throw: ADR 0063 R5 makes `?T` the absence spelling and R4's throw is
+    /// for a *failure*, which asking a possibly-empty array for its first
+    /// entry is not. The spec's § 2 notes the one thing this costs — over an
+    /// `array<?T>` the answer cannot tell "absent" from "present and null",
+    /// which `isEmpty` answers directly.
+    ///
+    /// PHP's three spellings all move or read an internal array pointer;
+    /// there is none here, and the spec's § 2 says why a cursor inside a
+    /// copy-on-write *value* is incoherent.
+    fn mwl_core_arr_first(_ctx, args: [1]) {
+        let subject = subject(args, "first")?;
+        Ok(match subject.next_slot(0) {
+            Some(slot) => owned_value_at(&subject, slot),
+            None => Value::null(),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::last(array<T> $a): ?T` — the value of the last entry in
+    /// insertion order, replacing PHP's `end` and `$a[array_key_last($a)]`.
+    ///
+    /// [`mwl_core_arr_first`]'s own docs own the `null`-for-empty rule.
+    ///
+    /// The last entry cannot be named without walking, since the ordered hash
+    /// has no backward cursor — the same property
+    /// [`mwl_core_arr_without_last`] walks for. This one keeps a slot number
+    /// rather than copying, so the walk allocates nothing.
+    fn mwl_core_arr_last(_ctx, args: [1]) {
+        let subject = subject(args, "last")?;
+        let mut seen = None;
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            seen = Some(slot);
+            from = slot + 1;
+        }
+        Ok(match seen {
+            Some(slot) => owned_value_at(&subject, slot),
+            None => Value::null(),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::firstKey(array<T> $a): ?string` — the first entry's key,
+    /// replacing PHP's `array_key_first` and `key`.
+    ///
+    /// `?string` and never `?int`: ADR 0007 § 5 stores every key as a string,
+    /// and `Core\Arr::keys` already answers `array<string>` for the same
+    /// reason — a member that guessed a key's "original" type would be the
+    /// key-type-dependent behaviour ADR 0069 removes.
+    fn mwl_core_arr_first_key(_ctx, args: [1]) {
+        let subject = subject(args, "firstKey")?;
+        Ok(match subject.next_slot(0) {
+            Some(slot) => owned_key_at(&subject, slot),
+            None => Value::null(),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::lastKey(array<T> $a): ?string` — the last entry's key,
+    /// replacing PHP's `array_key_last`.
+    ///
+    /// [`mwl_core_arr_first_key`] owns why the answer is a `string`, and
+    /// [`mwl_core_arr_last`] why finding it is a walk.
+    fn mwl_core_arr_last_key(_ctx, args: [1]) {
+        let subject = subject(args, "lastKey")?;
+        let mut seen = None;
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            seen = Some(slot);
+            from = slot + 1;
+        }
+        Ok(match seen {
+            Some(slot) => owned_key_at(&subject, slot),
+            None => Value::null(),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::find(array<T> $a, callable $predicate): ?T` — the first
+    /// value the predicate answers truthily for, replacing PHP's `array_find`.
+    ///
+    /// `null` when nothing matches, on [`mwl_core_arr_first`]'s terms. The
+    /// walk stops at the first match, so the predicate is called once per
+    /// entry *up to* it and never after — which is the property that makes
+    /// this different from `filter` plus `first`, and the reason both members
+    /// exist.
+    fn mwl_core_arr_find(ctx, args: [2]) {
+        let subject = subject(args, "find")?;
+        Ok(match find_slot(ctx, &subject, args[1], false)? {
+            Some(slot) => owned_value_at(&subject, slot),
+            None => Value::null(),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::findKey(array<T> $a, callable $predicate): ?string` — the
+    /// key of the first entry the predicate answers truthily for, replacing
+    /// PHP's `array_find_key`.
+    ///
+    /// [`mwl_core_arr_find`] owns the walk; [`mwl_core_arr_first_key`] owns
+    /// why the answer is a `string`.
+    fn mwl_core_arr_find_key(ctx, args: [2]) {
+        let subject = subject(args, "findKey")?;
+        Ok(match find_slot(ctx, &subject, args[1], false)? {
+            Some(slot) => owned_key_at(&subject, slot),
+            None => Value::null(),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::any(array<T> $a, callable $predicate): bool` — whether any
+    /// entry satisfies the predicate, replacing PHP's `array_any`.
+    ///
+    /// Short-circuits at the first match, and is `false` over an empty array.
+    fn mwl_core_arr_any(ctx, args: [2]) {
+        let subject = subject(args, "any")?;
+        let found = find_slot(ctx, &subject, args[1], false)?;
+        Ok(Value::bool(found.is_some()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::all(array<T> $a, callable $predicate): bool` — whether every
+    /// entry satisfies the predicate, replacing PHP's `array_all`.
+    ///
+    /// The same walk as [`mwl_core_arr_any`] against the *negated* predicate:
+    /// "every entry matches" is "no entry fails", so it short-circuits at the
+    /// first failure. `true` over an empty array, which is the vacuous answer
+    /// PHP's own `array_all` gives.
+    fn mwl_core_arr_all(ctx, args: [2]) {
+        let subject = subject(args, "all")?;
+        let failed = find_slot(ctx, &subject, args[1], true)?;
+        Ok(Value::bool(failed.is_none()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use mwl_runtime::{Ctx, MwlArray, MwlStr, OutputSink, Value, call};
@@ -2759,5 +3079,85 @@ mod tests {
         )
         .expect_err("a float is not a key");
         assert_eq!(status, mwl_runtime::FATAL);
+    }
+
+    /// The four ends of a map, over a subject whose insertion order is not its
+    /// key order — so an implementation that read the hash rather than the
+    /// insertion list would answer differently.
+    #[test]
+    fn the_four_end_members_read_insertion_order() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let asked = |ctx: &mut Ctx, helper: mwl_runtime::MwlFn| {
+            rendered_value(call(helper, ctx, &[mixed_keys()]).expect("asking an end never fails"))
+        };
+        assert_eq!(asked(&mut ctx, super::mwl_core_arr_first), b"a");
+        assert_eq!(asked(&mut ctx, super::mwl_core_arr_last), b"c");
+        assert_eq!(asked(&mut ctx, super::mwl_core_arr_first_key), b"x");
+        assert_eq!(asked(&mut ctx, super::mwl_core_arr_last_key), b"y");
+    }
+
+    /// An empty subject answers `null` at all four ends rather than throwing —
+    /// ADR 0063 R5's absence spelling, not R4's failure.
+    #[test]
+    fn an_empty_array_has_no_ends() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        for helper in [
+            super::mwl_core_arr_first as mwl_runtime::MwlFn,
+            super::mwl_core_arr_last,
+            super::mwl_core_arr_first_key,
+            super::mwl_core_arr_last_key,
+        ] {
+            let answer = call(helper, &mut ctx, &[Value::array(MwlArray::new())])
+                .expect("an empty array is not a failure");
+            assert_eq!(answer.tag_byte(), mwl_runtime::Tag::Null as u8);
+        }
+    }
+
+    /// Reading an end retains what it hands back: the answer outlives the
+    /// subject, so the entry's own reference cannot be the one returned.
+    #[test]
+    fn an_end_value_is_a_reference_of_its_own() {
+        let mut array = MwlArray::new();
+        let held = MwlStr::new(b"only");
+        let before = held.refcount();
+        array.append(Value::str(held));
+        let subject = Value::array(array);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let answer =
+            call(super::mwl_core_arr_first, &mut ctx, &[subject]).expect("a one-entry array");
+        #[expect(
+            unsafe_code,
+            reason = "the answer is a fresh reference this test owns, and the \
+                      subject is the one reference it built above; the handle \
+                      below only reads a count, so it must not release one"
+        )]
+        unsafe {
+            let handle =
+                std::mem::ManuallyDrop::new(MwlStr::from_raw(answer.str_ptr().expect("a string")));
+            assert_eq!(handle.refcount(), before + 1);
+            answer.release();
+            subject.release();
+        }
+    }
+
+    /// `find`/`findKey` answer from the *first* match, and `any`/`all` answer
+    /// an empty subject the two vacuous ways round. The predicate here is
+    /// `Value::null()`, which `call_closure` rejects — so these go through the
+    /// conformance suite instead, and what is checked here is the one shape a
+    /// unit test can reach: a non-array subject.
+    #[test]
+    fn a_predicate_member_over_a_non_array_subject_is_a_contained_fault() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        for helper in [
+            super::mwl_core_arr_find as mwl_runtime::MwlFn,
+            super::mwl_core_arr_find_key,
+            super::mwl_core_arr_any,
+            super::mwl_core_arr_all,
+        ] {
+            let status = call(helper, &mut ctx, &[Value::int(1), Value::null()])
+                .expect_err("an int is not an array");
+            assert_eq!(status, mwl_runtime::FATAL);
+        }
     }
 }
