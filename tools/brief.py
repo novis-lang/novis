@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """One call, whole orientation. Prints the parts of this repository an agent reads at the
 start of nearly every session: where the plan stands, the map of every milestone plus the
-lead of the current one, the title and status of every ADR (not its content), what the guard
-tests hold, and what actually exists on disk.
+lead of the current one, one line per source module and the anchors sessions hunt for, what
+the guard tests hold, and what actually exists on disk.
 
 It stores no facts of its own. Every line it prints is sliced out of a file it names, so it
 cannot go stale. When a slice comes back empty it says so loudly rather than printing a
@@ -13,11 +13,17 @@ Size is controlled by one structural rule:
     this digest may only print text whose length is bounded by a COUNT OF ENTITIES,
     never by a LENGTH OF PROSE.
 
-So a section is a *projection* -- one line per milestone, per ADR, per guard test, per named
-status field. Adding an ADR, a milestone or a paragraph of prose grows it by a line, never by
-a page. The one deliberate shortening is the current/next milestone's lead paragraph, which is
-legitimately long prose this digest only ever wanted the head of; it is marked inline with the
-file and line to open.
+So a section is a *projection* -- one line per milestone, per module, per guard test, per named
+status field. Adding a module, a milestone or a paragraph of prose grows it by a line, never by
+a page. Where a legitimately-long *prose* paragraph is only wanted at the head, it is cut by
+[`excerpt`] and marked inline with the file and line to open: that is the current/next
+milestone's lead, and every status field but the two that steer a session.
+
+The ADR index is a *count* by default rather than a line per ADR. AGENTS.md § *Ground rules
+enforced elsewhere* already carries one bullet per decision with its link, and the routing
+table answers "which file owns this topic" far better than 78 title lines -- so printing the
+table too was a second copy of both. `--adrs` still prints it in full, and any ADR whose status
+is not Accepted is always printed, because that is the part no other file states.
 
 **This script measures nothing and enforces nothing.** The length guidance for a status field,
 a milestone heading or an ADR decision cell is in AGENTS.md, addressed to the author, and is
@@ -26,6 +32,8 @@ a tripwire costs far more than the bytes ever saved.
 
 Usage:  python tools/brief.py                 # the digest
         python tools/brief.py --no-git        # skip the working-tree section
+        python tools/brief.py --no-map        # skip the module map
+        python tools/brief.py --adrs          # + one line per ADR, as it used to print
         python tools/brief.py --where         # topic index of the routing table
         python tools/brief.py --where regex   # the routing rows matching a keyword
 """
@@ -40,6 +48,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
 ADR_README = ROOT / "docs" / "adr" / "README.md"
 PROBE = ROOT / "benches" / "abi-probe"
+CRATES = ROOT / "crates"
 
 # --------------------------------------------------------------- display excerpts
 #
@@ -50,6 +59,8 @@ LEAD_EXCERPT = 700  # current milestone's opening paragraph
 VERIFY_EXCERPT = 600  # current milestone's `**Verify:**` paragraph
 NEXT_LEAD_EXCERPT = 350  # next milestone's opening paragraph
 TOPIC_EXCERPT = 96  # one routing-table topic cell, in the `--where` index
+STATUS_EXCERPT = 600  # one status field, except the two in STATUS_FULL
+MODULE_EXCERPT = 104  # one module's line in the map
 
 # The plan's status block has a fixed field set, so it is overwritten in place rather than
 # appended to. A missing one is reported below; nothing here rejects an extra one.
@@ -61,6 +72,26 @@ STATUS_FIELDS = [
     "ADR slices landed",
     "Open now",
     "Blocking",
+]
+
+# The two fields that answer "what do I do next" print whole; the rest are history and
+# inventory, wanted at the head. Both are one open of the plan away either way.
+STATUS_FULL = {"Open now", "Blocking"}
+
+# Symbols sessions re-derive with a grep nearly every iteration, resolved live against the
+# tree. This list is a judgment about what is worth pointing at -- like STATUS_FIELDS, it is
+# the one kind of fact this script holds. The file:line beside each is always sliced, never
+# stored, and a pattern that stops matching is reported rather than quietly dropped.
+ANCHORS = [
+    ("the helper-body macro", r"^macro_rules! mwl_helper\b"),
+    ("the `Core` signature table", r"^pub const CLASSES\b"),
+    ("one `Core` member's row", r"^pub struct CoreMethod\b"),
+    ("a `Core` signature's type", r"^pub enum CoreTy\b"),
+    ("a helper symbol -> address arm (one per stdlib module)",
+     r"^pub\(crate\) fn address\("),
+    ("every IR instruction", r"^pub enum InstKind\b"),
+    ("a class as the runtime sees it", r"^pub struct ClassDesc\b"),
+    ("the checker's entry point", r"^pub fn check_program\b"),
 ]
 
 GIT_CHANGED_LINE_CAP = 40  # a display cap on `git status` output, not on anything an author writes
@@ -166,9 +197,12 @@ def run_status(fields):
         return
 
     seen = set()
-    for name, text, _lineno in fields:
+    for name, text, lineno in fields:
         seen.add(name)
-        emit(wrap(name, strip_links(text)))
+        body = strip_links(text)
+        if name not in STATUS_FULL:
+            body = excerpt(body, STATUS_EXCERPT, f"{rel(PLAN)}:{lineno}")
+        emit(wrap(name, body))
 
     missing = [f for f in STATUS_FIELDS if f not in seen]
     if missing:
@@ -334,7 +368,7 @@ def compress_adr_rows(rows, linenos):
     return compressed
 
 
-def run_adr_index():
+def run_adr_index(full):
     section(
         "DECISIONS WITH AN ADR (number, decision, status)",
         f"{rel(ADR_README)} (the index table)",
@@ -352,15 +386,30 @@ def run_adr_index():
         warn(f"could not slice the ADR index table out of {rel(ADR_README)}")
         return
 
-    malformed = []
-    for line, lineno, decision in compress_adr_rows(rows, linenos):
-        if decision is None:
-            malformed.append(f"{rel(ADR_README)}:{lineno}")
-        emit(line)
+    compressed = compress_adr_rows(rows, linenos)
+    malformed = [f"{rel(ADR_README)}:{ln}" for _, ln, dec in compressed if dec is None]
+
+    if full:
+        for line, _lineno, _decision in compressed:
+            emit(line)
+        emit()
+        emit("Every ADR not marked otherwise is Accepted -- the status column is printed only")
+        emit("for the exceptions.")
+    else:
+        # A status suffix is the `   [Something]` compress_adr_rows appends when the cell is
+        # not "Accepted". Those are the rows no other file in the tree states, so they print
+        # whatever the flag says; the Accepted majority is one bullet each in AGENTS.md.
+        exceptions = [line for line, _ln, dec in compressed if dec is not None and "   [" in line]
+        emit(f"{len(compressed)} ADRs, all Accepted except the {len(exceptions)} listed here.")
+        for line in exceptions:
+            emit(f"  {line}")
+        emit()
+        emit("One bullet per decision, with its link, is in AGENTS.md § 'Ground rules enforced")
+        emit("elsewhere' -- printing the table here too was a second copy of it. For the whole")
+        emit("table as it used to print: python tools/brief.py --adrs")
     emit()
-    emit("Every ADR not marked otherwise is Accepted -- the status column is printed only for")
-    emit("the exceptions. This table intentionally omits the full rule and reasoning -- open the")
-    emit("file it names, or run `python tools/brief.py --where <keyword>` to route a topic.")
+    emit("The index never holds the full rule or its reasoning -- open the file it names, or")
+    emit("run `python tools/brief.py --where <keyword>` to route a topic to its owner.")
     if malformed:
         warn(
             "these index rows do not split into link/decision/status cells, so they render "
@@ -605,6 +654,130 @@ def run_guard_tests():
                 emit(f"  {rel(f)}")
 
 
+# --------------------------------------------------------------- the map
+#
+# A session's wall clock is very nearly its turn count times a constant, and two fifths of
+# every loop session's tool calls were read-only probes asking where something lives -- the
+# same files, the same symbols, every iteration, because nothing in its context survived the
+# last one. This section is that answer, paid once and sliced live.
+
+
+DOC_LINE_RE = re.compile(r"^\s*//!\s?(.*)$")
+SKIP_BEFORE_DOC_RE = re.compile(r"^\s*(#!\[|//[^!]|//$|$)")
+INTRA_DOC_RE = re.compile(r"\[(`[^`\]]+`)\]")
+
+
+def module_doc(text):
+    """The first paragraph of a module's own `//!` block, or "" if it has none."""
+    para = []
+    for line in text.split("\n"):
+        m = DOC_LINE_RE.match(line)
+        if m:
+            body = m.group(1).strip()
+            if not body:
+                if para:
+                    break  # a blank `//!` ends the opening paragraph
+                continue
+            para.append(body)
+        elif para:
+            break
+        elif not SKIP_BEFORE_DOC_RE.match(line):
+            break  # real code before any `//!` -- this module has no doc comment
+    return " ".join(para)
+
+
+def first_sentence(text):
+    """`Foo the bar. Then baz.` -> `Foo the bar`. A `.` inside backticks or followed by a
+    non-space never ends a sentence, so `mwl_ir::ir` and `0.1.0` stay whole."""
+    text = INTRA_DOC_RE.sub(r"\1", strip_links(text))
+    depth_safe = re.split(r"(?<=[a-z\)`])\.\s+(?=[A-Z\[`])", text, maxsplit=1)
+    return depth_safe[0].strip().rstrip(".")
+
+
+def crate_modules():
+    """Every `crates/*/src/**/*.rs`, grouped by crate, as (crate, relative path, summary)."""
+    if not CRATES.is_dir():
+        return {}
+    groups = {}
+    for crate_dir in sorted(p for p in CRATES.iterdir() if (p / "src").is_dir()):
+        entries = []
+        for rs in sorted((crate_dir / "src").rglob("*.rs")):
+            if "snapshots" in rs.parts:
+                continue
+            text = read(rs)
+            if text is None:
+                continue
+            summary = first_sentence(module_doc(text))
+            within = rs.relative_to(crate_dir).as_posix()
+            # lib.rs is the crate's own doc and sorts first; the rest alphabetically.
+            entries.append((within != "src/lib.rs", within, summary))
+        if entries:
+            groups[crate_dir.name] = [(w, s) for _, w, s in sorted(entries)]
+    return groups
+
+
+def run_map():
+    section(
+        "THE MAP -- ONE LINE PER MODULE",
+        "each module's own `//!` first sentence, sliced live",
+    )
+    groups = crate_modules()
+    if not groups:
+        warn(f"no `crates/*/src/**/*.rs` under {rel(CRATES)} -- that directory is the source")
+        return
+    emit("A module's full doc comment is authoritative for how it works, and for its own known")
+    emit("gaps; this is only the sentence that says which one to open.")
+    undocumented = []
+    for crate, entries in groups.items():
+        emit()
+        emit(crate)
+        width = max(len(w) for w, _ in entries)
+        for within, summary in entries:
+            if not summary:
+                undocumented.append(f"{crate}/{within}")
+                summary = "(no `//!` doc comment)"
+            # A bare ellipsis, not excerpt()'s "[continues at ...]" -- the file this sentence
+            # continues in is the line's own label, so naming it again is pure width.
+            if nbytes(summary) > MODULE_EXCERPT:
+                kept = summary.encode("utf-8")[:MODULE_EXCERPT].decode("utf-8", "ignore")
+                summary = kept.rsplit(" ", 1)[0] + " ..."
+            emit(f"  {within:<{width}}  {summary}")
+
+    emit()
+    emit("anchors -- the definitions a session most often greps for:")
+    text_by_file = {}
+    for crate_dir in sorted(p for p in CRATES.iterdir() if (p / "src").is_dir()):
+        for rs in sorted((crate_dir / "src").rglob("*.rs")):
+            if "snapshots" not in rs.parts:
+                text_by_file[rs] = read(rs) or ""
+
+    missing = []
+    for label, pattern in ANCHORS:
+        rx = re.compile(pattern, re.MULTILINE)
+        hits = []
+        for path, body in text_by_file.items():
+            for m in rx.finditer(body):
+                hits.append(f"{rel(path)}:{body[: m.start()].count(chr(10)) + 1}")
+        if not hits:
+            missing.append(label)
+            continue
+        shown = ", ".join(hits[:3]) + (f", +{len(hits) - 3} more" if len(hits) > 3 else "")
+        emit(f"  {label}")
+        emit(f"      {shown}")
+
+    if missing:
+        warn(
+            "these anchor patterns matched nothing -- the symbol was renamed or moved, so "
+            "brief.py's ANCHORS list needs the new spelling: " + ", ".join(missing)
+        )
+    if undocumented:
+        warn(
+            f"{len(undocumented)} module(s) have no `//!` doc comment, so the map cannot say "
+            "what they are for: " + ", ".join(undocumented[:8])
+            + (f", +{len(undocumented) - 8} more" if len(undocumented) > 8 else "")
+        )
+
+
 # -------------------------------------------------------------- what exists
 
 
@@ -684,7 +857,7 @@ def run_git():
 # ------------------------------------------------------------------ drivers
 
 
-def build(no_git):
+def build(opts):
     plan_text = read(PLAN)
     if plan_text is None:
         warn(f"could not read {rel(PLAN)} at all")
@@ -696,11 +869,13 @@ def build(no_git):
     if plan_text is not None:
         status_text = next((t for n, t, _ in fields if n == "Status"), "")
         run_milestones(status_text, plan_text)
-    run_adr_index()
+    run_adr_index(full="--adrs" in opts)
     run_no_adr_decisions()
     run_guard_tests()
+    if "--no-map" not in opts:
+        run_map()
     run_disk()
-    if not no_git:
+    if "--no-git" not in opts:
         run_git()
 
 
@@ -715,7 +890,16 @@ def main():
         i = argv.index("--where")
         return run_where([a for a in argv[i + 1 :] if not a.startswith("--")])
 
-    build(no_git="--no-git" in argv)
+    known = {"--no-git", "--no-map", "--adrs"}
+    unknown = [a for a in argv if a.startswith("--") and a not in known]
+    if unknown:
+        sys.stdout.write(
+            f"brief.py: unknown option(s) {' '.join(unknown)}. "
+            f"Known: {' '.join(sorted(known))} --where\n"
+        )
+        return 2
+
+    build(argv)
     emit()
     emit("Route a topic to the one file that owns it: python tools/brief.py --where <keyword>")
     sys.stdout.write("\n".join(out).lstrip("\n") + "\n")

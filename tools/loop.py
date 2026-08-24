@@ -489,9 +489,12 @@ def ledger(line):
     say(line)
 
 
-def run_session(index, prompt_text, opts, renderer):
-    """One `claude -p` session, its NDJSON streamed to the console and to .loop/logs/NNNN.log."""
-    log = LOGDIR / f"{index:04d}.log"
+def run_session(run_id, index, prompt_text, opts, renderer):
+    """One `claude -p` session, its NDJSON streamed to the console and to
+    .loop/logs/<run>-NNNN.log. The run stamp is in the name because the index restarts at 1
+    every run: named by index alone, session 3 of today's run appended to session 3 of last
+    week's, and any per-session measurement over the directory silently mixed the two."""
+    log = LOGDIR / f"{run_id}-{index:04d}.log"
     exe = shutil.which("claude") or "claude"
     cmd = [
         exe,
@@ -651,8 +654,9 @@ def drive(opts, goal):
     stalls = 0
     fails = 0
     reason = f"hit --max-sessions ({opts.max_sessions})"
+    run_id = f"{datetime.now():%Y%m%d-%H%M%S}"
     ledger("")
-    ledger(f"## run started {datetime.now():%Y-%m-%d %H:%M} (max {opts.max_sessions})")
+    ledger(f"## run started {datetime.now():%Y-%m-%d %H:%M} (max {opts.max_sessions}, logs {run_id}-*)")
 
     for i in range(1, opts.max_sessions + 1):
         if STOP.exists():
@@ -663,7 +667,7 @@ def drive(opts, goal):
         STATUS.unlink(missing_ok=True)
         say(f"== session {i}/{opts.max_sessions}  {datetime.now():%H:%M:%S}", C.CYAN)
 
-        cli_exit, log = run_session(i, prompt_text, opts, renderer)
+        cli_exit, log = run_session(run_id, i, prompt_text, opts, renderer)
         if cli_exit != 0:
             fails += 1
             ledger(

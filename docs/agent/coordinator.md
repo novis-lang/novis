@@ -24,9 +24,12 @@ Three things follow, and they are the whole design:
    an acceptance command's exit code, whether `HEAD` advanced, a status line the session wrote to disk.
    Nothing on the stop path depends on a model's self-assessment.
 3. **The handoff file is bounded.** `docs/agent/handoff.md` is read in full by every future session, so it
-   is overwritten in place rather than appended to, and aims at about 80 lines. Its contract is in
+   is overwritten in place rather than appended to, and aims at about 60 lines. Its contract is in
    `docs/agent/session-prompt.md`. That target is guidance for the session writing it — the driver does not
    measure it, and never stops or complains over it.
+4. **State and knowledge are separate files.** The handoff is rewritten every session; `docs/agent/playbook.md`
+   is appended to a bullet at a time and otherwise left alone. They were one file until the permanent half
+   was two thirds of it, and every session paid to regenerate — and quietly reword — all of it.
 
 ## Files
 
@@ -40,9 +43,10 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests. The driver reads this; neither file restates the other. |
 | `tools/loop.py` | The driver. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
+| `docs/agent/playbook.md` | The traps a session paid for once. Append-mostly, and outlives every session. |
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
-| `.loop/logs/NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. |
+| `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. |
 | `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` prints it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
 
@@ -55,7 +59,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     record HEAD
     run: claude -p <docs/agent/session-prompt.md> --model opus --permission-mode <mode>
               --output-format stream-json --verbose
-         (each NDJSON event is appended to .loop/logs/NNNN.log and rendered live to the console --
+         (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary)
     if the CLI exited non-zero             -> exponential backoff, retry; give up after --max-retries
     read .loop/status.txt, diff HEAD, append one ledger line

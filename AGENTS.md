@@ -17,11 +17,13 @@ Do not read the docs tree breadth-first: most of it is reasoning you only need w
 overturn a decision. Two things route you:
 
 **1. Run `python tools/brief.py` first, every session.** One call: the plan's status block, a one-line map
-of every milestone plus the lead of the current one, the one-line title and status of every ADR, what the
-guard tests actually hold with their thresholds, and what exists on disk. It stores no facts — it slices
-the live files and names each source, so it cannot go stale, and it says so loudly if a slice comes back
-empty. It deliberately does not print each ADR's full rule or a milestone's full text — open the file it
-names, or the plan at the line number it prints, for those.
+of every milestone plus the lead of the current one, **one line per source module plus the definitions
+sessions most often grep for**, what the guard tests actually hold with their thresholds, and what exists
+on disk. It stores no facts — it slices the live files and names each source, so it cannot go stale, and it
+says so loudly if a slice comes back empty. It deliberately does not print a milestone's full text or a
+module's full doc comment — open the file it names, or the plan at the line number it prints, for those.
+The ADR index is a count by default, because the ground rules below already carry one bullet per decision;
+`--adrs` prints the whole table, and any ADR that is not Accepted always prints.
 
 **2. [docs/adr/README.md](docs/adr/README.md) § *Where to look*** is the topic → file routing table: one
 row per topic, naming the one file that owns it. `python tools/brief.py --where <keyword>` prints just the
@@ -245,15 +247,21 @@ the mechanism, the exact spellings rejected, and the reasoning.
 
 ## Commands
 
-**A shell runs programs; it never carries file content.** Read, search, create and edit files with the
-Read, Grep, Glob, Write and Edit tools — never `cat`, `head`, `tail`, `sed -n`, `grep`, `ls`, `find`, or a
-heredoc that writes a file. This is not a style preference. A shell tool call is one `-c` string that the
-shell *parses* before it runs anything, so an apostrophe in a doc sentence, a backtick in a commit message
-or an unbalanced heredoc terminator fails the whole call with `unexpected EOF while looking for matching '`
-— the command never executed, and nothing tells you which quote was at fault. The dedicated tools pass
-content as JSON parameters with no shell in the path, so that failure cannot occur. This repo makes the
-problem worse than most: prose full of apostrophes, backtick-quoted identifiers everywhere, and two shells
-with incompatible quoting grammars (PowerShell primary, Git Bash for the Bash tool).
+**A shell never carries file content into the tree.** Create and edit files with the Write and Edit tools
+— never a heredoc, a `>` redirect or a `sed -i` that writes a file. This is not a style preference. A
+shell tool call is one `-c` string that the shell *parses* before it runs anything, so an apostrophe in a
+doc sentence, a backtick in a commit message or an unbalanced heredoc terminator fails the whole call with
+`unexpected EOF while looking for matching '` — the command never executed, and nothing tells you which
+quote was at fault. The dedicated tools pass content as JSON parameters with no shell in the path, so that
+failure cannot occur. This repo makes the problem worse than most: prose full of apostrophes,
+backtick-quoted identifiers everywhere, and two shells with incompatible quoting grammars (PowerShell
+primary, Git Bash for the Bash tool).
+
+**Reading and searching are a preference, not a prohibition.** Prefer Read, Grep and Glob: they need no
+quoting, they return line numbers you can cite, and Grep takes a real regex without a shell mangling it.
+A `grep`/`sed -n` through a shell is allowed where it is genuinely shaped better — a pipeline over a
+*command's* output, a `wc -l` across a glob — because nothing is being written and a bad quote costs one
+retry rather than a silent wrong edit.
 
 Use a shell for what it is for — `cargo`, `git`, `python tools/brief.py`, `wsl.exe`. When one of those
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
@@ -267,20 +275,33 @@ one-liner instead: a heredoc is a shell string, so it eats the backslashes and a
 repository's Rust and prose are full of.
 
 **One shell call runs one command, and its exit status is the last one's.** Do not `;`-chain several probes
-into a single call to save a round trip. A chain reports only the final command's status, so a probe that is
-*allowed* to fail — `ls` on a directory that may not exist returns 2 — marks the whole call failed while
-holding a complete result. `2>/dev/null` does not help: it suppresses the message, not the status. When a
-command may legitimately fail, either give it its own call or end it with `|| true`, and put a `&&` between
-steps that genuinely depend on each other.
+into a single call. A chain reports only the final command's status, so a probe that is *allowed* to fail —
+`ls` on a directory that may not exist returns 2 — marks the whole call failed while holding a complete
+result. `2>/dev/null` does not help: it suppresses the message, not the status. When a command may
+legitimately fail, either give it its own call or end it with `|| true`, and put a `&&` between steps that
+genuinely depend on each other.
+
+**That is a limit on one call, not on one turn — independent calls go out together.** Issue every probe
+whose input does not depend on another's result as several tool calls *in the same message*: four greps
+locating a symbol, a Read of two files you already know you need, `git status` beside `cargo --version`.
+They run concurrently and each keeps its own exit status, so nothing about the rule above is weakened.
+This matters more than it looks: a session's wall clock is very nearly its number of turns times a
+constant, and read-only probing is where the turns go — an unbatched orientation pass has cost this
+repository a quarter of a session's clock, one `grep` at a time. Serialize only what genuinely depends on
+a previous answer.
 
 ```sh
-cargo build                                                    # debug; deps still built at opt-level 2
-cargo test                                                     # unit + integration
-cargo clippy --all-targets -- -D warnings
-cargo fmt --check
+python tools/verify.py                                         # build + test + clippy + fmt, one call
+python tools/verify.py -p mwl-ir                               # the same, scoped to one package
 cargo test --release -p mwl-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p mwl-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
+
+`verify.py` runs `cargo build`, `test`, `clippy --all-targets -- -D warnings` and `fmt --check` in that
+order, stops at the first failure, and prints about ten lines when green — the four separately are four
+calls and tens of thousands of tokens of output nobody reads once it passes. Every step's full output is
+written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
+whole verdict.
 
 ### Fuzzing and callgrind on Windows: use WSL
 
@@ -341,7 +362,9 @@ against a number, and nothing ever will:
 | One AGENTS.md ground-rule bullet | one sentence, plus the link |
 | One *Decisions taken at project start* title | one short phrase |
 | One guard test's name + bounds | one line |
-| `docs/agent/handoff.md` | ~80 lines — state, not a changelog |
+| One module's `//!` first sentence | one line — it is the map's entry for that file |
+| `docs/agent/handoff.md` | ~60 lines — state, not a changelog and not the playbook |
+| `docs/agent/playbook.md` | no target; it grows a bullet at a time and that is correct |
 
 Write to the target, and if a line lands a little over, **leave it**. This used to be a hard check that
 failed CI, and the cost was not the bytes: it was five and ten iterations per session spent shaving prose
@@ -356,12 +379,15 @@ prose.
 Every session runs the same five steps, in this order, and **stops**:
 
 1. **Orient.** `python tools/brief.py`, this file, then `docs/agent/handoff.md` for what to pick up.
+   [docs/agent/playbook.md](docs/agent/playbook.md) is the trap list — read it before writing a `Core`
+   member, a `.mwlt` case or any MWL source, and add a bullet to it when something new bites you.
 2. **Do the work.** One focused slice. Keep it small enough to finish.
-3. **Verify what you touched** — `cargo build`, `cargo test`, `cargo clippy --all-targets -- -D warnings`,
-   `cargo fmt --check`, plus whatever the change specifically warrants (a `valgrind` run for a new refcount
-   edge, per *Commands*). **This is the only place verification happens.**
+3. **Verify what you touched** — `python tools/verify.py`, plus whatever the change specifically warrants
+   (a `valgrind` run for a new refcount edge, per *Commands*). **This is the only place verification
+   happens.**
 4. **Write the docs and the handoff.** Update the plan's status block and any doc the change invalidates,
-   then overwrite `docs/agent/handoff.md` with where the work stands now.
+   then overwrite `docs/agent/handoff.md` with where the work stands now. It is *state* — a fact that will
+   still be true in ten sessions belongs in the playbook, an ADR, or a crate's module doc instead.
 5. **Commit everything.** Then you are done.
 
 **After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the digest, do
@@ -378,6 +404,10 @@ Step 5 above, in detail:
 - The handoff is `docs/agent/handoff.md`: **overwrite it**, never append, so it describes where the work
   stands now rather than the path taken to get here. Its shape is in
   [docs/agent/session-prompt.md](docs/agent/session-prompt.md). Then show the user the same prompt in chat.
+- **The playbook is the opposite file.** [docs/agent/playbook.md](docs/agent/playbook.md) is append-mostly:
+  add a bullet when a trap costs you time, edit one when it stops being true, and otherwise leave it
+  alone. Never reword it to say the same thing differently — this lore lived inside the handoff until it
+  was two thirds of it, regenerated in full every session, and the rewording was the whole cost.
 - The docs accumulate rationale bloat as ADRs are added. Periodically — the user fires this by hand, never
   you automatically — re-run the pass in [docs/agent/doc-cleanup.md](docs/agent/doc-cleanup.md).
 - Every time we add, change or remove a feature, decide and say what the tradeoffs are in performance,
