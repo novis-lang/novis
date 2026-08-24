@@ -6,75 +6,53 @@ agent are in [AGENTS.md](../../AGENTS.md); `python tools/brief.py` is the rest o
 
 ## State
 
-**The live path is unchanged: `Core` breadth for Stage 3.** Six of seven fixtures produce their frozen
-output; `examples/collect.mwl` is the first that does not. **Eleven ADRs (0080–0090) are written and none
-is built.** The last several commits are documentation; this session touched Rust only to correct four doc
-comments that ADR 0090 made untrue, and `verify.py` is green.
+**The loop now has a Stage 0, and it comes before `Core` breadth.** Eleven ADRs (0080–0090) were accepted
+after the milestones that own their work were reported done, so
+[loop-goal.md](loop-goal.md) § *Stage 0* is an ordered catch-up list and
+[loop-goal.toml](loop-goal.toml)'s `stage = "0 catch-up"` block is its machine half — `tools/loop.py` runs
+that block **before** the program legs, so an unfinished catch-up item is what the ledger names rather than
+a Stage 3 fixture. Every test it lists must exist and pass; most do not exist yet, and writing one is how
+an item finishes. Do not open a Stage 3 slice while that section is non-empty.
 
-**[ADR 0080](../adr/0080-the-audience-mwl-is-built-for.md) is still the one to read first, because it
-reorders the others.** MWL is built first for **multi-tenant and regulated platforms**, which ranks the
-framework and the dependency story **above new `Core` breadth**. Three consequences bind every later
-session: the pitch is isolation and qualifiers rather than speed; **no document may claim PHP
-compatibility**; and where two slices compete, the one serving that audience wins.
+**[ADR 0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md) is built** — the first of the
+eleven to land. [`mwl_syntax::bidi`](../../crates/mwl-syntax/src/bidi.rs) is the one predicate, the lexer
+reports `E0008` with no suppression over comments, string literals and inline-HTML runs **per line**, and
+seven `.mwlt` cases pin it including the paper's two attack patterns and a balanced-Arabic round trip. Its
+`Core\Html::escape` (M7) and `Core\Cli` (M8) sink halves are those milestones' and are not catch-up.
 
-**[ADR 0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) is the newest, and it
-is a language-surface change with a real porting cost.** `==` is the **only** equality operator; `===` and
-`!==` do not parse. It never converts, two statically **disjoint** operand types are a compile error
-(`"1" == 1`, `string` against `bytes`, a non-nullable type against `null`), and the three rows PHP's two
-operators disagreed on each take the strict reading — strings compare as text and never as numbers, arrays
-compare ordered and element-wise, objects compare by **identity**. A `mixed` operand is the one runtime
-case, and a tag mismatch there is `false`, never a throw. Its fold touched twelve ADRs and both spec files
-for the spelling alone; § 7 re-tiers [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md)'s `==`
-rule against it.
+**[ADR 0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) is the largest unbuilt
+item and reaches three milestones at once.** `==` is the only equality operator; `===`/`!==` do not parse
+(M1), two statically disjoint operand types are a compile error (M2), and the null tag test plus the
+string, array and object rows want a runtime helper each (M3/M4, `mwl-ir`'s gap 19). 45 files write the
+rejected spelling in 112 places, which is why it goes first — every case written meanwhile adds to it.
 
-**[ADR 0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md) decides how a PHP codebase reaches
-MWL.** `mwl convert` is **one rule table read through two modes**, not two translators: every branch
-carries a tier — **E** proven identical, **D** a mechanical destination that may differ, **N** none — and
-the default `--mode=equivalent` emits only E while `--mode=runnable` also emits D under a
-`TODO(convert:<id>)`. An E claim is discharged by a differential case against the PHP oracle or CI refuses
-it. **Its § 7 front end is now decided and the spike that decided it has run**: `php-rs-parser`, pinned,
-behind the `mwl_convert::php` facade, dialects **7.4–8.6** (8.0 was the hard requirement; 7.4 came free).
-It beat `mago-syntax` on four measured differences, all in § 7's table — a parse-time version knob with
-per-feature `VersionTooLow`, diagnoses rather than token errors for constructs PHP 8.0 removed, a
-`php -l`-pinned acceptance contract, and an owned AST with doc-blocks already attached. What the spike did
-**not** cover, and M11 owes before the first pass: the same comparison over a real corpus.
-
-**[ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) is the other one with a live
-code consequence.** It replaces [0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4's *list* of
-sinks with a predicate — *a parameter is a sink when its content becomes an instruction something executes*
-— and **flips the default: an unclassified `string`/`bytes` parameter on a `Core` member refuses
-`tainted`**. Userland was already fail-closed
-([`assign.rs`](../../crates/mwl-types/src/expr/assign.rs)); `mwl-stdlib`'s registry carries no
-classification field yet.
-
-The other six, one line each: **[0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)**
-packages are digests, minimal version selection, per-package capabilities.
-**[0082](../adr/0082-the-first-party-framework.md)** the framework splits into `Core` plus the `mwl/web`
-package; `Web\Migration` is **blocked** on § 7's open gap.
-**[0083](../adr/0083-persistent-connections-are-isolates.md)** a WebSocket/SSE connection is a root isolate
-named by file. **[0084](../adr/0084-durable-background-jobs.md)** a job is a `Core\Db` row.
-**[0085](../adr/0085-openapi-is-generated-from-the-route-table.md)** OpenAPI is emitted while compiling.
-**[0086](../adr/0086-core-cli-terminal-is-a-sink.md)** the terminal is a sink; `Cli\Text` is the only raw
-path. **[0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)** an unterminated directional
-control is a compile error in source and `�` at both sinks.
-
-**Do not start any of the eleven while Stage 3 is open.** They are scheduled, not in flight.
+**[ADR 0080](../adr/0080-the-audience-mwl-is-built-for.md) still reorders everything after Stage 0**: MWL
+is built for multi-tenant and regulated platforms, which ranks the framework and the dependency story above
+new `Core` breadth, makes the pitch isolation and qualifiers rather than speed, and forbids any document
+claiming PHP compatibility. **[0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)** and
+**[0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md)** are decided and unbuilt but belong to
+M4S and M11; **0081–0086** belong to milestones that have not started.
 
 ## Next
 
-**`Core\Path` — spec § 11.** Unchanged and still the cheapest slice inside `examples/collect.mwl`: `join`
-(variadic, which exists), `basename({withoutExtension})`, `extension(): ?string`, `SEPARATOR`, and no new
-dependency. `docs/agent/loop-goal.md` § *Standing decisions* has the two-legs rule for `SEPARATOR`.
+**ADR 0090 § 1 — delete the two spellings** (Stage 0 item 1, M1). The lexer stops producing `===`/`!==`
+with a diagnostic in the E00xx band naming `==`/`!=`, the shape ADR 0034/0045 already use;
+`BinaryOp::Identical`/`NotIdentical` come out of the AST with them; and the 45 `.mwl`/`.mwlt` files that
+write the rejected spelling are rewritten in the same commit, because the Stage 1–3 fixtures are among
+them. Name the guard test `a_rejected_equality_spelling_is_a_compile_error`, which
+[loop-goal.toml](loop-goal.toml) already requires. `corpus_parse.rs` needs nothing — it holds "the parser
+does not panic", not "php-src parses cleanly".
 
 ## Backlog
 
-- **ADR 0090's four unbuilt halves** — `mwl-ir`'s gap 19 names three (the lexer must stop producing
-  `===`/`!==`; `== null` must take `lower_null_identity`'s tag test, currently keyed on `Identical` alone;
-  the string/array/object rows need a helper each) and `mwl_types::locals`' `null_test` doc names the
-  narrowing arm. The disjoint-operand refusal of its § 2 is `mwl-types`' and needs a new diagnostic code.
+- **The rest of Stage 0, in [loop-goal.md](loop-goal.md)'s order** — ADR 0090 § 2's disjoint-operand
+  refusal and § 3's narrowing plus three helpers, ADR 0047 § 4's atoms, `private`/`protected`,
+  `Comparable`/`Stringable`'s member signatures, ADR 0061's `autoload`, ADR 0069's `array + array`.
+- **`Core\Path` — spec § 11** — the cheapest slice inside `examples/collect.mwl` and the first thing after
+  Stage 0: `join` (variadic, which exists), `basename({withoutExtension})`, `extension(): ?string`,
+  `SEPARATOR`, no new dependency. loop-goal.md § *Standing decisions* has the two-legs rule for `SEPARATOR`.
 - **`Core\Encoding`, `Hash`, `Uuid`, `Csv`, `Validate`, `Random`, `Out`, `Uri::parseQuery`** — the rest of
-  `examples/collect.mwl`; each needs a dependency picked under
-  [ADR 0051](../adr/0051-standard-library-tiers.md) § 4 and its three obligations.
+  that fixture; each needs a dependency picked under [ADR 0051](../adr/0051-standard-library-tiers.md) § 4.
 - **`Core\ObjectSet`/`ObjectMap`** — spec § 8, and the one item needing *language* work first:
   `new Core\X<T>()` does not parse. `mwl_runtime::identity` is the comparison they need, and is also what
   ADR 0090 § 3's object row lowers to.
@@ -84,5 +62,3 @@ dependency. `docs/agent/loop-goal.md` § *Standing decisions* has the two-legs r
 - **`Core\Time\Date`/`TimeOfDay`/`Month`, `DateTime::date`/`timeOfDay`/`withTime`** — `time.rs`'s gap 1;
   the machinery exists, so each is a registry row and a body. Same for the rest of § 1 and ADR 0069's
   combination members.
-- **[0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s lexer check** — two counters
-  over spans `mwl-syntax` already walks, and it needs no milestone ahead of it.

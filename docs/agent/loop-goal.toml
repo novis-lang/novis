@@ -38,6 +38,72 @@ target_dir = "/tmp/mwl-target-wsl"
 
 
 # ---------------------------------------------------------------------------------------------------
+# Stage 0 -- CATCH-UP. Work that a later ADR reopened inside a milestone already reported done, plus the
+# milestone debt that never landed with it. `tools/loop.py` runs this stage BEFORE the program legs, so
+# an unfinished item here is what the ledger names -- see loop-goal.md's own Stage 0 section for the
+# ordered list, which milestone owns each item and what "done" is.
+#
+# Every test named below must EXIST and pass. Most do not exist yet; writing one is how the loop finishes
+# its item. Do not rename them to something already green.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-syntax"
+args = ["test", "-p", "mwl-syntax"]
+tests = [
+  # ADR 0087 -- built; this keeps it from regressing.
+  "an_unterminated_bidi_control_is_rejected_in_every_source_span",
+  # ADR 0090 § 1 -- the lexer must stop producing `===`/`!==`.
+  "a_rejected_equality_spelling_is_a_compile_error",
+  # ADR 0061 -- the two file-scope `autoload` declaration forms.
+  "an_autoload_declaration_parses",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-hir"
+args = ["test", "-p", "mwl-hir"]
+tests = [
+  # ADR 0061 -- name-to-file resolution as a fixpoint over the require-graph worklist.
+  "an_autoload_declaration_resolves_a_name_to_its_file",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-types"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  # ADR 0090 § 2 -- two statically disjoint operands do not compile, and § 3's null test narrows
+  # through the one remaining spelling.
+  "a_disjoint_equality_does_not_compile",
+  "an_equality_null_test_narrows",
+  # ADR 0047 § 4 -- the literal and enum-case type atoms are checked, not refused by name.
+  "a_literal_type_atom_is_checked",
+  # M2's own two gaps, both PHP-observable divergences rather than decisions.
+  "a_private_member_is_refused_outside_its_class",
+  "a_stringable_parameter_can_call_to_string",
+  # ADR 0069 -- `array + array` does not compile, and neither does `+=` over two arrays.
+  "two_arrays_do_not_combine_with_plus",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-runtime"
+args = ["test", "-p", "mwl-runtime"]
+tests = [
+  # ADR 0090 § 3's three non-scalar rows, one helper each.
+  "equal_strings_compare_as_text_and_never_as_numbers",
+  "equal_arrays_compare_ordered_and_element_wise",
+  "equal_objects_compare_by_identity",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
 # Stage 1 -- what the previous loop reached, unchanged. This is the non-regression floor: nothing below
 # may be traded for anything above it. `kind = "exact"` means: exit 0, and stdout line for line equal to
 # `want`. A fixture that prints an extra line has failed.

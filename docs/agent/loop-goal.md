@@ -8,15 +8,65 @@ The previous loop reached its acceptance list and stopped there. That list was a
 milestone: it left `Core` at 39 of ~205 spec member rows, with `Core\Str` and `Core\Arr` the only
 registered classes and §§ 3–12 not existing at all. This loop closes that.
 
-The one thing standing under all of it: **there is no representation for `?T`.** `mwl_ir` gap 3 covers it —
-no nullable type, and `mixed` is a representation to erase *into* rather than dispatch *on*. Every member
-whose spec signature returns `?T` is unstatable today, and that is `first`, `last`, `keyOf`, `firstKey`,
-`lastKey`, `find`, `findKey`, `min`, `max`, `average`, `indexOf`, `lastIndexOf`, `before`, `after`,
-`slice`'s `?int $length`, `Regex::match`, `Path::extension`, `Path::relativeTo`, `ObjectMap::get` and
-`Random::pick` — across every section. Two narrower shapes sit beside it: a **variadic** parameter, which
-ADR 0069's `overlay`/`underlay`/`appendAll` and `Arr::append`/`prepend`/`Path::join` all declare, and a
-**union return**, which `Math::abs`/`Arr::sum` declare and which `CoreTy::Union`'s own docs call blocked on
-the same representation. **Start there.** Nothing else in this goal has a site to attach to until it lands.
+The keystone that used to stand under all of it — a representation for `?T` and for the `mixed` tag — is
+**built**: `mwl_ir::Ty::Tagged` is that representation, and the variadic and union-return shapes beside it
+are `registry::CoreTy::Variadic` and `CoreTy::Union`. Every `Core` signature the spec writes can now be
+stated. **What comes first now is Stage 0 below, not `Core` breadth.**
+
+## Stage 0 — catch up before anything else
+
+**Eleven ADRs (0080–0090) landed after the milestones that own their work were reported done.** Two of
+them change a milestone's *built* behaviour rather than adding to a later one, and the debt beside them is
+what M1 and M2 never finished. Until this section is empty, **a session picks its slice from here, in this
+order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: every
+fixture and `.mwlt` case written in the meantime is written in a spelling ADR 0090 deletes, and there are
+already 45 files and 112 sites to rewrite.
+
+The machine-checkable half is `loop-goal.toml`'s `stage = "0 catch-up"` block, which `tools/loop.py` runs
+**before** the program legs. Every test it names must exist and pass; most do not exist yet, and writing
+one is how an item finishes.
+
+1. **ADR 0090 § 1 — `===`/`!==` stop parsing** (M1). The lexer must not produce the two tokens; the
+   diagnostic names the fix in the shape ADR 0034/0045 already use, in the E00xx band. `BinaryOp::Identical`
+   and `NotIdentical` come out of `mwl-syntax`'s AST with them, and the 45 `.mwl`/`.mwlt` files that write
+   the rejected spelling are rewritten in the same slice — the Stage 1–3 fixtures are among them, so this
+   is one commit, not two. `crates/mwl-syntax/tests/corpus_parse.rs` needs nothing: it holds "the parser
+   does not panic", not "php-src parses cleanly".
+2. **ADR 0090 § 2 — two statically disjoint operands do not compile** (M2). A new E04xx code, over the
+   table in that ADR: `string` against `int`, `string` against `bytes`, an enum against its underlying
+   integer, two unrelated classes, and a non-nullable type against `null`. Its § 6 makes a `switch` label
+   and a `match` arm the same check against the subject. `mwl_types::expr::operators`' equality arm returns
+   `bool` for every operand pair today, and `mwl-types`' own gap list says no such check exists for *any*
+   pair — this is that pass.
+3. **ADR 0090 § 3 — the null test and the three non-scalar rows** (M2 for the narrowing, M3/M4 for the
+   lowering; `mwl-ir`'s gap 19 and `mwl_types::locals::null_test`'s doc own the halves). `mwl_types::locals`
+   narrows on `Identical`/`NotIdentical` today and must narrow on `Eq`/`NotEq`; `lower_null_identity`'s tag
+   test is keyed on the same rejected spelling. Then one runtime helper each for strings (text, never
+   numeric), arrays (ordered, element-wise, recursive) and objects (`mwl_runtime::identity`), with § 5's
+   `mixed` pairing answering `false` and never throwing.
+4. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
+   `mwl_types::lower` refuses all three by name; that ADR's *Verification* names the step its own table
+   understates.
+5. **`private`/`protected` are enforced** (M2). Nothing enforces them on a class member today — only
+   ADR 0043 § 3's private *interface* method — which `mwl-types`' gap list calls a PHP-observable
+   divergence rather than a design choice. One pass keyed on the accessing class, over property access and
+   method resolution.
+6. **`Comparable`/`Stringable` carry their member signatures** (M2). Both are reserved and empty, so
+   `$s->toString()` on a `Stringable` is `E0405` and `$x instanceof Stringable` records no resolved class,
+   which `mwl-ir` then panics on. `Core\Heap`'s ordering and `Duration`'s `Stringable` both need it.
+7. **ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint). The two file-scope declaration
+   forms `docs/spec/00-overview.md` § 2 fixes, then name-to-file resolution as a fixpoint over the
+   require-graph worklist `mwl_hir::requires` already walks.
+8. **ADR 0069 — `array + array` does not compile** (M4's *Verify* list). `arithmetic_result` falls through
+   to `mixed` with no diagnostic for two array operands, and `$a += $b` with it.
+
+**Already done, and listed so it is not re-opened:** ADR 0087's lexer half is built — `mwl_syntax::bidi` is
+the one predicate, the lexer makes it `E0008` over comments, string literals and inline HTML per line, and
+seven `.mwlt` cases pin it. Its two sink halves are M7's and M8's, not catch-up.
+
+**Not in this stage, deliberately:** ADR 0088's registry classification, 0086 § 6's command table and
+0085's OpenAPI emitter are all M4S work that lands with the milestone the loop is already inside; 0081–0084
+belong to milestones that have not started.
 
 ## Acceptance
 
@@ -30,8 +80,9 @@ iteration writes tells you exactly how far the loop got. Every check must pass. 
 — not a passing unit test, not a session claiming `DONE`. What the check kinds mean, how the native/WSL legs
 and the valgrind sweep are ordered, and why: [coordinator.md](coordinator.md) § *The acceptance test*.
 
-Stage 1 is the previous loop's whole list, unchanged — **a non-regression floor, never traded for anything
-above it.** Stage 4's second named test, `every_part_one_spec_member_is_registered`, does not exist yet:
+Stage 0 is the catch-up list above, and it runs before the program legs so the ledger names it while it is
+unfinished. Stage 1 is the previous loop's whole list, unchanged — **a non-regression floor, never traded
+for anything above it.** Stage 4's second named test, `every_part_one_spec_member_is_registered`, does not exist yet:
 writing it is this loop's real definition of done, because it reads the member rows out of the spec file
 itself and fails naming every one with no registry entry. A count of conformance cases is a proxy; that test
 is not.

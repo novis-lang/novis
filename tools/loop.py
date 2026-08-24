@@ -339,7 +339,14 @@ class Goal:
         self.valgrind_skip = set(spec.get("valgrind", {}).get("skip", []))
         self.wsl_target = spec.get("wsl", {}).get("target_dir", "/tmp/mwl-target-wsl")
         self.program_checks = [c for c in self.checks if c["kind"] in PROGRAM_KINDS]
-        self.cargo_checks = [c for c in self.checks if c["kind"] not in PROGRAM_KINDS]
+        cargo = [c for c in self.checks if c["kind"] not in PROGRAM_KINDS]
+        # Stage 0 is catch-up: work a later ADR reopened inside a milestone that
+        # was already reported done. It runs before everything else so the
+        # ledger names it while it is unfinished -- a Stage 3 fixture failing is
+        # not the thing the loop should be told about first. See loop-goal.md.
+        catch_up = [str(c.get("stage", "")).startswith("0") for c in cargo]
+        self.catch_up_checks = [c for c, first in zip(cargo, catch_up) if first]
+        self.cargo_checks = [c for c, first in zip(cargo, catch_up) if not first]
 
     # -- one program check on one leg -------------------------------------------------
 
@@ -444,6 +451,12 @@ class Goal:
         for f in self.files:
             if not (ROOT / f).exists():
                 return f"{f} is missing -- the acceptance fixtures are fixed, see docs/agent/loop-goal.md"
+
+        for c in self.catch_up_checks:
+            trace(f"cargo {c['name']} (catch-up)")
+            fail = self.cargo_check(c)
+            if fail:
+                return fail
 
         native = NativeLeg()
         for c in self.program_checks:
@@ -606,10 +619,11 @@ def main():
         legs = ["native"] + (["wsl"] if wsl_available() else [])
         say(f"{GOAL_TOML.relative_to(ROOT).as_posix()}: {len(goal.checks)} checks, "
             f"{len(goal.files)} fixtures, legs: {', '.join(legs)}", C.CYAN)
-        for c in goal.program_checks:
-            extra = " ".join(c.get("args", []))
-            say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['file']} {extra}".rstrip())
-        for c in goal.cargo_checks:
+        for c in goal.catch_up_checks + goal.program_checks + goal.cargo_checks:
+            if "file" in c:
+                extra = " ".join(c.get("args", []))
+                say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['file']} {extra}".rstrip())
+                continue
             say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['name']}: cargo {' '.join(c['args'])}")
         skipped = ", ".join(sorted(goal.valgrind_skip)) or "nothing"
         say(f"  valgrind sweep over every fixture except: {skipped}")

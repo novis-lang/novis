@@ -94,7 +94,9 @@ Check kinds:
 The `exact`/`ordered`/`contains`/`min-bytes` checks run **once per leg**. On Windows there are two legs,
 native and WSL, because a JIT is exactly where a calling-convention divergence between two targets hides;
 the WSL leg runs only once the native one is fully green, so a broken iteration is cheap. On Linux the
-native leg already is that target, so there is one leg. The `cargo-*` checks run once, between the legs.
+native leg already is that target, so there is one leg. The `cargo-*` checks run once, between the legs —
+except the ones whose `stage` starts `0`, which run **before** the native leg, so an unfinished catch-up
+item is what the ledger names rather than a later stage's fixture (`loop-goal.md` § *Stage 0*).
 Last comes the valgrind sweep: every fixture again under `--leak-check=full --errors-for-leak-kinds=definite`
 (in WSL on Windows, directly on Linux; skipped entirely where `valgrind` is not installed).
 
