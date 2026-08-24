@@ -24,7 +24,8 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 13 and 15 — a `Core\Command` row, and the
   `Core\Cli` bullet replaced by this ADR's roster.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the command-table pass, M8 the rest.
-- **Amended by:** none.
+- **Amended by:** 0087 — § 1's substitution table gains the unterminated-bidi row and § 7's refusal to
+  address it is withdrawn; the fold is applied below and this body states the current rule.
 - **Relates to:** 0004, 0006, 0007, 0009, 0010, 0025, 0031, 0036, 0048, 0049, 0052, 0063, 0072, 0077,
   0079, 0080
 
@@ -98,6 +99,7 @@ before a byte reaches the stream:
 | Every other C0 (0x00–0x1F), including `ESC` and `CR` | its U+2400-block Control Picture — `ESC` → `␛`, `CR` → `␍` | Visible, inert, and one code point per input byte. `CR` is included because bare-`CR` overwriting is the oldest text-hiding trick and needs no `ESC`. |
 | `DEL` (0x7F) | `␡` (U+2421) | |
 | A C1 code point (U+0080–U+009F) | `�` (U+FFFD) | Several terminals still parse these as a CSI introducer. The U+2400 block has no glyph for them; losing their identity is deliberate and bounded, because a C1 code point is never legitimate text. |
+| An **unterminated** bidirectional control | `�` (U+FFFD) | Display order that the bytes do not have. [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns the predicate and its other two callers; a *balanced* control is legitimate text and passes through. |
 
 **Uniform, not qualifier-dependent.** Escaping only `tainted` values was considered and rejected: it makes
 *whether output is escaped* depend on a fact that is not visible at the `echo` line, which is a worse kind
@@ -296,10 +298,11 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
 - **A TUI widget layer** — panes, focus, event loops. That is an application framework, not a language
   surface, and it would be the largest single thing in `Core` by a wide margin.
 - **Cursor primitives**, per § 5.
-- **Bidirectional-Unicode spoofing** (Trojan Source, CVE-2021-42574). It is the same *family* of
-  "renders differently than it is" and § 1 does **not** address it, because it is a property of legitimate
-  text rather than of control bytes — neutralizing it would mean refusing valid content in Arabic and
-  Hebrew. Named here so a reader does not assume the sink covers it.
+- **Bidirectional-Unicode spoofing** (Trojan Source, CVE-2021-42574) is **covered**, but the rule is not
+  this ADR's: [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns it, because the same
+  predicate binds the lexer and `Core\Html::escape` as well as this sink. § 1's table gains its one row
+  there — an *unterminated* directional control becomes `�`, while the balanced controls that legitimate
+  Arabic and Hebrew actually use pass through untouched.
 - **Reading the clipboard, setting the window title, or any other `OSC` capability.** Offering them would
   re-open, as a feature, the exact channel § 1 closes.
 

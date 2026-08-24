@@ -48,6 +48,14 @@ compatibility**; and where two slices compete, the one serving that audience win
   is not text, so substituting it makes `echo` *more* faithful. Styling is the `Cli\Text` value type,
   prompts are `Core` members because raw mode is unreachable with FFI shut, and `#[Command]` builds the
   argument table while compiling.
+- **[0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md) — Trojan Source, and the one ADR
+  here with a slice that is buildable *now*.** A directional control that opens a scope and never closes it
+  is a hard compile error in source and becomes `�` at both output sinks; **balanced** controls pass, which
+  is what keeps legitimate Arabic and Hebrew working and is why a blanket ban was rejected. One predicate,
+  three callers — the lexer (M1, re-opened), `Core\Html::escape` (M7), `Core\Cli`'s sink (M8) — so a second
+  copy of it is a bug. Identifiers need nothing: [`lexer.rs`](../../crates/mwl-syntax/src/lexer.rs) is
+  ASCII-only, which closes the homoglyph half structurally. It withdraws 0086 § 7's refusal to address bidi,
+  which rested on a claim true only of a blanket ban.
 - **[0067](../adr/0067-core-db.md) § 13 is new and is a rule, not a plan: connections are pooled per core.**
   Shared-nothing governs *program* state and a connection is host state, so pooling costs the model nothing.
   What it costs is a **reset that is a security boundary** — a connection that cannot be proven clean is
@@ -92,3 +100,7 @@ asserting a built path must normalize it.
   enumeration.
 - **[0085](../adr/0085-openapi-is-generated-from-the-route-table.md)'s M4S slice** — the emitter beside the
   same two passes it reads.
+- **[0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s lexer check** — the only slice of
+  the eight ADRs that needs no milestone ahead of it: two counters over spans `mwl-syntax` already walks,
+  one diagnostic, and that ADR's *Verification* section is the case list. Small enough to land beside a
+  Stage 3 slice rather than instead of one.

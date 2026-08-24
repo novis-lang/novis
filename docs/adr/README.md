@@ -75,6 +75,7 @@ so you never have to open this file to route a topic.
 | Hydrating a class from JSON or a database row — `#[Json\Derive]`, `#[Db\Derive]`, `JsonSerializable`, `PDO::FETCH_CLASS`, serde-style derives, reporting every bad field of a submitted form | [0071](0071-derived-codecs.md) |
 | Routing — `#[Route]`, URL patterns and `{id}` placeholders, reverse URL generation, why the router does not dispatch, `Core\Router` | [0077](0077-compile-time-routing.md) |
 | Writing a CLI program — colour and `Cli\Text`, why `echo` neutralizes escape sequences, prompts and `select`, password input, progress bars and in-place output, `#[Command]`/`#[Option]` argument parsing, `--help` and shell completions, `isTty`, terminal width | [0086](0086-core-cli-terminal-is-a-sink.md) |
+| Trojan Source, right-to-left overrides, `U+202E`, a comment that renders as code, homoglyphs, zero-width characters, or why a non-ASCII identifier does not compile | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) |
 | Running several things at once — `Task::all`/`::map`, `parallel_map`, a task deadline, cancellation, work after the response is sent, `fastcgi_finish_request`, why there is no job queue | [0072](0072-core-task-structured-concurrency.md) |
 | Cron, scheduled jobs, a nightly task, running something once across a fleet, `[[schedule]]` | [0073](0073-scheduled-work-is-config.md) |
 | Response security headers, CORS, cookie defaults, HSTS, CSP; and outbound timeouts, retries, backoff, idempotency keys | [0074](0074-http-defaults-safe-and-finite.md) |
@@ -235,6 +236,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0084](0084-durable-background-jobs.md) | A job is a row in a `Core\Db` table so an enqueue commits with the write that caused it, it runs as an isolate named by file, delivery is at-least-once with bounded retries, and a fleet claims safely with no protocol of ours | Accepted |
 | [0085](0085-openapi-is-generated-from-the-route-table.md) | An OpenAPI 3.1 document is generated while compiling from the route table and derived codecs, an `#[Api]` attribute that contradicts the code is a compile error, and `mwl api diff` fails a build on a breaking change | Accepted |
 | [0086](0086-core-cli-terminal-is-a-sink.md) | Terminal output is a sink that substitutes control bytes with visible glyphs, styling is the `Cli\Text` value type rather than a fifth grammar, prompts are `Core` members because raw mode is unreachable from userland, in-place output is a scoped live region, and `#[Command]` builds the argument table while compiling | Accepted |
+| [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) | A directional control that opens a scope and never closes it is a hard compile error in source and is substituted at both output sinks, by one predicate with three callers; balanced controls, invisibles and homoglyphs are each left alone with their reason | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

@@ -6,8 +6,9 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** 0033, 0058, 0067, 0086 — each fold is applied below; this body states the current rule.
-  0086 adds terminal output to § 4's sink roster and gives § 5's auto-escape exception its second instance.
+- **Amended by:** 0033, 0058, 0067, 0086, 0087 — each fold is applied below; this body states the current
+  rule. 0086 adds terminal output to § 4's sink roster and gives § 5's auto-escape exception its second
+  instance; 0087 adds the unterminated-bidi rule to § 5's escaper.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -186,6 +187,11 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 - The HTTP response-write sink accepts only `Markup`. A developer never manually calls an escape function
   for ordinary text interpolation — only hand-composing a raw markup fragment reaches for `Markup`/
   `as Markup` on a literal.
+- `Core\Html::escape` additionally **neutralizes an unterminated bidirectional control**, substituting
+  `�` — [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns that predicate and its two
+  other callers. Escaping `<`, `>`, `&` and quotes does nothing about display order, so without this row a
+  bidi payload survives the auto-escape sink intact. A *balanced* control is legitimate mixed-direction
+  text and passes through.
 
 ## Consequences
 

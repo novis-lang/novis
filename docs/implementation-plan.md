@@ -529,6 +529,14 @@ methods/`implements`/`string` backing
 every superglobal spelling ([ADR 0012](adr/0012-no-superglobals.md)), and `use … as …`
 ([ADR 0015](adr/0015-no-name-aliasing.md)). Error recovery good enough for the LSP.
 
+**M1 is re-opened once more, for one lexer check that is buildable immediately:**
+[ADR 0087](adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s predicate over every string
+literal, comment and inline-HTML run — an unterminated directional control is a hard compile error with no
+suppression, and each line of a multi-line token is its own span so a heredoc cannot hide a scope across
+them. The predicate lives beside the lexer because its two other callers, `Core\Html::escape` at M7 and
+`Core\Cli`'s sink at M8, import it rather than restate it. Identifiers need nothing: they are already
+ASCII-only, which is what closes the homoglyph half of Trojan Source structurally.
+
 Plus the type grammar of [ADR 0007](adr/0007-explicit-type-system.md), which is a parser problem before it
 is a checker one: nested `array<T>`, DNF unions and intersections, `uint`, the conversion operator
 including its nullable form `as ?T` ([ADR 0066](adr/0066-nullable-conversion-operator.md)), and the

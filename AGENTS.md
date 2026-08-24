@@ -162,6 +162,8 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0030](docs/adr/0030-no-leading-underscores-constructor-spelling.md)).
 - **Nothing depends on the case something was typed in, or on the filesystem's opinion of it**
   ([0062](docs/adr/0062-case-sensitivity-is-a-compiler-property.md)).
+- **A bidirectional control that opens a scope and never closes it is a compile error in source and is
+  substituted at both output sinks** ([0087](docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)).
 
 ### Security and isolation
 
