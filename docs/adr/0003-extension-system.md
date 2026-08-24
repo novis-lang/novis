@@ -5,7 +5,7 @@
 - **Validated by:** [`benches/abi-probe`](../../benches/abi-probe/) — `tests/wasm_sandbox.rs` and the
   `wasm-probe` cost guards. Originally spike #4, on wasmtime 41 + cranelift 0.128,
   `x86_64-pc-windows-msvc`.
-- **Amended by:** 0011, 0064 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0011, 0064, 0078 — each fold is applied below; this body states the current rule.
 
 > **In short:** third-party extensions are sandboxed WebAssembly components (`.mwlx`), never
 > shared libraries loaded with `dlopen`. Three tiers: built-in (`mwl-stdlib`), wasm component, and
@@ -119,6 +119,16 @@ A project cannot cause code to be loaded. Extensions may be hash-pinned and sign
 are precompiled binaries arriving from outside — the pin is a field of the entry rather than a naming
 convention over a repeated key, which is one of the reasons
 [0064](0064-configuration-file-format.md) chose a format with an array-of-tables shape.
+
+**The set is reloadable, not boot-only.** `mwl ctl reload` re-verifies every pin against the file on disk,
+loads the manifests, and refuses the whole swap if any pin does not match — so a running server can gain,
+lose or replace an extension without dropping a request, and never on a binary that changed underneath its
+pin. Because the loaded set is folded into the `env_hash` that keys both compiled-unit caches, a changed set
+makes every unit an ordinary cache miss and recompiles it lazily through the machinery
+[0017](0017-hot-reload-without-restart.md) already has, with no invalidation pass; **duplicate class names
+across extensions are refused at load**, which is what makes the set's hash order-independent. The mechanism,
+its costs and what still needs a restart are
+[0078](0078-config-reload-and-control-socket.md) §§ 4-5.
 
 **A fresh instance per request, created lazily.** Each request gets a pristine instance, so
 **extension state cannot leak between requests** — a guarantee PHP does not offer, where a stateful

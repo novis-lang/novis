@@ -15,7 +15,10 @@
 > beside it is **finished**: a full `Core` roster review against ADR 0063, then all seven `Core` additions
 > decided with the user, written as **ADRs 0071–0077** — derived codecs, `Core\Task`, `[[schedule]]`, HTTP
 > defaults both directions, `Core\RateLimit`, observability export, compile-time routing. The queue file is
-> deleted; nothing is owed from that track.
+> deleted; nothing is owed from that track. One later decision landed with the user: **ADR 0078** —
+> `mwl.toml` reloads over a local-socket-only control API, and the extension set joins the key both
+> compiled-unit caches share, closing a latent hole where an artifact could outlive the extension set it was
+> compiled against. Docs only; it builds in M6/M7/M9.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -336,7 +339,7 @@ enum CompileState {
     Ready(Arc<CompiledUnit>),
     Failed(Arc<Diagnostics>),
 }
-// DashMap<UnitKey { path, content_hash }, CompileState>
+// DashMap<UnitKey { path, content_hash, env_hash }, CompileState>
 ```
 
 The first requester inserts `Compiling` and compiles on a **dedicated compile pool** (never on a
@@ -345,12 +348,15 @@ broadcast — N simultaneous first-hits compile exactly once, and none of them b
 `stat` (mtime+size) → BLAKE3 content hash → atomic swap. Governed by
 `opcache.validate = never|mtime|hash`. Native pages are mapped `RX`, never `RWX` (W^X discipline).
 
-Because the key above is `{path, content_hash}`, not `{path}`, a `Ready` entry is write-once — two versions
+Because the key above is not `{path}`, a `Ready` entry is write-once — two versions
 of a file are two entries, never one overwritten. A small separate index, `path → current content_hash`,
 sits in front of it and is the one thing a hot-reload actually swaps; [ADR 0017](adr/0017-hot-reload-without-restart.md)
 holds the only copy of that mechanism, why revalidation needs no filesystem watcher, and how a file edited
 under a live server reaches the next request with no restart while a request already running keeps the
-version it started with.
+version it started with. The third key field, `env_hash`, is the environment a unit was compiled in —
+including the loaded extension set — so a config reload that changes that set turns every unit into an
+ordinary cache miss rather than needing an invalidation pass
+([ADR 0078](adr/0078-config-reload-and-control-socket.md)).
 
 ### Per-request isolation
 
@@ -769,6 +775,14 @@ outside `script.spawn`'s roots or `scope = "fleet"` with no shared store all ref
 `same_site = "None"` with `secure = false`, are refused at boot and by `Core\Config::set` alike
 ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)).
 
+**Also here: the config snapshot and the registry's reloadability field.** The registry becomes an immutable
+`Arc<Config>` a request clones at start and reads for its whole life, and every directive gains a
+`Reload`/`Boot` field beside its changeability class — orthogonal to it, and now the only thing that makes a
+directive boot-only ([ADR 0078](adr/0078-config-reload-and-control-socket.md) §§ 1-2). `env_hash` lands here
+too, carried by both compiled-unit cache keys, which is what stops an artifact compiled against one
+extension set from ever being reused against another. No socket yet: the client that drives a reload needs a
+long-running server, so it arrives with M7.
+
 **Verify:** adversarial suite — a script attempting to widen a capability or set a `System` directive
 fails; `Core\Config::set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
 `[limits.hard]` ceiling returns `false` with the previous value intact, and is invisible to the next request
@@ -779,7 +793,10 @@ fails; a path outside the granted roots fails, including one reaching it through
 cannot widen a capability its parent narrowed; N concurrent isolates cannot together exceed the tree's
 memory, CPU or output budget; a recursive spawn is stopped by `max_script_depth` and reported as that rather
 than as an out-of-memory. For the bundler: a bundled executable runs identically to `mwl run` against the
-same source, on all three platforms, per ADR 0048's own verification list.
+same source, on all three platforms, per ADR 0048's own verification list. For the config snapshot: a request
+that started before a swap reads the old value to completion while one started after reads the new; a
+malformed file leaves the previous snapshot serving and names the offending line; a changed `Boot` key is
+reported in the result and does not take effect.
 
 ### M7 — Built-in HTTP server (~4 weeks)
 `mwl serve`: hyper h1 + h2c, per-core accept and dispatch, request → the root isolate of a request tree
@@ -790,6 +807,11 @@ classes populated from it (`Core\Request::query()`/`::post()`/`::cookie()`/`::fi
 [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md), multipart and urlencoded body parsing with
 limits, streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured
 request logging, optional TLS via `rustls`.
+
+**Also here: the control socket and `mwl ctl`** — a local unix socket (named pipe on Windows), created
+`0600` and refused if its directory is world-writable, speaking HTTP so that a network listener would later
+be a second `bind` rather than a second protocol, with `mwl ctl reload` as its only operation and no control
+port in either direction of configuration ([ADR 0078](adr/0078-config-reload-and-control-socket.md) §§ 3, 6).
 
 **Four subsystems land on top of that server, each with its own ADR holding the only copy of its rules.**
 The **response policy** — secure headers, closed CORS and `Secure; HttpOnly; SameSite=Lax` cookies applying
@@ -934,7 +956,11 @@ implementation, per-call handle tables for value access, lazy per-request instan
 allocator, epoch-interruption wiring to the per-request CPU cap, `StoreLimits` wiring to the memory cap,
 the capability bridge (no ambient authority; optional WASI world with preopens derived from `mwl.toml`
 grants), hash pinning and signature verification, and compiled-module caching in the existing
-content-addressed artifact cache.
+content-addressed artifact cache. The set is **reloadable rather than boot-only**: `mwl ctl reload`
+re-verifies every pin, refuses the swap whole if one does not match, and rides the `env_hash` M6 put in both
+cache keys, so a changed set recompiles lazily through ADR 0017's existing machinery with no invalidation
+pass ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 4). Duplicate class names across extensions
+are refused at load, which is what makes that hash order-independent.
 
 Tooling: `mwl ext new --lang rust|c|zig|go`, `mwl ext build` (one portable `.mwlx`), `mwl ext inspect`
 (manifest and requested capabilities), `mwl ext test`, `mwl ext verify`.
@@ -948,7 +974,10 @@ carried in the component's own wasm data section, and a batch-shaped API where s
 one boundary crossing rather than one per comparison. Adversarial suite: an extension attempting filesystem or network access it was not granted fails;
 a runaway extension is trapped by the request's CPU cap rather than hanging a core; a deliberately
 memory-hungry extension hits the cap; an extension that stores state in a global cannot observe it on the
-next request. Benchmark in-guest compute throughput against the equivalent native Tier 2 implementation and
+next request. Reload, per [ADR 0078](adr/0078-config-reload-and-control-socket.md)'s own list: an artifact
+compiled under one extension set is never reused under another; an extension added by a reload is callable
+from requests arriving after it with no restart; a reload whose pin does not match the file on disk is
+refused whole, leaving the previous set live. Benchmark in-guest compute throughput against the equivalent native Tier 2 implementation and
 **commit the numbers** — this is the one figure in ADR 0003 that is currently asserted rather than
 measured.
 

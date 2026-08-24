@@ -8,15 +8,17 @@
   write/verify/evict mechanics, and the `opcache.*` directives that govern it. It does not touch the
   in-process `DashMap<UnitKey, CompileState>` cache or the hot-reload pointer swap — those stay exactly as
   [ADR 0017](0017-hot-reload-without-restart.md) defines them.
+- **Amended by:** 0078 — the fold is applied below; this body states the current rule.
 - **Relates to:** 0002, 0004, 0005, 0006, 0017
 
 > **In short:** the disk cache is a directory of immutable files, one per compiled unit, addressed by
-> `BLAKE3(source content ‖ target triple ‖ CPU feature bitset ‖ compiler version hash)` — folding the
+> `BLAKE3(source content ‖ env_hash)`, where `env_hash` covers the target triple, the CPU feature bitset,
+> the compiler build and the loaded extension set — folding the
 > execution environment into the *address itself* rather than the *header*, so an artifact built for the
-> wrong machine or the wrong compiler build is a plain cache miss, never a file that gets opened and then
-> rejected. Each file still carries a self-describing header (magic, format version, the same environment
-> fields, a BLAKE3 checksum of the payload) as defense in depth against a hash collision or a hand-placed
-> file. A reader `mmap`s the file read-only, hashes the mapped bytes in place, and only calls `mprotect`
+> wrong machine, the wrong compiler build or a different set of extensions is a plain cache miss, never a
+> file that gets opened and then rejected. Each file still carries a self-describing header (magic, format
+> version, the same `env_hash`, a BLAKE3 checksum of the payload) as defense in depth against a hash
+> collision or a hand-placed file. A reader `mmap`s the file read-only, hashes the mapped bytes in place, and only calls `mprotect`
 > to make it executable once the checksum matches — the existing W^X discipline, extended one step
 > earlier. A writer compiles to a temp file, `fsync`s it, and does one atomic rename onto the final,
 > content-addressed path; if that path already exists, the writer's own copy is simply discarded, never
@@ -81,27 +83,36 @@
 <cache_dir>/<key[0:2]>/<key[2:]>.mwlc
 ```
 
-where `key = BLAKE3(source_content ‖ target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash)` — the same
+where `key = BLAKE3(source_content ‖ env_hash)` — the same
 git-object/cargo-incremental-cache shape, chosen for the same reason: cheap to compute, no shared index to
 keep consistent, and a lookup miss costs exactly one failed `open`. Folding the environment into the key
-itself (not just the header) means an artifact from a different machine, a different CPU-feature set, or a
-different compiler build is never opened at all — it simply is not the file this process would look for.
+itself (not just the header) means an artifact from a different machine, a different CPU-feature set, a
+different compiler build or a different set of loaded extensions is never opened at all — it simply is not
+the file this process would look for.
+
+`env_hash` is [0078](0078-config-reload-and-control-socket.md) § 4's single environment digest,
+`BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)`. The same value
+keys [0017](0017-hot-reload-without-restart.md)'s in-memory `UnitKey`, so one process cannot disagree with
+its own disk cache about what a unit was compiled against. The extension component is what makes the claim
+in § 6 true: codegen emits a **direct call** to an extension trampoline
+([0003](0003-extension-system.md) § *Extension functions are statically typed*), so the loaded set is a
+codegen input like any other, and an artifact compiled against one set must never be reused against another.
 
 ### 2. File shape
 
 ```
-magic ("MWLC") | format_version: u16 | target_triple | cpu_feature_bitset | compiler_version_hash
+magic ("MWLC") | format_version: u16 | env_hash: 32 bytes
   | payload_len: u64 | BLAKE3(payload): 32 bytes | payload
 ```
 
-The environment fields are repeated here even though they are already folded into the path, as defense in
+`env_hash` is repeated here even though it is already folded into the path, as defense in
 depth against a `BLAKE3` collision or a file placed at that path by hand rather than produced by this
-runtime — a second, independent check bought for the cost of a few field comparisons.
+runtime — a second, independent check bought for the cost of one comparison.
 
 ### 3. Reading: verify fully before a single page becomes executable
 
-`mmap` the file `PROT_READ` (never starting from `PROT_EXEC`). Check `magic`/`format_version`/the three
-environment fields against what this process expects — any mismatch is a cache miss, not an error. Compute
+`mmap` the file `PROT_READ` (never starting from `PROT_EXEC`). Check `magic`/`format_version`/`env_hash`
+against what this process expects — any mismatch is a cache miss, not an error. Compute
 `BLAKE3` over the mapped payload bytes and compare to the header's checksum — any mismatch is a cache miss:
 delete the file (it can only be corrupt or tampered, never a second valid version — see §5) and fall
 through to compiling fresh. Only once the checksum matches does the payload's pages get `mprotect`'d to
@@ -140,7 +151,11 @@ whoever wrote it" — conflating the two would be the actual security hole.
 
 ### 6. Eviction: piggybacked, probabilistic, off the request path entirely
 
-Content-addressed entries never need invalidating for *correctness* — only for *growth*. On a cache **miss**
+Content-addressed entries never need invalidating for *correctness* — only for *growth*. That holds because
+§ 1's key covers **every** input to a compile, source and environment alike; it is why the extension set had
+to join `env_hash` rather than sit outside the key, and why changing that set produces ordinary cache misses
+instead of needing an invalidation pass ([0078](0078-config-reload-and-control-socket.md) § 4). On a cache
+**miss**
 (already the expensive path: a real compile is about to happen, on the dedicated compile pool, never on a
 request-serving core) — after writing the new entry, with a small configured probability, walk the cache
 directory's total size and, if over the configured cap, delete oldest-by-`mtime` entries down to a hysteresis

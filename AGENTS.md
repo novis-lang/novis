@@ -210,9 +210,12 @@ the mechanism, the exact spellings rejected, and the reasoning.
 - **`#[Json\Derive]`/`#[Db\Derive]` generate a codec from a class's declared properties, and a failed decode
   reports every bad field at once** — a compiler-recognized attribute is matched by name, unlike
   `Core\Attributes` retrieval ([0071](docs/adr/0071-derived-codecs.md)).
-- **Configuration is TOML, in a root-owned `mwl.toml`, read once at boot**
+- **Configuration is TOML, in a root-owned `mwl.toml`**
   ([0064](docs/adr/0064-configuration-file-format.md)); it states defaults, not ceilings
   ([0005](docs/adr/0005-config-changeability.md)).
+- **`mwl ctl reload` replaces the whole config snapshot over a local socket — no control port, no token** —
+  and a directive that still needs a restart is named in the result rather than ignored
+  ([0078](docs/adr/0078-config-reload-and-control-socket.md)).
 - **`Core\Task::all`/`::map` return with nothing still running, and `afterResponse` keeps the request tree
   alive past the connection** — cancellation runs no user code
   ([0072](docs/adr/0072-core-task-structured-concurrency.md)).

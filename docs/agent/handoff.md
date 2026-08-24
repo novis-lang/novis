@@ -9,6 +9,18 @@ against 60), every named guard, and the `valgrind --leak-check=full` sweep clean
 fixtures. [`loop-goal.md`](loop-goal.md) is authoritative for what that list means and for the standing
 decisions already settled with the user; do not re-open any of them.
 
+**The last session was docs-only: [ADR 0078](../adr/0078-config-reload-and-control-socket.md) landed**,
+decided with the user in conversation. `mwl.toml` stops being read only at boot — `mwl ctl reload` replaces
+the whole config snapshot over a **local socket only** (no TCP listener, no token, no TLS; the socket's
+owner and mode are the authentication), validating the replacement whole before publishing it. Every
+directive gains a `Reload`/`Boot` field orthogonal to its changeability class, and reload *names* the `Boot`
+keys it could not apply. The extension set joins one `env_hash` carried by both compiled-unit cache keys,
+which makes extension reload fall out of ADR 0017's existing lazy revalidation with no invalidation pass —
+and closes a latent hole where an on-disk artifact compiled against one extension set could be reused
+against another. Folds applied to 0003, 0005, 0017, 0042, 0048, 0064 and the plan's cache sketch.
+**Nothing was implemented**: it builds in M6 (snapshot + `env_hash`), M7 (socket + `mwl ctl`) and M9
+(extension reload), and each milestone's *Verify* list now says what it owes.
+
 **Goal-reached is not spec-complete, and the plan's status block says which is which.** `Core` §§ 1–12 is
 still `Core\Arr` × 20 and `Core\Str` × 19 against a much longer spec, and the plan's *Open now* field lists
 the rest — three `Core` shapes that need registry machinery, two re-opened M1 grammar slices, ADR 0047's
@@ -66,6 +78,9 @@ bracket arrays (marked *Open* in [spec § 12](../spec/01-core-library.md)), and 
   both missing `mwl-types` diagnostics.
 - **Class-member `private`/`protected` is not enforced at all** — `mwl-types`' own gap list, whose reserved
   `Comparable`/`Stringable` interfaces also still carry no member signatures.
+- **ADR 0078 is decided but unbuilt** — it is scheduled into M6/M7/M9 and needs nothing before then. A
+  network-reachable control surface is deferred, not rejected; that ADR's *Revisiting* records the design so
+  it is not re-derived.
 
 ## Standing rules for this repo
 
@@ -83,7 +98,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   lowers**, and is worth doing before writing a batch of cases around it. Keep a PHP twin beside it.
 - **Another agent may be editing this repo at the same time.** **Check the ADR directory for the next free
   number immediately before writing one**, stage your own paths explicitly, check `git show --stat` after
-  committing, and re-read a shared doc immediately before rewriting it.
+  committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud
+  banner when `.loop/running` exists — if it does, stop and tell the user rather than editing alongside it.
 - **A new dependency owes three things**: a `[workspace.dependencies]` line with a comment saying why that
   crate, `cargo deny check`, and `python tools/gen-attribution.py` (ADR 0065 — the notice is committed).
   The dependency *sweep* is a pass the user fires by hand (ADR 0068); never start it as a side effect.

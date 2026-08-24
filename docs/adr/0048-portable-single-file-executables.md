@@ -41,8 +41,8 @@
 
 - **Ship precompiled native artifacts instead of source**, using [0042](0042-on-disk-artifact-cache-format.md)'s
   own `.mwlc` file format as the payload. Rejected as the default: that ADR's cache key deliberately folds
-  `target_triple`, `cpu_feature_bitset` and `compiler_version_hash` into the *address*, precisely so a
-  wrong-environment artifact is never opened at all — a design point for a shared, revalidated disk cache,
+  the whole environment — target triple, CPU feature bitset, compiler build and loaded extension set, as one
+  `env_hash` — into the *address*, precisely so a wrong-environment artifact is never opened at all — a design point for a shared, revalidated disk cache,
   but the opposite of what "one portable file" wants. A single exe would need to embed one artifact per
   target/CPU-feature/compiler-version combination it wants to support, which is exactly the "one copy per
   combination" cost that ADR already names as a **Negative** consequence for a heterogeneous fleet — here

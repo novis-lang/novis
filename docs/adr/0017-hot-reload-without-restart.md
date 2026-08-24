@@ -4,9 +4,10 @@
 - **Date:** 2026-08-20
 - **Scope:** `mwl-host`'s compiled-unit cache, the M7 HTTP server's requirement to pick up an edited source
   file with no restart and no dropped request
+- **Amended by:** 0078 — `UnitKey` gains the environment digest; the fold is applied below.
 - **Relates to:** 0002, 0004, 0005, 0006
 
-> **In short:** the cache is keyed by content, not by path: `UnitKey { path, content_hash } →
+> **In short:** the cache is keyed by content, not by path: `UnitKey { path, content_hash, env_hash } →
 > CompileState`, and a `Ready` entry is write-once — nothing already in the map is ever mutated or
 > torn. Sitting in front of it is one small, separately-locked indirection, `path → current
 > content_hash`. Revalidating a path means re-stating (mtime+size, rate-capped) or re-hashing the
@@ -23,8 +24,8 @@
   stays exactly as isolated as behind a fresh subprocess ([0006](0006-isolated-script-execution.md)): a
   compile in flight must not stall unrelated requests, a running request must not be yanked out from under
   the code it started against, and nothing may reintroduce shared mutable state.
-- The plan's existing *Compiled-unit cache* sketch already keys `CompileState` by `UnitKey { path,
-  content_hash }`, not `{path}` — two versions of a file are two different map entries, so every `Ready`
+- The plan's existing *Compiled-unit cache* sketch already keys `CompileState` by content rather than by
+  path alone — two versions of a file are two different map entries, so every `Ready`
   entry is **write-once**, a property this ADR relies on rather than adds.
 - Missing piece: something that maps a *path* to whichever `content_hash` is current, updated safely across
   concurrently reading cores without a lock a request-serving core would wait on.
@@ -58,8 +59,15 @@ struct PathEntry {
     last_checked: Instant,     // gates the revalidate_freq rate cap
 }
 // DashMap<CanonicalPath, PathEntry>            — the swappable pointer, one per path
-// DashMap<UnitKey { path, content_hash }, CompileState>   — unchanged, write-once per entry
+// DashMap<UnitKey { path, content_hash, env_hash }, CompileState>  — write-once per entry
 ```
+
+`env_hash` is [0078](0078-config-reload-and-control-socket.md) § 4's environment digest — the target triple,
+the CPU feature bitset, the compiler build and the loaded extension set — the same value that keys the
+on-disk cache ([0042](0042-on-disk-artifact-cache-format.md) § 1). It is constant for the life of a
+configuration, so it costs the request path nothing; when a reload changes the extension set it changes with
+it, and every unit becomes an ordinary miss that steps 1-5 below recompile lazily, one path at a time. That
+is the whole of extension reload: no invalidation pass, and no new machinery here.
 
 Resolving a `require`/`include`/an inbound request's entry file:
 
@@ -67,7 +75,7 @@ Resolving a `require`/`include`/an inbound request's entry file:
    `revalidate_freq`, use its `content_hash` as-is — no syscall.
 2. Otherwise `stat` (and, under `hash` or on an `mtime` mismatch, re-hash) the file. If the observed content
    matches `PathEntry.content_hash`, update `last_checked` and continue — still no compile.
-3. On an observed change: resolve/compile `UnitKey { path, new_hash }` through the *existing* `Compiling` /
+3. On an observed change: resolve/compile `UnitKey { path, new_hash, env_hash }` through the *existing* `Compiling` /
    `Ready` / `Failed` state machine, off the dedicated compile pool, exactly as a cold compile does. Callers
    racing to revalidate the same path to the same new hash single-flight on the same broadcast, for the same
    reason concurrent cold hits already do.

@@ -13,11 +13,12 @@
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
 - **Amended by:** 0072, 0073, 0074, 0076 — each adds blocks, listed in § 2a; nothing about the format
-  changes.
+  changes. 0078 — the file is re-read on `mwl ctl reload`, not only at boot; each fold is applied below.
 - **Relates to:** 0007, 0011, 0052, 0061
 
-> **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read once at boot through the
-> `toml` crate and `serde`. INI was inherited from PHP without an argument and does not survive one: it has
+> **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read through the `toml` crate
+> and `serde` — at boot, and again on each `mwl ctl reload`
+> ([0078](0078-config-reload-and-control-socket.md)). INI was inherited from PHP without an argument and does not survive one: it has
 > no specification, so MWL would have to define and fuzz its own dialect, and it has exactly one value
 > type — string — which is the defect [0007](0007-explicit-type-system.md) rejects in the language itself.
 > Four directives the current ADRs already specify are booleans, lists or repeated records encoded as
@@ -55,9 +56,11 @@
 
 ### 1. The file is `mwl.toml`, and it is TOML
 
-Read once at boot into the directive registry through the `toml` crate with `serde` derive. Pure Rust, no
-C, and already inside the dependency set [deny.toml](../../deny.toml) audits, because Cargo's own manifests
-are TOML — this adds no new dependency class.
+Read into the directive registry through the `toml` crate with `serde` derive — at boot, and again on each
+`mwl ctl reload` ([0078](0078-config-reload-and-control-socket.md)), which parses and validates a whole
+replacement snapshot before publishing it and leaves the running one untouched if any part fails. Pure Rust,
+no C, and already inside the dependency set [deny.toml](../../deny.toml) audits, because Cargo's own
+manifests are TOML — this adds no new dependency class.
 
 [ADR 0005](0005-config-changeability.md)'s layout is unchanged; only its spelling moves:
 
@@ -135,7 +138,8 @@ TOML refuses a duplicate key; INI dialects silently take the last one. In a root
 grants capabilities, a line silently overridden by a later copy of itself is a security-relevant failure
 that costs nothing to refuse. An **unknown** key is refused the same way, with the existing
 `E0601`/`E_BAD_DIRECTIVE` diagnostic naming the line — a typo'd `capabilties` must fail at boot, never read
-as "granted nothing" by accident. Both are `serde`'s default behaviour with `deny_unknown_fields`; neither
+as "granted nothing" by accident. On a reload the same diagnostic refuses the swap and the previous snapshot
+keeps serving, so a typo can never be published to a running server either. Both are `serde`'s default behaviour with `deny_unknown_fields`; neither
 is new machinery.
 
 ### 4. `mwl.toml` is not a project manifest
@@ -172,8 +176,10 @@ establishes, where a prepared and a runtime path cannot diverge because there is
 
 ## Consequences
 
-- **Cost, as [0004](0004-memory-for-simplicity.md) requires it be stated: none.** The parse is once per
-  process, at boot, over a file measured in kilobytes. No per-request memory, no request-path latency.
+- **Cost, as [0004](0004-memory-for-simplicity.md) requires it be stated: none on the request path.** The
+  parse happens at boot and again only when an operator runs `mwl ctl reload`, over a file measured in
+  kilobytes — never per request, and never polled from a request-serving core. What a live snapshot costs in
+  memory is [0078](0078-config-reload-and-control-socket.md)'s to state, not this ADR's.
 - **What the operator loses:** the `.ini` extension. **What they gain:** editor validation and
   highlighting that already exists, a parse error that names a line, and a refused duplicate key.
 - **What the implementation loses:** a hand-written dialect parser, a comma-list splitter, a `PATH`-list

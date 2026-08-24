@@ -42,6 +42,7 @@ so you never have to open this file to route a topic.
 | Weighing memory against safety, speed or simplicity | [0004](0004-memory-for-simplicity.md) |
 | `mwl.toml` directives, `Core\Config::set`, limits, capabilities, changeability classes | [0005](0005-config-changeability.md) |
 | The config file's *format* — why TOML, how a list/boolean/hash-pin is spelled, whether `mwl.toml` is a project manifest | [0064](0064-configuration-file-format.md) |
+| Changing a running server — `mwl ctl reload`, the control socket, adding or replacing an extension without a restart, which directives still need one, why there is no control port | [0078](0078-config-reload-and-control-socket.md) |
 | `spawn script`, isolates, the request boundary | [0006](0006-isolated-script-execution.md) |
 | Caching between requests, APCu, `Core\Cache`, why a cached value is copied | [0059](0059-cross-request-state-is-explicit.md) |
 | `include`/`require`, loading another file into the current frame | [0021](0021-single-file-inclusion-construct.md) |
@@ -209,6 +210,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0075](0075-core-ratelimit.md) | `Core\RateLimit` limits what only the application knows, over the shared store; the approximate per-core tier is a differently-named member, and edge limiting is the proxy's | Accepted |
 | [0076](0076-observability-export.md) | The runtime exports what ADRs 0018/0041 already measure, plus a three-member `Core\Metrics`; a label refuses `tainted`, and a full series registry refuses new series rather than evicting old ones | Accepted |
 | [0077](0077-compile-time-routing.md) | `#[Route]` builds a route table while compiling, making a duplicate route, an unbound placeholder and a stale `url()` name compile errors; the router stops at matching | Accepted |
+| [0078](0078-config-reload-and-control-socket.md) | `mwl.toml` reloads over a local-socket-only control API, validated whole before it is published; every directive says whether it needs a restart, and the extension set joins the key both compiled-unit caches share | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
