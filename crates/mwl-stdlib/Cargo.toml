@@ -12,6 +12,12 @@ repository.workspace = true
 mwl-runtime.workspace = true
 unicode-segmentation.workspace = true
 
+# `tests/conformance_coverage.rs` reads the `.mwlt` suite's `--FILE--`
+# sections, and the format's parser already exists. `mwl-test` depends on
+# nothing at all, so this borrows a section splitter rather than a toolchain.
+[dev-dependencies]
+mwl-test.workspace = true
+
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly
 # mwl-runtime's reason and no wider one: every `Core` member is an ADR 0002

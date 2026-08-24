@@ -1119,6 +1119,7 @@ name = "mwl-stdlib"
 version = "0.0.1"
 dependencies = [
  "mwl-runtime",
+ "mwl-test",
  "unicode-segmentation",
 ]
 

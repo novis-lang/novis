@@ -69,8 +69,10 @@
 //!    `mwl_runtime::call_closure`, and `Str::join`, the first with an optional
 //!    parameter. Everything registered since is a registry row plus a body and
 //!    nothing else. The spec file's §§ 1–12 are the work list, and
-//!    `docs/agent/loop-goal.md`'s Stage 4 holds the coverage gate that will name
-//!    every member still missing a conformance case.
+//!    `tests/conformance_coverage.rs` is the gate that keeps the *registered*
+//!    half honest: a member with no `.mwlt` case that calls it fails
+//!    `cargo test -p mwl-stdlib`, which is the check
+//!    `docs/agent/loop-goal.md`'s Stage 4 names.
 //!
 //!    Within § 1, ADR 0009 § 2's granularity question is closed and
 //!    [`granularity::DEFAULT`] is its answer, so `length` and `at` are
@@ -89,6 +91,17 @@
 //!    ([`registry::Const::Null`], the same member). A union *return* is not —
 //!    that one is genuinely blocked, on the same representation, and
 //!    `CoreTy::Union`'s own docs say why.
+//! 4. **`array<T>` is invariant, so a `array<int|string>` parameter takes
+//!    only that exact spelling.** `Core\Arr::flip` is the first member whose
+//!    spec signature declares one, and `Core\Arr::flip($stringArray)` is
+//!    refused today — the caller declares `array<string|int>` instead.
+//!    `mwl_types::expr::is_assignable`'s own docs own the rule and say why no
+//!    variance was committed to. Widening it later would accept strictly more
+//!    programs and break none, so the narrow rule is the safe thing to be
+//!    holding while the question is open; the argument *for* widening is that
+//!    an MWL array is a copy-on-write **value**, so an element-covariant read
+//!    cannot be aliased into an unsound write the way a mutable container's
+//!    could.
 //! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
 //!    *Revisiting* section and `docs/agent/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what
