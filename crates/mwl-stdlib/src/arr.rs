@@ -5,7 +5,7 @@
 //! than consuming it — see [`crate`]'s own docs for why that falls out of
 //! being a helper rather than being a rule this module states.
 
-use mwl_runtime::{Fault, MwlArray, MwlStr, Tag, Value};
+use mwl_runtime::{Decimal, Fault, MwlArray, MwlStr, Tag, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
@@ -271,9 +271,39 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
             symbol: "mwl_core_arr_max",
         },
+        CoreMethod {
+            name: "sum",
+            params: &[CoreTy::Array(&CoreTy::Union(crate::math::NUMBER))],
+            defaults: &[],
+            return_ty: CoreTy::Union(crate::math::NUMBER),
+            symbol: "mwl_core_arr_sum",
+        },
+        CoreMethod {
+            name: "product",
+            params: &[CoreTy::Array(&CoreTy::Union(crate::math::NUMBER))],
+            defaults: &[],
+            return_ty: CoreTy::Union(crate::math::NUMBER),
+            symbol: "mwl_core_arr_product",
+        },
+        CoreMethod {
+            name: "average",
+            params: &[CoreTy::Array(&CoreTy::Union(crate::math::NUMBER))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Union(QUOTIENT)),
+            symbol: "mwl_core_arr_average",
+        },
     ],
     constants: &[],
 };
+
+/// `float|decimal` — what dividing spec § 2's `int|float|decimal` by a count
+/// can land on, and the whole of what `average` answers under its `?`.
+///
+/// `int` is not on it, deliberately: an average is a quotient, and ADR 0007
+/// § 4 already makes `int / int` yield `int|float` rather than an `int`. A
+/// `decimal` subject stays exact (its quotient is a `decimal`), which is the
+/// reason this is a union rather than plain `float`.
+const QUOTIENT: &[CoreTy] = &[CoreTy::Float, CoreTy::Decimal];
 
 /// `Core\Order` — the enum [`mwl_core_arr_sort`]'s `{order: ...}` option takes.
 ///
@@ -404,6 +434,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_unique" => (mwl_core_arr_unique as *const ()).cast(),
         "mwl_core_arr_min" => (mwl_core_arr_min as *const ()).cast(),
         "mwl_core_arr_max" => (mwl_core_arr_max as *const ()).cast(),
+        "mwl_core_arr_sum" => (mwl_core_arr_sum as *const ()).cast(),
+        "mwl_core_arr_product" => (mwl_core_arr_product as *const ()).cast(),
+        "mwl_core_arr_average" => (mwl_core_arr_average as *const ()).cast(),
         _ => return None,
     })
 }
@@ -2211,6 +2244,235 @@ mwl_runtime::mwl_helper! {
         let subject = subject(args, "max")?;
         extremum(&subject, std::cmp::Ordering::Greater, r"Core\Arr::max")
     }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::sum(array<int|float|decimal> $a): int|float|decimal` —
+    /// replacing PHP's `array_sum`.
+    ///
+    /// [`Total`] owns the three-way accumulation and every throw it can
+    /// produce; the empty array is `int` `0`, PHP's own answer and the
+    /// identity of the operation.
+    fn mwl_core_arr_sum(_ctx, args: [1]) {
+        let subject = subject(args, "sum")?;
+        fold_numbers(&subject, Total::Integer(0), "sum")
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::product(array<int|float|decimal> $a): int|float|decimal` —
+    /// replacing PHP's `array_product`. [`mwl_core_arr_sum`]'s structure with
+    /// the other operation, so the empty array is `int` `1`, that operation's
+    /// identity and PHP's answer.
+    fn mwl_core_arr_product(_ctx, args: [1]) {
+        let subject = subject(args, "product")?;
+        fold_numbers(&subject, Total::Integer(1), "product")
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::average(array<int|float|decimal> $a): ?(float|decimal)` —
+    /// the spec's replacement for `array_sum($a)/count($a)`, "with the empty
+    /// case answered".
+    ///
+    /// **`null` over an empty array**, on [`mwl_core_arr_min`]'s terms: ADR
+    /// 0063 R5 makes `?T` the absence spelling, and the average of nothing is
+    /// a question with an answer rather than a division by zero.
+    ///
+    /// An exact subject stays exact: a `decimal` total is divided by the count
+    /// as a `decimal`, which ADR 0054 § 3 rounds half to even at the widest
+    /// scale the quotient admits. Every other total answers `float`, which is
+    /// what makes this member's result type a union rather than one type.
+    fn mwl_core_arr_average(_ctx, args: [1]) {
+        let subject = subject(args, "average")?;
+        let count = subject.count();
+        if count == 0 {
+            return Ok(Value::null());
+        }
+        let divisor = u64::try_from(count).map_err(|_| {
+            Fault::fatal("Core\\Arr::average was given more entries than a `uint` counts")
+        })?;
+        match fold(&subject, Total::Integer(0), "average", Total::plus)? {
+            Total::Exact(total) => total
+                .checked_div(Decimal::from_u64(divisor))
+                .map(Value::decimal)
+                .ok_or_else(|| {
+                    Fault::thrown(
+                        "Core\\Arr::average has no `decimal` answer for this subject: the \
+                         quotient is outside ADR 0054 § 1's range"
+                            .to_owned(),
+                    )
+                }),
+            other => Ok(Value::float(other.as_f64() / f64_of(divisor))),
+        }
+    }
+}
+
+/// What [`mwl_core_arr_sum`], [`mwl_core_arr_product`] and
+/// [`mwl_core_arr_average`] accumulate into — spec § 2's
+/// `int|float|decimal` as the three shapes an accumulator can be in.
+///
+/// The promotion rules are ADR 0007 § 4's and ADR 0054 § 3's, applied
+/// entry by entry rather than to a pair of static types:
+///
+/// * `int` with `int` stays `int` and **throws** on overflow — no wrap and no
+///   promotion to `float`, which is that ADR's row verbatim and a deliberate
+///   divergence from `array_sum`, which silently becomes a `float`.
+/// * a `float` anywhere makes the total a `float`, exactly as `int ⊕ float`
+///   does.
+/// * a `decimal` anywhere makes the total a `decimal`, since an `int` is exact
+///   in 96 bits.
+/// * a `float` and a `decimal` in **one** subject throws: ADR 0054 § 3 makes
+///   that pair a compile error where the types are static, and there is no
+///   representable common type here either. It is reachable only through an
+///   `array<int|float|decimal>` holding both.
+#[derive(Clone, Copy)]
+enum Total {
+    /// An `int`, or a `uint` small enough to be one.
+    Integer(i64),
+    /// A `float`.
+    Real(f64),
+    /// A `decimal` — ADR 0054's scalar, and the one arm that is exact.
+    Exact(Decimal),
+}
+
+impl Total {
+    /// One entry, decoded — `None` where the tag is not a number at all,
+    /// which is a miscompile rather than a program error.
+    fn of(value: Value) -> Option<Self> {
+        if let Some(int) = value.as_int() {
+            return Some(Self::Integer(int));
+        }
+        if let Some(uint) = value.as_uint() {
+            return Some(i64::try_from(uint).map_or_else(
+                // Past `int`'s largest, and still exact in 96 bits.
+                |_| Self::Exact(Decimal::from_u64(uint)),
+                Self::Integer,
+            ));
+        }
+        if let Some(float) = value.as_float() {
+            return Some(Self::Real(float));
+        }
+        value.as_decimal().map(Self::Exact)
+    }
+
+    /// This total as a `float`, for the two arms that answer one.
+    fn as_f64(self) -> f64 {
+        match self {
+            Self::Integer(n) => f64_of_i64(n),
+            Self::Real(n) => n,
+            // Only reached through `average`'s own arm, which handles `Exact`
+            // before it asks.
+            Self::Exact(n) => n.to_f64(),
+        }
+    }
+
+    /// `a + b`, promoting by this type's own docs.
+    fn plus(self, other: Self) -> Option<Self> {
+        Self::combine(
+            self,
+            other,
+            i64::checked_add,
+            |a, b| a + b,
+            Decimal::checked_add,
+        )
+    }
+
+    /// `a * b`, promoting the same way.
+    fn times(self, other: Self) -> Option<Self> {
+        Self::combine(
+            self,
+            other,
+            i64::checked_mul,
+            |a, b| a * b,
+            Decimal::checked_mul,
+        )
+    }
+
+    fn combine(
+        left: Self,
+        right: Self,
+        integer: fn(i64, i64) -> Option<i64>,
+        real: fn(f64, f64) -> f64,
+        exact: fn(Decimal, Decimal) -> Option<Decimal>,
+    ) -> Option<Self> {
+        match (left, right) {
+            (Self::Integer(a), Self::Integer(b)) => integer(a, b).map(Self::Integer),
+            (Self::Exact(a), Self::Exact(b)) => exact(a, b).map(Self::Exact),
+            (Self::Exact(a), Self::Integer(b)) => exact(a, Decimal::from_i64(b)).map(Self::Exact),
+            (Self::Integer(a), Self::Exact(b)) => exact(Decimal::from_i64(a), b).map(Self::Exact),
+            // The one pair with no representable common type.
+            (Self::Exact(_), Self::Real(_)) | (Self::Real(_), Self::Exact(_)) => None,
+            (a, b) => Some(Self::Real(real(a.as_f64(), b.as_f64()))),
+        }
+    }
+
+    /// This total as the value a member answers with.
+    fn into_value(self) -> Value {
+        match self {
+            Self::Integer(n) => Value::int(n),
+            Self::Real(n) => Value::float(n),
+            Self::Exact(n) => Value::decimal(n),
+        }
+    }
+}
+
+/// [`Total::add`] over every entry, as [`mwl_core_arr_sum`]'s answer.
+fn fold_numbers(subject: &MwlArray, seed: Total, member: &str) -> Result<Value, Fault> {
+    let operation = if member == "sum" {
+        Total::plus
+    } else {
+        Total::times
+    };
+    Ok(fold(subject, seed, member, operation)?.into_value())
+}
+
+/// The fold itself, shared by all three members.
+fn fold(
+    subject: &MwlArray,
+    seed: Total,
+    member: &str,
+    operation: fn(Total, Total) -> Option<Total>,
+) -> Result<Total, Fault> {
+    let mut total = seed;
+    let mut from = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+        let entry = Total::of(value).ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::{member} expected a number in every entry, got tag {}",
+                value.tag_byte()
+            ))
+        })?;
+        total = operation(total, entry).ok_or_else(|| {
+            Fault::thrown(format!(
+                "Core\\Arr::{member} has no answer for this subject: the running total either \
+                 left its type's range or met a `float` and a `decimal` in one array, which \
+                 have no common type (ADR 0007 § 4, ADR 0054 § 3)"
+            ))
+        })?;
+    }
+    Ok(total)
+}
+
+/// A count as the `f64` it divides by. Exact for every array this runtime can
+/// hold, which is far below 2^53 entries.
+fn f64_of(count: u64) -> f64 {
+    f64_of_i64(i64::try_from(count).unwrap_or(i64::MAX))
+}
+
+/// An `i64` as an `f64` — the one narrowing cast this module makes, and the
+/// only place a total can lose precision. It is what `int|float` means: past
+/// 2^53 the quotient is a `float`, and a `float` is what the signature says.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "an average is a `float` by declaration; the exact answer is what a `decimal` subject gets"
+)]
+fn f64_of_i64(value: i64) -> f64 {
+    value as f64
 }
 
 /// One value, compared and hashed the way `mwl_runtime` defines identity —

@@ -203,6 +203,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         CoreTy::Int => interner.int(),
         CoreTy::Uint => interner.uint(),
         CoreTy::Float => interner.float(),
+        CoreTy::Decimal => interner.decimal(),
         CoreTy::Str => interner.string(),
         CoreTy::Bytes => interner.bytes(),
         CoreTy::Void => interner.void(),

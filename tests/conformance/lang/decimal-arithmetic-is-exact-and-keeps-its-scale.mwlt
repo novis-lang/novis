@@ -1,0 +1,39 @@
+--TEST--
+ADR 0054: a decimal literal is exact, arithmetic over it never rounds, and rendering keeps the scale
+--FILE--
+<?mwl
+// The money case `float` cannot represent: 0.1 + 0.2 is 0.3, not
+// 0.30000000000000004.
+decimal $tenth = 0.1;
+decimal $fifth = 0.2;
+echo $tenth + $fifth, "\n";
+
+decimal $price = 19.99;
+decimal $shipping = 4.95;
+echo $price + $shipping, "|", $price - $shipping, "|", $price * 2, "\n";
+
+// Scale is carried for rendering (§ 4), so a trailing zero survives -- and is
+// invisible to equality, which compares values.
+decimal $padded = 19.90;
+echo $padded, "|", ($padded == 19.9) as string, "|", ($padded === 19.900) as string, "\n";
+
+// `as` is itself a placing position (§ 2), so the full 29 significant digits
+// survive rather than round-tripping through an `f64`'s ~17.
+echo 1234567890123456789012345.6789 as decimal, "\n";
+
+// Division is the one inexact operation, and rounds half to even at the
+// widest scale the result admits.
+echo 1.00 as decimal / 3, "\n";
+echo 1 as decimal / 8, "\n";
+
+// A negative, a zero at scale, and ADR 0035's truthy row.
+decimal $zero = 0.00;
+echo 0 - $price, "|", $zero, "|", ($zero ? "yes" : "no"), "|", ($price ? "yes" : "no"), "\n";
+--EXPECT--
+0.3
+24.94|15.04|39.98
+19.90|1|1
+1234567890123456789012345.6789
+0.3333333333333333333333333333
+0.125
+-19.99|0.00|no|yes

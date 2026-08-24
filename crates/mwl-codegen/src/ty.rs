@@ -23,9 +23,12 @@ use crate::CodegenError;
 /// the two halves of a 16-byte [`mwl_runtime::Value`] on a little-endian
 /// target — the low half its tag word, the high half its payload. That is
 /// what makes materializing one into a call's argument slot two plain stores.
-/// Every producer of an `I128` here keeps the tag word **zero-extended from
-/// the tag byte**, which is the invariant `Emitter::emit_is_null` relies on to
-/// compare without masking.
+/// Every producer of an `I128` here keeps the tag word **zero outside the
+/// bytes the representation actually uses** — the tag byte alone for every tag
+/// but one, and the tag plus scale, sign and mantissa-low for
+/// [`Tag::Decimal`]. That is what lets `Emitter::emit_is_null` compare the
+/// whole word against zero without masking: `Tag::Null` is the only tag whose
+/// byte is zero, so no other value can produce a zero word.
 #[must_use]
 pub fn clif_ty(ty: Ty) -> Option<Type> {
     Some(match ty {
@@ -35,7 +38,13 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::ClassDesc => types::I64,
         // The whole 16-byte tagged value, in a register pair — see this
         // function's own doc comment and `mwl_ir::Ty::Tagged`.
-        Ty::Tagged => types::I128,
+        //
+        // A `decimal` is the same width for the same reason: it *is* a
+        // `Value`, carrying `Tag::Decimal`, with its 96-bit mantissa spread
+        // across the bytes a `Value` otherwise calls padding. That is what
+        // makes `Tag`/`Untag` the identity on one — see
+        // `mwl_runtime::decimal`'s own module docs for the layout.
+        Ty::Tagged | Ty::Decimal => types::I128,
         // `null`'s payload is always zero, but it still travels in a register
         // like every other representation rather than in a shape of its own.
         Ty::Null => types::I64,
@@ -69,6 +78,10 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         Ty::Int => Tag::Int,
         Ty::Uint => Tag::Uint,
         Ty::Float => Tag::Float,
+        // Never actually reached: `Emitter::store_value` writes a `decimal`
+        // as its two words, the way it writes a tagged value, because the tag
+        // byte is only one of the sixteen this representation fills.
+        Ty::Decimal => Tag::Decimal,
         Ty::Str | Ty::Bytes => Tag::Str,
         // The one representation whose tag is the whole of it — see
         // `mwl_ir::Ty::Null`.

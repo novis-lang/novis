@@ -23,8 +23,8 @@
 //!
 //! The enum covers exactly what the members registered so far need, and
 //! [`CoreClass`] covers exactly the *kind* of member they are. What is still
-//! missing is [`crate`]'s own gap 3, which owns the list: `decimal` and a
-//! **variadic** parameter. A class **constant** is no longer on it — it is
+//! missing is [`crate`]'s own gap 3, which owns the list: a **variadic**
+//! parameter, and nothing else. A class **constant** is no longer on it — it is
 //! [`CoreConst`], a roster on [`CoreClass`] rather than a [`CoreTy`] variant,
 //! since a constant has a value and no signature.
 //!
@@ -89,6 +89,16 @@ pub enum CoreTy {
     Uint,
     /// `float`
     Float,
+    /// `decimal` — [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md)'s
+    /// scalar, which the spec writes wherever a member is exact over money:
+    /// the `int|float|decimal` unions of `Core\Math` and the subject of
+    /// `Core\Arr::sum`/`product`/`average`.
+    ///
+    /// A helper reads one out of its argument slot with
+    /// `mwl_runtime::Value::as_decimal` and returns one with
+    /// `Value::decimal` — it is a whole `Value` carrying `Tag::Decimal`, so
+    /// nothing about the ABI changes for it (`mwl_runtime::decimal`).
+    Decimal,
     /// `string`
     Str,
     /// `bytes` — ADR 0009.

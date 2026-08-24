@@ -7,33 +7,25 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-24. **M3 is done, and the second M4 + M4S loop has both of its shared answers.** The
-> goal is **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written without**, in
-> `docs/agent/loop-goal.md` and its `.toml`. The keystone was one representation, and it is built:
-> **`mixed`, `?T` and every other union share `mwl_ir::Ty::Tagged`**, a 16-byte `Value` in a register
-> pair, with `Tag`/`Untag`/`IsNull` to get in, out and test — that variant's own doc comment and
-> `mwl-runtime`'s own are the two homes. `CoreTy::Nullable` interns as `null|T`, so a `?T`-returning
-> member is writable and thirteen are written. The second answer is **strict identity**:
-> `mwl_runtime::value_identical` decides what one value being another means, object identity included,
-> and `value_hash` indexes it — `mwl_runtime::identity`'s own docs are the home. `examples/nullable.mwl`,
-> the fixture that exercises every part of that keystone, now runs whole: `?->` reads through one
-> `IsNull` guard (`mwl_ir::lower::Lowering::open_nullsafe`). A tagged value now **renders**, which is what
-> lets a `Core` member with a union return be called from a fixture at all: `.`, `echo` and `as string`
-> over a `mixed`, a `?T` or any other union all reach one `Helper::TaggedToString`, picking ADR 0007 § 2's
-> row from the tag and throwing where no row exists. That is what let **spec § 3 land whole**:
-> `Core\Math`'s thirty-eight members and `Core\RoundMode` are registered, and `mwl_stdlib::ordering`
-> now holds the one natural order `Arr::sort`/`min`/`max` and `Math::min`/`max`/`clamp` share. A class
-> **constant** is now a kind of member the registry states — `registry::CoreConst`, resolved by
-> `mwl_types::expr` and lowered as the inlined literal ADR 0011 makes it, so `Core\Math`'s eleven all
-> run — leaving a **variadic** parameter the one signature shape missing and `decimal` the one type.
-> **Every M4 control-flow
-> statement now lowers but `do`/`while`**: `for` (`lower_for`), and now `switch` (`lower_switch`) and
-> `match` (`lower_match`), both an equality chain over the labels rather than
-> `Terminator::Switch`, which selects on an integer. A bare `continue` inside a `switch` continues the
-> enclosing loop — PHP's `continue 2`, the meaning its own warning points at. One M4 hole stays folded
-> in, `decimal`'s IR, as does ADR 0070's duration literal, which `Duration::parse` shares an
-> implementation with. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user; the rest
-> the loop picks under ADR 0051 § 4.
+> **Status:** 2026-08-24. **M3 is done, and the second M4 + M4S loop now has every shared answer it
+> needs.** The goal is **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written
+> without**, in `docs/agent/loop-goal.md` and its `.toml`. Three representations were the keystone, and all
+> three are built. **`mixed`, `?T` and every other union share `mwl_ir::Ty::Tagged`** — a 16-byte `Value`
+> in a register pair, with `Tag`/`Untag`/`IsNull` to get in, out and test, and one
+> `Helper::TaggedToString` picking ADR 0007 § 2's row from the tag so any of them renders. **Strict
+> identity** is `mwl_runtime::value_identical`, object identity included, with `value_hash` agreeing —
+> `mwl_runtime::identity` is the home. And **`decimal` is `mwl_ir::Ty::Decimal`**: ADR 0054's scalar,
+> carried as a `Value` with `Tag::Decimal` whose 96-bit mantissa spends the bytes a `Value` calls padding,
+> so `Tag`/`Untag` are the *identity* on one and a `mixed` holds it for nothing extra;
+> `mwl_runtime::decimal` is the home for that layout, for § 3's arithmetic and for § 4's conversions, each
+> an `ir::Helper`. Each answer unblocked a section: **spec § 3 is whole** — thirty-eight `Core\Math` rows,
+> `Core\RoundMode`, and eleven class constants through `registry::CoreConst`, the inlined literal ADR 0011
+> makes one — and `Core\Arr::sum`/`product`/`average` are now written over the
+> `array<int|float|decimal>` the spec gives them, which took widening `array<T>` to **element-covariant on
+> read** (`mwl_types::expr::is_assignable`, the loop's pre-authorized call). **Every M4 control-flow
+> statement lowers but `do`/`while`.** One M4 hole stays folded in: ADR 0070's duration literal, which
+> `Core\Time\Duration::parse` shares an implementation with. Dependencies: `regex` + `fancy-regex` and
+> `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -48,9 +40,9 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
-> `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `Math` × 38, `granularity`, `ordering`, `Order` and
-> `RoundMode`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 290 (in
+> `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 19, `Math` × 38, `granularity`, `ordering`,
+> `Order` and `RoundMode`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 293 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 85,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -62,21 +54,22 @@
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
 > 0065, **0029/0030** (the casing checker existed but no pipeline called it), **0053 and 0009 in full**,
+> **0054 §§ 1–4 in full** (`Core\Decimal`'s own roster is M8's, and that ADR's *Verification* says so),
 > and **0066 §§ 1–3 for the checked numeric targets** — a nullable binding, parameter, property and
-> return, `null` itself, `??` and now `as ?int`/`?uint`/`?float` all run, leaving that ADR's enum target
-> and every § 3 *refusal* owed. Instance calls dispatch on the receiver's runtime class. Each ADR's own
-> *Verification* section says what its slice covers, not this field.
+> return, `null` itself, `??` and now `as ?int`/`?uint`/`?float`/`?decimal` all run, leaving that ADR's
+> enum target and every § 3 *refusal* owed. Instance calls dispatch on the receiver's runtime class. Each
+> ADR's own *Verification* section says what its slice covers, not this field.
 >
-> **Open now:** **`Core` breadth.** Spec § 3 is whole — `Core\Math`'s thirty-eight members and
-> `Core\RoundMode` all run — so §§ 4–12 have no registry class and `Core\Str`/`Core\Arr` are still
-> incomplete; `diff`/`intersect` need only their `SetOn` enum and their `on`/`by`/`comparator` bag, both
-> of which the registry can already state. Two signature shapes are missing: a **variadic** parameter
-> (ADR 0069's three combination members, `append`/`prepend`, `Path::join`) and `CoreTy::Decimal`
-> (`sum`/`product`/`average`, and seven `Math` rows narrowed to `int|float`). A class **constant** is no
-> longer one of them — `registry::CoreConst` states it and `Core\Math`'s eleven run. Folded in
-> because the corpus cannot route around them: `decimal`'s IR, ADR 0070's duration literal. Also open:
-> ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
-> nothing enforces, and the reserved `Comparable`/`Stringable` interfaces, which carry no member signatures.
+> **Open now:** **`Core` breadth.** Spec § 3 is whole and § 2's aggregations are written, so what is left
+> of §§ 1–2 is `Core\Str::slice`, `Arr::diff`/`intersect` — which need only their `SetOn` enum and their
+> `on`/`by`/`comparator` bag, both shapes the registry can already state — and ADR 0069's combination
+> members. §§ 4–12 have no registry class at all, and `Core\Regex` is the first the fixtures reach.
+> **One signature shape is still missing:** a **variadic** parameter (ADR 0069's three combination
+> members, `append`/`prepend`, `Path::join`). `CoreTy::Decimal` is no longer one of them, nor is a class
+> **constant**. Folded in because the corpus cannot route around it: ADR 0070's duration literal. Also
+> open: ADR 0047's checker row, `autoload` (0061), a `decimal` parameter *default*
+> (`mwl_types::defaults`), class-member `private`/`protected`, which nothing enforces, and the reserved
+> `Comparable`/`Stringable` interfaces, which carry no member signatures.
 > One PHP divergence stands unfixed — **an abandoned generator never runs the `finally` it is suspended
 > inside**, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP
 > domain remaining, reported by `python tools/check-migration.py`. Off path: ADR 0043's `by`-delegation.
@@ -84,11 +77,13 @@
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop reaches is
 > pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the `?T`/`mixed`
 > representation (now settled and recorded in `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
-> own handler block, widening `array<T>` to element-covariant-on-read, object identity (now settled and
-> recorded in `mwl_runtime::identity`), and picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
-> so any failure below Stage 2 is a regression rather than unfinished work. **Stage 2 passes whole** —
-> both `examples/nullable.mwl` and `examples/match.mwl` produce their frozen output — so the loop is on
-> Stage 3, `Core` Part I across all twelve spec sections.
+> own handler block, widening `array<T>` to element-covariant-on-read (now settled and recorded in
+> `mwl_types::expr::is_assignable`), object identity (now settled and recorded in
+> `mwl_runtime::identity`), and picking every dependency but the two the user named. Stages 1 and 2 pass
+> whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
+> on **Stage 3**, `Core` Part I across all twelve spec sections: three of its seven fixtures produce their
+> frozen output — `examples/core.mwl`, `report.mwl` and now `numbers.mwl` — and `text.mwl` is the first
+> that does not, needing `Core\Regex`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -307,9 +302,11 @@ load-balanced across cores; a request never migrates between cores.
 
 16-byte tagged value: `{ tag: u8, _pad: [u8;7], bits: u64 }`. NaN-boxing is rejected because PHP semantics
 require full-range `i64`. Tags: `null | bool | int(i64) | uint(u64) | float(f64) | string | array | object |
-closure | resource`. `uint` is a tag, not a wider slot, so it costs nothing here; the type system that
-demands it is [ADR 0007](adr/0007-explicit-type-system.md), which also owns the array element-type stamp
-carried on the array header.
+closure | resource | decimal`. `uint` is a tag, not a wider slot, so it costs nothing here; the type system
+that demands it is [ADR 0007](adr/0007-explicit-type-system.md), which also owns the array element-type stamp
+carried on the array header. `decimal` is the one tag whose value does not fit the payload alone — its 96-bit
+mantissa spends the padding bytes too, so it is the whole sixteen — and `mwl_runtime::decimal`'s own module
+doc is the home for that layout.
 
 Memory: refcounting + copy-on-write arrays/strings (PHP semantics). Reference cycles are bounded by the
 request lifetime — the whole request heap is dropped wholesale at request end, which makes cycle leaks
@@ -487,7 +484,8 @@ than being optional. Items 1-2 are built; items 3-4 are not:
 1. **`decimal`** ([ADR 0054](adr/0054-decimal-scalar-type.md)) — **built**, and its M2 checker rows with
    it: the reserved keyword, the type atom, § 2's untyped-until-placed literal (including `as T` as a
    placing position), § 1's mantissa and scale bounds, and § 3's arithmetic table. A trailing `m` is a
-   stray identifier the parser refuses, not a suffix. The runtime half is `mwl-ir`'s known gap 15.
+   stray identifier the parser refuses, not a suffix. The runtime half is built too: `mwl_ir::ty::Ty::Decimal`
+   is the representation and `mwl_runtime::decimal` the value behind it.
 2. **Literal and enum-case type atoms** ([ADR 0047](adr/0047-literal-and-enum-case-types.md)) —
    **built**, grammar only: a `StringLiteral`/`IntLiteral` atom, unions of them, `?"a"` sugar, and a
    class-constant or enum-case reference in type position, which needed no production beyond the

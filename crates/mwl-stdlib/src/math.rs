@@ -23,14 +23,18 @@
 //!   A *division* is not a domain error, which is what keeps the two rules
 //!   from meeting.
 //!
-//! # Known gap: `decimal`
+//! # Known gap: `decimal` at the four rounding members
 //!
-//! The spec writes `int|float|decimal` at `abs`, `sign`, `ceil`, `floor`,
-//! `truncate`, `round` and `format`. Every one of them is registered at
-//! `int|float` today and widens by editing its row once `CoreTy::Decimal`
-//! exists — see [`crate`]'s own gap 3, which owns that work list.
+//! The spec writes `int|float|decimal` at seven rows. Three of them — `abs`,
+//! `sign` and `format` — take it: [`NUMBER`] is that union, and [`Number`] is
+//! how a member reads one back. The other four are `ceil`, `floor`,
+//! `truncate` and `round`, each registered at `float` alone and each returning
+//! one, so widening them is a change of *result* type rather than one more
+//! decode arm: an exact rounding has to answer `decimal` to be worth anything.
+//! `Core\Decimal`'s own roster (ADR 0054 § 3) is where the four naturally
+//! land, which is why they wait rather than growing a `float` answer here.
 
-use mwl_runtime::{Fault, MwlStr, Tag, Value};
+use mwl_runtime::{Decimal, Fault, MwlStr, Tag, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy};
@@ -408,9 +412,11 @@ pub const ROUND_MODE: CoreEnum = CoreEnum {
     ],
 };
 
-/// `int|float` — what the spec writes `int|float|decimal` at, until
-/// `CoreTy::Decimal` exists. See this module's own gap note.
-const NUMBER: &[CoreTy] = &[CoreTy::Int, CoreTy::Float];
+/// `int|float|decimal` — spec § 3's own union, at the three members here that
+/// take it whole and at `Core\Arr`'s three aggregations, which write the same
+/// row. See this module's own gap note for the four members that do not take
+/// it yet.
+pub(crate) const NUMBER: &[CoreTy] = &[CoreTy::Int, CoreTy::Float, CoreTy::Decimal];
 
 /// `Core\Math::round`'s `{precision?: int, mode?: RoundMode}`.
 ///
@@ -573,6 +579,8 @@ enum Number {
     Integer(i64),
     /// A `float`.
     Real(f64),
+    /// A `decimal` — ADR 0054's scalar, and the one arm that is exact.
+    Exact(Decimal),
 }
 
 fn number_at(args: &[Value], index: usize, member: &str) -> Result<Number, Fault> {
@@ -588,6 +596,9 @@ fn number_at(args: &[Value], index: usize, member: &str) -> Result<Number, Fault
     }
     if let Some(float) = args[index].as_float() {
         return Ok(Number::Real(float));
+    }
+    if let Some(exact) = args[index].as_decimal() {
+        return Ok(Number::Exact(exact));
     }
     Err(Fault::fatal(format!(
         "Core\\Math::{member} expected a number at argument {index}, got tag {}",
@@ -749,6 +760,9 @@ mwl_runtime::mwl_helper! {
                 )
             })?),
             Number::Real(n) => Value::float(n.abs()),
+            // Total, unlike the `int` arm: the mantissa is unsigned, so there
+            // is no magnitude that does not fit.
+            Number::Exact(n) => Value::decimal(n.abs()),
         })
     }
 }
@@ -769,6 +783,11 @@ mwl_runtime::mwl_helper! {
                         .to_owned(),
                 ));
             }
+            // Zero is never negative for a `decimal` (`mwl_runtime::decimal`),
+            // so this needs no `-0.0` case the way the `float` arm below does.
+            Number::Exact(n) if n.is_zero() => 0,
+            Number::Exact(n) if n.is_negative() => -1,
+            Number::Exact(_) => 1,
             Number::Real(0.0) => 0,
             Number::Real(n) => {
                 if n.is_sign_negative() {
@@ -1334,11 +1353,61 @@ fn digits_of(number: Number, decimals: usize) -> Result<(bool, String, String), 
             );
             format!("{rounded:.decimals$}")
         }
+        // Rounded over the digits themselves rather than over the value: a
+        // `decimal` is exact, so rounding it through any numeric intermediate
+        // would be the one place this member lost the precision ADR 0054
+        // exists to keep. It also lifts the `f64` path's ceiling — `decimals`
+        // may be anything up to `MAX_DECIMALS`, where a `decimal`'s own scale
+        // stops at 28.
+        Number::Exact(n) => return Ok(decimal_digits(n, decimals)),
     };
     let negative = written.starts_with('-');
     let magnitude = written.strip_prefix('-').unwrap_or(&written);
     let (integer, fraction) = split_at_point(magnitude);
     Ok((negative, integer, fraction))
+}
+
+/// One `decimal`'s digits, rounded **half up** at `decimals` places — the
+/// exact counterpart of the `f64` arm's `round_to` plus `{:.n}`, and the same
+/// rounding mode, so the two arms of [`digits_of`] agree on a value both can
+/// hold.
+///
+/// Rounding is done on the digit string, which is what keeps it exact and
+/// total: no intermediate can overflow 96 bits, and a `decimals` past
+/// `decimal`'s own scale of 28 simply pads.
+fn decimal_digits(value: Decimal, decimals: usize) -> (bool, String, String) {
+    let text = value.abs().to_string();
+    let (integer, fraction) = split_at_point(&text);
+    if fraction.len() <= decimals {
+        let mut fraction = fraction;
+        fraction.extend(std::iter::repeat_n('0', decimals - fraction.len()));
+        return (value.is_negative(), integer, fraction);
+    }
+    let mut digits = format!("{integer}{}", &fraction[..decimals]).into_bytes();
+    if fraction.as_bytes()[decimals] >= b'5' {
+        carry_one(&mut digits);
+    }
+    let kept = String::from_utf8(digits).expect("every byte written above is an ASCII digit");
+    let split = kept.len() - decimals;
+    (
+        value.is_negative(),
+        kept[..split].to_owned(),
+        kept[split..].to_owned(),
+    )
+}
+
+/// Adds one to a big-endian run of ASCII digits in place, growing it by a
+/// leading `1` where every digit carried (`999` becomes `1000`).
+fn carry_one(digits: &mut Vec<u8>) {
+    for digit in digits.iter_mut().rev() {
+        if *digit == b'9' {
+            *digit = b'0';
+        } else {
+            *digit += 1;
+            return;
+        }
+    }
+    digits.insert(0, b'1');
 }
 
 /// A written magnitude split at its decimal point, with an empty fraction for

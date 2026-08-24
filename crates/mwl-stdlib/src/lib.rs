@@ -81,18 +81,21 @@
 //!    [`granularity::DEFAULT`] is its answer, so `length` and `at` are
 //!    registered; `slice` is not, and what it waits on is now only a session
 //!    to write it — see gap 3. Section 3 is whole: every one of
-//!    [`math::CLASS`]'s thirty-eight rows runs, at `int|float` wherever the
-//!    spec writes `int|float|decimal`.
-//! 3. **Two shapes a §§ 1–12 signature writes still cannot be stated**, and
-//!    each blocks a named set of members. A **variadic** parameter blocks ADR
-//!    0069's `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
+//!    [`math::CLASS`]'s thirty-eight rows runs, and `abs`/`sign`/`format` take
+//!    the `int|float|decimal` the spec writes (see [`math`]'s own gap note for
+//!    the four rounding rows that do not yet).
+//! 3. **One shape a §§ 1–12 signature writes still cannot be stated.** A
+//!    **variadic** parameter blocks ADR 0069's
+//!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
 //!    `Arr::prepend` and `Path::join`; it is a `registry::CoreMethod` field
 //!    plus `mwl-ir`'s gap 8, since a helper's `args: [N]` is a fixed arity and
 //!    a variadic call has to collect its tail into an array before it can
-//!    reach one. `decimal` blocks `Arr::sum`, `product` and `average`, whose
-//!    subject is `array<int|float|decimal>`, and narrows seven `Core\Math`
-//!    rows to the two arms they are registered at; it is a
-//!    [`registry::CoreTy`] variant plus `mwl-ir`'s gap 15.
+//!    reach one.
+//!
+//!    `decimal` is no longer one of them: [`registry::CoreTy::Decimal`] states
+//!    it and `mwl_runtime::Decimal` is the value behind it, so `Arr::sum`,
+//!    `product` and `average` are written over the
+//!    `array<int|float|decimal>` subject the spec gives them.
 //!
 //!    A class **constant** is no longer among them: [`registry::CoreConst`] is
 //!    a roster on [`registry::CoreClass`], resolved by `mwl_types::expr`'s

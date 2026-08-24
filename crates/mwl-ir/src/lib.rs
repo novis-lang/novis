@@ -27,7 +27,8 @@
 //!   `instanceof`, `??`, the literal `null`, ADR 0007 § 2's scalar conversion
 //!   rows — free, total and checked alike — and ADR 0066's non-throwing
 //!   `as ?T` over the checked numeric targets.
-//! - **Types** — `int`/`uint`/`float`/`bool` scalars, `string`, `bytes`,
+//! - **Types** — `int`/`uint`/`float`/`bool`/`decimal` scalars, `string`,
+//!   `bytes`,
 //!   `array<T>` (element type erased — see [`ty::Ty`]), `object` (a class or
 //!   enum, likewise erased), `mixed`, `null`, `?T` and any other union (all
 //!   three tagged — see [`ty::Ty::Tagged`]), and [`ty::Ty::Ref`] for a `&$x`
@@ -220,14 +221,18 @@
 //! 14. **Safepoints are reserved, not functional.** [`ir::InstKind::Safepoint`]
 //!     is emitted at function entry and every loop back edge, but nothing
 //!     lowers it to a real CPU-limit or cancellation check yet.
-//! 15. **`decimal` has no IR representation.** ADR 0054's scalar checks now —
-//!     the keyword, the type atom, literal placement and § 3's arithmetic
-//!     table are all live in `mwl-syntax`/`mwl-types` — so a program that
-//!     declares one reaches [`lower::lower_decl_type`] and panics naming the
-//!     shape. Closing it is [`ty::Ty`]'s 16-byte register pair plus the helper
-//!     that ADR's *Consequences* calls "the real implementation cost": `+`,
-//!     `-` and comparison at equal scale inline to i128 operations, while `*`,
-//!     `/` and mixed-scale operands need a wider intermediate. M4 owes it.
+//! 15. **`decimal` lowers, but `<=>` over one does not.** ADR 0054's scalar
+//!     has a representation now — [`ty::Ty::Decimal`], the same register pair
+//!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
+//!     and every row of that ADR's §§ 3-4 is an [`ir::Helper`]: the five
+//!     arithmetic operators, negation, three comparisons that
+//!     [`lower::Lowering::lower_decimal_binary`] rewrites into all six,
+//!     truthiness, and both directions of every conversion. What is left is the
+//!     spaceship operator, which has no `decimal` row here and no `int` one
+//!     either — `<=>` reaches [`lower::Lowering::lower_expr`]'s panic for every
+//!     scalar operand, and only ADR 0013's *object* form lowers. `**` is not a
+//!     gap: ADR 0054 § 3 makes a `decimal` base a compile error, and
+//!     `mwl_types` reports it.
 //! 16. **`$x++` and `--$x` do not lower, the bitwise operators have no
 //!     [`ir::BinOp`] variant at all, and a compound assignment inherits both
 //!     holes.** [`lower::Lowering::lower_compound_assignment`] rewrites

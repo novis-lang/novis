@@ -20,6 +20,11 @@
 //! other — see [`check_fn_literal`], which owns ADR 0031's capture rule and
 //! the one shape it refuses (a block body with no declared return type).
 //!
+//! **`array<T>` is covariant in its element type**, and it is the only
+//! generic name in the language that is — [`is_assignable`]'s own doc comment
+//! owns the rule and why ADR 0007 § 5's copy-on-write value semantics make it
+//! sound where an aliasing language could not.
+//!
 //! ADR 0013's `Comparable` check for the five ordering operators has a
 //! sibling now: [`require_stringable`] refuses an object at every implicit
 //! string-conversion site (interpolation, concatenation, `echo`/`print`,
@@ -273,6 +278,23 @@ pub(crate) fn is_assignable(
     if let Ty::Shape(to_fields) = interner.get(to) {
         return shape_satisfied(from, to_fields, interner, graph, signatures);
     }
+    // **`array<T>` is covariant in its element type**, and it is the one
+    // generic name in the language that is — see [`class_satisfied`] for why
+    // `Iterator<T>` stays invariant beside it.
+    //
+    // The usual objection does not apply: covariant arrays are unsound in a
+    // language where the target *aliases* the source, because a write through
+    // the widened view lands in storage the narrow view still reads. ADR 0007
+    // § 5 makes an MWL array a copy-on-write **value** instead, so the widened
+    // binding is a separate array the moment anything writes to it, and the
+    // narrow one can never observe the write. What covariance buys is every
+    // signature the spec writes over a union — `Core\Arr::sum`'s
+    // `array<int|float|decimal>` takes an `array<int>`, which is what a caller
+    // means by it — and `Core\Arr::flip`'s `array<T>` binding a `T` it could
+    // not otherwise reach.
+    if let (Ty::Array(from_elem), Ty::Array(to_elem)) = (interner.get(from), interner.get(to)) {
+        return is_assignable(*from_elem, *to_elem, interner, graph, signatures);
+    }
     // ADR 0024 § 2 / ADR 0033 § 2: `tainted` and `secret` are two independent
     // bits on the same `string`/`bytes` base, and each may only ever widen
     // through ordinary assignment — a plain value is always a safe
@@ -434,6 +456,23 @@ const MAX_DECIMAL_MANTISSA: u128 = (1u128 << 96) - 1;
 
 /// ADR 0054 § 1's scale bound: the number of digits after the point.
 const MAX_DECIMAL_SCALE: i32 = 28;
+
+/// Records that the numeric literal at `span` was placed at `decimal`, and
+/// answers that type.
+///
+/// The recording is what lets `mwl_ir::lower` fold the literal from its own
+/// **digits** rather than through an `f64`. It needs it because ADR 0054 § 2's
+/// placing target is not always visible there: a declared type reaches
+/// lowering as `mwl_ir::ty::Ty`, which erases an array's element type, so
+/// `array<decimal> $prices = [19.99];` would otherwise put a `float` in the
+/// array the checker just typed `decimal`. Reading the answer back is the same
+/// arrangement [`crate::expr_table::ExprTypeTable::declared_ty`] already
+/// serves for an enum-named type atom.
+fn record_decimal_placement(span: Span, env: &mut Env<'_>) -> TypeId {
+    let decimal = env.interner.decimal();
+    env.exprs.record_type(span, decimal);
+    decimal
+}
 
 /// Whether the position a literal is being placed in wants a `decimal` —
 /// ADR 0054 § 2's "untyped until placed" rule, asked once per literal arm.
@@ -673,7 +712,7 @@ fn infer(
             // so an integer literal placed at `decimal` needs only that wider
             // bound checked — not `int`'s 64-bit one below.
             check_decimal_int_literal(*span, expr.span, env);
-            env.interner.decimal()
+            record_decimal_placement(expr.span, env)
         }
         ExprKind::Int(span) => {
             let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
@@ -721,7 +760,7 @@ fn infer(
         // else, including `var $x = 19.99;`, which has no target at all.
         ExprKind::Float(span) if wants_decimal(expected, env) => {
             check_decimal_float_literal(*span, expr.span, env);
-            env.interner.decimal()
+            record_decimal_placement(expr.span, env)
         }
         ExprKind::Float(_) => env.interner.float(),
         ExprKind::Str(span) => {

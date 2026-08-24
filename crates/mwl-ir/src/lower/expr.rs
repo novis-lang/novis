@@ -88,6 +88,24 @@ impl<'a> Lowering<'a> {
             // an undeclared local just above.
             ExprKind::Int(span) => {
                 let (radix, digits) = int_literal_digits(self.src, *span);
+                if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
+                    // ADR 0054 § 2's placing rule, integer half: an integer
+                    // literal is scale 0 by construction, so only the mantissa
+                    // can overflow — and `mwl_types` has already reported that
+                    // if it did.
+                    let mantissa = u128::from_str_radix(&digits, radix).unwrap_or_else(|_| {
+                        panic!("mwl-ir: integer literal `{digits}` doesn't fit a `decimal`")
+                    });
+                    return self.emit(
+                        *cur,
+                        Ty::Decimal,
+                        InstKind::ConstDecimal {
+                            negative: false,
+                            mantissa,
+                            scale: 0,
+                        },
+                    );
+                }
                 if expected == Some(Ty::Uint) {
                     let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
                         panic!("mwl-ir: integer literal `{digits}` doesn't fit a `uint`")
@@ -102,6 +120,25 @@ impl<'a> Lowering<'a> {
             }
             ExprKind::Float(span) => {
                 let digits = clean_digits(self.src, *span);
+                // ADR 0054 § 2: a fractional literal is untyped until placed,
+                // and `decimal` is one of the two types that may place it —
+                // read from the *text*, so the full 29 significant digits
+                // survive rather than being rounded through an `f64` first.
+                if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
+                    let (mantissa, scale) =
+                        decimal_literal_parts(&digits).unwrap_or_else(|| {
+                            panic!("mwl-ir: float literal `{digits}` doesn't fit a `decimal`")
+                        });
+                    return self.emit(
+                        *cur,
+                        Ty::Decimal,
+                        InstKind::ConstDecimal {
+                            negative: false,
+                            mantissa,
+                            scale,
+                        },
+                    );
+                }
                 let n: f64 = digits
                     .parse()
                     .unwrap_or_else(|_| panic!("mwl-ir: float literal `{digits}` failed to parse"));
@@ -159,6 +196,20 @@ impl<'a> Lowering<'a> {
             } => (self.lower_not(inner, env, cur), Ty::Bool),
             ExprKind::Unary { op, expr: inner } => {
                 let (v, ty) = self.lower_expr(inner, expected, env, cur);
+                // ADR 0054's scalar has no machine negate: like every other
+                // operator over one it is a helper call. It cannot fail --
+                // the mantissa is unsigned, so there is no asymmetric minimum
+                // to overflow the way `-i64::MIN` does.
+                if ty == Ty::Decimal && matches!(op, AstUnaryOp::Neg) {
+                    return self.emit(
+                        *cur,
+                        Ty::Decimal,
+                        InstKind::HelperCall {
+                            helper: Helper::DecimalNeg,
+                            args: vec![v],
+                        },
+                    );
+                }
                 let uop = match op {
                     AstUnaryOp::Neg => UnOp::Neg,
                     other => panic!(
@@ -233,7 +284,14 @@ impl<'a> Lowering<'a> {
             }
             ExprKind::Binary { op, lhs, rhs } => {
                 let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
-                let (rv, _) = self.lower_expr(rhs, Some(lty), env, cur);
+                let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
+                // ADR 0054 § 3's table is a set of runtime helpers rather than
+                // a machine instruction, so a `decimal` on *either* side takes
+                // its own path -- including the mixed `decimal ⊕ int` row,
+                // which the helper promotes from the operand's own tag.
+                if lty == Ty::Decimal || rty == Ty::Decimal {
+                    return self.lower_decimal_binary(*op, lv, rv, env, cur);
+                }
                 let (bop, ty) = match op {
                     BinaryOp::Add => (BinOp::Add, lty),
                     BinaryOp::Sub => (BinOp::Sub, lty),
@@ -961,11 +1019,6 @@ impl<'a> Lowering<'a> {
             // own answer for the annotation, so an enum target/source is
             // already the right representation by the time `convert` sees it.
             ExprKind::Conversion { expr: inner, ty } => {
-                // `None`, not the target: `mwl_types::expr::check_expr`'s own
-                // `Conversion` arm checks the operand with no expected type,
-                // so a bare integer literal inside one is an `int` here for
-                // the same reason it is there.
-                let (v, from) = self.lower_expr(inner, None, env, cur);
                 // ADR 0066's `as ?T` is read off the *annotation*, before
                 // `lower_decl_type` erases it: `?string` and `?int` are both
                 // `Ty::Tagged`, so a conversion between them would look like
@@ -973,11 +1026,28 @@ impl<'a> Lowering<'a> {
                 // doing nothing at all.
                 match nullable_target(ty) {
                     Some(target) => {
+                        // No placement here, unlike the arm below: placing a
+                        // literal at the target would make `3 as ?uint` the
+                        // `from == to` shape ADR 0066 § 3 calls a compile
+                        // error, which `mwl_types` does not refuse yet, so it
+                        // would panic where it now converts.
+                        let (v, from) = self.lower_expr(inner, None, env, cur);
                         let to = lower_decl_type(target, self.exprs, self.checked_types);
                         self.convert_or_null(v, from, to, inner, *cur)
                     }
                     None => {
                         let to = lower_decl_type(ty, self.exprs, self.checked_types);
+                        // ADR 0054 § 2: `expr as T` is itself a *placing*
+                        // position, so a numeric literal written directly
+                        // under one takes `T` as its target rather than being
+                        // typed first and converted afterwards. Mirrors
+                        // `mwl_types::expr::check_expr`'s own `Conversion`
+                        // arm, operand shape included — without it
+                        // `19.99 as decimal` would round-trip through an
+                        // `f64` and lose everything past ~17 digits.
+                        let placed = matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_))
+                            .then_some(to);
+                        let (v, from) = self.lower_expr(inner, placed, env, cur);
                         self.convert(v, from, to, inner, env, *cur)
                     }
                 }
@@ -1033,6 +1103,85 @@ impl<'a> Lowering<'a> {
             }
         }
     }
+    /// Whether the checker *placed* the numeric literal at `span` at
+    /// `decimal` — ADR 0054 § 2's rule, read back from the one recording
+    /// `mwl_types::expr::record_decimal_placement` makes.
+    ///
+    /// [`Lowering::lower_expr`]'s own `expected` answers the same question
+    /// wherever the position's representation reaches this crate, which is
+    /// most of them. This covers the positions where it does not: an array
+    /// literal's elements, whose type [`Ty::Array`] erases, is the one that
+    /// matters today, because a `float` stored where the checker typed a
+    /// `decimal` is a *silently* wrong value rather than a loud one.
+    fn placed_at_decimal(&self, span: mwl_diagnostics::Span) -> bool {
+        self.exprs
+            .declared_ty(span)
+            .is_some_and(|id| matches!(self.checked_types.get(id), CheckedTy::Decimal))
+    }
+    /// One binary operator with a [`Ty::Decimal`] operand —
+    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's whole
+    /// table, as [`Helper`] calls rather than machine instructions.
+    ///
+    /// Three helpers cover all six comparisons, which is why this is a
+    /// rewrite rather than a lookup: `!=` is [`Helper::DecimalEq`] under a
+    /// [`UnOp::Not`], and `>`/`>=` are [`Helper::DecimalLt`]/
+    /// [`Helper::DecimalLtEq`] with their operands swapped. That is not
+    /// merely fewer variants — it is what gives an unordered operand (a
+    /// `NaN` on the `float` side of § 3's comparison row) PHP's answer to all
+    /// six at once, which a single compare-to-zero result could not encode.
+    ///
+    /// Neither operand is ever refcounted, so nothing is released here.
+    fn lower_decimal_binary(
+        &mut self,
+        op: BinaryOp,
+        lhs: ValueId,
+        rhs: ValueId,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (helper, ty, args, negate) = match op {
+            BinaryOp::Add => (Helper::DecimalAdd, Ty::Decimal, vec![lhs, rhs], false),
+            BinaryOp::Sub => (Helper::DecimalSub, Ty::Decimal, vec![lhs, rhs], false),
+            BinaryOp::Mul => (Helper::DecimalMul, Ty::Decimal, vec![lhs, rhs], false),
+            BinaryOp::Div => (Helper::DecimalDiv, Ty::Decimal, vec![lhs, rhs], false),
+            BinaryOp::Mod => (Helper::DecimalMod, Ty::Decimal, vec![lhs, rhs], false),
+            BinaryOp::Eq | BinaryOp::Identical => {
+                (Helper::DecimalEq, Ty::Bool, vec![lhs, rhs], false)
+            }
+            BinaryOp::NotEq | BinaryOp::NotIdentical => {
+                (Helper::DecimalEq, Ty::Bool, vec![lhs, rhs], true)
+            }
+            BinaryOp::Lt => (Helper::DecimalLt, Ty::Bool, vec![lhs, rhs], false),
+            BinaryOp::Gt => (Helper::DecimalLt, Ty::Bool, vec![rhs, lhs], false),
+            BinaryOp::LtEq => (Helper::DecimalLtEq, Ty::Bool, vec![lhs, rhs], false),
+            BinaryOp::GtEq => (Helper::DecimalLtEq, Ty::Bool, vec![rhs, lhs], false),
+            other => panic!(
+                "mwl-ir lowers ADR 0054 § 3's arithmetic, equality and ordering operators over \
+                 `decimal` — got {other:?}; `**` and `<=>` have no row there"
+            ),
+        };
+        let inst = InstKind::HelperCall { helper, args };
+        // Only the arithmetic rows can fail: every one of them throws
+        // `ArithmeticError` on either overflow kind, and `/` on a zero
+        // divisor. A comparison is total.
+        let (v, _) = if ty == Ty::Decimal {
+            self.emit_fallible(*cur, ty, inst, env)
+        } else {
+            self.emit(*cur, ty, inst)
+        };
+        if negate {
+            return self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::UnOp {
+                    op: UnOp::Not,
+                    operand: v,
+                },
+            );
+        }
+        (v, ty)
+    }
+
     /// Lowers one `.` operand and, if it isn't already [`Ty::Str`], converts
     /// it through a new [`InstKind::HelperCall`] — `mwl_types::expr::
     /// check_expr`'s own `require_stringable` already accepts a scalar or a
@@ -1061,12 +1210,13 @@ impl<'a> Lowering<'a> {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
             Ty::Str => (v, self.aliasing_read(expr)),
-            Ty::Bool | Ty::Int | Ty::Uint | Ty::Float => {
+            Ty::Bool | Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal => {
                 let helper = match ty {
                     Ty::Bool => Helper::BoolToString,
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
                     Ty::Float => Helper::FloatToString,
+                    Ty::Decimal => Helper::DecimalToString,
                     Ty::Str
                     | Ty::Bytes
                     | Ty::Void
@@ -1249,11 +1399,13 @@ impl<'a> Lowering<'a> {
                 }
                 (b, Ty::Bool)
             }
-            (Ty::Bool | Ty::Int | Ty::Uint | Ty::Float, Ty::Str) => {
+            (Ty::Bool | Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal, Ty::Str) => {
                 let helper = match from {
                     Ty::Bool => Helper::BoolToString,
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
+                    // ADR 0054 § 4's row: total, and scale-preserving.
+                    Ty::Decimal => Helper::DecimalToString,
                     _ => Helper::FloatToString,
                 };
                 self.emit(
@@ -1293,8 +1445,19 @@ impl<'a> Lowering<'a> {
             | (Ty::Uint, Ty::Int)
             | (Ty::Int | Ty::Uint, Ty::Float)
             | (Ty::Float, Ty::Int | Ty::Uint)
-            | (Ty::Str, Ty::Int | Ty::Uint | Ty::Float) => {
+            | (Ty::Str, Ty::Int | Ty::Uint | Ty::Float)
+            // ADR 0054 § 4's rows. `→ decimal` is one helper for every source
+            // (including `Ty::Tagged`, whose row only its runtime tag names),
+            // the same "one tag per target" arrangement `Helper::ToIntOrNull`
+            // already follows; the three out of `decimal` are per-target, like
+            // every other row here.
+            | (Ty::Int | Ty::Uint | Ty::Float | Ty::Str | Ty::Tagged, Ty::Decimal)
+            | (Ty::Decimal, Ty::Int | Ty::Uint | Ty::Float) => {
                 let helper = match (from, to) {
+                    (_, Ty::Decimal) => Helper::ToDecimal,
+                    (Ty::Decimal, Ty::Int) => Helper::DecimalToInt,
+                    (Ty::Decimal, Ty::Uint) => Helper::DecimalToUint,
+                    (Ty::Decimal, _) => Helper::DecimalToFloat,
                     (Ty::Int, Ty::Uint) => Helper::IntToUint,
                     (Ty::Uint, Ty::Int) => Helper::UintToInt,
                     (Ty::Int, _) => Helper::IntToFloat,
@@ -1376,6 +1539,7 @@ impl<'a> Lowering<'a> {
             Ty::Int => Helper::ToIntOrNull,
             Ty::Uint => Helper::ToUintOrNull,
             Ty::Float => Helper::ToFloatOrNull,
+            Ty::Decimal => Helper::ToDecimalOrNull,
             other => panic!(
                 "mwl-ir lowers ADR 0066's `as ?T` for the checked numeric targets — got \
                  `{from:?} as ?{other:?}`. A total conversion (`as ?string`, `as ?bool`) is that \
@@ -1428,11 +1592,12 @@ impl<'a> Lowering<'a> {
     pub(super) fn truthy_convert(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> ValueId {
         match ty {
             Ty::Bool => v,
-            Ty::Int | Ty::Uint | Ty::Float | Ty::Str => {
+            Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal | Ty::Str => {
                 let helper = match ty {
                     Ty::Int => Helper::IntTruthy,
                     Ty::Uint => Helper::UintTruthy,
                     Ty::Float => Helper::FloatTruthy,
+                    Ty::Decimal => Helper::DecimalTruthy,
                     Ty::Str => Helper::StrTruthy,
                     Ty::Bool
                     | Ty::Void

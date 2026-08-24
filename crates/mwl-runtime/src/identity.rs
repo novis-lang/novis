@@ -29,6 +29,14 @@
 //!   `-0.0` are identical and `NaN` is identical to nothing, both PHP's
 //!   answers, and both the opposite of what `total_cmp` (which
 //!   `Core\Arr::sort` needs, and which is a different question) would say.
+//! * **`decimal` compares by value, never by scale, and crosses to neither
+//!   `int` nor `float`.** [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)
+//!   § 4 states the first half outright — "scale is carried for rendering, and
+//!   does not affect equality or hashing", so `1.10` and `1.1000` are one
+//!   value — and the second half is the `float` row's rule applied to a third
+//!   numeric type. That is why this needs a row rather than falling into the
+//!   opaque-handle case below: two equal decimals at different scales hold
+//!   different bits.
 //! * **`string`/`bytes`** — by content, never by pointer, so a computed
 //!   string matches a literal. [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
 //!   makes a `string` valid UTF-8 but does *not* normalize it, so this is a
@@ -118,6 +126,10 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
             // both PHP's answers, and both differ from comparing `bits()`.
             f64::from_bits(left.bits()) == f64::from_bits(right.bits())
         }
+        (Some(Tag::Decimal), Some(Tag::Decimal)) => match (left.as_decimal(), right.as_decimal()) {
+            (Some(a), Some(b)) => a.compare(b).is_eq(),
+            _ => false,
+        },
         (Some(Tag::Str), Some(Tag::Str)) => left.as_str_bytes() == right.as_str_bytes(),
         (Some(Tag::Array), Some(Tag::Array)) => {
             let (Some(a), Some(b)) = (left.array_ptr(), right.array_ptr()) else {
@@ -200,6 +212,18 @@ fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
             // `-0.0` is identical to `0.0`, so both hash as `0.0`.
             let float = f64::from_bits(value.bits());
             state.write_u64(if float == 0.0 { 0.0f64 } else { float }.to_bits());
+        }
+        Some(Tag::Decimal) => {
+            state.write_u8(7);
+            // Trailing zeros are stripped first, because they are exactly the
+            // difference identity ignores: `1.10` and `1.1000` are one value
+            // and must be one hash.
+            let Some(value) = value.as_decimal().map(crate::Decimal::reduced) else {
+                return;
+            };
+            state.write_u8(u8::from(value.is_negative()));
+            state.write_u128(value.mantissa());
+            state.write_u8(value.scale());
         }
         Some(Tag::Str) => {
             state.write_u8(4);

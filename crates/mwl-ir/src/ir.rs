@@ -217,6 +217,22 @@ pub enum InstKind {
     ConstUint(u64),
     /// A `float` constant.
     ConstFloat(f64),
+    /// A `decimal` constant — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)
+    /// § 2's untyped-until-placed literal, once a target type has placed it.
+    ///
+    /// Carried as the three parts rather than as the sixteen-byte image
+    /// [`crate::ty::Ty::Decimal`] describes, because this crate does not
+    /// depend on `mwl-runtime` and that image's bit positions are
+    /// `mwl_runtime::decimal`'s one home. `mwl-codegen` depends on both and is
+    /// where the two meet.
+    ConstDecimal {
+        /// The sign; a zero mantissa is never negative.
+        negative: bool,
+        /// The unsigned mantissa, at most 96 bits.
+        mantissa: u128,
+        /// Digits after the point, at most 28.
+        scale: u8,
+    },
     /// The constant `null` — a [`crate::ty::Ty::Null`] value, which allocates
     /// nothing and owns nothing.
     ///
@@ -963,6 +979,49 @@ pub enum Helper {
     StrTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
     ArrayTruthy,
+    /// `decimal` truthiness: falsy iff zero, at any scale.
+    DecimalTruthy,
+    /// `a + b` over [`crate::ty::Ty::Decimal`] —
+    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3, which
+    /// **throws** on either overflow kind rather than wrapping or promoting,
+    /// so this and the four below carry ADR 0002's error edge like any call.
+    ///
+    /// Either operand may be an `int` or a `uint` instead: § 3's
+    /// `decimal ⊕ int` row promotes exactly in 96 bits, and the helper does it
+    /// from the operand's own tag, so lowering emits no conversion for one.
+    /// A `float` operand never reaches here — § 3 makes `decimal ⊕ float` a
+    /// compile error.
+    DecimalAdd,
+    /// `a - b` over `decimal` — see [`Self::DecimalAdd`].
+    DecimalSub,
+    /// `a * b` over `decimal`. The scales add, so a product wanting more than
+    /// 28 of them throws rather than reducing precision the way
+    /// `System.Decimal` does.
+    DecimalMul,
+    /// `a / b` over `decimal` — always a `decimal`, never a union, rounding
+    /// half to even at the maximum scale the result admits. A zero divisor
+    /// throws.
+    DecimalDiv,
+    /// `a % b` over `decimal`, carrying the dividend's sign.
+    DecimalMod,
+    /// `-a` over `decimal`. Never fails: the mantissa is unsigned, so there is
+    /// no asymmetric minimum to overflow.
+    DecimalNeg,
+    /// `a == b` with a `decimal` operand — exact, and independent of scale, so
+    /// `1.10 == 1.1000`. **`!=` is this helper under [`UnOp::Not`]**, which is
+    /// also what gives an unordered `NaN` operand PHP's answer.
+    ///
+    /// Unlike the arithmetic helpers this one takes a `float` operand too:
+    /// ADR 0054 § 3 permits comparison across the pair precisely where it
+    /// forbids arithmetic, because an exact comparison is always computable
+    /// even where a common arithmetic type is not.
+    DecimalEq,
+    /// `a < b` with a `decimal` operand. **`>` is this helper with its
+    /// operands swapped** — see [`Self::DecimalEq`] for why three helpers
+    /// cover all six comparisons.
+    DecimalLt,
+    /// `a <= b` with a `decimal` operand; `>=` is this one swapped.
+    DecimalLtEq,
     /// `$n as uint` — ADR 0007 § 2's `int` ↔ `uint` row. Exact, or **throws**
     /// on a negative value. The first of nine helpers that can fail rather
     /// than convert, so each is emitted through
@@ -1011,6 +1070,27 @@ pub enum Helper {
     ToUintOrNull,
     /// `$x as ?float` — [`Self::ToIntOrNull`]'s row set, landing on `float`.
     ToFloatOrNull,
+    /// `$x as decimal` — ADR 0054 § 4's four `→ decimal` rows, chosen by the
+    /// operand's runtime tag the way [`Self::ToIntOrNull`] chooses, so one
+    /// helper covers `int`, `uint`, `float`, `string` and `mixed` alike.
+    /// Throws where the row fails or does not exist, so it carries an error
+    /// edge.
+    ToDecimal,
+    /// `$x as ?decimal` — [`Self::ToDecimal`]'s rows in ADR 0066 § 1's
+    /// non-throwing form, sharing one implementation of each.
+    ToDecimalOrNull,
+    /// `$d as int` — integral and in range, or throws. Rounding is
+    /// `Core\Decimal::floor`/`ceil`/`round`, said out loud, exactly as
+    /// [`Self::FloatToInt`] already is.
+    DecimalToInt,
+    /// `$d as uint` — [`Self::DecimalToInt`]'s row, unsigned.
+    DecimalToUint,
+    /// `$d as float` — the nearest `f64`. Lossy, total, and explicit like
+    /// every other `as`.
+    DecimalToFloat,
+    /// `$d as string` — total, and **scale-preserving**: `19.90` renders as
+    /// `"19.90"`, which is ADR 0054 § 4's row.
+    DecimalToString,
     /// A [`crate::ty::Ty::Tagged`] operand to `string` — the four scalar
     /// conversions above plus `null`, chosen by the operand's **runtime** tag
     /// rather than by a static type, since a `mixed`, a `?T` or any other

@@ -24,14 +24,15 @@
 use std::fmt;
 
 use crate::array::{ArrayHeader, MwlArray};
+use crate::decimal::Decimal;
 use crate::object::{MwlObj, ObjHeader};
 use crate::string::{MwlStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
-/// The roster is the plan's § *Value representation* verbatim. Four of the ten
-/// have no representation behind them yet — see the crate docs' known gap 1 —
-/// but they are numbered now so the discriminants never have to move.
+/// The roster is the plan's § *Value representation*. Two of the eleven have
+/// no representation behind them yet — see the crate docs' known gap 1 — but
+/// they are numbered now so the discriminants never have to move.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Tag {
@@ -63,6 +64,13 @@ pub enum Tag {
     Closure = 8,
     /// An engine-owned resource handle; no representation exists yet.
     Resource = 9,
+    /// `decimal` — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s
+    /// scalar, and the one tag whose value does **not** fit in the payload
+    /// alone: its 96-bit mantissa spans the padding bytes too, so a `decimal`
+    /// is the whole sixteen bytes rather than a tag plus eight. See
+    /// [`crate::decimal`]'s own module docs for the bit positions and why one
+    /// `Value` shape carries it rather than a representation of its own.
+    Decimal = 10,
 }
 
 impl Tag {
@@ -84,6 +92,7 @@ impl Tag {
             7 => Self::Object,
             8 => Self::Closure,
             9 => Self::Resource,
+            10 => Self::Decimal,
             _ => return None,
         })
     }
@@ -164,6 +173,35 @@ impl Value {
     #[must_use]
     pub const fn float(value: f64) -> Self {
         Self::new(Tag::Float, value.to_bits())
+    }
+
+    /// A `decimal` — the one representation that is **not** a tag plus a
+    /// payload: its sign, scale and 96-bit mantissa fill all sixteen bytes,
+    /// so this writes the whole image rather than going through
+    /// [`Self::new`]. [`crate::decimal`]'s own docs own the bit positions.
+    #[must_use]
+    pub fn decimal(value: Decimal) -> Self {
+        let bytes = value.to_bits().to_le_bytes();
+        let mut pad = [0u8; 7];
+        pad.copy_from_slice(&bytes[1..8]);
+        let mut bits = [0u8; 8];
+        bits.copy_from_slice(&bytes[8..16]);
+        Self {
+            tag: bytes[0],
+            pad,
+            bits: u64::from_le_bytes(bits),
+        }
+    }
+
+    /// The payload as a `decimal`, if this value is one — the inverse of
+    /// [`Self::decimal`].
+    #[must_use]
+    pub fn as_decimal(self) -> Option<Decimal> {
+        let mut bytes = [0u8; 16];
+        bytes[0] = self.tag;
+        bytes[1..8].copy_from_slice(&self.pad);
+        bytes[8..16].copy_from_slice(&self.bits.to_le_bytes());
+        Decimal::from_bits(u128::from_le_bytes(bytes))
     }
 
     /// A `string`, taking over the handle's reference.
@@ -487,6 +525,10 @@ impl fmt::Debug for Value {
                 let bytes = self.as_str_bytes().unwrap_or_default();
                 write!(f, "string({:?})", String::from_utf8_lossy(bytes))
             }
+            Some(Tag::Decimal) => match self.as_decimal() {
+                Some(value) => write!(f, "decimal({value})"),
+                None => write!(f, "<invalid decimal>"),
+            },
             Some(tag) => write!(f, "{tag:?}(0x{:016x})", self.bits),
             None => write!(f, "<invalid tag {}>(0x{:016x})", self.tag, self.bits),
         }
@@ -528,7 +570,7 @@ mod tests {
         #[expect(unsafe_code, reason = "constructing the shape a miscompile would")]
         let bogus = unsafe { Value::from_parts(Tag::Null, 0) };
         assert_eq!(bogus.tag(), Some(Tag::Null));
-        assert_eq!(Tag::from_byte(10), None);
+        assert_eq!(Tag::from_byte(11), None);
         assert_eq!(Tag::from_byte(u8::MAX), None);
     }
 

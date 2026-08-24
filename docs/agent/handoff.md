@@ -2,60 +2,56 @@
 
 ## State
 
-**Stage 3 — `Core` Part I across spec §§ 1–12 — has spec § 3 whole, constants included.**
-A class constant is now a kind of member the registry states: `registry::CoreConst`, a roster on
-`CoreClass` beside `methods`, whose own doc comment owns why a constant is a roster rather than a
-`CoreTy` variant. `Core\Math`'s eleven — `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`,
-`UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN`, `INFINITY` — are registered and run. Resolution is
-`mwl_types::expr`'s `ClassConstAccess` arm, which now splits three ways (enum case, `Core`
-constant, unmodeled user-declared constant); lowering is `ExprInfo::CoreConst` through the same
-`emit_const_arg` a parameter default already used, since ADR 0011's constant is inlined at the use
-site exactly as ADR 0010 § 3's enum case is. An unregistered name on a registered `Core` class is
-now `E0405` — the third narrowing of `Core`'s blanket trust, beside the member and enum-case ones.
+**Stage 3 — `Core` Part I across spec §§ 1–12 — has spec § 3 whole and § 2's aggregations, and
+`decimal` is a real type end to end.** ADR 0054's scalar is `mwl_ir::ty::Ty::Decimal` over
+`mwl_runtime::decimal`; that module's own doc comment is the home for the layout, for why one
+`Value` shape carries it (`Tag::Decimal`, mantissa spending the padding bytes) rather than a second
+16-byte shape, and for what it spends. `Tag`/`Untag` are the **identity** on one, so a `mixed` or a
+`?decimal` holds it with nothing to rebuild. Every § 3 operator and § 4 conversion is an
+`ir::Helper`; three comparison helpers cover all six operators, which is what gives a `NaN` on the
+`float` side PHP's answer to each.
 
-**`Core\Path::SEPARATOR` and every later section's constants need only their class.** Two
-signature shapes are still missing: a **variadic** parameter and `CoreTy::Decimal`
-(`mwl-stdlib`'s gap 3 owns both lists).
+Two things landed with it. `array<T>` is now **element-covariant on read**
+(`mwl_types::expr::is_assignable` owns the rule and why copy-on-write makes it sound) — without it
+no `array<int>` satisfies the `array<int|float|decimal>` the spec writes. And the checker now
+**records** a numeric literal it placed at `decimal` (`mwl_types::expr::record_decimal_placement`),
+which lowering reads back: `Ty::Array` erases the element type, so `array<decimal> $p = [19.99];`
+would otherwise have stored a `float` where the checker said `decimal`.
 
-Stage 3's seven fixtures still stand at two passing (`examples/core.mwl`, `examples/report.mwl`).
-`examples/numbers.mwl` now fails on exactly two things, both `decimal`: `Math::format` over a
-`decimal` sum, and `Arr::sum`/`Arr::max` over one.
+Stage 3's seven fixtures stand at **three passing** (`core.mwl`, `report.mwl`, `numbers.mwl`).
+`text.mwl` is the first that fails, on `Core\Regex`.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 290 conformance + 85 differential
-cases. No new refcount edge — a constant lowers to an immediate, so no `valgrind` run was owed.
+Verified: `cargo build`/`test`/`clippy`/`fmt` green, 293 conformance + 85 differential cases, and
+`tools/leak-check.sh examples/numbers.mwl` clean — a `decimal` is not refcounted, so no new
+refcount edge, but the fixture allocates a string per rendered value.
 
 ## Next
 
-**`CoreTy::Decimal` and `decimal`'s IR representation** — ADR 0054 § 3's 16-byte register pair,
-`mwl-ir`'s gap 15. It is the last thing between `examples/numbers.mwl` and its frozen output, it
-widens the seven `Core\Math` rows the spec writes `int|float|decimal` at (`math.rs`'s own gap note
-lists them), and it unblocks `Arr::sum`/`product`/`average`, whose subject is
-`array<int|float|decimal>`. The front end already has the keyword, the type atom and the
-arithmetic table, so what is owed is the IR type plus a `registry::CoreTy` variant.
+**`Core\Regex`, spec § 5** — `docs/spec/01-core-library.md` § 5 has the rows, and
+[ADR 0056](../adr/0056-regex-engine-policy.md) settles the engine: `regex` as the linear-time
+default *and* `fancy-regex` as the budgeted backtracking tier, both named by the user in
+`loop-goal.md` § *Standing decisions*, so both land together and close that ADR rather than half of
+it. `examples/text.mwl` is the fixture that unblocks; `Regex::split` is the member it reaches
+first. A new dependency owes three things (AGENTS.md § *Commands*).
 
 ## Backlog
 
-- **`Core\Arr::diff`/`intersect`** — the last two set members; they need a `Core\SetOn { Values,
-  Keys, Both }` enum in `registry::ENUMS` and an `{on?, by?, comparator?}` bag, both shapes the
-  registry can already state. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s
-  own *Known gap*, not new; `Core\Str::padStart("ab", 10, "")` in a loop reproduces it under
-  `tools/leak-check.sh` in four lines. Closing it needs an owned-temporaries stack through
-  `lower_expr`.
+- **`Core\Str::slice` and `Arr::diff`/`intersect`** — the last of §§ 1–2 that need no new signature
+  shape; `diff`/`intersect` want a `Core\SetOn { Values, Keys, Both }` enum in `registry::ENUMS` and
+  an `{on?, by?, comparator?}` bag. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
+- **A variadic parameter** is the one signature shape left — `mwl-stdlib`'s gap 3 owns the member
+  list, `mwl-ir`'s gap 8 the lowering half.
+- **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
+  *Known gap*; `Core\Str::padStart("ab", 10, "")` in a loop reproduces it under `tools/leak-check.sh`.
 - **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still
   panic** — each closes the way rendering did, with a `Helper` variant dispatching on the tag.
-  That variant's own doc comment lists them. `Core\Math::abs($x) < 1.0` is the shortest repro.
-- **`do`/`while` and `$i++`/`$i--` do not lower** — the first is `lower_while` with the branch
-  moved below the body, the second is `lower_compound_assignment` with a synthesized `1`, but
-  `mwl_types` types an inc/dec as its operand and checks no target, so that half is owed first.
+  `Core\Math::abs($x) < 1.0` is the shortest repro.
+- **`do`/`while` and `$i++`/`$i--` do not lower**, and `<=>` lowers for no scalar operand at all
+  (`mwl-ir` gaps 1, 15 and 16).
 - **The bitwise operators have no `ir::BinOp` variant**, so `&`/`|`/`^`/`<<`/`>>`/`**` and their
-  compound forms all panic in lowering — `mwl-ir`'s gap 16. PHP throws `ArithmeticError` on a
-  negative shift.
-- **ADR 0066 § 3's refusals are `mwl_types`' half and are not built** — a conversion that cannot
-  fail (`$i as ?string`) and one that does not exist (`$arr as ?int`) both reach `mwl-ir` and
-  panic naming that ADR where a diagnostic belongs.
-- **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of the kind AGENTS.md
-  forbids — the one doc in the repo genuinely owed a trim.
+  compound forms panic in lowering — `mwl-ir`'s gap 16.
+- **A `decimal` parameter default is refused** — `mwl_types::defaults` says why, and now needs only
+  a `ConstArg` variant carrying `InstKind::ConstDecimal`'s three parts.
 
 ## Standing rules for this repo
 
@@ -67,8 +63,9 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 + handoff, commit, **stop** — no second `cargo` pass after the commit. Tooling notes:
 
 - **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
-  exact-match splice. Use the Write tool, or `python tools/splice.py <target> <old> <new>` with both blocks
-  written to `.agent-tmp/`. A throwaway `.agent-tmp/*.py` script run with `python` is fine for a bulk edit.
+  exact-match splice — a `\\` written in a `python - <<'PY'` heredoc arrives as `\`, and a `"\n"` arrives
+  as a real newline, so a block containing either will silently fail to match. Use the Write tool, or
+  `python tools/splice.py <target> <old> <new>` with both blocks written to `.agent-tmp/`.
   `splice.py` matches the anchor **exactly**, trailing newline included — the Write tool ends a file with
   one, so strip it from both blocks when splicing mid-paragraph. A Rust string holding a `Core\Name`
   label needs `r"..."`, or the backslash is an unknown escape.
@@ -78,6 +75,10 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
   `args: [3]`. A mismatch is an index-out-of-bounds panic at the first call, not a build error.
+- **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
+  `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
+  symbol, not a link error), and a `.mwlt` case that calls it — `tests/conformance_coverage.rs` fails
+  `cargo test -p mwl-stdlib` without one.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
   makes the runner *skip the whole case* there, subtracting from the very count Stage 4 measures. Verify
   against PHP while authoring (a `.php` twin under `.agent-tmp/`, `php` is on the Windows `PATH`), then

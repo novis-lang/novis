@@ -53,6 +53,42 @@ pub enum Ty {
     Uint,
     /// `float`.
     Float,
+    /// `decimal` — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s
+    /// scalar, sign plus a 96-bit mantissa plus a scale of 0 to 28.
+    ///
+    /// # The representation
+    ///
+    /// **A `mwl_runtime::Value` carrying `Tag::Decimal`**, which is to say the
+    /// same register pair [`Self::Tagged`] travels in and the same sixteen
+    /// bytes — not a shape of its own. The mantissa does not fit the payload
+    /// half alone, so it spills into the bytes a `Value` otherwise calls
+    /// padding; `mwl_runtime::decimal`'s own module docs are the one home for
+    /// the bit positions and for why one shape was chosen over two.
+    ///
+    /// The consequence worth knowing here: [`crate::ir::InstKind::Tag`] and
+    /// [`crate::ir::InstKind::Untag`] are the **identity** on a `decimal`, so
+    /// a `decimal` inside a `mixed`, a `?decimal` or any other union is the
+    /// same bits at the same width, and nothing has to be rebuilt at the
+    /// boundary.
+    ///
+    /// # What it spends
+    ///
+    /// Sixteen bytes per value against eight for a `float` — ADR 0054
+    /// § *Consequences*' own figure, and priority 5 spent on priority 2.
+    /// Nothing is allocated: this is **not** [`Self::is_refcounted`], so no
+    /// insertion point keyed on that predicate has a `decimal` arm.
+    ///
+    /// # Getting work done with one
+    ///
+    /// Every operator is an out-of-line [`crate::ir::Helper`] — arithmetic,
+    /// comparison, truthiness, and both directions of every conversion — for
+    /// the same reason [`crate::ir::Helper::TaggedToString`] is one: the
+    /// arithmetic needs a wider intermediate than the value itself, which
+    /// ADR 0054 § *Consequences* names as the real implementation cost.
+    /// Inlining the equal-scale `+`, `-` and comparison that ADR anticipates
+    /// is a backend optimization, recorded as a known gap in
+    /// `mwl_runtime::decimal`, not a semantic difference.
+    Decimal,
     /// `null` — the one value of its own type, and the whole of what an
     /// **absent** argument is.
     ///

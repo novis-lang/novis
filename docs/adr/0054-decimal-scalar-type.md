@@ -228,11 +228,17 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
   `var $y = 19.99 as decimal;` inferring `decimal`, a 25-significant-digit literal under `as decimal`
   exact — which fails if § 2's placing rule is dropped, since an `f64` round-trip loses it — and
   `const decimal VAT = 0.19;` accepted as a compile-time constant.
-- **M3/M4:** a runtime suite asserting `0.1 + 0.2 == 0.3`; that mantissa overflow throws `ArithmeticError`
-  rather than wrapping, and that a product whose scale would exceed 28 throws rather than reducing scale the
-  way .NET does; that `1.00 / 3` rounds half-even and `Core\Decimal::divExact` on the same operands
-  throws; that `Core\Decimal::allocate(100.00, [1, 1, 1])` sums back to `100.00` exactly; and that
-  `19.90 as string` is `"19.90"`. A typed decimal arithmetic loop is committed as a figure in `benches/`
-  with a guard, alongside the ADR 0007 loop the plan already requires.
+- **M4 (landed):** the representation is `mwl_ir::ty::Ty::Decimal` over `mwl_runtime::decimal`, whose own
+  module doc is the home for the layout; §§ 3-4's rows are `mwl_ir::ir::Helper` variants, and
+  `mwl_runtime::decimal`'s unit tests hold each — `0.1 + 0.2` exactly `0.3`, a mantissa overflow and a
+  product whose scale would exceed 28 both refused rather than wrapped or narrowed, `1.00 / 3` rounded
+  half-even at the widest scale it admits, and `19.90` rendering as `"19.90"`. End to end:
+  `tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.mwlt` and
+  `…/decimal-conversions-are-checked-in-both-directions.mwlt`.
+- **Still owed:** `Core\Decimal::divExact`/`divRound`/`allocate` (§ 3), which land with that class's roster
+  at M8, and a typed decimal arithmetic loop as a `benches/` figure with a guard, alongside the ADR 0007
+  loop the plan already requires. Every `decimal` operator is an out-of-line helper call today; inlining the
+  equal-scale `+`, `-` and comparison this ADR anticipates is a backend change with no semantic effect, and
+  `mwl_runtime::decimal`'s own known gaps track it.
 - **M8:** a `NUMERIC(30,10)` Postgres column throws on read rather than truncating, and
   `Core\Json::decode` into a `decimal` shape field round-trips a 25-significant-digit number exactly.

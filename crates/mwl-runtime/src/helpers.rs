@@ -28,6 +28,7 @@
 //! Every `mwl_ir::Helper` variant now has an entry point here.
 
 use crate::abi::{Fault, HelperFn};
+use crate::decimal::Decimal;
 use crate::fmt::php_float_to_string;
 use crate::string::MwlStr;
 use crate::value::{Tag, Value};
@@ -474,6 +475,13 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
             }
             Ok(value)
         }
+        // ADR 0054 § 4's `decimal → string` row: total, and scale-preserving,
+        // so `19.90` renders as `"19.90"` — `crate::decimal`'s `Display` is
+        // the one implementation of it.
+        Some(Tag::Decimal) => {
+            let value = value.as_decimal().ok_or_else(|| refused("this value"))?;
+            Ok(Value::str(MwlStr::new(value.to_string().as_bytes())))
+        }
         Some(Tag::Array) => Err(refused("an array")),
         Some(Tag::Object) => Err(refused("an object")),
         Some(Tag::Closure) => Err(refused("a closure")),
@@ -485,6 +493,227 @@ crate::mwl_helper! {
     /// `mwl_ir::Helper::TaggedToString` — see [`value_to_string`].
     fn mwl_tagged_to_string(_ctx, args: [1]) {
         value_to_string(args[0])
+    }
+}
+
+/// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's
+/// `ArithmeticError`: an overflow of either kind, or a zero divisor.
+///
+/// Known gap, shared with [`does_not_fit`]: a helper failure carries only a
+/// message, so the driver promotes this to spec § 10's `RuntimeError` rather
+/// than the `ArithmeticError` the ADR names.
+fn arithmetic_error(operation: &str) -> Fault {
+    Fault::thrown(format!(
+        "`decimal` {operation} is outside the type's range (ADR 0054 § 1: a 96-bit \
+         mantissa at a scale of 0 to 28), or divides by zero"
+    ))
+}
+
+/// One arithmetic or comparison operand as a [`Decimal`].
+///
+/// An `int` or a `uint` operand is promoted here rather than by a conversion
+/// instruction in lowering, which is what makes ADR 0054 § 3's
+/// `decimal ⊕ int` row cost nothing extra: both are exact in 96 bits, and the
+/// promotion is a tag test the helper already performs. A `float` operand
+/// **never reaches an arithmetic helper** — § 3 makes `decimal ⊕ float` a
+/// compile error — so it is a miscompile here, reported as one; the
+/// comparison helpers take the other path ([`decimal_ordering`]) and accept
+/// one, because § 3 permits comparison precisely where it forbids arithmetic.
+fn decimal_operand(helper: &'static str, value: Value) -> Result<Decimal, Fault> {
+    match value.tag() {
+        Some(Tag::Decimal) => value
+            .as_decimal()
+            .ok_or_else(|| wrong_tag(helper, Tag::Decimal, value)),
+        Some(Tag::Int) => value
+            .as_int()
+            .map(Decimal::from_i64)
+            .ok_or_else(|| wrong_tag(helper, Tag::Decimal, value)),
+        Some(Tag::Uint) => value
+            .as_uint()
+            .map(Decimal::from_u64)
+            .ok_or_else(|| wrong_tag(helper, Tag::Decimal, value)),
+        _ => Err(wrong_tag(helper, Tag::Decimal, value)),
+    }
+}
+
+/// Both operands of one binary `decimal` operator.
+fn decimal_pair(helper: &'static str, args: &[Value]) -> Result<(Decimal, Decimal), Fault> {
+    Ok((
+        decimal_operand(helper, args[0])?,
+        decimal_operand(helper, args[1])?,
+    ))
+}
+
+macro_rules! decimal_arithmetic {
+    ($(#[$meta:meta])* fn $name:ident = $method:ident, $operation:literal) => {
+        crate::mwl_helper! {
+            $(#[$meta])*
+            fn $name(_ctx, args: [2]) {
+                let (lhs, rhs) = decimal_pair(stringify!($name), args)?;
+                lhs.$method(rhs)
+                    .map(Value::decimal)
+                    .ok_or_else(|| arithmetic_error($operation))
+            }
+        }
+    };
+}
+
+decimal_arithmetic! {
+    /// `mwl_ir::Helper::DecimalAdd`.
+    fn mwl_decimal_add = checked_add, "addition"
+}
+decimal_arithmetic! {
+    /// `mwl_ir::Helper::DecimalSub`.
+    fn mwl_decimal_sub = checked_sub, "subtraction"
+}
+decimal_arithmetic! {
+    /// `mwl_ir::Helper::DecimalMul`.
+    fn mwl_decimal_mul = checked_mul, "multiplication"
+}
+decimal_arithmetic! {
+    /// `mwl_ir::Helper::DecimalDiv`.
+    fn mwl_decimal_div = checked_div, "division"
+}
+decimal_arithmetic! {
+    /// `mwl_ir::Helper::DecimalMod`.
+    fn mwl_decimal_mod = checked_rem, "remainder"
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalNeg` — `-$d`, which never fails: the mantissa
+    /// is unsigned, so there is no asymmetric minimum to overflow the way
+    /// `-i64::MIN` does.
+    fn mwl_decimal_neg(_ctx, args: [1]) {
+        Ok(Value::decimal(decimal_operand("mwl_decimal_neg", args[0])?.negated()))
+    }
+}
+
+/// ADR 0054 § 3's comparison row: a `decimal` against a `decimal`, an `int`, a
+/// `uint` **or a `float`**, "mathematically exact over the full range of
+/// both". `None` is the unordered answer a `NaN` operand gives, which is what
+/// makes every comparison against one false and `!=` true.
+fn decimal_ordering(left: Value, right: Value) -> Option<std::cmp::Ordering> {
+    match (left.tag(), right.tag()) {
+        (Some(Tag::Float), _) => Some(right.as_decimal()?.compare_f64(left.as_float()?)?.reverse()),
+        (_, Some(Tag::Float)) => left.as_decimal()?.compare_f64(right.as_float()?),
+        _ => {
+            let decimal = |value: Value| match value.tag() {
+                Some(Tag::Decimal) => value.as_decimal(),
+                Some(Tag::Int) => value.as_int().map(Decimal::from_i64),
+                Some(Tag::Uint) => value.as_uint().map(Decimal::from_u64),
+                _ => None,
+            };
+            Some(decimal(left)?.compare(decimal(right)?))
+        }
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalEq` — see [`decimal_ordering`]. `!=` is this
+    /// helper under an `mwl_ir::UnOp::Not`, which is also what gives a `NaN`
+    /// operand PHP's answer to every one of the six.
+    fn mwl_decimal_eq(_ctx, args: [2]) {
+        Ok(Value::bool(decimal_ordering(args[0], args[1]).is_some_and(std::cmp::Ordering::is_eq)))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalLt` — `>` is this helper with its operands
+    /// swapped.
+    fn mwl_decimal_lt(_ctx, args: [2]) {
+        Ok(Value::bool(decimal_ordering(args[0], args[1]).is_some_and(std::cmp::Ordering::is_lt)))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalLtEq` — `>=` is this helper with its operands
+    /// swapped.
+    fn mwl_decimal_lt_eq(_ctx, args: [2]) {
+        Ok(Value::bool(decimal_ordering(args[0], args[1]).is_some_and(std::cmp::Ordering::is_le)))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalTruthy` — ADR 0035's numeric row: falsy iff
+    /// zero, at any scale.
+    fn mwl_decimal_truthy(_ctx, args: [1]) {
+        Ok(Value::bool(!decimal_operand("mwl_decimal_truthy", args[0])?.is_zero()))
+    }
+}
+
+/// ADR 0054 § 4's four `→ decimal` rows, chosen by the operand's **runtime**
+/// tag rather than by a static type — the same "one tag per target, not one
+/// per (source, target) pair" arrangement [`to_int`] and [`value_to_string`]
+/// already follow, which is what makes `$mixed as decimal` the same code as
+/// `"19.99" as decimal` with no branch in lowering.
+///
+/// `None` is a row that fails (a string that is not an exact literal, a value
+/// wider than 96 bits) *or* one that does not exist (an array, an object, a
+/// `bool`).
+fn to_decimal(value: Value) -> Option<Decimal> {
+    match value.tag() {
+        Some(Tag::Decimal) => value.as_decimal(),
+        Some(Tag::Int) => value.as_int().map(Decimal::from_i64),
+        Some(Tag::Uint) => value.as_uint().map(Decimal::from_u64),
+        Some(Tag::Float) => value.as_float().and_then(Decimal::from_f64),
+        Some(Tag::Str) => str_operand(&value).and_then(Decimal::parse),
+        _ => None,
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToDecimal` — see [`to_decimal`].
+    fn mwl_to_decimal(_ctx, args: [1]) {
+        to_decimal(args[0])
+            .map(Value::decimal)
+            .ok_or_else(|| does_not_fit("this value", "decimal"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToDecimalOrNull` — ADR 0066 § 1's non-throwing form
+    /// of [`to_decimal`], sharing its one implementation of every row exactly
+    /// as `mwl_to_int_or_null` shares [`row`]'s.
+    fn mwl_to_decimal_or_null(_ctx, args: [1]) {
+        Ok(to_decimal(args[0]).map_or_else(Value::null, Value::decimal))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalToInt` — ADR 0054 § 4: integral and in range,
+    /// or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round`, said out
+    /// loud, exactly as `float → int` already is.
+    fn mwl_decimal_to_int(_ctx, args: [1]) {
+        let value = decimal_operand("mwl_decimal_to_int", args[0])?;
+        value.to_i64()
+            .map(Value::int)
+            .ok_or_else(|| does_not_fit(&format!("`decimal` {value}"), "int"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalToUint` — [`mwl_decimal_to_int`]'s row,
+    /// unsigned.
+    fn mwl_decimal_to_uint(_ctx, args: [1]) {
+        let value = decimal_operand("mwl_decimal_to_uint", args[0])?;
+        value.to_u64()
+            .map(Value::uint)
+            .ok_or_else(|| does_not_fit(&format!("`decimal` {value}"), "uint"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalToFloat` — the nearest `f64`, lossy and total.
+    fn mwl_decimal_to_float(_ctx, args: [1]) {
+        Ok(Value::float(decimal_operand("mwl_decimal_to_float", args[0])?.to_f64()))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::DecimalToString` — total, and scale-preserving.
+    fn mwl_decimal_to_string(_ctx, args: [1]) {
+        let value = decimal_operand("mwl_decimal_to_string", args[0])?;
+        Ok(Value::str(MwlStr::new(value.to_string().as_bytes())))
     }
 }
 
@@ -528,6 +757,9 @@ pub fn value_truthy(value: Value) -> bool {
         Some(Tag::Int) => value.as_int().is_some_and(|n| n != 0),
         Some(Tag::Uint) => value.as_uint().is_some_and(|n| n != 0),
         Some(Tag::Float) => value.as_float().is_some_and(|n| n != 0.0),
+        // ADR 0035's numeric row, at `decimal`'s own precision: falsy iff the
+        // value is zero, at any scale.
+        Some(Tag::Decimal) => value.as_decimal().is_some_and(|d| !d.is_zero()),
         Some(Tag::Str) => value
             .as_str_bytes()
             .is_some_and(|bytes| !(bytes.is_empty() || bytes == b"0")),
@@ -580,6 +812,22 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_to_uint_or_null", address(mwl_to_uint_or_null)),
         ("mwl_to_float_or_null", address(mwl_to_float_or_null)),
         ("mwl_tagged_to_string", address(mwl_tagged_to_string)),
+        ("mwl_decimal_add", address(mwl_decimal_add)),
+        ("mwl_decimal_sub", address(mwl_decimal_sub)),
+        ("mwl_decimal_mul", address(mwl_decimal_mul)),
+        ("mwl_decimal_div", address(mwl_decimal_div)),
+        ("mwl_decimal_mod", address(mwl_decimal_mod)),
+        ("mwl_decimal_neg", address(mwl_decimal_neg)),
+        ("mwl_decimal_eq", address(mwl_decimal_eq)),
+        ("mwl_decimal_lt", address(mwl_decimal_lt)),
+        ("mwl_decimal_lt_eq", address(mwl_decimal_lt_eq)),
+        ("mwl_decimal_truthy", address(mwl_decimal_truthy)),
+        ("mwl_to_decimal", address(mwl_to_decimal)),
+        ("mwl_to_decimal_or_null", address(mwl_to_decimal_or_null)),
+        ("mwl_decimal_to_int", address(mwl_decimal_to_int)),
+        ("mwl_decimal_to_uint", address(mwl_decimal_to_uint)),
+        ("mwl_decimal_to_float", address(mwl_decimal_to_float)),
+        ("mwl_decimal_to_string", address(mwl_decimal_to_string)),
         ("mwl_echo_str", address(mwl_echo_str)),
         (
             "mwl_str_new",

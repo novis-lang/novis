@@ -1,0 +1,27 @@
+--TEST--
+Core\Arr::sum, product and average fold a number array, promote to the widest type present, and answer null over an empty one
+--FILE--
+<?mwl
+array<int> $nums = [3, 1, 4, 1, 5];
+array<float> $reals = [1.5, 2.5];
+array<decimal> $money = [19.99, 4.95, 0.06];
+array<int> $empty = [];
+
+echo Core\Arr::sum($nums), "|", Core\Arr::product($nums), "\n";
+echo Core\Arr::sum($reals), "|", Core\Arr::product($reals), "\n";
+
+// A decimal subject stays exact, in the fold and in the quotient alike.
+echo Core\Arr::sum($money), "|", Core\Arr::average($money) ?? 0.0 as decimal, "\n";
+
+// The empty array: `0` and `1` are the two operations' identities, and
+// `average` answers `null` rather than dividing by zero.
+echo Core\Arr::sum($empty), "|", Core\Arr::product($empty), "|",
+     Core\Arr::average($empty) ?? -1.0, "\n";
+
+echo Core\Arr::average($nums) ?? 0.0, "\n";
+--EXPECT--
+14|60
+4|3.75
+25.00|8.333333333333333333333333333
+0|1|-1
+2.8

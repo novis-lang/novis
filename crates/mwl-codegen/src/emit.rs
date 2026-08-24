@@ -31,7 +31,9 @@ use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use mwl_ir::Ty;
 use mwl_ir::ids::{BlockId, ValueId};
 use mwl_ir::ir::{BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, UnOp};
-use mwl_runtime::{DEBUG_FLAGS_OFFSET, OK, SAFEPOINT_OFFSET, THROWN, Tag, Value as MwlValue};
+use mwl_runtime::{
+    DEBUG_FLAGS_OFFSET, Decimal as MwlDecimal, OK, SAFEPOINT_OFFSET, THROWN, Tag, Value as MwlValue,
+};
 use rustc_hash::FxHashMap;
 
 use crate::ty::{clif_ty, tag_of};
@@ -382,6 +384,30 @@ impl Emitter<'_, '_> {
                 let v = self.b.ins().f64const(*v);
                 self.define(inst, v)?;
             }
+            // ADR 0054 § 2's literal, folded to its sixteen-byte image. This
+            // is the one place `mwl_ir`'s three-part constant and
+            // `mwl_runtime::decimal`'s bit layout meet — the IR carries the
+            // parts because it does not depend on the runtime, and this crate
+            // depends on both.
+            InstKind::ConstDecimal {
+                negative,
+                mantissa,
+                scale,
+            } => {
+                let value = MwlDecimal::new(*negative, *mantissa, *scale)
+                    .ok_or_else(|| internal("a `decimal` constant outside ADR 0054 § 1's range"))?;
+                let bits = value.to_bits();
+                let word = |bits: u128| -> Result<i64, CodegenError> {
+                    Ok(u64::try_from(bits & u128::from(u64::MAX))
+                        .map_err(|_| internal("a `decimal` word past u64"))?
+                        .cast_signed())
+                };
+                let (low, high) = (word(bits)?, word(bits >> 64)?);
+                let low = self.b.ins().iconst(types::I64, low);
+                let high = self.b.ins().iconst(types::I64, high);
+                let value = self.join_tagged(low, high);
+                self.define(inst, value)?;
+            }
             // `null` is a zero payload under a `Tag::Null` tag byte, and the
             // tag comes from `Ty::Null` at whatever slot this value is stored
             // into — so the value itself is just the zero.
@@ -519,6 +545,13 @@ impl Emitter<'_, '_> {
             // `mwl_ir::Ty::Tagged` for the representation all three assume.
             InstKind::Tag { operand } => {
                 let (value, from) = self.value(*operand)?;
+                // A `decimal` already *is* a `Value` at the tagged width, so
+                // widening one into a `mixed`/`?decimal` is the identity —
+                // see `mwl_ir::Ty::Decimal`.
+                if from == Ty::Decimal {
+                    self.define(inst, value)?;
+                    return Ok(cur);
+                }
                 let tag = tag_of(from)?;
                 let tag_word = self.b.ins().iconst(types::I64, i64::from(tag as u8));
                 let bits = match from {
@@ -548,11 +581,20 @@ impl Emitter<'_, '_> {
                 let to = inst.ty.ok_or_else(|| {
                     internal("a value-defining instruction with no representation")
                 })?;
+                // Two identities. A `decimal` for `InstKind::Tag`'s reason
+                // exactly; a still-tagged target because narrowing a union to
+                // a *narrower union* is a checker fact, not a change of
+                // representation — which is what `??` over a `?(float|decimal)`
+                // asks for.
+                if matches!(to, Ty::Decimal | Ty::Tagged) {
+                    self.define(inst, value)?;
+                    return Ok(cur);
+                }
                 let (_, bits) = self.split_tagged(value);
                 let value = match to {
                     Ty::Bool => self.b.ins().ireduce(types::I8, bits),
                     Ty::Float => self.b.ins().bitcast(types::F64, MemFlagsData::new(), bits),
-                    Ty::Void | Ty::Tagged => {
+                    Ty::Void => {
                         return Err(CodegenError::Unsupported(format!(
                             "narrowing a tagged value to representation {to:?}"
                         )));
@@ -567,8 +609,9 @@ impl Emitter<'_, '_> {
                     return Err(internal("`is.null` of a value that is not tagged"));
                 }
                 let (tag_word, _) = self.split_tagged(value);
-                // `Tag::Null` is zero and the word is zero-extended from the
-                // tag byte at every producer (`crate::ty::clif_ty`), so this
+                // `Tag::Null` is the only tag whose byte is zero, and every
+                // producer leaves the rest of the word zero outside the bytes
+                // its own representation uses (`crate::ty::clif_ty`), so this
                 // is one compare against zero with nothing to mask off.
                 let value = self.b.ins().icmp_imm_u(IntCC::Equal, tag_word, 0);
                 self.define(inst, value)?;
@@ -1844,7 +1887,12 @@ impl Emitter<'_, '_> {
         // `crate::ty::clif_ty`. Storing the whole low word (not just the tag
         // byte) is what keeps the seven padding bytes zero, which is the
         // struct's own `repr(C)` shape.
-        if ty == Ty::Tagged {
+        //
+        // A `decimal` takes the same path because it is the same sixteen
+        // bytes, and *must*: those seven bytes are not padding for one, they
+        // carry its scale, its sign and a third of its mantissa
+        // (`mwl_runtime::decimal`).
+        if matches!(ty, Ty::Tagged | Ty::Decimal) {
             let (tag_word, bits) = self.split_tagged(value);
             let tag_offset = offset
                 + i32::try_from(MwlValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
@@ -1899,7 +1947,14 @@ impl Emitter<'_, '_> {
         let bits_offset = offset
             + i32::try_from(MwlValue::BITS_OFFSET).map_err(|_| internal("a payload past i32"))?;
 
-        let tag_value = self.b.ins().iconst(types::I8, i64::from(tag as u8));
+        // The whole low **word**, not just the tag byte: the seven bytes
+        // beside it are a `decimal`'s scale, sign and mantissa-low
+        // (`mwl_runtime::decimal`), so `Self::load_value` has to be able to
+        // read them back for a tagged slot that turns out to hold one. Writing
+        // the word here is what makes them zero for every other tag, which is
+        // the invariant that read depends on — and it costs one `I64` store
+        // where an `I8` store stood.
+        let tag_value = self.b.ins().iconst(types::I64, i64::from(tag as u8));
         self.b.ins().store(trusted(), tag_value, base, tag_offset);
         let bits = match bits {
             Some(bits) => bits,
@@ -1931,14 +1986,21 @@ impl Emitter<'_, '_> {
             // the whole low word: the seven padding bytes beside it are zero in
             // every `Value` this runtime writes, but reading them would make
             // that a thing to trust rather than a thing that cannot matter.
-            Ty::Tagged => {
+            // Both halves, as the register pair `crate::ty::clif_ty`
+            // describes. The low half is read as a whole **word** rather than
+            // as the tag byte alone: a tagged slot may hold a `decimal`, whose
+            // scale, sign and mantissa-low live in the seven bytes beside the
+            // tag (`mwl_runtime::decimal`). Every producer writes that word in
+            // full — `Self::store_tag_and_bits` here, `Value`'s own `repr(C)`
+            // in the runtime — so those bytes are zero for every other tag and
+            // reading them costs nothing.
+            Ty::Tagged | Ty::Decimal => {
                 let tag_offset = offset
                     + i32::try_from(MwlValue::TAG_OFFSET)
                         .map_err(|_| internal("a tag past i32"))?;
-                let byte = self.b.ins().load(types::I8, trusted(), base, tag_offset);
-                let tag_word = self.b.ins().uextend(types::I64, byte);
-                let bits = self.b.ins().load(types::I64, trusted(), base, bits_offset);
-                self.join_tagged(tag_word, bits)
+                let low = self.b.ins().load(types::I64, trusted(), base, tag_offset);
+                let high = self.b.ins().load(types::I64, trusted(), base, bits_offset);
+                self.join_tagged(low, high)
             }
             _ => self.b.ins().load(types::I64, trusted(), base, bits_offset),
         })
@@ -2061,6 +2123,22 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ToUintOrNull => "mwl_to_uint_or_null",
         Helper::ToFloatOrNull => "mwl_to_float_or_null",
         Helper::TaggedToString => "mwl_tagged_to_string",
+        Helper::DecimalTruthy => "mwl_decimal_truthy",
+        Helper::DecimalAdd => "mwl_decimal_add",
+        Helper::DecimalSub => "mwl_decimal_sub",
+        Helper::DecimalMul => "mwl_decimal_mul",
+        Helper::DecimalDiv => "mwl_decimal_div",
+        Helper::DecimalMod => "mwl_decimal_mod",
+        Helper::DecimalNeg => "mwl_decimal_neg",
+        Helper::DecimalEq => "mwl_decimal_eq",
+        Helper::DecimalLt => "mwl_decimal_lt",
+        Helper::DecimalLtEq => "mwl_decimal_lt_eq",
+        Helper::ToDecimal => "mwl_to_decimal",
+        Helper::ToDecimalOrNull => "mwl_to_decimal_or_null",
+        Helper::DecimalToInt => "mwl_decimal_to_int",
+        Helper::DecimalToUint => "mwl_decimal_to_uint",
+        Helper::DecimalToFloat => "mwl_decimal_to_float",
+        Helper::DecimalToString => "mwl_decimal_to_string",
         other => {
             return Err(CodegenError::Unsupported(format!(
                 "the runtime helper {other:?}"

@@ -102,6 +102,13 @@
 //!   `mwl_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the
 //!   `foreach` cursor. Landed ahead of the codegen that emits them, same as
 //!   the two above;
+//! * [`Decimal`], ADR 0054's scalar — sign, a 96-bit mantissa and a scale of
+//!   0 to 28, with the whole of § 3's arithmetic and § 4's conversions. It is
+//!   **not a second heap shape or a second register shape**: a `decimal` is a
+//!   [`Value`] carrying [`Tag::Decimal`], whose mantissa spends the bytes the
+//!   struct otherwise calls padding. [`decimal`]'s own module docs are the one
+//!   home for the layout, for why one shape was chosen over two, and for what
+//!   the choice spends;
 //! * [`value_identical`], the one strict-identity comparison over two
 //!   [`Value`]s, and [`value_hash`], the hash that agrees with it. What
 //!   identity *means* — including what it means for an object — is
@@ -168,6 +175,7 @@ pub mod closure;
 #[cfg(test)]
 mod counting_alloc;
 mod ctx;
+pub mod decimal;
 mod fmt;
 pub mod helpers;
 pub mod identity;
@@ -197,6 +205,7 @@ pub use ctx::{
     SafepointFlags, TraceEvent, mwl_probe_call_enter, mwl_probe_call_exit, mwl_probe_stmt,
     mwl_safepoint,
 };
+pub use decimal::Decimal;
 pub use fmt::php_float_to_string;
 pub use helpers::{symbols, value_to_string, value_truthy};
 pub use identity::{value_hash, value_identical};
