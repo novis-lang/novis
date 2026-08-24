@@ -1,0 +1,33 @@
+--TEST--
+ADR 0056: a pattern the linear engine cannot express still runs, and exhausting the backtracking budget throws
+--FILE--
+<?mwl
+// The linear tier cannot express a lookahead or a backreference, so both of
+// these reach the second engine — and answer, rather than being refused.
+echo (Core\Regex::matches("foobar", "foo(?=bar)") as string), "|\n";
+echo (Core\Regex::matches("foobaz", "foo(?=bar)") as string), "|\n";
+echo (Core\Regex::matches("abcabc", "^(abc)\\1$") as string), "|\n";
+
+// The budget is a throw, never a falsy answer — the whole reason ADR 0056 § 2
+// rejects PHP's `pcre.backtrack_limit`, which returns `false` for both
+// "no match" and "gave up".
+try {
+    var $subject = Core\Str::repeat("a", 40) . "b";
+    echo (Core\Regex::matches($subject, "^(a|a?)+\\1$") as string), "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "backtracking budget") as string, "|\n";
+}
+
+// A pattern neither engine can compile throws too, rather than matching
+// nothing (ADR 0056 § 5).
+try {
+    echo (Core\Regex::matches("x", "(unclosed") as string), "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "either engine") as string, "|\n";
+}
+--EXPECT--
+1|
+|
+1|
+1|
+1|

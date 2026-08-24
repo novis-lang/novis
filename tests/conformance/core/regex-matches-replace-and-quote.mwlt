@@ -1,0 +1,23 @@
+--TEST--
+Core\Regex's predicate, its replacement and the laundering member it feeds
+--FILE--
+<?mwl
+echo (Core\Regex::matches("order-4711", "^order-\\d+$") as string), "|\n";
+echo (Core\Regex::matches("order-x", "^order-\\d+$") as string), "|\n";
+echo Core\Regex::replace("2026-08-24", "(\\d+)-(\\d+)-(\\d+)", "$3/$2/$1"), "\n";
+echo Core\Regex::replace("aaa", "a", "b"), "\n";
+echo Core\Regex::replace("aaa", "a", "b", {limit: 1}), "\n";
+echo Core\Regex::replace("aaa", "a", "b", {limit: 0}), "\n";
+echo Core\Regex::quote("a.b*c"), "\n";
+echo (Core\Regex::matches("a.b*c", "^" . Core\Regex::quote("a.b*c") . "$") as string), "|\n";
+echo (Core\Regex::matches("axbbc", "^" . Core\Regex::quote("a.b*c") . "$") as string), "|\n";
+--EXPECT--
+1|
+|
+24/08/2026
+bbb
+baa
+aaa
+a\.b\*c
+1|
+|

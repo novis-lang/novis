@@ -41,10 +41,10 @@
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
 > `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 19, `Math` × 38, `granularity`, `ordering`,
-> `Order` and `RoundMode`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 293 (in
-> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 85,
-> `fuzz/`, `tools/`, `benches/abi-probe`.
+> `Order` and `RoundMode`, `Regex` × 4 over `regex`/`fancy-regex`, and the conformance-coverage gate),
+> `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
+> `tests/conformance` × 296 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/differential` × 85, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -57,15 +57,22 @@
 > **0054 §§ 1–4 in full** (`Core\Decimal`'s own roster is M8's, and that ADR's *Verification* says so),
 > and **0066 §§ 1–3 for the checked numeric targets** — a nullable binding, parameter, property and
 > return, `null` itself, `??` and now `as ?int`/`?uint`/`?float`/`?decimal` all run, leaving that ADR's
-> enum target and every § 3 *refusal* owed. Instance calls dispatch on the receiver's runtime class. Each
+> enum target and every § 3 *refusal* owed, and **0056 §§ 1, 2 and 5** — both engines are bound, the tier
+> is chosen by the pattern and the backtracking budget throws, leaving § 3's compile-time tiering (which
+> waits on ADR 0057) and § 4's pattern sink (which waits on a qualifier the registry can state).
+> Instance calls dispatch on the receiver's runtime class. Each
 > ADR's own *Verification* section says what its slice covers, not this field.
 >
 > **Open now:** **`Core` breadth.** Spec § 3 is whole and § 2's aggregations are written, so what is left
 > of §§ 1–2 is `Core\Str::slice`, `Arr::diff`/`intersect` — which need only their `SetOn` enum and their
 > `on`/`by`/`comparator` bag, both shapes the registry can already state — and ADR 0069's combination
-> members. §§ 4–12 have no registry class at all, and `Core\Regex` is the first the fixtures reach.
-> **One signature shape is still missing:** a **variadic** parameter (ADR 0069's three combination
-> members, `append`/`prepend`, `Path::join`). `CoreTy::Decimal` is no longer one of them, nor is a class
+> members. § 5 is the first of §§ 4–12 to exist: ADR 0056's two tiers both run, and
+> `matches`/`replace`/`split`/`quote` are registered over them.
+> **Two signature shapes are still missing:** a **variadic** parameter (ADR 0069's three combination
+> members, `append`/`prepend`, `Path::join`), and a **`Core`-owned instance** — `registry::CoreClass` is a
+> namespace for static members with no value representation and no instance dispatch, which is what § 5's
+> `Pattern`/`Match`, § 4's four time types, § 9's three collections and § 12's `Uri` all wait on.
+> `CoreTy::Decimal` is no longer one of them, nor is a class
 > **constant**. Folded in because the corpus cannot route around it: ADR 0070's duration literal. Also
 > open: ADR 0047's checker row, `autoload` (0061), a `decimal` parameter *default*
 > (`mwl_types::defaults`), class-member `private`/`protected`, which nothing enforces, and the reserved
@@ -82,8 +89,9 @@
 > `mwl_runtime::identity`), and picking every dependency but the two the user named. Stages 1 and 2 pass
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
 > on **Stage 3**, `Core` Part I across all twelve spec sections: three of its seven fixtures produce their
-> frozen output — `examples/core.mwl`, `report.mwl` and now `numbers.mwl` — and `text.mwl` is the first
-> that does not, needing `Core\Regex`.
+> frozen output — `examples/core.mwl`, `report.mwl` and `numbers.mwl` — and `text.mwl` is the first that
+> does not: `Core\Regex`'s scalar half now runs, and what it still needs is `match`/`matchAll`, whose
+> `?Match` and `array<Match>` are the `Core`-owned instance nothing in the registry can state.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

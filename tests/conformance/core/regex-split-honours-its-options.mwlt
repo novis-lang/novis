@@ -1,0 +1,21 @@
+--TEST--
+Core\Regex::split reads `limit` the way Core\Str::split does, and drops empties only on request
+--FILE--
+<?mwl
+echo Core\Str::join(Core\Regex::split("The Quick,  brown FOX", "[,\\s]+"), "|"), "\n";
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d"), "|"), "\n";
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 2}), "|"), "\n";
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: -2}), "|"), "\n";
+echo Core\Str::join(Core\Regex::split("a1b2c3d", "\\d", {limit: 0}), "|"), "\n";
+echo Core\Str::join(Core\Regex::split(",a,,b,", ","), "|"), "!\n";
+echo Core\Str::join(Core\Regex::split(",a,,b,", ",", {keepEmpty: false}), "|"), "\n";
+echo Core\Arr::count(Core\Regex::split("nothing to split here", "\\d+")), "\n";
+--EXPECT--
+The|Quick|brown|FOX
+a|b|c|d
+a|b2c3d
+a|b
+a1b2c3d
+|a||b|!
+a|b
+1

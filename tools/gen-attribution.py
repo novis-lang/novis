@@ -74,6 +74,11 @@ PREFERENCE = [
     "Unicode-3.0",
     "CC0-1.0",
     "MPL-2.0",
+    # Last on purpose. `Unlicense OR MIT` is how the `regex` family and its
+    # dependencies are offered, and a public-domain dedication imposes nothing
+    # on MWL — but ranking it below MIT means MIT is always the half taken, so
+    # the shipped notice stays one license shorter.
+    "Unlicense",
 ]
 
 # Content fingerprints, checked in order. Classifying a license file by what

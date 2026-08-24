@@ -12,7 +12,7 @@
 //!
 //! # One module per domain; adding a class is two lines
 //!
-//! A domain module ([`arr`], [`math`], [`str`]) holds everything about its class: the
+//! A domain module ([`arr`], [`math`], [`regex`], [`str`]) holds everything about its class: the
 //! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering
 //! for its own symbols and nothing else.
@@ -64,7 +64,8 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The registry holds part of §§ 1–2, all of § 3, and none of §§ 4–12.**
+//! 1. **The registry holds part of §§ 1–2, all of § 3, half of § 5, and none
+//!    of the rest of §§ 4–12.**
 //!    `Core\Arr::count` was the first, and landed with the mechanism rather
 //!    than after it, on this repository's standing "narrow slice, end to end"
 //!    rule. Two more members proved the two things the mechanism still had to:
@@ -83,14 +84,30 @@
 //!    to write it — see gap 3. Section 3 is whole: every one of
 //!    [`math::CLASS`]'s thirty-eight rows runs, and `abs`/`sign`/`format` take
 //!    the `int|float|decimal` the spec writes (see [`math`]'s own gap note for
-//!    the four rounding rows that do not yet).
-//! 3. **One shape a §§ 1–12 signature writes still cannot be stated.** A
+//!    the four rounding rows that do not yet). Section 5 is the first of
+//!    §§ 4–12 to exist at all: [`regex::CLASS`] holds the four members ADR
+//!    0056's two tiers can answer with no `Core`-owned object, and that
+//!    module's own gap 1 owns the four that need `Pattern` and `Match` —
+//!    which is the same missing capability wherever the spec writes an
+//!    instance rather than a scalar.
+//! 3. **Two shapes a §§ 1–12 signature writes still cannot be stated.** A
 //!    **variadic** parameter blocks ADR 0069's
 //!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
 //!    `Arr::prepend` and `Path::join`; it is a `registry::CoreMethod` field
 //!    plus `mwl-ir`'s gap 8, since a helper's `args: [N]` is a fixed arity and
 //!    a variadic call has to collect its tail into an array before it can
 //!    reach one.
+//!
+//!    The second is a **`Core`-owned instance**. A `registry::CoreClass` is a
+//!    namespace for static members: it has no representation for a *value* of
+//!    that class and no dispatch for a method called on one, so every spec row
+//!    returning or taking one is unstatable. § 5's `Pattern` and `Match` are
+//!    the first four ([`regex`]'s own gap 1), and § 9's `ObjectMap`,
+//!    `ObjectSet` and `Heap`, § 4's `Instant`/`DateTime`/`Duration`/`Zone` and
+//!    § 12's `Uri` are the same capability again. `mwl_types::error_lib`
+//!    already seeds a `Core`-owned class the checker resolves properties and
+//!    methods on, so the missing half is the value: what a native helper
+//!    returns and how a method call on it reaches native code.
 //!
 //!    `decimal` is no longer one of them: [`registry::CoreTy::Decimal`] states
 //!    it and `mwl_runtime::Decimal` is the value behind it, so `Arr::sum`,
@@ -148,6 +165,7 @@ pub mod arr;
 pub mod granularity;
 pub mod math;
 mod ordering;
+pub mod regex;
 pub mod registry;
 pub mod str;
 
@@ -178,6 +196,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             let address = str::address(method.symbol)
                 .or_else(|| arr::address(method.symbol))
                 .or_else(|| math::address(method.symbol))
+                .or_else(|| regex::address(method.symbol))
                 .unwrap_or_else(|| {
                     panic!(
                         "mwl-stdlib registers `{}` with no implementation address",

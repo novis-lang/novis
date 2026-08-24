@@ -122,11 +122,16 @@ The accepted syntax is PCRE's, across both tiers, with these fixed points:
 
 ## Verification
 
-- **M8:** a fixture per rule. `(a+)+$` against an adversarial subject completes in linear time on the
-  linear tier; a pattern with a backreference lands on the backtracking tier and, given an adversarial
-  subject, **throws** rather than returning a falsy value; a malformed literal pattern is a compile error;
-  `[regex] backtracking = "deny"` turns a lookaround pattern into a compile error naming this ADR; a tainted
-  pattern argument is a compile error while a tainted subject is accepted and produces tainted matches.
+- **Done (M4S).** §§ 1, 2 and 5 run: `crates/mwl-stdlib/src/regex.rs` binds both engines and chooses the
+  tier from the pattern, and `tests/conformance/core/regex-tiers-and-the-backtracking-budget.mwlt` holds
+  that a lookahead and a backreference both still answer, that exhausting the budget **throws** rather
+  than returning a falsy value, and that a pattern neither engine can compile throws rather than matching
+  nothing. That module's own gap list owns what § 5's roster still owes.
+- **Owed, and what each waits on.** § 3's compile-time tiering — a malformed *literal* pattern as a
+  compile error, `mwl check` naming the backtracking ones, and `[regex] backtracking = "deny"` — needs
+  [ADR 0057](0057-intrinsic-literal-folding.md)'s folding pass and M6's configuration. § 4's sink — a
+  tainted pattern refused while a tainted subject is accepted and produces tainted matches — needs a
+  qualifier the `Core` signature registry can state.
 - **M8:** the `preg_*` conformance suite records, per pattern, which tier it lands on, so a future engine
   change that silently moves patterns between tiers is visible in a diff.
 - **M8:** a guard in `benches/` fixes the linear tier's throughput against the backtracking tier's on a

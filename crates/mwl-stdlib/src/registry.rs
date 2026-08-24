@@ -386,7 +386,12 @@ impl CoreClass {
 /// plus one in [`crate::symbols`]. That is what lets two sessions add two
 /// different domains without touching the same lines; the flat table this
 /// replaced made every such pair conflict. Order is the spec's own § order.
-pub const CLASSES: &[CoreClass] = &[crate::str::CLASS, crate::arr::CLASS, crate::math::CLASS];
+pub const CLASSES: &[CoreClass] = &[
+    crate::str::CLASS,
+    crate::arr::CLASS,
+    crate::math::CLASS,
+    crate::regex::CLASS,
+];
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
 /// closed, named integer type, declared here rather than in MWL source.

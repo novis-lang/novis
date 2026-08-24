@@ -46,6 +46,7 @@ allow = [
     "Unicode-3.0",
     "CC0-1.0",
     "MPL-2.0",          # file-level copyleft only; acceptable for unmodified deps
+    "Unlicense",        # public-domain dedication; the `regex` family's other half
 ]
 confidence-threshold = 0.93
 # Copyleft that would infect MWL's own licensing is simply absent from `allow`,
