@@ -77,6 +77,12 @@ pub mod code {
     /// out of order, a repeated unit, a fractional count, a mis-cased unit, or
     /// longer than `Core\Time\Duration` can hold.
     pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007");
+    /// A bidirectional control that opens a directional scope and never closes
+    /// it inside the source span that opened it, per
+    /// [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// § 2 — a comment, a string literal or an inline-HTML run, and each line
+    /// of a multi-line one. There is no suppression.
+    pub const E_UNBALANCED_BIDI: Code = Code::new("E0008");
 
     // --- E01xx parser ------------------------------------------------------
     /// A specific token was required here.

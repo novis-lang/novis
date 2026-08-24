@@ -1,0 +1,16 @@
+--TEST--
+a balanced directional scope in a string literal compiles and survives byte for byte — ADR 0087 § 1
+--FILE--
+<?mwl
+// ADR 0087 § 1: only an *unterminated* scope is rejected. Legitimate
+// mixed-direction text isolates its Latin run and closes the isolate, which is
+// what makes rejecting the rest affordable — this case is the one that fails if
+// the rule is ever widened to a blanket ban on the eleven code points.
+string $message = "خطأ: ⁦user_id⁩ غير موجود";
+echo $message, "\n";
+// A comment may hold one too, and a stray terminator closes nothing.
+string $marks = "‏right ‎left‬";
+echo $marks, "\n";
+--EXPECT--
+خطأ: ⁦user_id⁩ غير موجود
+‏right ‎left‬

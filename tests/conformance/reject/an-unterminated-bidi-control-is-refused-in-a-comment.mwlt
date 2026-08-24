@@ -1,0 +1,12 @@
+--TEST--
+a directional scope opened in a comment and never closed is a compile error — ADR 0087 §§ 1-2
+--FILE--
+<?mwl
+// audit: ‮ approved by the reviewer
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+202E RIGHT-TO-LEFT OVERRIDE
+%A
+error: aborting due to 1 error

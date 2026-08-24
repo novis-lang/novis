@@ -1,0 +1,14 @@
+--TEST--
+the Trojan Source paper's commenting-out pattern, transliterated to MWL, does not compile — ADR 0087 § 1
+--FILE--
+<?mwl
+bool $isAdmin = false;
+/* ‮ } if ($isAdmin) begin admins only */
+echo "you are an admin\n";
+/* end admins only { */
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+202E RIGHT-TO-LEFT OVERRIDE
+%A
+error: aborting due to 1 error

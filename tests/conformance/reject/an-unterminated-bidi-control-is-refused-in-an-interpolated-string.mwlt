@@ -1,0 +1,12 @@
+--TEST--
+a directional scope opened in a double-quoted literal beside an interpolation is a compile error — ADR 0087 §§ 1-2
+--FILE--
+<?mwl
+string $name = "ada";
+echo "hello ‪$name, welcome\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+202A LEFT-TO-RIGHT EMBEDDING
+%A
+error: aborting due to 1 error

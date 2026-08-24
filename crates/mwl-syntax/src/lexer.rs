@@ -190,6 +190,46 @@ impl<'a> Lexer<'a> {
         Span::new(self.file.id(), start, end)
     }
 
+    /// [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// § 2 at the lexer: a directional control that opens a scope must close it
+    /// inside the span that opened it, and the span is **one line** of one
+    /// token — so a heredoc, a block comment or an inline-HTML run cannot open
+    /// a scope on one line and close it on the next. A failure is a hard error
+    /// with no suppression, which is ADR 0029 § 1's standing position for every
+    /// other spelling rule.
+    ///
+    /// Called on the four spans that carry free text: a comment, a
+    /// single-quoted literal, one text piece of a double-quoted/heredoc body,
+    /// and an inline-HTML run. Identifiers need nothing — they are ASCII-only
+    /// by construction, which is what closes the homoglyph half of Trojan
+    /// Source without a lint.
+    fn check_bidi(&self, span: Span, diags: &mut Diagnostics) {
+        let text = &self.text[span.start as usize..span.end as usize];
+        let mut line_start = span.start;
+        for line in text.split_inclusive('\n') {
+            if let Some((offset, control)) = crate::bidi::first_unterminated(line) {
+                let at = line_start + u32::try_from(offset).expect("offset within one token");
+                let end = at + u32::try_from(control.len_utf8()).expect("a control is 3 bytes");
+                diags.report(
+                    Diagnostic::error(
+                        code::E_UNBALANCED_BIDI,
+                        format!(
+                            "unterminated bidirectional control U+{:04X} {}",
+                            control as u32,
+                            crate::bidi::control_name(control)
+                        ),
+                    )
+                    .with_primary(self.mk_span(at, end), "opens a directional scope")
+                    .with_note(format!(
+                        "the scope is still open where this line ends; close it with {}",
+                        crate::bidi::terminator_of(control)
+                    )),
+                );
+            }
+            line_start += u32::try_from(line.len()).expect("a line is shorter than its file");
+        }
+    }
+
     fn is_ident_start(c: char) -> bool {
         c == '_' || c.is_ascii_alphabetic()
     }
@@ -210,7 +250,9 @@ impl<'a> Lexer<'a> {
                 && let Some((kind, len)) = self.match_open_tag()
             {
                 if self.pos > start {
-                    self.push(TokenKind::InlineHtml, self.mk_span(start, self.pos));
+                    let span = self.mk_span(start, self.pos);
+                    self.check_bidi(span, diags);
+                    self.push(TokenKind::InlineHtml, span);
                 }
                 let tag_start = self.pos;
                 self.pos += u32::try_from(len).expect("tag length is at most 5 bytes");
@@ -241,7 +283,9 @@ impl<'a> Lexer<'a> {
             self.bump();
         }
         if self.pos > start {
-            self.push(TokenKind::InlineHtml, self.mk_span(start, self.pos));
+            let span = self.mk_span(start, self.pos);
+            self.check_bidi(span, diags);
+            self.push(TokenKind::InlineHtml, span);
         }
     }
 
@@ -286,16 +330,20 @@ impl<'a> Lexer<'a> {
                     self.bump();
                 }
                 Some('/') if self.peek_at(1) == Some('/') => {
+                    let start = self.pos;
                     while !self.eof() && self.peek() != Some('\n') {
                         self.bump();
                     }
+                    self.check_bidi(self.mk_span(start, self.pos), diags);
                 }
                 // `#[` opens an attribute, not a comment.
                 Some('#') if self.peek_at(1) == Some('[') => break,
                 Some('#') => {
+                    let start = self.pos;
                     while !self.eof() && self.peek() != Some('\n') {
                         self.bump();
                     }
+                    self.check_bidi(self.mk_span(start, self.pos), diags);
                 }
                 Some('/') if self.peek_at(1) == Some('*') => {
                     let start = self.pos;
@@ -317,6 +365,7 @@ impl<'a> Lexer<'a> {
                                 .with_primary(self.mk_span(start, self.pos), "runs to end of file"),
                         );
                     }
+                    self.check_bidi(self.mk_span(start, self.pos), diags);
                 }
                 _ => break,
             }
@@ -623,7 +672,9 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        self.push(TokenKind::SingleQuotedString, self.mk_span(start, self.pos));
+        let span = self.mk_span(start, self.pos);
+        self.check_bidi(span, diags);
+        self.push(TokenKind::SingleQuotedString, span);
     }
 
     fn lex_operator(&mut self, diags: &mut Diagnostics) {
@@ -1034,7 +1085,9 @@ impl<'a> Lexer<'a> {
             self.bump();
         }
         if self.pos > start {
-            self.push(TokenKind::StringPart, self.mk_span(start, self.pos));
+            let span = self.mk_span(start, self.pos);
+            self.check_bidi(span, diags);
+            self.push(TokenKind::StringPart, span);
         }
     }
 
@@ -1512,6 +1565,65 @@ mod tests {
         let (kinds, diags) = kinds("<?mwl 'abc");
         assert!(diags.has_errors());
         assert_eq!(kinds, vec![OpenTagMwl, SingleQuotedString, Eof]);
+    }
+
+    /// ADR 0087 § 2: the four source spans that carry free text, each rejected
+    /// when a directional scope it opens outlives the line that opened it.
+    fn bidi_errors(src: &str) -> usize {
+        let (_, diags) = kinds(src);
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_UNBALANCED_BIDI))
+            .count()
+    }
+
+    #[test]
+    fn an_unterminated_bidi_control_is_rejected_in_every_source_span() {
+        // A comment -- both spellings -- a single-quoted literal, a
+        // double-quoted one, and an inline-HTML run.
+        assert_eq!(bidi_errors("<?mwl // owner\u{202E} check\n"), 1);
+        assert_eq!(bidi_errors("<?mwl # owner\u{202E} check\n"), 1);
+        assert_eq!(bidi_errors("<?mwl /* owner\u{202E} check */\n"), 1);
+        assert_eq!(bidi_errors("<?mwl echo 'owner\u{202E}';"), 1);
+        assert_eq!(bidi_errors("<?mwl echo \"owner\u{2066}\";"), 1);
+        assert_eq!(bidi_errors("plain\u{202B}html<?mwl echo 1;"), 1);
+    }
+
+    #[test]
+    fn a_balanced_bidi_control_lexes_cleanly() {
+        // The case that fails if the rule is ever widened to a blanket ban:
+        // legitimate mixed-direction text isolates the Latin run and closes it.
+        let (kinds, diags) = kinds("<?mwl echo \"خطأ \u{2066}user_id\u{2069} !\";");
+        assert!(!diags.has_errors(), "{:?}", diags.iter().next());
+        assert_eq!(
+            kinds,
+            vec![
+                OpenTagMwl,
+                Keyword(super::Keyword::Echo),
+                DoubleQuoteOpen,
+                StringPart,
+                DoubleQuoteClose,
+                Semicolon,
+                Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_bidi_scope_may_not_cross_a_line_inside_one_token() {
+        // Balanced across the heredoc as a whole, unbalanced per line -- which
+        // is the span ADR 0087 § 2 gives the lexer, so this is rejected.
+        let src = "<?mwl $s = <<<TXT\n\u{202E}first\nsecond\u{202C}\nTXT;\n";
+        assert_eq!(bidi_errors(src), 1);
+        // The same two lines, each closing its own scope, are fine.
+        let ok = "<?mwl $s = <<<TXT\n\u{202E}first\u{202C}\n\u{202E}second\u{202C}\nTXT;\n";
+        assert_eq!(bidi_errors(ok), 0);
+    }
+
+    #[test]
+    fn a_stray_terminator_is_not_an_error() {
+        // It closes nothing and opens nothing -- ADR 0087 § 1.
+        assert_eq!(bidi_errors("<?mwl echo 'a\u{202C}b\u{2069}';"), 0);
     }
 
     #[test]

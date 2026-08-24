@@ -1,0 +1,15 @@
+--TEST--
+a heredoc scope that opens on one line and closes on the next is refused — ADR 0087 § 2's per-line span
+--FILE--
+<?mwl
+string $note = <<<TXT
+‫first line
+second line‬
+TXT;
+echo $note, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+202B RIGHT-TO-LEFT EMBEDDING
+%A
+error: aborting due to 1 error

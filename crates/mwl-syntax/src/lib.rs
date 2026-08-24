@@ -13,6 +13,10 @@
 //! - [`casing`] — [`check_casing`], the ADR 0029/0030 identifier-casing
 //!   check, run directly on a parsed file's declarations; see its module
 //!   docs for exactly what is and isn't covered.
+//! - [`bidi`] — ADR 0087's unterminated-directional-scope predicate, the one
+//!   place that rule is written. Public because it is shared: the lexer makes
+//!   it a hard error, and `Core\Html::escape` (M7) and `Core\Cli`'s sink (M8)
+//!   substitute `U+FFFD` for what it names.
 //! - [`duration`] — ADR 0070's duration grammar, the one place `30s` is
 //!   defined. Public because it is shared: `mwl-stdlib`'s
 //!   `Core\Time\Duration::parse` and (at M6) `mwl.toml`'s reader both call in,
@@ -83,6 +87,7 @@
 //!   spot-checked.
 
 pub mod ast;
+pub mod bidi;
 mod casing;
 pub mod duration;
 mod lexer;

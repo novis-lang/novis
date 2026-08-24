@@ -1,0 +1,12 @@
+--TEST--
+the Trojan Source paper's stretched-string pattern, transliterated to MWL, does not compile — ADR 0087 § 1
+--FILE--
+<?mwl
+string $accessLevel = "user⁧ // trusted";
+echo $accessLevel, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+2067 RIGHT-TO-LEFT ISOLATE
+%A
+error: aborting due to 1 error

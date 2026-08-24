@@ -1,0 +1,12 @@
+--TEST--
+a directional scope opened in an inline-HTML run and never closed is a compile error — ADR 0087 §§ 1-2
+--FILE--
+<p>total: ‭</p>
+<?mwl
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0008]: unterminated bidirectional control U+202D LEFT-TO-RIGHT OVERRIDE
+%A
+error: aborting due to 1 error
