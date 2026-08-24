@@ -1,0 +1,35 @@
+--TEST--
+Every Core\Arr member accepts an empty array and returns the empty answer rather than throwing
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $empty = [];
+
+echo Core\Arr::count($empty), "\n";
+echo Core\Arr::isEmpty($empty) as string, "|", Core\Arr::isList($empty) as string, "|\n";
+echo Core\Arr::hasKey($empty, "0") as string, "|\n";
+echo "[", Render::of(Core\Arr::values($empty)), "]\n";
+echo "[", Render::of(Core\Arr::map($empty, fn(int $v): int => $v * 2)), "]\n";
+echo "[", Render::of(Core\Arr::filter($empty, fn(int $v): bool => true)), "]\n";
+echo "[", Render::of(Core\Arr::sort($empty)), "]\n";
+echo "[", Render::of(Core\Arr::range(0, 0)), "]\n";
+echo Core\Arr::count(Core\Arr::range(1, 1)), "\n";
+--EXPECT--
+0
+1|1|
+|
+[]
+[]
+[]
+[]
+[0=0;]
+1

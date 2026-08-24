@@ -1,0 +1,56 @@
+--TEST--
+A class implements two interfaces at once, inherits one's default method body, and a subclass overrides it while still reaching it through `parent::` — ADR 0043 § 2
+--FILE--
+<?mwl
+interface Named {
+    public function name(): string;
+
+    public function greet(): string {
+        return "hello " . $this->name();
+    }
+}
+
+interface Aged {
+    public function age(): int;
+}
+
+class Person implements Named, Aged {
+    public string $who;
+    public int $years;
+
+    public function constructor(string $who, int $years) {
+        $this->who = $who;
+        $this->years = $years;
+    }
+
+    public function name(): string {
+        return $this->who;
+    }
+
+    public function age(): int {
+        return $this->years;
+    }
+}
+
+class Loud extends Person {
+    public function constructor(string $who, int $years) {
+        parent::constructor($who, $years);
+    }
+
+    public function greet(): string {
+        return Core\Str::upper(parent::greet());
+    }
+}
+
+var $p = new Person("ada", 36);
+var $l = new Loud("bob", 40);
+
+echo $p->greet(), "|", $p->age(), "\n";
+echo $l->greet(), "|", $l->age(), "\n";
+echo ($l instanceof Named) as string, ($l instanceof Aged) as string, ($l instanceof Person) as string, "\n";
+echo ($p instanceof Loud) as string, "|\n";
+--EXPECT--
+hello ada|36
+HELLO BOB|40
+111
+|

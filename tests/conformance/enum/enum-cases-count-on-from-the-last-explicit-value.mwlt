@@ -1,0 +1,31 @@
+--TEST--
+An enum case with no `=` takes the previous case's value plus one, whether or not that previous case was explicit — ADR 0010
+--FILE--
+<?mwl
+enum Plain {
+    First,
+    Second,
+    Third,
+}
+
+enum Mixed {
+    Stop = 10,
+    Go,
+    Wait = 30,
+    After,
+    Last,
+}
+
+enum Negative {
+    Below = -2,
+    Zero,
+    Above,
+}
+
+echo Plain::First as int, ",", Plain::Second as int, ",", Plain::Third as int, "\n";
+echo Mixed::Stop as int, ",", Mixed::Go as int, ",", Mixed::Wait as int, ",", Mixed::After as int, ",", Mixed::Last as int, "\n";
+echo Negative::Below as int, ",", Negative::Zero as int, ",", Negative::Above as int, "\n";
+--EXPECT--
+0,1,2
+10,11,30,31,32
+-2,-1,0

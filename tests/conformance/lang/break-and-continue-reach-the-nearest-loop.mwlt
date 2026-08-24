@@ -1,0 +1,51 @@
+--TEST--
+`break` and `continue` bind to the innermost enclosing loop, and locals written before either still carry out of it
+--FILE--
+<?mwl
+class Grid {
+    public static function upto(int $rows, int $cols): string {
+        var $out = "";
+        int $r = 0;
+        while ($r < $rows) {
+            int $c = 0;
+            while ($c < $cols) {
+                if ($c === 2) {
+                    $c = $c + 1;
+                    continue;
+                }
+                if ($c === 4) {
+                    break;
+                }
+                $out = $out . ($r as string) . ($c as string) . ";";
+                $c = $c + 1;
+            }
+            $out = $out . "|";
+            $r = $r + 1;
+        }
+        return $out;
+    }
+
+    public static function firstOver(array<int> $ns, int $bound): int {
+        var $found = 0 - 1;
+        foreach ($ns as string $k => int $v) {
+            if ($v <= $bound) {
+                continue;
+            }
+            $found = $v;
+            break;
+        }
+        return $found;
+    }
+}
+
+echo Grid::upto(2, 6), "\n";
+echo Grid::upto(1, 1), "\n";
+echo Grid::firstOver([1, 5, 9, 12], 6), "\n";
+echo Grid::firstOver([1, 2], 6), "\n";
+echo Grid::firstOver([], 6), "\n";
+--EXPECT--
+00;01;03;|10;11;13;|
+00;|
+9
+-1
+-1

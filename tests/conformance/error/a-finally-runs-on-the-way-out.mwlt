@@ -1,0 +1,49 @@
+--TEST--
+`finally` runs after a `return` has picked its value, and after a `throw` has been caught
+--FILE--
+<?mwl
+class Guarded {
+    public static function returns(int $n): string {
+        try {
+            return "returned " . ($n as string);
+        } finally {
+            echo "finally-returns\n";
+        }
+    }
+
+    public static function caught(int $n): string {
+        try {
+            try {
+                throw new RuntimeError("boom " . ($n as string));
+            } finally {
+                echo "finally-inner\n";
+            }
+        } catch (Throwable $e) {
+            return "caught " . $e->message;
+        }
+    }
+
+    public static function loops(int $n): string {
+        var $out = "";
+        int $i = 0;
+        while ($i < $n) {
+            try {
+                $out = $out . ($i as string);
+            } finally {
+                $out = $out . ".";
+            }
+            $i = $i + 1;
+        }
+        return $out;
+    }
+}
+
+echo Guarded::returns(1), "\n";
+echo Guarded::caught(2), "\n";
+echo Guarded::loops(3), "\n";
+--EXPECT--
+finally-returns
+returned 1
+finally-inner
+caught boom 2
+0.1.2.

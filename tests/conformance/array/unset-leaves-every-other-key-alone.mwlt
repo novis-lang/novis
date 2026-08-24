@@ -1,0 +1,42 @@
+--TEST--
+`unset` removes exactly the key it names and shifts nothing — the remaining keys keep both their values and their order
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $list = [10, 20, 30, 40];
+echo Render::of($list), "\n";
+
+unset($list[1]);
+echo Render::of($list), "\n";
+echo Core\Arr::count($list), "|", Core\Arr::isList($list) as string, "|\n";
+echo Core\Arr::hasKey($list, "1") as string, "|", Core\Arr::hasKey($list, "2") as string, "|\n";
+
+$list[] = 50;
+echo Render::of($list), "\n";
+
+array<string> $map = ["a" => "x", "b" => "y", "c" => "z"];
+unset($map["a"]);
+unset($map["c"]);
+var $out = "";
+foreach ($map as string $k => string $v) {
+    $out = $out . $k . "=" . $v . ";";
+}
+echo $out, "\n";
+echo Core\Arr::count($map), "\n";
+--EXPECT--
+0=10;1=20;2=30;3=40;
+0=10;2=30;3=40;
+3||
+|1|
+0=10;2=30;3=40;4=50;
+b=y;
+1

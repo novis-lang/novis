@@ -1,0 +1,58 @@
+--TEST--
+A local written inside a protected region carries across a loop's back edge — the loop-header phi covers `try`, `catch` and `finally` alike
+--FILE--
+<?mwl
+class Tally {
+    public static function protectedBody(int $n): int {
+        int $sum = 0;
+        int $i = 0;
+        while ($i < $n) {
+            try {
+                $sum = $sum + $i;
+            } finally {
+                $sum = $sum + 100;
+            }
+            $i = $i + 1;
+        }
+        return $sum;
+    }
+
+    public static function handlerBody(int $n): string {
+        var $out = "";
+        int $i = 0;
+        while ($i < $n) {
+            try {
+                if ($i % 2 === 0) {
+                    throw new RuntimeError("even");
+                }
+                $out = $out . "odd" . ($i as string) . ";";
+            } catch (Throwable $e) {
+                $out = $out . $e->message . ($i as string) . ";";
+            }
+            $i = $i + 1;
+        }
+        return $out;
+    }
+
+    public static function overArray(array<int> $ns): int {
+        int $sum = 0;
+        foreach ($ns as string $k => int $v) {
+            try {
+                $sum = $sum + $v;
+            } finally {
+                $sum = $sum + 1;
+            }
+        }
+        return $sum;
+    }
+}
+
+echo Tally::protectedBody(0), "\n";
+echo Tally::protectedBody(3), "\n";
+echo Tally::handlerBody(4), "\n";
+echo Tally::overArray([10, 20, 30]), "\n";
+--EXPECT--
+0
+303
+even0;odd1;even2;odd3;
+63

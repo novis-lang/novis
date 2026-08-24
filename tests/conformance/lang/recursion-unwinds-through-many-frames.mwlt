@@ -1,0 +1,36 @@
+--TEST--
+A method that calls itself returns correctly at every depth, and two methods can recurse through each other
+--FILE--
+<?mwl
+class Fib {
+    public static function of(int $n): int {
+        if ($n < 2) {
+            return $n;
+        }
+        return Fib::of($n - 1) + Fib::of($n - 2);
+    }
+}
+
+class Parity {
+    public static function isEven(int $n): bool {
+        if ($n === 0) {
+            return true;
+        }
+        return Parity::isOdd($n - 1);
+    }
+
+    public static function isOdd(int $n): bool {
+        if ($n === 0) {
+            return false;
+        }
+        return Parity::isEven($n - 1);
+    }
+}
+
+echo Fib::of(0), ",", Fib::of(1), ",", Fib::of(2), ",", Fib::of(10), ",", Fib::of(20), "\n";
+echo Parity::isEven(0) as string, "|", Parity::isEven(7) as string, "|", Parity::isEven(30) as string, "|\n";
+echo Parity::isOdd(1) as string, "|", Parity::isOdd(30) as string, "|\n";
+--EXPECT--
+0,1,1,55,6765
+1||1|
+1||

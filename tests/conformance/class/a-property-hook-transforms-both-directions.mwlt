@@ -1,0 +1,51 @@
+--TEST--
+A property's own `get`/`set` hook runs on every read and every write, including the constructor's — ADR 0014 § 1
+--FILE--
+<?mwl
+class Doubled {
+    public int $value {
+        get => $this->value * 2;
+        set (int $v) {
+            $this->value = $v + 1;
+        }
+    }
+
+    public function constructor(int $start) {
+        $this->value = $start;
+    }
+}
+
+class Clamped {
+    public int $level {
+        get => $this->level;
+        set (int $v) {
+            if ($v < 0) {
+                $this->level = 0;
+            } else {
+                $this->level = $v;
+            }
+        }
+    }
+
+    public function constructor(int $start) {
+        $this->level = $start;
+    }
+}
+
+var $d = new Doubled(20);
+echo $d->value, "\n";
+$d->value = 30;
+echo $d->value, "\n";
+
+var $c = new Clamped(5);
+echo $c->level, "\n";
+$c->level = -100;
+echo $c->level, "\n";
+$c->level = 7;
+echo $c->level, "\n";
+--EXPECT--
+42
+62
+5
+0
+7

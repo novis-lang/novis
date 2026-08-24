@@ -1,0 +1,60 @@
+--TEST--
+An `abstract` method is answered by each subclass, a concrete base method calls it through `$this`, and a base that declares no constructor demands no `parent::constructor(...)` — ADR 0022 § 2
+--FILE--
+<?mwl
+abstract class Shape {
+    public abstract function area(): int;
+
+    public function describe(): string {
+        return "area=" . ($this->area() as string);
+    }
+}
+
+class Square extends Shape {
+    public int $side;
+
+    public function constructor(int $side) {
+        $this->side = $side;
+    }
+
+    public function area(): int {
+        return $this->side * $this->side;
+    }
+}
+
+class Rect extends Shape {
+    public int $width;
+    public int $height;
+
+    public function constructor(int $width, int $height) {
+        $this->width = $width;
+        $this->height = $height;
+    }
+
+    public function area(): int {
+        return $this->width * $this->height;
+    }
+}
+
+class Total {
+    public static function of(array<Shape> $shapes): int {
+        var $sum = 0;
+        foreach ($shapes as string $k => Shape $s) {
+            $sum = $sum + $s->area();
+        }
+        return $sum;
+    }
+}
+
+array<Shape> $all = [new Square(3), new Rect(2, 5), new Square(1)];
+
+echo Total::of($all), "\n";
+foreach ($all as string $k => Shape $s) {
+    echo $s->describe(), ";";
+}
+echo "\n";
+echo ($all[0] instanceof Shape) as string, "|", ($all[1] instanceof Square) as string, "|\n";
+--EXPECT--
+20
+area=9;area=10;area=1;
+1||

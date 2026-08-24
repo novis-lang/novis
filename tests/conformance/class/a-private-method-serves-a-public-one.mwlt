@@ -1,0 +1,36 @@
+--TEST--
+A `private` method is reachable from the class's own methods and nowhere else, and a `readonly` property reads back what the constructor set
+--FILE--
+<?mwl
+class Acct {
+    public readonly int $id;
+    public string $label;
+
+    public function constructor(int $id, string $label) {
+        $this->id = $id;
+        $this->label = $label;
+    }
+
+    private function tag(): string {
+        return "#" . ($this->id as string);
+    }
+
+    public function render(): string {
+        return $this->tag() . " " . $this->label;
+    }
+}
+
+var $a = new Acct(7, "main");
+var $b = new Acct(8, "spare");
+
+echo $a->render(), "\n";
+echo $b->render(), "\n";
+echo $a->id, "|", $a->label, "\n";
+
+$a->label = "renamed";
+echo $a->render(), "|", $b->render(), "\n";
+--EXPECT--
+#7 main
+#8 spare
+7|main
+#7 renamed|#8 spare

@@ -1,0 +1,68 @@
+--TEST--
+`Iterable::iterate()` hands out a fresh `Iterator` per `foreach`, so the same object can be walked twice — ADR 0053 § 1
+--FILE--
+<?mwl
+class CountUp implements Iterator<int> {
+    public int $next;
+    public int $limit;
+
+    public function constructor(int $limit) {
+        $this->next = 0;
+        $this->limit = $limit;
+    }
+
+    public function advance(): bool {
+        if ($this->next >= $this->limit) {
+            return false;
+        }
+        $this->next = $this->next + 1;
+        return true;
+    }
+
+    public function current(): int {
+        return $this->next;
+    }
+}
+
+class Counted implements Iterable<int> {
+    public int $limit;
+
+    public function constructor(int $limit) {
+        $this->limit = $limit;
+    }
+
+    public function iterate(): Iterator<int> {
+        return new CountUp($this->limit);
+    }
+}
+
+var $c = new Counted(4);
+
+var $first = "";
+foreach ($c as int $v) {
+    $first = $first . ($v as string) . ";";
+}
+echo $first, "\n";
+
+var $second = "";
+foreach ($c as int $v) {
+    $second = $second . ($v as string) . ";";
+}
+echo $second, "\n";
+
+var $sum = 0;
+foreach (new Counted(5) as int $v) {
+    $sum = $sum + $v;
+}
+echo $sum, "\n";
+
+var $none = "";
+foreach (new Counted(0) as int $v) {
+    $none = $none . "x";
+}
+echo "[", $none, "]\n";
+--EXPECT--
+1;2;3;4;
+1;2;3;4;
+15
+[]

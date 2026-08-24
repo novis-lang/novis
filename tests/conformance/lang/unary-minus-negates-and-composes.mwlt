@@ -1,0 +1,33 @@
+--TEST--
+Unary `-` negates a variable, a call result and a float, and binds looser than `as` so a converted negation needs parentheses
+--FILE--
+<?mwl
+class Neg {
+    public static function of(int $x): int {
+        return -$x;
+    }
+
+    public static function twice(int $x): int {
+        return -(-$x);
+    }
+}
+
+echo Neg::of(5), ",", Neg::of(-5), ",", Neg::of(0), "\n";
+echo Neg::twice(9), ",", Neg::twice(-9), "\n";
+echo -Neg::of(4), "\n";
+
+float $f = 2.5;
+echo -$f, ",", -(0.0 - $f), "\n";
+
+echo (-7) as string, "|", (-7.5) as string, "|\n";
+
+int $a = 3;
+int $b = 8;
+echo -$a + $b, ",", $b - -$a, "\n";
+--EXPECT--
+-5,5,0
+9,-9
+4
+-2.5,2.5
+-7|-7.5|
+5,11

@@ -1,0 +1,43 @@
+--TEST--
+`string as int`/`as float` accepts only a whole numeric spelling — leading space, trailing space, hex and a fractional part all throw — ADR 0007 § 2
+--FILE--
+<?mwl
+class Convert {
+    public static function toInt(string $s): string {
+        try {
+            return ($s as int) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    public static function toFloat(string $s): string {
+        try {
+            return ($s as float) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+echo Convert::toInt("42"), "\n";
+echo Convert::toInt("-7"), "\n";
+echo Convert::toInt("abc"), "\n";
+echo Convert::toInt(" 42"), "\n";
+echo Convert::toInt("42 "), "\n";
+echo Convert::toInt(""), "\n";
+echo Convert::toInt("0x1A"), "\n";
+echo Convert::toInt("12.0"), "\n";
+echo Convert::toFloat("1e3"), "\n";
+echo Convert::toFloat("nope"), "\n";
+--EXPECT--
+42
+-7
+threw: cannot convert string "abc" to `int`
+threw: cannot convert string " 42" to `int`
+threw: cannot convert string "42 " to `int`
+threw: cannot convert string "" to `int`
+threw: cannot convert string "0x1A" to `int`
+threw: cannot convert string "12.0" to `int`
+1000
+threw: cannot convert string "nope" to `float`

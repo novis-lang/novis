@@ -1,0 +1,39 @@
+--TEST--
+`RuntimeError`'s three subclasses are each caught by a `RuntimeError` clause, and `ArithmeticError` is not — spec § 10
+--FILE--
+<?mwl
+class Ladder {
+    public static function of(int $n): string {
+        try {
+            if ($n === 0) {
+                throw new IOError("io");
+            }
+            if ($n === 1) {
+                throw new ParseError("parse");
+            }
+            if ($n === 2) {
+                throw new TimeoutError("timeout");
+            }
+            if ($n === 3) {
+                throw new RuntimeError("plain");
+            }
+            throw new ArithmeticError("math");
+        } catch (RuntimeError $runtime) {
+            return "runtime:" . $runtime->message;
+        } catch (Throwable $rest) {
+            return "other:" . $rest->message;
+        }
+    }
+}
+
+echo Ladder::of(0), "\n";
+echo Ladder::of(1), "\n";
+echo Ladder::of(2), "\n";
+echo Ladder::of(3), "\n";
+echo Ladder::of(4), "\n";
+--EXPECT--
+runtime:io
+runtime:parse
+runtime:timeout
+runtime:plain
+other:math

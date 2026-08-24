@@ -30,7 +30,7 @@
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
 > `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 94 and
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 120 and
 > `tests/differential` × 66, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -44,13 +44,17 @@
 > not this field.
 >
 > **Open now:** **growing the conformance suite**. `mwl test` runs, both suites are green, and the
-> **differential leg has cleared its threshold — 66 cases against 60**; conformance is 94 against 250, so
-> Stage 4 now fails on that one count alone.
+> **differential leg has cleared its threshold — 66 cases against 60**; conformance is 120 against 250, so
+> Stage 4 now fails on that one count alone. The corpus is also the fastest bug-finder there is: writing
+> it turned up, and this milestone fixed, a loop-header phi that skipped `try`/`catch`/`finally` bodies, an
+> enum auto-increment that could not follow a negative case, and a `parent::constructor(...)` obligation
+> demanded of subclasses whose parent declares no constructor.
 > Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
 > rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
 > type, a `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one
 > shape still unstatable. Also two re-opened M1 grammar slices (`autoload`, the duration literal) — see
-> M1 — plus ADR 0047's now-unblocked M2 checker row. In docs, one thing remains:
+> M1 — plus ADR 0047's now-unblocked M2 checker row, and **class-member `private`/`protected` visibility,
+> which nothing enforces** (`mwl-types`' own gap list). In docs, one thing remains:
 > `docs/spec/02-php-migration.md` is 31% classified (strings, arrays, numbers, conversions), the rest one
 > pass per PHP domain, reported by `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's
 > `by`-delegation.

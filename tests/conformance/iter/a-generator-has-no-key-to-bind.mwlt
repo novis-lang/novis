@@ -1,0 +1,24 @@
+--TEST--
+`Iterator<T>` has `advance()` and `current()` and nothing else, so a `$k =>` binding over one is a compile error — ADR 0053 § 1
+--FILE--
+<?mwl
+class Steps {
+    public static function upto(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+foreach (Steps::upto(3) as string $k => int $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
+%A
+error: aborting due to 1 error

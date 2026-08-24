@@ -6,14 +6,23 @@
 acceptance list and the standing decisions already settled with the user; do not re-open any of them. The
 plan's status block says what is on disk and what is open.
 
-**The differential suite has cleared its threshold: 66 cases against 60.** Conformance is **94 against
-250**, so Stage 4 now fails on that one count alone, and growing it is the whole remaining gap. The
-`.mwlt` format — every section, `--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl`,
-and why a `--ORACLE--` case skips when PHP is absent — is `crates/mwl-test`'s own module doc, routed from
+**Conformance is 120 against 250, differential 66 against 60.** Stage 4 fails on that one count alone, and
+growing the conformance corpus is the whole remaining gap. The `.mwlt` format — every section,
+`--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl`, and why a `--ORACLE--` case skips
+when PHP is absent — is `crates/mwl-test`'s own module doc, routed from
 [`docs/adr/README.md`](../adr/README.md) § *Where to look*.
 
-**Every fixture is green on both legs**, byte for byte, every one `valgrind --leak-check=full` clean.
-Stages 1–3 are done. **Nothing is blocked.**
+**Writing cases is the fastest bug-finder in the repo.** Three real compiler bugs came out of one batch and
+are fixed: `collect_reassigned_locals` never descended into `try`/`catch`/`finally`, so a local written
+inside a protected region in a loop silently kept its pre-loop value; the enum auto-increment counter ran
+over raw `u64` bits, so a case after `= -2` was rejected; and `parent::constructor(...)` was demanded of
+every subclass, including ones whose parent declares no constructor at all — an unsatisfiable requirement.
+Each fix is documented where it lives (`mwl-ir`'s `lower/control.rs`, `mwl-types`' `enums.rs`,
+`ctor_init.rs`). **Expect more of the same: probe a shape with a scratch `.mwl` before writing cases
+around it.**
+
+**Every fixture is green on both legs**, byte for byte, every one `valgrind --leak-check=full` clean, and
+the new try-in-a-loop refcount edge was leak-checked too. Stages 1–3 are done. **Nothing is blocked.**
 
 **PHP 8.5 is on `PATH` under Windows but not inside the WSL distro**, so the Linux leg skips the
 `--ORACLE--` cases and runs the `--ORACLE-DIVERGES--` ones. That is deliberate: the native leg's
@@ -22,8 +31,7 @@ it matters. Installing PHP in WSL is the user's call, not a session's.
 
 **[ADR 0009](../adr/0009-string-and-bytes.md) is Accepted in full**, § 2 included. The seam is
 `mwl_stdlib::granularity`, whose module doc owns the dependency choice and the one gap — nothing caches a
-count yet, which the plan's M4S paragraph carries. The figures live only in
-`a_grapheme_index_costs_more_than_a_code_point_index` (`benches/abi-probe/tests/perf_guards.rs`).
+count yet, which the plan's M4S paragraph carries.
 
 **M1 was re-opened for four grammar additions; two are built.** `decimal`
 ([ADR 0054](../adr/0054-decimal-scalar-type.md)) landed grammar *and* its M2 checker rows; its runtime half
@@ -65,23 +73,26 @@ refuses rather than failing cleanly, so writing around them saves an edit cycle:
 but a declaration initializer, a `return` value, an assignment right-hand side or a condition (`mwl-ir`
 gap 5, so not inside an `echo` argument); a compound assignment `$x += 1` in any form (gap 16); a *nested*
 array write `$grid[0][1] = v` (gap 6 — reading it is fine); `$f(...)` on a closure-typed local (gap 9); a
-class constant's *value*, and a write to a static property (gaps 6 and the `mwl-types` list); an implicit
-`Stringable` in `echo` or `.` (gap 12 — call `toString()` explicitly); `bool as int` and `as ?T` (gaps 4
-and 3); `for`/`switch` (gap 1). In `mwl-codegen`: `<`/`>` over two strings, and gap 9's two refusals — an
-`int` mixed with a `float` in one operator (write `0.0 - 1.5`) and `===` over two enum values (compare
-`$a as int`). Three spelling traps that produce a confusing panic rather than a parse error: `as` binds
-tighter than comparison, and than `instanceof` and unary minus, so write `($a > $b) as string` and
-`(-7) as string`; a `foreach` key binding must be declared `string` even over a list (ADR 0007 § 5), which
-is what a list case should assert rather than avoid; and `Core\Arr::map` through a *variable* of type
-`callable` yields `array<mixed>`, because `callable` is opaque — write the `fn` literal at the call site
-when the element type matters.
+class constant's *value*, a write to a static property, and `do`/`while` (`mwl-ir`'s statement list); an
+implicit `Stringable` in `echo` or `.` (gap 12 — call `toString()` explicitly); `bool as int` and `as ?T`
+(gaps 4 and 3); integer `/` (no single `int|float` IR representation); `for`/`switch` (gap 1). In
+`mwl-codegen`: `<`/`>` over two strings, and gap 9's two refusals — an `int` mixed with a `float` in one
+operator (write `0.0 - 1.5`) and `===` over two enum values (compare `$a as int`). Also: a parameter typed
+`Stringable`/`Comparable` has no method to call, and `instanceof Stringable` panics in `mwl-ir` — both are
+the empty reserved-interface roster, in `mwl-types`' gap list. `lateinit` is checked at compile time, so a
+read-before-write is a diagnostic rather than the ADR 0038 throw. Three spelling traps that produce a
+confusing panic rather than a parse error: `as` binds tighter than comparison, `instanceof` and unary
+minus, so write `($a > $b) as string` and `(-7) as string`; a `foreach` key binding must be declared
+`string` even over a list (ADR 0007 § 5); and `Core\Arr::map` through a *variable* of type `callable`
+yields `array<mixed>` — write the `fn` literal at the call site when the element type matters.
+`Core\Str::length` returns `uint`, so a `{by:}` projection over it is declared `: uint`.
 
 Two smaller slices, either of which fits a session on its own:
 
 - **`autoload`** ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) — the smaller of
   the two remaining M1 grammar additions; the duration literal (0070) follows.
 - **More `Core` §§ 1–2 rows.** Everything left in § 1 that needs no new registry machinery is a row plus a
-  body; `Core\Str::slice` is the exception and waits on gap 3 below.
+  body; `Core\Str::slice` is the exception and waits on `mwl-ir` gap 3.
 
 **When a session is short**, one migration-table pass instead: pick a domain from
 [`docs/spec/02-php-migration.md`](../spec/02-php-migration.md)'s *Not yet classified* list, run
@@ -89,17 +100,17 @@ Two smaller slices, either of which fits a session on its own:
 
 ## Backlog
 
+- **Class-member `private`/`protected` is not enforced at all** — `mwl-types`' own gap list; a PHP-visible
+  divergence, and it wants one pass keyed on the accessing class.
+- **The reserved `Comparable`/`Stringable` interfaces carry no member signatures** — same gap list; filling
+  the roster is what makes a `Stringable` parameter and `instanceof Stringable` work.
 - **A compound assignment (`+=`, `.=`, …) does not lower** — `mwl-ir`'s known gap 16; every PHP program
   writes one, so it is the widest single hole left in the surface a conformance case can reach.
 - **A `foreach` key binding declared `int` panics in `mwl-ir` instead of getting a diagnostic** —
   `mwl-types`' own known-gap list; ADR 0007 § 5 makes it always wrong.
 - **ADR 0047's M2 checker row** is unblocked and is what removes `E_LITERAL_TYPE_UNCHECKED`.
-- **A `Core` member cannot return a union or `?T`, and a `?T` parameter cannot be declared** — `mwl-ir`'s
-  known gap 3, and what `Core\Str::slice` waits on.
 - **A closure literal written as a call argument leaks its environment object when that call throws** —
   `mwl-ir`'s known gap 2; it needs an owned-temporaries stack threaded through `lower_expr`.
-- **Integer `+`/`-`/`*` wrap rather than throw** — `mwl-codegen`'s known gap 8; read
-  `a_typed_arithmetic_loop_contains_no_call` before adding a raise.
 - **`$a + $b` and `$a += $b` over two arrays still have no diagnostic** — ADR 0069 § 2 requires one.
 
 ## Standing rules for this repo
@@ -112,8 +123,9 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 + handoff, commit, **stop** — no second `cargo` pass after the commit. Tooling notes:
 
 - **The Bash tool eats a backslash inside a heredoc**, and an apostrophe-heavy one can fail to parse at
-  all. For a multi-line Rust edit, write the old and new blocks to files under `.agent-tmp/` with the
-  Write tool, then `python tools/splice.py <target> <old> <new>`.
+  all. This bites hardest in a `python - <<'PY'` one-liner rewriting a fixture: `"\\n"` arrives as a real
+  newline and the replacement silently matches nothing. Use the Write tool, or
+  `python tools/splice.py <target> <old> <new>` with both blocks written to `.agent-tmp/`.
 - **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
   lowers**, and is worth doing before writing a batch of cases around it.
 - **Another agent may be editing this repo at the same time.** **Check the ADR directory for the next free

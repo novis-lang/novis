@@ -1,0 +1,27 @@
+--TEST--
+`$e->location` is a readonly property naming the file and line of the `throw`, not an accessor — the loop goal's exception surface, spec § 10
+--FILE--
+<?mwl
+class Site {
+    public static function early(): string {
+        try {
+            throw new RuntimeError("first");
+        } catch (Throwable $e) {
+            return $e->location;
+        }
+    }
+
+    public static function later(): string {
+        try {
+            throw new LogicError("second");
+        } catch (Throwable $e) {
+            return $e->location;
+        }
+    }
+}
+
+echo Site::early(), "\n";
+echo Site::later(), "\n";
+--EXPECT--
+case.mwl:5
+case.mwl:13

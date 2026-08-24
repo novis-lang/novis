@@ -1,0 +1,31 @@
+--TEST--
+Two `catch` clauses on one `try` each bind their own variable, and the first matching class wins
+--FILE--
+<?mwl
+class Sorted {
+    public static function of(int $n): string {
+        try {
+            if ($n === 0) {
+                throw new LogicError("zero");
+            }
+            if ($n === 1) {
+                throw new RuntimeError("one");
+            }
+            throw new ArithmeticError("many");
+        } catch (LogicError $logic) {
+            return "logic:" . $logic->message;
+        } catch (RuntimeError $runtime) {
+            return "runtime:" . $runtime->message;
+        } catch (Throwable $rest) {
+            return "root:" . $rest->message;
+        }
+    }
+}
+
+echo Sorted::of(0), "\n";
+echo Sorted::of(1), "\n";
+echo Sorted::of(2), "\n";
+--EXPECT--
+logic:zero
+runtime:one
+root:many

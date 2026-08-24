@@ -1,0 +1,62 @@
+--TEST--
+An enum is an ordinary value: it is passed, returned, compared and branched on without ever becoming an object — ADR 0010
+--FILE--
+<?mwl
+enum Level {
+    Debug = 10,
+    Info = 20,
+    Warn = 30,
+    Error = 40,
+}
+
+class Logger {
+    public Level $least;
+
+    public function constructor(Level $least) {
+        $this->least = $least;
+    }
+
+    public function passes(Level $at): bool {
+        return ($at as int) >= ($this->least as int);
+    }
+
+    public function raise(): Level {
+        if (($this->least as int) < (Level::Error as int)) {
+            return Level::Error;
+        }
+        return $this->least;
+    }
+}
+
+class Name {
+    public static function of(Level $l): string {
+        if (($l as int) === (Level::Debug as int)) {
+            return "debug";
+        }
+        if (($l as int) === (Level::Info as int)) {
+            return "info";
+        }
+        if (($l as int) === (Level::Warn as int)) {
+            return "warn";
+        }
+        return "error";
+    }
+}
+
+var $log = new Logger(Level::Warn);
+echo $log->passes(Level::Debug) as string, "|";
+echo $log->passes(Level::Warn) as string, "|";
+echo $log->passes(Level::Error) as string, "|\n";
+
+echo Name::of($log->least), "\n";
+echo Name::of($log->raise()), "\n";
+echo Name::of(Level::Info), "\n";
+
+$log->least = Level::Debug;
+echo $log->passes(Level::Debug) as string, "|", Name::of($log->least), "\n";
+--EXPECT--
+|1|1|
+warn
+error
+info
+1|debug

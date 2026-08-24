@@ -1,0 +1,27 @@
+--TEST--
+`%` by zero throws a catchable error instead of trapping the process — request isolation, ADR 0002
+--FILE--
+<?mwl
+class Mod {
+    public static function of(int $a, int $b): string {
+        try {
+            return ($a % $b) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+echo Mod::of(7, 3), "\n";
+echo Mod::of(-7, 3), "\n";
+echo Mod::of(7, -3), "\n";
+echo Mod::of(1, 0), "\n";
+echo Mod::of(0, 5), "\n";
+echo "still running\n";
+--EXPECT--
+1
+-1
+1
+threw: Modulo by zero
+0
+still running

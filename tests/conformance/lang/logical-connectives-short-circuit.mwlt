@@ -1,0 +1,52 @@
+--TEST--
+`&&` and `||` are the only connectives, and each stops evaluating once the answer is fixed — ADR 0045
+--FILE--
+<?mwl
+class Trace {
+    public static function say(string $tag, bool $answer): bool {
+        echo $tag;
+        return $answer;
+    }
+
+    public static function both(bool $a, bool $b): bool {
+        return $a && $b;
+    }
+
+    public static function either(bool $a, bool $b): bool {
+        return $a || $b;
+    }
+}
+
+echo Trace::both(true, true) as string, "|";
+echo Trace::both(true, false) as string, "|";
+echo Trace::both(false, true) as string, "|";
+echo Trace::both(false, false) as string, "|\n";
+
+echo Trace::either(true, true) as string, "|";
+echo Trace::either(true, false) as string, "|";
+echo Trace::either(false, true) as string, "|";
+echo Trace::either(false, false) as string, "|\n";
+
+class Short {
+    public static function andStops(): bool {
+        return Trace::say("L", false) && Trace::say("R", true);
+    }
+
+    public static function orStops(): bool {
+        return Trace::say("L", true) || Trace::say("R", false);
+    }
+
+    public static function andRuns(): bool {
+        return Trace::say("L", true) && Trace::say("R", false);
+    }
+}
+
+echo Short::andStops() as string, "\n";
+echo Short::orStops() as string, "\n";
+echo Short::andRuns() as string, "\n";
+--EXPECT--
+1||||
+1|1|1||
+L
+L1
+LR

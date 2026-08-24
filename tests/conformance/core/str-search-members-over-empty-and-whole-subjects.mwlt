@@ -1,0 +1,35 @@
+--TEST--
+Core\Str's three predicates answer for an empty subject, an empty needle and a needle equal to the whole subject
+--FILE--
+<?mwl
+class Ask {
+    public static function of(string $subject, string $needle): string {
+        var $out = "";
+        $out = $out . (Core\Str::contains($subject, $needle) as string) . ",";
+        $out = $out . (Core\Str::startsWith($subject, $needle) as string) . ",";
+        $out = $out . (Core\Str::endsWith($subject, $needle) as string);
+        return "[" . $out . "]";
+    }
+}
+
+echo Ask::of("hello", "ell"), "\n";
+echo Ask::of("hello", "hello"), "\n";
+echo Ask::of("hello", "hell"), "\n";
+echo Ask::of("hello", "llo"), "\n";
+echo Ask::of("hello", ""), "\n";
+echo Ask::of("", ""), "\n";
+echo Ask::of("", "x"), "\n";
+echo Ask::of("hello", "HELLO"), "\n";
+echo Ask::of("hello", "hello!"), "\n";
+echo Core\Str::isEmpty("") as string, "|", Core\Str::isEmpty("x") as string, "|\n";
+--EXPECT--
+[1,,]
+[1,1,1]
+[1,1,]
+[1,,1]
+[1,1,1]
+[1,1,1]
+[,,]
+[,,]
+[,,]
+1||

@@ -1,0 +1,44 @@
+--TEST--
+An `array<T>` property is a value: reading it into a local and writing to that local leaves the object's own array untouched
+--FILE--
+<?mwl
+class Bag {
+    public array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    public function total(): int {
+        var $sum = 0;
+        foreach ($this->items as string $k => int $v) {
+            $sum = $sum + $v;
+        }
+        return $sum;
+    }
+
+    public function withOne(int $v): array<int> {
+        var $copy = $this->items;
+        $copy[] = $v;
+        return $copy;
+    }
+}
+
+array<int> $source = [1, 2, 3];
+var $bag = new Bag($source);
+
+echo $bag->total(), "|", Core\Arr::count($bag->items), "\n";
+
+var $more = $bag->withOne(4);
+echo Core\Arr::count($more), "|", Core\Arr::count($bag->items), "|", $bag->total(), "\n";
+
+$source[] = 99;
+echo Core\Arr::count($source), "|", Core\Arr::count($bag->items), "|", $bag->total(), "\n";
+
+$bag->items = $more;
+echo $bag->total(), "|", Core\Arr::count($bag->items), "\n";
+--EXPECT--
+6|3
+4|3|6
+4|3|6
+10|4

@@ -1,0 +1,46 @@
+--TEST--
+A generator whose `yield` is never reached drives zero iterations, and one that yields inside a loop drives exactly as many as it ran — ADR 0053 § 3
+--FILE--
+<?mwl
+class Steps {
+    public static function none(): Iterator<int> {
+        if (false) {
+            yield 1;
+        }
+    }
+
+    public static function upto(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i * $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+var $seen = 0;
+foreach (Steps::none() as int $v) {
+    $seen = $seen + $v + 1;
+}
+echo "none saw ", $seen, "\n";
+
+foreach (Steps::upto(0) as int $v) {
+    echo "unreachable";
+}
+echo "zero is empty\n";
+
+foreach (Steps::upto(5) as int $v) {
+    echo $v, ";";
+}
+echo "\n";
+
+var $total = 0;
+foreach (Steps::upto(4) as int $v) {
+    $total = $total + $v;
+}
+echo $total, "\n";
+--EXPECT--
+none saw 0
+zero is empty
+0;1;4;9;16;
+14
