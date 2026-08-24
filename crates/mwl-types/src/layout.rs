@@ -162,18 +162,15 @@ pub fn build_class_layouts(
     // (`mwl_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
     for (name, _) in mwl_hir::errors::TREE {
-        let fields = if *name == mwl_hir::errors::ROOT {
-            mwl_hir::errors::PROPERTIES
-                .iter()
-                .map(|p| (*p).to_owned())
-                .collect()
-        } else {
-            Vec::new()
-        };
-        // The root's constructor is synthesized rather than written
-        // (`mwl_ir::lower`'s `synthesized_throwable_constructor`), so it is
-        // the one method with a body that no source walk can find.
-        let methods = if *name == mwl_hir::errors::ROOT {
+        let fields = mwl_hir::errors::own_properties(name)
+            .iter()
+            .map(|p| (*p).to_owned())
+            .collect();
+        // These constructors are synthesized rather than written
+        // (`mwl_ir::lower::exception`), so they are the methods with a body
+        // that no source walk can find. One per class that declares
+        // properties of its own — `mwl_hir::errors::declares_constructor`.
+        let methods = if mwl_hir::errors::declares_constructor(name) {
             vec!["constructor".to_owned()]
         } else {
             Vec::new()
@@ -501,9 +498,21 @@ mod tests {
         assert_eq!(table.len(), mwl_hir::errors::TREE.len());
         for (name, _) in mwl_hir::errors::TREE {
             let layout = table.get(name).unwrap_or_else(|| panic!("{name}"));
-            assert_eq!(layout.fields, mwl_hir::errors::PROPERTIES, "{name}");
+            // The root's own row *is* `PROPERTIES`; every other row adds to it.
+            let mut want: Vec<&str> = mwl_hir::errors::PROPERTIES.to_vec();
+            if *name != mwl_hir::errors::ROOT {
+                want.extend(mwl_hir::errors::own_properties(name));
+            }
+            assert_eq!(layout.fields, want, "{name}");
             assert_eq!(layout.slot_of("backtrace"), Some(2), "{name}");
         }
+        assert_eq!(
+            table
+                .get("ParseError")
+                .expect("ParseError")
+                .slot_of("issues"),
+            Some(mwl_hir::errors::ISSUES_SLOT)
+        );
     }
 
     /// A user class extending the tree gets its own slots *after* the root's,

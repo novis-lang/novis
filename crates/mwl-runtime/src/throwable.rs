@@ -60,6 +60,17 @@ pub const LOCATION_SLOT: usize = 3;
 /// operation here refuses it rather than reading past the allocation.
 pub const SLOT_COUNT: usize = 4;
 
+/// The slot `ParseError::$issues` occupies — the one property any class in the
+/// tree declares beyond the root's four
+/// ([ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5).
+///
+/// `ParseError` inherits exactly [`SLOT_COUNT`] slots and adds this one, so a
+/// descriptor with more than [`SLOT_COUNT`] fields is the only shape it can
+/// take. `mwl_hir::errors::ISSUES_SLOT` is the compiler's copy, and
+/// `mwl-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
+/// is what holds the two together.
+pub const ISSUES_SLOT: usize = SLOT_COUNT;
+
 /// Which of [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
 /// § 10's classes a runtime helper's failure lands in.
 ///
@@ -156,12 +167,64 @@ impl Thrown {
                   cannot be expressed in the signature"
     )]
     pub unsafe fn new(class: *const ClassDesc, message: &str) -> Self {
-        if class.is_null() {
-            return Self::none();
+        #[expect(unsafe_code, reason = "forwarding this function's own contract")]
+        unsafe {
+            Self::new_as(class, ThrownClass::Runtime, message, None)
         }
-        #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
-        let count = unsafe { (*class).field_count() };
+    }
+
+    /// [`Self::new`], plus the one property a class below the root declares:
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's `issues` on
+    /// `ParseError`, which is filled with `issues` — or with an empty array
+    /// when a thrower has none to report, since the property is declared
+    /// `array<Issue>` rather than `?array<Issue>` and reading `null` out of it
+    /// would be a type the checker ruled out.
+    ///
+    /// `thrown` rather than the descriptor's name decides that: a name compare
+    /// on every promotion would put a string equality on the throw path, and a
+    /// user's `class ConfigError extends Throwable { public int $code; }` also
+    /// has a fifth slot — one that must **not** be written here.
+    ///
+    /// Takes over `issues`' reference; releases it if there is no slot to put
+    /// it in (a null or too-narrow descriptor, which is
+    /// [`Ctx::set_runtime_error_class`]'s "nothing installed" case).
+    ///
+    /// # Safety
+    ///
+    /// `class` must be null or refer to a live class descriptor that outlives
+    /// every instance made from it, and `issues` must be a value whose
+    /// reference is being transferred here.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor's liveness and the value's reference are both \
+                  the caller's obligation and cannot be expressed in the signature"
+    )]
+    pub unsafe fn new_as(
+        class: *const ClassDesc,
+        thrown: ThrownClass,
+        message: &str,
+        issues: Option<Value>,
+    ) -> Self {
+        let count = if class.is_null() {
+            0
+        } else {
+            #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+            unsafe {
+                (*class).field_count()
+            }
+        };
         if count < SLOT_COUNT {
+            if let Some(issues) = issues {
+                #[expect(
+                    unsafe_code,
+                    reason = "the caller transferred this reference and there is \
+                              no slot to hand it on to"
+                )]
+                unsafe {
+                    issues.release();
+                }
+            }
             return Self::none();
         }
         #[expect(
@@ -172,6 +235,21 @@ impl Thrown {
         obj.set_field(MESSAGE_SLOT, Value::str(MwlStr::new(message.as_bytes())));
         obj.set_field(BACKTRACE_SLOT, Value::array(MwlArray::new()));
         obj.set_field(LOCATION_SLOT, Value::str(MwlStr::new(b"")));
+        if thrown == ThrownClass::Parse && count > ISSUES_SLOT {
+            obj.set_field(
+                ISSUES_SLOT,
+                issues.unwrap_or_else(|| Value::array(MwlArray::new())),
+            );
+        } else if let Some(issues) = issues {
+            #[expect(
+                unsafe_code,
+                reason = "the caller transferred this reference and this class \
+                          declares no slot to hand it on to"
+            )]
+            unsafe {
+                issues.release();
+            }
+        }
         Self {
             ptr: obj.into_raw(),
         }

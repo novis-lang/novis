@@ -182,6 +182,7 @@ mod cldr;
 mod format;
 pub mod granularity;
 mod instance;
+mod issue;
 pub mod json;
 pub mod math;
 mod ordering;

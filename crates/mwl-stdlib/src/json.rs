@@ -71,10 +71,13 @@
 //! 2. **`#[Json\Derive]` generates only the encode half.**
 //!    [`Encodable::serialize_object`] writes an instance from the field list
 //!    `mwl_types::derive` read off its declaration, so § 6's `encode` is whole;
-//!    `decodeAs<T>`, the generated decoder and
-//!    [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's accumulated
-//!    `issues` on `ParseError` are still owed, and until they land § 6 is three
-//!    of its four members.
+//!    `decodeAs<T>` and the generated decoder
+//!    ([ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5) are still
+//!    owed, and until they land § 6 is three of its four members. The issue
+//!    list those will report *through* is built: [`crate::issue`] is the shape,
+//!    `ParseError::issues` is the property, and
+//!    [`mwl_core_json_decode`] already records the one issue a malformed
+//!    document has.
 //! 3. **A hand-written `Core\Json\Codec` is not consulted.** ADR 0071 § 7 lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
@@ -655,10 +658,15 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_json_decode(_ctx, args: [2]) {
         let text = text_of(&args[0], "decode")?;
         let max = max_depth(&args[1])?;
-        read(text, max).map_err(|why| Fault::thrown_as(
-            ThrownClass::Parse,
-            format!("Core\\Json::decode(): {why}"),
-        ))
+        read(text, max).map_err(|why| {
+            // ADR 0071 § 5's last sentence: a malformed document records one
+            // issue, so a `catch (ParseError $e)` reads the same shape whether
+            // the failure was the syntax or the fields. Its `path` is empty —
+            // there is no field to point at when the document did not parse.
+            let message = format!("Core\\Json::decode(): {why}");
+            let issues = crate::issue::list([("", message.as_str())]);
+            Fault::thrown_with_issues(ThrownClass::Parse, message, issues)
+        })
     }
 }
 

@@ -128,6 +128,85 @@ pub(crate) fn build<const N: usize>(class: &CoreClass, slots: [Value; N]) -> Val
     Value::object(object)
 }
 
+thread_local! {
+    /// This core's *shape* descriptors — see [`shape`]. A second table beside
+    /// [`DESCRIPTORS`] rather than more rows in it, because a shape is not a
+    /// [`CoreClass`]: it has no members, no name a program resolves, and no
+    /// registry row.
+    static SHAPES: Cell<Option<&'static ClassTable>> = const { Cell::new(None) };
+}
+
+/// Every ADR 0036 shape a `Core` member builds a value of, as
+/// `(descriptor name, fields in slot order)`.
+///
+/// **Slot order is the field name order, sorted** — `mwl_types::ty::Ty::Shape`
+/// canonicalizes `{y: …, x: …}` and `{x: …, y: …}` to one interned type by
+/// sorting, so the runtime layout has to be the same order or a written shape
+/// type and a built value would disagree about which slot is which.
+const SHAPE_ROSTER: &[(&str, &[&str])] = &[(crate::issue::SHAPE, crate::issue::FIELDS)];
+
+/// `name`'s shape descriptor on this core, built and leaked on first use.
+///
+/// # Panics
+///
+/// Panics naming the shape if it is not in [`SHAPE_ROSTER`].
+fn shape_descriptor(name: &str) -> *const ClassDesc {
+    let table = SHAPES.with(|held| {
+        if let Some(table) = held.get() {
+            return table;
+        }
+        let mut table = ClassTable::new();
+        for (shape, fields) in SHAPE_ROSTER {
+            // No parents, and no methods: ADR 0036 § 2 makes a shape value an
+            // anonymous *methodless* instance, so there is nothing to inherit
+            // and nothing to dispatch.
+            table.define(*shape, fields.len(), &[]);
+        }
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        held.set(Some(table));
+        table
+    });
+    let id = table
+        .id_of(name)
+        .unwrap_or_else(|| panic!("{name} is not a `Core`-built shape"));
+    table.desc(id)
+}
+
+/// A fresh ADR 0036 shape value — `{path: "…", message: "…"}` — its slots
+/// filled from `slots` in [`SHAPE_ROSTER`]'s order.
+///
+/// The same anonymous methodless instance an MWL `{…}` literal builds, so
+/// nothing downstream learns that `Core` produced this one. Takes over each
+/// slot value's reference, exactly as [`build`] does.
+///
+/// # Panics
+///
+/// Panics if `slots` is not exactly as long as the shape's field list, or if
+/// `name` is not in [`SHAPE_ROSTER`].
+pub(crate) fn shape<const N: usize>(name: &str, slots: [Value; N]) -> Value {
+    let fields = SHAPE_ROSTER
+        .iter()
+        .find(|(shape, _)| *shape == name)
+        .map_or(&[][..], |(_, fields)| fields);
+    assert_eq!(
+        N,
+        fields.len(),
+        "{name} has {} slots, filled with {N} values",
+        fields.len()
+    );
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor is owned by this core's leaked table, so it \
+                  outlives every instance made from it — which is `MwlObj::new`'s \
+                  whole safety obligation"
+    )]
+    let object = unsafe { MwlObj::new(shape_descriptor(name)) };
+    for (index, value) in slots.into_iter().enumerate() {
+        object.set_field(index, value);
+    }
+    Value::object(object)
+}
+
 /// The receiver of an instance member: argument slot 0, as a raw object
 /// pointer live for the length of the call.
 ///

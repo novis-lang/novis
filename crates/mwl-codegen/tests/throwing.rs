@@ -79,6 +79,17 @@ class MyError extends IOError {
             .unwrap_or_else(|| panic!("{label} should be in the class table"));
         assert_eq!(&class.fields[..PROPERTIES.len()], PROPERTIES, "{label}");
     }
+
+    // ADR 0071 § 5's `issues` is the one property any class below the root
+    // declares, and the runtime writes it by index too — so its slot is held
+    // by the same agreement the four above are.
+    assert_eq!(mwl_hir::errors::ISSUES_SLOT, mwl_runtime::ISSUES_SLOT);
+    let parse = program
+        .classes
+        .iter()
+        .find(|c| c.label == "ParseError")
+        .expect("ParseError should be in the class table");
+    assert_eq!(parse.fields[mwl_runtime::ISSUES_SLOT], "issues");
 }
 
 #[test]

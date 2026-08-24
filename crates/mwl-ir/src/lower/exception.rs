@@ -401,21 +401,48 @@ pub(super) const LOCATION_FIELD: &str = "location";
 /// both resolve to.
 pub(super) const THROWABLE_CTOR: &str = "Throwable::constructor";
 
-/// The one MWL function with no source text: `Throwable`'s constructor.
+/// `ParseError`, the one class below the root that declares a property —
+/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's `issues`.
+/// `mwl_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends
+/// on neither `mwl-hir` nor `mwl-types`, so it restates the two names it needs.
+pub(super) const PARSE_ERROR: &str = "ParseError";
+
+/// `ParseError::$issues`.
+pub(super) const ISSUES_FIELD: &str = "issues";
+
+/// The MWL functions with no source text: one constructor per exception class
+/// that declares state of its own.
 ///
-/// It cannot be written in MWL — `backtrace` is grown by the runtime as a
+/// They cannot be written in MWL — `backtrace` is grown by the runtime as a
 /// throw propagates, so a source declaration would need a body with no legal
-/// spelling (`mwl_hir::errors` owns that reasoning). What it does is small
+/// spelling (`mwl_hir::errors` owns that reasoning). What each does is small
 /// enough to build by hand: store the message, start an empty backtrace, and
 /// put a placeholder in `location` that [`Lowering::write_throw_location`]
 /// overwrites at the `throw`. `previous` is left `null`, which is the only
 /// value it can have until `mwl_types::signatures::MethodSig` can model an
 /// optional parameter (`mwl_types::error_lib`'s own known gaps).
 ///
+/// `ParseError` gets a second one rather than inheriting the root's, because
+/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5 gives it an
+/// `issues` list declared `array<Issue>`: ADR 0022 makes every property
+/// definitely assigned, and a slot the root's constructor never touches would
+/// read `null` out of a type that cannot be one. It writes all five slots
+/// rather than chaining, which costs three duplicated instructions and buys
+/// not needing a call at all on a path that allocates an exception.
+pub(super) fn synthesized_exception_constructors() -> Vec<Function> {
+    vec![
+        exception_constructor(THROWABLE_ROOT, &[]),
+        exception_constructor(PARSE_ERROR, &[ISSUES_FIELD]),
+    ]
+}
+
+/// One such constructor: the root's four slots, then one empty `array` per
+/// name in `extra` — which is every property `class` declares beyond them.
+///
 /// The receiver and the message are both *transferred* to this frame by the
 /// call convention, so both are released at the exit — the field takes its own
 /// reference to the message first.
-pub(super) fn synthesized_throwable_constructor() -> Function {
+fn exception_constructor(class: &str, extra: &[&str]) -> Function {
     let mut ids = IdGen::default();
     let block = ids.next_block();
     let this = ids.next_value();
@@ -435,38 +462,43 @@ pub(super) fn synthesized_throwable_constructor() -> Function {
         kind,
         on_error: None,
     };
+    // Every store names `class` rather than the declaring one: a slot is
+    // resolved against the *layout* of the label written here, and a subclass's
+    // layout holds every inherited field at the ancestor's own index.
     let store = |field: &str, value: ValueId| {
         plain(InstKind::FieldSet {
             object: this,
-            class: THROWABLE_ROOT.to_owned(),
+            class: class.to_owned(),
             field: field.to_owned(),
             value,
         })
     };
+    let empty_array = || InstKind::ArrayNew {
+        entries: Vec::new(),
+    };
 
-    let insts = vec![
+    let mut insts = vec![
         plain(InstKind::Safepoint),
         defines(this, Ty::Object, InstKind::Param(0)),
         defines(message, Ty::Str, InstKind::Param(1)),
         plain(InstKind::Retain { operand: message }),
         store(MESSAGE_FIELD, message),
-        defines(
-            backtrace,
-            Ty::Array,
-            InstKind::ArrayNew {
-                entries: Vec::new(),
-            },
-        ),
+        defines(backtrace, Ty::Array, empty_array()),
         store(BACKTRACE_FIELD, backtrace),
         defines(location, Ty::Str, InstKind::ConstStr(String::new())),
         store(LOCATION_FIELD, location),
-        plain(InstKind::Release { operand: message }),
-        plain(InstKind::Release { operand: this }),
     ];
+    for field in extra {
+        let value = ids.next_value();
+        insts.push(defines(value, Ty::Array, empty_array()));
+        insts.push(store(field, value));
+    }
+    insts.push(plain(InstKind::Release { operand: message }));
+    insts.push(plain(InstKind::Release { operand: this }));
 
     let (stmt_spans, edge_spans) = ids.into_spans();
     Function {
-        name: THROWABLE_CTOR.to_owned(),
+        name: format!("{class}::constructor"),
         params: vec![Ty::Object, Ty::Str],
         ret: Ty::Void,
         blocks: vec![BasicBlock {

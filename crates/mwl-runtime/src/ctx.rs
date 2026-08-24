@@ -271,8 +271,13 @@ impl Pending {
     )]
     unsafe fn into_thrown(self, class: *const ClassDesc) -> Thrown {
         match self {
+            // The class is passed through rather than dropped: it is what
+            // decides whether ADR 0071 § 5's `issues` slot exists to fill —
+            // see `Thrown::new_as`.
             #[expect(unsafe_code, reason = "forwarding this function's own contract")]
-            Self::Message(_, message) => unsafe { Thrown::new(class, &message) },
+            Self::Message(thrown, message) => unsafe {
+                Thrown::new_as(class, thrown, &message, None)
+            },
             Self::Thrown(thrown) => thrown,
         }
     }
@@ -492,6 +497,43 @@ impl Ctx {
     /// reference it was handed.
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
+    }
+
+    /// Records a `THROWN` of `class` carrying `message` and
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's `issues`
+    /// list — [`crate::Fault::ThrownWithIssues`]'s one destination.
+    ///
+    /// The object is built **here** rather than left as a [`Pending::Message`]
+    /// to be promoted later, which is what keeps the pending state free of an
+    /// owned reference: every path that replaces or discards a pending failure
+    /// would otherwise have to release one, and exactly one of those paths
+    /// being missed is the shape a refcount leak takes. Only a member that
+    /// actually recorded an issue reaches this, so the eager allocation is on
+    /// a path that has already allocated.
+    ///
+    /// # Safety
+    ///
+    /// `issues` must be a value whose reference is being transferred here.
+    #[expect(
+        unsafe_code,
+        reason = "the value's reference and the installed descriptor's liveness \
+                  are both obligations the signature cannot express"
+    )]
+    pub unsafe fn raise_with_issues(
+        &mut self,
+        class: ThrownClass,
+        message: &str,
+        issues: crate::Value,
+    ) {
+        let desc = self.error_desc(class);
+        #[expect(
+            unsafe_code,
+            reason = "the descriptor comes from the `Rc`-shared table this \
+                      context holds, so it outlives the instance; the value's \
+                      reference is forwarded"
+        )]
+        let thrown = unsafe { Thrown::new_as(desc, class, message, Some(issues)) };
+        self.raise(thrown);
     }
 
     /// The pending message, if any, without clearing it.

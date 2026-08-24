@@ -26,8 +26,9 @@
 > parses, and a member declares which variables are written rather than inferred. **ADR 0071's first
 > compiler-recognized attribute is built**: `#[Json\Derive]` is matched nominally in `mwl_types::derive`,
 > and the field list it reads reaches `Core\Json::encode` through `mwl_runtime::ClassDesc`, so a declared
-> class encodes. Dependencies: `regex` +
-> `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
+> class encodes, and **`ParseError` now carries spec § 10's `issues`** — the one property any class in
+> the exception tree declares below the root, over ADR 0071 § 5's `Core\Issue` shape. Dependencies:
+> `regex` + `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -44,12 +45,12 @@
 > `error_lib`, `iter_lib`, `generics`, `conformance`, `defaults`, `derive`), `mwl-ir`, `mwl-runtime` (+ `object`,
 > `array`, `throwable`, `closure`, `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 28,
 > `Math` × 38, `format`, `granularity`, `ordering`, `cldr`,
-> `instance`, `Order`, `RoundMode`, `Unit` and `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over
+> `instance`, `issue`, `Order`, `RoundMode`, `Unit` and `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over
 > `regex`/`fancy-regex`, `Time` × 7 plus `Time\Instant` × 9, `Time\DateTime` × 14,
 > `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over `jiff`, `Json` × 3 over `serde_json`, and the
 > conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 322 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/conformance` × 323 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
 > `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -69,9 +70,10 @@
 > **0070 in full but its § 3 constant** — `30s` lexes as one token, types as `Core\Time\Duration` and
 > runs, over the one grammar `mwl_syntax::duration` holds for the lexer, `Duration::parse` and M6's
 > `mwl.toml`; what is owed is the *immortal* constant-pool value, which `mwl-runtime`'s gap 3 owes a
-> string literal too, and **0071 §§ 1–3 and § 6 for the encode half** — the nominal match, the field list,
-> both per-field overrides, and the `secret`/`lateinit`/constructor-parameter refusals all run, leaving
-> § 5's decoder and its `issues` owed (`mwl_types::derive`'s own gaps list the rest).
+> string literal too, and **0071 §§ 1–3, § 5's issue list and § 6 for the encode half** — the nominal
+> match, the field list, both per-field overrides, the `secret`/`lateinit`/constructor-parameter refusals
+> and `ParseError::issues` all run, leaving § 5's generated *decoder* owed (`mwl_types::derive`'s own gaps
+> list the rest).
 > Instance calls dispatch on the receiver's runtime class. Each
 > ADR's own *Verification* section says what its slice covers, not this field.
 >
@@ -103,8 +105,12 @@
 > 0071's derive is now half built**: `mwl_types::derive` matches `#[Json\Derive]` nominally, reads the
 > field list and both `#[Json\Field]` overrides off the declaration, and refuses a `secret`, a `lateinit`
 > and a field with no matching constructor parameter; the list reaches the encoder through
-> `ir::Class::codec` and `mwl_runtime::ClassDesc::codec`. What `decodeAs` still needs is that ADR § 5's
-> generated *decoder*, its `Core\Json::decodeAs` registry row and spec § 10's `issues` on `ParseError`.
+> `ir::Class::codec` and `mwl_runtime::ClassDesc::codec`. **Spec § 10's `issues` now exists**: it is
+> `ParseError`'s own slot, the one property any class in the tree declares below the root, so that class
+> alone gains a synthesized constructor (`mwl_ir::lower::exception`) and the root still pays for four
+> slots; `Core\Issue` is ADR 0036's shape rather than a class, built by `mwl_stdlib::issue`, and a
+> malformed `Core\Json::decode` records one. What `decodeAs` still needs is that ADR § 5's generated
+> *decoder*, a declared type on `derive::CodecField`, and its `Core\Json::decodeAs` registry row.
 > Also open: ADR 0047's checker row,
 > `autoload` (0061), a `decimal` parameter *default* (`mwl_types::defaults`), class-member
 > `private`/`protected`, which nothing enforces, and the reserved `Comparable`/`Stringable` interfaces,
@@ -122,8 +128,8 @@
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
 > on **Stage 3**, `Core` Part I across all twelve spec sections: five of its seven fixtures produce their
 > frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`, `text.mwl` and `dates.mwl` — and
-> `json.mwl` is the first that does not; its `#[Json\Derive]` class now encodes, and what it still reports
-> is `decodeAs<T>` and `$e->issues`.
+> `json.mwl` is the first that does not; its `#[Json\Derive]` class now encodes and its `$e->issues` reads,
+> so what it still reports is `decodeAs<T>` alone.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

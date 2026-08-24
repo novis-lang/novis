@@ -59,6 +59,22 @@ pub enum Fault {
     /// [`Fault::thrown`] means [`ThrownClass::Runtime`], which is what a
     /// failure with nothing more specific to say is.
     Thrown(crate::ThrownClass, std::borrow::Cow<'static, str>),
+    /// [`Self::Thrown`], plus
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's issue list —
+    /// what a member that found *several* things wrong with one input reports,
+    /// so a form is told about all four bad fields rather than the first.
+    ///
+    /// The value is an owned `array<Core\Issue>`, and this variant is the one
+    /// place a [`Fault`] carries a reference at all: it is transferred into the
+    /// exception object's `issues` slot the moment the fault is recorded, and
+    /// released if there is no slot to hand it to. Building it eagerly is what
+    /// keeps [`Ctx`]'s pending state free of a reference it would have to
+    /// release on every replacement path.
+    ThrownWithIssues(
+        crate::ThrownClass,
+        std::borrow::Cow<'static, str>,
+        crate::Value,
+    ),
     /// Unrecoverable; becomes [`FATAL`].
     Fatal(std::borrow::Cow<'static, str>),
     /// A callee this helper invoked already failed and already recorded what
@@ -87,6 +103,18 @@ impl Fault {
         message: impl Into<std::borrow::Cow<'static, str>>,
     ) -> Self {
         Self::Thrown(class, message.into())
+    }
+
+    /// A [`Fault::ThrownWithIssues`] — ADR 0071 § 5's "report every field".
+    ///
+    /// Takes over `issues`' reference; see that variant for where it goes.
+    #[must_use]
+    pub fn thrown_with_issues(
+        class: crate::ThrownClass,
+        message: impl Into<std::borrow::Cow<'static, str>>,
+        issues: crate::Value,
+    ) -> Self {
+        Self::ThrownWithIssues(class, message.into(), issues)
     }
 
     /// A [`Fault::Fatal`] with a message.
@@ -175,6 +203,18 @@ where
         }
         Ok(Err(Fault::Thrown(class, message))) => {
             ctx.set_pending_as(class, message);
+            THROWN
+        }
+        Ok(Err(Fault::ThrownWithIssues(class, message, issues))) => {
+            #[expect(
+                unsafe_code,
+                reason = "the helper body transferred this reference, and \
+                          `raise_with_issues` transfers it on into the \
+                          exception object's slot or releases it"
+            )]
+            unsafe {
+                ctx.raise_with_issues(class, &message, issues);
+            }
             THROWN
         }
         Ok(Err(Fault::Fatal(message))) => {

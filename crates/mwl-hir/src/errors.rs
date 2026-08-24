@@ -58,6 +58,59 @@ pub const MESSAGE_SLOT: usize = 0;
 /// a frame label to as a throw propagates.
 pub const BACKTRACE_SLOT: usize = 2;
 
+/// Every [`TREE`] entry that declares instance properties **of its own**, in
+/// slot order, keyed by class name.
+///
+/// [`PROPERTIES`] is the root's row; the rest of the tree inherits those four
+/// and, with one exception, adds nothing. That exception is `ParseError`,
+/// which [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5 gives an
+/// `issues` list so that a decode reports **every** bad field from one throw
+/// rather than the first.
+///
+/// It is declared on `ParseError` rather than on the root deliberately: the
+/// root is allocated by every `throw` in every program, and a fifth slot there
+/// would cost sixteen bytes plus one empty-array allocation on a path that
+/// PHP-shaped code takes for ordinary control flow
+/// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)'s measured cost).
+/// `Core\Db\DbError` gains the same property when M8 adds it to [`TREE`].
+pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[(ROOT, PROPERTIES), ("ParseError", ISSUES)];
+
+/// `ParseError`'s own row of [`OWN_PROPERTIES`].
+const ISSUES: &[&str] = &["issues"];
+
+/// The slot `ParseError::$issues` occupies.
+///
+/// `ParseError` descends from the root through `RuntimeError`, and neither
+/// declares anything of its own, so its first own slot sits immediately after
+/// [`PROPERTIES`] — `parse_error_s_own_slots_start_after_the_root_s` is what
+/// holds that rather than a comment.
+pub const ISSUES_SLOT: usize = PROPERTIES.len();
+
+/// `name`'s own instance properties, in slot order — empty for a class that
+/// declares none, and for a name that is not in [`TREE`] at all.
+///
+/// The one reader that matters is `mwl_types::layout`, which appends these
+/// after every ancestor's; `mwl_types::error_lib` seeds the same list as
+/// signatures.
+#[must_use]
+pub fn own_properties(name: &str) -> &'static [&'static str] {
+    OWN_PROPERTIES
+        .iter()
+        .find(|(entry, _)| *entry == name)
+        .map_or(&[], |(_, properties)| *properties)
+}
+
+/// Whether `name` declares a synthesized constructor of its own.
+///
+/// Exactly the classes with own properties: a constructor exists to assign
+/// them ([ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)),
+/// so a class that adds none inherits its parent's and needs no second one.
+/// `mwl_ir::lower::exception` is what actually builds each body.
+#[must_use]
+pub fn declares_constructor(name: &str) -> bool {
+    !own_properties(name).is_empty()
+}
+
 /// Whether `name` is one of [`TREE`]'s entries, spelled as a single global
 /// segment.
 #[must_use]
@@ -104,6 +157,28 @@ mod tests {
         assert_eq!(conforms_to("LogicError"), Some(vec!["Throwable"]));
         assert_eq!(conforms_to("Throwable"), Some(Vec::new()));
         assert_eq!(conforms_to("Animal"), None);
+    }
+
+    #[test]
+    fn parse_error_s_own_slots_start_after_the_root_s() {
+        // `ISSUES_SLOT` is a constant three crates restate, so what it depends
+        // on is checked rather than remembered: nothing between `ParseError`
+        // and the root contributes a slot.
+        let above = conforms_to("ParseError").expect("ParseError is in the tree");
+        let inherited: usize = above.iter().map(|name| own_properties(name).len()).sum();
+        assert_eq!(inherited, ISSUES_SLOT);
+        assert_eq!(own_properties("ParseError"), &["issues"]);
+    }
+
+    #[test]
+    fn only_the_root_and_parse_error_declare_anything_of_their_own() {
+        for (name, _) in TREE {
+            let expected = *name == ROOT || *name == "ParseError";
+            assert_eq!(declares_constructor(name), expected, "{name}");
+        }
+        for (name, _) in OWN_PROPERTIES {
+            assert!(is_exception_class(name), "{name} is not in the tree");
+        }
     }
 
     #[test]

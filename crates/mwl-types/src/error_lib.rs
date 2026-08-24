@@ -15,6 +15,20 @@
 //! `$e->location`. There is no `getMessage()`/`getTraceAsString()` to seed,
 //! and nothing here declares one.
 //!
+//! # `ParseError` is the one class with state of its own
+//!
+//! [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's
+//! `issues: array<Core\Issue>`, seeded from
+//! [`mwl_hir::errors::OWN_PROPERTIES`] rather than named here, so that the
+//! slot order and the signature cannot disagree. `Core\Issue` is an ADR 0036
+//! **shape**, `{path: string, message: string}` — see [`issue_shape`] — so a
+//! class of that name exists nowhere and a decoder builds one with nothing
+//! declared.
+//!
+//! A class that declares properties also declares a constructor to assign
+//! them, which is why the root is no longer the only entry with methods; the
+//! bodies are `mwl_ir::lower::exception`'s.
+//!
 //! # Known gaps
 //!
 //! * **`previous` can never be set.** Its slot exists (the slot *order* is
@@ -25,6 +39,10 @@
 //!   exact count), so a second parameter would make every one-argument
 //!   `new LogicError("…")` a diagnostic. Widening the signature model is the
 //!   prerequisite, not a change here.
+//! * **An `issues` entry cannot be *read* yet.** The list is built, counted
+//!   and iterated like any array, but `$issue->path` is a property access on
+//!   an ADR 0036 § 4 shape receiver, which `mwl-ir` does not lower — its own
+//!   gap, and the reason this crate records no `ExprInfo::Property` for one.
 //! * **`location` is the throw site, not the construction site.** The
 //!   synthesized constructor leaves it empty and `mwl_ir::lower`'s
 //!   `write_throw_location` fills it at the `throw` — which is the choice that
@@ -51,16 +69,57 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     let root = QName::parse(ROOT);
     for (name, _) in TREE {
         let qname = QName::parse(name);
-        // Only the root declares state and a constructor; every other entry
-        // inherits both through the graph `mwl_hir::hierarchy` seeded, the
-        // same walk a user subclass goes through.
-        let (properties, methods) = if qname == root {
-            (root_properties(interner), root_methods(interner))
+        // A class that declares no state of its own inherits both its
+        // properties and its constructor through the graph
+        // `mwl_hir::hierarchy` seeded — the same walk a user subclass goes
+        // through. The root and `ParseError` are the two that do declare
+        // some; `mwl_hir::errors::OWN_PROPERTIES` is that roster's home.
+        let properties = if qname == root {
+            root_properties(interner)
         } else {
-            (FxHashMap::default(), FxHashMap::default())
+            own_properties(name, interner)
+        };
+        let methods = if mwl_hir::errors::declares_constructor(name) {
+            constructor(interner)
+        } else {
+            FxHashMap::default()
         };
         table.seed_class(qname, properties, methods);
     }
+}
+
+/// `name`'s own properties beyond the root's, typed —
+/// [`mwl_hir::errors::OWN_PROPERTIES`]'s non-root rows.
+fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
+    mwl_hir::errors::own_properties(name)
+        .iter()
+        .map(|property| {
+            let ty = match *property {
+                "issues" => {
+                    let issues = issue_shape(interner);
+                    interner.array(issues)
+                }
+                other => panic!("no type seeded for `{name}::{other}`"),
+            };
+            ((*property).to_owned(), ty)
+        })
+        .collect()
+}
+
+/// `type Core\Issue = {path: string, message: string}` —
+/// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's one shape.
+///
+/// An ADR 0036 shape rather than a class, which is what that ADR writes and
+/// what lets a decoder build one with no declaration anywhere: the value is an
+/// anonymous methodless instance, and `mwl_stdlib::issue` is what builds it.
+/// [`TypeInterner::shape`] canonicalizes the field order, so the runtime slot
+/// order is the *sorted* one — `message`, then `path`.
+fn issue_shape(interner: &mut TypeInterner) -> TypeId {
+    let string = interner.string();
+    interner.shape(vec![
+        ("path".to_owned(), string),
+        ("message".to_owned(), string),
+    ])
 }
 
 /// `Throwable`'s four readonly properties, spec § 10's list.
@@ -93,9 +152,13 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
         .collect()
 }
 
-/// `Throwable::constructor(string $message)` — see this module's known gaps
-/// for why `previous` is not a second parameter.
-fn root_methods(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
+/// `constructor(string $message)` — see this module's known gaps for why
+/// `previous` is not a second parameter.
+///
+/// The same signature for every class that declares one: a subclass's
+/// synthesized body differs only in which slots it fills, never in what a
+/// `new` writes at the call site.
+fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
     let string = interner.string();
     let void = interner.void();
     [(
@@ -165,6 +228,28 @@ mod tests {
         assert_eq!(owner.to_string(), ROOT);
         assert!(!sig.is_static);
         assert_eq!(sig.params.len(), 1);
+    }
+
+    #[test]
+    fn parse_error_declares_the_issue_list_and_a_constructor_of_its_own() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+        let graph = tree_graph();
+
+        let ty = resolve_property(&QName::parse("ParseError"), "issues", &table, &graph)
+            .expect("`issues` is ParseError's own property");
+        let issues = issue_shape(&mut interner);
+        assert_eq!(ty, interner.array(issues));
+
+        let (owner, _) = resolve_method(&QName::parse("ParseError"), "constructor", &table, &graph)
+            .expect("ParseError declares its own constructor");
+        assert_eq!(owner.to_string(), "ParseError");
+        // Every sibling still reaches the root's.
+        let (owner, _) = resolve_method(&QName::parse("IOError"), "constructor", &table, &graph)
+            .expect("IOError inherits the root's");
+        assert_eq!(owner.to_string(), ROOT);
+        assert!(resolve_property(&QName::parse("IOError"), "issues", &table, &graph).is_none());
     }
 
     #[test]

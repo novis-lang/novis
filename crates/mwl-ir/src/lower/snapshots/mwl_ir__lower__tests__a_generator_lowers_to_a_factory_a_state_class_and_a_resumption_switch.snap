@@ -92,3 +92,21 @@ fn Throwable::constructor(object, string) -> void {
     release v0
     return
 }
+
+fn ParseError::constructor(object, string) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; string
+    retain v1
+    field.set v0, ParseError::message, v1
+    v2 = array.new []  ; array
+    field.set v0, ParseError::backtrace, v2
+    v3 = const.str ""  ; string
+    field.set v0, ParseError::location, v3
+    v4 = array.new []  ; array
+    field.set v0, ParseError::issues, v4
+    release v1
+    release v0
+    return
+}

@@ -1,0 +1,49 @@
+--TEST--
+ParseError carries spec § 10's `issues` list: empty unless a thrower populated it, one entry for a malformed JSON document — ADR 0071 § 5
+--FILE--
+<?mwl
+// § 5: `issues` is declared `array<Issue>`, not `?array<Issue>`, so it is
+// always readable — a hand-written `new ParseError(...)` simply has none.
+try {
+    throw new ParseError("hand written");
+} catch (ParseError $plain) {
+    echo "plain=", Core\Arr::count($plain->issues), "\n";
+    echo "message=", $plain->message, "\n";
+}
+
+// ADR 0071 § 5's last sentence: a malformed document records one issue, so a
+// `catch` reads the same shape whether the syntax or the fields were wrong.
+try {
+    Core\Json::decode("{oops}");
+    echo "not reached\n";
+} catch (ParseError $malformed) {
+    echo "malformed=", Core\Arr::count($malformed->issues), "\n";
+}
+
+// Nesting past `maxDepth` is a ParseError too, and reports the same way.
+try {
+    Core\Json::decode("[[1]]", {maxDepth: 2});
+    echo "not reached\n";
+} catch (ParseError $deep) {
+    echo "deep=", Core\Arr::count($deep->issues), "\n";
+}
+
+// A successful decode throws nothing at all.
+var $ok = Core\Json::decode("{\"a\":1}");
+echo "decoded\n";
+
+// The list is only on `ParseError`: every other class in the tree is the
+// root's four properties and nothing more, which is why the root does not pay
+// for a fifth slot on every throw.
+try {
+    throw new IOError("disk");
+} catch (IOError $io) {
+    echo "io=", $io->message, "\n";
+}
+--EXPECT--
+plain=0
+message=hand written
+malformed=1
+deep=1
+decoded
+io=disk

@@ -2,34 +2,37 @@
 
 ## State
 
-**ADR 0071's derive is half built — the encode half runs end to end.** A class carrying
-`#[Json\Derive]` now encodes: `Core\Json::encode(new User(…))` writes its declared properties in
-declaration order, under the keys `#[Json\Field(name: …)]` gives them. Stage 3 is still five of seven
-fixtures; `examples/json.mwl` now reports only `decodeAs<T>` and `$bad->issues`.
+**Spec § 10's `issues` on `ParseError` is built end to end** — ADR 0071 § 5's list, which the generated
+decoder will report *through*. Stage 3 is still five of seven fixtures; `examples/json.mwl` now reports
+only `decodeAs<T>`.
 
-- **`mwl_types::derive` is the pass**, called from `check::check_stmts`' `ClassDecl` arm because that is
-  what holds the namespace and imports ADR 0071 § 1's *nominal* match needs. `ATTRIBUTES` is the closed
-  `Core`-owned list. That module's own docs hold the design and its four gaps — the biggest being that a
-  **promoted constructor parameter is not a field**, since `mwl_types::layout` gives one no slot.
-- **The field list reaches native code as data**: `ExprTypeTable::codec` → `ir::Class::codec` (joined
-  against the slot order in `lower_file`) → `ClassDesc::codec` → `json::Encodable::serialize_object`.
-  `mwl_stdlib::json`'s gap 4 records that this is a per-class descriptor walk rather than ADR 0071 § 8's
-  straight-line IR, and what the difference costs.
-- **Five new diagnostics, E0460–E0464**: no matching constructor parameter, a parameter of a different
-  type, a `secret` field, a `lateinit` field, and a `#[Json\Field]` argument that is not one of § 3's two
-  options. Four `.mwlt` cases cover them plus the encode path (`core/json-derive-encodes-declared-fields`).
-- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 408 `.mwlt` cases pass, every `examples/*.mwl`
-  behaves as before. The encoder takes no reference and releases none, so no new refcount edge and no
-  `valgrind` run.
+- **`ParseError` is the one class in the tree with state of its own.**
+  `mwl_hir::errors::OWN_PROPERTIES` is that roster and its docs say why the root does not carry the slot
+  instead. A class with own properties also gets its own synthesized constructor
+  (`mwl_ir::lower::exception::synthesized_exception_constructors`), because ADR 0022 needs the slot
+  definitely assigned and `array<Issue>` cannot read `null`.
+- **`Core\Issue` is ADR 0036's shape, not a class** — `{path: string, message: string}`, typed in
+  `mwl_types::error_lib::issue_shape` and built in `mwl_stdlib::issue`, whose docs own the slot order
+  (sorted, because the interner canonicalizes a shape's fields) and the one gap: `$issue->path` is a
+  shape property read, which `mwl-ir` does not lower.
+- **A helper reports one** with `Fault::thrown_with_issues`, which `run_helper` hands to
+  `Ctx::raise_with_issues` — that builds the exception eagerly rather than leaving an owned reference in
+  the pending state; `mwl_runtime::abi`'s variant docs say why. `Core\Json::decode` on malformed syntax
+  records one issue.
+- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 409 `.mwlt` cases pass, acceptance reaches the same
+  fixture it did before. The new refcount edge is `valgrind`-clean (`tools/leak-check.sh`); the 22 bytes a
+  `Core\Json::decode("{oops}")` inside a `try` still loses is the *fresh string argument* backlog item
+  below, not this edge.
 
 ## Next
 
-**The decode half**: register `Core\Json::decodeAs` with `CoreTy::Written("T")`, give
-`CodecField` the declared type the decoder needs, and generate the decoder ADR 0071 § 5 describes —
-decode every field, accumulate `{path, message}` issues, throw once before the constructor runs. Spec
-§ 10's `issues: array<Core\Issue>` on `ParseError` lands with it (`mwl_types::error_lib`). The
-constructor is reachable from native code through `ClassDesc::method("constructor")` plus
-`mwl_runtime::call`, which is what makes § 2's "a decode is an ordinary `new`" cheap to honour.
+**`Core\Json::decodeAs<T>`**, the last of spec § 6's four members. Three pieces, in this order:
+give `derive::CodecField` the declared type a decoder checks against; reach the target class from native
+code — the call site knows it, and `InstKind::ClassDescConst` already rides a descriptor in a `Value`'s
+payload under `Tag::Null` (`mwl_codegen::ty::tag_of`), so a closed roster in `mwl_stdlib::registry` naming
+the members that take one plus a `written_class` on `ExprTypeTable`'s `ResolvedCall` is the cheapest route
+that touches no other registry row; then the decoder itself, accumulating `issue::list` entries and
+throwing once before `ClassDesc::method("constructor")` runs (ADR 0071 § 5).
 
 ## Backlog
 
@@ -41,8 +44,8 @@ constructor is reachable from native code through `ClassDesc::method("constructo
   declare the variadic that exists, so each is a registry row and a body.
 - **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **The rest of `Core` still throws `RuntimeError` for everything** — `Core\Math`'s overflow and
-  zero-divisor rows are spec § 10's `ArithmeticError`. One pass per module, each a `thrown` → `thrown_as`.
+- **A shape property read does not lower** — `mwl-ir`'s ADR 0036 § 4 gap, now reachable from `Core`:
+  `$e->issues[0]->path` panics naming that ADR rather than reading slot 1.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
   *Known gap*: 50 loop iterations of a throwing `Core\Json::decode("{oops}")` inside a `try` lose 50
   blocks, one per string literal argument.

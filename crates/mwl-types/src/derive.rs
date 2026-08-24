@@ -31,8 +31,12 @@
 //!
 //! 1. **Only the encode half is built.** `#[Json\Derive]` today produces the
 //!    field list `Core\Json::encode` writes an object from; the generated
-//!    decoder, `Core\Json::decodeAs<T>` and § 5's accumulated `issues` are
-//!    still owed, and `mwl_stdlib::json`'s own gap 2 tracks them.
+//!    decoder and `Core\Json::decodeAs<T>` are still owed, and
+//!    `mwl_stdlib::json`'s own gap 2 tracks them. § 5's `issues` list is not
+//!    among them any more — it is a property of `ParseError`
+//!    ([`crate::error_lib`]) and a value `mwl_stdlib::issue` builds — but
+//!    [`CodecField`] still carries no declared *type*, which is what a decoder
+//!    needs to check a field against and to name in an issue's message.
 //! 2. **A promoted constructor parameter is not a field**, because
 //!    [`crate::layout`] does not give one a slot yet (its own gap 1) and
 //!    [`crate::signatures`] does not record it as a property. ADR 0071 § 1's

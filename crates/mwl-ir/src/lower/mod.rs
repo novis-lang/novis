@@ -389,11 +389,11 @@ pub fn lower_file(
     functions.push(lowered.function);
     functions.extend(lowered.closures);
     synthesized.extend(lowered.classes);
-    // The one function with no source text — see
-    // `synthesized_throwable_constructor`. Emitted unconditionally: the
+    // The functions with no source text — see
+    // `synthesized_exception_constructors`. Emitted unconditionally: the
     // exception tree is in every program's class table, so a unit that omitted
-    // this would be one where `new LogicError(…)` names a missing target.
-    functions.push(synthesized_throwable_constructor());
+    // these would be one where `new LogicError(…)` names a missing target.
+    functions.extend(synthesized_exception_constructors());
 
     // Copied straight across rather than recomputed: `mwl-types` already
     // resolved the slot order and the supertype set against the class graph,
@@ -4203,7 +4203,14 @@ class T {
             ]
         );
         let functions: Vec<&str> = program.functions.iter().map(|f| f.name.as_str()).collect();
-        assert_eq!(functions, ["<script>", "Throwable::constructor"]);
+        assert_eq!(
+            functions,
+            [
+                "<script>",
+                "Throwable::constructor",
+                "ParseError::constructor"
+            ]
+        );
     }
 
     /// The root's four slots are the ones `mwl_runtime::throwable` reaches by
