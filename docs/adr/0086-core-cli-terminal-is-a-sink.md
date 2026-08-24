@@ -24,10 +24,12 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 13 and 15 — a `Core\Command` row, and the
   `Core\Cli` bullet replaced by this ADR's roster.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the command-table pass, M8 the rest.
-- **Amended by:** 0087, 0088 — each fold is applied below and this body states the current rule. 0087 adds
-  § 1's unterminated-bidi row and withdraws § 7's refusal to address it; 0088 makes this sink the
+- **Amended by:** 0087, 0088, 0092 — each fold is applied below and this body states the current rule. 0087
+  adds § 1's unterminated-bidi row and withdraws § 7's refusal to address it; 0088 makes this sink the
   **default** one every context without an HTTP request binds `echo` to, and separates `echo` from
-  `Core\Cli`'s members in § 8.
+  `Core\Cli`'s members in § 8; 0092 makes § 1's substitution table a property of its record model as well,
+  so a log line, a dump and a stack trace carry the same answer into every rendering, and § 3's colour
+  resolution is what its plaintext rendering reads.
 - **Relates to:** 0004, 0006, 0007, 0009, 0010, 0025, 0031, 0036, 0048, 0049, 0052, 0063, 0072, 0077,
   0079, 0080
 
@@ -101,7 +103,7 @@ before a byte reaches the stream:
 | Every other C0 (0x00–0x1F), including `ESC` and `CR` | its U+2400-block Control Picture — `ESC` → `␛`, `CR` → `␍` | Visible, inert, and one code point per input byte. `CR` is included because bare-`CR` overwriting is the oldest text-hiding trick and needs no `ESC`. |
 | `DEL` (0x7F) | `␡` (U+2421) | |
 | A C1 code point (U+0080–U+009F) | `�` (U+FFFD) | Several terminals still parse these as a CSI introducer. The U+2400 block has no glyph for them; losing their identity is deliberate and bounded, because a C1 code point is never legitimate text. |
-| An **unterminated** bidirectional control | `�` (U+FFFD) | Display order that the bytes do not have. [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns the predicate and its other two callers; a *balanced* control is legitimate text and passes through. |
+| An **unterminated** bidirectional control | `�` (U+FFFD) | Display order that the bytes do not have. [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns the predicate and its other three callers; a *balanced* control is legitimate text and passes through. |
 
 **Uniform, not qualifier-dependent.** Escaping only `tainted` values was considered and rejected: it makes
 *whether output is escaped* depend on a fact that is not visible at the `echo` line, which is a worse kind

@@ -6,42 +6,49 @@ agent are in [AGENTS.md](../../AGENTS.md); `python tools/brief.py` is the rest o
 
 ## State
 
-**The loop now has a Stage 0, and it comes before `Core` breadth.** Eleven ADRs (0080–0090) were accepted
-after the milestones that own their work were reported done, so
-[loop-goal.md](loop-goal.md) § *Stage 0* is an ordered catch-up list and
-[loop-goal.toml](loop-goal.toml)'s `stage = "0 catch-up"` block is its machine half — `tools/loop.py` runs
-that block **before** the program legs, so an unfinished catch-up item is what the ledger names rather than
-a Stage 3 fixture. Every test it lists must exist and pass; most do not exist yet, and writing one is how
-an item finishes. Do not open a Stage 3 slice while that section is non-empty.
+**Stage 0 still comes before `Core` breadth, and this session did not touch it.** The catch-up list in
+[loop-goal.md](loop-goal.md) § *Stage 0* is unchanged and item 1 — ADR 0090 § 1's lexer removal — is still
+the next thing to build. This session was documentation only: two new ADRs and their folds. `verify.py` is
+green and no Rust changed.
 
-**[ADR 0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md) is built** — the first of the
-eleven to land. [`mwl_syntax::bidi`](../../crates/mwl-syntax/src/bidi.rs) is the one predicate, the lexer
-reports `E0008` with no suppression over comments, string literals and inline-HTML runs **per line**, and
-seven `.mwlt` cases pin it including the paper's two attack patterns and a balanced-Arabic round trip. Its
-`Core\Html::escape` (M7) and `Core\Cli` (M8) sink halves are those milestones' and are not catch-up.
+**[ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) gives MWL a run
+mode, which it did not have.** Two closed values, `development` and `production`, and **with nothing
+configured the mode is production**. It is set by `[mode] default` in root-owned `mwl.toml` and by
+`mwl serve --mode=`, which overrides the file; **no environment variable is ever read for it**. A mode
+selects the defaults of **four** directives and governs nothing else — `[debug] inline`, `[log] format`,
+`[log] level`, `[http.errors] detail` — each still individually settable, which is what keeps it
+enumerable rather than a `NODE_ENV`-style bundle. `Core\Env::mode()` reads it and `Core\Config::set` flips
+it per request, bounded by `[mode] ceiling`, a `System` directive that **defaults to the mode the server
+started in** — so a production host is unreachable from code with nothing written, and one host serving
+mixed applications is one line. It reuses [0005](../adr/0005-config-changeability.md)'s `[limits]` /
+`[limits.hard]` shape and asserts there will be no third instance of it.
 
-**[ADR 0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) is the largest unbuilt
-item and reaches three milestones at once.** `==` is the only equality operator; `===`/`!==` do not parse
-(M1), two statically disjoint operand types are a compile error (M2), and the null tag test plus the
-string, array and object rows want a runtime helper each (M3/M4, `mwl-ir`'s gap 19). 45 files write the
-rejected spelling in 112 places, which is why it goes first — every case written meanwhile adds to it.
+**[ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md) makes every developer-facing output
+one record with three renderings.** Plaintext, JSON and HTML, **chosen by the sink already in force** —
+[0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3's binding table gains a
+column and § 5's carrier rule is reused, so there is **no new carrier type and no format argument
+anywhere**. Five producers share the model: `Core\Log`, `Core\Debug::dump`, a `Throwable` and its trace, a
+`#[Test]` result, and a compiler diagnostic. Redaction, control-byte substitution, bidi and elision are
+decided **once, in the model**, which is why the scope is five and not two. `Log\Level` is five cases
+(`Debug`/`Info`/`Warn`/`Error`/`Critical`) with a fixed syslog mapping; a dump goes to the log by default
+and reaches a response body only under `[debug] inline`, **never** for a `Response::json` body.
 
-**[ADR 0080](../adr/0080-the-audience-mwl-is-built-for.md) still reorders everything after Stage 0**: MWL
-is built for multi-tenant and regulated platforms, which ranks the framework and the dependency story above
-new `Core` breadth, makes the pitch isolation and qualifiers rather than speed, and forbids any document
-claiming PHP compatibility. **[0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)** and
-**[0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md)** are decided and unbuilt but belong to
-M4S and M11; **0081–0086** belong to milestones that have not started.
+**[ADR 0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) arrived in the tree
+from another session while this one was working** and is committed alongside these two; it is not this
+session's work and was not reviewed here.
+
+**None of 0091–0093 is catch-up.** They invalidate no built behaviour and no written fixture, unlike 0090.
+`loop-goal.md`'s *Not in this stage, deliberately* paragraph names them and the milestone each piece
+belongs to. **Do not start any of them while Stage 0 is open.**
 
 ## Next
 
-**ADR 0090 § 1 — delete the two spellings** (Stage 0 item 1, M1). The lexer stops producing `===`/`!==`
-with a diagnostic in the E00xx band naming `==`/`!=`, the shape ADR 0034/0045 already use;
-`BinaryOp::Identical`/`NotIdentical` come out of the AST with them; and the 45 `.mwl`/`.mwlt` files that
-write the rejected spelling are rewritten in the same commit, because the Stage 1–3 fixtures are among
-them. Name the guard test `a_rejected_equality_spelling_is_a_compile_error`, which
-[loop-goal.toml](loop-goal.toml) already requires. `corpus_parse.rs` needs nothing — it holds "the parser
-does not panic", not "php-src parses cleanly".
+**ADR 0090 § 1 — delete the two spellings** (Stage 0 item 1, M1), unchanged from the last handoff. The
+lexer stops producing `===`/`!==` with a diagnostic in the E00xx band naming `==`/`!=`, the shape ADR
+0034/0045 already use; `BinaryOp::Identical`/`NotIdentical` come out of the AST with them; and the 45
+`.mwl`/`.mwlt` files that write the rejected spelling are rewritten in the same commit. Name the guard
+test `a_rejected_equality_spelling_is_a_compile_error`, which [loop-goal.toml](loop-goal.toml) already
+requires.
 
 ## Backlog
 
@@ -62,3 +69,6 @@ does not panic", not "php-src parses cleanly".
 - **`Core\Time\Date`/`TimeOfDay`/`Month`, `DateTime::date`/`timeOfDay`/`withTime`** — `time.rs`'s gap 1;
   the machinery exists, so each is a registry row and a body. Same for the rest of § 1 and ADR 0069's
   combination members.
+- **0092's own follow-ons, both deliberately deferred and both named in its § 8** — a compile-time log
+  field schema (`mwl check` refusing two call sites that use one field name with two types) and scoped
+  context fields (`Log::with`). The record model is shaped so neither is a rewrite.

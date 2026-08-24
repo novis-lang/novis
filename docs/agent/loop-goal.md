@@ -66,7 +66,14 @@ seven `.mwlt` cases pin it. Its two sink halves are M7's and M8's, not catch-up.
 
 **Not in this stage, deliberately:** ADR 0088's registry classification, 0086 § 6's command table and
 0085's OpenAPI emitter are all M4S work that lands with the milestone the loop is already inside; 0081–0084
-belong to milestones that have not started.
+belong to milestones that have not started. **0091 and 0092 join them, and neither carries catch-up debt**
+— unlike 0090 they invalidate no built behaviour and no written fixture, so there is nothing to rewrite
+before Stage 3 continues. What they *do* carry is scheduled work, in the milestone that owns each piece:
+0092's record model, plaintext rendering and `Core\Debug::dump` are M4; `[mode]`, `[log] format`/`level`
+and `[http.errors] detail` are M6; the HTML rendering and `[debug] inline` are M7; `Core\Log` and JSON
+Lines are M8; the compiler-diagnostic rendering is M10. The two documentation corrections they *did* owe —
+the spec's mis-attributed `Core\Debug` row, and two ADR examples writing a `string` log level — landed with
+the ADRs themselves.
 
 ## Acceptance
 

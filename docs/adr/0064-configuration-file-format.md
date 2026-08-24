@@ -12,8 +12,9 @@
   entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
-- **Amended by:** 0072, 0073, 0074, 0076, 0081 — each adds blocks, listed in § 2a; nothing about the format
-  changes. 0078 — the file is re-read on `mwl ctl reload`, not only at boot; each fold is applied below.
+- **Amended by:** 0072, 0073, 0074, 0076, 0081, 0091, 0092 — each adds blocks, listed in § 2a; nothing about
+  the format changes. 0078 — the file is re-read on `mwl ctl reload`, not only at boot; each fold is applied
+  below.
 - **Relates to:** 0007, 0011, 0052, 0061
 
 > **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read through the `toml` crate
@@ -119,10 +120,12 @@ that a reader of `mwl.toml` has one place to start:
 | Block | Owner |
 |---|---|
 | `[limits]`, `[limits.hard]` | [0005](0005-config-changeability.md) |
+| `[mode]` | [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) |
 | `[capabilities]` | [0005](0005-config-changeability.md), [0006](0006-isolated-script-execution.md) |
 | `[[extension]]` | [0003](0003-extension-system.md) |
 | `[debug]` | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
-| `[log]` | [0020](0020-error-escalation-ladder.md) |
+| `[log]` | [0020](0020-error-escalation-ladder.md); `format` and `level` are [0092](0092-one-diagnostic-record-three-renderings.md)'s |
+| `[http.errors]` | [0020](0020-error-escalation-ladder.md) § 7 |
 | `[db.<name>]` | [0067](0067-core-db.md) |
 | `[deferred]` | [0072](0072-core-task-structured-concurrency.md) § 7 |
 | `[[schedule]]` | [0073](0073-scheduled-work-is-config.md) |

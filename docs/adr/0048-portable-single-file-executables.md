@@ -83,7 +83,10 @@ protect. `mwl serve` is not addressed by this ADR at all: bundling a web-serving
 mean the app's own build step controls what ships as the equivalent of a root-owned config, which is
 precisely the "an application can never grant itself rights" property [0005](0005-config-changeability.md)
 and the project's server-level-configuration decision exist to prevent. That is a different feature needing
-its own argument, not a generalization of this one — see *Revisiting*.
+its own argument, not a generalization of this one — see *Revisiting*. The same boundary reached from the
+other side is [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) § 6: a bundle may not
+install *itself* as a service either, because a privileged account executing that payload at every boot is
+exactly the second principal this section's single-trust-domain argument depends on there not being.
 
 ### 2. Payload is source, not precompiled artifacts
 

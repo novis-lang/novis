@@ -6,7 +6,10 @@
   the probe-emission points added to `mwl-codegen`, the `Ctx` fields that back them, and the coverage/trace/
   profile output formats
 - **Relates to:** 0002, 0004, 0005, 0006, 0016
-- **Amended by:** 0041, 0064, 0076, 0079 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0041, 0064, 0076, 0079, 0092 — each fold is applied below; this body states the current
+  rule. 0092 corrects an attribution rather than a decision: `Core\Debug::dump` was pointed at this ADR by
+  the spec's § 16 row and was never in its scope; the members argued here are the coverage, trace and
+  profile controls below, and `[debug] inline` is 0092's.
 
 > **In short:** MWL gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
 > deterministic per-call profiler — enabled with one `mwl.toml` directive or one `Core\Debug` call, exported

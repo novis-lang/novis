@@ -3,8 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Scope:** the rule that a bidirectional embedding, override or isolate control must be terminated inside
-  the span that opened it; the one predicate that decides it; and its three callers — the lexer, the
-  terminal sink and the HTML escaper. Also, explicitly, what is *not* covered: zero-width and invisible
+  the span that opened it; the one predicate that decides it; and its four callers — the lexer, the
+  terminal sink, the HTML escaper, and
+  [0092](0092-one-diagnostic-record-three-renderings.md) § 5's diagnostic record model, which applies it
+  once so all three of that ADR's renderings inherit the same answer. Also, explicitly, what is *not*
+  covered: zero-width and invisible
   characters, homoglyphs, and the full Unicode Bidirectional Algorithm, each with its reason in § 4.
 - **Amends:** [0024](0024-taint-tracking-for-injection-sinks.md) § 5 — `Core\Html::escape` neutralizes an
   unterminated control alongside the four characters it already escapes; the auto-escape sink therefore
@@ -14,7 +17,8 @@
   refuse valid Arabic and Hebrew, which is true of a blanket ban and false of the balanced rule below.
   [docs/implementation-plan.md](../implementation-plan.md) — the lexer check is buildable now; the two sink
   halves land with the milestones that build those sinks.
-- **Amended by:** none.
+- **Amended by:** 0092 — the predicate gains a fourth caller, its record model; the rule itself is
+  unchanged.
 - **Relates to:** 0009, 0029, 0030, 0049, 0056, 0062, 0080
 
 > **In short:** Trojan Source ([CVE-2021-42574](https://trojansource.codes/)) makes text render in an order
@@ -25,10 +29,12 @@
 > runtime data. The attack condition in all four is the same and it is narrow: **a directional control that
 > opens a scope and is never closed before its span ends.** Balanced controls — what legitimate Arabic,
 > Hebrew and mixed-direction text actually uses — are untouched, which is what makes rejecting the rest
-> affordable. So there is **one predicate** and three callers: the lexer makes it a **hard compile error
+> affordable. So there is **one predicate** and four callers: the lexer makes it a **hard compile error
 > with no suppression**, matching [ADR 0029](0029-identifier-casing-is-checked.md)'s stance on every other
 > spelling question; `Core\Cli`'s sink and `Core\Html::escape` **neutralize** it, substituting `�` exactly
-> as [0086](0086-core-cli-terminal-is-a-sink.md) § 1 already does for a C1 code point.
+> as [0086](0086-core-cli-terminal-is-a-sink.md) § 1 already does for a C1 code point; and
+> [0092](0092-one-diagnostic-record-three-renderings.md)'s record model applies it when a record is built,
+> so a log line, a dump and a stack trace all carry the same answer into every rendering.
 
 ## Context
 
@@ -48,7 +54,7 @@
 - **The reason this is one ADR and not three paragraphs.** The predicate is identical at the lexer, at the
   terminal and at the HTML escaper. Deciding it separately in each place is how the same rule acquires three
   slightly different definitions — the failure this repository's "state a fact once" rule exists to prevent.
-  It is also why the decision is taken now, while only one of the three callers is buildable: the other two
+  It is also why the decision is taken now, while only one of the four callers is buildable: the others
   otherwise get argued again, from scratch, by whoever writes them.
 - **An incoherent posture would be worse than none.** A language whose headline is compile-time qualifiers
   ([0080](0080-the-audience-mwl-is-built-for.md)) cannot guard its terminal output against display
@@ -125,10 +131,11 @@ table lookup — the eleven code points are a match arm.
 - **A PHP file containing an unterminated control does not convert.** `mwl convert` (M11) reports it as a
   source error rather than carrying it across, which is the correct outcome and is worth stating so it is
   not filed as a converter bug.
-- **One diagnostic, one implementation, three callers.** The predicate lives in `mwl-syntax` beside the
-  lexer that needs it first, and both `Core` sinks call it rather than reimplementing it. If a future
-  session finds itself writing a second copy, that is the bug.
-- **MWL is fully closed against the Trojan Source paper** once all three callers exist — identifiers by
+- **One diagnostic, one implementation, four callers.** The predicate lives in `mwl-syntax` beside the
+  lexer that needs it first, and both `Core` sinks plus
+  [0092](0092-one-diagnostic-record-three-renderings.md)'s record builder call it rather than
+  reimplementing it. If a future session finds itself writing a second copy, that is the bug.
+- **MWL is fully closed against the Trojan Source paper** once all four callers exist — identifiers by
   construction, everything else by this rule. That is a claim worth being able to make plainly, and
   [0080](0080-the-audience-mwl-is-built-for.md)'s audience is exactly the one that asks.
 - **A cost this ADR accepts:** an editor or diff viewer that does not itself neutralize these controls will

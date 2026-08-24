@@ -67,7 +67,7 @@ no flag that turns one on.**
 ```php
 $result = Core\Process::run("/usr/bin/convert", ["input.png", "-resize", "50%", "output.png"]);
 if ($result->exitCode() != 0) {
-    Core\Log::error("convert failed", ["stderr" => $result->stderr()]);
+    Core\Log::write(Log\Level::Error, "convert failed", ["stderr" => $result->stderr()]);
 }
 ```
 

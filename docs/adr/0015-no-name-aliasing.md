@@ -129,8 +129,9 @@ type Matrix  = array<array<float>>;
   after the checker resolves the alias there is only ever one type there, not two related ones. This is
   deliberate: a distinct, non-interchangeable "new type over an existing representation" (what other
   languages call a newtype) is a different feature, not requested here, and not this ADR's decision.
-- **Zero runtime footprint.** Nothing downstream of the type checker — codegen, the value layout, `gettype()`
-  / `var_dump()`, an [isolate boundary](0006-isolated-script-execution.md) crossing — ever sees the alias
+- **Zero runtime footprint.** Nothing downstream of the type checker — codegen, the value layout,
+  `Core\Reflect::typeOf`, `Core\Debug::dump`, an
+  [isolate boundary](0006-isolated-script-execution.md) crossing — ever sees the alias
   name; only the expanded type. This is what makes it categorically different from every mechanism *Decision
   §§ 1–3* reject: those all create a second name a *runtime* observer can still see (a second class identity,
   a second callable). A `type` alias creates no runtime-observable name at all.

@@ -23,6 +23,8 @@
   `Core\Response`'s roster replaces `write` with five typed members; `Str::format`'s template,
   `DateTime::format`'s pattern and `Bytes::pack`'s format become **sink**; `Out::capture`'s return becomes
   the sink's carrier.
+- **Amended by:** 0092 — § 3's table gains a **rendering** column, so the sink in force selects not only
+  where output goes but how a diagnostic record is drawn; § 5's carrier rule is reused unchanged.
 - **Relates to:** 0003, 0004, 0012, 0020, 0033, 0044, 0056, 0058, 0063, 0067, 0073, 0074, 0079, 0084
 
 > **In short:** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4 lists five sinks, and a list is a
@@ -130,6 +132,11 @@ overwhelming majority genuinely is. The benefit is that the pass never has to ha
 | a CLI program — a `#[Command]` method or a script's main task | stdout | `Cli\Text`, substituting ([0086](0086-core-cli-terminal-is-a-sink.md) § 1) |
 | a `spawn script` isolate ([0006](0006-isolated-script-execution.md)) | its own output buffer, or the parent's stream under `output: 'inherit'` | the parent's carrier |
 | a scheduled script ([0073](0073-scheduled-work-is-config.md)), a job worker ([0084](0084-durable-background-jobs.md)), a `#[Test]` method ([0079](0079-testing-is-a-language-feature.md)) | that run's captured output | `Cli\Text` |
+
+**The same table selects a rendering.** [0092](0092-one-diagnostic-record-three-renderings.md) § 3 adds a
+column to it: the sink in force decides not only where a `Core\Log` record, a `Core\Debug::dump`, a
+`Throwable` trace, a test result or a compiler diagnostic goes, but whether it is drawn as plaintext, JSON
+or HTML — so no call site ever names a format. Nothing else about this table changes.
 
 **The terminal sink is the default; the HTML sink is attached by an HTTP request and by nothing else.**
 That direction is the fail-closed one, and [0086](0086-core-cli-terminal-is-a-sink.md) § 1's own reasoning

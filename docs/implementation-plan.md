@@ -123,7 +123,13 @@
 > which additionally need `new Core\X<T>()` to parse. One PHP divergence stands unfixed — an
 > abandoned generator never runs the `finally` it is suspended inside, `mwl-ir`'s gap 18. In docs,
 > `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain remaining, reported by
-> `python tools/check-migration.py`. Off path: ADR 0043's `by`-delegation.
+> `python tools/check-migration.py`. **Three more ADRs are decided and unbuilt but are not
+> catch-up** — 0091 (the `development`/`production` run mode: a `[mode]` block, a `System` ceiling,
+> four governed directives, `Core\Env::mode`), 0092 (one diagnostic record rendered as plaintext,
+> JSON or HTML by the sink in force — `Core\Log`'s `Log\Level`, `Core\Debug::dump`, throwables, test
+> results and compiler diagnostics) and 0093 (`mwl service`). None invalidates built behaviour or a
+> written fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. Off path:
+> ADR 0043's `by`-delegation.
 >
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -701,7 +707,8 @@ inheritance/interfaces, including default/private interface method bodies and `b
 references (`&$x`), instance members and static members including late static binding
 (`static::`, `new static()`, `: static`), property hooks and `PropertyObserver`
 ([ADR 0014](adr/0014-property-observer.md)), `clone`
-([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), `var_dump`/`print_r`/`json_encode`
+([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), `Core\Debug::dump` and its plaintext
+rendering over the one record model ([ADR 0092](adr/0092-one-diagnostic-record-three-renderings.md))
 — with a `secret`-qualified property's value redacted
 ([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)) — `Stringable` and the rest of
 [ADR 0028](adr/0028-closing-the-remaining-magic-methods.md), and `#[...]` attribute syntax on every
@@ -948,6 +955,18 @@ script's and an isolate's `echo` take the terminal sink's neutralization instead
 `0600` and refused if its directory is world-writable, speaking HTTP so that a network listener would later
 be a second `bind` rather than a second protocol, with `mwl ctl reload` as its only operation and no control
 port in either direction of configuration ([ADR 0078](adr/0078-config-reload-and-control-socket.md) §§ 3, 6).
+
+**Also here: `mwl service`**, which makes this binary installable under the platform's own service manager
+rather than under a third-party shim. On Windows that is SCM registration with the hosted argv encoded into
+a quoted, absolute `ImagePath`, a per-service virtual account, `STOP_PENDING` driven by the graceful drain
+above and `PARAMCHANGE` driven into the reload beside it; on Linux it is a printed, hardened systemd unit
+with `Type=notify` and an `ExecReload` pointing at that same socket, written to disk only on an explicit
+`--install`. The installer is an [ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+sink and fails closed — a closed `serve`/`run` subcommand allowlist, no relative path, no install whose
+output would go nowhere, no password on a command line, and a refusal to install from an
+[ADR 0048](adr/0048-portable-single-file-executables.md) bundle. Scope, every refusal, the argv-encoding
+rule and the verification list are
+[ADR 0093](adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), the only copy.
 
 **Four subsystems land on top of that server, each with its own ADR holding the only copy of its rules.**
 The **response policy** — secure headers, closed CORS and `Secure; HttpOnly; SameSite=Lax` cookies applying

@@ -6,8 +6,10 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
-- **Amended by:** 0033, 0076, 0086 — each fold is applied below; this body states the current rule. 0086
-  adds the terminal-restoration obligation to § 4's floor.
+- **Amended by:** 0033, 0076, 0086, 0092 — each fold is applied below; this body states the current rule.
+  0086 adds the terminal-restoration obligation to § 4's floor. 0092 makes § 6's level an enum and JSON
+  Lines the log sink's default *rendering* of one shared record rather than that record's only shape, and
+  names § 7's response-detail directive `[http.errors] detail`.
 - **Relates to:** 0002, 0005, 0006, 0007, 0011, 0012, 0072, 0073
 
 > **In short:** nothing MWL runs is ever silently dropped, but not everything is *caught* — those are
@@ -152,15 +154,19 @@ routed to Loki/Sentry/wherever) without ever calling back into the failing reque
 
 ### 6. `Core\Log`: one write path, two callers
 
-Ordinary application code and the tier-3 handler script call the same API — illustrative signature
-`Core\Log::write(string $level, string $msg, array<string, mixed> $fields = []): void` — implemented as a
-thin binding over the **exact same native serialise-and-write helper** tier 4 calls directly when it has no
+Ordinary application code and the tier-3 handler script call the same API —
+`Core\Log::write(Log\Level $level, string $message, array<string, mixed> $fields = []): void`, whose level
+enum is [0092](0092-one-diagnostic-record-three-renderings.md) § 2's — implemented as a
+thin binding over the **exact same native record-and-write helper** tier 4 calls directly when it has no
 script to run at all. One implementation, two callers, the same shape
 [ADR 0006](0006-isolated-script-execution.md) already uses for its own isolation code ("one isolation
 implementation, not two") — so a Loki dashboard never has to reconcile two log shapes depending on which
 tier happened to produce a given line.
 
-The shared record is **JSON Lines**: one JSON object per line — `ts` (RFC3339), `level`, `msg`,
+**What the two callers share is the record, and JSON Lines is its default rendering at a log target**
+([0092](0092-one-diagnostic-record-three-renderings.md) §§ 1 and 3; `[log] format = "text"` renders the
+same record for a human, with the control-byte substitution that keeps a plaintext target unforgeable).
+The record: one JSON object per line — `ts` (RFC3339), `level`, `message`,
 `request_id`, `trace_id` and `span_id` when a trace is active
 ([ADR 0076](0076-observability-export.md) § 6; both fields are omitted rather than empty when it is not),
 and a `fields` object carrying whatever structured context that call site has (error class,
@@ -175,7 +181,10 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
   register anything. Reported the same way any `FATAL`-class condition with no registered handler is:
   straight to tier 3 (if configured) then tier 4. `mwl.toml` (not the never-started script) is what decides
   whether an HTTP response shows a generic page or detail — the request had no code path in which it could
-  have decided differently.
+  have decided differently. The directive is `[http.errors] detail = "generic" | "full"`, `Runtime`-class,
+  and its default is selected by the run mode
+  ([0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) § 3): generic in production,
+  full in development.
 - **Mid-execution**, via `include`/`require` or a `spawn script` target failing after its parent is already
   running: an ordinary `ParseError` (§ 0), catchable at the call site like any `Throwable`. Uncaught, it rides
   the normal tier-2 path — by then a frame did exist.

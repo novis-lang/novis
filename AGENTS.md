@@ -244,9 +244,18 @@ the mechanism, the exact spellings rejected, and the reasoning.
 - **Configuration is TOML, in a root-owned `mwl.toml`**
   ([0064](docs/adr/0064-configuration-file-format.md)); it states defaults, not ceilings
   ([0005](docs/adr/0005-config-changeability.md)).
+- **A run mode is `development` or `production`, defaults to production, and only selects the defaults of
+  four named directives** — no environment variable is ever read for it
+  ([0091](docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)).
+- **Every developer-facing output is one closed record the sink in force renders as plaintext, JSON or
+  HTML** — no call site names a format, and a dump reaches a response body only in development mode
+  ([0092](docs/adr/0092-one-diagnostic-record-three-renderings.md)).
 - **`mwl ctl reload` replaces the whole config snapshot over a local socket — no control port, no token** —
   and a directive that still needs a restart is named in the result rather than ignored
   ([0078](docs/adr/0078-config-reload-and-control-socket.md)).
+- **`mwl service` registers this binary with the platform's service manager, storing one verbatim argv, and
+  the installer is a sink that refuses any subcommand but `serve`/`run`**
+  ([0093](docs/adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)).
 - **`Core\Task::all`/`::map` return with nothing still running, and `afterResponse` keeps the request tree
   alive past the connection** — cancellation runs no user code
   ([0072](docs/adr/0072-core-task-structured-concurrency.md)).

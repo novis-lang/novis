@@ -14,6 +14,8 @@
   gain a **counting** mode beside the timing one, and the resulting counters are the shared stream
   §§ 15 and 21 consume. [0026](0026-performance-measurement-methodology.md) — its *Scope* now says
   explicitly that user-program benchmarking is this ADR's, not its.
+- **Amended by:** 0092 — a run's result is a record under its § 1 model, so a failure renders as a coloured
+  diff on a terminal, as JSON in CI and as HTML in a web runner with no reporter written for any of them.
 - **Relates to:** 0006, 0013, 0020, 0022, 0023, 0031, 0033, 0036, 0042, 0043, 0046, 0051, 0052, 0063,
   0067, 0071, 0072, 0077
 

@@ -901,8 +901,11 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 - `Core\Server`: the request's own environment — replacing `$_SERVER`.
 - `Core\Session`: `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*`
   functions. May not use `Core\Cache` ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)).
-- `Core\Env`: `get(string): ?tainted string`, `all()`, and the constants `EOL`, `OS`, `VERSION`. Read-only —
-  `putenv` has no equivalent, because a process-global mutation is unsound across cores.
+- `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\Mode`, and the constants `EOL`, `OS`,
+  `VERSION`; its one enum is `Env\Mode` — `Production`, `Development`. Read-only —
+  `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the
+  run mode ([ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)); it is set
+  through `Core\Config`, like every other directive, and no environment variable is consulted for it.
 - `Core\Cli`: the terminal surface, owned by [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) —
   `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli\Stream)`, `width`, `height`,
   `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and
@@ -929,8 +932,8 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 | `Core\Process` | `run`, `spawn` — argv only, never a shell string | [0044](../adr/0044-core-process-argv-only-no-shell.md) |
 | `Core\Mail` | an SMTP client with structured headers. Replaces `mail()` | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Cache` | `local`, `shared`; copy-in/copy-out. Replaces `apcu_*`, `memcached` for the local case | [0059](../adr/0059-cross-request-state-is-explicit.md) |
-| `Core\Log`, `Core\Fatal` | structured logging; both are `secret` sinks | [0020](../adr/0020-error-escalation-ladder.md) |
-| `Core\Debug` | coverage, tracing, profiling control; the `dump` that replaces `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` | [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
+| `Core\Log`, `Core\Fatal` | structured logging. `write(Log\Level, string $message, array<string, mixed> $fields = [])`, where `Log\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../adr/0033-secret-qualifier-for-confidential-values.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 7) and logging tainted input is the point | [0020](../adr/0020-error-escalation-ladder.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md) |
+| `Core\Debug` | `dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls | `dump`/`render`: [0092](../adr/0092-one-diagnostic-record-three-renderings.md); the probes: [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
 | `Core\Signal` | graceful shutdown only. What remains of `pcntl_*` after `fork` is refused | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Os` | process and host facts (`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg` | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `mwl.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | [0005](../adr/0005-config-changeability.md), [0064](../adr/0064-configuration-file-format.md) |

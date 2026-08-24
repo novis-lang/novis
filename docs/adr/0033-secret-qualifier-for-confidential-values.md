@@ -7,7 +7,7 @@
   removed; the sinks that refuse a `secret` value (HTML/response output, `Core\Log`, debug-dump output,
   `Throwable` messages, `serialize()`/the isolate-crossing boundary, and — per
   [ADR 0046](0046-attributes-shape-literal-metadata.md) — an attribute payload position); the redaction
-  `var_dump()`/`print_r()` owe a `secret`-qualified property.
+  `Core\Debug::dump` owes a `secret`-qualified property.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — the conversion table's checked-conversion row now
   strips `secret` on success, the same total/checked shape [0024](0024-taint-tracking-for-injection-sinks.md)
   already gave `tainted`; every other row is unchanged.
@@ -23,8 +23,8 @@
   expressions passed at that call site (not just the declared parameter type) for a statically-`secret`
   operand and refuses it — see § 4 below for why this sink needs call-site inspection instead of a
   parameter-type refusal.
-  [0028](0028-closing-the-remaining-magic-methods.md) § 4 — `var_dump()`/`print_r()` no longer
-  unconditionally show "a class's real declared properties and their real current values": a property whose
+  [0028](0028-closing-the-remaining-magic-methods.md) § 4 — `Core\Debug::dump` no longer
+  unconditionally shows "a class's real declared properties and their real current values": a property whose
   declared type carries `secret` is shown as a fixed redaction placeholder instead of its value. This is a
   built-in, type-driven rule keyed on the declared type, not a per-class hook — it does not reopen § 4's
   rejection of a `DebugRepresentable`-style customization interface, the same distinction
@@ -32,11 +32,12 @@
   [docs/implementation-plan.md](../implementation-plan.md) M1 — gains a second qualifier-grammar addition
   alongside `tainted`'s, landing after M1's own fuzz/corpus verification was already reported done, the same
   situation [0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already flagged once. M4 —
-  the `var_dump`/`print_r` line item gains this ADR's redaction rule. M8 — the `Core\Log` line item gains
+  the debug-dump line item gains this ADR's redaction rule. M8 — the `Core\Log` line item gains
   this ADR's call-site inspection rule.
-- **Amended by:** 0046, 0084, 0086 — each fold is applied below; this body states the current rule. 0084
-  records that a durable job payload is an output, so a `secret` cannot enter one; 0086 adds `Cli::secret`
-  to § 1 as the one `Core` member that originates the qualifier.
+- **Amended by:** 0046, 0084, 0086, 0092 — each fold is applied below; this body states the current rule.
+  0084 records that a durable job payload is an output, so a `secret` cannot enter one; 0086 adds
+  `Cli::secret` to § 1 as the one `Core` member that originates the qualifier; 0092 makes the redaction a
+  node kind in its record model, so all three renderings inherit it rather than each implementing it.
 - **Relates to:** 0004, 0009, 0012, 0015, 0020, 0022, 0023, 0024, 0028
 
 > **In short:** `secret string`/`secret bytes` join `tainted string`/`tainted bytes` as a second, independent
@@ -167,10 +168,13 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   inspecting that call site's argument expressions, not by the parameter's declared type (see *Context* for
   why the two mechanisms differ). Only `Core\Secret::reveal()`'s output may legitimately reach a log field
   once a developer has explicitly said so.
-- **Debug-dump output** (`var_dump()`/`print_r()`-equivalent) — a property whose *declared* type carries
+- **Debug-dump output** (`Core\Debug::dump`) — a property whose *declared* type carries
   `secret` is shown as a fixed redaction placeholder (illustrative: `secret(redacted)`) instead of its
   current value, amending [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 4's "always show real
-  declared properties and their real current values" guarantee for this one qualifier. This is a built-in,
+  declared properties and their real current values" guarantee for this one qualifier. It is a **Redacted
+  node** in [0092](0092-one-diagnostic-record-three-renderings.md) § 1's record model, so the plaintext,
+  JSON and HTML renderings — and a `Throwable`'s trace, and a `#[Test]` failure — all inherit it from one
+  place. This is a built-in,
   type-keyed rule the dump implementation applies uniformly — not a per-class hook, and not a reopening of
   § 4's rejected `DebugRepresentable`-style customization interface, the same "closed mechanism, not an
   overridable one" distinction every prior magic-method closure in this project already draws.
@@ -282,8 +286,10 @@ Verification, in the order it becomes possible:
   if present) with no diagnostic; a `secret`-qualified value reaching a `Markup`-building interpolation
   position is refused even though the equivalent `tainted`-only value is auto-escaped; a `secret` value passed
   as a `Throwable` message argument is refused.
-- **M4**: `var_dump()`/`print_r()` show a fixed redaction placeholder for a `secret`-qualified property
-  instead of its value, while every other declared property (including `tainted`-only ones) still shows its
+- **M4**: `Core\Debug::dump` shows a fixed redaction placeholder for a `secret`-qualified property
+  instead of its value, in every one of
+  [0092](0092-one-diagnostic-record-three-renderings.md) § 3's renderings, while every other declared
+  property (including `tainted`-only ones) still shows its
   real value per [ADR 0028](0028-closing-the-remaining-magic-methods.md)'s unchanged general rule.
 - **M5** (the plan's own milestone for `spawn`/cross-core worker dispatch, `spawn script`, and
   `serialize()`/`unserialize()` sharing the graph-copy walk): a `secret`-qualified value passed across the

@@ -8,9 +8,11 @@
   first opened the "magic methods" line item and three more ADRs have each closed a piece of it since.
 - **Amends:** [0007](0007-explicit-type-system.md) § 4 — the conversion table's "anything → `string`" row
   said "an object needs `__toString`, or it throws"; it now names `Stringable` instead. Also
-  [implementation-plan.md](../implementation-plan.md) M4 — the `var_dump`/`print_r`/`json_encode` line item
-  gains this ADR's citation for what those two no longer do.
-- **Amended by:** 0030, 0033, 0061 — each fold is applied below; this body states the current rule.
+  [implementation-plan.md](../implementation-plan.md) M4 — the debug-dump line item
+  gains this ADR's citation for what a dump no longer does.
+- **Amended by:** 0030, 0033, 0061, 0092 — each fold is applied below; this body states the current rule.
+  0092 gives the dump a name and a surface — `Core\Debug::dump` — and § 4's rule is restated against it,
+  unchanged.
 - **Relates to:** 0002, 0004, 0006, 0011, 0013, 0014, 0019, 0022, 0023, 0027
 
 > **In short:** `__toString` is replaced by a declared global `Stringable` interface
@@ -22,7 +24,7 @@
 > reduces to the ordinary "not null" check every other binding already has, and **`unset()` on a declared
 > object property is a compile-time diagnostic**, full stop, because [0022](0022-definite-property-initialization.md)
 > already guarantees no declared property is ever anything other than definitely initialized. `__debugInfo`
-> is removed with no replacement — `var_dump`/`print_r` always show a class's real declared properties and
+> is removed with no replacement — `Core\Debug::dump` always shows a class's real declared properties and
 > their real current values. `__set_state` is removed with no replacement — reconstructing an object from
 > external data is already [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s job. `__autoload` gets
 > no decision at all: PHP itself removed it in 8.0, and MWL resolves every class reference statically at
@@ -155,7 +157,8 @@ untouched — PHP's existing rules for those keep working exactly as they do tod
 
 ### 4. `__debugInfo` — rejected, no replacement
 
-`var_dump()`/`print_r()` always show a class's real declared properties and their real current values,
+`Core\Debug::dump` ([0092](0092-one-diagnostic-record-three-renderings.md), which owns its surface and its
+three renderings) always shows a class's real declared properties and their real current values,
 annotated with each property's declared visibility exactly as PHP's own output already is — there is no
 hook to filter, rename, or synthesize fields for the dump. This is unrelated to, and does not reopen,
 [0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2's rule that a `Core\Reflect` *value* read
@@ -204,7 +207,7 @@ declaration. That is a decision rather than a consequence, and it is
 - `unset()`'s refusal on a declared property closes a real, previously-unnoticed gap between
   [0022](0022-definite-property-initialization.md)'s guarantee and PHP's own `unset()` semantics, before any
   code could have depended on the contradiction.
-- `var_dump`/`print_r` become exactly as predictable as every other closed mechanism in this project: what
+- `Core\Debug::dump` becomes exactly as predictable as every other closed mechanism in this project: what
   you declare is what a dump shows, never what a class chose to substitute.
 
 **Negative**
@@ -237,8 +240,10 @@ declaration. That is a decision rather than a consequence, and it is
   closed `__get`/`__set`'s fallback.
 - **Let `unset()` reset a non-nullable property to a type default.** [0022](0022-definite-property-initialization.md)
   already rejected per-type silent defaults for exactly this reason.
-- **A `DebugRepresentable`-style interface for `var_dump()`.** No unsafe default to close off — would add a
+- **A `DebugRepresentable`-style interface for the dump.** No unsafe default to close off — would add a
   customization surface with no motivating problem.
+  [0092](0092-one-diagnostic-record-three-renderings.md) § 7 reaffirms this rather than reopening it: its
+  record model is closed, which is this refusal expressed as a data type.
 - **Keep PHP's open `var_export()`/`__set_state` format for `mwl convert`.** Same
   generated-code-as-data-format risk [0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed
   for serialize.
@@ -264,9 +269,9 @@ Verification, in the order it becomes possible:
 - **M4**: a class implementing `Stringable` is accepted at every implicit-conversion site in § 1 and
   produces the value `toString()` returns; no method named `__destruct` could compile in the first place,
   so none is ever invoked when refcounts legitimately reach zero mid-request; `isset($obj->prop)` matches
-  `$obj->prop != null` for a nullable property and is always `true` for a non-nullable one; `var_dump`/
-  `print_r` show every declared property and its live value, with no `__debugInfo`/`__set_state` method
-  able to exist to affect that.
+  `$obj->prop != null` for a nullable property and is always `true` for a non-nullable one;
+  `Core\Debug::dump` shows every declared property and its live value, with no `__debugInfo`/`__set_state`
+  method able to exist to affect that.
 - **M11**: the converter mechanically rewrites `__toString` to `Stringable`/`toString()` and
   `unset($obj->nullableProp)` to `$obj->nullableProp = null;`; it flags PHP source using `__destruct` or
   `__set_state` as a `TODO` needing a human decision, per *Consequences*' negative list.

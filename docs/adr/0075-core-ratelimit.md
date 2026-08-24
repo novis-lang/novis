@@ -163,7 +163,7 @@ rather than take the product down. Throwing puts that decision where the knowled
 try {
     $d = RateLimit::consume("export:{$tenantId}", 100, 1h);
 } catch (IOError $e) {
-    Core\Log::write("warn", "quota check unavailable, allowing", {tenant: $tenantId});
+    Core\Log::write(Log\Level::Warn, "quota check unavailable, allowing", {tenant: $tenantId});
     $d = null;                                  // this application chose to fail open, visibly
 }
 ```

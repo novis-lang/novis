@@ -5,8 +5,8 @@
 - **Scope:** the directive registry, `Core\Config::set`/`::get`, per-request limit enforcement
 - **Amends:** [0004](0004-memory-for-simplicity.md) — the enforceable per-request cap is now the *ceiling*
   directive, not the default one
-- **Amended by:** 0064, 0072, 0073, 0074, 0076, 0078 — each fold is applied below; this body states the
-  current rule. The registry's full block list, with the ADR that argues each block's directives, is
+- **Amended by:** 0064, 0072, 0073, 0074, 0076, 0078, 0091 — each fold is applied below; this body states
+  the current rule. The registry's full block list, with the ADR that argues each block's directives, is
   [0064 § 2a](0064-configuration-file-format.md).
 
 > **In short:** `mwl.toml` states defaults, not ceilings. Every directive carries a changeability
@@ -94,11 +94,27 @@ the ceiling. It is not clamped to the ceiling: silently running with a different
 requested is harder to diagnose than a false return, and `false` is already what PHP returns for a set it
 will not perform.
 
+### The run mode is the second, and last, such pair
+
+`[mode]` has the same two halves for the same reason, and
+[0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) owns everything about what it
+selects:
+
+```toml
+[mode]
+default = "production"       # Runtime — the mode an application starts in
+ceiling = "development"      # System  — the most permissive mode any code may select
+```
+
+`ceiling` unset means *the mode the server started in*, so a production host is unreachable from code with
+nothing written, and one host serving both production and development applications is one root-owned line.
+Two instances of this shape is a pattern a reader learns once; a third would need its own argument.
+
 ### What is `System`
 
 **A directive is `System` when changing it from inside a request would affect something other than that
 request.** That is the whole rule, and it covers the `[[extension]]` entries and their hash pins,
-`cache.dir`, `opcache.validate`, the per-app blocks, `[limits.hard]` itself, every `[[schedule]]` key
+`cache.dir`, `opcache.validate`, the per-app blocks, `[limits.hard]` and `[mode] ceiling` themselves, every `[[schedule]]` key
 ([0073](0073-scheduled-work-is-config.md) § 4), `[deferred] max_concurrent`
 ([0072](0072-core-task-structured-concurrency.md) § 7) and both observability blocks
 ([0076](0076-observability-export.md) § 6). A directive being `System` is what makes it a limit; there is no
