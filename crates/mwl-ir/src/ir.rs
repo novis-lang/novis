@@ -1163,10 +1163,12 @@ pub enum BinOp {
     Div,
     /// `%`
     Mod,
-    /// `==` / `===` — this slice does not yet distinguish loose from strict
-    /// equality (no non-scalar operand exists yet for the two to differ on).
+    /// `==` — ADR 0090 makes this the language's only equality operator, with
+    /// no conversion of either operand. `===` still parses and still lowers
+    /// here; deleting it, and the string/array/object rows of that ADR's
+    /// table, is the crate docs' gap 19.
     Eq,
-    /// `!=` / `!==`
+    /// `!=` (and, until ADR 0090's removal slice lands, `!==`).
     NotEq,
     /// `<`
     Lt,

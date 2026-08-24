@@ -6,7 +6,7 @@
   nested arrays; string-only array keys; unions and `mixed`; the conversion operator; the result type of
   every arithmetic operator
 - **Amended by:** 0008, 0010, 0011, 0013, 0015, 0022, 0024, 0027, 0028, 0031, 0033, 0034, 0035, 0036,
-  0037, 0047, 0053, 0054, 0066, 0069 — each fold is applied below, and each row another ADR owns outright names
+  0037, 0047, 0053, 0054, 0066, 0069, 0090 — each fold is applied below, and each row another ADR owns outright names
   it in place. This body states the current rule, never a prior one.
 - **Relates to:** [0002](0002-error-propagation.md) (a refused conversion throws, so it propagates as a
   checked status), [0004](0004-memory-for-simplicity.md) (what the type machinery spends),
@@ -186,7 +186,7 @@ diagnostic saying exactly that. There is no literal suffix, for any numeric type
 |---|---|---|
 | `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
 | `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
-| `int` against `uint` in `< <= > >= == ===` | `bool`, mathematically exact over the full range of both | — |
+| `int` against `uint` in `< <= > >= ==` | `bool`, mathematically exact over the full range of both | — |
 | `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
 | either operand a `float` | `float` | — |
 | `>>` | arithmetic on `int`, **logical on `uint`** | — |
@@ -278,7 +278,7 @@ One type parameter, not two, because the key type is fixed by the language.
 ### 6. Unions, narrowing, and `mixed`
 
 A union permits only the operations valid for *every* member. Reaching a member's own operations means
-narrowing, which is flow-sensitive and branch-local: `instanceof`, `=== null`, a comparison against a
+narrowing, which is flow-sensitive and branch-local: `instanceof`, `== null`, a comparison against a
 literal-typed value, and `match (true)`. There is no `is_int()`-style predicate to narrow with, because
 there are no free functions; getting a scalar out of a union or out of `mixed` is `as T` (throwing) or
 `as ?T` (yielding `null`), which is deliberately the same reviewable spelling either way and is why

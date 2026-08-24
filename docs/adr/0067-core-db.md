@@ -216,7 +216,7 @@ There is deliberately **no universal string**. `->string()` and a `string` field
 only; the universal path is `get(): mixed` plus the language's own `as` conversion
 ([0007](0007-explicit-type-system.md) § 2, [0066](0066-nullable-conversion-operator.md)'s `as ?T`), so
 `Core\Db` never grows a second stringification table to keep in agreement with the first. PHP's "everything
-is a string" is an artefact of the MySQL text protocol, and it is why `$row['id'] === 1` silently fails
+is a string" is an artefact of the MySQL text protocol, and it is why `$row['id'] == 1` silently fails
 there.
 
 Every value a row yields is `tainted` where the type can carry it — a persisted store is a source under

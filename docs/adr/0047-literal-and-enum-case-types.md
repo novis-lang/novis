@@ -11,7 +11,7 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's atom grammar gains `StringLiteral`, `IntLiteral`,
   a class-constant reference, and an enum-case reference as four new atom productions, alongside the
   existing `true`/`false` literal atoms this ADR generalises.
-- **Amended by:** 0066 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0066, 0090 — each fold is applied below; this body states the current rule.
 - **Relates to:** 0002, 0010, 0024, 0033, 0036, 0046
 
 > **In short:** `"a"|"b"|"c"` and `1|2` are now legal types, usable everywhere [ADR 0007](0007-explicit-type-system.md)
@@ -146,7 +146,7 @@ nothing about this ADR restricts what a union may contain beyond what [ADR 0007]
 | a case-subset union → its enum (`Mode::Read\|Mode::Write` → `Mode`) | **total, free** — a strict widening |
 | base type / `mixed` → a literal or literal-union type | **checked.** Throws unless the value equals one of the named literals — the same shape `as uint` already has |
 | an enum / `mixed` → a case-subset type | **checked.** Throws unless the value's case is one of the named cases — a further-restricted version of [ADR 0010](0010-enums-are-a-value-type.md) § 5's existing `EnumName` conversion, not a new conversion kind |
-| a wider literal/case-subset union → a narrower one | needs a guard (`match`, `===`) or a checked `as` — [ADR 0007](0007-explicit-type-system.md) § 6's existing narrowing rule, unchanged |
+| a wider literal/case-subset union → a narrower one | needs a guard (`match`, `==`) or a checked `as` — [ADR 0007](0007-explicit-type-system.md) § 6's existing narrowing rule, unchanged |
 
 ```php
 "a"|"b"|"c" $mode = Core\Request::query('mode') as "a"|"b"|"c";   // throws on anything else — never a silent default
@@ -291,7 +291,7 @@ Verification, in the order it becomes possible:
   to close.
 - **M2**: a corpus covering every row of *4*'s table — a literal/case-subset type widening for free; a
   checked conversion both succeeding and throwing, for a literal union and a case-subset union alike; a
-  narrowing guard (`match`, `===`) required before reaching a member's own operations; an ineligible
+  narrowing guard (`match`, `==`) required before reaching a member's own operations; an ineligible
   constant (`array`/`object`/`float`-backed) rejected in type position naming the eligible types (*7*); a
   `tainted`/`secret` value still requiring laundering/`reveal()` before satisfying either kind of type.
   It starts one step earlier than *4*'s table reads, and the same step `true`/`false` never took: a

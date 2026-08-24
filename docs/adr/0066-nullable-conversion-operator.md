@@ -101,19 +101,19 @@ those ADRs name.
 
 ### 5. `Core\Validate`'s three numeric predicates are removed
 
-`Validate::isInteger($s)` and `$s as ?int !== null` are the same predicate, which R17 forbids.
+`Validate::isInteger($s)` and `$s as ?int != null` are the same predicate, which R17 forbids.
 `isInteger`, `isFloat` and `isBoolean` are struck from [spec § 13](../spec/01-core-library.md), along with
 the sentence defining them against `as`, which this ADR makes unnecessary — one implementation now exists
 because there is one operation, not because two were required to agree. `isEmail`, `isIp`, `isMac`,
 `isDomain`, `isAscii` and `isPrintable` — the roster that survived a later duplicate sweep — are
 unaffected: none has an `as` equivalent, because none names a type. `ctype_digit` is not among them for
-the same reason `isInteger` is not: it is `$s as ?uint !== null`.
+the same reason `isInteger` is not: it is `$s as ?uint != null`.
 
 ### 6. A bare `?T` condition is a lint, not an error
 
 Under [ADR 0035](0035-truthy-boolean-context.md) both `null` and `0` are falsy, so `if ($s as ?int)` is
 false for an invalid value *and* for a valid zero — reconstructing precisely the `(int)$x > 0` defect that
-motivated this ADR. `mwl check` warns when a `?T` is used directly as a condition, naming `!== null`.
+motivated this ADR. `mwl check` warns when a `?T` is used directly as a condition, naming `!= null`.
 
 It is a lint rather than a diagnostic because **the hazard is not new and not specific to this operator**:
 any `?int` in an `if` has always had it. Making it an error would amend ADR 0035 for every nullable value
@@ -170,7 +170,7 @@ in the language, which is a larger decision than this one and is not taken here.
   on the same case set ADR 0010 § 5's integer-into-an-enum row waits for, and every § 3 **refusal** —
   `mwl_types` does not yet reject a conversion that cannot fail or one that does not exist, so `mwl-ir`
   panics naming this ADR where it should have been a diagnostic.
-- **M4B:** `mwl check` warns on `if ($s as ?int)` and on any `?T` condition, naming `!== null`, and does
-  **not** warn on `($s as ?int) !== null`.
+- **M4B:** `mwl check` warns on `if ($s as ?int)` and on any `?T` condition, naming `!= null`, and does
+  **not** warn on `($s as ?int) != null`.
 - **M11:** `mwl convert` emits a diagnostic for PHP's `(int)$x` naming both `as int` and `as ?int ?? 0`,
   and never rewrites to either silently.

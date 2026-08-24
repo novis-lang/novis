@@ -229,7 +229,7 @@ Verification, in the order it becomes possible:
 
 - **M4** (object model lands, [implementation-plan.md](../implementation-plan.md)): `clone $x` produces a
   new instance sharing no COW-array buffer identity with `$x` after either side writes, while an
-  object-typed property of the clone remains `===` the original's; no `__clone` method is ever invoked even
+  object-typed property of the clone remains `==` the original's; no `__clone` method is ever invoked even
   if one is declared (it is an ordinary, unrelated method by that name); a `readonly` property survives the
   clone without throwing.
 - **M5** (concurrency and script isolates land): `serialize()`/`unserialize()` round-trip a cyclic value

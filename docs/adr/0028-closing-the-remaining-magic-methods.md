@@ -138,7 +138,7 @@ replacement — but this ADR still has to say what each construct means on an ob
 initialized, permanently, after construction:
 
 - **`isset($obj->prop)`** — unchanged from what `isset` already means for every other binding: `$obj->prop
-  !== null`. For a non-nullable typed property this is always `true` — such a property can never hold
+  != null`. For a non-nullable typed property this is always `true` — such a property can never hold
   `null` — and for a nullable one it reflects whatever was last assigned. No magic method is consulted;
   accessing an undeclared `$obj->prop` is already [0014](0014-property-observer.md)'s hard error before
   `isset` even gets involved.
@@ -264,7 +264,7 @@ Verification, in the order it becomes possible:
 - **M4**: a class implementing `Stringable` is accepted at every implicit-conversion site in § 1 and
   produces the value `toString()` returns; no method named `__destruct` could compile in the first place,
   so none is ever invoked when refcounts legitimately reach zero mid-request; `isset($obj->prop)` matches
-  `$obj->prop !== null` for a nullable property and is always `true` for a non-nullable one; `var_dump`/
+  `$obj->prop != null` for a nullable property and is always `true` for a non-nullable one; `var_dump`/
   `print_r` show every declared property and its live value, with no `__debugInfo`/`__set_state` method
   able to exist to affect that.
 - **M11**: the converter mechanically rewrites `__toString` to `Stringable`/`toString()` and

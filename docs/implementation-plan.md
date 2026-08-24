@@ -96,7 +96,7 @@
 > whole but its two component types** — `DateTime`'s fourteen members over `jiff::Zoned`,
 > `Core\Unit`/`Core\Weekday`, `Time::parse`/`at`, `$i->in($z)` and the `Zone::UTC` constant, all
 > over the closed CLDR pattern subset `mwl_stdlib::cldr` holds for `format` and `parse` alike;
-> `Date`/`TimeOfDay` and `Core\Month` are that module's gap 1. **A `!== null` test narrows a local**
+> `Date`/`TimeOfDay` and `Core\Month` are that module's gap 1. **A `!= null` test narrows a local**
 > (ADR 0007 § 6, one of its four spellings; `mwl_types::locals` owns what invalidates a narrowing).
 > **ADR 0071 is built end to end for a scalar-fielded class**: `mwl_types::derive` reads the field
 > list, each field's declared type and its constructor position off the declaration,
@@ -116,7 +116,10 @@
 > **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier
 > classification at all, so `Core\Str::format`'s template is not yet the sink that ADR makes it, and
 > neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test that
-> refuses an unclassified member exists. Off path: ADR 0043's `by`-delegation.
+> refuses an unclassified member exists. **ADR 0090 is decided and unbuilt**: `===`/`!==` still
+> parse, `== null` does not yet take the tag test, the disjoint-operand refusal has no diagnostic,
+> and the string/array/object rows of its § 3 need a helper each — `mwl-ir`'s gap 19 and
+> `mwl_types::locals`' own note own the halves. Off path: ADR 0043's `by`-delegation.
 >
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the

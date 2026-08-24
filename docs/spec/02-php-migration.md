@@ -69,13 +69,13 @@ MWL actually has.
 | `ctype_alnum` | dropped | `Core\Regex::matches($s, "^[\\p{L}\\p{N}]+$")` — ASCII-only as a member would be wrong on UTF-8 |
 | `ctype_alpha` | dropped | `Core\Regex::matches($s, "^\\p{L}+$")` |
 | `ctype_cntrl` | dropped | `Core\Regex::matches($s, "^\\p{Cc}+$")` |
-| `ctype_digit` | language | `$s as ?uint !== null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)) — a type question, not a character class |
+| `ctype_digit` | language | `$s as ?uint != null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)) — a type question, not a character class |
 | `ctype_graph` | dropped | `Core\Validate::isPrintable` and a space test |
-| `ctype_lower` | dropped | `$s === Core\Str::lower($s)` |
+| `ctype_lower` | dropped | `$s == Core\Str::lower($s)` |
 | `ctype_print` | member | `Core\Validate::isPrintable` |
 | `ctype_punct` | dropped | `Core\Regex::matches($s, "^[\\p{P}\\p{S}]+$")` |
 | `ctype_space` | dropped | `Core\Regex::matches($s, "^\\s+$")` |
-| `ctype_upper` | dropped | `$s === Core\Str::upper($s)` |
+| `ctype_upper` | dropped | `$s == Core\Str::upper($s)` |
 | `ctype_xdigit` | dropped | `Core\Regex::matches($s, "^[0-9a-fA-F]+$")` |
 | `explode` | member | `Core\Str::split` |
 | `fprintf` | member | `Core\Str::format` into `$file->write` |
@@ -374,8 +374,8 @@ almost every predicate below a question the checker has already answered.
 | `is_integer` | member | `Core\Reflect::typeOf` |
 | `is_iterable` | member | `Core\Reflect::typeOf` |
 | `is_long` | member | `Core\Reflect::typeOf` |
-| `is_null` | language | `$x === null` |
-| `is_numeric` | language | `$s as ?float !== null` |
+| `is_null` | language | `$x == null` |
+| `is_numeric` | language | `$s as ?float != null` |
 | `is_object` | member | `Core\Reflect::typeOf` |
 | `is_resource` | dropped | there is no `resource` type (R14) |
 | `is_scalar` | member | `Core\Reflect::typeOf` |

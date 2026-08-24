@@ -66,7 +66,7 @@ no flag that turns one on.**
 
 ```php
 $result = Core\Process::run("/usr/bin/convert", ["input.png", "-resize", "50%", "output.png"]);
-if ($result->exitCode() !== 0) {
+if ($result->exitCode() != 0) {
     Core\Log::error("convert failed", ["stderr" => $result->stderr()]);
 }
 ```
@@ -91,7 +91,7 @@ and returns a `ProcessResult` carrying the exit code, captured stdout, and captu
 
 ```php
 $proc = Core\Process::spawn("/usr/bin/ffmpeg", ["-i", "in.mp4", "-f", "mp3", "-"]);
-while (($chunk = $proc->readStdout()) !== null) {
+while (($chunk = $proc->readStdout()) != null) {
     Core\Http::writeChunk($chunk);
 }
 $result = $proc->wait();

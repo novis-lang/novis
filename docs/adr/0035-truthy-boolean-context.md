@@ -10,7 +10,8 @@
   `mwl-types`' `check_stmt` already passes `expected: None` for every condition, and nothing enforced or
   rejected any type there. This ADR is the first to say so on purpose, closing a gap ADR 0007 left open
   rather than reopening a decision it made.
-- **Amended by:** none.
+- **Amended by:** 0090 — the operator pair `==`/`===` is now the one operator `==`; nothing else about
+  this decision changed.
 - **Relates to:** 0007, 0010, 0034
 
 > **In short:** a condition never needs an explicit `as bool` or comparison to be written just to express
@@ -20,13 +21,13 @@
 > including every object, callable and enum case, and every array with at least one element
 > regardless of its contents — is truthy. This is the **one** place MWL performs an implicit, PHP-shaped
 > conversion on a value's declared type; everywhere else — assigning into a `bool`-typed parameter, property,
-> return, or local; `==`/`===`/`match` — ADR 0007's rule is untouched: an explicit `as bool` or comparison is
+> return, or local; `==`/`match` — ADR 0007's rule is untouched: an explicit `as bool` or comparison is
 > still required, and nothing narrower than a condition gets this exception.
 
 ## Context
 
 - Priority 4 argues for it directly: ported PHP code leans on `if ($str)`, `if ($rows)`, `if ($err)`
-  constantly. Requiring `$str !== ''`, `count($rows) > 0`, or an `as bool` conversion at every such site is
+  constantly. Requiring `$str != ''`, `count($rows) > 0`, or an `as bool` conversion at every such site is
   exactly the ceremony ADR 0007's own verbosity trade-off already worries about — compounded at every branch
   rather than at every declaration.
 - Priority 1 doesn't actually require the strict reading: the risk ADR 0007 § 2 closes is a *declared type
@@ -52,7 +53,7 @@ truthiness test is not a conversion at all under that rule — it produces no va
 that could be read back, assigned, or passed on. It answers exactly one question, "branch or don't," and
 the answer itself is always freshly computed, never stored as a re-typed `$x`. That is what keeps this a
 narrow, named carve-out rather than a hole in ADR 0007: nothing here lets a `string` flow into a `bool`
-*binding* without `as bool`, and nothing here changes what `==`/`===`/`match` do.
+*binding* without `as bool`, and nothing here changes what `==`/`match` do.
 
 ### 2. The truthy table
 
@@ -95,9 +96,11 @@ object rule (always truthy), not the integer rule its backing type might suggest
 
 ### 5. What stays unaffected
 
-Nothing about assignment, parameters, properties, returns, `==`/`===`, or `match` changes. `bool $b = $s;`
+Nothing about assignment, parameters, properties, returns, `==`, or `match` changes. `bool $b = $s;`
 is still `E_TYPE_MISMATCH` requiring `$s as bool` or a comparison; `match (true) { $s => ... }` still tests
-each arm with strict comparison, not truthiness (`match` is not in the position list above). `??`/`?->`
+each arm with the equality rule
+([0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md)), not truthiness (`match` is not
+in the position list above). `??`/`?->`
 already test null-vs-not, an entirely separate axis from truthiness, and are likewise untouched.
 
 ## Consequences

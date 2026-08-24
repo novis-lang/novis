@@ -1893,9 +1893,12 @@ impl<'a> Lowering<'a> {
     /// `mwl_types::locals`' narrowing reads, so the two agree on
     /// exactly one spelling.
     ///
-    /// Loose `==`/`!=` deliberately stays in the general arm: PHP's
-    /// `0 == null` is *true*, so it is a truthy-table question rather
-    /// than a tag one (`mwl-ir` gap 1 owns it).
+    /// `==`/`!=` against `null` still goes to the general arm, which is
+    /// a bug rather than a decision: ADR 0090 makes `==` strict, so it
+    /// is exactly this tag test and should be keyed on both spellings.
+    /// It stayed behind because PHP's `0 == null` was *true* — a
+    /// truthy-table question rather than a tag one — which ADR 0090
+    /// removes. The crate docs' gap 19 owns the move.
     fn lower_null_identity(
         &mut self,
         op: BinaryOp,

@@ -256,11 +256,14 @@ impl Narrowing {
 /// tested variable's name span, and whether the test *holding* means the
 /// variable is not `null`.
 ///
-/// `===`/`!==` only. PHP's loose `==`/`!=` against `null` is a different
-/// question (`0 == null` is true), and while it happens to agree for an
-/// object operand — the only shape [`narrow`] narrows — reading a
-/// laundering rule out of the truthy table is exactly the kind of
-/// almost-right that ADR 0007 § 4 keeps out of this checker. A bare
+/// `===`/`!==` only, which ADR 0090 turns into a gap rather than a rule:
+/// that ADR makes `==` strict and `===` a rejected spelling, so `== null`
+/// is the null test and belongs here too. It was excluded because PHP's
+/// loose `==` against `null` was a different question (`0 == null` is
+/// true), and reading a laundering rule out of the truthy table is exactly
+/// the kind of almost-right that ADR 0007 § 4 keeps out of this checker.
+/// Widening this to `Eq`/`NotEq` is one arm, and waits only on the lexer
+/// half so the two spellings never both exist. A bare
 /// `if ($x)` is likewise not a null test: ADR 0035 § 4 makes it one for a
 /// nullable object today, but not for a `?string` holding `""`.
 fn null_test(cond: &Expr) -> Option<(Span, bool)> {

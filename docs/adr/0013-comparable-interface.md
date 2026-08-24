@@ -6,7 +6,9 @@
   `Comparable` interface and its single method; what happens when a class does not implement it
 - **Amends:** [0007](0007-explicit-type-system.md) § 4 — adds the object-operand row *Decision § 4* gives
   below to the operator result table, which was previously silent on two object operands.
-- **Relates to:** 0002, 0004, 0008, 0011, 0012
+- **Amended by:** 0090 — § 5 said equality kept "whatever PHP's default already gives it", which was the
+  absence of a decision; it now names the ADR that owns equality. The fold is applied below.
+- **Relates to:** 0002, 0004, 0008, 0011, 0012, 0090
 
 > **In short:** PHP compares two objects of the same class with `<`/`>` by walking their declared
 > properties in order and comparing recursively, stopping at the first difference — a behaviour that exists
@@ -16,8 +18,9 @@
 > zero or positive exactly like `strcmp` or the general `<=>` convention. All five operators lower to a call
 > to that method; a class that does not implement it makes those operators a **compile-time diagnostic**,
 > not a silent property walk. The interface fixes the other side's type to `self` — two different classes
-> are never directly orderable by these operators, even if both implement `Comparable`. `==`/`===`/`!=`/
-> `!==` are untouched by this decision and keep whatever equality behaviour they already have.
+> are never directly orderable by these operators, even if both implement `Comparable`. Equality is a
+> separate question, owned by [ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+> and untouched by this decision.
 
 ## Context
 
@@ -103,12 +106,15 @@ method (`Money::isGreaterThan(Distance $d): bool` reads oddly on purpose) rather
 operators. A generic, parameterized `Comparable<T>` allowing a declared non-`self` target type is deferred;
 see *Revisiting*.
 
-### 5. `==`, `===`, `!=`, `!==` are unaffected
+### 5. `==` and `!=` are unaffected
 
-This decision is scoped to ordering. Equality keeps whatever behaviour it already has independent of
-`Comparable` — a class may implement `Comparable` purely to be ordered while its equality stays whatever
-PHP's default already gives it. Folding equality into the same interface, so that `compareTo` returning `0`
-also means `==`, was considered and rejected; see *Alternatives rejected*.
+This decision is scoped to ordering. Equality is owned by
+[ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md), which makes `==` the one
+spelling and compares two class instances by **identity** — a class may implement `Comparable` purely to
+be ordered while `==` on it keeps asking whether the two operands are the same object. Folding equality
+into this interface, so that `compareTo` returning `0` also means `==`, was considered and rejected; see
+*Alternatives rejected*. Writing `$a->compareTo($b) == 0` is how a class that implements `Comparable` asks
+the content question explicitly, which is ADR 0090 § 4's answer to it.
 
 ### 6. The row this adds to [ADR 0007](0007-explicit-type-system.md) § 4
 

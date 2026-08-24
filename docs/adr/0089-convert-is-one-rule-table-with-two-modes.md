@@ -113,11 +113,16 @@ case per dialect it claims; where no oracle exists for that dialect, the branch 
 **A tier is usually a property of the site, not of the construct.** Two worked examples, which are the two
 shapes every rule in the table takes:
 
-- **`==` → `===`.** E when both operands are proven to be the same scalar type — there PHP's two operators
-  agree. D otherwise, and the `diverges` sentence differs per operand shape: two arrays compare
-  order-insensitively under `==` and order- and type-sensitively under `===`; two objects compare by
-  property values under `==` and by identity under `===`; and a cross-type comparison changed meaning in
-  PHP 8.0, so the same source is a different rule branch under a 7.x dialect than under an 8.x one.
+- **`==` → `==`.** MWL has one equality operator and it takes the strict reading of every row PHP's two
+  disagreed on ([0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md)), so the
+  destination spelling is unchanged and the tier is entirely a property of the operands. E when both are
+  proven the same non-`string` scalar, or proven numeric — there PHP's two operators agree. D otherwise,
+  with a `diverges` sentence per operand shape: two strings compare as text in MWL where PHP's `==`
+  compared two numeric strings numerically; two arrays compare order-sensitively where PHP's `==` did not;
+  two objects compare by identity where PHP's `==` walked property values. A **cross-type** comparison has
+  no E or D branch at all — it is ADR 0090 § 2's compile error, so the rule emits the commented-out
+  original plus the idiomatic shape, and a 7.x dialect and an 8.x one differ only in what the *comment*
+  says the original meant.
 - **`strlen($s)`.** E when the argument is proven `bytes`, where both count bytes. D when it is `string`,
   because [0009](0009-string-and-bytes.md) counts grapheme clusters — the rewrite compiles and the number
   differs on any non-ASCII input, which is precisely a `TODO`, not a blocker.
@@ -179,7 +184,7 @@ var $n = Core\Str::length($blob);
 
 ```
 // convert:C0004 — PHP compares an int against a string here, and 8.0 changed what that means.
-// Idiomatic MWL: convert once at the boundary, then compare — `$id === ($raw as int)`.
+// Idiomatic MWL: convert once at the boundary, then compare — `$id == ($raw as int)`.
 // if ($id == "1") { … }
 ```
 

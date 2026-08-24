@@ -95,6 +95,7 @@ so you never have to open this file to route a topic.
 | Leading underscores in identifiers, whether the constructor is `__construct` or `constructor` | [0030](0030-no-leading-underscores-constructor-spelling.md) |
 | `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$argv`, or anything PHP populates ambiently | [0012](0012-no-superglobals.md) |
 | Comparing two objects with `<`/`>`/`<=>`, operator overloading, `Comparable` | [0013](0013-comparable-interface.md) |
+| `==` vs `===`, loose comparison, type juggling, why `"1" == 1` does not compile, what two strings/arrays/objects compare by, `__equals`, comparing a `mixed` | [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) |
 | What "the same value" means — strict identity, `in_array`'s strict flag, `array_search`, `array_unique`, whether two objects/arrays/`NaN`/`-0.0` match | [crates/mwl-runtime/src/identity.rs](../../crates/mwl-runtime/src/identity.rs) — one row per representation, and the hash that agrees with it |
 | Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [0014](0014-property-observer.md) |
 | `class_alias`, `use … as …`, or a `type` alias | [0015](0015-no-name-aliasing.md) |
@@ -241,6 +242,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) | A directional control that opens a scope and never closes it is a hard compile error in source and is substituted at both output sinks, by one predicate with three callers; balanced controls, invisibles and homoglyphs are each left alone with their reason | Accepted |
 | [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) | A parameter is a sink when its content becomes an instruction rather than data, an unclassified `string`/`bytes` parameter on a `Core` member refuses `tainted`, `echo` binds to the terminal sink in every context but an HTTP request, and each response-body shape gets its own typed member | Accepted |
 | [0089](0089-convert-is-one-rule-table-with-two-modes.md) | `mwl convert` is one deterministic rule table read through two modes — a default that emits only rewrites proven identical against the PHP oracle and comments out the rest with the idiomatic shape, and a `--mode=runnable` that also emits every rewrite with a mechanical destination under a `TODO` naming how it may differ | Accepted |
+| [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) | `==` is the only equality operator and `===` does not parse; it never converts, refuses two statically disjoint types, takes the strict reading for strings, arrays and objects, and answers `false` rather than throwing when a `mixed` operand's runtime type does not match | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

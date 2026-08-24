@@ -99,7 +99,7 @@ that ADR's own *Revisiting* ever re-opens it.
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `length` | `length(string $s): uint` | `strlen`, `mb_strlen` | neutral |
-| `isEmpty` | `isEmpty(string $s): bool` | `$s === ""` | neutral |
+| `isEmpty` | `isEmpty(string $s): bool` | `$s == ""` | neutral |
 | `at` | `at(string $s, int $index): string` | `$s[$i]`, `mb_substr($s,$i,1)` | |
 | `contains` | `contains(string $haystack, string $needle): bool` | `str_contains`, `strstr` as a predicate | neutral |
 | `startsWith` | `startsWith(string $s, string $prefix): bool` | `str_starts_with` | neutral |
@@ -188,7 +188,7 @@ the mechanical rewrite for an ASCII-ish name is
 PHP's `ctype_*` family has **no member and no replacement class**. Each one is a character-class question,
 which is what `Core\Regex` is for — `ctype_alpha($s)` is `Regex::matches($s, "^\\p{L}+$")` — except the two
 numeric ones, which are a *type* question and therefore an `as`: `ctype_digit($s)` is
-`$s as ?uint !== null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)). Adding them as members
+`$s as ?uint != null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)). Adding them as members
 would import ASCII-only semantics into a type that guarantees UTF-8, which is the mistake
 [ADR 0009](../adr/0009-string-and-bytes.md) exists to prevent; `Core\Validate::isAscii` and `isPrintable`
 are here precisely because they *are* about the ASCII range and say so.
@@ -211,7 +211,7 @@ member is named `merge`, is [ADR 0069](../adr/0069-array-combination-is-key-type
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `count` | `count(array<T> $a): uint` | `count`, `sizeof` | neutral |
-| `isEmpty` | `isEmpty(array<T> $a): bool` | `empty($a)`, `count($a) === 0` | neutral |
+| `isEmpty` | `isEmpty(array<T> $a): bool` | `empty($a)`, `count($a) == 0` | neutral |
 | `isList` | `isList(array<T> $a): bool` | `array_is_list` | neutral |
 | `hasKey` | `hasKey(array<T> $a, int\|string $key): bool` | `array_key_exists`, `isset` | neutral |
 | `contains` | `contains(array<T> $haystack, T $needle): bool` | `in_array` (always strict) | neutral |
@@ -777,7 +777,7 @@ Three members that were here are gone as duplicates, each with a one-line rewrit
 PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{version: 4}`/`{version: 6}`,
 a closed literal set ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) rather than two more names.
 
-**There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool !== null`
+**There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool != null`
 ([ADR 0066](../adr/0066-nullable-conversion-operator.md)), and R17 forbids the second spelling. Every
 member that remains names a *format*; only a *type* has an `as`, which is why the roster looks uneven and
 is not.

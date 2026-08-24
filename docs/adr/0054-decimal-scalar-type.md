@@ -8,7 +8,8 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 2's conversion table, § 3's type grammar and § 4's
   arithmetic result table each gain `decimal`; § 7's divergence list gains one entry. This ADR is the only
   home for those rows.
-- **Amended by:** none.
+- **Amended by:** 0090 — § 3's comparison row spells the one equality operator; the row itself is
+  unchanged.
 - **Relates to:** 0013, 0037, 0047, 0051
 
 > **In short:** `decimal` joins `int`, `uint`, `float`, `bool` and `string` as a scalar — a 128-bit value
@@ -99,7 +100,7 @@ Added to [ADR 0007](0007-explicit-type-system.md) § 4's table:
 | `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` — the integer is exact in 96 bits | as above |
 | `decimal ⊕ float` arithmetic | **compile error** | no representable common type; convert one side explicitly |
 | `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws `ArithmeticError` |
-| `decimal` against `int`/`uint`/`float` in `< <= > >= == ===` | `bool`, mathematically exact over the full range of both | — |
+| `decimal` against `int`/`uint`/`float` in `< <= > >= ==` | `bool`, mathematically exact over the full range of both | — |
 | `**` with a `decimal` base | **compile error** — use `Core\Decimal::pow` | — |
 
 The `decimal ⊕ float` compile error is the same rule and the same reason as the existing `int ⊕ uint` row:

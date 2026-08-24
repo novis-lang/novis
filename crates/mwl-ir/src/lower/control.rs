@@ -458,12 +458,12 @@ impl<'a> Lowering<'a> {
     ///
     /// * **The subject is evaluated once**, before any label is, and every
     ///   label is then compared against that value in source order. The
-    ///   comparison is [`BinOp::Eq`] — PHP's `switch` compares loosely (`==`)
-    ///   and `match` compares identically (`===`), but both operands are
-    ///   statically the same MWL type here, which is the one condition under
-    ///   which those two agree; see [`Self::lower_expr`]'s `Binary` arm, where
-    ///   `==` and `===` already lower to the same instruction for the same
-    ///   reason.
+    ///   comparison is [`BinOp::Eq`] — PHP's `switch` compared loosely and its
+    ///   `match` identically, but ADR 0090 § 6 gives MWL one equality rule for
+    ///   both, and both operands are statically the same MWL type here anyway,
+    ///   which is the one condition under which PHP's two agreed; see
+    ///   [`Self::lower_expr`]'s `Binary` arm, where `==` and the not-yet-removed
+    ///   `===` lower to the same instruction for the same reason.
     /// * **`default` is the chain's fall-off, wherever it is written.** Every
     ///   label is tried first; only then does control reach the `default`
     ///   body, so a `default` written in the middle still runs last — and

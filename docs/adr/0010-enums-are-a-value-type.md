@@ -11,7 +11,7 @@
   *enum case* entry is gone from § 2's storage-class table: a case is a compile-time constant of its
   enum's underlying type and needs no runtime storage at all, which shortens that exhaustive list rather
   than adding to it.
-- **Amended by:** 0011 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0011, 0090 — each fold is applied below; this body states the current rule.
 - **Relates to:** 0002, 0004, 0006, 0007
 
 > **In short:** MWL's `enum` ignores PHP's design and follows C#'s instead — an enum declares a new, closed,
@@ -142,7 +142,7 @@ Status $s = Core\Request::query('status') as Status;   // throws on anything but
 uint   $bits = Permission::Write as uint;               // total: reads the backing value
 ```
 
-`==` and `===` on two values of the same enum type compare the underlying integer — there is no identity
+`==` on two values of the same enum type compares the underlying integer — there is no identity
 distinct from value, because there is no object. Comparing values of two *different* enum types is a
 diagnostic, the same rule [ADR 0007](0007-explicit-type-system.md) § 4 already applies to `int` against
 `uint`: no representable common type, so the comparison is refused rather than silently coerced.

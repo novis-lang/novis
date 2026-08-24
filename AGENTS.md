@@ -152,6 +152,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0061](docs/adr/0061-compile-time-autoload-and-program-discovery.md)).
 - **`&&`/`||` are the only logical connectives**; `and`/`or`/`xor` do not parse
   ([0045](docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
+- **`==` is the only equality operator, it never converts, and two statically disjoint types do not
+  compile** — strings, arrays and objects each take the strict reading
+  ([0090](docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)).
 - **`<?mwl` is the only code-mode open tag and `exit` the only termination keyword** — `<?=` is sugar for
   `<?mwl echo`, not a second tag ([0049](docs/adr/0049-single-open-tag-and-single-exit-keyword.md)).
 - **`[...]` is the only destructuring spelling**
