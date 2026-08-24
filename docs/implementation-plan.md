@@ -29,9 +29,9 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Arr` × 16, `Str` × 19, `granularity`, `Order`, and the conformance-coverage gate),
+> `mwl-stdlib` (`Arr` × 20, `Str` × 19, `granularity`, `Order`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 258 (in
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 260 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -46,7 +46,7 @@
 > full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification*
 > section says what its slice covers, not this field.
 >
-> **Open now:** **both Stage 4 suites are over their thresholds — conformance 258 against 250,
+> **Open now:** **both Stage 4 suites are over their thresholds — conformance 260 against 250,
 > differential 82 against 60 — and `mwl-stdlib`'s
 > `every_part_one_member_has_a_conformance_case` now exists and passes**: every registered `Core` member
 > is called by a `.mwlt` case, and a new member cannot land without one. The corpus stays the fastest
@@ -77,8 +77,10 @@
 > **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
 > under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
 > keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed, and every `Core\Arr`
-> member added since was leak-checked the same way before it landed. Stage 4's `mwl-stdlib` guard
-> test now passes, so the acceptance run reaches Stage 5's three named guards.
+> member added since was leak-checked the same way before it landed. The acceptance run now reaches
+> **Stage 5 and stops there**: `loop-goal.toml`'s `abi-probe` check names five guards, and
+> `a_class_without_a_property_observer_costs_nothing_extra` — ADR 0014's claim as a measurement —
+> has never been written.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

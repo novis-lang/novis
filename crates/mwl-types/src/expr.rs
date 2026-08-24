@@ -2610,12 +2610,24 @@ fn check_by_ref_arg(arg: &Arg, actual: TypeId, expected: Option<TypeId>, env: &m
 ///
 /// The ordering is the whole content: a variable's value *is* an argument's
 /// type, so there is nothing to check an argument against until every
-/// argument has been inferred. Each one is therefore checked with no
-/// expectation first -- which is also the honest expectation for a position
-/// whose declared type is still open -- then the bindings are read off, the
-/// signature is rewritten concrete, and only then is each argument checked for
-/// assignability against its now-known parameter type. One pass over the
-/// arguments, so nothing is diagnosed twice.
+/// argument has been inferred. An argument at a position whose declared type
+/// is still open is therefore checked with no expectation first -- which is
+/// also the honest expectation for such a position -- then the bindings are
+/// read off, the signature is rewritten concrete, and only then is each
+/// argument checked for assignability against its now-known parameter type.
+/// One pass over the arguments, so nothing is diagnosed twice.
+///
+/// **A position whose declared type mentions no variable is already known**,
+/// so it is checked against it in that first pass, exactly as
+/// [`check_args_typed`] would. That is not an optimization: an expected type
+/// is what tells an integer literal it is a `uint` (ADR 0007 § 4's rule, in
+/// the [`ExprKind::Int`] arm of [`check_expr`]), so without it
+/// `Core\Arr::padStart($a, 4, "-")` would report `expected uint, found int`
+/// for a literal that is plainly in range -- while `Core\Str::padStart`, whose
+/// signature happens to mention no variable and so never reaches this
+/// function, accepted the same spelling. Substitution cannot change such a
+/// position's type, and [`crate::generics::bind`] reads nothing out of it, so
+/// knowing it early is free.
 ///
 /// One binding does not come from an argument's *type* at all: a
 /// [`Ty::CallableTo`] parameter takes its variable from the closure literal's
@@ -2642,11 +2654,17 @@ fn check_generic_args(
         // A placeholder for the bag: overwritten in the second pass below,
         // and never read in between — `crate::generics::bind` is skipped for
         // this index too.
-        arg_types.push(if deferred == Some(index) {
-            env.interner.mixed()
-        } else {
-            check_expr(value, None, live, scope, ctx, env)
-        });
+        if deferred == Some(index) {
+            arg_types.push(env.interner.mixed());
+            continue;
+        }
+        // Only a position still open is checked with no expectation; see this
+        // function's own docs for what an expected type carries that
+        // assignability alone does not.
+        let expected = sig
+            .param_at(index)
+            .filter(|id| !crate::generics::mentions_type_var(*id, env.interner));
+        arg_types.push(check_expr(value, expected, live, scope, ctx, env));
     }
 
     let mut bindings = crate::generics::Bindings::default();

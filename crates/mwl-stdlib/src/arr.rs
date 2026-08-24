@@ -93,6 +93,28 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_without_last",
         },
         CoreMethod {
+            name: "padStart",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Uint,
+                CoreTy::Var("T"),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_pad_start",
+        },
+        CoreMethod {
+            name: "padEnd",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Uint,
+                CoreTy::Var("T"),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_pad_end",
+        },
+        CoreMethod {
             name: "reverse",
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -118,6 +140,20 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             symbol: "mwl_core_arr_sort",
+        },
+        CoreMethod {
+            name: "fill",
+            params: &[CoreTy::Uint, CoreTy::Var("T")],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_fill",
+        },
+        CoreMethod {
+            name: "fillKeys",
+            params: &[CoreTy::Array(&CoreTy::Union(ARRAY_KEY)), CoreTy::Var("T")],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_fill_keys",
         },
         CoreMethod {
             name: "range",
@@ -257,6 +293,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_from_keys_and_values" => {
             (mwl_core_arr_from_keys_and_values as *const ()).cast()
         }
+        "mwl_core_arr_pad_start" => (mwl_core_arr_pad_start as *const ()).cast(),
+        "mwl_core_arr_pad_end" => (mwl_core_arr_pad_end as *const ()).cast(),
+        "mwl_core_arr_fill" => (mwl_core_arr_fill as *const ()).cast(),
+        "mwl_core_arr_fill_keys" => (mwl_core_arr_fill_keys as *const ()).cast(),
         "mwl_core_arr_count_by" => (mwl_core_arr_count_by as *const ()).cast(),
         _ => return None,
     })
@@ -549,6 +589,52 @@ fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::ManuallyDrop<MwlA
     std::mem::ManuallyDrop::new(unsafe { MwlArray::from_raw(array) })
 }
 
+/// Appends `times` copies of a borrowed `value` to a result being built.
+///
+/// The value belongs to the calling frame's argument, which outlives the call,
+/// so every copy stored takes a reference of its own — the same rule
+/// [`copy_entry`] applies to an entry, over a value that is repeated rather
+/// than walked. `times` is a `u64` because it comes from a `uint` argument and
+/// the loop is what turns it into allocations; a count that will not fit in
+/// memory fails in [`MwlArray`], not by being truncated here.
+fn append_copies(out: &mut MwlArray, value: Value, times: u64) {
+    for _ in 0..times {
+        #[expect(
+            unsafe_code,
+            reason = "the value is owned by the caller's argument, which \
+                      outlives this call, so each copy stored here needs a \
+                      reference of its own"
+        )]
+        unsafe {
+            value.retain();
+        }
+        out.append(value);
+    }
+}
+
+/// Appends every value of a borrowed subject to a result being built, under
+/// fresh `0, 1, …` keys — [`mwl_core_arr_values`]'s walk, shared by the two
+/// padding members because each one wraps it in padding on a different side.
+fn append_values(subject: &MwlArray, out: &mut MwlArray) {
+    let mut from = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        #[expect(
+            unsafe_code,
+            reason = "the entry is owned by the subject array, which outlives \
+                      this call, so the copy stored here needs a reference of \
+                      its own"
+        )]
+        unsafe {
+            value.retain();
+        }
+        out.append(value);
+        from = slot + 1;
+    }
+}
+
 /// Copies the entry at `slot` — key and value both — from a borrowed subject
 /// into a result being built, under its own key.
 ///
@@ -761,6 +847,86 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+/// The subject, the target size and the padding value of a `padStart`/`padEnd`
+/// call, decoded once for both.
+///
+/// The two differ only in which side the padding lands on, so everything up to
+/// that point — including the "already long enough" answer, which is `0`
+/// further entries rather than a second return path — is shared.
+fn padding(
+    args: &[Value],
+    member: &str,
+) -> Result<(std::mem::ManuallyDrop<MwlArray>, u64, Value), Fault> {
+    let array = args[0].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?}, got tag {}",
+            Tag::Array,
+            args[0].tag_byte()
+        ))
+    })?;
+    let size = args[1].as_uint().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?} for `size`, got tag {}",
+            Tag::Uint,
+            args[1].tag_byte()
+        ))
+    })?;
+    let subject = borrowed(array);
+    let missing = size.saturating_sub(subject.count() as u64);
+    Ok((subject, missing, args[2]))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::padStart(array<T> $a, uint $size, T $value): array<T>` —
+    /// enough copies of `$value` in front to reach `$size` entries, replacing
+    /// PHP's `array_pad` with a *negative* length.
+    ///
+    /// **The result is always a list**, whatever the subject's keys were, and
+    /// that is the one place these two members diverge from
+    /// [`mwl_core_arr_without_first`]'s rule that every surviving key is kept.
+    /// The difference is that padding *adds* entries, and there is no
+    /// non-arbitrary key for an added one beside an existing map's keys —
+    /// prepending to `["a" => 1]` would have to invent `"0"`, which the
+    /// subject may already hold. PHP resolves that by renumbering the integer
+    /// keys and keeping the string ones, which is exactly the
+    /// key-type-dependent rule
+    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 3 removes; renumbering *every* key is the same answer applied
+    /// uniformly, and it is what spec § 2 says `{preserveKeys: false}` means
+    /// wherever the option appears. Neither member declares the option,
+    /// because keeping a key here is not a choice that can be offered.
+    ///
+    /// A subject already at or past `$size` is returned as a list of its own
+    /// values, unpadded — PHP returns it unchanged, and the difference is only
+    /// the keys, which this member has already said it does not keep. `$size`
+    /// is a `uint`, so PHP's "negative length pads on the left" overload is a
+    /// member name here rather than a sign.
+    fn mwl_core_arr_pad_start(_ctx, args: [3]) {
+        let (subject, missing, value) = padding(args, "padStart")?;
+        let mut out = MwlArray::new();
+        append_copies(&mut out, value, missing);
+        append_values(&subject, &mut out);
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::padEnd(array<T> $a, uint $size, T $value): array<T>` —
+    /// enough copies of `$value` after the last entry to reach `$size`,
+    /// replacing PHP's `array_pad` with a positive length.
+    ///
+    /// [`mwl_core_arr_pad_start`]'s own docs own why the result is always a
+    /// list and why neither member takes a `preserveKeys` option. The two are
+    /// the same walk with the padding on the other side.
+    fn mwl_core_arr_pad_end(_ctx, args: [3]) {
+        let (subject, missing, value) = padding(args, "padEnd")?;
+        let mut out = MwlArray::new();
+        append_values(&subject, &mut out);
+        append_copies(&mut out, value, missing);
+        Ok(Value::array(out))
+    }
+}
+
 mwl_runtime::mwl_helper! {
     /// `Core\Arr::reverse(array<T> $a, {preserveKeys?: bool}): array<T>` —
     /// the entries in the opposite order, replacing PHP's `array_reverse`.
@@ -906,6 +1072,79 @@ mwl_runtime::mwl_helper! {
             }
             out.append(value);
             from = slot + 1;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::fill(uint $count, T $value): array<T>` — `$count` copies of
+    /// one value under `0, 1, …`, replacing PHP's `array_fill`.
+    ///
+    /// **PHP's `$start_index` is dropped.** `array_fill(5, 3, 'v')` produces
+    /// keys `5, 6, 7`, which is a list that does not start at zero — a shape
+    /// [`mwl_core_arr_is_list`] answers `false` for, and one every caller then
+    /// has to reason about. The two real uses of the parameter are covered
+    /// without it: `0` is this member, and any other keys are
+    /// [`mwl_core_arr_fill_keys`] over the keys the caller actually wants.
+    ///
+    /// `$count` of zero yields an empty array rather than throwing, which is
+    /// PHP's own answer and the one that lets a computed count through
+    /// unguarded.
+    fn mwl_core_arr_fill(_ctx, args: [2]) {
+        let count = args[0].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::fill expected {:?} for `count`, got tag {}",
+                Tag::Uint,
+                args[0].tag_byte()
+            ))
+        })?;
+        let mut out = MwlArray::new();
+        append_copies(&mut out, args[1], count);
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::fillKeys(array<int|string> $keys, T $value): array<T>` — one
+    /// value stored under every key named, replacing PHP's `array_fill_keys`.
+    ///
+    /// The `$keys` array contributes its *values* and nothing else, exactly as
+    /// [`mwl_core_arr_from_keys_and_values`] takes its keys, and each goes
+    /// through [`key_bytes`] — so `1` and `"1"` name one entry, and a duplicate
+    /// key collapses in its first occurrence's position. Every entry holds the
+    /// same value, so which of two duplicates "wins" is not observable; what is
+    /// observable is the count, and it counts distinct keys the way PHP's does.
+    fn mwl_core_arr_fill_keys(_ctx, args: [2]) {
+        let keys = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::fillKeys expected {:?} for the keys, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let keys = borrowed(keys);
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = keys.next_slot(from) {
+            let key = keys
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            from = slot + 1;
+            // Normalized *before* the retain: a key of the wrong type leaves
+            // through `?`, and a reference taken first would have no owner.
+            let bytes = key_bytes(&key, "fillKeys")?;
+            #[expect(
+                unsafe_code,
+                reason = "the value is owned by the caller's argument, which \
+                          outlives this call, so each copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                args[1].retain();
+            }
+            out.set(MwlStr::new(&bytes), args[1]);
         }
         Ok(Value::array(out))
     }
@@ -2369,6 +2608,154 @@ mod tests {
             super::mwl_core_arr_count_by,
             &mut ctx,
             &[Value::array(array), Value::null()],
+        )
+        .expect_err("a float is not a key");
+        assert_eq!(status, mwl_runtime::FATAL);
+    }
+
+    /// The deliberate divergence from `array_pad`, which renumbers the integer
+    /// keys and keeps the string ones: PHP answers
+    /// `{"0":"z","x":"a","1":"b","y":"c"}` for this subject padded on the left
+    /// — the padding does not even end up contiguous — where this renumbers
+    /// every key, on both sides alike.
+    #[test]
+    fn padding_renumbers_every_key_rather_than_only_the_integer_ones() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let pad = || Value::str(MwlStr::new(b"z"));
+
+        let started = call(
+            super::mwl_core_arr_pad_start,
+            &mut ctx,
+            &[mixed_keys(), Value::uint(4), pad()],
+        )
+        .expect("padding a three-entry array to four never fails");
+        assert_eq!(
+            entries_of(started),
+            vec![
+                (b"0".to_vec(), b"z".to_vec()),
+                (b"1".to_vec(), b"a".to_vec()),
+                (b"2".to_vec(), b"b".to_vec()),
+                (b"3".to_vec(), b"c".to_vec()),
+            ]
+        );
+
+        let ended = call(
+            super::mwl_core_arr_pad_end,
+            &mut ctx,
+            &[mixed_keys(), Value::uint(4), pad()],
+        )
+        .expect("padding a three-entry array to four never fails");
+        assert_eq!(
+            entries_of(ended),
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+                (b"2".to_vec(), b"c".to_vec()),
+                (b"3".to_vec(), b"z".to_vec()),
+            ]
+        );
+    }
+
+    /// A subject already at or past the size adds nothing — PHP's own answer,
+    /// except that the keys go here too, since this member has already said it
+    /// does not keep them.
+    #[test]
+    fn a_subject_already_long_enough_gains_no_entries() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        for member in [super::mwl_core_arr_pad_start, super::mwl_core_arr_pad_end] {
+            for size in [0u64, 3] {
+                let result = call(
+                    member,
+                    &mut ctx,
+                    &[
+                        mixed_keys(),
+                        Value::uint(size),
+                        Value::str(MwlStr::new(b"z")),
+                    ],
+                )
+                .expect("padding to a size already reached never fails");
+                assert_eq!(
+                    entries_of(result),
+                    vec![
+                        (b"0".to_vec(), b"a".to_vec()),
+                        (b"1".to_vec(), b"b".to_vec()),
+                        (b"2".to_vec(), b"c".to_vec()),
+                    ]
+                );
+            }
+        }
+    }
+
+    /// Verified against PHP 8.5's `array_fill(0, ...)`; the `$start_index`
+    /// overload PHP also has is [`super::mwl_core_arr_fill_keys`]'s job here,
+    /// and this member's own docs own why.
+    #[test]
+    fn fill_repeats_one_value_under_a_fresh_run_of_keys() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::mwl_core_arr_fill,
+            &mut ctx,
+            &[Value::uint(3), Value::str(MwlStr::new(b"v"))],
+        )
+        .expect("filling never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"v".to_vec()),
+                (b"1".to_vec(), b"v".to_vec()),
+                (b"2".to_vec(), b"v".to_vec()),
+            ]
+        );
+
+        let none = call(
+            super::mwl_core_arr_fill,
+            &mut ctx,
+            &[Value::uint(0), Value::str(MwlStr::new(b"v"))],
+        )
+        .expect("a count of zero is an empty array, not a throw");
+        assert_eq!(entries_of(none), vec![]);
+    }
+
+    /// Verified against PHP 8.5's `array_fill_keys`, duplicate collapse
+    /// included: the keys array contributes its values, each normalized the
+    /// way every other key position normalizes one.
+    #[test]
+    fn fill_keys_stores_one_value_under_each_distinct_key() {
+        let mut keys = MwlArray::new();
+        keys.set(MwlStr::new(b"ignored"), Value::str(MwlStr::new(b"a")));
+        keys.append(Value::int(10));
+        keys.append(Value::str(MwlStr::new(b"a")));
+        keys.append(Value::str(MwlStr::new(b"10")));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::mwl_core_arr_fill_keys,
+            &mut ctx,
+            &[Value::array(keys), Value::str(MwlStr::new(b"v"))],
+        )
+        .expect("filling keys never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"a".to_vec(), b"v".to_vec()),
+                (b"10".to_vec(), b"v".to_vec()),
+            ]
+        );
+    }
+
+    /// A key that is neither an `int` nor a `string` is a throw rather than
+    /// PHP's warn-and-skip — `flip`'s and `countBy`'s treatment of the
+    /// identical situation.
+    #[test]
+    fn filling_under_a_key_that_is_not_a_key_throws() {
+        let mut keys = MwlArray::new();
+        keys.append(Value::float(1.5));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(
+            super::mwl_core_arr_fill_keys,
+            &mut ctx,
+            &[Value::array(keys), Value::str(MwlStr::new(b"v"))],
         )
         .expect_err("a float is not a key");
         assert_eq!(status, mwl_runtime::FATAL);

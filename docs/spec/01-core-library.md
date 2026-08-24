@@ -245,6 +245,12 @@ key and renumbers from `"0"`**; `true` keeps every key. PHP renumbers integer ke
 ones, which is the key-type-dependent behaviour
 [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 3 removes.
 
+`padStart`/`padEnd` **always return a list**, and take no `preserveKeys` option: padding *adds* entries, and
+there is no non-arbitrary key for an added one beside an existing map's, so keeping is not a choice that can
+be offered. `withoutFirst`/`withoutLast` are the opposite case — they add nothing, so every surviving key is
+kept. `fill` drops PHP's `$start_index`, which produces a list that does not start at zero; the keys a caller
+actually wants are `fillKeys`.
+
 ### Combining and set operations
 
 Three members combine arrays, and **each treats every key the same way** — there is no member named

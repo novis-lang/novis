@@ -130,3 +130,20 @@ fn a_type_alias_has_no_type_parameters_but_may_be_one() {
         "{diags:?}"
     );
 }
+
+/// A parameter whose declared type mentions no variable is known before any
+/// binding, so it is checked *with* that expectation — which is what tells an
+/// integer literal at a `uint` position that it is one (ADR 0007 § 4). Before
+/// `mwl_types::expr::check_generic_args` did that, a `uint` parameter on a
+/// generic `Core` member was unreachable from a literal, while the identical
+/// parameter on a non-generic one (`Core\Str::padStart`) accepted it.
+#[test]
+fn an_int_literal_reaches_a_uint_parameter_of_a_generic_core_member() {
+    let diags = check_src(
+        "<?mwl\n\
+         array<string> $a = [\"one\"];\n\
+         array<string> $p = Core\\Arr::padEnd($a, 3, \"-\");\n\
+         echo Core\\Arr::count($p);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}

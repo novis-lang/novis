@@ -1,0 +1,41 @@
+--TEST--
+Core\Arr::fill and ::fillKeys store one value under the keys each names
+--FILE--
+<?mwl
+// fill is array_fill without PHP's $start_index, so the keys are always
+// 0, 1, … and the result is always a list.
+echo Core\Str::join(Core\Arr::fill(3, "v"), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::fill(3, "v")), ","), "\n";
+echo Core\Arr::isList(Core\Arr::fill(2, "v")) as string, "\n";
+
+// A count of zero yields an empty array rather than throwing, which is what
+// lets a computed count through unguarded.
+echo Core\Arr::count(Core\Arr::fill(0, "v")), "\n";
+
+// fillKeys takes the *values* of its first argument as the keys, exactly as
+// fromKeysAndValues does, and each goes through the same normalization — so an
+// int arrives under its decimal spelling.
+array<string|int> $keys = ["a", 10, "c"];
+var $filled = Core\Arr::fillKeys($keys, "v");
+echo Core\Str::join(Core\Arr::keys($filled), ","), "\n";
+echo $filled["a"], $filled["10"], $filled["c"], "\n";
+
+// A duplicate key collapses in its first occurrence's position, the way every
+// other key position collapses one — and `1` and "1" are one key.
+array<string|int> $repeated = ["a", 1, "a", "1"];
+echo Core\Str::join(Core\Arr::keys(Core\Arr::fillKeys($repeated, "v")), ","), "\n";
+echo Core\Arr::count(Core\Arr::fillKeys($repeated, "v")), "\n";
+
+// No keys is no entries, not an error.
+array<string|int> $none = [];
+echo Core\Arr::count(Core\Arr::fillKeys($none, "v")), "\n";
+--EXPECT--
+v,v,v
+0,1,2
+1
+0
+a,10,c
+vvv
+a,1
+2
+0

@@ -8,11 +8,11 @@ plan's status block says what is on disk and what is open. (That file's *gaps th
 a snapshot from before the loop started and several entries are now closed — trust the plan and the crate
 gap lists over it.)
 
-**Stage 4 is fully green.** Conformance 255 against 250, differential 82 against 60, and `mwl-stdlib`'s
-`every_part_one_member_has_a_conformance_case` now exists — `crates/mwl-stdlib/tests/conformance_coverage.rs`,
-whose own module doc says what it enumerates and why the registered set is the enumerable one. **It makes a
-new `Core` member owe a `.mwlt` case that calls it**: register a row without one and `cargo test -p
-mwl-stdlib` fails naming the member. Budget for the case in the same session as the member.
+**Stage 4 is fully green.** Conformance 260 against 250, differential 82 against 60, and `mwl-stdlib`'s
+`every_part_one_member_has_a_conformance_case` — `crates/mwl-stdlib/tests/conformance_coverage.rs`, whose
+own module doc says what it enumerates. **It makes a new `Core` member owe a `.mwlt` case that calls it**:
+register a row without one and `cargo test -p mwl-stdlib` fails naming the member. Budget for the case in
+the same session as the member.
 
 **Never put `--ORACLE--` in a `tests/conformance/` case.** The WSL leg has no PHP, so an oracle section
 makes the runner *skip the whole case* there — it would subtract from the very count Stage 4 measures.
@@ -24,9 +24,15 @@ put the case in `tests/differential/` where the oracle is the point. The `.mwlt`
 diagnostic's code and its first line with `%A` swallowing the rest. It is the cheapest case family there
 is — probe a shape with a scratch `.mwl`, copy the first two lines of the error, done.
 
-**`Core\Arr` is at twelve members**, `Core\Str` at fifteen. `keys`, `reverse` and `flip` landed last and
-are the pattern to copy: a registry row, a body beside it, a unit test, a `.mwlt` case, and a
-`tools/leak-check.sh` run over a scratch `.mwl` that exercises the new refcount edge in a loop.
+**`Core\Arr` is at twenty members**, `Core\Str` at nineteen. `padStart`/`padEnd`/`fill`/`fillKeys` landed
+last and are the pattern to copy: a registry row, a body beside it, a unit test, a `.mwlt` case, and a
+`tools/leak-check.sh` run over a scratch `.mwl` that drives the new refcount edge in a loop.
+
+**A `uint` parameter on a *generic* `Core` member now takes an int literal.** `check_generic_args` used to
+check every argument with no expectation, and an expected type is what tells a literal it is a `uint` — so
+`Core\Arr::padEnd($a, 4, "-")` reported `expected uint, found int`. Fixed in `mwl_types::expr`, whose own
+doc comment owns the rule; a position whose declared type mentions no variable is now checked against it in
+the first pass.
 
 **Every fixture is green on both legs**, byte for byte, and `valgrind --leak-check=full` clean.
 Stages 1–3 are done. **Nothing is blocked.**
@@ -65,15 +71,24 @@ bracket arrays (marked *Open* in [spec § 12](../spec/01-core-library.md)), and 
 
 ## Next
 
-**More `Core` §§ 1–2 registry rows.** [The spec](../spec/01-core-library.md) § 2 is the work list; what is
-reachable *today*, needing no new registry machinery, is the rest of the key-and-order family —
-`chunk`, `flatten`, `padStart`/`padEnd`, `withoutFirst`/`withoutLast`, `fromKeysAndValues`, `unique` and
-`countBy` (both a `{by?: callable}` bag `sort` already proves). Three shapes are **not** reachable and each
-says so in `mwl-stdlib`'s own gap list: a `?T` return (`first`, `last`, `keyOf`, `firstKey`, `lastKey`), a
-variadic `...$layers` (ADR 0069's `overlay`/`underlay`/`appendAll`, which is the widest gap in § 2), and a
-union *return*. `contains`/`diff`/`intersect`/`unique` additionally want one strict-identity comparison
-over two `Value`s, which `mwl-runtime` does not have yet and which is worth its own slice — decide object
-identity there and record it in that crate's module doc.
+**Write `a_class_without_a_property_observer_costs_nothing_extra`.** The acceptance run now reaches Stage 5
+and stops there: [`loop-goal.toml`](loop-goal.toml)'s `abi-probe` check names five guards and that one does
+not exist in `benches/abi-probe/tests/perf_guards.rs` at all — everything before it, all sixteen fixtures
+and both suites, is green. It is [ADR 0014](../adr/0014-property-observer.md)'s claim turned into a
+measurement: a property access on a class that declares no observer must cost what a plain field access
+costs. The four guards beside it are the shape to copy, and AGENTS.md says the threshold lives with the
+test, nowhere else.
+
+Then, **more `Core` §§ 1–2 registry rows.** [The spec](../spec/01-core-library.md) § 2 is the work list; what is
+reachable *today*, needing no new registry machinery, is `chunk` (the first member returning a nested
+`array<array<T>>`, plus a `preserveKeys` bag `reverse` already proves) and `flatten`/`flattenDeep` — whose
+spec signature `flatten(array<T> $a): array<T>` binds `T` to the *outer* element type, so decide and record
+what the return type is before writing the row. Three shapes are **not** reachable and each says so in
+`mwl-stdlib`'s own gap list: a `?T` return (`first`, `last`, `keyOf`, `firstKey`, `lastKey`), a variadic
+`...$layers` (ADR 0069's `overlay`/`underlay`/`appendAll`, the widest gap in § 2), and a union *return*.
+`contains`/`diff`/`intersect`/`unique` additionally want one strict-identity comparison over two `Value`s,
+which `mwl-runtime` does not have yet and which is worth its own slice — decide object identity there and
+record it in that crate's module doc.
 
 Second choice: keep growing `tests/conformance/` — no machinery, splits cleanly across sessions. M4's
 **Verify** list in [the plan](../implementation-plan.md) is the specification, and ADRs 0014, 0023, 0028,

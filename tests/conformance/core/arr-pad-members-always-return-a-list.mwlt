@@ -1,0 +1,44 @@
+--TEST--
+Core\Arr::padStart and ::padEnd reach the asked-for size and always return a list
+--FILE--
+<?mwl
+array<string> $a = ["x" => "one", "y" => "two"];
+
+// The padding lands on the side the member names, which is what replaces the
+// sign of PHP's array_pad length.
+echo Core\Str::join(Core\Arr::padStart($a, 4, "-"), ","), "\n";
+echo Core\Str::join(Core\Arr::padEnd($a, 4, "-"), ","), "\n";
+
+// The result is always a list. Padding *adds* entries and there is no
+// non-arbitrary key for an added one beside an existing map's keys, so every
+// key is renumbered from "0" — PHP renumbers the integer keys and silently
+// keeps the string ones, the key-type-dependent rule ADR 0069 § 3 removes.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::padStart($a, 4, "-")), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::padEnd($a, 4, "-")), ","), "\n";
+
+// A subject already at or past the size is returned unpadded — as a list, so
+// the keys go even where no entry was added.
+echo Core\Str::join(Core\Arr::padEnd($a, 2, "-"), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::padStart($a, 1, "-")), ","), "\n";
+
+// Nothing mutates (ADR 0063 R3): the subject still carries its own keys.
+echo Core\Str::join(Core\Arr::keys($a), ","), "\n";
+
+// An empty subject is all padding, and a size of zero adds none.
+array<string> $empty = [];
+echo Core\Str::join(Core\Arr::padEnd($empty, 3, "z"), ","), "\n";
+echo Core\Arr::count(Core\Arr::padStart($empty, 0, "z")), "\n";
+
+// The two compose, so a run can be centred without a member for it.
+echo Core\Str::join(Core\Arr::padEnd(Core\Arr::padStart($a, 3, "-"), 4, "+"), ","), "\n";
+--EXPECT--
+-,-,one,two
+one,two,-,-
+0,1,2,3
+0,1,2,3
+one,two
+0,1
+x,y
+z,z,z
+0
+-,one,two,+
