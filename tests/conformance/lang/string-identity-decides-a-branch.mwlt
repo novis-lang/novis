@@ -1,0 +1,31 @@
+--TEST--
+`===` over two strings drives an `if` chain, and a value matching no arm falls through to the method's last `return`
+--FILE--
+<?mwl
+class Node {
+    public string $kind;
+
+    public function constructor(string $kind) {
+        $this->kind = $kind;
+    }
+
+    public function weight(): int {
+        if ($this->kind === "leaf") {
+            return 1;
+        }
+        if ($this->kind === "branch") {
+            return 5;
+        }
+        return 0;
+    }
+}
+
+array<string> $kinds = ["leaf", "branch", "root", "leaf"];
+int $total = 0;
+foreach ($kinds as string $k => string $kind) {
+    var $n = new Node($kind);
+    $total = $total + $n->weight();
+}
+echo $total, "\n";
+--EXPECT--
+7

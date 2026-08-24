@@ -1,0 +1,23 @@
+--TEST--
+there is no property-walk fallback: ordering two objects without `Comparable` is a compile error — ADR 0013 § 1
+--FILE--
+<?mwl
+class Point {
+    public int $x;
+
+    public function constructor(int $x) {
+        $this->x = $x;
+    }
+}
+var $a = new Point(1);
+var $b = new Point(2);
+if ($a < $b) {
+    echo "less\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0411]: `Point` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
+   --> case.mwl:11:5
+%A
+error: aborting due to 1 error

@@ -1,0 +1,22 @@
+--TEST--
+a property and a parameter are separate declaration sites, so each mis-cased one gets its own diagnostic — ADR 0029 § 1
+--FILE--
+<?mwl
+class Point {
+    public int $X;
+
+    public function constructor(int $X) {
+        $this->X = $X;
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0112]: property names must be camelCase, e.g. `x`
+  --> case.mwl:3:16
+%A
+error[E0112]: parameter names must be camelCase, e.g. `x`
+  --> case.mwl:5:37
+%A
+error: aborting due to 2 errors

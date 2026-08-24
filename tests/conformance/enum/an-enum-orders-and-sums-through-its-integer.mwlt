@@ -1,0 +1,32 @@
+--TEST--
+an enum case is its integer, so `as int` is all that relational and arithmetic use of one needs — ADR 0010 § 3
+--FILE--
+<?mwl
+enum Suit {
+    Clubs = 1,
+    Diamonds,
+    Hearts,
+    Spades,
+}
+
+class Deck {
+    public static function rank(Suit $s): int {
+        return $s as int;
+    }
+}
+
+echo Deck::rank(Suit::Clubs), ";", Deck::rank(Suit::Spades), "\n";
+Suit $high = Suit::Hearts;
+if (($high as int) > (Suit::Diamonds as int)) {
+    echo "hearts beat diamonds\n";
+}
+array<Suit> $hand = [Suit::Spades, Suit::Clubs];
+int $total = 0;
+foreach ($hand as string $k => Suit $s) {
+    $total = $total + ($s as int);
+}
+echo $total, "\n";
+--EXPECT--
+1;4
+hearts beat diamonds
+5

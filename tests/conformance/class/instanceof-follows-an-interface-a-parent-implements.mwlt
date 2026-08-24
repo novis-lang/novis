@@ -1,0 +1,36 @@
+--TEST--
+`instanceof` answers for an interface reached through the parent, and for the runtime class behind a base-typed local
+--FILE--
+<?mwl
+interface Named {
+    public function name(): string;
+}
+
+class Animal implements Named {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+
+    public function name(): string {
+        return $this->label;
+    }
+}
+
+class Dog extends Animal {
+    public function constructor() {
+        parent::constructor("dog");
+    }
+}
+
+var $d = new Dog();
+echo $d instanceof Dog, ";", $d instanceof Animal, ";", $d instanceof Named, "\n";
+Animal $a = $d;
+echo $a instanceof Dog, ";", $a->name(), "\n";
+var $plain = new Animal("cat");
+echo $plain instanceof Dog, ";", $plain instanceof Named, "\n";
+--EXPECT--
+1;1;1
+1;dog
+;1

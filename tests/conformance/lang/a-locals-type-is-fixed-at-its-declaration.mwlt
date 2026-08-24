@@ -1,0 +1,14 @@
+--TEST--
+no type ever changes by itself — assigning a `string` to an `int` local is refused where the assignment is written, ADR 0007 § 1
+--FILE--
+<?mwl
+int $count = 1;
+$count = "two";
+echo $count, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+  --> case.mwl:3:10
+%A
+error: aborting due to 1 error

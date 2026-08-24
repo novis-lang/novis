@@ -1,0 +1,40 @@
+--TEST--
+`clone` stays PHP-shallow: an object-typed property is copied as a handle, so a write through the copy is seen by the original — ADR 0023 § 1
+--FILE--
+<?mwl
+class Leaf {
+    public int $value;
+
+    public function constructor(int $v) {
+        $this->value = $v;
+    }
+}
+
+class Branch {
+    public Leaf $leaf;
+
+    public function constructor(Leaf $l) {
+        $this->leaf = $l;
+    }
+}
+
+class Trunk {
+    public Branch $branch;
+
+    public function constructor(Branch $b) {
+        $this->branch = $b;
+    }
+}
+
+var $shared = new Leaf(7);
+var $t = new Trunk(new Branch($shared));
+echo $t->branch->leaf->value, "\n";
+$t->branch->leaf->value = 12;
+echo $t->branch->leaf->value, ";", $shared->value, "\n";
+var $u = clone $t;
+$u->branch->leaf->value = 30;
+echo $t->branch->leaf->value, "\n";
+--EXPECT--
+7
+12;12
+30

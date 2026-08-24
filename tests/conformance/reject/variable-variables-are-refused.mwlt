@@ -1,0 +1,14 @@
+--TEST--
+`$$name` defeats name resolution and type inference, so it is refused with an `array` keyed by name named as the replacement — ADR 0007 § 1
+--FILE--
+<?mwl
+string $name = "value";
+string $value = "x";
+echo $$name, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0202]: variable variables (`$$name` / `${expr}`) are not supported
+  --> case.mwl:4:6
+%A
+error: aborting due to 1 error

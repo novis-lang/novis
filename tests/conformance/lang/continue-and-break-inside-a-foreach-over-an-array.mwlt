@@ -1,0 +1,27 @@
+--TEST--
+`continue` skips one element and `break` abandons the rest, so the elements after the break never reach the accumulator
+--FILE--
+<?mwl
+class Acc {
+    public static function sum(array<int> $xs): int {
+        int $t = 0;
+        foreach ($xs as string $k => int $v) {
+            if ($v < 0) {
+                continue;
+            }
+            if ($v > 100) {
+                break;
+            }
+            $t = $t + $v;
+        }
+        return $t;
+    }
+}
+
+array<int> $xs = [1, -5, 2, 3, 200, 4];
+echo Acc::sum($xs), "\n";
+array<int> $empty = [];
+echo Acc::sum($empty), "\n";
+--EXPECT--
+6
+0

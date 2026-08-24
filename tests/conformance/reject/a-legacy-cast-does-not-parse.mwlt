@@ -1,0 +1,13 @@
+--TEST--
+PHP's `(int)$x` cast is refused, and the diagnostic names `as int` — the one conversion spelling, ADR 0034
+--FILE--
+<?mwl
+int $n = 3;
+echo (int)$n, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0225]: `(int)expr` is not supported
+  --> case.mwl:3:6
+%A
+error: aborting due to 1 error

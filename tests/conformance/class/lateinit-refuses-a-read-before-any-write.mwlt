@@ -1,0 +1,32 @@
+--TEST--
+a `lateinit` property read on a path that has written nothing to it is caught while compiling, not left to throw — ADR 0038 § 3
+--FILE--
+<?mwl
+class Engine {
+    public int $power;
+
+    public function constructor(int $power) {
+        $this->power = $power;
+    }
+}
+
+class Car {
+    public lateinit Engine $engine;
+
+    public function constructor() {
+    }
+
+    public function power(): int {
+        return $this->engine->power;
+    }
+}
+
+var $c = new Car();
+echo $c->power(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0428]: `$this->engine` is read here, but nothing on this path has written to it yet
+   --> case.mwl:17:23
+%A
+error: aborting due to 1 error

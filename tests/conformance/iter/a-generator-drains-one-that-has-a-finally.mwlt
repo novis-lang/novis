@@ -1,0 +1,30 @@
+--TEST--
+an inner generator run to exhaustion runs its `finally` there and then, before the outer one yields anything further — ADR 0053 § 3
+--FILE--
+<?mwl
+class Src {
+    public static function inner(): Iterator<int> {
+        try {
+            yield 1;
+            yield 2;
+        } finally {
+            echo "inner done\n";
+        }
+    }
+
+    public static function outer(): Iterator<int> {
+        foreach (Src::inner() as int $v) {
+            yield $v * 10;
+        }
+        yield 99;
+    }
+}
+
+foreach (Src::outer() as int $v) {
+    echo $v, "\n";
+}
+--EXPECT--
+10
+20
+inner done
+99

@@ -1,0 +1,12 @@
+--TEST--
+`<?php` is not a second code-mode open tag — the lexer names `<?mwl` as the only spelling, ADR 0049 § 1
+--FILE--
+<?php
+echo "hello\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0229]: `<?php` is not supported
+  --> case.mwl:1:1
+%A
+error: aborting due to 1 error

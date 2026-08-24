@@ -1,0 +1,13 @@
+--TEST--
+a name reaches its declaration at compile time or not at all — there is no runtime loader to fall back on, ADR 0061 § 1
+--FILE--
+<?mwl
+var $m = new Missing(1);
+echo "after\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Missing` is not declared
+  --> case.mwl:2:14
+%A
+error: aborting due to 1 error

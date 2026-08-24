@@ -1,0 +1,31 @@
+--TEST--
+`$this->rows[] = v` appends in place, so a chain of `return $this` builders leaves one array holding every element
+--FILE--
+<?mwl
+class Grid {
+    public array<string> $rows;
+
+    public function constructor() {
+        $this->rows = [];
+    }
+
+    public function add(string $row): Grid {
+        $this->rows[] = $row;
+        return $this;
+    }
+
+    public function render(): string {
+        string $out = "";
+        foreach ($this->rows as string $k => string $r) {
+            $out = $out . "[" . $r . "]";
+        }
+        return $out;
+    }
+}
+
+var $g = new Grid();
+echo $g->add("a")->add("b")->add("c")->render(), "\n";
+echo Core\Arr::count($g->rows), "\n";
+--EXPECT--
+[a][b][c]
+3

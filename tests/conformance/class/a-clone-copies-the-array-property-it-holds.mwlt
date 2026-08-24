@@ -1,0 +1,22 @@
+--TEST--
+an array property is a value, so a clone's append leaves the original's array — and the array the constructor was handed — alone
+--FILE--
+<?mwl
+class Row {
+    public array<int> $cells;
+
+    public function constructor(array<int> $cells) {
+        $this->cells = $cells;
+    }
+}
+
+array<int> $seed = [1, 2];
+var $a = new Row($seed);
+var $b = clone $a;
+$b->cells[] = 3;
+echo Core\Arr::count($a->cells), ";", Core\Arr::count($b->cells), "\n";
+$seed[] = 99;
+echo Core\Arr::count($seed), ";", Core\Arr::count($a->cells), "\n";
+--EXPECT--
+2;3
+3;2

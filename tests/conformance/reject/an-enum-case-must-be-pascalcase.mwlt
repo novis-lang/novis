@@ -1,0 +1,19 @@
+--TEST--
+an enum case is a PascalCase declaration site like the enum itself, and every mis-cased case is reported — ADR 0029 § 1
+--FILE--
+<?mwl
+enum Level {
+    low,
+    high,
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0110]: `low` must be PascalCase, e.g. `Low`
+  --> case.mwl:3:5
+%A
+error[E0110]: `high` must be PascalCase, e.g. `High`
+  --> case.mwl:4:5
+%A
+error: aborting due to 2 errors

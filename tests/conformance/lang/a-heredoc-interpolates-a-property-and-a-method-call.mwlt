@@ -1,0 +1,29 @@
+--TEST--
+a heredoc strips the closing marker's indentation from every line, and `{...}` inside it reaches a property and a method call alike
+--FILE--
+<?mwl
+class Person {
+    public string $name;
+    public int $age;
+
+    public function constructor(string $name, int $age) {
+        $this->name = $name;
+        $this->age = $age;
+    }
+
+    public function greeting(): string {
+        return "Hi, " . $this->name;
+    }
+}
+
+var $p = new Person("Ada", 36);
+string $doc = <<<TEXT
+    Name: {$p->name}
+    Age: {$p->age}
+    Says: {$p->greeting()}
+    TEXT;
+echo $doc, "\n";
+--EXPECT--
+Name: Ada
+Age: 36
+Says: Hi, Ada

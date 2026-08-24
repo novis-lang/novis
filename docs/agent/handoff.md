@@ -8,24 +8,28 @@ plan's status block says what is on disk and what is open. (That file's *gaps th
 a snapshot from before the loop started and several entries are now closed — trust the plan and the crate
 gap lists over it.)
 
-**Conformance is 190 against 250, differential 82 against 60.** Stage 4 fails on that one count alone, and
-growing the conformance corpus is the whole remaining gap. The `.mwlt` format — every section,
-`--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl`, and why a `--ORACLE--` case skips
-when PHP is absent — is `crates/mwl-test`'s own module doc, routed from
-[`docs/adr/README.md`](../adr/README.md) § *Where to look*.
+**Both Stage 4 suites are now over their thresholds — conformance 252 against 250, differential 82 against
+60.** `python tools/loop.py --goal-only` now stops one check later, at `mwl-stdlib`'s
+`every_part_one_member_has_a_conformance_case`, a guard test that does not exist yet and that belongs with
+`Core` §§ 1–2. Keep writing cases anyway — 252 is two over the line, and the corpus is still the fastest
+bug-finder in the repo.
+
+**`tests/conformance/reject/` is new**: one case per construct MWL refuses outright, each pinning the
+diagnostic's code and its first line with `%A` swallowing the rest. It is the cheapest case family there
+is — probe a shape with a scratch `.mwl`, copy the first two lines of the error, done.
 
 **Never put `--ORACLE--` in a `tests/conformance/` case.** The WSL leg has no PHP, so an oracle section
 makes the runner *skip the whole case* there — it would subtract from the very count Stage 4 measures.
 Verify against PHP while authoring (a scratch twin under `.agent-tmp/`), then either drop the section or
-put the case in `tests/differential/` where the oracle is the point. Cross-suite duplication of a program
-is the existing pattern, not a smell.
+put the case in `tests/differential/` where the oracle is the point. The `.mwlt` format — every section,
+`--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl` — is `crates/mwl-test`'s module doc.
 
-**Writing cases is still the fastest bug-finder in the repo — it found one more, still open.** An
-**abandoned generator never runs the `finally` it is suspended inside**: `break` out of a `foreach` parks
-the state machine at its `yield` and nothing resumes it, where PHP resumes it in a return-like mode on
-destruction. `mwl-ir`'s known gap 18 has the shape of the fix and why it is a design call (it is the first
-thing in that crate that looks like a destructor, which ADR 0028 says MWL has none of). The two halves that
-*do* agree with PHP are pinned in `tests/differential/iter/`.
+**Writing cases found two rules that were written but unreachable, both now closed.** ADR 0029/0030's
+identifier casing lived in `crates/mwl-syntax/src/casing.rs` with unit tests and *no caller at all*, so
+`class thing`, `$_total` and `__construct` all compiled; that module's own docs now state the rule that
+keeps it wired (whoever parses a file checks that file's casing — `mwl-cli`, and `resolve_program` for a
+`require`). And a misspelled `Core` member typed as `mixed` and then panicked `mwl-ir`; `mwl-types`'
+`StaticCall` arm now narrows `Core`'s blanket trust the same way its `ClassConstAccess` arm already did.
 
 **Every fixture is green on both legs**, byte for byte, and `valgrind --leak-check=full` clean.
 Stages 1–3 are done. **Nothing is blocked.**
@@ -64,13 +68,16 @@ bracket arrays (marked *Open* in [spec § 12](../spec/01-core-library.md)), and 
 
 ## Next
 
-**Keep growing `tests/conformance/`.** It is the only thing between the loop and Stage 4, it needs no new
-machinery, and it splits cleanly across sessions. M4's **Verify** list in
-[the plan](../implementation-plan.md) is the specification; the *Verification* section of ADRs 0014, 0023,
-0028, 0046 and 0069 each names its own required cases. Ground already covered densely: array key order and
-append indices, `try`/`catch`/`finally` ordering, generators, interface defaults, `Core\Str`/`Core\Arr`.
-Thinner: property hooks, `clone`, `instanceof`, `lateinit`, `Comparable`, and compile-error cases (an
-`--EXPECTF-ERROR--` case is cheap and pins a diagnostic's wording).
+**More `Core` §§ 1–2 registry rows, and the `mwl-stdlib` guard test they unblock.** That guard test is now
+the first failing check in the acceptance run, and `Core\Arr` is missing exactly the members
+[ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) names — `overlay`, `underlay`,
+`appendAll` — plus `keys`. Everything left in § 1 that needs no new registry machinery is a row plus a
+body; `Core\Str::slice` is the exception and waits on `mwl-ir` gap 3. Second choice: keep growing
+`tests/conformance/`, which needs no machinery and splits cleanly across sessions — M4's **Verify** list in
+[the plan](../implementation-plan.md) is the specification, and ADRs 0014, 0023, 0028, 0046 and 0069 each
+name their own required cases. Ground covered densely now: array key order, `try`/`catch`/`finally`,
+generators, interface defaults, `Core\Str`/`Core\Arr`, property hooks, `clone`, `instanceof`, `Comparable`,
+`lateinit`, and the whole refused-construct family. Thinner: `bytes`, `decimal`, attributes, `uint` edges.
 
 **What a case cannot use yet** — each sits in the named crate's known-gap list, and every one panics or
 refuses rather than failing cleanly, so writing around them saves an edit cycle: `&&`/`||`/ternary anywhere
@@ -79,34 +86,28 @@ gap 5, so not inside an `echo` argument); a compound assignment `$x += 1` in any
 array write `$grid[0][1] = v` (gap 6 — reading it, at any depth, is fine, and `$obj->rows[] = v` does
 work); a static property **read or write** (gap 6); a class constant's *value* (it types as `mixed`, as
 does `Core\Reflect::class`); **any nullable `?T`** — parameter, return or local (gap 3's `null` half, which
-panics in `lower_checked_ty`); a **bitwise** operator (`&`/`|`/`^`/`<<`/`>>`/`~`); `$f(...)` on a
-closure-typed local (gap 9 — it types as `mixed`, so write the `fn` literal at the call site); an object
-literal `{a: 1}` and a shape-typed parameter; a **named or spread call argument**, so
-`new LogicError("x", previous: $e)` does not lower; `do`/`while`; an implicit `Stringable` in `echo` or `.`
-(gap 12 — call `toString()` explicitly); `bool as int`, `mixed as string` and `as ?T` (gaps 4 and 3);
-integer `/`; `for`/`switch` (gap 1). In `mwl-codegen`: `<`/`>` over two strings, `==`/`===` over two
-*objects* or two *enum values* (compare `$a as int`), integer `+`/`-`/`*` **wrapping instead of throwing on
-overflow** (gap 8 — do not freeze a case around it), and an `int` mixed with a `float` in one operator
-(write `0.0 - 1.5`). `<=>` lowers over two *objects* through `Comparable` but not over two `int`s. In
-`mwl-types`: a parameter typed `Stringable`/`Comparable` has no method to call and `instanceof Stringable`
-panics (the empty reserved-interface roster); an **enum case is refused as a parameter default**
-(`mwl-types`' `defaults` module doc says why); `lateinit` is compile-time-checked and refused on a
-`string`/`int` property. **A `catch` binding is function-scoped**, so two clauses on one `try` cannot both
-bind `$e`. Traps that produce a confusing panic or a `mixed` rather than an error: `as` binds tighter than
-every binary operator, `instanceof` and unary minus, so write `($a > $b) as string`, `(($a + $b) as
-string)` and `(-7) as string`; a **bare array literal in a `foreach` head types as `mixed`** — bind it to a
-declared `array<T>` local first; a `foreach` key binding must be declared `string` even over a list
-(ADR 0007 § 5); `Core\Arr::map` through a *variable* of type `callable` yields `array<mixed>`.
-`Core\Str::length` and `Core\Arr::count` return `uint`. `false as string` is the empty string.
-`Iterable<T>`'s member is `iterate(): Iterator<T>`; `Iterator<T>`'s two are `advance(): bool` and
-`current(): T`, not PHP's five; an enum declares bare `Case,` lines, not `case`.
-
-Two smaller slices, either of which fits a session on its own:
-
-- **`autoload`** ([ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) — the smaller of
-  the two remaining M1 grammar additions; the duration literal (0070) follows.
-- **More `Core` §§ 1–2 rows.** Everything left in § 1 that needs no new registry machinery is a row plus a
-  body; `Core\Str::slice` is the exception and waits on `mwl-ir` gap 3.
+panics in `lower_checked_ty`), and a bare `null` literal in any expression; a **bitwise** operator
+(`&`/`|`/`^`/`<<`/`>>`/`~`); `?->`; `match`; `unset($local)`; `$f(...)` on a closure-typed local (gap 9 —
+it types as `mixed`, so write the `fn` literal at the call site); an object literal `{a: 1}` and a
+shape-typed parameter; a **named or spread call argument**, so `new LogicError("x", previous: $e)` does not
+lower — and `Throwable`'s constructor takes the message only, so there is no `previous` to pass; `do`/
+`while`; an implicit `Stringable` in `echo` or `.` (gap 12 — call `toString()` explicitly); `bool as int`,
+`mixed as string` and `as ?T` (gaps 4 and 3); integer `/`; `for`/`switch` (gap 1). In `mwl-codegen`:
+`<`/`>` over two strings, `==`/`===` over two *objects* or two *enum values* (compare `$a as int`), integer
+`+`/`-`/`*` **wrapping instead of throwing on overflow** (gap 8 — do not freeze a case around it), and an
+`int` mixed with a `float` in one operator (write `0.0 - 1.5`). `<=>` lowers over two *objects* through
+`Comparable` but not over two `int`s. In `mwl-types`: a parameter typed `Stringable`/`Comparable` has no
+method to call and `instanceof Stringable` panics (the empty reserved-interface roster); an **enum case is
+refused as a parameter default** (`mwl-types`' `defaults` module doc says why); `lateinit` is
+compile-time-checked and refused on a `string`/`int` property. **A `catch` binding is function-scoped**, so
+two clauses on one `try` cannot both bind `$e`. Traps that produce a confusing panic or a `mixed` rather
+than an error: `as` binds tighter than every binary operator, `instanceof` and unary minus, so write
+`($a > $b) as string`, `(($a + $b) as string)` and `(-7) as string`; a **bare array literal in a `foreach`
+head types as `mixed`** — bind it to a declared `array<T>` local first; a `foreach` key binding must be
+declared `string` even over a list (ADR 0007 § 5); `Core\Arr::map` through a *variable* of type `callable`
+yields `array<mixed>`. `Core\Str::length` and `Core\Arr::count` return `uint`. `false as string` is the
+empty string. `Iterable<T>`'s member is `iterate(): Iterator<T>`; `Iterator<T>`'s two are `advance(): bool`
+and `current(): T`, not PHP's five; an enum declares bare `Case,` lines, not `case`.
 
 **When a session is short**, one migration-table pass instead: pick a domain from
 [`docs/spec/02-php-migration.md`](../spec/02-php-migration.md)'s *Not yet classified* list, run
@@ -114,14 +115,17 @@ Two smaller slices, either of which fits a session on its own:
 
 ## Backlog
 
+- **`new` on an `abstract` class is not refused** — it compiles and dies at run time with
+  `FATAL: internal error: a method with no body was called`. Should be a `mwl-types` diagnostic.
+- **A method call on a scalar receiver (`$n->foo()`) panics `mwl-ir`** — the same missing-diagnostic shape
+  the `Core` static-call narrowing just closed, one arm over.
 - **An abandoned generator skips the `finally` it is suspended inside** — `mwl-ir`'s known gap 18, the one
   PHP divergence the corpus has found and not closed.
-- **A `finally` still does not run when a `catch` clause's own body throws** — `mwl-ir`'s known gap 2.
 - **A compound assignment (`+=`, `.=`, …) does not lower** — `mwl-ir`'s known gap 16; every PHP program
   writes one, so it is the widest single hole left in the surface a conformance case can reach.
 - **Nullable `?T` has no IR representation at all** — gap 3; probably the next-widest hole after that.
-- **Class-member `private`/`protected` is not enforced at all** — `mwl-types`' own gap list.
-- **The reserved `Comparable`/`Stringable` interfaces carry no member signatures** — same gap list.
+- **Class-member `private`/`protected` is not enforced at all** — `mwl-types`' own gap list, whose
+  reserved `Comparable`/`Stringable` interfaces also still carry no member signatures.
 - **ADR 0047's M2 checker row** is unblocked and is what removes `E_LITERAL_TYPE_UNCHECKED`.
 
 ## Standing rules for this repo
@@ -151,7 +155,7 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   fixture: `tools/leak-check.sh <paths>`.
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
   valgrind sweep, naming the first failure), or `--list` to see it without running it. It short-circuits on
-  the first failure, so it stops at Stage 4's conformance count today.
+  the first failure.
 - **One case, quickly:** `mwl test tests/conformance/core/str-case-members.mwlt`, or
   `mwl test tests/ --filter str-` over the tree.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,

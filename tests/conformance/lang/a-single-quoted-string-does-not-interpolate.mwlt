@@ -1,0 +1,16 @@
+--TEST--
+a single-quoted string takes its bytes literally — no interpolation, no escape but the quote itself
+--FILE--
+<?mwl
+string $raw = 'a\nb $notInterpolated';
+echo $raw, "\n";
+echo 'single "quotes" inside', "\n";
+echo "double 'quotes' inside\n";
+echo "tab:\tend\n";
+echo "dollar: \$x\n";
+--EXPECT--
+a\nb $notInterpolated
+single "quotes" inside
+double 'quotes' inside
+tab:	end
+dollar: $x

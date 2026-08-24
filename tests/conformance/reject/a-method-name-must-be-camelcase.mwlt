@@ -1,0 +1,17 @@
+--TEST--
+a method whose name starts with an upper-case letter is refused, and the diagnostic names the spelling to use — ADR 0029 § 1
+--FILE--
+<?mwl
+class Helper {
+    public static function Compute(): int {
+        return 7;
+    }
+}
+echo Helper::Compute(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0111]: method names must be camelCase, e.g. `compute`
+  --> case.mwl:3:28
+%A
+error: aborting due to 1 error

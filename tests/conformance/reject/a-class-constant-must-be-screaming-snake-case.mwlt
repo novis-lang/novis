@@ -1,0 +1,15 @@
+--TEST--
+a class constant is the one SCREAMING_SNAKE_CASE category, and a camelCase one is refused — ADR 0029 § 1
+--FILE--
+<?mwl
+class Limits {
+    public const int maxRows = 10;
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0113]: class constants must be SCREAMING_SNAKE_CASE, e.g. `MAX_ROWS`
+  --> case.mwl:3:22
+%A
+error: aborting due to 1 error

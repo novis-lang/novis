@@ -1,0 +1,27 @@
+--TEST--
+a map built by counting keeps each key where it was first inserted, no matter how often its value is overwritten
+--FILE--
+<?mwl
+class Tally {
+    public static function count(array<string> $words): array<int> {
+        array<int> $seen = [];
+        foreach ($words as string $k => string $w) {
+            if (Core\Arr::hasKey($seen, $w)) {
+                $seen[$w] = $seen[$w] + 1;
+            } else {
+                $seen[$w] = 1;
+            }
+        }
+        return $seen;
+    }
+}
+
+array<string> $ws = ["a", "b", "a", "c", "b", "a"];
+var $t = Tally::count($ws);
+string $s = "";
+foreach ($t as string $k => int $n) {
+    $s = $s . $k . "=" . $n . " ";
+}
+echo $s, "\n";
+--EXPECT--
+a=3 b=2 c=1

@@ -30,8 +30,9 @@
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
 > `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 190 and
-> `tests/differential` × 82, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 252 (in
+> `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
+> `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -40,22 +41,25 @@
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
-> 0065, and **0053 and 0009 in full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification* section says what its slice covers,
-> not this field.
+> 0065, **0029/0030** (the casing checker existed but no pipeline called it) and **0053 and 0009 in
+> full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification*
+> section says what its slice covers, not this field.
 >
-> **Open now:** **growing the conformance suite**. `mwl test` runs, both suites are green, and the
-> **differential leg is over its threshold — 82 cases against 60**; conformance is 190 against 250, so
-> Stage 4 fails on that one count alone. The corpus is also the fastest bug-finder there is: writing it
-> turned up, and this milestone fixed, a loop-header phi that skipped `try`/`catch`/`finally` bodies, an
-> enum auto-increment that could not follow a negative case, a `parent::constructor(...)` obligation
-> demanded of subclasses whose parent declares no constructor, four more at once — an instance
-> call that never dispatched virtually, a nested `try` whose blocks codegen emitted out of dominance
-> order, a `return` from a `catch` that skipped the `finally`, and a local declared inside a `try` body
-> that leaked on the exception path — and then **three more: a `break`/`continue` that silently skipped
-> every `finally` it jumped out of, a `foreach` anywhere inside a generator emitting code Cranelift's
-> verifier rejected, and a panic on PHP's simple-syntax array interpolation `"$row[key]"`**. It has also
-> found one divergence still open — **an abandoned generator never runs the `finally` it is suspended
-> inside**, `mwl-ir`'s known gap 18.
+> **Open now:** **both Stage 4 suites are over their thresholds — conformance 252 against 250,
+> differential 82 against 60** — and the acceptance test now stops one check later, at `mwl-stdlib`'s
+> `every_part_one_member_has_a_conformance_case`, which does not exist yet. The corpus stays the fastest
+> bug-finder there is: writing it turned up, and this milestone fixed, a loop-header phi that skipped
+> `try`/`catch`/`finally` bodies, an enum auto-increment that could not follow a negative case, a
+> `parent::constructor(...)` obligation demanded of subclasses whose parent declares no constructor, four
+> more at once — an instance call that never dispatched virtually, a nested `try` whose blocks codegen
+> emitted out of dominance order, a `return` from a `catch` that skipped the `finally`, and a local
+> declared inside a `try` body that leaked on the exception path — then three more: a `break`/`continue`
+> that silently skipped every `finally` it jumped out of, a `foreach` anywhere inside a generator emitting
+> code Cranelift's verifier rejected, and a panic on PHP's simple-syntax array interpolation
+> `"$row[key]"` — and now **two rules that were written but unreachable: ADR 0029/0030's identifier
+> casing was never called from any pipeline, and a misspelled `Core` member panicked `mwl-ir` instead of
+> being named**. It has also found one divergence still open — **an abandoned generator never runs the
+> `finally` it is suspended inside**, `mwl-ir`'s known gap 18.
 > Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
 > rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
 > type, a `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one
@@ -68,8 +72,8 @@
 >
 > **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
 > under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
-> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed. The conformance suite's case
-> count is the one check left failing.
+> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed. The first check still failing
+> is Stage 4's `mwl-stdlib` guard test, which is written when `Core` §§ 1–2 are.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

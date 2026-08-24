@@ -1,0 +1,16 @@
+--TEST--
+`and` is not a second spelling of `&&` — it is refused where it is written, ADR 0045
+--FILE--
+<?mwl
+bool $a = true;
+bool $b = false;
+if ($a and $b) {
+    echo "both\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0226]: `and` is not supported
+  --> case.mwl:4:8
+%A
+error: aborting due to 1 error

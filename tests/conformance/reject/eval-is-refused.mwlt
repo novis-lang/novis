@@ -1,0 +1,18 @@
+--TEST--
+`eval` is one of the four closed doors, refused at parse time with no opt-in — ADR 0052 § 4
+--FILE--
+<?mwl
+class Runner {
+    public static function go(): int {
+        eval("1 + 1");
+        return 1;
+    }
+}
+echo Runner::go(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0201]: `eval` is not supported
+  --> case.mwl:4:9
+%A
+error: aborting due to 1 error

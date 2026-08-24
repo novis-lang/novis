@@ -1,0 +1,13 @@
+--TEST--
+every binding declares a type, so a name nothing declared is refused rather than springing into existence — ADR 0007 § 1
+--FILE--
+<?mwl
+int $known = 1;
+echo $known + $unknown, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0301]: `$unknown` is not declared
+  --> case.mwl:3:15
+%A
+error: aborting due to 1 error

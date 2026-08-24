@@ -1,0 +1,20 @@
+--TEST--
+a constructor call is arity-checked like any other call, and the extra argument is reported at the call site
+--FILE--
+<?mwl
+class Box {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+var $b = new Box(1, 2);
+echo $b->n, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0402]: expected 1 argument(s), found 2
+  --> case.mwl:9:10
+%A
+error: aborting due to 1 error

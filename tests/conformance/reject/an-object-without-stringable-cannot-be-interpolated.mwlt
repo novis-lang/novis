@@ -1,0 +1,20 @@
+--TEST--
+`Stringable` is the only route from an object to a string, and an interpolation of one that lacks it is refused — ADR 0028 § 1
+--FILE--
+<?mwl
+class Point {
+    public int $x;
+
+    public function constructor(int $x) {
+        $this->x = $x;
+    }
+}
+var $p = new Point(1);
+echo "point $p\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0412]: `Point` cannot be converted to `string` here; it does not implement `Stringable`
+   --> case.mwl:10:13
+%A
+error: aborting due to 1 error

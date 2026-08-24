@@ -1,0 +1,40 @@
+--TEST--
+a base method calling `$this->speak()` reaches the runtime class's override at every level, and the deepest one still reaches `parent::`
+--FILE--
+<?mwl
+class Animal {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function speak(): string {
+        return "...";
+    }
+
+    public function intro(): string {
+        return $this->name . " says " . $this->speak();
+    }
+}
+
+class Dog extends Animal {
+    public function speak(): string {
+        return "woof";
+    }
+}
+
+class Puppy extends Dog {
+    public function speak(): string {
+        return "yip (" . parent::speak() . ")";
+    }
+}
+
+array<Animal> $zoo = [new Animal("thing"), new Dog("rex"), new Puppy("bit")];
+foreach ($zoo as string $k => Animal $a) {
+    echo $a->intro(), "\n";
+}
+--EXPECT--
+thing says ...
+rex says woof
+bit says yip (woof)

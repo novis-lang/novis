@@ -1,0 +1,19 @@
+--TEST--
+PHP's `__construct` gets its own diagnostic naming `constructor`, rather than the generic camelCase one — ADR 0030 § 2
+--FILE--
+<?mwl
+class Old {
+    public int $n = 0;
+
+    public function __construct(int $n) {
+        $this->n = $n;
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0114]: MWL's constructor is spelled `constructor`, not `__construct`
+  --> case.mwl:5:21
+%A
+error: aborting due to 1 error

@@ -1,0 +1,20 @@
+--TEST--
+a row bound out of an `array<array<int>>` is a copy, so appending to it leaves the grid's own row at the length it had
+--FILE--
+<?mwl
+array<array<int>> $grid = [[1, 2], [3, 4], [5, 6]];
+int $sum = 0;
+foreach ($grid as string $r => array<int> $row) {
+    foreach ($row as string $c => int $v) {
+        $sum = $sum + $v;
+    }
+}
+echo $sum, "\n";
+echo $grid[1][0], ";", $grid[2][1], "\n";
+array<int> $second = $grid[1];
+$second[] = 99;
+echo Core\Arr::count($second), ";", Core\Arr::count($grid[1]), "\n";
+--EXPECT--
+21
+3;6
+3;2

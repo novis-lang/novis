@@ -1,0 +1,18 @@
+--TEST--
+`static` marks a class member and nothing else, so there is no per-function storage class — ADR 0008 § 5
+--FILE--
+<?mwl
+class Counter {
+    public static function bump(): int {
+        static int $n = 0;
+        return 1;
+    }
+}
+echo Counter::bump(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0209]: function-scope `static` is not supported
+  --> case.mwl:4:9
+%A
+error: aborting due to 1 error

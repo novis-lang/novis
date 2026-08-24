@@ -1,0 +1,32 @@
+--TEST--
+a `set` hook that throws is an ordinary throw from the assignment, and the property keeps the value it had — ADR 0014 § 1
+--FILE--
+<?mwl
+class Temp {
+    public int $celsius {
+        get => $this->celsius;
+        set (int $v) {
+            if ($v < -273) {
+                throw new LogicError("below absolute zero");
+            }
+            $this->celsius = $v;
+        }
+    }
+
+    public function constructor(int $start) {
+        $this->celsius = $start;
+    }
+}
+
+var $t = new Temp(20);
+echo "now $t->celsius\n";
+try {
+    $t->celsius = -300;
+} catch (LogicError $e) {
+    echo "refused: ", $e->message, "\n";
+}
+echo $t->celsius, "\n";
+--EXPECT--
+now 20
+refused: below absolute zero
+20

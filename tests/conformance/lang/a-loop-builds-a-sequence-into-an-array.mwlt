@@ -1,0 +1,29 @@
+--TEST--
+a `while` accumulating into an appended array returns it by value, keeping every element and the count
+--FILE--
+<?mwl
+class Fib {
+    public static function upTo(int $n): array<int> {
+        array<int> $out = [];
+        int $a = 0;
+        int $b = 1;
+        while ($a <= $n) {
+            $out[] = $a;
+            int $next = $a + $b;
+            $a = $b;
+            $b = $next;
+        }
+        return $out;
+    }
+}
+
+var $f = Fib::upTo(20);
+string $s = "";
+foreach ($f as string $k => int $v) {
+    $s = $s . $v . " ";
+}
+echo $s, "\n";
+echo Core\Arr::count($f), "\n";
+--EXPECT--
+0 1 1 2 3 5 8 13
+8

@@ -1,0 +1,26 @@
+--TEST--
+`clone` copies the object's own class along with its properties, so the copy answers `instanceof` exactly as the original did — ADR 0023 § 1
+--FILE--
+<?mwl
+class Shape {
+    public int $side;
+
+    public function constructor(int $side) {
+        $this->side = $side;
+    }
+}
+
+class Square extends Shape {
+    public function constructor(int $side) {
+        parent::constructor($side);
+    }
+}
+
+var $s = new Square(3);
+var $t = clone $s;
+$t->side = 9;
+echo $s->side, ";", $t->side, "\n";
+echo $t instanceof Square, ";", $t instanceof Shape, "\n";
+--EXPECT--
+3;9
+1;1

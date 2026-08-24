@@ -1,0 +1,21 @@
+--TEST--
+writing a property the class does not declare is a compile error, not a silently created one — ADR 0014 § 3
+--FILE--
+<?mwl
+class Box {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+var $b = new Box(1);
+$b->missing = 5;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Box` has no property named `missing`
+   --> case.mwl:10:1
+%A
+error: aborting due to 1 error

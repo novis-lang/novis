@@ -1,0 +1,17 @@
+--TEST--
+no variable is ever populated by the host, so `$_GET` is refused and the diagnostic names its `Core` accessor — ADR 0012 § 1
+--FILE--
+<?mwl
+class Reader {
+    public static function name(): string {
+        return $_GET["name"];
+    }
+}
+echo Reader::name(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0211]: `$_GET` is not supported
+  --> case.mwl:4:16
+%A
+error: aborting due to 3 errors

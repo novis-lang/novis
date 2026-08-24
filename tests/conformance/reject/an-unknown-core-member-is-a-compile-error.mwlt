@@ -1,0 +1,12 @@
+--TEST--
+`Core`'s member list is closed and known while compiling, so a misspelled member is named rather than waved through — ADR 0011 § 2
+--FILE--
+<?mwl
+echo Core\Str::nosuchmember("x"), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Str` has no member named `nosuchmember`
+  --> case.mwl:2:6
+%A
+error: aborting due to 1 error

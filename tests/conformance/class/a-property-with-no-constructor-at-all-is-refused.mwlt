@@ -1,0 +1,15 @@
+--TEST--
+a class that declares no constructor still owes every property a value, and the diagnostic says so — ADR 0022 § 1
+--FILE--
+<?mwl
+class Box {
+    public int $n;
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0409]: `$n` has no default value, and `Box` declares no constructor to assign it
+  --> case.mwl:3:16
+%A
+error: aborting due to 1 error

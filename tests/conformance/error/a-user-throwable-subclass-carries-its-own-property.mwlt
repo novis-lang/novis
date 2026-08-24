@@ -1,0 +1,32 @@
+--TEST--
+a user class extending `RuntimeError` adds its own readonly-shaped data, and both the exact class and its supertype catch it — spec § 10
+--FILE--
+<?mwl
+class NotFound extends RuntimeError {
+    public string $path;
+
+    public function constructor(string $message, string $path) {
+        parent::constructor($message);
+        $this->path = $path;
+    }
+}
+
+class Loader {
+    public static function load(string $p): string {
+        throw new NotFound("no such thing", $p);
+    }
+}
+
+try {
+    echo Loader::load("/tmp/x"), "\n";
+} catch (NotFound $e) {
+    echo $e->message, " at ", $e->path, "\n";
+}
+try {
+    echo Loader::load("/tmp/y"), "\n";
+} catch (RuntimeError $r) {
+    echo "as a runtime error: ", $r->message, "\n";
+}
+--EXPECT--
+no such thing at /tmp/x
+as a runtime error: no such thing
