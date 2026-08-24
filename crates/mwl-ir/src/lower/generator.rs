@@ -109,7 +109,7 @@ impl<'a> Lowering<'a> {
             .elem;
         let (class, gen_v) = self.gen_target();
 
-        let (v, vty) = self.lower_expr_top(value, Some(elem), env, cur);
+        let (v, vty) = self.lower_expr(value, Some(elem), env, cur);
         assert!(
             vty == elem,
             "mwl-ir: a `yield` operand lowered to {vty:?} where the declared `Iterator<T>` \

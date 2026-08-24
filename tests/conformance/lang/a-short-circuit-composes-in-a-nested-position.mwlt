@@ -1,0 +1,47 @@
+--TEST--
+`&&`, `||`, `?:` and `??` short-circuit in a nested position too
+--FILE--
+<?mwl
+class Probe {
+    public static function count(int $n): int {
+        echo "eval(" . $n . ")\n";
+        return $n;
+    }
+
+    public static function pick(bool $b): string {
+        return $b ? "yes" : "no";
+    }
+}
+
+bool $t = true;
+bool $f = false;
+
+// A `.` operand.
+echo "and=" . (($t && $f) as string) . "\n";
+echo "or=" . (($f || $t) as string) . "\n";
+echo "not=" . ((!$f) as string) . "\n";
+echo "ternary=" . ($t ? "a" : "b") . "\n";
+
+// A call argument, which is where the short-circuit's own merge block has to
+// be spliced in before the call is emitted.
+echo "arg=" . Probe::pick($t && $t) . "\n";
+
+// An array-literal element.
+array<string> $row = [$f ? "x" : "y", ($t || $f) as string];
+echo "row=" . $row[0] . "," . $row[1] . "\n";
+
+// An arithmetic operand: the right side is only evaluated when it has to be.
+?int $missing = null;
+echo "sum=" . (($missing ?? Probe::count(4)) + 1) . "\n";
+?int $given = 10;
+echo "sum=" . (($given ?? Probe::count(4)) + 1) . "\n";
+--EXPECT--
+and=
+or=1
+not=1
+ternary=a
+arg=yes
+row=y,1
+eval(4)
+sum=5
+sum=11

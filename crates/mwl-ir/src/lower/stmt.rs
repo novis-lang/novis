@@ -84,7 +84,7 @@ impl<'a> Lowering<'a> {
                 value: Some(value),
             } => {
                 let expected = lower_decl_type(decl_ty, self.exprs, self.checked_types);
-                let (v, actual) = self.lower_expr_top(value, Some(expected), env, cur);
+                let (v, actual) = self.lower_expr(value, Some(expected), env, cur);
                 let v = self.coerce(*cur, v, actual, expected);
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, expected, value);
@@ -107,7 +107,7 @@ impl<'a> Lowering<'a> {
                 name: local_name,
                 value: Some(value),
             } => {
-                let (v, ty) = self.lower_expr_top(value, None, env, cur);
+                let (v, ty) = self.lower_expr(value, None, env, cur);
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, ty, value);
             }
@@ -142,7 +142,7 @@ impl<'a> Lowering<'a> {
                 });
                 let ret_ty = self.ret_ty;
                 let v = if let Some(value_expr) = value.as_ref() {
-                    let (rv, rty) = self.lower_expr_top(value_expr, Some(ret_ty), env, cur);
+                    let (rv, rty) = self.lower_expr(value_expr, Some(ret_ty), env, cur);
                     if except.is_none() && rty.is_refcounted() && self.aliasing_read(value_expr) {
                         self.emit_retain(*cur, rv);
                     }
@@ -177,12 +177,12 @@ impl<'a> Lowering<'a> {
             // here is a shape this slice does not lower.
             StmtKind::Unset(targets) => {
                 for target in targets {
-                    self.lower_unset(target, env, *cur);
+                    self.lower_unset(target, env, cur);
                 }
             }
             StmtKind::Break(level) => self.lower_break(level, cur, env),
             StmtKind::Continue(level) => self.lower_continue(level, cur, env),
-            StmtKind::Echo(operands) => self.lower_echo(operands, *cur, env),
+            StmtKind::Echo(operands) => self.lower_echo(operands, cur, env),
             StmtKind::Try {
                 body,
                 catches,
@@ -223,7 +223,7 @@ impl<'a> Lowering<'a> {
                 ..
             } => self.lower_reassignment(e, env, cur),
             ExprKind::MethodCall { .. } | ExprKind::StaticCall { .. } | ExprKind::New { .. } => {
-                let (v, ty) = self.lower_expr(e, None, env, *cur);
+                let (v, ty) = self.lower_expr(e, None, env, cur);
                 if ty.is_refcounted() {
                     self.emit_release(*cur, v);
                 }
@@ -277,7 +277,7 @@ impl<'a> Lowering<'a> {
                 // `Ty::Ref` and `InstKind::RefStore`.
                 if let Some(&(slot, Ty::Ref)) = env.get(&lname) {
                     let pointee = self.pointee_of(&lname);
-                    let (v, _) = self.lower_expr_top(value, Some(pointee), env, cur);
+                    let (v, _) = self.lower_expr(value, Some(pointee), env, cur);
                     if pointee.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
                     }
@@ -288,7 +288,7 @@ impl<'a> Lowering<'a> {
                     self.emit_ref_store(*cur, slot, v);
                 } else {
                     let expected = env.get(&lname).map(|&(_, t)| t);
-                    let (v, ty) = self.lower_expr_top(value, expected, env, cur);
+                    let (v, ty) = self.lower_expr(value, expected, env, cur);
                     // ADR 0037 fixes a local's type at its declaration, so an
                     // existing binding's representation wins over whatever the
                     // right-hand side produced -- otherwise a `?int` local
@@ -354,11 +354,11 @@ impl<'a> Lowering<'a> {
                 let class_label = class.to_string();
                 let field_name = name.clone();
                 if let Some(label) = set {
-                    let (object_v, receiver_ty) = self.lower_expr(object, None, env, *cur);
+                    let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
                     if receiver_ty.is_refcounted() && self.aliasing_read(object) {
                         self.emit_retain(*cur, object_v);
                     }
-                    let (v, vty) = self.lower_expr_top(value, Some(field_ty), env, cur);
+                    let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
                     if field_ty.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
                     }
@@ -374,8 +374,8 @@ impl<'a> Lowering<'a> {
                         env,
                     );
                 } else {
-                    let (object_v, _) = self.lower_expr(object, None, env, *cur);
-                    let (v, vty) = self.lower_expr_top(value, Some(field_ty), env, cur);
+                    let (object_v, _) = self.lower_expr(object, None, env, cur);
+                    let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
                     if field_ty.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
                     }
@@ -428,28 +428,28 @@ impl<'a> Lowering<'a> {
                     );
                 };
                 let elem_ty = lower_checked_ty(*elem_ty, self.checked_types);
-                let (array_v, _) = self.lower_expr(base, None, env, *cur);
+                let (array_v, _) = self.lower_expr(base, None, env, cur);
                 let written = match index {
                     None => {
-                        let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
+                        let (v, _) = self.lower_expr(value, Some(elem_ty), env, cur);
                         if elem_ty.is_refcounted() && self.aliasing_read(value) {
                             self.emit_retain(*cur, v);
                         }
                         self.emit_array_append(*cur, array_v, v)
                     }
                     Some(index) => {
-                        let (key_v, key_aliasing) = self.lower_array_key(index, env, *cur);
+                        let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
                         if key_aliasing {
                             self.emit_retain(*cur, key_v);
                         }
-                        let (v, _) = self.lower_expr_top(value, Some(elem_ty), env, cur);
+                        let (v, _) = self.lower_expr(value, Some(elem_ty), env, cur);
                         if elem_ty.is_refcounted() && self.aliasing_read(value) {
                             self.emit_retain(*cur, v);
                         }
                         self.emit_array_set(*cur, array_v, key_v, v)
                     }
                 };
-                self.write_back_array(base, written, env, *cur);
+                self.write_back_array(base, written, env, cur);
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers reassignment to a plain local, a \
@@ -480,7 +480,7 @@ impl<'a> Lowering<'a> {
     /// property is already a `mwl_types` diagnostic (ADR 0028 § 3), and a bare
     /// local has no meaning in MWL at all — every binding is typed and
     /// definitely assigned, so there is no "make this name undefined again".
-    pub(super) fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: BlockId) {
+    pub(super) fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Index {
             base,
             index: Some(index),
@@ -501,7 +501,7 @@ impl<'a> Lowering<'a> {
         );
         let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
         let (written, _) = self.emit(
-            cur,
+            *cur,
             Ty::Array,
             InstKind::ArrayUnset {
                 array: array_v,
@@ -509,7 +509,7 @@ impl<'a> Lowering<'a> {
             },
         );
         if !key_aliasing {
-            self.emit_release(cur, key_v);
+            self.emit_release(*cur, key_v);
         }
         self.write_back_array(base, written, env, cur);
     }

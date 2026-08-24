@@ -9,12 +9,28 @@
 use super::*;
 
 impl<'a> Lowering<'a> {
+    /// The one entry point for lowering an expression, in every position.
+    ///
+    /// `cur` is redirected to whichever block the expression's own evaluation
+    /// ends in -- unchanged unless the expression branched. That is why it is
+    /// a `&mut`: `&&`, `||`, `!`, a ternary and `??` each lower to a
+    /// branch/merge, and a caller that could not learn the merge block would
+    /// go on emitting into a block control has already left. There used to be
+    /// a second, "top-level only" entry point that owned the mutable block and
+    /// a plain one that did not, which is what made `string $s = $a ?? "d";`
+    /// compile while `echo "x=" . ($a ?? "d")` panicked; the two are one
+    /// function now, so every position composes.
+    ///
+    /// `expected` is the representation the position wants where it has one.
+    /// It steers a literal (ADR 0007 § 4's `int`/`uint` choice) and nothing
+    /// else -- reconciling a mismatch is [`Self::coerce`]'s job, at the
+    /// boundary that owns the declared type.
     pub(super) fn lower_expr(
         &mut self,
         expr: &Expr,
         expected: Option<Ty>,
         env: &Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         match &expr.kind {
             // `(expr)` is fully transparent — `mwl_types::expr::check_expr`'s
@@ -25,11 +41,36 @@ impl<'a> Lowering<'a> {
             // the explicit parens, which the parser keeps as their own node
             // rather than discarding.
             ExprKind::Paren(inner) => self.lower_expr(inner, expected, env, cur),
-            ExprKind::Bool(b) => self.emit(cur, Ty::Bool, InstKind::ConstBool(*b)),
+            // The four shapes that branch. They sit here, in the one
+            // expression-lowering entry point, rather than in a second
+            // "top-level only" one — that split was this crate's known gap 5,
+            // and it is what made `echo "x=" . ($a ?? "d")` panic while
+            // `string $s = $a ?? "d";` compiled. `cur` is redirected to
+            // whichever block the expression's own control flow ends in, so
+            // every caller composes with them for free.
+            ExprKind::Binary {
+                op: BinaryOp::And,
+                lhs,
+                rhs,
+            } => (self.lower_and(lhs, rhs, env, cur), Ty::Bool),
+            ExprKind::Binary {
+                op: BinaryOp::Or,
+                lhs,
+                rhs,
+            } => (self.lower_or(lhs, rhs, env, cur), Ty::Bool),
+            ExprKind::Binary {
+                op: BinaryOp::Coalesce,
+                lhs,
+                rhs,
+            } => self.lower_coalesce(expr, lhs, rhs, env, cur),
+            ExprKind::Ternary { cond, then, else_ } => {
+                self.lower_ternary(cond, then.as_deref(), else_, env, cur)
+            }
+            ExprKind::Bool(b) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(*b)),
             // The literal `null`. Its own type, not a tagged one -- see
             // `Ty::Null`; `Self::coerce` widens it wherever the position it
             // lands in declares `?T`.
-            ExprKind::Null => self.emit(cur, Ty::Null, InstKind::ConstNull),
+            ExprKind::Null => self.emit(*cur, Ty::Null, InstKind::ConstNull),
             // ADR 0007 § 4, mirroring `mwl_types::expr::infer`'s own rule: a
             // bare integer literal means `uint` exactly where that's the
             // expected type, `int` otherwise. `mwl_types::expr::infer`'s own
@@ -48,12 +89,12 @@ impl<'a> Lowering<'a> {
                     let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
                         panic!("mwl-ir: integer literal `{digits}` doesn't fit a `uint`")
                     });
-                    self.emit(cur, Ty::Uint, InstKind::ConstUint(n))
+                    self.emit(*cur, Ty::Uint, InstKind::ConstUint(n))
                 } else {
                     let n: i64 = i64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
                         panic!("mwl-ir: integer literal `{digits}` doesn't fit an `int`")
                     });
-                    self.emit(cur, Ty::Int, InstKind::ConstInt(n))
+                    self.emit(*cur, Ty::Int, InstKind::ConstInt(n))
                 }
             }
             ExprKind::Float(span) => {
@@ -61,14 +102,14 @@ impl<'a> Lowering<'a> {
                 let n: f64 = digits
                     .parse()
                     .unwrap_or_else(|_| panic!("mwl-ir: float literal `{digits}` failed to parse"));
-                self.emit(cur, Ty::Float, InstKind::ConstFloat(n))
+                self.emit(*cur, Ty::Float, InstKind::ConstFloat(n))
             }
             // A fresh `Ty::Str` value with exactly one natural owner — see
             // `Self::bind_local`'s doc comment for why a value produced here
             // never needs a retain of its own, only whatever consumes it.
             ExprKind::Str(span) => {
                 let s = cook_str_literal(self.src, *span);
-                self.emit(cur, Ty::Str, InstKind::ConstStr(s))
+                self.emit(*cur, Ty::Str, InstKind::ConstStr(s))
             }
             // A double-quoted- or heredoc-sourced `Interpolated` both lower
             // to the same `InstKind::Concat` chain a written-out `.`
@@ -101,27 +142,18 @@ impl<'a> Lowering<'a> {
                 // (pointee) type `Self::ref_locals` remembers. See `Ty::Ref`.
                 if ty == Ty::Ref {
                     let pointee = self.pointee_of(name);
-                    return self.emit(cur, pointee, InstKind::RefLoad { slot: v });
+                    return self.emit(*cur, pointee, InstKind::RefLoad { slot: v });
                 }
                 (v, ty)
             }
-            // `!` always produces `Ty::Bool` via ADR 0035's truthy table
-            // (`Self::negate_truthy`), regardless of `inner`'s own type — a
-            // separate arm from the plain arithmetic/bitwise unary operators
-            // below, which just pass their operand's own type straight
-            // through. `inner` is lowered with the plain, non-branching
-            // `Self::lower_expr` here (this arm has no `&mut BlockId` to
-            // redirect) — a nested `&&`/`||`/ternary `inner` still panics via
-            // that call's own arms; `Self::lower_not` is the top-level
-            // sibling that supports composing with those.
+            // `!` always produces `Ty::Bool` via ADR 0035's truthy table,
+            // regardless of `inner`'s own type — a separate arm from the plain
+            // arithmetic/bitwise unary operators below, which just pass their
+            // operand's own type straight through.
             ExprKind::Unary {
                 op: AstUnaryOp::Not,
                 expr: inner,
-            } => {
-                let (v, ty) = self.lower_expr(inner, None, env, cur);
-                let r = self.negate_truthy(v, ty, self.aliasing_read(inner), cur);
-                (r, Ty::Bool)
-            }
+            } => (self.lower_not(inner, env, cur), Ty::Bool),
             ExprKind::Unary { op, expr: inner } => {
                 let (v, ty) = self.lower_expr(inner, expected, env, cur);
                 let uop = match op {
@@ -132,7 +164,7 @@ impl<'a> Lowering<'a> {
                     ),
                 };
                 self.emit(
-                    cur,
+                    *cur,
                     ty,
                     InstKind::UnOp {
                         op: uop,
@@ -164,12 +196,12 @@ impl<'a> Lowering<'a> {
             } => {
                 let (lv, l_alias) = self.concat_operand(lhs, env, cur);
                 let (rv, r_alias) = self.concat_operand(rhs, env, cur);
-                let result = self.emit(cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
+                let result = self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
                 if !l_alias {
-                    self.emit_release(cur, lv);
+                    self.emit_release(*cur, lv);
                 }
                 if !r_alias {
-                    self.emit_release(cur, rv);
+                    self.emit_release(*cur, rv);
                 }
                 result
             }
@@ -234,16 +266,16 @@ impl<'a> Lowering<'a> {
                     rhs: rv,
                 };
                 let result = if matches!(bop, BinOp::Mod) && matches!(ty, Ty::Int | Ty::Uint) {
-                    self.emit_fallible(cur, ty, inst, env)
+                    self.emit_fallible(*cur, ty, inst, env)
                 } else {
-                    self.emit(cur, ty, inst)
+                    self.emit(*cur, ty, inst)
                 };
                 if lty.is_refcounted() {
                     if !self.aliasing_read(lhs) {
-                        self.emit_release(cur, lv);
+                        self.emit_release(*cur, lv);
                     }
                     if !self.aliasing_read(rhs) {
-                        self.emit_release(cur, rv);
+                        self.emit_release(*cur, rv);
                     }
                 }
                 result
@@ -278,7 +310,7 @@ impl<'a> Lowering<'a> {
                 let ret = lower_checked_ty(*return_ty, self.checked_types);
                 let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
                 let (obj, _) = self.emit(
-                    cur,
+                    *cur,
                     Ty::Object,
                     InstKind::New {
                         class: class.clone(),
@@ -288,9 +320,9 @@ impl<'a> Lowering<'a> {
                 );
                 let arity =
                     i64::try_from(fn_expr.params.len()).expect("a parameter list fits an i64");
-                let (arity_v, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(arity));
+                let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
                 self.emit_field_set(
-                    cur,
+                    *cur,
                     obj,
                     class.clone(),
                     FN_ARITY.to_owned(),
@@ -313,9 +345,9 @@ impl<'a> Lowering<'a> {
                          outlive the call that staged it; see the crate docs' known gaps"
                     );
                     if ty.is_refcounted() {
-                        self.emit_retain(cur, v);
+                        self.emit_retain(*cur, v);
                     }
-                    self.emit_field_set(cur, obj, class.clone(), name.clone(), v);
+                    self.emit_field_set(*cur, obj, class.clone(), name.clone(), v);
                     captured.push((name, ty));
                 }
                 self.closures.push(PendingClosure {
@@ -394,7 +426,7 @@ impl<'a> Lowering<'a> {
                         args: arg_values,
                     }
                 };
-                self.emit_fallible(cur, Ty::Object, kind, env)
+                self.emit_fallible(*cur, Ty::Object, kind, env)
             }
             // `$obj->method(...)`/`$this->method(...)` — the receiver is
             // lowered like any other expression (for `$this`, that's just an
@@ -434,7 +466,7 @@ impl<'a> Lowering<'a> {
                 // refcounted.
                 let receiver_v = if is_static {
                     let (v, _) = self.emit(
-                        cur,
+                        *cur,
                         Ty::ClassDesc,
                         InstKind::ClassDescOf { object: object_v },
                     );
@@ -448,7 +480,7 @@ impl<'a> Lowering<'a> {
                     // `$obj->m()` both read an existing slot, so both need the
                     // retain `Self::lower_call_args` already inserts for one.
                     if receiver_ty.is_refcounted() && self.aliasing_read(object) {
-                        self.emit_retain(cur, object_v);
+                        self.emit_retain(*cur, object_v);
                     }
                     object_v
                 };
@@ -482,7 +514,7 @@ impl<'a> Lowering<'a> {
                 let late_bound = !call.has_body || (call.overridden && !is_static);
                 let kind = if late_bound {
                     let (lsb, _) = self.emit(
-                        cur,
+                        *cur,
                         Ty::ClassDesc,
                         InstKind::ClassDescOf { object: object_v },
                     );
@@ -500,7 +532,7 @@ impl<'a> Lowering<'a> {
                         args: arg_values,
                     }
                 };
-                self.emit_fallible(cur, return_ty, kind, env)
+                self.emit_fallible(*cur, return_ty, kind, env)
             }
             // `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
             //
@@ -546,7 +578,7 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                     let result = self.emit_fallible(
-                        cur,
+                        *cur,
                         return_ty,
                         InstKind::CoreCall {
                             symbol,
@@ -557,7 +589,7 @@ impl<'a> Lowering<'a> {
                     // A `Core` member borrows, so a freshly built argument —
                     // an `fn` literal, a nested `Core` call's own result — has
                     // no other owner and would leak without this.
-                    self.release_call_temporaries(lowered.temporaries, cur);
+                    self.release_call_temporaries(lowered.temporaries, *cur);
                     return result;
                 }
                 let target_label = format!("{}::{}", call.class, call.method);
@@ -580,7 +612,7 @@ impl<'a> Lowering<'a> {
                     Some(match &named_class {
                         Some(label) => {
                             let (v, _) = self.emit(
-                                cur,
+                                *cur,
                                 Ty::ClassDesc,
                                 InstKind::ClassDescConst {
                                     class: label.clone(),
@@ -602,7 +634,7 @@ impl<'a> Lowering<'a> {
                         )
                     });
                     if this_ty.is_refcounted() {
-                        self.emit_retain(cur, this_v);
+                        self.emit_retain(*cur, this_v);
                     }
                     Some(this_v)
                 };
@@ -638,7 +670,7 @@ impl<'a> Lowering<'a> {
                         args: arg_values,
                     }
                 };
-                self.emit_fallible(cur, return_ty, kind, env)
+                self.emit_fallible(*cur, return_ty, kind, env)
             }
             // `$obj->prop` — the receiver's declaring class comes from
             // `self.exprs`, exactly like a call's resolved target; a shape or
@@ -693,10 +725,10 @@ impl<'a> Lowering<'a> {
                         // (the callee releases every refcounted parameter at
                         // scope exit).
                         if receiver_ty.is_refcounted() && self.aliasing_read(object) {
-                            self.emit_retain(cur, object_v);
+                            self.emit_retain(*cur, object_v);
                         }
                         self.emit_fallible(
-                            cur,
+                            *cur,
                             field_ty,
                             InstKind::Call {
                                 target: label,
@@ -707,7 +739,7 @@ impl<'a> Lowering<'a> {
                         )
                     }
                     None => self.emit(
-                        cur,
+                        *cur,
                         field_ty,
                         InstKind::FieldGet {
                             object: object_v,
@@ -754,14 +786,14 @@ impl<'a> Lowering<'a> {
                     for (i, item) in items.iter().enumerate() {
                         let (v, ty) = self.lower_expr(&item.value, None, env, cur);
                         if ty.is_refcounted() && self.aliasing_read(&item.value) {
-                            self.emit_retain(cur, v);
+                            self.emit_retain(*cur, v);
                         }
                         entries.push((i.to_string(), v));
                     }
-                    self.emit(cur, Ty::Array, InstKind::ArrayNew { entries })
+                    self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
                 } else {
                     let array = self.emit(
-                        cur,
+                        *cur,
                         Ty::Array,
                         InstKind::ArrayNew {
                             entries: Vec::new(),
@@ -779,18 +811,18 @@ impl<'a> Lowering<'a> {
                             None => {
                                 let key_str = next_index.to_string();
                                 next_index += 1;
-                                let (kv, _) = self.emit(cur, Ty::Str, InstKind::ConstStr(key_str));
+                                let (kv, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(key_str));
                                 (kv, false)
                             }
                         };
                         if key_aliasing {
-                            self.emit_retain(cur, key_v);
+                            self.emit_retain(*cur, key_v);
                         }
                         let (v, ty) = self.lower_expr(&item.value, None, env, cur);
                         if ty.is_refcounted() && self.aliasing_read(&item.value) {
-                            self.emit_retain(cur, v);
+                            self.emit_retain(*cur, v);
                         }
-                        array_v = self.emit_array_set(cur, array_v, key_v, v);
+                        array_v = self.emit_array_set(*cur, array_v, key_v, v);
                     }
                     (array_v, Ty::Array)
                 }
@@ -824,7 +856,7 @@ impl<'a> Lowering<'a> {
                 let (array_v, _) = self.lower_expr(base, None, env, cur);
                 let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
                 let result = self.emit(
-                    cur,
+                    *cur,
                     result_ty,
                     InstKind::ArrayGet {
                         array: array_v,
@@ -832,7 +864,7 @@ impl<'a> Lowering<'a> {
                     },
                 );
                 if !key_aliasing {
-                    self.emit_release(cur, key_v);
+                    self.emit_release(*cur, key_v);
                 }
                 result
             }
@@ -859,7 +891,7 @@ impl<'a> Lowering<'a> {
                      representation {ty:?}"
                 );
                 self.emit(
-                    cur,
+                    *cur,
                     Ty::Bool,
                     InstKind::InstanceOf {
                         value,
@@ -879,13 +911,13 @@ impl<'a> Lowering<'a> {
                      0023 § 1 scopes `clone` to an object; an array is already a copy-on-write \
                      value, and a scalar has nothing to copy"
                 );
-                let result = self.emit(cur, Ty::Object, InstKind::Clone { object: v });
+                let result = self.emit(*cur, Ty::Object, InstKind::Clone { object: v });
                 // The operand is only *read* — see `InstKind::Clone`. A fresh
                 // one nothing else owns is released right after, the same
                 // "release a fresh value once its one and only use is done"
                 // rule `Self::concat_operand`'s caller applies.
                 if !self.aliasing_read(inner) {
-                    self.emit_release(cur, v);
+                    self.emit_release(*cur, v);
                 }
                 result
             }
@@ -907,10 +939,10 @@ impl<'a> Lowering<'a> {
                 };
                 match value {
                     mwl_types::EnumValue::Int(n) => {
-                        self.emit(cur, Ty::Enum(EnumRepr::Int), InstKind::ConstInt(*n))
+                        self.emit(*cur, Ty::Enum(EnumRepr::Int), InstKind::ConstInt(*n))
                     }
                     mwl_types::EnumValue::Uint(n) => {
-                        self.emit(cur, Ty::Enum(EnumRepr::Uint), InstKind::ConstUint(*n))
+                        self.emit(*cur, Ty::Enum(EnumRepr::Uint), InstKind::ConstUint(*n))
                     }
                 }
             }
@@ -925,7 +957,7 @@ impl<'a> Lowering<'a> {
                 // the same reason it is there.
                 let (v, from) = self.lower_expr(inner, None, env, cur);
                 let to = lower_decl_type(ty, self.exprs, self.checked_types);
-                self.convert(v, from, to, inner, env, cur)
+                self.convert(v, from, to, inner, env, *cur)
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
@@ -957,7 +989,7 @@ impl<'a> Lowering<'a> {
     /// only use is done" policy the [`ExprKind::Binary`] concatenation arm
     /// already applies. No safepoint is emitted: `echo` is neither of the
     /// two reserved sites (function entry, a loop's back edge).
-    pub(super) fn lower_echo(&mut self, operands: &[Expr], cur: BlockId, env: &Env) {
+    pub(super) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &Env) {
         for operand in operands {
             let (v, aliasing) = self.concat_operand(operand, env, cur);
             // The one conversion-free helper that can genuinely fail: a write
@@ -974,7 +1006,7 @@ impl<'a> Lowering<'a> {
                 on_error: Some(landing),
             });
             if !aliasing {
-                self.emit_release(cur, v);
+                self.emit_release(*cur, v);
             }
         }
     }
@@ -999,7 +1031,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         expr: &Expr,
         env: &Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) -> (ValueId, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
@@ -1024,7 +1056,7 @@ impl<'a> Lowering<'a> {
                     }
                 };
                 let (sv, _) = self.emit(
-                    cur,
+                    *cur,
                     Ty::Str,
                     InstKind::HelperCall {
                         helper,
@@ -1065,7 +1097,7 @@ impl<'a> Lowering<'a> {
         lhs: &Expr,
         rhs: &Expr,
         env: &Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
             unreachable!("the match guard already found this entry")
@@ -1083,12 +1115,12 @@ impl<'a> Lowering<'a> {
         );
         for (v, operand) in [(lv, lhs), (rv, rhs)] {
             if self.aliasing_read(operand) {
-                self.emit_retain(cur, v);
+                self.emit_retain(*cur, v);
             }
         }
-        let (desc, _) = self.emit(cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
+        let (desc, _) = self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object: lv });
         let (ordering, _) = self.emit_fallible(
-            cur,
+            *cur,
             Ty::Int,
             InstKind::CallVirtual {
                 lsb: desc,
@@ -1108,9 +1140,9 @@ impl<'a> Lowering<'a> {
             BinaryOp::Gt => BinOp::Gt,
             _ => BinOp::GtEq,
         };
-        let (zero, _) = self.emit(cur, Ty::Int, InstKind::ConstInt(0));
+        let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
         self.emit(
-            cur,
+            *cur,
             Ty::Bool,
             InstKind::BinOp {
                 op: bop,
@@ -1342,7 +1374,7 @@ impl<'a> Lowering<'a> {
     }
     /// Lowers `cond` — an `if`/`while` condition, or `&&`/`||`'s own operand
     /// (see [`Self::lower_and`]/[`Self::lower_or`]) — through
-    /// [`Self::lower_expr_top`] (so a nested `&&`/`||`/`!`/ternary composes,
+    /// [`Self::lower_expr`] (so a nested `&&`/`||`/`!`/ternary composes,
     /// e.g. `if ($a && $b)`) and then [`Self::truthy_value`]'s table.
     /// `*cur` is updated to whichever block `cond`'s own evaluation ends in —
     /// unchanged unless `cond` itself needed to branch.
@@ -1357,64 +1389,8 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) -> ValueId {
-        let (v, ty) = self.lower_expr_top(cond, None, env, cur);
+        let (v, ty) = self.lower_expr(cond, None, env, cur);
         self.truthy_value(v, ty, self.aliasing_read(cond), *cur)
-    }
-    /// Lowers `expr` in a position that owns a mutable `cur` — a local
-    /// declaration's initializer, `return`'s value, a plain reassignment's
-    /// right-hand side, or a condition under test
-    /// ([`Self::lower_truthy_cond`]) — and so can redirect it if `expr` needs
-    /// control flow of its own: `&&`/`||` ([`Self::lower_and`]/
-    /// [`Self::lower_or`], ADR 0035's short-circuit truthy positions), `!`
-    /// ([`Self::lower_not`], which recurses through here for its own operand
-    /// so `!($a && $b)` composes), or a ternary/elvis branch
-    /// ([`Self::lower_ternary`]). PHP's `and`/`or`/`xor` keyword operators
-    /// have no lowering here because they no longer exist in the AST at
-    /// all — ADR 0045 rejects them at parse time.
-    ///
-    /// Everywhere else `lower_expr` is called directly instead — a call
-    /// argument, an array-literal element, a `.`-operand, a nested
-    /// arithmetic/comparison operand — still panics naming the gap if it
-    /// contains one of these forms, since those callers only ever own a
-    /// fixed `cur: BlockId`, not a `&mut BlockId` they could redirect after a
-    /// branch; see the crate docs' known gaps.
-    pub(super) fn lower_expr_top(
-        &mut self,
-        expr: &Expr,
-        expected: Option<Ty>,
-        env: &Env,
-        cur: &mut BlockId,
-    ) -> (ValueId, Ty) {
-        match &expr.kind {
-            // See `Self::lower_expr`'s own `ExprKind::Paren` arm — same
-            // transparent unwrap, just recursing back through this method
-            // instead so a parenthesized `&&`/`||`/`!`/ternary still composes
-            // (e.g. `!($a && $b)`).
-            ExprKind::Paren(inner) => self.lower_expr_top(inner, expected, env, cur),
-            ExprKind::Binary {
-                op: BinaryOp::And,
-                lhs,
-                rhs,
-            } => (self.lower_and(lhs, rhs, env, cur), Ty::Bool),
-            ExprKind::Binary {
-                op: BinaryOp::Or,
-                lhs,
-                rhs,
-            } => (self.lower_or(lhs, rhs, env, cur), Ty::Bool),
-            ExprKind::Unary {
-                op: AstUnaryOp::Not,
-                expr: inner,
-            } => (self.lower_not(inner, env, cur), Ty::Bool),
-            ExprKind::Ternary { cond, then, else_ } => {
-                self.lower_ternary(cond, then.as_deref(), else_, env, cur)
-            }
-            ExprKind::Binary {
-                op: BinaryOp::Coalesce,
-                lhs,
-                rhs,
-            } => self.lower_coalesce(expr, lhs, rhs, env, cur),
-            _ => self.lower_expr(expr, expected, env, *cur),
-        }
     }
     /// `$a ?? $b` — the right operand is evaluated only when the left one is
     /// `null`, which is one [`InstKind::IsNull`] and the same branch/phi shape
@@ -1459,7 +1435,7 @@ impl<'a> Lowering<'a> {
         let non_null_repr = lower_checked_ty(non_null, self.checked_types);
         let result_repr = lower_checked_ty(result, self.checked_types);
 
-        let (lhs_v, lhs_ty) = self.lower_expr_top(lhs, None, env, cur);
+        let (lhs_v, lhs_ty) = self.lower_expr(lhs, None, env, cur);
         let lhs_is_alias = self.aliasing_read(lhs);
 
         // A left operand whose representation is not tagged cannot be `null`
@@ -1469,7 +1445,7 @@ impl<'a> Lowering<'a> {
         if lhs_ty != Ty::Tagged {
             if lhs_ty == Ty::Null {
                 let mut rhs_cur = *cur;
-                let (rv, rty) = self.lower_expr_top(rhs, Some(result_repr), env, &mut rhs_cur);
+                let (rv, rty) = self.lower_expr(rhs, Some(result_repr), env, &mut rhs_cur);
                 if rty.is_refcounted() && self.aliasing_read(rhs) {
                     self.emit_retain(rhs_cur, rv);
                 }
@@ -1518,7 +1494,7 @@ impl<'a> Lowering<'a> {
         self.seal(value_block, Terminator::Jump(merge_block));
 
         let mut rhs_cur = null_block;
-        let (rv, rty) = self.lower_expr_top(rhs, Some(result_repr), env, &mut rhs_cur);
+        let (rv, rty) = self.lower_expr(rhs, Some(result_repr), env, &mut rhs_cur);
         if rty.is_refcounted() && self.aliasing_read(rhs) {
             self.emit_retain(rhs_cur, rv);
         }
@@ -1538,27 +1514,13 @@ impl<'a> Lowering<'a> {
     /// `!expr` — ADR 0035's truthy table applied to `expr`, then negated;
     /// always produces [`Ty::Bool`] regardless of `expr`'s own type, unlike a
     /// plain arithmetic/bitwise unary operator. `expr` is lowered through
-    /// [`Self::lower_expr_top`] so `!($a && $b)`/`!($a ? $b : $c)` compose the
-    /// same way a bare `&&`/`||`/ternary does at a top-level position.
+    /// [`Self::lower_expr`], so `!($a && $b)`/`!($a ? $b : $c)` compose the
+    /// same way a bare `&&`/`||`/ternary does.
     pub(super) fn lower_not(&mut self, inner: &Expr, env: &Env, cur: &mut BlockId) -> ValueId {
-        let (v, ty) = self.lower_expr_top(inner, None, env, cur);
-        self.negate_truthy(v, ty, self.aliasing_read(inner), *cur)
-    }
-    /// Shared by [`Self::lower_not`] (a top-level `!`, whose operand may
-    /// itself branch) and [`Self::lower_expr`]'s own `!` arm (a nested `!`
-    /// with no `&mut BlockId` to redirect, so its operand may not branch):
-    /// [`Self::truthy_value`]'s conversion, then an [`InstKind::UnOp`]
-    /// negating the resulting [`Ty::Bool`].
-    pub(super) fn negate_truthy(
-        &mut self,
-        v: ValueId,
-        ty: Ty,
-        is_alias: bool,
-        cur: BlockId,
-    ) -> ValueId {
-        let b = self.truthy_value(v, ty, is_alias, cur);
+        let (v, ty) = self.lower_expr(inner, None, env, cur);
+        let b = self.truthy_value(v, ty, self.aliasing_read(inner), *cur);
         self.emit(
-            cur,
+            *cur,
             Ty::Bool,
             InstKind::UnOp {
                 op: UnOp::Not,
@@ -1713,7 +1675,7 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        let (cond_v, cond_ty) = self.lower_expr_top(cond, None, env, cur);
+        let (cond_v, cond_ty) = self.lower_expr(cond, None, env, cur);
         let cond_is_alias = self.aliasing_read(cond);
         let truthy_v = self.truthy_convert(cond_v, cond_ty, *cur);
         let pre_block = *cur;
@@ -1740,7 +1702,7 @@ impl<'a> Lowering<'a> {
         let (then_v, then_ty, then_end) = match then {
             Some(then_expr) => {
                 let mut then_cur = then_block;
-                let (v, ty) = self.lower_expr_top(then_expr, None, env, &mut then_cur);
+                let (v, ty) = self.lower_expr(then_expr, None, env, &mut then_cur);
                 if ty.is_refcounted() && self.aliasing_read(then_expr) {
                     self.emit_retain(then_cur, v);
                 }
@@ -1756,7 +1718,7 @@ impl<'a> Lowering<'a> {
         self.seal(then_end, Terminator::Jump(merge_block));
 
         let mut else_cur = else_block;
-        let (else_v, else_ty) = self.lower_expr_top(else_, None, env, &mut else_cur);
+        let (else_v, else_ty) = self.lower_expr(else_, None, env, &mut else_cur);
         if else_ty.is_refcounted() && self.aliasing_read(else_) {
             self.emit_retain(else_cur, else_v);
         }
@@ -1825,7 +1787,7 @@ impl<'a> Lowering<'a> {
         parts: &[StringPart],
         whole_span: mwl_diagnostics::Span,
         env: &Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         assert!(
             !parts.is_empty(),
@@ -1861,7 +1823,7 @@ impl<'a> Lowering<'a> {
                     } else {
                         mwl_types::string_lit::cook_double_quoted_text(self.src, *span).0
                     };
-                    (self.emit(cur, Ty::Str, InstKind::ConstStr(s)).0, false)
+                    (self.emit(*cur, Ty::Str, InstKind::ConstStr(s)).0, false)
                 }
                 StringPart::Expr(e) => self.concat_operand(e, env, cur),
             };
@@ -1870,12 +1832,12 @@ impl<'a> Lowering<'a> {
                 Some((lv, l_alias)) => {
                     let (rv, r_alias) = piece;
                     let (result, _) =
-                        self.emit(cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
+                        self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
                     if !l_alias {
-                        self.emit_release(cur, lv);
+                        self.emit_release(*cur, lv);
                     }
                     if !r_alias {
-                        self.emit_release(cur, rv);
+                        self.emit_release(*cur, rv);
                     }
                     (result, false)
                 }
@@ -1887,7 +1849,7 @@ impl<'a> Lowering<'a> {
             // comment names — no `Concat` ran, so `v` is still someone
             // else's storage; retain it to become this expression's own
             // single fresh owner.
-            self.emit_retain(cur, v);
+            self.emit_retain(*cur, v);
         }
         (v, Ty::Str)
     }
@@ -1916,7 +1878,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         expr: &Expr,
         env: &Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) -> (ValueId, bool) {
         let (v, ty) = self.lower_expr(expr, None, env, cur);
         match ty {
@@ -1928,7 +1890,7 @@ impl<'a> Lowering<'a> {
                     Helper::UintToString
                 };
                 let (sv, _) = self.emit(
-                    cur,
+                    *cur,
                     Ty::Str,
                     InstKind::HelperCall {
                         helper,

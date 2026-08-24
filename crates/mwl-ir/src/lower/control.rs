@@ -349,7 +349,7 @@ impl<'a> Lowering<'a> {
         });
         let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
 
-        let (array_v, array_ty) = self.lower_expr_top(subject, None, env, cur);
+        let (array_v, array_ty) = self.lower_expr(subject, None, env, cur);
         assert!(
             array_ty == Ty::Array,
             "mwl-ir lowers `foreach` only over an `array<T>` — got {array_ty:?}; ADR 0053's \
@@ -580,7 +580,7 @@ impl<'a> Lowering<'a> {
     ///   rather than retaining a second one — the loop has no further use for
     ///   the subject once it has a cursor. For an aliasing subject that is
     ///   the retain taken just above; for a fresh one (`new Bag(4)`) it is
-    ///   the single reference `Self::lower_expr_top` produced, which is why
+    ///   the single reference `Self::lower_expr` produced, which is why
     ///   that value is never entered into the `Env` and the after-block
     ///   releases the *cursor* instead.
     /// * **There is no cursor phi and no key.** The driven value never
@@ -605,7 +605,7 @@ impl<'a> Lowering<'a> {
         let value_ty = binding_ty(value, "value", self.exprs, self.checked_types);
         let value_name = strip_sigil(span_text(self.src, value.name)).to_owned();
 
-        let (subject_v, subject_ty) = self.lower_expr_top(subject, None, env, cur);
+        let (subject_v, subject_ty) = self.lower_expr(subject, None, env, cur);
         assert!(
             subject_ty == Ty::Object,
             "mwl-ir: a `foreach` subject mwl_types classified as a cursor lowered to \

@@ -125,19 +125,15 @@
 //!    [`ir::Helper`] has no tag for, and the enum row additionally needs its
 //!    case set carried to the check. `EnumName` ↔ `string` is not a gap: ADR
 //!    0010 § 5 leaves it out of the language.
-//! 5. **`&&`/`||`/`!`/ternary/`??` lower only where a mutable
-//!    `cur: &mut BlockId` is already owned** — a declaration's initializer,
-//!    `return`'s value, an assignment's right-hand side, a condition. Nested
-//!    inside a call argument, an array element or an operand — `echo "x=" .
-//!    ($a ?? "d")` is the shape that meets this first — they panic, because
-//!    [`lower::Lowering::lower_expr`] cannot redirect the current block.
-//!    Closing it is one signature: `lower_expr` taking `&mut BlockId` and
-//!    lowering its own sub-expressions through itself, at which point
-//!    [`lower::Lowering::lower_expr_top`] is the same function. A ternary
-//!    whose branches lower to two different [`ty::Ty`] representations still
-//!    panics — unlike `??`, it has no recorded result type to widen both arms
-//!    to, which is the one thing `mwl_types::expr_table::ExprInfo::Coalesce`
-//!    exists to supply.
+//! 5. **A ternary whose branches lower to two different [`ty::Ty`]
+//!    representations panics.** It has no recorded result type to widen both
+//!    arms to, which is the one thing `mwl_types::expr_table::ExprInfo::Coalesce`
+//!    supplies for `??` — so closing it is that same recording, plus
+//!    [`lower::Lowering::coerce`] on each arm. *Where* a short-circuit may
+//!    appear is no longer a restriction: [`lower::Lowering::lower_expr`] owns
+//!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
+//!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
+//!    element, a `.` operand or an `echo` operand alike.
 //! 6. **Property and array access are compile-time-known-target-only.** A
 //!    receiver that erased to a shape or plain `object` (ADR 0036 § 4) has no
 //!    `ExprInfo` entry, so lowering panics; the checker defers that runtime

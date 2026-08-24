@@ -26,7 +26,7 @@ impl<'a> Lowering<'a> {
     /// [`Ty::Object`] — the checker has already refused throwing anything but
     /// a `Throwable` subclass, so anything else here is a lowering bug.
     pub(super) fn lower_throw(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) {
-        let (v, ty) = self.lower_expr_top(inner, None, env, cur);
+        let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object),
             "mwl-ir lowers `throw` only for an exception object — got representation {ty:?}; \

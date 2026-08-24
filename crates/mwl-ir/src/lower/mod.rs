@@ -617,7 +617,7 @@ pub fn lower_property_hook(
                 })
                 .to_owned();
             let field = strip_sigil(span_text(src, p.name)).to_owned();
-            let (v, _) = low.lower_expr_top(e, Some(prop_ty), &env, &mut cur);
+            let (v, _) = low.lower_expr(e, Some(prop_ty), &env, &mut cur);
             if prop_ty.is_refcounted() && low.aliasing_read(e) {
                 low.emit_retain(cur, v);
             }
@@ -636,7 +636,7 @@ pub fn lower_property_hook(
             low.emit_field_set(cur, this_v, class, field, v);
         }
         Some(PropertyHookBody::Expr(e)) => {
-            let (v, ty) = low.lower_expr_top(e, Some(ret_ty), &env, &mut cur);
+            let (v, ty) = low.lower_expr(e, Some(ret_ty), &env, &mut cur);
             if ty.is_refcounted() && low.aliasing_read(e) {
                 low.emit_retain(cur, v);
             }
@@ -1343,7 +1343,7 @@ impl<'a> Lowering<'a> {
         base: &Expr,
         written: ValueId,
         env: &mut Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) {
         match &base.kind {
             ExprKind::Variable(name_span) => {
@@ -1375,7 +1375,7 @@ impl<'a> Lowering<'a> {
                 let class_label = class.to_string();
                 let field_name = name.clone();
                 let (object_v, _) = self.lower_expr(object, None, env, cur);
-                self.emit_field_set(cur, object_v, class_label, field_name, written);
+                self.emit_field_set(*cur, object_v, class_label, field_name, written);
             }
             other => panic!(
                 "mwl-ir lowers an array-element write only through a bare local or a \
@@ -3212,8 +3212,7 @@ class T {
     /// first new form: `$a`'s own truthy test branches straight to a merge
     /// block carrying `const.bool false` when falsy, only evaluating `$b`
     /// (through its own truthy test) on the truthy path — `Lowering::
-    /// lower_and`'s branch/`Phi`-merge shape, reached from `return`'s
-    /// mutable `cur` via `Lowering::lower_expr_top`.
+    /// lower_and`'s branch/`Phi`-merge shape.
     #[test]
     fn and_short_circuits_to_a_phi() {
         let (f, map, file) = lower_first_method(
@@ -3251,9 +3250,7 @@ class T {
     }
 
     /// `!($a && $b)` — `!`'s operand is itself a short-circuit `&&`, composing
-    /// through `Lowering::lower_not`'s own `Lowering::lower_expr_top` call
-    /// rather than the plain, non-branching `Lowering::lower_expr` a nested
-    /// `!` would otherwise be stuck with.
+    /// through `Lowering::lower_not`'s own `Lowering::lower_expr` call.
     #[test]
     fn not_composes_with_a_short_circuit_and() {
         let (f, map, file) = lower_first_method(
@@ -3352,17 +3349,17 @@ class T {
         );
     }
 
-    /// `&&`/`||`/`!`/ternary only compose at a position that already owns a
-    /// mutable `cur` — a call argument still only has a fixed `cur: BlockId`,
-    /// so `$a && $b` nested there still panics via the plain, non-branching
-    /// `Lowering::lower_expr`'s existing arithmetic/equality/ordering-only
-    /// `Binary` table, exactly as before this slice.
+    /// A short-circuiting `&&` nested inside a **call argument** — the
+    /// position that had no `&mut BlockId` to redirect and so panicked, which
+    /// was this crate's known gap 5. `Lowering::lower_expr` now owns one, so
+    /// the argument's own branch/merge is spliced into the caller's block
+    /// chain and the call is emitted in whichever block the merge ended in.
     #[test]
-    #[should_panic(expected = "arithmetic/equality/ordering operators")]
-    fn a_short_circuit_and_nested_in_a_call_argument_is_still_out_of_scope() {
-        lower_first_method(
+    fn a_short_circuit_and_nested_in_a_call_argument_composes() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(bool $a, bool $b): void {\n    self::take($a && $b);\n  }\n  static function take(bool $x): void {}\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A plain `break;` inside a nested `if`, with no reassignment along the

@@ -57,7 +57,7 @@ impl<'a> Lowering<'a> {
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
         env: &Env,
-        cur: BlockId,
+        cur: &mut BlockId,
     ) -> LoweredArgs {
         assert!(
             !sig.variadic,
@@ -110,7 +110,7 @@ impl<'a> Lowering<'a> {
                 None => {
                     let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
                     let aliasing = self.aliasing_read(&arg.value);
-                    self.account_for_arg(v, ty, ownership, aliasing, &mut out, cur);
+                    self.account_for_arg(v, ty, ownership, aliasing, &mut out, *cur);
                     out.values.push(v);
                     continue;
                 }
@@ -122,13 +122,13 @@ impl<'a> Lowering<'a> {
             }
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
             let aliasing = self.aliasing_read(&arg.value);
-            self.account_for_arg(v, ty, ownership, aliasing, &mut out, cur);
+            self.account_for_arg(v, ty, ownership, aliasing, &mut out, *cur);
             // A parameter declared wider than the argument -- `?T` or another
             // union -- is `Ty::Tagged`, so the argument is widened into the
             // slot's representation here. `Self::coerce` transfers whatever
             // ownership `account_for_arg` just settled, so the order of the
             // two does not matter.
-            let v = self.coerce(cur, v, ty, expected);
+            let v = self.coerce(*cur, v, ty, expected);
             out.values.push(v);
         }
         for (index, default) in sig.defaults.iter().enumerate().skip(list.len()) {
@@ -142,17 +142,17 @@ impl<'a> Lowering<'a> {
             // default, in the same declared order a written one flattens in.
             if let mwl_types::ConstArg::Options(options) = default {
                 for (_, value) in options {
-                    let (v, ty) = self.emit_const_arg(value, cur);
-                    self.account_for_arg(v, ty, ownership, false, &mut out, cur);
+                    let (v, ty) = self.emit_const_arg(value, *cur);
+                    self.account_for_arg(v, ty, ownership, false, &mut out, *cur);
                     out.values.push(v);
                 }
                 continue;
             }
-            let (v, ty) = self.emit_const_arg(default, cur);
+            let (v, ty) = self.emit_const_arg(default, *cur);
             // A materialized default is always freshly built, never a read of
             // storage someone else owns — so `aliasing` is `false` here by
             // construction.
-            self.account_for_arg(v, ty, ownership, false, &mut out, cur);
+            self.account_for_arg(v, ty, ownership, false, &mut out, *cur);
             out.values.push(v);
         }
         out
@@ -226,7 +226,7 @@ impl<'a> Lowering<'a> {
         checked_types: &TypeInterner,
         ownership: ArgOwnership,
         env: &Env,
-        cur: BlockId,
+        cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
         let fields: Vec<(String, &Expr)> = match written {
@@ -248,7 +248,7 @@ impl<'a> Lowering<'a> {
                 let expected = lower_checked_ty(*option_ty, checked_types);
                 let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
                 let aliasing = self.aliasing_read(value);
-                self.account_for_arg(v, ty, ownership, aliasing, out, cur);
+                self.account_for_arg(v, ty, ownership, aliasing, out, *cur);
                 out.values.push(v);
                 continue;
             }
@@ -263,8 +263,8 @@ impl<'a> Lowering<'a> {
                          option"
                     )
                 });
-            let (v, ty) = self.emit_const_arg(default, cur);
-            self.account_for_arg(v, ty, ownership, false, out, cur);
+            let (v, ty) = self.emit_const_arg(default, *cur);
+            self.account_for_arg(v, ty, ownership, false, out, *cur);
             out.values.push(v);
         }
     }
@@ -324,7 +324,13 @@ impl<'a> Lowering<'a> {
     /// The holder's receiver (for a property) is lowered exactly once, here,
     /// and remembered in the [`RefHolder`] so the copy-back re-uses it rather
     /// than evaluating it a second time.
-    pub(super) fn stage_ref_arg(&mut self, arg: &Expr, ty: Ty, env: &Env, cur: BlockId) -> ValueId {
+    pub(super) fn stage_ref_arg(
+        &mut self,
+        arg: &Expr,
+        ty: Ty,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
         let (holder, init) = match &arg.kind {
             ExprKind::Variable(name_span) => {
                 let name = strip_sigil(span_text(self.src, *name_span)).to_owned();
@@ -347,7 +353,7 @@ impl<'a> Lowering<'a> {
                 let field = name.clone();
                 let (object_v, _) = self.lower_expr(object, None, env, cur);
                 let (v, _) = self.emit(
-                    cur,
+                    *cur,
                     ty,
                     InstKind::FieldGet {
                         object: object_v,
@@ -374,9 +380,9 @@ impl<'a> Lowering<'a> {
         // own, which `Self::write_back_holder`'s release pays back. See
         // `Ty::Ref`'s refcounting section.
         if ty.is_refcounted() {
-            self.emit_retain(cur, init);
+            self.emit_retain(*cur, init);
         }
-        let (slot, _) = self.emit(cur, Ty::Ref, InstKind::RefSlot { init });
+        let (slot, _) = self.emit(*cur, Ty::Ref, InstKind::RefSlot { init });
         self.pending_refs.push(StagedRef { holder, slot, ty });
         slot
     }

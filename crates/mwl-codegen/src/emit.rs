@@ -1714,7 +1714,7 @@ impl Emitter<'_, '_> {
             // and the arms are few in the one producer there is today (one
             // per `yield` in a generator, plus the entry and the exhausted
             // arm). A `br_table` over a dense case set is this module's
-            // known gap 5.
+            // known gap 6.
             Terminator::Switch {
                 value,
                 arms,
