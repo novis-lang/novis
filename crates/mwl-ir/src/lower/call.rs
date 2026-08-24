@@ -123,6 +123,12 @@ impl<'a> Lowering<'a> {
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
             let aliasing = self.aliasing_read(&arg.value);
             self.account_for_arg(v, ty, ownership, aliasing, &mut out, cur);
+            // A parameter declared wider than the argument -- `?T` or another
+            // union -- is `Ty::Tagged`, so the argument is widened into the
+            // slot's representation here. `Self::coerce` transfers whatever
+            // ownership `account_for_arg` just settled, so the order of the
+            // two does not matter.
+            let v = self.coerce(cur, v, ty, expected);
             out.values.push(v);
         }
         for (index, default) in sig.defaults.iter().enumerate().skip(list.len()) {

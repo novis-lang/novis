@@ -1,0 +1,41 @@
+--TEST--
+A `?T` binding holds either representation, and `??` reads it back — ADR 0066
+--FILE--
+<?mwl
+?int $absent = null;
+?int $present = 3;
+int $a = $absent ?? -1;
+int $p = $present ?? -1;
+echo "absent=" . $a . "\n";
+echo "present=" . $p . "\n";
+
+?string $name = null;
+string $shown = $name ?? "anonymous";
+echo "name=" . $shown . "\n";
+
+$name = "ada";
+string $again = $name ?? "anonymous";
+echo "name=" . $again . "\n";
+
+int $rounds = 0;
+int $i = 0;
+while ($i < 3) {
+    ?int $maybe = null;
+    if ($i == 1) {
+        $maybe = 9;
+    }
+    $rounds = $rounds + 1;
+    int $picked = $maybe ?? 0;
+    echo "picked=" . $picked . "\n";
+    $i = $i + 1;
+}
+echo "rounds=" . $rounds . "\n";
+--EXPECT--
+absent=-1
+present=3
+name=anonymous
+name=ada
+picked=0
+picked=9
+picked=0
+rounds=3

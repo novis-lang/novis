@@ -1,5 +1,5 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_program(&p, map.file(file))"
 ---
 fn G::two(classdesc) -> object {
@@ -79,7 +79,7 @@ fn G::two$gen::current(object) -> string {
     return v1
 }
 
-fn <script>() -> mixed {
+fn <script>() -> tagged {
   bb0:
     safepoint
     return

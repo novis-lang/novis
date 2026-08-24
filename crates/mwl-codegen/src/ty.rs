@@ -17,13 +17,25 @@ use crate::CodegenError;
 /// A `bool` is `I8` rather than `I64` because that is what a Cranelift
 /// comparison produces; every refcounted or opaque representation is a bare
 /// pointer.
+///
+/// [`Ty::Tagged`] is the one that is not a scalar at all: it is `I128`, which
+/// Cranelift legalizes to a register pair, and whose two halves are exactly
+/// the two halves of a 16-byte [`mwl_runtime::Value`] on a little-endian
+/// target — the low half its tag word, the high half its payload. That is
+/// what makes materializing one into a call's argument slot two plain stores.
+/// Every producer of an `I128` here keeps the tag word **zero-extended from
+/// the tag byte**, which is the invariant `Emitter::emit_is_null` relies on to
+/// compare without masking.
 #[must_use]
 pub fn clif_ty(ty: Ty) -> Option<Type> {
     Some(match ty {
         Ty::Bool => types::I8,
         Ty::Int | Ty::Uint => types::I64,
         Ty::Float => types::F64,
-        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Mixed | Ty::ClassDesc => types::I64,
+        Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::ClassDesc => types::I64,
+        // The whole 16-byte tagged value, in a register pair — see this
+        // function's own doc comment and `mwl_ir::Ty::Tagged`.
+        Ty::Tagged => types::I128,
         // `null`'s payload is always zero, but it still travels in a register
         // like every other representation rather than in a shape of its own.
         Ty::Null => types::I64,
@@ -45,10 +57,11 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
 ///
 /// # Errors
 ///
-/// [`CodegenError::Unsupported`] for [`Ty::Mixed`], whose runtime type tag is
-/// still undecided (`mwl-ir`'s known gap 5) — a `mixed` value's tag is by
-/// definition not knowable from its static representation, which is the whole
-/// of the open question — and for [`Ty::Void`], which is not a value at all.
+/// [`CodegenError::Unsupported`] for [`Ty::Tagged`], whose tag is by
+/// definition not a function of its static representation — it carries its own
+/// (see [`clif_ty`]), so every path that materializes one reads it from the
+/// value instead and never asks here. Reaching this arm means a caller
+/// forgot that. Likewise for [`Ty::Void`], which is not a value at all.
 /// An exception is an ordinary [`Tag::Object`] now, with no case of its own.
 pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
     Ok(match ty {
@@ -81,11 +94,9 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         // `Value` can mistake it for a heap reference. `mwl_ir::Ty::Ref` owns
         // the decision.
         Ty::Ref => Tag::Null,
-        Ty::Mixed => {
+        Ty::Tagged => {
             return Err(CodegenError::Unsupported(
-                "a `mixed` value crossing a call boundary — its runtime type \
-                 tag is still an open representation question"
-                    .to_owned(),
+                "the static tag of a tagged value, which carries its own".to_owned(),
             ));
         }
         _ => {

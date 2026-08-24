@@ -1,0 +1,57 @@
+--TEST--
+A `?T` return type carries either a value or `null` across a call — ADR 0066
+--FILE--
+<?mwl
+class Lookup {
+    private array<string> $entries;
+
+    public function constructor(array<string> $entries) {
+        $this->entries = $entries;
+    }
+
+    public function get(string $key): ?string {
+        if (Core\Arr::hasKey($this->entries, $key)) {
+            return $this->entries[$key];
+        }
+
+        return null;
+    }
+}
+
+array<string> $config = ["host" => "example.test", "port" => "8080"];
+var $lookup = new Lookup($config);
+
+string $host = $lookup->get("host") ?? "unset";
+string $port = $lookup->get("port") ?? "unset";
+string $user = $lookup->get("user") ?? "unset";
+echo "host=" . $host . "\n";
+echo "port=" . $port . "\n";
+echo "user=" . $user . "\n";
+
+// A `?T` property, assigned both ways, read back through `??`.
+class Cell {
+    public ?string $held;
+
+    public function constructor() {
+        $this->held = null;
+    }
+
+    public function put(string $value): void {
+        $this->held = $value;
+    }
+
+    public function show(): string {
+        return $this->held ?? "empty";
+    }
+}
+
+var $cell = new Cell();
+echo "cell=" . $cell->show() . "\n";
+$cell->put("full");
+echo "cell=" . $cell->show() . "\n";
+--EXPECT--
+host=example.test
+port=8080
+user=unset
+cell=empty
+cell=full

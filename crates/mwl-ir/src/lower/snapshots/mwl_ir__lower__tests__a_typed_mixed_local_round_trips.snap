@@ -1,14 +1,16 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
-fn pick(object, mixed) -> mixed {
+fn pick(object, tagged) -> tagged {
   bb0:
     safepoint
     v0 = param 0  ; object
-    v1 = param 1  ; mixed
+    v1 = param 1  ; tagged
     ; stmt s0 @4:5-4:19
+    retain v1
     ; stmt s1 @5:5-5:15
     release v0
+    release v1
     return v1
 }

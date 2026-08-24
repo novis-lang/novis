@@ -26,6 +26,10 @@ impl<'a> Lowering<'a> {
             // rather than discarding.
             ExprKind::Paren(inner) => self.lower_expr(inner, expected, env, cur),
             ExprKind::Bool(b) => self.emit(cur, Ty::Bool, InstKind::ConstBool(*b)),
+            // The literal `null`. Its own type, not a tagged one -- see
+            // `Ty::Null`; `Self::coerce` widens it wherever the position it
+            // lands in declares `?T`.
+            ExprKind::Null => self.emit(cur, Ty::Null, InstKind::ConstNull),
             // ADR 0007 § 4, mirroring `mwl_types::expr::infer`'s own rule: a
             // bare integer literal means `uint` exactly where that's the
             // expected type, `int` otherwise. `mwl_types::expr::infer`'s own
@@ -1012,7 +1016,7 @@ impl<'a> Lowering<'a> {
                     | Ty::Null
                     | Ty::Object
                     | Ty::Array
-                    | Ty::Mixed
+                    | Ty::Tagged
                     | Ty::Enum(_)
                     | Ty::ClassDesc
                     | Ty::Ref => {
@@ -1253,7 +1257,7 @@ impl<'a> Lowering<'a> {
     /// `string`, not the separate `bytes` type) or `Ty::Void`. The `null`
     /// case (a nullable type) still has no IR representation to convert
     /// *from* at all, so it can't actually reach this method for any program
-    /// in scope today. `Ty::Mixed` still panics too: converting one through
+    /// in scope today. `Ty::Tagged` still panics too: converting one through
     /// ADR 0035's table needs a runtime type-tag representation this crate
     /// still doesn't have.
     pub(super) fn truthy_convert(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> ValueId {
@@ -1271,7 +1275,7 @@ impl<'a> Lowering<'a> {
                     | Ty::Object
                     | Ty::Array
                     | Ty::Bytes
-                    | Ty::Mixed
+                    | Ty::Tagged
                     | Ty::Enum(_)
                     | Ty::ClassDesc
                     | Ty::Ref => {
@@ -1404,8 +1408,132 @@ impl<'a> Lowering<'a> {
             ExprKind::Ternary { cond, then, else_ } => {
                 self.lower_ternary(cond, then.as_deref(), else_, env, cur)
             }
+            ExprKind::Binary {
+                op: BinaryOp::Coalesce,
+                lhs,
+                rhs,
+            } => self.lower_coalesce(expr, lhs, rhs, env, cur),
             _ => self.lower_expr(expr, expected, env, *cur),
         }
+    }
+    /// `$a ?? $b` — the right operand is evaluated only when the left one is
+    /// `null`, which is one [`InstKind::IsNull`] and the same branch/phi shape
+    /// [`Self::lower_ternary`] uses.
+    ///
+    /// Both types come from the checker's own `ExprInfo::Coalesce` entry, and
+    /// have to: the left operand's representation is [`Ty::Tagged`] by the
+    /// time it is lowered, so nothing here could work out on its own which
+    /// representation the non-`null` arm holds. That variant's doc comment
+    /// owns why.
+    ///
+    /// # Ownership
+    ///
+    /// The non-`null` arm's [`InstKind::Untag`] *transfers* whatever the
+    /// tagged value owned, so a left operand this expression built needs no
+    /// release on either arm — on the `null` arm it owns nothing by
+    /// definition, and on the other the narrowed value has taken it over. A
+    /// left operand read out of storage someone else owns
+    /// ([`is_aliasing_read`]) is retained on the non-`null` arm, exactly as
+    /// [`Self::lower_ternary`] retains an aliasing branch value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the checker recorded no `ExprInfo::Coalesce` for this
+    /// expression, which would mean it was checked with a different table.
+    pub(super) fn lower_coalesce(
+        &mut self,
+        whole: &Expr,
+        lhs: &Expr,
+        rhs: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (non_null, result) = match self.exprs.lookup(whole.span) {
+            Some(ExprInfo::Coalesce { non_null, result }) => (*non_null, *result),
+            _ => panic!(
+                "mwl-ir: a `??` at {:?} has no recorded result type — either it wasn't checked \
+                 with the same table, or `mwl_types::expr` stopped recording one",
+                whole.span
+            ),
+        };
+        let non_null_repr = lower_checked_ty(non_null, self.checked_types);
+        let result_repr = lower_checked_ty(result, self.checked_types);
+
+        let (lhs_v, lhs_ty) = self.lower_expr_top(lhs, None, env, cur);
+        let lhs_is_alias = self.aliasing_read(lhs);
+
+        // A left operand whose representation is not tagged cannot be `null`
+        // at runtime, so `??` is the left operand and the right one is never
+        // evaluated — which is what short-circuiting already means. The
+        // mirror case, a statically `null` left operand, is the right one.
+        if lhs_ty != Ty::Tagged {
+            if lhs_ty == Ty::Null {
+                let mut rhs_cur = *cur;
+                let (rv, rty) = self.lower_expr_top(rhs, Some(result_repr), env, &mut rhs_cur);
+                if rty.is_refcounted() && self.aliasing_read(rhs) {
+                    self.emit_retain(rhs_cur, rv);
+                }
+                let rv = self.coerce(rhs_cur, rv, rty, result_repr);
+                *cur = rhs_cur;
+                return (rv, result_repr);
+            }
+            if lhs_ty.is_refcounted() && lhs_is_alias {
+                self.emit_retain(*cur, lhs_v);
+            }
+            let v = self.coerce(*cur, lhs_v, lhs_ty, result_repr);
+            return (v, result_repr);
+        }
+
+        let is_null = self
+            .emit(*cur, Ty::Bool, InstKind::IsNull { operand: lhs_v })
+            .0;
+        let pre_block = *cur;
+        let null_block = self.new_block();
+        let value_block = self.new_block();
+        let merge_block = self.new_block();
+        let null_edge = self.ids.next_edge(rhs.span);
+        let value_edge = self.ids.next_edge(lhs.span);
+        self.seal(
+            pre_block,
+            Terminator::Branch {
+                cond: is_null,
+                then_block: null_block,
+                then_edge: null_edge,
+                else_block: value_block,
+                else_edge: value_edge,
+            },
+        );
+
+        let untagged = self
+            .emit(
+                value_block,
+                non_null_repr,
+                InstKind::Untag { operand: lhs_v },
+            )
+            .0;
+        if non_null_repr.is_refcounted() && lhs_is_alias {
+            self.emit_retain(value_block, untagged);
+        }
+        let value_v = self.coerce(value_block, untagged, non_null_repr, result_repr);
+        self.seal(value_block, Terminator::Jump(merge_block));
+
+        let mut rhs_cur = null_block;
+        let (rv, rty) = self.lower_expr_top(rhs, Some(result_repr), env, &mut rhs_cur);
+        if rty.is_refcounted() && self.aliasing_read(rhs) {
+            self.emit_retain(rhs_cur, rv);
+        }
+        let null_v = self.coerce(rhs_cur, rv, rty, result_repr);
+        self.seal(rhs_cur, Terminator::Jump(merge_block));
+
+        let (value, _) = self.emit(
+            merge_block,
+            result_repr,
+            InstKind::Phi {
+                incoming: vec![(value_block, value_v), (rhs_cur, null_v)],
+            },
+        );
+        *cur = merge_block;
+        (value, result_repr)
     }
     /// `!expr` — ADR 0035's truthy table applied to `expr`, then negated;
     /// always produces [`Ty::Bool`] regardless of `expr`'s own type, unlike a
@@ -1574,7 +1702,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming the case if `then`'s and `else`'s branches lower to two
     /// different [`Ty`] representations — the checker's own union of their
     /// static types has no IR representation this crate can fold into yet
-    /// (see [`Ty::Mixed`]'s own doc comment on why a union isn't folded into
+    /// (see [`Ty::Tagged`]'s own doc comment on why a union isn't folded into
     /// it automatically). Otherwise see [`Self::truthy_convert`]'s own panic
     /// doc for `cond`'s own restriction.
     pub(super) fn lower_ternary(

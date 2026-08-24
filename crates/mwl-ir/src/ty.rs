@@ -34,12 +34,12 @@
 //! [`crate::ir::Program::classes`] carries the per-class slot order this
 //! per-value lattice has no room for. Widening lowering further adds
 //! variants to this enum; it does not replace the "erase checker
-//! qualifiers" design itself. [`Ty::Mixed`] is the newest, and the
-//! first variant that is reserved *by design* rather than only until a later
-//! slice gets to it: unlike every representation above, there is no obvious
-//! "next slice" that makes it functional without first deciding a runtime
-//! type-tag representation — see its own doc comment for exactly what that
-//! open design question is and what round-trips through it already.
+//! qualifiers" design itself. [`Ty::Tagged`] is the one variant that is not a
+//! machine representation of a single MWL type at all — it is the *tagged*
+//! representation every type whose runtime shape is not statically known
+//! erases to: `mixed`, `?T`, and any other union. Its own doc comment is the
+//! home for that decision, its cost, and the three instructions that widen
+//! into it, narrow out of it and test it.
 
 /// One IR value's representation.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -56,28 +56,17 @@ pub enum Ty {
     /// `null` — the one value of its own type, and the whole of what an
     /// **absent** argument is.
     ///
-    /// Deliberately *not* the same thing as [`Self::Mixed`]. `mixed` is
-    /// "some value whose runtime type nothing has decided how to read yet";
-    /// this is "no value," and its representation is settled: a `Tag::Null`
-    /// tag byte over a zero payload, which is exactly what
-    /// `mwl_runtime::Value::null` already builds and what every helper
-    /// already receives in the receiver slot of a static call. So a `null`
-    /// argument needs no runtime type tag decided and no new marshalling —
-    /// only a constant to emit it from ([`crate::ir::InstKind::ConstNull`]).
+    /// Deliberately *not* the same thing as [`Self::Tagged`]. This is the
+    /// static type of the literal `null` and of an **absent** argument: one
+    /// value, known at compile time, represented as a `Tag::Null` tag byte
+    /// over a zero payload — exactly what `mwl_runtime::Value::null` builds
+    /// and what every helper already receives in the receiver slot of a
+    /// static call. A binding *declared* `?T` is the other thing, and is
+    /// [`Self::Tagged`]: it has to hold either representation at different
+    /// points, so it carries its tag at runtime. [`crate::ir::InstKind::Tag`]
+    /// is the widening between them, and costs one register pair to build.
     ///
     /// **Not refcounted**, and nothing is ever allocated for it.
-    ///
-    /// # What this does not add
-    ///
-    /// A `?T` *declared* type still does not lower. This variant is the
-    /// representation of the value `null`, not of a type that admits it: a
-    /// binding declared `?int` has to hold either representation at different
-    /// points, which is the union question `mwl_ir::ty::Ty::Mixed` records as
-    /// still open. What it does close is the narrower case that blocked
-    /// [ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2's option
-    /// bags: an option whose *default* is "not given," where the constant is
-    /// `null` at every call site that omits it and the declared type is
-    /// whatever the option accepts when it is written.
     Null,
     /// A function returning nothing.
     Void,
@@ -139,39 +128,72 @@ pub enum Ty {
     /// their own known gaps (append syntax, a non-int/uint/string key, a
     /// `mixed`-erased base).
     Array,
-    /// `mixed` — ADR 0007 § 3's one unchecked position. Bare and opaque,
-    /// like [`Self::Object`]/[`Self::Array`]: a `mixed`-typed value's actual
-    /// runtime shape (`int`, a `string`, an array, an object, ...) needs a
-    /// runtime type tag to distinguish, and this variant deliberately does
-    /// not decide that representation yet — the design question the
-    /// milestone text names is "how a `mixed` value's runtime type tag is
-    /// represented," and picking one is real, non-mechanical work belonging
-    /// to whichever slice first needs to branch on it (a runtime-helper call
-    /// dispatching on `mixed`'s actual type, ADR 0035's `null`/`mixed` truthy
-    /// case, or arithmetic's `mixed` fallback — see [`crate::lower`]'s crate
-    /// docs for all three). What *this* slice lands is narrower: enough
-    /// representation for a `mixed`-typed local, parameter, return value or
-    /// call argument to exist and round-trip through [`crate::lower`]'s
-    /// existing local-bind/call-argument/return machinery, which keys
-    /// entirely off [`Self::is_refcounted`] and needs no `mixed`-specific
-    /// insertion point to do that — see [`Self::is_refcounted`]'s own doc
-    /// comment for why this variant is excluded there too. Reading, writing
-    /// or converting a `mixed` value in any way that needs to know its actual
-    /// runtime type (arithmetic, `.` concatenation, an `if`/`while`
-    /// condition, indexing) still panics naming the case: this slice adds a
-    /// representation to erase into, not a way to see through it again.
-    /// Deliberately *not* what a union or a nullable (`?T`) type lowers to:
-    /// [`crate::lower::lower_decl_type`]/[`crate::lower::lower_checked_ty`]
-    /// only route the bare `TypeAtom::Mixed`/`CheckedTy::Mixed` atom here —
-    /// a union/`?T` still panics unchanged, since folding either into this
-    /// same representation would be its own decision (they are narrower than
-    /// fully-erased `mixed`, and `null`'s own IR representation is a
-    /// separate, still-open gap named elsewhere in this crate) rather than a
-    /// mechanical extension of it. The one position where a union is
-    /// nonetheless lowerable is a `Core` member's *parameter*, and it is
-    /// lowerable precisely because it never reaches this variant at all —
-    /// see [`crate::lower::ArgSig::helper`].
-    Mixed,
+    /// A **tagged** value: one whose runtime type is carried with it rather
+    /// than known statically. Every checker type that admits more than one
+    /// runtime shape erases to this one representation — ADR 0007 § 3's
+    /// `mixed`, a nullable `?T`, and any other union.
+    ///
+    /// # The representation
+    ///
+    /// Exactly `mwl_runtime::Value`: a tag byte, seven bytes of padding, and
+    /// an eight-byte payload. In a register it is **one register pair** — the
+    /// low half is the value's first eight bytes (the tag byte and its
+    /// padding), the high half is the payload — which is the little-endian
+    /// memory image of that struct, so materializing one into a call's
+    /// argument slot is one store per half and no reshuffling at all.
+    /// `mwl_codegen::ty::clif_ty` names the machine type; the *layout* is
+    /// `mwl_runtime::value`'s, and this variant deliberately adds no second
+    /// one.
+    ///
+    /// # Why `mixed` and `?T` are one representation, not two
+    ///
+    /// Both need the same thing: a discriminant read at runtime. That
+    /// discriminant already existed — the tag byte every ADR 0002 call
+    /// boundary has carried since M3 — so reusing it costs no new invariant,
+    /// while two shapes would have meant two widen/narrow protocols, two
+    /// refcount paths and two ways for a `?mixed` to be ambiguous. A `?T` is
+    /// *narrower* than `mixed`, but only in what the **checker** will let a
+    /// program do with it; nothing downstream of `check_program` reads that
+    /// difference, which is this module's whole premise.
+    ///
+    /// # What it spends
+    ///
+    /// Sixteen bytes per live tagged value instead of eight — one extra
+    /// machine register, or eight extra stack bytes, per tagged value in
+    /// flight. Nothing is allocated: the tag rides *with* the value, so a
+    /// `?int` is still a register pair rather than a pointer to a box. On top
+    /// of that a retain or release of one is an out-of-line call to
+    /// `mwl_runtime::mwl_value_retain`/`mwl_value_release`, which branches on
+    /// the tag, where a statically-typed value calls the exact primitive its
+    /// representation names. That is priority 5 spent to buy priority 2 in
+    /// [AGENTS.md](../../../AGENTS.md)'s ordering, on the same terms the
+    /// 16-byte `Value` itself was bought.
+    ///
+    /// # Getting in and out
+    ///
+    /// Three instructions, and nothing else may read a tag:
+    /// [`crate::ir::InstKind::Tag`] widens a statically-typed value into one,
+    /// [`crate::ir::InstKind::Untag`] narrows one back to a representation the
+    /// checker already proved it holds, and
+    /// [`crate::ir::InstKind::IsNull`] tests it for `null`.
+    /// [`crate::lower::Lowering::coerce`] is the one place the first two are
+    /// emitted, at every boundary carrying a declared type.
+    ///
+    /// **Refcounted** ([`Self::is_refcounted`]), because it may hold a
+    /// payload that is — which is precisely what the runtime branch above is
+    /// for. Everything keyed on that predicate (a local's declare/reassign/
+    /// scope-exit lifecycle, a call argument, a return value, a property
+    /// read) therefore needs no tagged-specific insertion point.
+    ///
+    /// # Known gap
+    ///
+    /// Reading a tagged value in a way that needs its *actual* type without a
+    /// checker-proven narrowing — arithmetic on a `mixed`, `.`
+    /// concatenation, ADR 0035's truthy table, an array access through a
+    /// `mixed`-erased base — still panics naming the case. Closing that adds
+    /// [`crate::ir::Helper`] variants dispatching on the tag, not a second
+    /// representation.
+    Tagged,
     /// An enum value — [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)'s
     /// closed, named integer type.
     ///
@@ -195,7 +217,7 @@ pub enum Ty {
     /// rather than a tag of its own, which ADR 0010 § 6 does reserve. The tag
     /// only has to answer "which type is this?" for a value whose static type
     /// is *not* known — the `mixed` case — and that is the same still-open
-    /// representation question [`Self::Mixed`] names. Deciding an enum's tag
+    /// representation question [`Self::Tagged`] names. Deciding an enum's tag
     /// ahead of it would be deciding half of it twice.
     Enum(EnumRepr),
     /// The address of one 16-byte `mwl_runtime::Value` cell — what a `&T`
@@ -309,20 +331,18 @@ impl Ty {
     /// gave an instance a real allocation to free: an object local, argument,
     /// return value or field now carries exactly the retain/release a string
     /// already did, through `mwl_object_retain`/`mwl_object_release`.
-    /// [`Self::Mixed`] is excluded for a different reason, one level further
-    /// removed: a `mixed` value's *actual* runtime type might itself be
-    /// refcounted (a `string`, an array, an object) or not (a scalar), but
-    /// nothing decides that runtime type tag yet (see that variant's own doc
-    /// comment) — so there is no way to know *whether* a retain/release is
-    /// even needed for a given `mixed` value today, let alone emit the right
-    /// one. A `mixed`-typed local/parameter/return still round-trips
-    /// correctly without one: PHP's/ADR 0007's own semantics don't ask this
-    /// crate to free anything behind a value it never inspects, and every
-    /// insertion point this method gates already treats "not refcounted" as
-    /// "nothing to do here," not "assume no cleanup is ever needed" — the
-    /// distinction that will matter once a real tag representation lands.
+    /// [`Self::Tagged`] is on the list for a reason one level further removed:
+    /// a tagged value's *actual* payload might be refcounted (a string, an
+    /// array, an object) or not (a scalar, `null`), and which one it is is
+    /// exactly what its tag says — so the retain/release is emitted
+    /// unconditionally and the **runtime** branches, through
+    /// `mwl_runtime::mwl_value_retain`/`mwl_value_release`. That is what makes
+    /// every insertion point this method gates need no tagged-specific arm.
     #[must_use]
     pub fn is_refcounted(self) -> bool {
-        matches!(self, Ty::Str | Ty::Bytes | Ty::Array | Ty::Object)
+        matches!(
+            self,
+            Ty::Str | Ty::Bytes | Ty::Array | Ty::Object | Ty::Tagged
+        )
     }
 }

@@ -2802,7 +2802,19 @@ fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut E
         | BinaryOp::NotIdentical
         | BinaryOp::And
         | BinaryOp::Or => env.interner.bool_ty(),
-        BinaryOp::Coalesce => env.interner.make_union([lhs, rhs]),
+        // `$a ?? $b` yields `$b` exactly when `$a` is `null`, so `null` is
+        // gone from the result unless `$b` can be one — which is what makes
+        // `string $s = $maybe ?? "d";` type-check at all. Recorded for
+        // `mwl-ir` at the same time: see `ExprInfo::Coalesce`.
+        BinaryOp::Coalesce => {
+            let non_null = env.interner.without_null(lhs);
+            let result = env.interner.make_union([non_null, rhs]);
+            env.exprs.record(
+                span,
+                crate::expr_table::ExprInfo::Coalesce { non_null, result },
+            );
+            result
+        }
         _ => env.interner.mixed(),
     }
 }

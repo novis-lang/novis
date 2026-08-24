@@ -38,6 +38,22 @@
 //!    "copy-on-write" is literally true today. [`release`] owns the single
 //!    worklist all three are freed through.
 //!
+//! # A tagged value's heap half: none
+//!
+//! `mixed`, `?T` and every other union share one representation in compiled
+//! code — `mwl_ir::Ty::Tagged`, whose own doc comment owns the decision. What
+//! belongs *here* is the half this crate provides, and it is deliberately
+//! small: **a tagged value allocates nothing.** It is a [`Value`] carried in a
+//! register pair rather than a pointer to a box, so its two halves are the two
+//! halves of the struct above and materializing one into an argument slot is
+//! two stores. The only new primitive it needed is the pair
+//! [`mwl_value_retain`]/[`mwl_value_release`], which take those two halves and
+//! branch on the tag — the whole of what "its payload may or may not be
+//! refcounted" costs, and an out-of-line call where a statically-typed value
+//! calls [`mwl_str_retain`] or [`mwl_object_retain`] directly. No new tag, no
+//! new heap shape, no second release path: [`release`]'s one worklist already
+//! frees whatever the payload turns out to be.
+//!
 //! # What is here, and what is deliberately not
 //!
 //! This is the runtime half of milestone M3's vertical slice (see
@@ -183,4 +199,4 @@ pub use throwable::{
     BACKTRACE_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown, mwl_raise,
     mwl_raise_new, mwl_take_thrown, mwl_trace_push,
 };
-pub use value::{Tag, Value};
+pub use value::{Tag, Value, mwl_value_release, mwl_value_retain};

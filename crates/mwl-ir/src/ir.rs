@@ -222,7 +222,7 @@ pub enum InstKind {
     ///
     /// Its one producer today is an omitted option whose default is "not
     /// given" ([`crate::lower::Lowering::emit_const_arg`]); a written `null`
-    /// expression still needs the `?T` lowering `Ty::Mixed`'s own doc comment
+    /// expression still needs the `?T` lowering `Ty::Tagged`'s own doc comment
     /// records as open.
     ConstNull,
     /// A `string` literal's cooked bytes — a fresh [`Ty::Str`] value with
@@ -606,6 +606,47 @@ pub enum InstKind {
     /// and no landing block.
     Reinterpret {
         /// The value being relabelled.
+        operand: ValueId,
+    },
+    /// Widens a statically-typed value into a [`crate::ty::Ty::Tagged`] one:
+    /// the operand's payload under the tag byte its own representation names
+    /// (`mwl_codegen::ty::tag_of`).
+    ///
+    /// Free of any allocation and of any call — it builds a register pair —
+    /// and **transfers ownership unchanged**: a tagged value carrying a
+    /// refcounted payload owns exactly the reference the operand owned, so
+    /// `crate::lower` inserts no retain around it and the eventual
+    /// [`InstKind::Release`] of the tagged value discharges the operand's
+    /// obligation. Cannot fail: no status, no landing block.
+    Tag {
+        /// The value being widened.
+        operand: ValueId,
+    },
+    /// Narrows a [`crate::ty::Ty::Tagged`] value back to the representation
+    /// [`Inst::ty`] names — the payload half, read at that representation.
+    ///
+    /// **Unchecked, and deliberately.** The tag is not compared: this crate
+    /// only emits an `Untag` where `mwl_types` has already proved which
+    /// representation the value holds — the non-`null` arm of a `??`, a
+    /// `?->` or an `if ($x !== null)` narrowing. A runtime *test* is
+    /// [`InstKind::IsNull`], and a conversion that can genuinely fail is an
+    /// ADR 0007 § 2 checked row, not this.
+    ///
+    /// **Transfers ownership unchanged**, the mirror of [`InstKind::Tag`]:
+    /// the narrowed value owns the reference the tagged one owned, so the
+    /// tagged value must not also be released.
+    Untag {
+        /// The tagged value being narrowed.
+        operand: ValueId,
+    },
+    /// Whether a [`crate::ty::Ty::Tagged`] value's tag is `Tag::Null` —
+    /// [`crate::ty::Ty::Bool`], one compare, no call.
+    ///
+    /// The only instruction that reads a tag, and the whole of what `??`,
+    /// `?->` and a nullable narrowing test. It borrows its operand: no
+    /// retain, no release, no ownership transfer.
+    IsNull {
+        /// The tagged value being tested.
         operand: ValueId,
     },
     /// Invokes one of a small, closed, engine-owned set of runtime

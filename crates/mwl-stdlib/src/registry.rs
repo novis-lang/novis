@@ -138,7 +138,7 @@ pub enum CoreTy {
     /// `mwl_runtime::Value`, and `mwl-codegen` writes its tag from the
     /// argument's own representation, so a union parameter needs no IR type of
     /// its own and the body decodes by tag. A union *return* would hand the
-    /// caller a value whose representation `mwl_ir::ty::Ty::Mixed`'s own doc
+    /// caller a value whose representation `mwl_ir::ty::Ty::Tagged`'s own doc
     /// comment records as still undecided, so no row states one —
     /// `a_union_is_only_ever_a_parameter` holds that.
     Union(&'static [CoreTy]),

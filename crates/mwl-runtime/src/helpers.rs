@@ -321,7 +321,7 @@ crate::mwl_helper! {
 /// time and there is no tag test on the hot path. This is the other case —
 /// native `Core` code holding a [`Value`] a closure just returned, whose
 /// static type is `callable`'s opaque result and therefore nothing. It is
-/// deliberately *not* the general `mixed` dispatch `mwl_ir::ty::Ty::Mixed`
+/// deliberately *not* the general `mixed` dispatch `mwl_ir::ty::Ty::Tagged`
 /// still defers: this reads a tag a `Value` already carries rather than
 /// deciding how a `mixed` binding represents one.
 ///
@@ -401,6 +401,14 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "mwl_str_retain",
             (crate::string::mwl_str_retain as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_value_retain",
+            (crate::value::mwl_value_retain as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_value_release",
+            (crate::value::mwl_value_release as *const ()).cast::<u8>(),
         ),
         (
             "mwl_str_release",

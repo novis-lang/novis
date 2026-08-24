@@ -195,6 +195,9 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         }
         InstKind::Concat { lhs, rhs } => format!("concat v{}, v{}", lhs.index(), rhs.index()),
         InstKind::Reinterpret { operand } => format!("reinterpret v{}", operand.index()),
+        InstKind::Tag { operand } => format!("tag v{}", operand.index()),
+        InstKind::Untag { operand } => format!("untag v{}", operand.index()),
+        InstKind::IsNull { operand } => format!("is.null v{}", operand.index()),
         InstKind::Clone { object } => format!("clone v{}", object.index()),
         InstKind::HelperCall { helper, args } => {
             let parts: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
@@ -348,7 +351,7 @@ fn ty_name(ty: Ty) -> &'static str {
         Ty::Str => "string",
         Ty::Bytes => "bytes",
         Ty::Array => "array",
-        Ty::Mixed => "mixed",
+        Ty::Tagged => "tagged",
         Ty::Null => "null",
         Ty::Enum(crate::ty::EnumRepr::Int) => "enum:int",
         Ty::Enum(crate::ty::EnumRepr::Uint) => "enum:uint",

@@ -81,7 +81,7 @@
 //! 3. **A `?T` parameter still cannot be stated**, so a member whose spec
 //!    signature declares one — `Core\Str::slice`'s `?int $length = null`, and
 //!    the rest of the spec's most common optional shape — waits on the
-//!    `mwl_ir::ty::Ty::Mixed` representation question a type admitting both
+//!    `mwl_ir::ty::Ty::Tagged` representation question a type admitting both
 //!    `null` and a `T` runs into. Four things are *off* that list now: ADR
 //!    0063 R2's options bag ([`registry::CoreTy::Options`], first used by
 //!    `Core\Arr::range`), a union parameter ([`registry::CoreTy::Union`],

@@ -1,18 +1,21 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_function(&f, map.file(file))"
 ---
-fn m(object, mixed) -> mixed {
+fn m(object, tagged) -> tagged {
   bb0:
     safepoint
     v0 = param 0  ; object
-    v1 = param 1  ; mixed
+    v1 = param 1  ; tagged
     ; stmt s0 @4:5-4:32
     retain v0
-    v2 = call T::identity(this: v0, v1) ! bb1  ; mixed
+    retain v1
+    v2 = call T::identity(this: v0, v1) ! bb1  ; tagged
     release v0
+    release v1
     return v2
   bb1:
     release v0
+    release v1
     propagate "m() at t.mwl:4"
 }

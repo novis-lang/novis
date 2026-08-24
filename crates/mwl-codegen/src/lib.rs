@@ -142,16 +142,16 @@
 //!    `InstKind::ConstStr` calls `mwl_str_new` over them rather than pointing
 //!    at a pinned-refcount immortal header — `mwl-runtime`'s known gap 3,
 //!    which named codegen as the missing half.
-//! 5. **[`mwl_ir::Ty::Mixed`] cannot be materialized.** Writing one into a
-//!    `Value` needs the runtime type tag nothing has decided yet (`mwl-ir`'s
-//!    known gap 5); a `mixed`-typed *return of nothing* still works, since
-//!    that writes `null`. **Integer `/` is the same gap wearing a different
-//!    hat**: [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4
-//!    types `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and
-//!    `7/2` is not — and a union has no single IR representation either. It is
-//!    refused a phase earlier today regardless, since `mwl_types` does not yet
-//!    widen that union to `float` at a binding, which is what makes `float $avg
-//!    = $sum / $n;` the ADR's own worked example. Integer `%` has no such
+//! 5. **Integer `/` does not compile.**
+//!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 types
+//!    `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and `7/2`
+//!    is not. That union now has a representation ([`mwl_ir::Ty::Tagged`], and
+//!    [`ty::clif_ty`] gives it a machine type), so what is left is the
+//!    *operator*: `BinOp::Div` emits one instruction for one representation,
+//!    and a tagged result would need it to pick at runtime. It is refused a
+//!    phase earlier today regardless, since `mwl_types` does not yet widen
+//!    that union to `float` at a binding, which is what makes `float $avg =
+//!    $sum / $n;` the ADR's own worked example. Integer `%` has no such
 //!    problem — its result is the operand type — and compiles.
 //! 6. **[`mwl_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
 //!    jump table.** Correct for any case set — the IR deliberately does not
@@ -523,6 +523,12 @@ struct Signatures {
     /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`, and the two
     /// `mwl_throwable_*` counterparts.
     refcount: Signature,
+    /// `mwl_value_retain(tag_word, bits)` / `mwl_value_release(tag_word, bits)`
+    /// — the tag-dispatching pair a `mwl_ir::Ty::Tagged` operand needs, taking
+    /// the register pair `crate::ty::clif_ty` describes as two words rather
+    /// than one 16-byte aggregate, so no C ABI question about how such an
+    /// aggregate travels ever arises.
+    value_refcount: Signature,
     /// `mwl_exception_new(ptr) -> ptr`, and every other exception primitive
     /// with that one shape: `mwl_throwable_message`, `mwl_throwable_trace`,
     /// `mwl_take_thrown`.
@@ -809,6 +815,10 @@ impl Signatures {
         let mut refcount = module.make_signature();
         refcount.params.push(AbiParam::new(ptr));
 
+        let mut value_refcount = module.make_signature();
+        value_refcount.params.push(AbiParam::new(types::I64));
+        value_refcount.params.push(AbiParam::new(types::I64));
+
         let mut ptr_to_ptr = module.make_signature();
         ptr_to_ptr.params.push(AbiParam::new(ptr));
         ptr_to_ptr.returns.push(AbiParam::new(ptr));
@@ -876,6 +886,7 @@ impl Signatures {
             str_concat,
             str_eq,
             refcount,
+            value_refcount,
             ptr_to_ptr,
             raise,
             raise_new,

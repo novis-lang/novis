@@ -682,7 +682,7 @@ pub fn lower_property_hook(
 ///   index 0 is not reserved and `params` is empty — matching
 ///   `mwl_types::check`'s own script frame, which seeds `$this` only when
 ///   there is an enclosing class.
-/// - **The return representation is [`Ty::Mixed`].** A top-level `return`
+/// - **The return representation is [`Ty::Tagged`].** A top-level `return`
 ///   hands a value back to whatever `require`d the file, and
 ///   [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
 ///   types that boundary `mixed`. A file that never returns falls through to
@@ -701,7 +701,7 @@ pub fn lower_script(
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
 ) -> Lowered {
-    let ret_ty = Ty::Mixed;
+    let ret_ty = Ty::Tagged;
     let mut low = Lowering::new(name, src, ret_ty, exprs, checked_types);
     let entry = low.new_block();
     let mut cur = entry;
@@ -922,7 +922,7 @@ struct ArgSig {
     ///
     /// The asymmetry is only in *parameter* position. A `Core` member that
     /// *returned* a union would need the caller to hold a value of a
-    /// representation [`Ty::Mixed`]'s own doc comment records as still open,
+    /// representation [`Ty::Tagged`]'s own doc comment records as still open,
     /// so the registry has none.
     helper: bool,
 }
@@ -1197,6 +1197,31 @@ impl<'a> Lowering<'a> {
             kind: InstKind::Release { operand: v },
             on_error: None,
         });
+    }
+    /// Reconciles the representation an expression produced with the one the
+    /// position it lands in declares — the **one** place
+    /// [`InstKind::Tag`]/[`InstKind::Untag`] are emitted.
+    ///
+    /// The two representations can differ for exactly one reason: the checker
+    /// accepted an assignment, an argument or a `return` whose declared type
+    /// is wider than the value's own. Since [`Ty::Tagged`] is what every such
+    /// wider type erases to (see its own doc comment), reconciling them is
+    /// widening into it or narrowing back out of it, and never anything else —
+    /// any other mismatch is a bug in this crate rather than a conversion, so
+    /// it is left alone for the instruction that consumes it to reject.
+    ///
+    /// Ownership is unchanged in both directions: both instructions transfer
+    /// the operand's reference to their result, so no caller needs a retain or
+    /// a release around one, and the [`is_aliasing_read`]-keyed retain every
+    /// boundary already emits still applies exactly once — to whichever of the
+    /// two values that boundary ends up storing.
+    pub(super) fn coerce(&mut self, cur: BlockId, v: ValueId, from: Ty, to: Ty) -> ValueId {
+        match (from, to) {
+            (a, b) if a == b => v,
+            (_, Ty::Tagged) => self.emit(cur, Ty::Tagged, InstKind::Tag { operand: v }).0,
+            (Ty::Tagged, _) => self.emit(cur, to, InstKind::Untag { operand: v }).0,
+            _ => v,
+        }
     }
     /// Appends an [`InstKind::RefStore`] to `b` — see that variant's own doc
     /// comment for the release-the-old half it performs itself, and
@@ -1604,7 +1629,7 @@ fn binding_ty(
 /// Lowers a *declared* type straight off the AST — every scalar atom, plus
 /// `TypeAtom::Name(_)` (a plain class/interface/enum name) as
 /// [`Ty::Object`], `TypeAtom::Array(_)` (bare `array` or `array<T>`) as
-/// [`Ty::Array`], and `TypeAtom::Mixed` as [`Ty::Mixed`]. A plain name needs
+/// [`Ty::Array`], and `TypeAtom::Mixed` as [`Ty::Tagged`]. A plain name needs
 /// no resolution to lower this way: ADR 0007 § 1 already requires it to be
 /// spelled out in full, and this crate erases class identity entirely (see
 /// [`Ty::Object`]'s own doc comment), so "is this atom a class name at all"
@@ -1648,14 +1673,19 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         // — so it erases here exactly the way a class name does.
         TypeKind::Atom(TypeAtom::Callable) => Ty::Object,
         TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
-        // `mixed` — ADR 0007 § 3. See `Ty::Mixed`'s own doc comment for
+        // `mixed` — ADR 0007 § 3. See `Ty::Tagged`'s own doc comment for
         // exactly how much this representation does and doesn't do yet: a
         // local/parameter/return/call-argument round-trips, nothing else.
-        TypeKind::Atom(TypeAtom::Mixed) => Ty::Mixed,
+        TypeKind::Atom(TypeAtom::Mixed) => Ty::Tagged,
         TypeKind::Paren(inner) => lower_decl_type(inner, exprs, checked_types),
+        // Both admit more than one runtime shape, so both are tagged — see
+        // `Ty::Tagged`. Reached only for an annotation the checker never
+        // visited; everything it did visit takes the `declared_ty` shortcut
+        // above and goes through `lower_checked_ty`, which says the same.
+        TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
         other => panic!(
-            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/a plain class name \
-             as a declared type — got {other:?}; see the crate docs' known gaps"
+            "mwl-ir only lowers bool/int/uint/float/void/string/bytes/array/`?T`/a union/a plain \
+             class name as a declared type — got {other:?}; see the crate docs' known gaps"
         ),
     }
 }
@@ -1689,7 +1719,7 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
 /// `object`, a shape, a union/intersection, or any of
 /// `never`/`true`/`false`/`iterable`/`callable`/`null` — none of these
 /// have an IR representation yet (see the crate docs' known gaps). `mixed`
-/// erases to [`Ty::Mixed`] — see that variant's own doc comment for exactly
+/// erases to [`Ty::Tagged`] — see that variant's own doc comment for exactly
 /// how much this boundary does and doesn't do with one yet.
 /// The per-option defaults recorded for the options-bag parameter at `index` —
 /// `mwl_types::core_lib` synthesizes exactly one `ConstArg::Options` entry per
@@ -1731,11 +1761,17 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // already gives `TypeAtom::Array(_)`, see `Ty::Array`'s own doc
         // comment for why this crate has no lowering decision that needs it.
         CheckedTy::Array(_) => Ty::Array,
-        CheckedTy::Mixed => Ty::Mixed,
+        CheckedTy::Mixed => Ty::Tagged,
+        // `null` alone is one value with one representation; anything that
+        // admits *more* than one runtime shape is tagged. `?T` reaches here as
+        // `Union([Null, T])` — the checker has no separate nullable type — so
+        // the two arms below are the whole of ADR 0066's representation.
+        CheckedTy::Null => Ty::Null,
+        CheckedTy::Union(_) => Ty::Tagged,
         other => panic!(
             "mwl-ir only lowers a resolved call's bool/int/uint/float/void/string/bytes/array/\
-             class/enum/mixed parameter or return type — got {other:?}; see the crate docs' \
-             known gaps"
+             class/enum/mixed/null/union parameter or return type — got {other:?}; see the \
+             crate docs' known gaps"
         ),
     }
 }
@@ -2154,7 +2190,7 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `Ty::Mixed`'s first slice: a `mixed`-typed parameter, returned
+    /// `Ty::Tagged`'s first slice: a `mixed`-typed parameter, returned
     /// straight back through the bare-`$name`-return transfer-out path — the
     /// narrowest possible round-trip, exercising `lower_decl_type`'s new
     /// `TypeAtom::Mixed` arm for both the parameter and the return type with
@@ -2170,7 +2206,7 @@ class T {
 
     /// `mixed $y = $x;` — an explicitly `mixed`-typed local declared from a
     /// `mixed` parameter, then returned. Exercises `Lowering::bind_local`
-    /// with a `Ty::Mixed` binding: still no retain, since `Ty::Mixed` is not
+    /// with a `Ty::Tagged` binding: still no retain, since `Ty::Tagged` is not
     /// `is_refcounted`, and the local correctly excludes itself from
     /// `release_all_locals`'s exit sweep by transferring out on `return`,
     /// exactly like any other bare-variable return.
@@ -2184,7 +2220,7 @@ class T {
 
     /// `var $y = $x;` (ADR 0037) with a `mixed`-typed initializer — `var`'s
     /// own inference path (`lower_expr` with `expected: None`) picks up
-    /// `Ty::Mixed` from the initializer exactly the way it already does for
+    /// `Ty::Tagged` from the initializer exactly the way it already does for
     /// any other representation, needing no `var`-specific handling.
     #[test]
     fn a_var_local_infers_mixed_from_a_mixed_initializer() {
@@ -2206,10 +2242,10 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `Ty::Mixed` gives a `mixed`-typed condition an IR representation to
+    /// `Ty::Tagged` gives a `mixed`-typed condition an IR representation to
     /// exist at all, but not a way to convert it through ADR 0035's truthy
     /// table — that still needs a runtime type-tag representation this slice
-    /// deliberately doesn't build (see `Ty::Mixed`'s own doc comment). Before
+    /// deliberately doesn't build (see `Ty::Tagged`'s own doc comment). Before
     /// this slice this case was unreachable for any in-scope program (no
     /// `mixed`-typed value could exist yet); now it's a live gap, so this
     /// documents the panic actually fires rather than merely being named as

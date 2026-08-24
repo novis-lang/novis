@@ -1,8 +1,8 @@
 ---
-source: crates/mwl-ir/src/lower.rs
+source: crates/mwl-ir/src/lower/mod.rs
 expression: "print_program(&p, map.file(file))"
 ---
-fn <script>() -> mixed {
+fn <script>() -> tagged {
   bb0:
     safepoint
     ; stmt s0 @2:1-2:19

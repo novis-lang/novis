@@ -13,7 +13,7 @@
 //! one method, [`lower::lower_property_hook`] one ADR 0014 accessor, and
 //! [`lower::lower_script`] a file's own top-level statements as one synthesized
 //! frame of ordinary locals with no receiver (ADR 0008 § 2), returning
-//! [`ty::Ty::Mixed`] because that is what ADR 0021 types a `require`'s result.
+//! [`ty::Ty::Tagged`] because that is what ADR 0021 types a `require`'s result.
 //!
 //! - **Statements** — typed and `var` local declarations (ADR 0037),
 //!   reassignment, `return`, nested blocks, `echo`, `unset`, `if`, `while`,
@@ -24,10 +24,12 @@
 //!   array-element read and write, array literals including an explicit
 //!   `key =>` and `$a[] =` append, `&&`/`||`/`!` and the ternary/elvis
 //!   operator, ADR 0035's truthy conversion, ADR 0031 closure literals,
-//!   `instanceof`, and ADR 0007 § 2's free and total conversion rows.
+//!   `instanceof`, `??`, the literal `null`, and ADR 0007 § 2's free and total
+//!   conversion rows.
 //! - **Types** — `int`/`uint`/`float`/`bool` scalars, `string`, `bytes`,
 //!   `array<T>` (element type erased — see [`ty::Ty`]), `object` (a class or
-//!   enum, likewise erased), `mixed`, and [`ty::Ty::Ref`] for a `&$x`
+//!   enum, likewise erased), `mixed`, `null`, `?T` and any other union (all
+//!   three tagged — see [`ty::Ty::Tagged`]), and [`ty::Ty::Ref`] for a `&$x`
 //!   parameter. `string`, `bytes` and `array<T>` are refcounted and cross a
 //!   local, call-argument, return and property boundary alike.
 //! - **Generators** — ADR 0053 § 4's state-machine transform, in
@@ -103,25 +105,39 @@
 //!    landing block sweeps the frame's locals, not a temporary still in flight
 //!    inside the expression that threw — which is what leaks a closure literal
 //!    written directly as a call argument.
-//! 3. **`mixed` is a representation to erase *into*, not one to dispatch
-//!    *on*.** There is no runtime type-tag shape, so arithmetic, `.`,
-//!    ADR 0035's truthy table and an array access through a `mixed`-erased
-//!    base all stop there. Closing it should add [`ir::Helper`] variants, not
-//!    a second call-shaped instruction. `null` is in the same position: no
-//!    nullable-type representation exists to convert from.
+//! 3. **A tagged value can be built, carried and narrowed, but not yet
+//!    dispatched on.** [`ty::Ty::Tagged`] is the one representation `mixed`,
+//!    `?T` and every other union erase to, and its own doc comment owns the
+//!    decision and what it spends. What lowers today: a `?T` local, parameter,
+//!    property, return value and call argument; the literal `null`;
+//!    [`ir::InstKind::Tag`]/[`ir::InstKind::Untag`] at every boundary carrying
+//!    a declared type ([`lower::Lowering::coerce`]); and `??`
+//!    ([`lower::Lowering::lower_coalesce`]), whose non-`null` arm narrows
+//!    against the type `mwl_types::expr_table::ExprInfo::Coalesce` records.
+//!    What does not: reading a tagged value *without* a checker-proven
+//!    narrowing — arithmetic on a `mixed`, `.` concatenation, ADR 0035's
+//!    truthy table, an array access through a tagged base, `?->`. Each panics
+//!    naming itself, and closing them adds [`ir::Helper`] variants dispatching
+//!    on the tag, not a second representation.
 //! 4. **Only ADR 0007 § 2's free and total conversion rows lower.** Every
 //!    *checked* row — `int` ↔ `uint`, `float` to an integer, `string` to a
 //!    number, ADR 0010 § 5's integer-into-an-enum — needs a throwing helper
 //!    [`ir::Helper`] has no tag for, and the enum row additionally needs its
 //!    case set carried to the check. `EnumName` ↔ `string` is not a gap: ADR
 //!    0010 § 5 leaves it out of the language.
-//! 5. **`&&`/`||`/`!`/ternary lower only where a mutable `cur: &mut BlockId`
-//!    is already owned** — a declaration's initializer, `return`'s value, an
-//!    assignment's right-hand side, a condition. Nested inside a call
-//!    argument, an array element or an operand, they panic, because
-//!    [`lower::Lowering::lower_expr`] cannot redirect the current block. A
-//!    ternary whose branches lower to two different [`ty::Ty`] representations
-//!    panics for the same reason gap 3 does.
+//! 5. **`&&`/`||`/`!`/ternary/`??` lower only where a mutable
+//!    `cur: &mut BlockId` is already owned** — a declaration's initializer,
+//!    `return`'s value, an assignment's right-hand side, a condition. Nested
+//!    inside a call argument, an array element or an operand — `echo "x=" .
+//!    ($a ?? "d")` is the shape that meets this first — they panic, because
+//!    [`lower::Lowering::lower_expr`] cannot redirect the current block.
+//!    Closing it is one signature: `lower_expr` taking `&mut BlockId` and
+//!    lowering its own sub-expressions through itself, at which point
+//!    [`lower::Lowering::lower_expr_top`] is the same function. A ternary
+//!    whose branches lower to two different [`ty::Ty`] representations still
+//!    panics — unlike `??`, it has no recorded result type to widen both arms
+//!    to, which is the one thing `mwl_types::expr_table::ExprInfo::Coalesce`
+//!    exists to supply.
 //! 6. **Property and array access are compile-time-known-target-only.** A
 //!    receiver that erased to a shape or plain `object` (ADR 0036 § 4) has no
 //!    `ExprInfo` entry, so lowering panics; the checker defers that runtime

@@ -396,6 +396,79 @@ impl Value {
     }
 }
 
+/// Adds a reference to whatever a **tagged** value's payload is —
+/// `mwl_ir::InstKind::Retain` for a `mwl_ir::Ty::Tagged` operand.
+///
+/// The two halves arrive separately because that is how compiled code holds
+/// one: `mwl_ir::Ty::Tagged` lives in a register pair whose low half is this
+/// [`Value`]'s first eight bytes (the tag byte plus its padding) and whose
+/// high half is the payload, which is exactly the little-endian memory image
+/// of the struct. Passing the pair rather than the struct keeps the C ABI out
+/// of the question of how a 16-byte aggregate travels.
+///
+/// A tag byte denoting no representation is left alone rather than trapped:
+/// only a miscompile can produce one, and a refcount primitive has no status
+/// to report it in ([`crate::abi`]).
+///
+/// # Safety
+///
+/// A refcounted payload must refer to a live allocation.
+#[expect(
+    unsafe_code,
+    reason = "the payload's liveness is the caller's obligation to state"
+)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the tag is the low byte of the word by construction (`mwl_ir::Ty::Tagged`);               the other seven are its padding and mean nothing"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_value_retain(tag_word: u64, bits: u64) {
+    let Some(tag) = Tag::from_byte(tag_word as u8) else {
+        return;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees a refcounted payload is live; the \
+                  tag/payload agreement is compiled code's own, written by \
+                  `mwl_codegen`'s `Tag` instruction"
+    )]
+    unsafe {
+        Value::from_parts(tag, bits).retain();
+    }
+}
+
+/// Drops the reference a **tagged** value's payload owns —
+/// `mwl_ir::InstKind::Release` for a `mwl_ir::Ty::Tagged` operand, and the
+/// counterpart of [`mwl_value_retain`], whose doc comment owns the two-half
+/// signature.
+///
+/// # Safety
+///
+/// The pair must own the reference being dropped, and must not be released
+/// twice.
+#[expect(
+    unsafe_code,
+    reason = "owning the reference is the caller's obligation to state"
+)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "see `mwl_value_retain`: the tag is the word's low byte by construction"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_value_release(tag_word: u64, bits: u64) {
+    let Some(tag) = Tag::from_byte(tag_word as u8) else {
+        return;
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the pair owns exactly the reference \
+                  being dropped"
+    )]
+    unsafe {
+        Value::from_parts(tag, bits).release();
+    }
+}
+
 impl Default for Value {
     fn default() -> Self {
         Self::null()

@@ -244,6 +244,22 @@ pub enum ExprInfo {
         /// The element's declared type.
         elem_ty: TypeId,
     },
+    /// `$a ?? $b`, keyed by the whole binary expression's own span.
+    ///
+    /// Recorded rather than left to `mwl-ir` because both types it needs are
+    /// answers only this crate has. The left operand's representation is
+    /// `mwl_ir::Ty::Tagged` by then — a `?T` erases everything but the tag —
+    /// so lowering the non-`null` arm has to be *told* which representation to
+    /// narrow to; and the result type is `null`-stripped-lhs unioned with rhs,
+    /// which is a canonicalization only [`crate::ty::TypeInterner`] performs.
+    Coalesce {
+        /// The left operand's type with `null` removed — what the value holds
+        /// on the arm where the tag says it is not `null`.
+        non_null: TypeId,
+        /// The whole expression's type: [`Self::Coalesce::non_null`] unioned
+        /// with the right operand's.
+        result: TypeId,
+    },
     /// `$x instanceof Name`, keyed by the *`instanceof` expression's* own
     /// span, whose right-hand side named a class or interface this program
     /// declares (or a reserved global one). Never recorded for the dynamic

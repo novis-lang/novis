@@ -556,6 +556,30 @@ impl TypeInterner {
             _ => false,
         }
     }
+
+    /// `id` with `null` removed — `?T` becomes `T`, `A|B|null` becomes `A|B`,
+    /// and anything not [`Self::is_nullable`] comes back unchanged.
+    ///
+    /// What `$a ?? $b` and a `!== null` narrowing both need: the type the
+    /// value actually holds once the `null` arm is ruled out. `null` alone has
+    /// nothing left to be, so it stays `null` rather than becoming `never` —
+    /// the arm is unreachable either way, and `never` would make every caller
+    /// handle a type that cannot arrive.
+    #[must_use]
+    pub fn without_null(&mut self, id: TypeId) -> TypeId {
+        let Ty::Union(members) = self.get(id) else {
+            return id;
+        };
+        let kept: Vec<TypeId> = members
+            .iter()
+            .copied()
+            .filter(|m| !matches!(self.get(*m), Ty::Null))
+            .collect();
+        if kept.is_empty() {
+            return id;
+        }
+        self.make_union(kept)
+    }
 }
 
 #[cfg(test)]

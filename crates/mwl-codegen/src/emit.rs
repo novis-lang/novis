@@ -514,6 +514,65 @@ impl Emitter<'_, '_> {
                 }
                 self.define(inst, value)?;
             }
+            // The three tagged-value instructions. None of them calls, none
+            // allocates, and only `IsNull` reads a tag — see
+            // `mwl_ir::Ty::Tagged` for the representation all three assume.
+            InstKind::Tag { operand } => {
+                let (value, from) = self.value(*operand)?;
+                let tag = tag_of(from)?;
+                let tag_word = self.b.ins().iconst(types::I64, i64::from(tag as u8));
+                let bits = match from {
+                    // The payload is eight bytes; a `bool` occupies one of
+                    // them, so the rest are zeroed rather than left as
+                    // whatever the register held — `Self::store_value`'s own
+                    // rule, applied one step earlier.
+                    Ty::Bool => self.b.ins().uextend(types::I64, value),
+                    // A float's payload is its bit pattern, which is what the
+                    // `Value` slot holds and what `Tag::Float` promises.
+                    Ty::Float => self.b.ins().bitcast(types::I64, MemFlagsData::new(), value),
+                    Ty::Void | Ty::Tagged => {
+                        return Err(CodegenError::Unsupported(format!(
+                            "widening a value of representation {from:?} into a tagged one"
+                        )));
+                    }
+                    _ => value,
+                };
+                let value = self.join_tagged(tag_word, bits);
+                self.define(inst, value)?;
+            }
+            InstKind::Untag { operand } => {
+                let (value, from) = self.value(*operand)?;
+                if from != Ty::Tagged {
+                    return Err(internal("`untag` of a value that is not tagged"));
+                }
+                let to = inst.ty.ok_or_else(|| {
+                    internal("a value-defining instruction with no representation")
+                })?;
+                let (_, bits) = self.split_tagged(value);
+                let value = match to {
+                    Ty::Bool => self.b.ins().ireduce(types::I8, bits),
+                    Ty::Float => self.b.ins().bitcast(types::F64, MemFlagsData::new(), bits),
+                    Ty::Void | Ty::Tagged => {
+                        return Err(CodegenError::Unsupported(format!(
+                            "narrowing a tagged value to representation {to:?}"
+                        )));
+                    }
+                    _ => bits,
+                };
+                self.define(inst, value)?;
+            }
+            InstKind::IsNull { operand } => {
+                let (value, from) = self.value(*operand)?;
+                if from != Ty::Tagged {
+                    return Err(internal("`is.null` of a value that is not tagged"));
+                }
+                let (tag_word, _) = self.split_tagged(value);
+                // `Tag::Null` is zero and the word is zero-extended from the
+                // tag byte at every producer (`crate::ty::clif_ty`), so this
+                // is one compare against zero with nothing to mask off.
+                let value = self.b.ins().icmp_imm_u(IntCC::Equal, tag_word, 0);
+                self.define(inst, value)?;
+            }
             InstKind::ArrayNew { entries } => {
                 let value = self.emit_array_new(entries)?;
                 self.define(inst, value)?;
@@ -812,7 +871,7 @@ impl Emitter<'_, '_> {
             // `Mod` above once shared: the trap is guarded now, but ADR 0007
             // § 4 types `int / int` as `int|float` — PHP-exact, so `6/3` is an
             // integer and `7/2` is not — and `mwl_ir::Ty` has no
-            // representation for a union (see `mwl_ir::ty::Ty::Mixed`, which
+            // representation for a union (see `mwl_ir::ty::Ty::Tagged`, which
             // states that gap). Nothing reaches this arm today anyway:
             // `mwl_types` does not yet widen that union to `float` at a
             // binding, so an integer `/` is refused a checker phase earlier.
@@ -1542,6 +1601,21 @@ impl Emitter<'_, '_> {
     /// one iterative worklist shared by both, which is what keeps this a
     /// single call rather than a depth-bounded one.
     fn emit_refcount(&mut self, retain: bool, value: Value, ty: Ty) -> Result<(), CodegenError> {
+        // A tagged value's payload may or may not be refcounted, and its own
+        // tag is what says which — so the branch is the runtime's, out of
+        // line, rather than this table's. `mwl_ir::Ty::Tagged` states what
+        // that costs.
+        if ty == Ty::Tagged {
+            let symbol = if retain {
+                "mwl_value_retain"
+            } else {
+                "mwl_value_release"
+            };
+            let (tag_word, bits) = self.split_tagged(value);
+            let callee = self.runtime_ref(symbol, RuntimeSig::ValueRefcount)?;
+            self.b.ins().call(callee, &[tag_word, bits]);
+            return Ok(());
+        }
         let symbol = match (ty, retain) {
             (Ty::Str | Ty::Bytes, true) => "mwl_str_retain",
             (Ty::Str | Ty::Bytes, false) => "mwl_str_release",
@@ -1765,6 +1839,22 @@ impl Emitter<'_, '_> {
         value: Value,
         ty: Ty,
     ) -> Result<(), CodegenError> {
+        // A tagged value already *is* the two halves of a `Value`, so it is
+        // written as those two words rather than through `tag_of` — see
+        // `crate::ty::clif_ty`. Storing the whole low word (not just the tag
+        // byte) is what keeps the seven padding bytes zero, which is the
+        // struct's own `repr(C)` shape.
+        if ty == Ty::Tagged {
+            let (tag_word, bits) = self.split_tagged(value);
+            let tag_offset = offset
+                + i32::try_from(MwlValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
+            let bits_offset = offset
+                + i32::try_from(MwlValue::BITS_OFFSET)
+                    .map_err(|_| internal("a payload past i32"))?;
+            self.b.ins().store(trusted(), tag_word, base, tag_offset);
+            self.b.ins().store(trusted(), bits, base, bits_offset);
+            return Ok(());
+        }
         let tag = tag_of(ty)?;
         let bits = match ty {
             // The payload is a `u64`; a `bool` occupies one byte of it, so the
@@ -1777,6 +1867,24 @@ impl Emitter<'_, '_> {
             _ => Some(value),
         };
         self.store_tag_and_bits(base, offset, tag, bits)
+    }
+
+    /// A [`Ty::Tagged`] value's two halves: the tag word and the payload.
+    ///
+    /// The one place `isplit` is written, so the "low half is the tag word"
+    /// convention [`crate::ty::clif_ty`] states has a single reader.
+    fn split_tagged(&mut self, value: Value) -> (Value, Value) {
+        let (tag_word, bits) = self.b.ins().isplit(value);
+        (tag_word, bits)
+    }
+
+    /// The inverse of [`Self::split_tagged`]: one [`Ty::Tagged`] register pair
+    /// from a tag word and a payload.
+    ///
+    /// `tag_word` must be zero-extended from the tag byte — see
+    /// [`crate::ty::clif_ty`] for why every producer holds that.
+    fn join_tagged(&mut self, tag_word: Value, bits: Value) -> Value {
+        self.b.ins().iconcat(tag_word, bits)
     }
 
     fn store_tag_and_bits(
@@ -1818,6 +1926,20 @@ impl Emitter<'_, '_> {
             }
             Ty::Float => self.b.ins().load(types::F64, trusted(), base, bits_offset),
             Ty::Void => return Err(internal("reading a value of representation `void`")),
+            // Both halves, as the register pair `crate::ty::clif_ty` describes.
+            // The tag is read as one **byte** and zero-extended rather than as
+            // the whole low word: the seven padding bytes beside it are zero in
+            // every `Value` this runtime writes, but reading them would make
+            // that a thing to trust rather than a thing that cannot matter.
+            Ty::Tagged => {
+                let tag_offset = offset
+                    + i32::try_from(MwlValue::TAG_OFFSET)
+                        .map_err(|_| internal("a tag past i32"))?;
+                let byte = self.b.ins().load(types::I8, trusted(), base, tag_offset);
+                let tag_word = self.b.ins().uextend(types::I64, byte);
+                let bits = self.b.ins().load(types::I64, trusted(), base, bits_offset);
+                self.join_tagged(tag_word, bits)
+            }
             _ => self.b.ins().load(types::I64, trusted(), base, bits_offset),
         })
     }
@@ -1842,6 +1964,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::StrEq => &self.sigs.str_eq,
             RuntimeSig::Refcount => &self.sigs.refcount,
+            RuntimeSig::ValueRefcount => &self.sigs.value_refcount,
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
             RuntimeSig::Raise => &self.sigs.raise,
             RuntimeSig::RaiseNew => &self.sigs.raise_new,
@@ -1893,6 +2016,7 @@ enum RuntimeSig {
     StrConcat,
     StrEq,
     Refcount,
+    ValueRefcount,
     PtrToPtr,
     Raise,
     RaiseNew,

@@ -84,7 +84,8 @@ impl<'a> Lowering<'a> {
                 value: Some(value),
             } => {
                 let expected = lower_decl_type(decl_ty, self.exprs, self.checked_types);
-                let (v, _) = self.lower_expr_top(value, Some(expected), env, cur);
+                let (v, actual) = self.lower_expr_top(value, Some(expected), env, cur);
+                let v = self.coerce(*cur, v, actual, expected);
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, expected, value);
             }
@@ -145,7 +146,7 @@ impl<'a> Lowering<'a> {
                     if except.is_none() && rty.is_refcounted() && self.aliasing_read(value_expr) {
                         self.emit_retain(*cur, rv);
                     }
-                    Some(rv)
+                    Some(self.coerce(*cur, rv, rty, ret_ty))
                 } else {
                     None
                 };
@@ -288,6 +289,15 @@ impl<'a> Lowering<'a> {
                 } else {
                     let expected = env.get(&lname).map(|&(_, t)| t);
                     let (v, ty) = self.lower_expr_top(value, expected, env, cur);
+                    // ADR 0037 fixes a local's type at its declaration, so an
+                    // existing binding's representation wins over whatever the
+                    // right-hand side produced -- otherwise a `?int` local
+                    // reassigned an `int` would silently change shape, and the
+                    // next phi over it would merge two representations.
+                    let (v, ty) = match expected {
+                        Some(want) => (self.coerce(*cur, v, ty, want), want),
+                        None => (v, ty),
+                    };
                     self.bind_local(*cur, env, lname, v, ty, value);
                 }
             }
@@ -348,10 +358,11 @@ impl<'a> Lowering<'a> {
                     if receiver_ty.is_refcounted() && self.aliasing_read(object) {
                         self.emit_retain(*cur, object_v);
                     }
-                    let (v, _) = self.lower_expr_top(value, Some(field_ty), env, cur);
+                    let (v, vty) = self.lower_expr_top(value, Some(field_ty), env, cur);
                     if field_ty.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
                     }
+                    let v = self.coerce(*cur, v, vty, field_ty);
                     self.emit_fallible(
                         *cur,
                         Ty::Void,
@@ -364,10 +375,11 @@ impl<'a> Lowering<'a> {
                     );
                 } else {
                     let (object_v, _) = self.lower_expr(object, None, env, *cur);
-                    let (v, _) = self.lower_expr_top(value, Some(field_ty), env, cur);
+                    let (v, vty) = self.lower_expr_top(value, Some(field_ty), env, cur);
                     if field_ty.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
                     }
+                    let v = self.coerce(*cur, v, vty, field_ty);
                     if field_ty.is_refcounted() {
                         let (old_v, _) = self.emit(
                             *cur,
