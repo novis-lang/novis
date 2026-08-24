@@ -1,0 +1,50 @@
+--TEST--
+Core\Arr::fromKeysAndValues pairs by position, normalizes each key and refuses two lengths
+--FILE--
+<?mwl
+array<string|int> $keys = ["name", "city"];
+array<string> $values = ["Ada", "London"];
+var $person = Core\Arr::fromKeysAndValues($keys, $values);
+echo Core\Str::join(Core\Arr::keys($person), ","), "\n";
+echo $person["name"], " ", $person["city"], "\n";
+
+// Pairing is by *position*, so whatever keys the two arrays carry of their own
+// are discarded: the keys array contributes its values (`a`, `b`) and nothing
+// else, and the values array's `x`/`y` keys are gone too.
+array<string|int> $keyed = ["first" => "a", "second" => "b"];
+array<int> $counted = ["x" => 1, "y" => 2];
+echo Core\Str::join(Core\Arr::keys(Core\Arr::fromKeysAndValues($keyed, $counted)), ","), "\n";
+
+// An `int` key arrives under its decimal spelling, the normalization every
+// other key position already does (ADR 0007 § 5 stores every key as a string).
+array<string|int> $numbers = [10, 20];
+var $byNumber = Core\Arr::fromKeysAndValues($numbers, $values);
+echo Core\Str::join(Core\Arr::keys($byNumber), ","), "\n";
+echo $byNumber["10"], "\n";
+
+// A duplicate key collapses with the last value winning, in the first
+// occurrence's position — Core\Arr::flip's rule, for the same reason.
+array<string|int> $repeated = ["k", "other", "k"];
+array<string> $three = ["one", "two", "three"];
+var $collapsed = Core\Arr::fromKeysAndValues($repeated, $three);
+echo Core\Str::join(Core\Arr::keys($collapsed), ","), "\n";
+echo $collapsed["k"], "\n";
+
+// Two arrays of different lengths throw (ADR 0063 R4), as PHP's array_combine
+// raises a ValueError, rather than pairing what they can.
+array<string|int> $short = ["only"];
+try {
+    var $bad = Core\Arr::fromKeysAndValues($short, $values);
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+name,city
+Ada London
+a,b
+10,20
+Ada
+k,other
+three
+Core\Arr::fromKeysAndValues(): the two arrays must be the same length, got 1 against 2

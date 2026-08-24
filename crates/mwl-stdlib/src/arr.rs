@@ -79,6 +79,20 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_values",
         },
         CoreMethod {
+            name: "withoutFirst",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_without_first",
+        },
+        CoreMethod {
+            name: "withoutLast",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_without_last",
+        },
+        CoreMethod {
             name: "reverse",
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -111,6 +125,23 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Int),
             symbol: "mwl_core_arr_range",
+        },
+        CoreMethod {
+            name: "fromKeysAndValues",
+            params: &[
+                CoreTy::Array(&CoreTy::Union(ARRAY_KEY)),
+                CoreTy::Array(&CoreTy::Var("T")),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_from_keys_and_values",
+        },
+        CoreMethod {
+            name: "countBy",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Options(BY_OPTION)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Uint),
+            symbol: "mwl_core_arr_count_by",
         },
     ],
 };
@@ -153,6 +184,18 @@ const RANGE_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "step",
     ty: CoreTy::Int,
     default: Const::Int(1),
+}];
+
+/// `Core\Arr::countBy`'s `{by?: callable}` — the spec's § 2 *Combining* bag
+/// that `unique`, `diff` and `intersect` share the `by` half of.
+///
+/// The same option [`SORT_OPTIONS`] declares and the same default: there is no
+/// "no callback" callable, so absence is [`Const::Null`] and the body decodes
+/// it through [`optional_callback`].
+const BY_OPTION: &[CoreOption] = &[CoreOption {
+    name: "by",
+    ty: CoreTy::Callable,
+    default: Const::Null,
 }];
 
 /// `Core\Arr::sort`'s
@@ -209,6 +252,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_flip" => (mwl_core_arr_flip as *const ()).cast(),
         "mwl_core_arr_sort" => (mwl_core_arr_sort as *const ()).cast(),
         "mwl_core_arr_range" => (mwl_core_arr_range as *const ()).cast(),
+        "mwl_core_arr_without_first" => (mwl_core_arr_without_first as *const ()).cast(),
+        "mwl_core_arr_without_last" => (mwl_core_arr_without_last as *const ()).cast(),
+        "mwl_core_arr_from_keys_and_values" => {
+            (mwl_core_arr_from_keys_and_values as *const ()).cast()
+        }
+        "mwl_core_arr_count_by" => (mwl_core_arr_count_by as *const ()).cast(),
         _ => return None,
     })
 }
@@ -500,6 +549,32 @@ fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::ManuallyDrop<MwlA
     std::mem::ManuallyDrop::new(unsafe { MwlArray::from_raw(array) })
 }
 
+/// Copies the entry at `slot` — key and value both — from a borrowed subject
+/// into a result being built, under its own key.
+///
+/// The value belongs to the subject array, which outlives the call, so the
+/// copy stored in the result takes a reference of its own; the key does not,
+/// because [`MwlArray::key_at`] already hands back a fresh one. That asymmetry
+/// is the single thing a key-and-value copy has to get right, so it lives here
+/// once rather than in each member that walks entries through unchanged.
+fn copy_entry(subject: &MwlArray, slot: usize, out: &mut MwlArray) {
+    let key = subject
+        .key_at(slot)
+        .expect("next_slot only names live entries");
+    let value = subject
+        .value_at(slot)
+        .expect("next_slot only names live entries");
+    #[expect(
+        unsafe_code,
+        reason = "the entry is owned by the subject array, which outlives this \
+                  call, so the copy stored here needs a reference of its own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    out.set(key, value);
+}
+
 mwl_runtime::mwl_helper! {
     /// `Core\Arr::hasKey(array<T> $a, int|string $key): bool` — replacing
     /// PHP's `array_key_exists` **and** `isset($a[$k])`, which differ in PHP
@@ -601,6 +676,86 @@ mwl_runtime::mwl_helper! {
             // `key_at` hands back a fresh reference, which `append` takes over.
             out.append(Value::str(key));
             from = slot + 1;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::withoutFirst(array<T> $a): array<T>` — every entry but the
+    /// first, replacing what is left of the subject after PHP's `array_shift`.
+    ///
+    /// PHP splits that question across a statement that answers two at once:
+    /// `array_shift($a)` hands back the element *and* mutates `$a`. ADR 0063 R3
+    /// makes nothing mutate, so the spec's § 2 table splits it in two —
+    /// `Core\Arr::first` gets the element, this gets the remainder — and an
+    /// empty array yields an empty array rather than a `null` and a warning.
+    ///
+    /// **Every surviving key is kept.** The member declares no `preserveKeys`
+    /// option, and the spec's § 2 rule that the option's `false` default
+    /// discards every key applies where it *appears*; here there is nothing to
+    /// choose, so this behaves like [`mwl_core_arr_filter`], which also drops
+    /// entries without renumbering the ones that remain. That is deliberately
+    /// not `array_shift`'s behaviour, which renumbers integer keys and keeps
+    /// string ones — the key-type-dependent rule
+    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 3 removes. A caller who wants `0, 1, …` writes `Core\Arr::values` and
+    /// says so; a caller who wanted to keep a map's keys has no way to get them
+    /// back once a member has thrown them away, so keeping is the direction
+    /// that loses nothing.
+    fn mwl_core_arr_without_first(_ctx, args: [1]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::withoutFirst expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        // The one entry this member drops is whatever the cursor names first,
+        // so skipping it is a cursor start rather than a comparison per entry.
+        let mut from = match subject.next_slot(0) {
+            Some(first) => first + 1,
+            None => return Ok(Value::array(MwlArray::new())),
+        };
+        let mut out = MwlArray::new();
+        while let Some(slot) = subject.next_slot(from) {
+            copy_entry(&subject, slot, &mut out);
+            from = slot + 1;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::withoutLast(array<T> $a): array<T>` — every entry but the
+    /// last, replacing what is left of the subject after PHP's `array_pop`.
+    ///
+    /// [`mwl_core_arr_without_first`]'s own docs own the split from PHP's
+    /// mutate-and-return pair and the rule that every surviving key is kept.
+    ///
+    /// The last entry cannot be named without walking, since the ordered hash
+    /// has no backward cursor — the same property
+    /// [`mwl_core_arr_reverse`] collects slots for. This one needs no `Vec`:
+    /// it copies each entry only once it has seen that another follows.
+    fn mwl_core_arr_without_last(_ctx, args: [1]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::withoutLast expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let subject = borrowed(array);
+
+        let mut out = MwlArray::new();
+        let mut pending = subject.next_slot(0);
+        while let Some(slot) = pending {
+            pending = subject.next_slot(slot + 1);
+            if pending.is_some() {
+                copy_entry(&subject, slot, &mut out);
+            }
         }
         Ok(Value::array(out))
     }
@@ -815,6 +970,158 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::fromKeysAndValues(array<int|string> $keys, array<T> $values): array<T>`
+    /// — one array's values used as the keys of another's, replacing PHP's
+    /// `array_combine`.
+    ///
+    /// **Two arrays of different lengths throw**, which is the spec's § 2
+    /// *Structure* note and ADR 0063 R4: PHP 8 raises a `ValueError` here, and
+    /// the shorter-wins alternative would silently drop data. The two are
+    /// walked by their own cursors, so it is each array's *entry count* that
+    /// has to match — neither side's keys are looked at, and the `$keys`
+    /// array's own keys are discarded exactly as [`mwl_core_arr_values`]
+    /// discards them.
+    ///
+    /// Each key goes through [`key_bytes`], the normalization `hasKey` and
+    /// `flip` share, so an `int` key and its decimal spelling name the same
+    /// entry. Duplicate keys collapse with the **last** value winning, in the
+    /// **first** occurrence's position — `flip`'s rule, and for the same reason:
+    /// re-`set`ting an existing key overwrites in place.
+    fn mwl_core_arr_from_keys_and_values(_ctx, args: [2]) {
+        let keys = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::fromKeysAndValues expected {:?} for the keys, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let values = args[1].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::fromKeysAndValues expected {:?} for the values, got tag {}",
+                Tag::Array,
+                args[1].tag_byte()
+            ))
+        })?;
+        let keys = borrowed(keys);
+        let values = borrowed(values);
+        if keys.count() != values.count() {
+            return Err(Fault::thrown(format!(
+                "Core\\Arr::fromKeysAndValues(): the two arrays must be the same length, \
+                 got {} against {}",
+                keys.count(),
+                values.count()
+            )));
+        }
+
+        let mut out = MwlArray::new();
+        let mut key_from = 0usize;
+        let mut value_from = 0usize;
+        while let (Some(key_slot), Some(value_slot)) =
+            (keys.next_slot(key_from), values.next_slot(value_from))
+        {
+            let key = keys
+                .value_at(key_slot)
+                .expect("next_slot only names live entries");
+            let value = values
+                .value_at(value_slot)
+                .expect("next_slot only names live entries");
+            // Normalized *before* the retain: a key of the wrong type leaves
+            // through `?`, and a reference taken first would have no owner.
+            let bytes = key_bytes(&key, "fromKeysAndValues")?;
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the values array, which outlives \
+                          this call, so the copy stored here needs a reference \
+                          of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            out.set(MwlStr::new(&bytes), value);
+            key_from = key_slot + 1;
+            value_from = value_slot + 1;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::countBy(array<T> $a, {by?: callable}): array<uint>` — how
+    /// many entries fall under each distinct value, replacing PHP's
+    /// `array_count_values` and the userland group-and-count loop.
+    ///
+    /// Without `by` the value itself is the bucket, which is
+    /// `array_count_values`; with it, the callback names the bucket and
+    /// receives `($value, $key)` like every other `Core\Arr` callback, which is
+    /// the half PHP has no function for at all. The result is keyed in
+    /// **first-occurrence** order and its values are `uint`, for the reason
+    /// [`mwl_core_arr_count`] returns one: a count cannot be negative.
+    ///
+    /// A bucket is named through [`key_bytes`], so `1` and `"1"` count as one
+    /// bucket — the same normalization every other key position uses. A value
+    /// that is neither an `int` nor a `string` and has no `by` to name it is a
+    /// throw rather than PHP's warn-and-skip, which is `flip`'s treatment of
+    /// the identical situation.
+    fn mwl_core_arr_count_by(ctx, args: [2]) {
+        let array = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::countBy expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+        let by = optional_callback(&args[1], "countBy", "by")?;
+        let subject = borrowed(array);
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            let value = subject
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            from = slot + 1;
+
+            let bucket = match by {
+                None => key_bytes(&value, "countBy")?,
+                Some(callback) => {
+                    let key = subject
+                        .key_at(slot)
+                        .expect("next_slot only names live entries");
+                    // One reference for the duration of the call, released
+                    // right after: `call_closure` takes its own.
+                    let key_arg = Value::str(key);
+                    let named = mwl_runtime::call_closure(ctx, callback, &[value, key_arg]);
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame owns exactly the reference `key_at` \
+                                  just handed back"
+                    )]
+                    unsafe {
+                        key_arg.release();
+                    }
+                    let named = named?;
+                    let bucket = key_bytes(&named, "countBy");
+                    #[expect(
+                        unsafe_code,
+                        reason = "the bucket name is a fresh value this frame \
+                                  owns; a callback returning a string would \
+                                  otherwise leak one reference per entry"
+                    )]
+                    unsafe {
+                        named.release();
+                    }
+                    bucket?
+                }
+            };
+
+            let seen = out.get(&bucket).and_then(|count| count.as_uint()).unwrap_or(0);
+            out.set(MwlStr::new(&bucket), Value::uint(seen + 1));
+        }
+        Ok(Value::array(out))
+    }
+}
+
 /// One entry's `by`-extracted sort key, owned by the frame that extracted it.
 ///
 /// `mwl_runtime::call_closure` hands back one fresh reference per call, so the
@@ -905,7 +1212,7 @@ mwl_runtime::mwl_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        let by = optional_callback(&args[1], "by")?;
+        let by = optional_callback(&args[1], "sort", "by")?;
         let descending = match args[2].as_int() {
             Some(0) => false,
             Some(1) => true,
@@ -918,7 +1225,7 @@ mwl_runtime::mwl_helper! {
                 )));
             }
         };
-        let comparator = optional_callback(&args[3], "comparator")?;
+        let comparator = optional_callback(&args[3], "sort", "comparator")?;
         let preserve_keys = args[4].as_bool().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::sort expected {:?} for `preserveKeys`, got tag {}",
@@ -1032,12 +1339,12 @@ mwl_runtime::mwl_helper! {
 ///
 /// `mwl_stdlib::registry::Const::Null` owns why "not given" is spelled that
 /// way rather than as a value of the option's own type.
-fn optional_callback(value: &Value, option: &str) -> Result<Option<Value>, Fault> {
+fn optional_callback(value: &Value, member: &str, option: &str) -> Result<Option<Value>, Fault> {
     match value.tag() {
         Some(Tag::Null) => Ok(None),
         Some(Tag::Object) => Ok(Some(*value)),
         _ => Err(Fault::fatal(format!(
-            "Core\\Arr::sort expected a closure or nothing for `{option}`, got tag {}",
+            "Core\\Arr::{member} expected a closure or nothing for `{option}`, got tag {}",
             value.tag_byte()
         ))),
     }
@@ -1884,6 +2191,186 @@ mod tests {
             &[Value::int(7), Value::int(7)],
         )
         .expect_err("an int is not an array");
+        assert_eq!(status, mwl_runtime::FATAL);
+    }
+
+    /// The deliberate divergence from `array_shift`/`array_pop`, which renumber
+    /// the integer keys and keep the string ones: PHP answers `0,y` and `x,10`
+    /// for this subject, and both members answer with the surviving keys
+    /// untouched.
+    #[test]
+    fn dropping_an_end_entry_leaves_every_surviving_key_alone() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let tail = call(super::mwl_core_arr_without_first, &mut ctx, &[mixed_keys()])
+            .expect("dropping the first entry never fails");
+        assert_eq!(
+            entries_of(tail),
+            vec![
+                (b"10".to_vec(), b"b".to_vec()),
+                (b"y".to_vec(), b"c".to_vec()),
+            ]
+        );
+
+        let head = call(super::mwl_core_arr_without_last, &mut ctx, &[mixed_keys()])
+            .expect("dropping the last entry never fails");
+        assert_eq!(
+            entries_of(head),
+            vec![
+                (b"x".to_vec(), b"a".to_vec()),
+                (b"10".to_vec(), b"b".to_vec()),
+            ]
+        );
+    }
+
+    /// Neither member is a special case at the ends: an empty array has nothing
+    /// to drop and a one-entry array drops all it has, rather than PHP's
+    /// `null`-and-a-warning for the element `array_shift` would have returned.
+    #[test]
+    fn dropping_from_an_empty_or_single_entry_array_yields_an_empty_one() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let mut single = MwlArray::new();
+        single.set(MwlStr::new(b"only"), Value::str(MwlStr::new(b"a")));
+
+        for member in [
+            super::mwl_core_arr_without_first,
+            super::mwl_core_arr_without_last,
+        ] {
+            for subject in [Value::array(MwlArray::new()), Value::array(single.clone())] {
+                let result = call(member, &mut ctx, &[subject]).expect("dropping never fails");
+                assert_eq!(entries_of(result), vec![]);
+                #[expect(
+                    unsafe_code,
+                    reason = "this test owns the one reference it built above, \
+                              and the helper borrowed rather than consumed it"
+                )]
+                unsafe {
+                    subject.release();
+                }
+            }
+        }
+    }
+
+    /// Verified against PHP 8.5's `array_combine`: pairing is by position, the
+    /// keys array's own keys are discarded, and an `int` key arrives under its
+    /// decimal spelling the way every other key position normalizes it.
+    #[test]
+    fn from_keys_and_values_pairs_by_position_and_normalizes_each_key() {
+        let mut keys = MwlArray::new();
+        keys.set(MwlStr::new(b"ignored"), Value::str(MwlStr::new(b"a")));
+        keys.append(Value::int(10));
+        let mut values = MwlArray::new();
+        values.append(Value::str(MwlStr::new(b"first")));
+        values.set(
+            MwlStr::new(b"also ignored"),
+            Value::str(MwlStr::new(b"second")),
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::mwl_core_arr_from_keys_and_values,
+            &mut ctx,
+            &[Value::array(keys), Value::array(values)],
+        )
+        .expect("two arrays of the same length combine");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"a".to_vec(), b"first".to_vec()),
+                (b"10".to_vec(), b"second".to_vec()),
+            ]
+        );
+    }
+
+    /// ADR 0063 R4: PHP 8 raises a `ValueError` here rather than pairing what
+    /// it can, and silently dropping the excess would lose data.
+    #[test]
+    fn two_arrays_of_different_lengths_do_not_combine() {
+        let mut keys = MwlArray::new();
+        keys.append(Value::str(MwlStr::new(b"a")));
+        let mut values = MwlArray::new();
+        values.append(Value::int(1));
+        values.append(Value::int(2));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(
+            super::mwl_core_arr_from_keys_and_values,
+            &mut ctx,
+            &[Value::array(keys), Value::array(values)],
+        )
+        .expect_err("one key cannot carry two values");
+        assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    /// The `(bucket, count)` pairs a `countBy` result holds, in cursor order —
+    /// `entries_of`'s counterpart for the one member whose values are `uint`
+    /// rather than strings.
+    fn counts_of(result: Value) -> Vec<(Vec<u8>, u64)> {
+        #[expect(
+            unsafe_code,
+            reason = "the helper returned one fresh reference, which the handle \
+                      takes over and releases on drop"
+        )]
+        let array =
+            unsafe { MwlArray::from_raw(result.array_ptr().expect("the member returns an array")) };
+        let mut out = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let key = array.key_at(slot).expect("a live entry has a key");
+            let count = array
+                .value_at(slot)
+                .and_then(|value| value.as_uint())
+                .expect("every count is a uint");
+            out.push((key.as_bytes().to_vec(), count));
+            from = slot + 1;
+        }
+        out
+    }
+
+    /// Verified against PHP 8.5's `array_count_values`, first-occurrence order
+    /// included. The `1`/`"1"` pair is the half PHP shares with every other key
+    /// position and this member reaches through `key_bytes`.
+    #[test]
+    fn count_by_counts_each_bucket_in_first_occurrence_order() {
+        let mut array = MwlArray::new();
+        array.append(Value::str(MwlStr::new(b"red")));
+        array.append(Value::int(1));
+        array.append(Value::str(MwlStr::new(b"red")));
+        array.append(Value::str(MwlStr::new(b"1")));
+        array.append(Value::str(MwlStr::new(b"blue")));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::mwl_core_arr_count_by,
+            &mut ctx,
+            &[Value::array(array), Value::null()],
+        )
+        .expect("int and string values both name a bucket");
+        assert_eq!(
+            counts_of(result),
+            vec![
+                (b"red".to_vec(), 2),
+                (b"1".to_vec(), 2),
+                (b"blue".to_vec(), 1),
+            ]
+        );
+    }
+
+    /// A value that cannot name a bucket and has no `by` to name one for it is
+    /// a throw, not PHP's warn-and-skip — `flip`'s treatment of the identical
+    /// situation.
+    #[test]
+    fn counting_by_a_value_that_is_not_a_key_throws() {
+        let mut array = MwlArray::new();
+        array.append(Value::float(1.5));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(
+            super::mwl_core_arr_count_by,
+            &mut ctx,
+            &[Value::array(array), Value::null()],
+        )
+        .expect_err("a float is not a key");
         assert_eq!(status, mwl_runtime::FATAL);
     }
 }

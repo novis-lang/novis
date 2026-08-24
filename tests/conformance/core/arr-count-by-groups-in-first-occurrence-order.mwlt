@@ -1,0 +1,38 @@
+--TEST--
+Core\Arr::countBy counts each bucket in first-occurrence order, with or without {by}
+--FILE--
+<?mwl
+array<string> $words = ["red", "blue", "red", "green", "blue", "red"];
+
+// Without `by` the value itself is the bucket, which is array_count_values.
+var $counts = Core\Arr::countBy($words);
+echo Core\Str::join(Core\Arr::keys($counts), ","), "\n";
+echo $counts["red"], $counts["blue"], $counts["green"], "\n";
+
+// With it the callback names the bucket, which is the half PHP has no function
+// for at all. Every Core\Arr callback receives ($value, $key) and may declare
+// fewer parameters.
+var $byLength = Core\Arr::countBy($words, {by: fn (string $w): int => Core\Str::length($w) as int});
+echo Core\Str::join(Core\Arr::keys($byLength), ","), "\n";
+echo $byLength["3"], $byLength["4"], $byLength["5"], "\n";
+
+// A bucket is named through the same normalization every other key position
+// uses, so an `int` and its decimal spelling are one bucket.
+array<string|int> $mixed = ["red", 1, "red", "1", "blue"];
+var $spellings = Core\Arr::countBy($mixed);
+echo Core\Str::join(Core\Arr::keys($spellings), ","), "\n";
+echo $spellings["red"], $spellings["1"], $spellings["blue"], "\n";
+
+// The subject is a value and is not touched, and an empty array counts nothing.
+echo Core\Arr::count($words), "\n";
+array<string> $empty = [];
+echo Core\Arr::count(Core\Arr::countBy($empty)), "\n";
+--EXPECT--
+red,blue,green
+321
+3,4,5
+321
+red,1,blue
+221
+6
+0

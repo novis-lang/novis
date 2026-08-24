@@ -29,9 +29,9 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Arr` × 12, `Str` × 15, `granularity`, `Order`, and the conformance-coverage gate),
+> `mwl-stdlib` (`Arr` × 16, `Str` × 19, `granularity`, `Order`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 255 (in
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 258 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -46,7 +46,7 @@
 > full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification*
 > section says what its slice covers, not this field.
 >
-> **Open now:** **both Stage 4 suites are over their thresholds — conformance 255 against 250,
+> **Open now:** **both Stage 4 suites are over their thresholds — conformance 258 against 250,
 > differential 82 against 60 — and `mwl-stdlib`'s
 > `every_part_one_member_has_a_conformance_case` now exists and passes**: every registered `Core` member
 > is called by a `.mwlt` case, and a new member cannot land without one. The corpus stays the fastest
@@ -76,8 +76,8 @@
 >
 > **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
 > under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
-> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed, and the three `Core\Arr`
-> members added since were leak-checked the same way before they landed. Stage 4's `mwl-stdlib` guard
+> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed, and every `Core\Arr`
+> member added since was leak-checked the same way before it landed. Stage 4's `mwl-stdlib` guard
 > test now passes, so the acceptance run reaches Stage 5's three named guards.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,

@@ -1,0 +1,38 @@
+--TEST--
+Core\Arr::withoutFirst and ::withoutLast drop one entry and renumber nothing
+--FILE--
+<?mwl
+array<string> $a = ["x" => "one", "10" => "two", "y" => "three"];
+
+echo Core\Str::join(Core\Arr::withoutFirst($a), ","), "\n";
+echo Core\Str::join(Core\Arr::withoutLast($a), ","), "\n";
+
+// PHP's `array_shift`/`array_pop` renumber the integer keys of the remainder
+// and silently keep the string ones — the key-type-dependent behaviour
+// ADR 0069 § 3 removes. Neither member declares a `preserveKeys` option, so
+// there is nothing to choose: every surviving key is kept.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::withoutFirst($a)), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::withoutLast($a)), ","), "\n";
+
+// PHP mutates its argument and returns the element; ADR 0063 R3 makes nothing
+// mutate, so the subject still holds all three entries.
+echo Core\Str::join(Core\Arr::keys($a), ","), "\n";
+
+// Neither end is a special case: a one-entry array drops all it has, and an
+// empty one has nothing to drop rather than warning.
+array<string> $one = ["only"];
+array<string> $empty = [];
+echo Core\Arr::count(Core\Arr::withoutFirst($one)), Core\Arr::count(Core\Arr::withoutLast($one)), "\n";
+echo Core\Arr::count(Core\Arr::withoutFirst($empty)), Core\Arr::count(Core\Arr::withoutLast($empty)), "\n";
+
+// The two compose, so the middle is reachable without an offset.
+echo Core\Str::join(Core\Arr::withoutLast(Core\Arr::withoutFirst($a)), ","), "\n";
+--EXPECT--
+two,three
+one,two
+10,y
+x,10
+x,10,y
+00
+00
+two
