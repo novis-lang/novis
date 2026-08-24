@@ -1,0 +1,45 @@
+--TEST--
+Core\Math::abs, sign, min, max and clamp answer over both arms of `int|float`
+--FILE--
+<?mwl
+echo Core\Math::abs(-7), "|", Core\Math::abs(7), "|", Core\Math::abs(-7.5), "\n";
+// `sign` is `$n <=> 0`, and `-0.0` is zero.
+echo Core\Math::sign(-3), "|", Core\Math::sign(0), "|", Core\Math::sign(2.5), "|",
+     Core\Math::sign(-0.0), "\n";
+
+// One ordering for two loose values and for an array, so the two members
+// cannot disagree — `Core\Arr::min` walks the same comparison.
+echo Core\Math::min(3, 9), "|", Core\Math::max(3, 9), "\n";
+echo Core\Math::min("pear", "apple"), "|", Core\Math::max("pear", "apple"), "\n";
+
+echo Core\Math::clamp(42, 0, 10), "|", Core\Math::clamp(-42, 0, 10), "|",
+     Core\Math::clamp(5, 0, 10), "\n";
+
+// `int`'s smallest value has no `int` magnitude, and PHP's answer — becoming a
+// `float` by itself — is what ADR 0007 forbids.
+try {
+    echo Core\Math::abs(-9223372036854775807 - 1), "\n";
+} catch (Throwable $e) {
+    echo "abs: ", $e->message, "\n";
+}
+// An empty range has no value to clamp into.
+try {
+    echo Core\Math::clamp(5, 10, 1), "\n";
+} catch (Throwable $e) {
+    echo "clamp: ", $e->message, "\n";
+}
+// `NaN` is on neither side of zero.
+try {
+    echo Core\Math::sign(Core\Math::sqrt(-1.0)), "\n";
+} catch (Throwable $e) {
+    echo "sign: ", $e->message, "\n";
+}
+--EXPECT--
+7|7|7.5
+-1|0|1|0
+3|9
+apple|pear
+10|0|5
+abs: Core\Math::abs has no `int` answer for `int`'s smallest value: its magnitude is one past the largest
+clamp: Core\Math::clamp was given a `low` above its `high`, which is an empty range
+sign: Core\Math::sign has no answer for `NaN`: it is on neither side of zero

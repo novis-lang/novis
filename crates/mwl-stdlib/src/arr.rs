@@ -7,6 +7,7 @@
 
 use mwl_runtime::{Fault, MwlArray, MwlStr, Tag, Value};
 
+use crate::ordering::compare_values;
 use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
 
 // ============================================================================
@@ -1652,7 +1653,7 @@ mwl_runtime::mwl_helper! {
                     }
                     sign?
                 }
-                None => compare_values(&compared[left], &compared[right])?,
+                None => compare_values(&compared[left], &compared[right], r"Core\Arr::sort")?,
             };
             Ok(if descending { ordering.reverse() } else { ordering })
         };
@@ -1718,85 +1719,6 @@ fn comparator_sign(verdict: Value) -> Result<std::cmp::Ordering, Fault> {
         "Core\\Arr::sort's comparator returned tag {}, not a number",
         verdict.tag_byte()
     )))
-}
-
-/// The natural ordering of two values, or a throw for a pair that has none.
-///
-/// One row per representation, and nothing crosses between rows except the
-/// numeric ones:
-///
-/// * `null` — one value, so always equal.
-/// * `bool` — `false` before `true`.
-/// * `int`/`uint` — exactly, through `i128`, so no large `uint` is rounded.
-/// * `float` against anything numeric — `f64::total_cmp`, which is a real
-///   total order (unlike `partial_cmp`, which a `NaN` makes intransitive and
-///   therefore unusable by any sort at all). Its two visible consequences are
-///   that `-0.0` sorts before `0.0` and that `NaN` sorts at one end rather
-///   than throwing.
-/// * `string`/`bytes` — **bytewise**, never numerically. See
-///   [`mwl_core_arr_sort`], which owns that divergence from PHP.
-///
-/// Anything else — an object, an array, or two different rows above — is
-/// `THROWN`, naming both tags. An object is the one worth calling out: ADR
-/// 0013 makes `Comparable` the answer, and reaching an instance method from a
-/// helper is the thing that is not built yet.
-fn compare_values(left: &Value, right: &Value) -> Result<std::cmp::Ordering, Fault> {
-    use std::cmp::Ordering;
-
-    if let (Some(Tag::Null), Some(Tag::Null)) = (left.tag(), right.tag()) {
-        return Ok(Ordering::Equal);
-    }
-    if let (Some(a), Some(b)) = (left.as_bool(), right.as_bool()) {
-        return Ok(a.cmp(&b));
-    }
-    if let (Some(a), Some(b)) = (left.as_str_bytes(), right.as_str_bytes()) {
-        return Ok(a.cmp(b));
-    }
-    if let (Some(a), Some(b)) = (numeric(left), numeric(right)) {
-        return Ok(match (a, b) {
-            (Numeric::Integer(a), Numeric::Integer(b)) => a.cmp(&b),
-            (Numeric::Integer(a), Numeric::Real(b)) => real(a).total_cmp(&b),
-            (Numeric::Real(a), Numeric::Integer(b)) => a.total_cmp(&real(b)),
-            (Numeric::Real(a), Numeric::Real(b)) => a.total_cmp(&b),
-        });
-    }
-    Err(Fault::thrown(format!(
-        "Core\\Arr::sort has no natural order for tag {} against tag {}; pass \
-         `{{comparator: ...}}`, or implement `Comparable` and compare by that",
-        left.tag_byte(),
-        right.tag_byte()
-    )))
-}
-
-/// One value's numeric content, or `None` for a value that has none.
-#[derive(Clone, Copy)]
-enum Numeric {
-    /// An `int` or a `uint`, widened so the two compare exactly.
-    Integer(i128),
-    /// A `float`.
-    Real(f64),
-}
-
-fn numeric(value: &Value) -> Option<Numeric> {
-    if let Some(int) = value.as_int() {
-        return Some(Numeric::Integer(i128::from(int)));
-    }
-    if let Some(uint) = value.as_uint() {
-        return Some(Numeric::Integer(i128::from(uint)));
-    }
-    value.as_float().map(Numeric::Real)
-}
-
-/// An exact integer as the `f64` it is compared against.
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "an integer past 2^53 loses low bits on the way to `f64`, which \
-              is the same rounding ADR 0007 § 4's int-to-float widening \
-              already allows; the alternative is a mixed int/float array \
-              having no order at all"
-)]
-fn real(value: i128) -> f64 {
-    value as f64
 }
 
 /// A stable, bottom-up merge sort over `permutation`, with a comparison that
@@ -2274,7 +2196,7 @@ mwl_runtime::mwl_helper! {
     /// that cannot be written in the language.
     fn mwl_core_arr_min(_ctx, args: [1]) {
         let subject = subject(args, "min")?;
-        extremum(&subject, std::cmp::Ordering::Less)
+        extremum(&subject, std::cmp::Ordering::Less, r"Core\Arr::min")
     }
 }
 
@@ -2286,7 +2208,7 @@ mwl_runtime::mwl_helper! {
     /// divergence from PHP's loose comparison.
     fn mwl_core_arr_max(_ctx, args: [1]) {
         let subject = subject(args, "max")?;
-        extremum(&subject, std::cmp::Ordering::Greater)
+        extremum(&subject, std::cmp::Ordering::Greater, r"Core\Arr::max")
     }
 }
 
@@ -2349,7 +2271,7 @@ fn slot_of(subject: &MwlArray, needle: Value) -> Option<usize> {
 ///
 /// The **first** extreme wins a tie, so a stable sort and this member name the
 /// same entry.
-fn extremum(subject: &MwlArray, wanted: std::cmp::Ordering) -> Result<Value, Fault> {
+fn extremum(subject: &MwlArray, wanted: std::cmp::Ordering, member: &str) -> Result<Value, Fault> {
     let mut best: Option<(usize, Value)> = None;
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
@@ -2360,7 +2282,7 @@ fn extremum(subject: &MwlArray, wanted: std::cmp::Ordering) -> Result<Value, Fau
         match best {
             None => best = Some((slot, value)),
             Some((_, incumbent)) => {
-                if compare_values(&value, &incumbent)? == wanted {
+                if compare_values(&value, &incumbent, member)? == wanted {
                     best = Some((slot, value));
                 }
             }

@@ -1,0 +1,38 @@
+--TEST--
+Core\Math::format groups, rounds half away from zero, and writes no separator unless asked
+--FILE--
+<?mwl
+// MWL has no ambient locale, so the group separator defaults to empty rather
+// than to number_format's comma.
+echo Core\Math::format(1234567.891), "|", Core\Math::format(1234567), "\n";
+echo Core\Math::format(1234567.891, {decimals: 2, groupSeparator: ","}), "\n";
+echo Core\Math::format(1234567.891, {decimals: 2, decimalSeparator: ",", groupSeparator: "."}), "\n";
+
+// Every length a three-digit group can end on.
+echo Core\Math::format(1, {groupSeparator: ","}), "|",
+     Core\Math::format(12, {groupSeparator: ","}), "|",
+     Core\Math::format(123, {groupSeparator: ","}), "|",
+     Core\Math::format(1234, {groupSeparator: ","}), "\n";
+
+// An `int` subject keeps every digit it has and pads the decimals asked for.
+echo Core\Math::format(42, {decimals: 3}), "|", Core\Math::format(-42, {decimals: 1}), "\n";
+
+// Rounding is half away from zero, as number_format's is; another rule is
+// `Core\Math::round` first, which is the only place `mode` is spelled.
+echo Core\Math::format(2.5), "|",
+     Core\Math::format(Core\Math::round(2.5, {mode: Core\RoundMode::HalfEven})), "\n";
+
+// There is no digit string for an infinity.
+try {
+    echo Core\Math::format(Core\Math::log(0.0)), "\n";
+} catch (Throwable $e) {
+    echo "infinite: ", $e->message, "\n";
+}
+--EXPECT--
+1234568|1234567
+1,234,567.89
+1.234.567,89
+1|12|123|1,234
+42.000|-42.0
+3|2
+infinite: Core\Math::format has no digits for an infinity or a `NaN`

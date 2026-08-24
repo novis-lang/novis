@@ -1,0 +1,23 @@
+--TEST--
+Core\Math's twelve trigonometric members plus toRadians and toDegrees
+--FILE--
+<?mwl
+echo Core\Math::sin(0.0), "|", Core\Math::cos(0.0), "|", Core\Math::tan(0.0), "\n";
+echo Core\Math::asin(0.0), "|", Core\Math::acos(1.0), "|", Core\Math::atan(0.0), "\n";
+// `$y` first, as in PHP and in C.
+echo Core\Math::atan2(0.0, 1.0), "|", Core\Math::atan2(1.0, 1.0), "\n";
+
+echo Core\Math::sinh(0.0), "|", Core\Math::cosh(0.0), "|", Core\Math::tanh(0.0), "\n";
+echo Core\Math::asinh(0.0), "|", Core\Math::acosh(1.0), "|", Core\Math::atanh(0.0), "\n";
+
+// The two conversions are inverses, and a half turn is the value to say so at.
+echo Core\Math::toRadians(180.0), "|", Core\Math::toDegrees(Core\Math::toRadians(180.0)), "\n";
+echo (Core\Math::sin(Core\Math::toRadians(90.0)) === 1.0) as string, "|\n";
+--EXPECT--
+0|1|0
+0|0|0
+0|0.78539816339745
+0|1|0
+0|0|0
+3.1415926535898|180
+1|

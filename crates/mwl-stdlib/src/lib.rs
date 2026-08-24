@@ -12,7 +12,7 @@
 //!
 //! # One module per domain; adding a class is two lines
 //!
-//! A domain module ([`arr`], [`str`]) holds everything about its class: the
+//! A domain module ([`arr`], [`math`], [`str`]) holds everything about its class: the
 //! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering
 //! for its own symbols and nothing else.
@@ -34,9 +34,12 @@
 //! to link, and an implementation nothing registers is dead code the compiler
 //! warns about.
 //!
-//! [`granularity`] is the one module that is not a domain: it holds
-//! ADR 0009 § 2's answer to "what unit does a `string` count in," which more
-//! than one domain reaches for and no domain may decide for itself.
+//! Two modules are not domains, and both exist for the same reason — more than
+//! one domain reaches for what they hold, so no domain may decide it alone.
+//! `granularity` holds ADR 0009 § 2's answer to "what unit does a `string`
+//! count in"; `ordering` holds what "smaller" means with no comparator given,
+//! which `Core\Arr::sort`/`min`/`max` and `Core\Math::min`/`max`/`clamp` would
+//! otherwise be free to answer differently.
 //!
 //! # A `Core` call is a helper call
 //!
@@ -61,7 +64,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The registry holds part of §§ 1–2 and none of §§ 3–12.**
+//! 1. **The registry holds part of §§ 1–2, all of § 3, and none of §§ 4–12.**
 //!    `Core\Arr::count` was the first, and landed with the mechanism rather
 //!    than after it, on this repository's standing "narrow slice, end to end"
 //!    rule. Two more members proved the two things the mechanism still had to:
@@ -77,16 +80,26 @@
 //!    Within § 1, ADR 0009 § 2's granularity question is closed and
 //!    [`granularity::DEFAULT`] is its answer, so `length` and `at` are
 //!    registered; `slice` is not, and what it waits on is now only a session
-//!    to write it — see gap 3.
-//! 3. **Two shapes a §§ 1–12 signature writes still cannot be stated**, and
+//!    to write it — see gap 3. Section 3 is whole: every one of
+//!    [`math::CLASS`]'s thirty-eight rows runs, at `int|float` wherever the
+//!    spec writes `int|float|decimal`.
+//! 3. **Three shapes a §§ 1–12 signature writes still cannot be stated**, and
 //!    each blocks a named set of members. A **variadic** parameter blocks ADR
 //!    0069's `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
 //!    `Arr::prepend` and `Path::join`; it is a `registry::CoreMethod` field
 //!    plus `mwl-ir`'s gap 8, since a helper's `args: [N]` is a fixed arity and
 //!    a variadic call has to collect its tail into an array before it can
 //!    reach one. `decimal` blocks `Arr::sum`, `product` and `average`, whose
-//!    subject is `array<int|float|decimal>`; it is a [`registry::CoreTy`]
-//!    variant plus `mwl-ir`'s gap 15.
+//!    subject is `array<int|float|decimal>`, and narrows seven `Core\Math`
+//!    rows to the two arms they are registered at; it is a
+//!    [`registry::CoreTy`] variant plus `mwl-ir`'s gap 15. A class
+//!    **constant** has no field on [`registry::CoreClass`] at all, which is
+//!    what leaves `Core\Math`'s `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`,
+//!    `INT_MIN`, `UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN` and `INFINITY`
+//!    unwritable; it needs a roster here, a lookup in `mwl_types::expr`'s
+//!    `ClassConstAccess` arm beside the enum-case one, and the matching arm in
+//!    `mwl-ir` — which today panics naming an ordinary class constant as
+//!    unmodeled.
 //!
 //!    Everything else the spec writes is expressible: ADR 0063 R2's options
 //!    bag ([`registry::CoreTy::Options`], first used by `Core\Arr::range`), a
@@ -129,6 +142,8 @@
 
 pub mod arr;
 pub mod granularity;
+pub mod math;
+mod ordering;
 pub mod registry;
 pub mod str;
 
@@ -158,6 +173,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         .map(|method| {
             let address = str::address(method.symbol)
                 .or_else(|| arr::address(method.symbol))
+                .or_else(|| math::address(method.symbol))
                 .unwrap_or_else(|| {
                     panic!(
                         "mwl-stdlib registers `{}` with no implementation address",

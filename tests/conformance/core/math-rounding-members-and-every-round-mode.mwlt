@@ -1,0 +1,39 @@
+--TEST--
+Core\Math::ceil, floor, truncate and round, with each of Core\RoundMode's six rules
+--FILE--
+<?mwl
+echo Core\Math::ceil(1.2), "|", Core\Math::ceil(-1.8), "\n";
+echo Core\Math::floor(1.8), "|", Core\Math::floor(-1.2), "\n";
+// `truncate` is toward zero, so it is neither of the two above.
+echo Core\Math::truncate(1.8), "|", Core\Math::truncate(-1.7), "\n";
+
+// 2.5 is the one value that tells all six modes apart, and -2.5 says which of
+// them are about zero rather than about the number line.
+echo Core\Math::round(2.5, {mode: Core\RoundMode::HalfUp}), "|",
+     Core\Math::round(-2.5, {mode: Core\RoundMode::HalfUp}), "\n";
+echo Core\Math::round(2.5, {mode: Core\RoundMode::HalfDown}), "|",
+     Core\Math::round(-2.5, {mode: Core\RoundMode::HalfDown}), "\n";
+echo Core\Math::round(2.5, {mode: Core\RoundMode::HalfEven}), "|",
+     Core\Math::round(3.5, {mode: Core\RoundMode::HalfEven}), "\n";
+echo Core\Math::round(2.5, {mode: Core\RoundMode::HalfOdd}), "|",
+     Core\Math::round(3.5, {mode: Core\RoundMode::HalfOdd}), "\n";
+echo Core\Math::round(2.1, {mode: Core\RoundMode::Up}), "|",
+     Core\Math::round(-2.1, {mode: Core\RoundMode::Up}), "\n";
+echo Core\Math::round(2.9, {mode: Core\RoundMode::Down}), "|",
+     Core\Math::round(-2.9, {mode: Core\RoundMode::Down}), "\n";
+
+// The default is HalfUp, and a precision moves the place the tie is at — a
+// negative one rounds to tens and up.
+echo Core\Math::round(2.5), "|", Core\Math::round(1.2345, {precision: 2}), "|",
+     Core\Math::round(1250.0, {precision: -2}), "\n";
+--EXPECT--
+2|-1
+1|-2
+1|-1
+3|-3
+2|-2
+2|4
+3|3
+3|-3
+2|-2
+3|1.23|1300

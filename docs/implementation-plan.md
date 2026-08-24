@@ -20,8 +20,11 @@
 > `IsNull` guard (`mwl_ir::lower::Lowering::open_nullsafe`). A tagged value now **renders**, which is what
 > lets a `Core` member with a union return be called from a fixture at all: `.`, `echo` and `as string`
 > over a `mixed`, a `?T` or any other union all reach one `Helper::TaggedToString`, picking ADR 0007 § 2's
-> row from the tag and throwing where no row exists. A **variadic** parameter
-> is the one signature shape still missing, and `decimal` the one type. **Every M4 control-flow
+> row from the tag and throwing where no row exists. That is what let **spec § 3 land whole**:
+> `Core\Math`'s thirty-eight members and `Core\RoundMode` are registered, and `mwl_stdlib::ordering`
+> now holds the one natural order `Arr::sort`/`min`/`max` and `Math::min`/`max`/`clamp` share. A
+> **variadic** parameter is the one signature shape still missing, `decimal` the one type, and a class
+> **constant** the one kind of member. **Every M4 control-flow
 > statement now lowers but `do`/`while`**: `for` (`lower_for`), and now `switch` (`lower_switch`) and
 > `match` (`lower_match`), both an equality chain over the labels rather than
 > `Terminator::Switch`, which selects on an integer. A bare `continue` inside a `switch` continues the
@@ -43,9 +46,9 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
-> `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `granularity`, `Order`, and the
-> conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 281 (in
+> `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `Math` × 38, `granularity`, `ordering`, `Order` and
+> `RoundMode`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 288 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 85,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -62,14 +65,15 @@
 > and every § 3 *refusal* owed. Instance calls dispatch on the receiver's runtime class. Each ADR's own
 > *Verification* section says what its slice covers, not this field.
 >
-> **Open now:** **`Core` breadth.** `?T` rows register and strict identity is defined, so the two answers
-> the last batches waited on are spent: `contains`, `keyOf`, `unique`, `min` and `max` run, and
-> `diff`/`intersect` need only their `SetOn` enum and their `on`/`by`/`comparator` bag, both of which the
-> registry can already state. Two signature shapes are still missing: a **variadic** parameter (ADR 0069's
-> three combination members, `append`/`prepend`, `Path::join`) and `CoreTy::Decimal`
-> (`sum`/`product`/`average`). `Core` §§ 3–12
-> have no registry class at all, and `Core\Str`/`Core\Arr` are incomplete. Folded in because the corpus
-> cannot route around them: `decimal`'s IR, ADR 0070's duration literal. Also open: ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
+> **Open now:** **`Core` breadth.** Spec § 3 is whole — `Core\Math`'s thirty-eight members and
+> `Core\RoundMode` all run — so §§ 4–12 have no registry class and `Core\Str`/`Core\Arr` are still
+> incomplete; `diff`/`intersect` need only their `SetOn` enum and their `on`/`by`/`comparator` bag, both
+> of which the registry can already state. Three signature shapes are missing: a **variadic** parameter
+> (ADR 0069's three combination members, `append`/`prepend`, `Path::join`), `CoreTy::Decimal`
+> (`sum`/`product`/`average`, and seven `Math` rows narrowed to `int|float`), and a class **constant**,
+> which has no field on `CoreClass` and leaves `Math::PI` and its ten siblings unwritable. Folded in
+> because the corpus cannot route around them: `decimal`'s IR, ADR 0070's duration literal. Also open:
+> ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
 > nothing enforces, and the reserved `Comparable`/`Stringable` interfaces, which carry no member signatures.
 > One PHP divergence stands unfixed — **an abandoned generator never runs the `finally` it is suspended
 > inside**, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP

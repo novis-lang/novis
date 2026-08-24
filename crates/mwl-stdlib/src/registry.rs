@@ -21,15 +21,12 @@
 //!
 //! # Known gap
 //!
-//! The enum covers exactly what the members registered so far need. Two
-//! shapes §§ 1–12 write are still missing. `decimal` is a variant to add here
-//! plus a lowering arm in `mwl_types`, and blocks `Core\Arr::sum`,
-//! `product` and `average`, whose subject is `array<int|float|decimal>`. A
-//! **variadic** parameter is that plus `mwl-ir`'s gap 8, because a helper's
-//! `args: [N]` is a fixed arity and a variadic call has to collect its tail
-//! into something before it can reach one; ADR 0069's
-//! `overlay`/`underlay`/`appendAll`, `Arr::append`/`prepend` and `Path::join`
-//! all wait on it.
+//! The enum covers exactly what the members registered so far need, and
+//! [`CoreClass`] covers exactly the *kind* of member they are. What is still
+//! missing is [`crate`]'s own gap 3, which owns the list: `decimal`, a
+//! **variadic** parameter, and a class **constant** — the last of which is a
+//! field on [`CoreClass`] rather than a [`CoreTy`] variant, since a constant
+//! has a value and no signature.
 //!
 //! # A `Core` enum is declared here too
 //!
@@ -345,7 +342,7 @@ pub struct CoreClass {
 /// plus one in [`crate::symbols`]. That is what lets two sessions add two
 /// different domains without touching the same lines; the flat table this
 /// replaced made every such pair conflict. Order is the spec's own § order.
-pub const CLASSES: &[CoreClass] = &[crate::str::CLASS, crate::arr::CLASS];
+pub const CLASSES: &[CoreClass] = &[crate::str::CLASS, crate::arr::CLASS, crate::math::CLASS];
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
 /// closed, named integer type, declared here rather than in MWL source.
@@ -377,7 +374,7 @@ pub struct CoreEnum {
 ///
 /// One line per enum, declared beside the member that takes it — the same
 /// rule [`CLASSES`] follows, for the same reason.
-pub const ENUMS: &[CoreEnum] = &[crate::arr::ORDER];
+pub const ENUMS: &[CoreEnum] = &[crate::arr::ORDER, crate::math::ROUND_MODE];
 
 /// Looks a class up by its fully-qualified name.
 #[must_use]

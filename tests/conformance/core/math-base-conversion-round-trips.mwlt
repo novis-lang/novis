@@ -1,0 +1,40 @@
+--TEST--
+Core\Math::toBase and fromBase are inverses, and a digit the base has no room for throws rather than being ignored
+--FILE--
+<?mwl
+echo Core\Math::toBase(48879, 16), "|", Core\Math::toBase(5, 2), "|",
+     Core\Math::toBase(8, 8), "|", Core\Math::toBase(0, 16), "\n";
+// A negative value is written with a leading `-`, which base_convert has no
+// answer for at all — and it reads back.
+echo Core\Math::toBase(-255, 16), "|", Core\Math::fromBase("-ff", 16), "\n";
+
+echo Core\Math::fromBase("beef", 16), "|", Core\Math::fromBase("BEEF", 16), "|",
+     Core\Math::fromBase("101", 2), "|", Core\Math::fromBase("zz", 36), "\n";
+echo (Core\Math::fromBase(Core\Math::toBase(123456, 36), 36) === 123456) as string, "|\n";
+
+// PHP's hexdec reads "beefy" as 48879, silently. ADR 0063 R4 makes that a
+// throw.
+try {
+    echo Core\Math::fromBase("beefy", 16), "\n";
+} catch (Throwable $e) {
+    echo "digit: ", $e->message, "\n";
+}
+try {
+    echo Core\Math::fromBase("", 16), "\n";
+} catch (Throwable $e) {
+    echo "empty: ", $e->message, "\n";
+}
+// The digits and the Latin letters run out at 36.
+try {
+    echo Core\Math::toBase(3, 1), "\n";
+} catch (Throwable $e) {
+    echo "base: ", $e->message, "\n";
+}
+--EXPECT--
+beef|101|10|0
+-ff|-255
+48879|48879|5|1295
+1|
+digit: Core\Math::fromBase found `y` in a base-16 number, which has no digit for it
+empty: Core\Math::fromBase was given no digits to read
+base: Core\Math::toBase has no digits for base 1: a base runs from 2 to 36

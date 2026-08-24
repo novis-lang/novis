@@ -1,0 +1,39 @@
+--TEST--
+Core\Math::intDiv, mod, gcd and lcm, and the zero divisor each of the first two throws on
+--FILE--
+<?mwl
+// Truncated toward zero, so a negative quotient is not `floor`'s.
+echo Core\Math::intDiv(17, 5), "|", Core\Math::intDiv(-17, 5), "\n";
+// Integer modulo is the `%` operator, so this member is the `float` case only,
+// and the remainder carries the sign of the dividend.
+echo Core\Math::mod(7.5, 2.0), "|", Core\Math::mod(-7.5, 2.0), "\n";
+
+echo Core\Math::gcd(84, 36), "|", Core\Math::gcd(-84, 36), "|", Core\Math::gcd(0, 0), "\n";
+echo Core\Math::lcm(4, 6), "|", Core\Math::lcm(4, 0), "\n";
+
+// Spec § 3: a division by zero throws, which is why `fdiv`'s silent INF and
+// `fmod`'s silent NAN have no equivalent.
+try {
+    echo Core\Math::intDiv(1, 0), "\n";
+} catch (Throwable $e) {
+    echo "intDiv: ", $e->message, "\n";
+}
+try {
+    echo Core\Math::mod(1.0, 0.0), "\n";
+} catch (Throwable $e) {
+    echo "mod: ", $e->message, "\n";
+}
+// `int`'s smallest value over -1 is one past the largest.
+try {
+    echo Core\Math::intDiv(-9223372036854775807 - 1, -1), "\n";
+} catch (Throwable $e) {
+    echo "overflow: ", $e->message, "\n";
+}
+--EXPECT--
+3|-3
+1.5|-1.5
+12|12|0
+12|0
+intDiv: Core\Math::intDiv was given a zero divisor
+mod: Core\Math::mod was given a zero divisor
+overflow: Core\Math::intDiv's answer does not fit an `int`
