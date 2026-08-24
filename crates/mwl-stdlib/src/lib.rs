@@ -12,7 +12,8 @@
 //!
 //! # One module per domain; adding a class is two lines
 //!
-//! A domain module ([`arr`], [`math`], [`regex`], [`str`], [`time`]) holds everything about its class: the
+//! A domain module ([`arr`], [`json`], [`math`], [`regex`], [`str`], [`time`])
+//! holds everything about its class: the
 //! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering
 //! for its own symbols and nothing else. A domain with more than one class —
@@ -65,12 +66,16 @@
 //! * **A returned heap value carries one fresh reference**, which the caller
 //!   owns, exactly like `mwl_str_concat`'s result.
 //! * **Failure is a `Fault`**, which becomes ADR 0002's `THROWN` or `FATAL`
-//!   status; nothing unwinds.
+//!   status; nothing unwinds. A `Fault::thrown_as` names which of
+//!   [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+//!   § 10's classes a `catch` will see — `Core\Json::decode` answers with
+//!   `ParseError` — and a bare `Fault::thrown` means `RuntimeError`, which is
+//!   what a failure with nothing more specific to say is.
 //!
 //! # Known gaps
 //!
-//! 1. **The registry holds part of §§ 1–2, all of § 3, half of § 5, and none
-//!    of the rest of §§ 4–12.**
+//! 1. **The registry holds part of §§ 1–2, all of §§ 3–4, most of §§ 5–6, and
+//!    none of §§ 7–12.**
 //!    `Core\Arr::count` was the first, and landed with the mechanism rather
 //!    than after it, on this repository's standing "narrow slice, end to end"
 //!    rule. Two more members proved the two things the mechanism still had to:
@@ -96,12 +101,14 @@
 //!    not yet). Section 5 is six of its eight: [`regex::CLASS`] holds both of
 //!    ADR 0056's tiers and the `Core`-owned `Match` they answer with, and that
 //!    module's own gap 1 owns `compile`/`replaceWith`, which need `Pattern`.
-//!    Section 4 is its absolute half: [`time`] holds `Core\Time`'s five
-//!    zone-free entry points, `Core\Time\Instant`, `Core\Time\Duration` and
-//!    `Core\Time\Zone`, over `jiff` — that module's own docs own why that
-//!    crate and what it spends, and its gap 1 owns the calendar half
-//!    (`DateTime`, `Date`, `TimeOfDay`, the three enums, and the three members
-//!    that answer with a `DateTime`), which waits on CLDR patterns.
+//!    Section 4 runs but its two component types: [`time`] holds
+//!    `Core\Time`'s entry points, `Instant`, `DateTime`, `Duration` and `Zone`
+//!    over `jiff` and `cldr`'s pattern grammar — that module's own docs own
+//!    why that crate and what it spends, and its gap 1 owns `Date`,
+//!    `TimeOfDay` and `Core\Month`. Section 6 is three of its four:
+//!    [`json::CLASS`] holds `encode`, `decode` and `isValid` over
+//!    `serde_json`, and that module's own gap 2 owns `decodeAs<T>`, which
+//!    waits on ADR 0071 and on an explicit type argument at a call site.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
@@ -175,6 +182,7 @@ mod cldr;
 mod format;
 pub mod granularity;
 mod instance;
+pub mod json;
 pub mod math;
 mod ordering;
 pub mod regex;
@@ -210,6 +218,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         .map(|method| {
             let address = str::address(method.symbol)
                 .or_else(|| arr::address(method.symbol))
+                .or_else(|| json::address(method.symbol))
                 .or_else(|| math::address(method.symbol))
                 .or_else(|| regex::address(method.symbol))
                 .or_else(|| time::address(method.symbol))

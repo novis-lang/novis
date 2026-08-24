@@ -1234,6 +1234,8 @@ dependencies = [
  "mwl-syntax",
  "mwl-test",
  "regex",
+ "serde",
+ "serde_json",
  "unicode-segmentation",
 ]
 

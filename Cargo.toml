@@ -81,6 +81,25 @@ fancy-regex = "0.19"
 # `crates/mwl-stdlib/src/time.rs` owns why this crate and not another.
 jiff = "0.2"
 
+# --- JSON (spec § 6) ---
+# RFC 8259 is an external specification, so it is a dependency rather than a
+# hand-written parser (AGENTS.md § *Implementation invariants*). `serde_json`
+# is the only Rust JSON crate that is simultaneously the ecosystem default,
+# pure Rust with no build script, and driveable *without* its own `Value` tree
+# — `Core\Json::decode` builds an `MwlArray` straight from a visitor, so no
+# document is ever materialized twice. `serde` itself is the visitor trait it
+# is driven through; nothing here uses its derive macro, though `serde_core`
+# names `serde_derive` as a never-built `cfg(any())` dependency, so the
+# generated notice attributes it anyway.
+# `raw_value` is what lets an ADR 0054 `decimal` be written as an exact JSON
+# number rather than a lossy `f64`, and `unbounded_depth` is what lets section
+# 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
+# rather than the crate's fixed 128.
+# `crates/mwl-stdlib/src/json.rs` owns why this crate and not another, and what
+# keeps an unbounded depth safe.
+serde = "1"
+serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so

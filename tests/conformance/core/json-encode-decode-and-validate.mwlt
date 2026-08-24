@@ -1,0 +1,84 @@
+--TEST--
+Core\Json::encode, decode and isValid round-trip every scalar JSON has, choose an array or an object by the keys, and honour both encode options
+--FILE--
+<?mwl
+// A list encodes as a JSON array and a keyed array as a JSON object — the
+// `Core\Arr::isList` rule, since MWL has one array type and JSON has two.
+echo Core\Json::encode([1, 2, 3]), "\n";
+echo Core\Json::encode(["b" => 2, "a" => 1]), "\n";
+
+// Insertion order is kept, not sorted: a JSON object is an ordered array here
+// exactly as it is in PHP.
+var $decoded = Core\Json::decode("{\"k\":[1,-2,true,false,null,\"x\"],\"n\":3.5}");
+echo Core\Json::encode($decoded), "\n";
+
+// `{pretty: true}` is the only layout option, and `{escapeUnicode: true}` the
+// only escaping one — the two survivors of json_encode's fifteen flags.
+echo Core\Json::encode([1, 2], {pretty: true}), "\n";
+echo Core\Json::encode("caf\u{e9}"), "|", Core\Json::encode("caf\u{e9}", {escapeUnicode: true}), "\n";
+
+// A decimal is written as the exact number it is, never through a float.
+decimal $price = 19.99;
+echo Core\Json::encode($price), "\n";
+
+echo Core\Json::isValid("{\"k\":1}") ? "yes" : "no", "|",
+     Core\Json::isValid("{oops}") ? "yes" : "no", "\n";
+
+// Every refusal is a ParseError, which spec § 10 puts under RuntimeError:
+// "input did not match a format this code declared".
+try {
+    Core\Json::decode("{oops}");
+    echo "not reached\n";
+} catch (ParseError $malformed) {
+    echo "malformed rejected\n";
+}
+
+// Nesting is capped by default and by the option; a scalar document is depth 1,
+// so `[[1]]` needs three.
+try {
+    Core\Json::decode("[[1]]", {maxDepth: 2});
+    echo "not reached\n";
+} catch (ParseError $deep) {
+    echo "too deep\n";
+}
+echo Core\Json::encode(Core\Json::decode("[[1]]", {maxDepth: 3})), "\n";
+
+// An integer past `int` throws rather than degrading to a float.
+try {
+    Core\Json::decode("9223372036854775808");
+    echo "not reached\n";
+} catch (ParseError $big) {
+    echo "too large\n";
+}
+
+// A class participates by implementing Core\Json\Codec, which nothing does
+// yet — so encoding an instance is refused rather than guessed at, and it is a
+// LogicError because the value was built by this program.
+class Point {
+    public int $x;
+    public function constructor(int $x) {
+        $this->x = $x;
+    }
+}
+try {
+    echo Core\Json::encode(new Point(1)), "\n";
+    echo "not reached\n";
+} catch (LogicError $unencodable) {
+    echo "no codec\n";
+}
+--EXPECT--
+[1,2,3]
+{"b":2,"a":1}
+{"k":[1,-2,true,false,null,"x"],"n":3.5}
+[
+  1,
+  2
+]
+"café"|"caf\u00e9"
+19.99
+yes|no
+malformed rejected
+too deep
+[[1]]
+too large
+no codec

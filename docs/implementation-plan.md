@@ -7,33 +7,23 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-24. **M3 is done, and the second M4 + M4S loop now has every shared answer it
-> needs.** The goal is **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written
-> without**, in `docs/agent/loop-goal.md` and its `.toml`. Three representations were the keystone, and all
-> three are built. **`mixed`, `?T` and every other union share `mwl_ir::Ty::Tagged`** — a 16-byte `Value`
-> in a register pair, with `Tag`/`Untag`/`IsNull` to get in, out and test, and one
-> `Helper::TaggedToString` picking ADR 0007 § 2's row from the tag so any of them renders. **Strict
-> identity** is `mwl_runtime::value_identical`, object identity included, with `value_hash` agreeing —
-> `mwl_runtime::identity` is the home. And **`decimal` is `mwl_ir::Ty::Decimal`**: ADR 0054's scalar,
-> carried as a `Value` with `Tag::Decimal` whose 96-bit mantissa spends the bytes a `Value` calls padding,
-> so `Tag`/`Untag` are the *identity* on one and a `mixed` holds it for nothing extra;
-> `mwl_runtime::decimal` is the home for that layout, for § 3's arithmetic and for § 4's conversions, each
-> an `ir::Helper`. Each answer unblocked a section: **spec § 3 is whole** — thirty-eight `Core\Math` rows,
-> `Core\RoundMode`, and eleven class constants through `registry::CoreConst`, the inlined literal ADR 0011
-> makes one — and `Core\Arr::sum`/`product`/`average` are now written over the
-> `array<int|float|decimal>` the spec gives them, which took widening `array<T>` to **element-covariant on
-> read** (`mwl_types::expr::is_assignable`, the loop's pre-authorized call). A fourth representation now
-> sits beside those three: **a `Core`-owned instance is an ordinary MWL object**, one `ClassDesc` per class
-> per core with every member a native helper taking its receiver in argument slot 0
-> (`mwl_stdlib::instance`) — so § 4's time types, § 9's collections and § 12's `Uri` need only their
-> members written, and `Core\Regex\Match` is the first of them.
-> **Every M4 control-flow statement lowers but `do`/`while`.** The M4 hole that was folded in is now
-> closed: **ADR 0070's duration literal lexes, types and runs**, `30s` and `Duration::parse("30s")` sharing
-> the one grammar in `mwl_syntax::duration` that `mwl.toml` will read too. **`jiff` is bound, and spec § 4
-> is whole but its two component types** — `Instant`, `Zone`, `Duration` and now `DateTime`, over the CLDR
-> pattern grammar `mwl_stdlib::cldr` holds for `format` and `Time::parse` alike; `Date`/`TimeOfDay` are
-> that module's gap 1. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user; the rest the
-> loop picks under ADR 0051 § 4.
+> **Status:** 2026-08-24. **M3 is done; the second M4 + M4S loop is building `Core` breadth.** The goal is
+> **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written without**, in
+> `docs/agent/loop-goal.md` and its `.toml`. Every representation that blocked a section is built and
+> recorded in the crate that owns it: `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict identity is
+> `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance is an ordinary MWL
+> object (`mwl_stdlib::instance`), and a variadic tail is one `array<T>` argument
+> (`registry::CoreTy::Variadic`) — so **every signature shape the spec writes can now be stated**, and a
+> section that is not built is only unwritten. **Every M4 control-flow statement lowers but `do`/`while`**,
+> and ADR 0070's duration literal lexes, types and runs. Sections whole or nearly: **§ 3** (thirty-eight
+> `Core\Math` rows plus eleven class constants), **§ 4** (over `jiff` and the CLDR pattern grammar in
+> `mwl_stdlib::cldr`; `Date`/`TimeOfDay` are that module's gap 1), **§ 5** (both ADR 0056 tiers), and now
+> **§ 6** — `Core\Json::encode`/`decode`/`isValid` over `serde_json`, driven through a visitor so a
+> document becomes `MwlArray`s directly; `decodeAs<T>` is `mwl_stdlib::json`'s gap 2. **A helper's failure
+> now names its own spec § 10 class**: `mwl_runtime::ThrownClass` is the closed roster,
+> `Fault::thrown_as` is how a member picks one, and `catch (ParseError $e)` matches a bad JSON document or
+> a bad `Core\Time::parse`. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user; the
+> rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -52,9 +42,10 @@
 > `Math` × 38, `format`, `granularity`, `ordering`, `cldr`,
 > `instance`, `Order`, `RoundMode`, `Unit` and `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over
 > `regex`/`fancy-regex`, `Time` × 7 plus `Time\Instant` × 9, `Time\DateTime` × 14,
-> `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over `jiff`, and the conformance-coverage gate),
+> `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over `jiff`, `Json` × 3 over `serde_json`, and the
+> conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 315 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/conformance` × 317 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
 > `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -98,7 +89,10 @@
 > member that builds one and `mwl-ir` inlines that call at the use site. **A `!== null` test now narrows a
 > local**, so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's flow-sensitive rule, one of its four
 > spellings, with `mwl_types::locals` the home for what invalidates a narrowing and where the walk
-> refuses to prove one. Also open: ADR 0047's checker row,
+> refuses to prove one. **§ 6 is three of its four members**, and the fourth is not a signature but a
+> *language* hole: `Core\Json::decodeAs<User>(…)` needs an explicit type argument at a call site, which the
+> parser reads as a chain of comparisons today, plus ADR 0071's derived codec and spec § 10's `issues`
+> property on `ParseError`. Also open: ADR 0047's checker row,
 > `autoload` (0061), a `decimal` parameter *default* (`mwl_types::defaults`), class-member
 > `private`/`protected`, which nothing enforces, and the reserved `Comparable`/`Stringable` interfaces,
 > which carry no member signatures — so `Duration` satisfies both by member and neither by declaration.
@@ -114,8 +108,9 @@
 > `mwl_runtime::identity`), and picking every dependency but the two the user named. Stages 1 and 2 pass
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
 > on **Stage 3**, `Core` Part I across all twelve spec sections: five of its seven fixtures produce their
-> frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`, `text.mwl` and now `dates.mwl` — and
-> `json.mwl` is the first that does not, wanting § 6's `Core\Json` in full.
+> frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`, `text.mwl` and `dates.mwl` — and
+> `json.mwl` is the first that does not; three of its four members now run, and what it still reports is
+> `decodeAs<T>`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

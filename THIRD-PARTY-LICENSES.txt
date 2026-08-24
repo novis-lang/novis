@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     python tools/gen-attribution.py
 
 
-COMPONENTS (102)
+COMPONENTS (105)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, MWL takes the one shown and
@@ -66,6 +66,7 @@ platform MWL builds for, so one may appear that a given build omits.
   heck                                    0.5.0    MIT                             (MIT OR Apache-2.0)
   indexmap                                2.14.0   MIT                             (Apache-2.0 OR MIT)
   is_terminal_polyfill                    1.70.2   MIT                             (MIT OR Apache-2.0)
+  itoa                                    1.0.18   MIT                             (MIT OR Apache-2.0)
   jiff                                    0.2.35   MIT                             (Unlicense OR MIT)
   jiff-core                               0.1.0    MIT                             (Unlicense OR MIT)
   jiff-static                             0.2.35   MIT                             (Unlicense OR MIT)
@@ -93,6 +94,7 @@ platform MWL builds for, so one may appear that a given build omits.
   serde                                   1.0.229  MIT                             (MIT OR Apache-2.0)
   serde_core                              1.0.229  MIT                             (MIT OR Apache-2.0)
   serde_derive                            1.0.229  MIT                             (MIT OR Apache-2.0)
+  serde_json                              1.0.151  MIT                             (MIT OR Apache-2.0)
   smallvec                                1.15.2   MIT                             (MIT OR Apache-2.0)
   stable_deref_trait                      1.2.1    MIT                             (MIT OR Apache-2.0)
   strsim                                  0.11.1   MIT
@@ -119,6 +121,7 @@ platform MWL builds for, so one may appear that a given build omits.
   windows_x86_64_gnu                      0.52.6   MIT                             (MIT OR Apache-2.0)
   windows_x86_64_gnullvm                  0.52.6   MIT                             (MIT OR Apache-2.0)
   windows_x86_64_msvc                     0.52.6   MIT                             (MIT OR Apache-2.0)
+  zmij                                    1.0.23   MIT
 
 
 LICENSE TEXTS (28)
@@ -177,6 +180,7 @@ THE SOFTWARE.
 Applies to:
   allocator-api2 0.2.21
   anyhow 1.0.104
+  itoa 1.0.18
   linux-raw-sys 0.12.1
   portable-atomic 1.15.0
   portable-atomic-util 0.2.7
@@ -187,11 +191,13 @@ Applies to:
   serde 1.0.229
   serde_core 1.0.229
   serde_derive 1.0.229
+  serde_json 1.0.151
   syn 2.0.119
   syn 3.0.3
   thiserror 2.0.20
   thiserror-impl 2.0.20
   unicode-ident 1.0.24
+  zmij 1.0.23
 
 ------------------------------------------------------------------------------
 

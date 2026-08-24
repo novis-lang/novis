@@ -151,6 +151,25 @@ pub(crate) fn receiver(
     })
 }
 
+/// The class name behind an object [`Value`], or `None` if it is not one —
+/// for a *message*, never for dispatch.
+///
+/// Dispatch is the descriptor's address ([`registry::CoreTy::Instance`]), and
+/// nothing here compares names; what this exists for is a refusal that can say
+/// which class it refused, which [`crate::json`]'s encoder needs and no member
+/// on a `Core` class does.
+pub(crate) fn class_name(value: Value) -> Option<String> {
+    let ptr = value.obj_ptr()?;
+    #[expect(
+        unsafe_code,
+        reason = "the value owns a reference to a live allocation, so it is live \
+                  for this borrow; the handle is never dropped, so the reference \
+                  is not released twice"
+    )]
+    let object = std::mem::ManuallyDrop::new(unsafe { MwlObj::from_raw(ptr) });
+    Some(object.class_name().to_owned())
+}
+
 /// Slot `index` of `receiver`, **borrowed** — the caller takes no reference,
 /// exactly as `mwl_ir::InstKind::FieldGet` does not.
 ///

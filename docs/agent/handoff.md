@@ -2,54 +2,54 @@
 
 ## State
 
-**Spec § 4 runs whole but its two component types.** `Core\Time\DateTime` (fourteen members over
-`jiff::Zoned`), `Core\Unit` and `Core\Weekday`, `Core\Time::parse`/`at`, `$instant->in($zone)` and the
-`Core\Time\Zone::UTC` constant all landed, over a new CLDR pattern module. `examples/dates.mwl` produces
-its frozen output, so Stage 3 is **five** of its seven fixtures; `json.mwl` is now the first that fails.
+**Spec § 6 is three of its four members, and a helper's throw now names its own spec § 10 class.**
+`Core\Json::encode`/`decode`/`isValid` run over `serde_json`; `examples/json.mwl` still reports, and what
+it reports is exactly `decodeAs<T>`. Stage 3 is unchanged at five of seven fixtures.
 
-- **`crates/mwl-stdlib/src/cldr.rs` is the pattern grammar** `DateTime::format` and `Time::parse` share —
-  its own docs own the closed letter subset, the English root locale (there is no `setlocale`), CLDR
-  quoting, and why `icu` was not taken. A letter outside the subset is a diagnostic naming itself.
-- **`crates/mwl-stdlib/src/time.rs` still owns all of § 4.** A `DateTime` is three slots — an `Instant`'s
-  two plus a `Zone`'s one — and `DATETIME`'s own docs own why that beats seven civil fields. Its gap list
-  is what § 4 still owes.
-- **A `Core` class constant may now be an *instance*.** `registry::Const::Built` names the member that
-  builds one and its constant arguments; `mwl_types::ConstArg::Built` carries it, and
-  `mwl_ir::lower::emit_const_arg` inlines the `InstKind::CoreCall` at the use site (and releases the
-  arguments, which is where the one leak this session found was).
-- Two semantic calls, both recorded where they live: `difference` counts in the **receiver's** zone (spec
-  § 4's row now says so), and a *parse* pattern refuses a zone-naming field because `Time::parse` takes
-  the zone as its own third argument.
-- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 401 `.mwlt` cases pass, and
-  `tools/leak-check.sh` is clean over `examples/dates.mwl` plus a fifty-iteration fixture exercising every
-  new refcount edge. `python tools/loop.py --goal-only` reaches `examples/json.mwl`.
+- **`crates/mwl-stdlib/src/json.rs` owns all of § 6** — why `serde_json` and not another crate, why
+  `escapeUnicode` is a post-pass rather than a `Formatter`, the three places it refuses input
+  `json_decode` accepted, and its three gaps. `DEFAULT_MAX_DEPTH`/`DEPTH_CEILING` are why
+  `serde_json`'s own recursion limit is disabled and what makes that safe.
+- **`mwl_runtime::ThrownClass` is the closed roster of spec § 10's classes a helper may throw**, reached
+  through `Fault::thrown_as`; `Ctx::set_runtime_error_class` is now the *anchor* into the compiled unit's
+  table and `ErrorClass::sibling` resolves every other class from it. `mwl-codegen`'s
+  `every_thrown_class_is_in_the_compiler_s_exception_tree` holds the roster and `mwl_hir::errors::TREE`
+  together. `Core\Time::parse` and `Core\Json::decode` are the first members to use it.
+- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 403 `.mwlt` cases pass, `cargo deny check` and
+  `tools/gen-attribution.py` both re-run for the new dependency. `tools/leak-check.sh` is clean over a
+  fifty-iteration fixture exercising every new refcount edge; a *throwing* variant of it reproduces the
+  pre-existing `landing_block` leak below and nothing else.
 
 ## Next
 
-**Spec § 6, `Core\Json`** — `examples/json.mwl` is the frozen check and wants `encode`, `decode`,
-`decodeAs<T>` and a validity predicate, with a decode failure reporting **every** bad field at once
-([ADR 0071](../adr/0071-derived-codecs.md) § 5). Pick the crate under
-[ADR 0051](../adr/0051-standard-library-tiers.md) § 4 and record the pick in the module's own docs; a new
-dependency owes the three things `AGENTS.md` names. The `?T`/`mixed` representation a decoded value needs
-already exists (`mwl_ir::Ty::Tagged`).
+**`Core\Json::decodeAs<T>` and ADR 0071's `#[Json\Derive]`** — the last § 6 row and the frozen check
+`examples/json.mwl` is. Three things, in order: an **explicit type argument at a call site**
+(`decodeAs<User>(…)` parses as a chain of comparisons today, so this is grammar first, then a registry
+shape for a member whose return type is the written argument); [ADR 0071](../adr/0071-derived-codecs.md)'s
+derive pass, which is `mwl-types`→`mwl-ir` and generates whichever `Codec` half the class does not declare;
+and spec § 10's **`issues: array<Core\Issue>`** property on `ParseError`, which § 5 of that ADR makes the
+one throw carrying every failed field at once.
 
 ## Backlog
 
 - **`Core\Time\Date`, `Core\Time\TimeOfDay`, `Core\Month`, and `DateTime::date`/`timeOfDay`/`withTime`** —
-  `time.rs`'s gap 1; the machinery all exists now, so each is a registry row and a body.
+  `time.rs`'s gap 1; the machinery all exists, so each is a registry row and a body.
 - **`Core\Str::compare`, `chunk`, `lines`, `graphemes`, `codePoints`, `replaceAll`, `replaceRange`,
   `fold`, `normalize`, `fromCodePoint(s)`** — the rest of § 1. `mwl-stdlib`'s gap 1 is the list.
 - **ADR 0069's `overlay`/`overlayDeep`/`underlay`/`appendAll`, plus `Arr::append`/`prepend`** — all four
   declare the variadic that exists, so each is a registry row and a body.
 - **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **`==` over two enum operands does not lower** (`mwl-codegen`: "does not lower a `Eq` over
-  representation Enum(Int)"), so a case comparison is written `($a as int) == ($b as int)` today.
-- **`.` and `as string` over a `Stringable` object** (`mwl-ir` gap 12), and **`Core\Regex::compile`/
-  `replaceWith`** (`regex.rs`'s gap 1).
+- **The rest of `Core` still throws `RuntimeError` for everything** — now that `ThrownClass` exists,
+  `Core\Math`'s overflow and zero-divisor rows are spec § 10's `ArithmeticError`, and a `Core\Regex`
+  budget exhaustion is arguably `TimeoutError`. One pass per module, each a `thrown` → `thrown_as`.
+- **`mwl run` reports `Uncaught Exception:` for every class** — the thrown object knows its own name now,
+  so the reporter could print it; check no frozen fixture asserts the current wording first.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
-  *Known gap*: 50 loop iterations of a throwing `Core\Time::parse("nope", …)` inside a `try` lose 100
-  blocks, two per string literal argument.
+  *Known gap*: 50 loop iterations of a throwing `Core\Json::decode("{oops}")` inside a `try` lose 50
+  blocks, one per string literal argument.
+- **`==` over two enum operands does not lower** (`mwl-codegen`), so a case comparison is written
+  `($a as int) == ($b as int)` today.
 
 ## Standing rules for this repo
 
@@ -62,21 +62,21 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 
 - **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
   exact-match splice — a `\\` written in a `python - <<'PY'` heredoc arrives as `\`, and a `"\n"` arrives
-  as a real newline, so a block containing either will silently fail to match. Use the Write tool, or
+  as a real newline, so a block containing either will silently fail to match. Use the Write/Edit tools, or
   `python tools/splice.py <target> <old> <new>` with both blocks written to `.agent-tmp/`.
   `splice.py` matches the anchor **exactly**, trailing newline included — the Write tool ends a file with
   one, so strip it from both blocks when splicing mid-paragraph. A Rust string holding a `Core\Name`
-  label needs `r"..."`, or the backslash is an unknown escape. In a Python heredoc, an `r"""…"""` literal
-  is what keeps a `\M`/`\T` in MWL prose from being a unicode-escape error.
+  label needs `r"..."`, or the backslash is an unknown escape. `python -c` with `chr(92)` for a backslash
+  is the reliable way to patch a file that contains one.
 - **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
   lowers**, and is worth doing before writing a batch of cases around it. A scratch file is top-level
-  statements, like `examples/*.mwl` — there is no `Main::main` entry point.
+  statements, like `examples/*.mwl` — there is no `Main::main` entry point, and a `for` header takes
+  *expressions* only, so the loop variable is declared on the line above it.
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
-  `args: [3]`. A **variadic tail is one argument**, whatever the call writes — so
-  `format(string, mixed ...)` is `args: [2]`. **An instance member's receiver is argument slot 0 and is
-  not in `params`**, so `plus(Duration)` is `args: [2]`. A mismatch is an index-out-of-bounds panic at
-  the first call.
+  `args: [3]`. A **variadic tail is one argument**, whatever the call writes. **An instance member's
+  receiver is argument slot 0 and is not in `params`**, so `plus(Duration)` is `args: [2]`. A mismatch is
+  an index-out-of-bounds panic at the first call.
 - **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
   `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
   symbol, not a link error), and a `.mwlt` case that calls it — `tests/conformance_coverage.rs` fails
@@ -87,11 +87,11 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   reports — which is the point, but check the fixtures that name it.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
   makes the runner *skip the whole case* there, subtracting from the very count Stage 4 measures. Verify
-  against PHP while authoring (a `.php` twin under `.agent-tmp/`, `php` is on the Windows `PATH`), then
-  drop the section or put the case in `tests/differential/`. The `.mwlt` format is `crates/mwl-test`'s
-  module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own indentation, which widens
-  with the line number. A trailing space before a `\n` is unreliable in an `--EXPECT--` block — echo a
-  sentinel character after it.
+  against PHP while authoring (`php` is on the Windows `PATH`; `php -r '…'` is enough to settle a
+  semantics question), then drop the section or put the case in `tests/differential/`. The `.mwlt` format
+  is `crates/mwl-test`'s module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own
+  indentation, which widens with the line number. A trailing space before a `\n` is unreliable in an
+  `--EXPECT--` block — echo a sentinel character after it.
 - **A `mwl-types` test that asserts an interned type's `describe` string is fragile.** A union orders its
   members by type id, so registering a member anywhere can flip `T|null` to `null|T`. Compare against
   `interner.make_union([...])` instead.
@@ -106,19 +106,18 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **The traps that cost the most time are not gaps**: a `"%1$s"` template must be written in **single**
   quotes or the `$s` interpolates; `as` binds tighter than every binary operator *and* than unary minus,
   so write `($a > $b) as string` and `(0 - 3) as ?uint`; a duration literal used as a receiver needs
-  parentheses (`(30s)->toSeconds()`); a `for` header takes *expressions* only, so the
-  loop variable is declared on the line above it (`foreach (Core\Arr::range(…))` is usually shorter); a
-  `foreach` binding declares a type (`as int $i`); `Core\Str::length` answers `uint`, so a running total
-  it feeds must be one too, and `?? 0` against a `?uint` needs `?? 0 as uint` to stay one; `bool as
-  string` is PHP's `""`/`"1"`; a bare array literal in a `foreach` head or a call argument types as
-  `mixed`, and `var` refuses one outright — so `$m?->groups() ?? []` is `array<T>|array<mixed>` and
-  `foreach` refuses it; a `foreach` key binding must be declared `string` even over a list; there is no
-  int-to-float widening, so `Math::sqrt(2)` is a diagnostic and `2.0` is what a `float` parameter takes;
-  a `catch` binding is function-scoped **until this loop re-scopes it** (pre-authorized); `Exception` is
-  spelled `Core\Error`, a caught value's text is `$e->message` and not a getter, and a typed `catch` on a
-  `Core` class does not lower yet — catch `Throwable` instead.
-- **Clippy refuses a float literal that approximates π or e**, even in a test expectation derived from
-  PHP — pick a different constant and re-derive the expected string rather than allowing the lint.
+  parentheses (`(30s)->toSeconds()`); a `foreach` binding declares a type (`as int $i`);
+  `Core\Str::length` answers `uint`, so a running total it feeds must be one too, and `?? 0` against a
+  `?uint` needs `?? 0 as uint` to stay one; `bool as string` is PHP's `""`/`"1"`; a bare array literal in
+  a `foreach` head types as `mixed`, and `var` refuses one outright; a `foreach` key binding must be
+  declared `string` even over a list; there is no int-to-float widening, so `Math::sqrt(2)` is a
+  diagnostic; a `catch` binding is function-scoped **until this loop re-scopes it** (pre-authorized), so
+  two clauses on one `try` need two different variable names; `Exception` is spelled `Core\Error` in the
+  spec's own prose but the tree's root is `Throwable`, a caught value's text is `$e->message` and not a
+  getter, and a typed `catch` on a `Core`-owned class does not lower yet — a `catch` on a spec § 10 class
+  (`ParseError`, `LogicError`, …) now does.
+- **Clippy refuses a float literal that approximates π or e**, and refuses `assert!` over two constants —
+  a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud
@@ -133,7 +132,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and WSL's
   default shell has no `grep`/`sed` on `PATH` from a bare `bash -c`. Whole suite:
   `wsl.exe -- bash /mnt/<drive>/<repo>/tools/wsl-acceptance.sh` (background it; minutes). One fixture:
-  `tools/leak-check.sh <paths>`. PHP 8.5 is on `PATH` under Windows but **not** inside WSL, deliberately.
+  `tools/leak-check.sh <paths>` — it takes `.mwl` files only, so a `.mwlt` passed to it reports a failure
+  that is not a leak.
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
   valgrind sweep, naming the first failure), or `--list` to see it without running it.
 - **One case, quickly:** `mwl test tests/conformance/core/str-case-members.mwlt`, or
