@@ -19,9 +19,10 @@
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
 > 0024/0031/0033/0036/0037/0043/0046/0049/0050/0066; `crates/mwl-syntax/tests/corpus_parse.rs` parses the
 > local `php-src` checkout and a 5-minute WSL `cargo fuzz run lex`/`parse` both find zero panics).
-> **M1 has since been re-opened for four grammar additions** — `decimal` (0054), literal/enum-case type
-> atoms (0047), `autoload` (0061) and the duration literal (0070) — each accepted after it was reported
-> done, none built, each blocking its ADR's already-scheduled M2 slice. M1's own section lists them.
+> **M1 was re-opened for four grammar additions**, each accepted after it was reported done and each
+> blocking its ADR's already-scheduled M2 slice; **`decimal` (0054) is built, grammar and checker rows
+> alike**, and three remain — literal/enum-case type atoms (0047), `autoload` (0061) and the duration
+> literal (0070). M1's own section lists them.
 >
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
@@ -34,7 +35,7 @@
 > WSL nightly toolchain (AGENTS.md says why).
 >
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
-> 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0062, and 0043's syntax + default/private-method
+> 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
 > 0065, and **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this
 > field.
@@ -42,7 +43,7 @@
 > **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag, a union parameter,
 > a callback-bound result type, a `Core`-owned enum and an absent option all work end to end.
 > `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 § 2 granularity. Then
-> `crates/mwl-test`/`mwl test`. Ahead of that, four re-opened M1 grammar slices (`decimal`, literal type
+> `crates/mwl-test`/`mwl test`. Ahead of that, three re-opened M1 grammar slices (literal type
 > atoms, `autoload`, the duration literal) — see M1. In docs: six `Core` additions still queued in
 > `docs/agent/core-additions.md`, one ADR per session; `docs/spec/02-php-migration.md` is 31% classified
 > (strings, arrays, numbers, conversions), the rest one pass per PHP domain, reported by
@@ -440,13 +441,14 @@ parentheses, diagnosed by name at both sites ([ADR 0036](adr/0036-anonymous-obje
 TraitName`/`insteadof` grammar that is now a parse-time `E_TRAIT_NOT_SUPPORTED`
 ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)).
 
-**Still owed — four ADRs accepted after this milestone was reported done add grammar it owns, and none
-of it is built.** Each is parser-and-lexer work that M2's checker slice is already scheduled against, so
-each blocks its ADR rather than being optional:
+**Still owed — four ADRs accepted after this milestone was reported done add grammar it owns.** Each is
+parser-and-lexer work that M2's checker slice is already scheduled against, so each blocks its ADR rather
+than being optional. Item 1 is built; items 2-4 are not:
 
-1. **`decimal`** ([ADR 0054](adr/0054-decimal-scalar-type.md)) — a reserved keyword and a type atom, plus
-   a fractional literal that is untyped until placed rather than immediately `float`. A trailing `m` is an
-   unknown token, not a suffix, and a mantissa over 96 bits is refused at parse time.
+1. **`decimal`** ([ADR 0054](adr/0054-decimal-scalar-type.md)) — **built**, and its M2 checker rows with
+   it: the reserved keyword, the type atom, § 2's untyped-until-placed literal (including `as T` as a
+   placing position), § 1's mantissa and scale bounds, and § 3's arithmetic table. A trailing `m` is a
+   stray identifier the parser refuses, not a suffix. The runtime half is `mwl-ir`'s known gap 15.
 2. **Literal and enum-case type atoms** ([ADR 0047](adr/0047-literal-and-enum-case-types.md)) — a
    `StringLiteral`/`IntLiteral` atom, unions of them, `?"a"` sugar, and a class-constant or enum-case
    reference in type position, which needs no production beyond the `ClassName`/`EnumName` ambiguity
@@ -457,9 +459,10 @@ each blocks its ADR rather than being optional:
    nothing to resolve until this parses.
 4. **The duration literal** ([ADR 0070](adr/0070-duration-literals.md)) — one `DurationLiteral` token over
    `( DEC_INT unit )+`, recognised only after a plain decimal integer, units strictly descending and
-   unrepeated, lower case only, no sign. It interacts with item 1 at the lexer: `decimal`'s rejected `m`
-   suffix and this grammar's `m`-for-minutes are the same character in the same position, so build them in
-   this order and the second's fixtures pin the boundary.
+   unrepeated, lower case only, no sign. It meets item 1 at the lexer: `decimal`'s rejected `m` suffix and
+   this grammar's `m`-for-minutes are the same character in the same position, and
+   `a_trailing_m_is_not_a_decimal_literal_suffix` already pins the boundary from the `decimal` side —
+   `19.99m` must still lex as two tokens once `30m` lexes as one.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing

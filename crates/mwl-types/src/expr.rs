@@ -421,6 +421,96 @@ fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'
 /// like PHP's `0755` is deliberately not one of the recognized prefixes (see
 /// `mwl_ir`'s own copy of this function for why), so it falls through to the
 /// decimal case, matching `mwl-syntax`'s lexer.
+/// ADR 0054 § 1's mantissa bound: 96 bits, unsigned, with the sign carried
+/// beside it rather than in it.
+const MAX_DECIMAL_MANTISSA: u128 = (1u128 << 96) - 1;
+
+/// ADR 0054 § 1's scale bound: the number of digits after the point.
+const MAX_DECIMAL_SCALE: i32 = 28;
+
+/// Whether the position a literal is being placed in wants a `decimal` —
+/// ADR 0054 § 2's "untyped until placed" rule, asked once per literal arm.
+fn wants_decimal(expected: Option<TypeId>, env: &Env<'_>) -> bool {
+    expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Decimal))
+}
+
+/// ADR 0054 § 1's layout, applied to a fractional literal's own text: a 96-bit
+/// mantissa and a scale of 0 to 28. Returns the reason it does not fit, or
+/// `None` when it does.
+///
+/// An exponent is folded into the scale rather than rejected — `1.5e3` is
+/// mantissa 1500 at scale 0, and `1.5e-30` is a scale-31 value this refuses.
+/// Trailing zeros are *kept*, because § 4 makes scale observable in rendering:
+/// `19.90 as string` is `"19.90"`, so `19.90` is a scale-2 value and not a
+/// second spelling of `19.9`.
+fn decimal_literal_overflow(text: &str) -> Option<&'static str> {
+    let cleaned: String = text.chars().filter(|&c| c != '_').collect();
+    let (numeric, exponent) = match cleaned.split_once(['e', 'E']) {
+        Some((numeric, exp)) => match exp.parse::<i32>() {
+            Ok(exp) => (numeric, exp),
+            // Only reachable from a hand-built AST: the lexer produces a
+            // `FloatLiteral` only for an exponent that already parsed.
+            Err(_) => return Some("exponent"),
+        },
+        None => (cleaned.as_str(), 0),
+    };
+    let (int_part, frac_part) = numeric.split_once('.').unwrap_or((numeric, ""));
+    let mut digits = format!("{int_part}{frac_part}");
+    let scale = i32::try_from(frac_part.len()).unwrap_or(i32::MAX) - exponent;
+    let scale = if scale < 0 {
+        // A positive exponent wider than the fractional part is an integer:
+        // shift the point right by padding the mantissa instead.
+        digits.push_str(&"0".repeat(scale.unsigned_abs() as usize));
+        0
+    } else {
+        scale
+    };
+    if scale > MAX_DECIMAL_SCALE {
+        return Some("scale");
+    }
+    match digits.trim_start_matches('0').parse::<u128>() {
+        Ok(mantissa) if mantissa <= MAX_DECIMAL_MANTISSA => None,
+        // An all-zero (or empty) digit run is the value zero, which fits.
+        Err(_) if digits.trim_start_matches('0').is_empty() => None,
+        _ => Some("mantissa"),
+    }
+}
+
+/// Reports ADR 0054 § 1's bound for a fractional literal placed at `decimal`.
+fn check_decimal_float_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
+    let text = span_text(env.src, span).to_owned();
+    if let Some(reason) = decimal_literal_overflow(&text) {
+        report_decimal_out_of_range(reason, report_span, env);
+    }
+}
+
+/// The integer-literal half of [`check_decimal_float_literal`]: only the
+/// mantissa can overflow, since an integer literal is scale 0 by construction.
+fn check_decimal_int_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
+    let (radix, digits) = int_literal_digits(env.src, span);
+    if !u128::from_str_radix(&digits, radix).is_ok_and(|m| m <= MAX_DECIMAL_MANTISSA) {
+        report_decimal_out_of_range("mantissa", report_span, env);
+    }
+}
+
+fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut Env<'_>) {
+    let detail = match reason {
+        "scale" => "more than 28 digits after the point",
+        _ => "a mantissa wider than 96 bits",
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DECIMAL_LITERAL_OUT_OF_RANGE,
+            format!("this literal does not fit `decimal`: it has {detail}"),
+        )
+        .with_primary(span, "outside `decimal`'s range")
+        .with_help(
+            "`decimal` holds a 96-bit mantissa at a scale of 0 to 28 (ADR 0054 § 1); \
+             `Core\\BigDecimal` is the type for a value beyond it",
+        ),
+    );
+}
+
 pub(crate) fn int_literal_digits(src: &SourceFile, span: Span) -> (u32, String) {
     let cleaned: String = span_text(src, span).chars().filter(|&c| c != '_').collect();
     for (prefix, radix) in [
@@ -571,6 +661,13 @@ fn infer(
         // target, with no magnitude check needed for that half. What *does*
         // need one: whether the bare digit run fits `int`'s `0..=i64::MAX`
         // half, `uint`'s full `0..=u64::MAX` range, or neither at all.
+        ExprKind::Int(span) if wants_decimal(expected, env) => {
+            // ADR 0054 §§ 3-4: an `int`/`uint` is exact in a 96-bit mantissa,
+            // so an integer literal placed at `decimal` needs only that wider
+            // bound checked — not `int`'s 64-bit one below.
+            check_decimal_int_literal(*span, expr.span, env);
+            env.interner.decimal()
+        }
         ExprKind::Int(span) => {
             let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
             let (radix, digits) = int_literal_digits(env.src, *span);
@@ -610,6 +707,14 @@ fn infer(
                     }
                 }
             }
+        }
+        // ADR 0054 § 2: a literal carrying a fractional part or an exponent is
+        // untyped until placed, and takes `decimal` or `float` from the type
+        // of the position it appears in. `float` is the answer everywhere
+        // else, including `var $x = 19.99;`, which has no target at all.
+        ExprKind::Float(span) if wants_decimal(expected, env) => {
+            check_decimal_float_literal(*span, expr.span, env);
+            env.interner.decimal()
         }
         ExprKind::Float(_) => env.interner.float(),
         ExprKind::Str(span) => {
@@ -751,8 +856,25 @@ fn infer(
             env.interner.make_union([then_ty, else_ty])
         }
         ExprKind::Conversion { expr: inner, ty } => {
-            let inner_ty = check_expr(inner, None, live, scope, ctx, env);
             let result = lower_type(ty, ctx, env);
+            // ADR 0054 § 2: `expr as T` is itself a placing position, so a
+            // numeric *literal* written directly under one takes `T` as its
+            // target rather than being typed first and converted afterwards.
+            // Without this, `19.99 as decimal` would round-trip through an
+            // `f64` and lose everything past ~17 digits — § 4's `float →
+            // decimal` row — making a wider literal unwritable anywhere that
+            // lacks an annotation. Restricted to a literal operand on purpose:
+            // any other operand already has a type of its own, and handing it
+            // an expectation would silently change what `as` converts *from*.
+            // `infer` rather than `check_expr`, because a placement is not an
+            // assignment: `1 as string` still places the literal at `string`
+            // and still converts, so the conformance check `check_expr` would
+            // run here would reject every conversion that does any work.
+            let inner_ty = if matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)) {
+                infer(inner, Some(result), live, scope, ctx, env)
+            } else {
+                check_expr(inner, None, live, scope, ctx, env)
+            };
             if matches!(env.interner.get(result), Ty::String) {
                 require_stringable(inner_ty, inner.span, env);
             }
@@ -2623,9 +2745,10 @@ fn binary_result(op: BinaryOp, lhs: TypeId, rhs: TypeId, span: Span, env: &mut E
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Pow | BinaryOp::Mod => {
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Mod => {
             arithmetic_result(lhs, rhs, span, env)
         }
+        BinaryOp::Pow => power_result(lhs, rhs, span, env),
         BinaryOp::Div => division_result(lhs, rhs, span, env),
         BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr => {
             bitwise_result(lhs, rhs, span, env)
@@ -2721,7 +2844,16 @@ fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) ->
     if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
         return mixed;
     }
+    if let Some(mixed) = reject_decimal_float_operands(lhs, rhs, span, env) {
+        return mixed;
+    }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
+        // ADR 0054 § 3: a `decimal` combined with an integer stays `decimal` —
+        // an `int`/`uint` is exact in 96 bits, so nothing is lost. The
+        // `decimal`/`float` pair never reaches here; it was rejected above.
+        (Ty::Decimal, Ty::Decimal | Ty::Int | Ty::Uint) | (Ty::Int | Ty::Uint, Ty::Decimal) => {
+            env.interner.decimal()
+        }
         (Ty::Float, _) | (_, Ty::Float) => env.interner.float(),
         (Ty::Int, Ty::Int) => env.interner.int(),
         (Ty::Uint, Ty::Uint) => env.interner.uint(),
@@ -2762,7 +2894,17 @@ fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> T
     if let Some(mixed) = reject_enum_operand(lhs, rhs, span, env) {
         return mixed;
     }
+    if let Some(mixed) = reject_decimal_float_operands(lhs, rhs, span, env) {
+        return mixed;
+    }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
+        // ADR 0054 § 3's deliberate divergence from `int / int`: a decimal
+        // quotient is always `decimal`, never a union with `float`. Division is
+        // the one place the result may be inexact, and the ADR fixes its
+        // rounding in the language rather than in a union the caller unpacks.
+        (Ty::Decimal, Ty::Decimal | Ty::Int | Ty::Uint) | (Ty::Int | Ty::Uint, Ty::Decimal) => {
+            env.interner.decimal()
+        }
         (Ty::Float, _) | (_, Ty::Float) => env.interner.float(),
         (Ty::Int, Ty::Int) => {
             let int = env.interner.int();
@@ -2795,6 +2937,56 @@ fn bitwise_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> Ty
         }
         _ => env.interner.mixed(),
     }
+}
+
+/// ADR 0054 § 3: `decimal ⊕ float` is a compile error, on the same grounds
+/// `int ⊕ uint` already is — there is no type that represents both operands'
+/// values, so the fix is to convert one side and say which. Returns
+/// `Some(mixed)` once diagnosed, `None` for every other pair so the caller's
+/// own table runs unchanged. Comparison is deliberately *not* routed through
+/// here: the same § 3 permits `decimal < 1.5`, because an exact comparison is
+/// computable even where a common arithmetic type is not.
+fn reject_decimal_float_operands(
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let pair = (env.interner.get(lhs), env.interner.get(rhs));
+    if !matches!(pair, (Ty::Decimal, Ty::Float) | (Ty::Float, Ty::Decimal)) {
+        return None;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_DECIMAL_FLOAT_ARITHMETIC,
+            "`decimal` and `float` have no representable common type in arithmetic",
+        )
+        .with_primary(span, "mixed `decimal`/`float` operand")
+        .with_help("convert one side explicitly with `as decimal`/`as float`"),
+    );
+    Some(env.interner.mixed())
+}
+
+/// ADR 0054 § 3's last row: `**` with a `decimal` base is a compile error,
+/// because a general decimal power has no exact result at a bounded scale —
+/// `Core\Decimal::pow` names the rounding instead. A decimal *exponent* is
+/// refused by the same diagnostic: the row does not define `int ** decimal`
+/// either, and letting it fall through to [`arithmetic_result`]'s decimal row
+/// would invent a fractional exponentiation the ADR never granted.
+fn power_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {
+    if matches!(env.interner.get(lhs), Ty::Decimal) || matches!(env.interner.get(rhs), Ty::Decimal)
+    {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DECIMAL_FLOAT_ARITHMETIC,
+                "`**` is not defined on `decimal`",
+            )
+            .with_primary(span, "`decimal` operand of `**`")
+            .with_help("use `Core\\Decimal::pow`, which names the rounding it does"),
+        );
+        return env.interner.mixed();
+    }
+    arithmetic_result(lhs, rhs, span, env)
 }
 
 fn report_int_uint(span: Span, env: &mut Env<'_>) {

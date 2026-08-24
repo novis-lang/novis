@@ -36,6 +36,10 @@ pub enum Ty {
     Uint,
     /// `float`
     Float,
+    /// `decimal` — ADR 0054 § 1: a 96-bit signed mantissa and a scale of 0 to
+    /// 28. Distinct from [`Self::Float`] and never assignable to or from it,
+    /// which is what makes § 3's `decimal ⊕ float` compile error expressible.
+    Decimal,
     /// `string`
     String,
     /// `bytes` — ADR 0009.
@@ -284,6 +288,7 @@ impl TypeInterner {
             Ty::Int => "int".to_owned(),
             Ty::Uint => "uint".to_owned(),
             Ty::Float => "float".to_owned(),
+            Ty::Decimal => "decimal".to_owned(),
             Ty::String => "string".to_owned(),
             Ty::Bytes => "bytes".to_owned(),
             Ty::TaintedString => "tainted string".to_owned(),
@@ -378,6 +383,12 @@ impl TypeInterner {
     #[must_use]
     pub fn float(&mut self) -> TypeId {
         self.intern(Ty::Float)
+    }
+
+    /// The interned `decimal` singleton — ADR 0054 § 1.
+    #[must_use]
+    pub fn decimal(&mut self) -> TypeId {
+        self.intern(Ty::Decimal)
     }
 
     /// The interned `string` singleton.

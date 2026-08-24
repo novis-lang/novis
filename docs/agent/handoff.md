@@ -11,43 +11,24 @@ plan's status block says what is on disk and what is open.
 parameter, a callback-bound result type, a `Core`-owned enum and an absent option. `examples/core.mwl` runs
 its line 11 sort and stops at `Core\Str::length`. **Nothing is blocked.**
 
+**M1 was re-opened for four grammar additions; `decimal` ([ADR 0054](../adr/0054-decimal-scalar-type.md)) is
+now built** — grammar *and* its M2 checker rows, `crates/mwl-types/tests/decimal.rs`. Three remain, one per
+session, in the plan's M1 section: literal/enum-case type atoms (0047), `autoload` (0061), the duration
+literal (0070). `decimal`'s runtime half is **`mwl-ir`'s known gap 15**, which that crate's module doc owns:
+a program declaring one panics naming the shape rather than miscompiling.
+
 **Seven `Core` additions were decided with the user, and one ADR per session is writing them up.**
 [`core-additions.md`](core-additions.md) is the queue; an entry is deleted as its ADR lands, and its numbers
 are stable, so a gap means that one is done. **Entry 1 landed as
 [ADR 0071](../adr/0071-derived-codecs.md)** — derived codecs. Six remain, in order: `Core\Task`, the
 `[schedule]` block, HTTP defaults in both directions, `Core\RateLimit`, observability export, compile-time
-routing.
+routing. The general rule 0071 settled, which two of them lean on: a **compiler-recognized** attribute is
+matched **nominally** against a closed `Core`-owned list, leaving ADR 0046 § 4's *structural*
+`Core\Attributes` retrieval untouched — so entry 7's "real interaction to resolve" is already resolved.
 
-**What 0071 settled**, since two of the remaining entries lean on it:
-
-- `#[Json\Derive]`/`#[Db\Derive]` generate a `Codec` from a class's **declared property list**, and every
-  non-skipped field must also be a same-named, same-typed **constructor parameter** — so a decode is an
-  ordinary `new` and no invariant is bypassed. `#[Json\Field(name?, skip?)]` is the only per-field control.
-- Required / optional / nullable are three existing concepts: a parameter default makes a key optional, `?T`
-  makes `null` legal, and they are independent. No naming policy, no omit-null, no validation.
-- A decode throws **once**, carrying every failed field. `ParseError` and `DbError` gained
-  `issues: array<Core\Issue>` where `type Core\Issue = {path: string, message: string};` — no new exception
-  class, spec § 10's closed set unchanged in shape.
-- **The general rule the queue needed:** a **compiler-recognized** attribute is matched **nominally**,
-  against a closed `Core`-owned list; ADR 0046 § 4's *structural* `Core\Attributes` retrieval is untouched.
-  That is what stops a route scan double-registering a framework's own `#[Route]` literals, so **entry 7's
-  "real interaction to resolve" is already resolved** — it only has to add `Core\Route` to the list.
-- `Core\Serialize` gets no derive (it already handles every object, R17), and `#[Db\Derive]` is
-  one-directional (no `toRow`, no generated `INSERT`).
-
-**The standing rule has landed too**: *domain logic is an existing first-class Rust crate; compiler passes
-and scheduler primitives are ours* — [`docs/adr/README.md`](../adr/README.md) § *Decisions taken at project
-start*, plus its `AGENTS.md` bullet. Nothing else is owed from that session.
-
-**Declined in the same session**, reasons recorded in the queue file so they are not re-argued: typed
+**Declined in that same session**, reasons recorded in the queue file so they are not re-argued: typed
 templates, `mwl migrate`, Markdown in `Core` (it becomes a first-party extension), and a DI container at any
 tier — whose real fix is user-defined generics, an open ADR 0007 question.
-
-**The `Core` roster review** before that changed docs only, nothing on disk: `Core\Time` lost its
-relative-date string, [ADR 0070](../adr/0070-duration-literals.md) is new and is **M1 grammar that is not
-built**, six duplicates went and eight gaps were filled.
-[`docs/spec/02-php-migration.md`](../spec/02-php-migration.md) is **31% classified**, held by
-`python tools/check-migration.py` in CI.
 
 **Two questions the user has not answered**, both recorded in place rather than guessed:
 
@@ -68,16 +49,14 @@ a pass the user fires by hand**. Never start it, and never bump as a side effect
 queue). Check the ADR directory for the next free number immediately before writing: another agent may have
 taken 0072.
 
-**The code path is unchanged and runs in parallel with that.** Four re-opened M1 grammar slices — `decimal`
-(0054), literal/enum-case type atoms (0047), `autoload` (0061), the duration literal (0070) — one per
-session, smallest first, and build `decimal` before the duration literal because both land on the same
-numeric-literal-suffix branch of the lexer from opposite sides: `19.99m` must stay an *unknown token*
-([0054](../adr/0054-decimal-scalar-type.md) § 2 rejected the `m` suffix outright), while `30m` becomes one
-`DurationLiteral` token. Then **settle [ADR 0009](../adr/0009-string-and-bytes.md) § 2 by measurement** and
-land `Core\Str::length`/`at`/`slice`, the last thing between `examples/core.mwl` and its frozen six lines:
-implement both granularities behind one seam, write the figure into
-`a_grapheme_index_costs_more_than_a_code_point_index` in `benches/abi-probe/tests/perf_guards.rs`, and pick
-the default it justifies. After that: more cheap § 1–2 rows, then `crates/mwl-test` and `mwl test`.
+**The code path is unchanged and runs in parallel with that.** The next M1 grammar slice is **literal and
+enum-case type atoms** ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)), the smallest of the three
+left; `autoload` (0061) and the duration literal (0070) follow. Then **settle
+[ADR 0009](../adr/0009-string-and-bytes.md) § 2 by measurement** and land `Core\Str::length`/`at`/`slice`,
+the last thing between `examples/core.mwl` and its frozen six lines: implement both granularities behind one
+seam, write the figure into `a_grapheme_index_costs_more_than_a_code_point_index` in
+`benches/abi-probe/tests/perf_guards.rs`, and pick the default it justifies. After that: more cheap § 1–2
+rows, then `crates/mwl-test` and `mwl test`.
 
 **When a session is short**, one migration-table pass instead: pick a domain from that file's *Not yet
 classified* list, run `python tools/check-migration.py --report`, classify it against the spec.
@@ -131,6 +110,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   works on Windows and 404s on Linux.
 - **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file,
   so `src/foo.rs` becoming `src/foo/mod.rs` means `src/snapshots/` moves to `src/foo/snapshots/`.
+- **`check_expr` enforces its `expected`; `infer` only places against it** — reach for `infer` where a
+  target type is a *placement* rather than an assignment, as `as T` is (ADR 0054 § 2).
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>` (note
   `test --accept`); a renamed test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe`
   takes over two minutes — run it in the background.

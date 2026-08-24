@@ -106,6 +106,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::Int => env.interner.int(),
         TypeAtom::Uint => env.interner.uint(),
         TypeAtom::Float => env.interner.float(),
+        TypeAtom::Decimal => env.interner.decimal(),
         TypeAtom::String => env.interner.string(),
         TypeAtom::Bytes => env.interner.bytes(),
         TypeAtom::TaintedString => env.interner.tainted_string(),

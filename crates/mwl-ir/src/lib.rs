@@ -169,7 +169,15 @@
 //! 14. **Safepoints are reserved, not functional.** [`ir::InstKind::Safepoint`]
 //!     is emitted at function entry and every loop back edge, but nothing
 //!     lowers it to a real CPU-limit or cancellation check yet.
-//! 15. **The environment is one flat, function-wide map**, so a nested block
+//! 15. **`decimal` has no IR representation.** ADR 0054's scalar checks now —
+//!     the keyword, the type atom, literal placement and § 3's arithmetic
+//!     table are all live in `mwl-syntax`/`mwl-types` — so a program that
+//!     declares one reaches [`lower::lower_decl_type`] and panics naming the
+//!     shape. Closing it is [`ty::Ty`]'s 16-byte register pair plus the helper
+//!     that ADR's *Consequences* calls "the real implementation cost": `+`,
+//!     `-` and comparison at equal scale inline to i128 operations, while `*`,
+//!     `/` and mixed-scale operands need a wider intermediate. M4 owes it.
+//! 16. **The environment is one flat, function-wide map**, so a nested block
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth
 //!     knowing before trusting `Env` further.

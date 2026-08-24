@@ -39,6 +39,13 @@
 //! `null` means "not given". An enum case (`Mode $m = Mode::Fast`) is the
 //! other shape still refused: it is already a compile-time integer constant
 //! (ADR 0010 § 6), it just needs `crate::enums` consulted from here.
+//!
+//! **A `decimal` default is refused for the same reason as `= null`:** ADR 0054
+//! § 1's value is a 96-bit mantissa plus a scale, and [`ConstArg`]'s one-variant-
+//! per-instruction rule above means it cannot be recorded before
+//! `mwl_ir::ir::InstKind` can emit one. `decimal $vat = 0.19` is therefore
+//! `E_PARAM_DEFAULT_NOT_LITERAL` today — a clean refusal, not a wrong constant —
+//! and lands with `mwl-ir`'s known gap 15.
 
 use mwl_diagnostics::{Diagnostic, Span, code};
 use mwl_syntax::ast::{Expr, ExprKind, UnaryOp};

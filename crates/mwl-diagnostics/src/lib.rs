@@ -557,6 +557,15 @@ pub mod code {
     /// extra field on purpose, an options bag refuses one: a misspelled option
     /// that is silently ignored is the failure ADR 0063 R2 exists to prevent.
     pub const E_UNKNOWN_OPTION: Code = Code::new("E0454");
+    /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — ADR 0054
+    /// § 3. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:
+    /// there is no type that represents both operands' values, so one side
+    /// must be converted explicitly.
+    pub const E_DECIMAL_FLOAT_ARITHMETIC: Code = Code::new("E0455");
+    /// A numeric literal placed at `decimal` whose mantissa exceeds 96 bits or
+    /// whose scale exceeds 28 — ADR 0054 § 1's layout. `Core\BigDecimal` (§ 6)
+    /// is the type for a value beyond it.
+    pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

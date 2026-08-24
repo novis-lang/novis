@@ -168,9 +168,11 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
 
 ## Consequences
 
-- **M1's lexer gains nothing** — with no suffix there is no new token, and a fractional literal simply
-  becomes untyped-until-placed rather than immediately `float`. **M2's checker** gains § 3's and § 4's rows,
-  plus § 2's rule that `as T` supplies a placement. **M3/M4's backend** gains i128
+- **M1's lexer gains one reserved word and no new literal token** — with no suffix there is nothing new to
+  lex, and a fractional literal simply becomes untyped-until-placed rather than immediately `float`.
+  **M2's checker** gains § 3's and § 4's rows, plus § 2's rule that `as T` supplies a placement — and § 1's
+  mantissa and scale bounds, which belong here rather than in the parser because a literal is only measured
+  against them once a target type has placed it. **M3/M4's backend** gains i128
   arithmetic with scale reconciliation: `+`, `-` and comparison at equal scale inline to i128 operations,
   while `*`, `/` and mixed-scale operands go through a runtime helper that needs a wider intermediate.
   That helper is the real implementation cost of this ADR and is worth planning as such.
@@ -215,10 +217,13 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
 
 ## Verification
 
-- **M1:** lexer fixtures for `19.99` and `1.0e3`; a trailing `m` (`19.99m`) rejected as an unknown token
-  rather than accepted as a suffix; and a literal whose mantissa exceeds 96 bits (rejected at parse time,
-  not at runtime).
-- **M2:** checker fixtures for each row of § 3 and § 4 — in particular `decimal + float` rejected,
+- **M1 (landed):** `decimal` is a reserved word and a type atom, parsing in every declaration slot;
+  lexer fixtures for `19.99` and `1.0e3`; and a trailing `m` (`19.99m`) lexing as a float literal followed
+  by a stray identifier, which the parser refuses — not as a suffix.
+  `mwl-syntax`'s `decimal_is_a_keyword`, `a_trailing_m_is_not_a_decimal_literal_suffix`,
+  `decimal_is_a_type_atom_in_every_slot` and `a_decimal_literal_suffix_does_not_parse`.
+- **M2 (landed, `crates/mwl-types/tests/decimal.rs`):** checker fixtures for each row of § 3 and for § 1's
+  mantissa and scale bounds — `decimal + float` rejected,
   `decimal < 1.5` accepted, `19.99 as decimal` in a `float` position rejected,
   `var $y = 19.99 as decimal;` inferring `decimal`, a 25-significant-digit literal under `as decimal`
   exact — which fails if § 2's placing rule is dropped, since an `f64` round-trip loses it — and

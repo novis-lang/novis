@@ -471,6 +471,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     | Keyword::Int
                     | Keyword::Uint
                     | Keyword::Float
+                    | Keyword::Decimal
                     | Keyword::String
                     | Keyword::Bytes
                     | Keyword::Tainted
@@ -660,6 +661,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Int) => atom!(Int),
             TokenKind::Keyword(Keyword::Uint) => atom!(Uint),
             TokenKind::Keyword(Keyword::Float) => atom!(Float),
+            TokenKind::Keyword(Keyword::Decimal) => atom!(Decimal),
             TokenKind::Keyword(Keyword::String) => atom!(String),
             TokenKind::Keyword(Keyword::Bytes) => atom!(Bytes),
             TokenKind::Keyword(Keyword::Tainted) => {
@@ -5047,6 +5049,55 @@ mod tests {
             panic!("expected a conversion: {e:?}");
         };
         assert!(matches!(ty.kind, TypeKind::Intersection(_)));
+    }
+
+    #[test]
+    fn decimal_is_a_type_atom_in_every_slot() {
+        // ADR 0054 § 1: `decimal` is a scalar type atom, so it parses
+        // wherever `float` does and stays distinct from it in the AST --
+        // § 3's `decimal ⊕ float` compile error is only expressible if the
+        // two never collapse.
+        let e = parse_ok("$m as decimal");
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Atom(TypeAtom::Decimal)));
+
+        let s = parse_stmt_ok("decimal $price = 19.99;");
+        let StmtKind::LocalDecl { ty, .. } = s.kind else {
+            panic!("expected a local decl: {s:?}");
+        };
+        assert!(matches!(
+            ty.map(|t| t.kind),
+            Some(TypeKind::Atom(TypeAtom::Decimal))
+        ));
+
+        // Parameter, return and property slots, plus § 2's compile-time
+        // constant -- the position a `Core\Decimal` class could never occupy.
+        parse_stmt_ok(
+            "class Invoice { \
+             public const decimal VAT = 0.19; \
+             public decimal $total = 0.0; \
+             public function line(decimal $unit, uint $qty): decimal { return $unit * $qty; } \
+             }",
+        );
+
+        // Nullable, union and `array<T>` element positions.
+        parse_stmt_ok("type Money = ?decimal;");
+        parse_stmt_ok("type Amount = decimal|int;");
+        parse_stmt_ok("type Ledger = array<decimal>;");
+    }
+
+    #[test]
+    fn a_decimal_literal_suffix_does_not_parse() {
+        // ADR 0054 § 2: there is no literal suffix, so `19.99m` is a float
+        // literal followed by a stray identifier rather than a decimal --
+        // `19.99 as decimal` is the only spelling. The lexer's
+        // `a_trailing_m_is_not_a_decimal_literal_suffix` pins the token pair;
+        // this pins that the parser refuses it rather than silently dropping
+        // the `m`.
+        let (_, diags) = parse_stmt_with_diags("$x = 19.99m;");
+        assert!(diags.has_errors(), "expected `19.99m` to be refused");
     }
 
     #[test]

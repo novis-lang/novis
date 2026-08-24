@@ -1246,6 +1246,30 @@ mod tests {
     }
 
     #[test]
+    fn decimal_is_a_keyword() {
+        // ADR 0054 § 1: `decimal` is a scalar type, so it reserves a word the
+        // same way `uint` and `bytes` above do.
+        assert_eq!(
+            kinds_ok("<?mwl decimal"),
+            vec![OpenTagMwl, Keyword(super::Keyword::Decimal), Eof]
+        );
+    }
+
+    #[test]
+    fn a_trailing_m_is_not_a_decimal_literal_suffix() {
+        // ADR 0054 § 2 and its *Alternatives rejected*: MWL has no literal
+        // suffix at all, so `19.99m` is a float literal followed by an
+        // identifier -- two tokens the parser then refuses -- not one decimal
+        // token. This also pins the boundary ADR 0070 § 2 depends on: a
+        // duration is recognised only after a *plain decimal integer*, so
+        // `30m` may become one token later without `19.99m` ever doing so.
+        assert_eq!(
+            kinds_ok("<?mwl 19.99m"),
+            vec![OpenTagMwl, FloatLiteral, Ident, Eof]
+        );
+    }
+
+    #[test]
     fn tainted_is_a_keyword() {
         // ADR 0024 § 1: `tainted` needs a new reserved keyword, landing in
         // M1's grammar alongside `uint`'s own addition above.

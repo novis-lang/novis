@@ -99,6 +99,11 @@ pub enum TypeAtom {
     Uint,
     /// `float`
     Float,
+    /// `decimal` — ADR 0054 § 1: a scalar, not a class, and never a spelling
+    /// of `float`. It is its own atom for the same reason `uint` is: § 3 makes
+    /// `decimal ⊕ float` a compile error, which is only expressible if the two
+    /// never collapse to one type.
+    Decimal,
     /// `string`
     String,
     /// `bytes` — ADR 0009.
