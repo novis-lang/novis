@@ -79,10 +79,10 @@ this same contract.
 ## 1. `Core\Str`
 
 `string` is guaranteed-valid UTF-8 ([ADR 0009](../adr/0009-string-and-bytes.md)), so **no member takes an
-encoding argument** (R13) and there is no `mb_` twin of anything. Indexing granularity — code point versus
-grapheme for `length`, `at` and `slice` — is the one open question in ADR 0009 and is settled there, not
-here; every signature below is written granularity-agnostically and the conformance suite pins whichever
-that ADR lands on.
+encoding argument** (R13) and there is no `mb_` twin of anything. Indexing granularity — what `length`, `at`
+and `slice` count in — is [ADR 0009](../adr/0009-string-and-bytes.md) § 2's, not this file's: **extended
+grapheme clusters**. Every signature below is written granularity-agnostically, so nothing here changes if
+that ADR's own *Revisiting* ever re-opens it.
 
 ### Inspection
 

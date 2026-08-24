@@ -95,8 +95,8 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0066](docs/adr/0066-nullable-conversion-operator.md)).
 - **A condition is the one place a value is tested without `as`**, resolving PHP's full truthy table
   ([0035](docs/adr/0035-truthy-boolean-context.md)).
-- **`string` is guaranteed-valid UTF-8; binary data is the separate `bytes` type** — only its default
-  length granularity is still open ([0009](docs/adr/0009-string-and-bytes.md) § 2).
+- **`string` is guaranteed-valid UTF-8 and counts grapheme clusters; binary data is the separate `bytes`
+  type, counting bytes** ([0009](docs/adr/0009-string-and-bytes.md)).
 - **`decimal` is a scalar, not a class**, and `decimal ⊕ float` is a compile error
   ([0054](docs/adr/0054-decimal-scalar-type.md)).
 - **Enums are a closed, named integer type**, never PHP's class-like construct

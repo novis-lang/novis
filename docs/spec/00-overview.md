@@ -263,9 +263,9 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
   these is one. Both join the domain-class roster ADR 0011's summary names as examples, not as a closed list; building
   them is ordinary M4S stdlib work, not part of this spec.
 
-This resolves the open item in [ADR 0009 *Revisiting*](../adr/0009-string-and-bytes.md); that ADR's own
-status (Accepted, with § 2's granularity pending the grapheme-cost guard test) is unaffected — this
-decision is about literal syntax only, not about `string`'s default length/indexing granularity.
+This resolves one item in [ADR 0009 *Revisiting*](../adr/0009-string-and-bytes.md), and only that one: it is
+a decision about literal syntax, not about `string`'s default length/indexing granularity, which § 2 of that
+ADR owns.
 
 ## Revisiting
 

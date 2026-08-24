@@ -55,7 +55,7 @@ so you never have to open this file to route a topic.
 | A portable single-file executable, `mwl build --compile`, bundling a CLI app's source | [0048](0048-portable-single-file-executables.md) |
 | Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys, arithmetic result types | [0007](0007-explicit-type-system.md) |
 | `decimal`, money, `bcmath`, `gmp`, big integers, why floats aren't used for currency | [0054](0054-decimal-scalar-type.md) |
-| `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion, what `length` counts | [0009](0009-string-and-bytes.md) — § 2's granularity is the one thing still open |
+| `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion, what `length` counts | [0009](0009-string-and-bytes.md) |
 | `foreach` over an object, `Iterator`/`ArrayAccess`/`Countable`, generators, `yield`, lazy streaming | [0053](0053-iteration-and-generators.md) |
 | `var`, local type inference, why `$x = "foo";` doesn't need its type spelled out | [0037](0037-var-local-type-inference.md) |
 | PHP's `(int)$x` legacy cast syntax, why it doesn't parse | [0034](0034-legacy-cast-syntax-rejected.md) |
@@ -140,7 +140,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0006](0006-isolated-script-execution.md) | Running another script is an in-process isolate, not a subprocess | Accepted |
 | [0007](0007-explicit-type-system.md) | Types are declared, checked, and never change by themselves | Accepted |
 | [0008](0008-static-and-global.md) | `static` marks a class member; there are no function statics and no `global` | Accepted |
-| [0009](0009-string-and-bytes.md) | `string` is text; binary data is a distinct `bytes` type | Accepted (§ 2 open) |
+| [0009](0009-string-and-bytes.md) | `string` is text; binary data is a distinct `bytes` type | Accepted |
 | [0010](0010-enums-are-a-value-type.md) | Enums are a closed, named integer type, not PHP's class-like construct | Accepted |
 | [0011](0011-functions-and-constants-are-class-members.md) | Functions and constants are class members; `Core` is the reserved namespace for built-ins | Accepted |
 | [0012](0012-no-superglobals.md) | There are no superglobals; request, session, environment and CLI state are `Core` accessor classes | Accepted |

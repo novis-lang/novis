@@ -77,10 +77,11 @@ unless they intend to overturn the decision — so trim those sections hard:
 padding" standard everywhere; if a doc restates something the ADR already owns, delete the restatement
 and link instead.
 
-**Don't resolve an open decision.** A cleanup pass never answers a question an ADR left open — ADR 0009
-§ 2's granularity fork waits on its measurement, not on you. What a pass *may* do is narrow the status
-field to what is actually open: 0009 moved to Accepted here because §§ 1, 3 and 4 had shipped and only
-§ 2 was in question, and the index had been implying the whole `bytes` type was undecided.
+**Don't resolve an open decision.** A cleanup pass never answers a question an ADR left open — a fork that
+waits on a measurement waits for whoever takes the measurement, not for you. What a pass *may* do is narrow
+the status field to what is actually open. ADR 0009 is the worked example in both directions: this pass
+moved it to Accepted because §§ 1, 3 and 4 had shipped and only § 2 was in question, where the index had
+been implying the whole `bytes` type was undecided — and left § 2 alone until an M4S session measured it.
 
 ## How to run this pass
 

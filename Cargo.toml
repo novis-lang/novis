@@ -54,6 +54,12 @@ indexmap = "2"
 rustc-hash = "2"
 blake3 = "1"
 
+# --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
+# UAX #29 extended grapheme cluster boundaries, which `string`'s default
+# length/indexing unit is defined by. Pure Rust, no build script, no C.
+# `crates/mwl-stdlib/src/granularity.rs` owns why this crate and not another.
+unicode-segmentation = "1"
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so

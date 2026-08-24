@@ -1,10 +1,9 @@
 # ADR 0009 — `string` is text; binary data is a distinct `bytes` type
 
-- **Status:** Accepted, with one sub-question open — §§ 1, 3 and 4 are decided and shipped (`bytes` is
-  `mwl_types::ty::Ty::Bytes`, the lexer has the keyword, and
-  [`docs/spec/00-overview.md`](../spec/00-overview.md) § 5 fixes its literal spelling). Only § 2's default
-  length/indexing **granularity** — grapheme clusters or bytes — awaits the cost measurement in
-  *Revisiting*. Nothing else here is provisional.
+- **Status:** Accepted, in full. §§ 1, 3 and 4 shipped first (`bytes` is `mwl_types::ty::Ty::Bytes`, the
+  lexer has the keyword, and [`docs/spec/00-overview.md`](../spec/00-overview.md) § 5 fixes its literal
+  spelling); § 2's default length/indexing **granularity** is now settled too — **grapheme clusters**, on
+  the measurement *Revisiting* asked for. Nothing here is provisional.
 - **Date:** 2026-08-20
 - **Scope:** the `string` and `bytes` primitive types; the UTF-8 invariant on `string`; the conversion
   between them; the default granularity of `string` length, indexing and iteration
@@ -18,11 +17,9 @@
 > encoding at all** — a file's contents, a socket read, a hash digest, a request body before anyone has
 > claimed it is text. Conversion follows the rule every other conversion in
 > [0007](0007-explicit-type-system.md) already follows: `string as bytes` is total and free (valid UTF-8 is
-> already a valid byte sequence); `bytes as string` is checked and throws on invalid UTF-8. Where MWL is not
-> yet settled: `string`'s default length/indexing/iteration should count **grapheme clusters** — what a
-> person would call "one character," including a flag emoji or an accented letter built from combining
-> marks — *provided that can be made cheap enough*; the named fallback if it cannot is byte length, which is
-> what PHP gives you today. That fork is not decided here; see *Revisiting*.
+> already a valid byte sequence); `bytes as string` is checked and throws on invalid UTF-8. And `string`'s
+> default length, indexing and iteration count **grapheme clusters** — what a person would call "one
+> character," including a flag emoji or an accented letter built from combining marks.
 
 ## Context
 
@@ -73,19 +70,32 @@ construction site (literals, conversions, concatenation, stdlib functions that b
 actually removes the `mbstring` split: there is only one encoding a `string` can hold, so there is only one
 correct answer to "how long is it."
 
-The intended default: `string`'s length, indexing and iteration operate on **extended grapheme clusters**
-(Unicode UAX #29) — the unit that matches what a person reading the source would call "one character,"
-including a flag emoji, an emoji built from a ZWJ sequence, or a letter with a combining accent. Byte-level
-and codepoint-level operations remain available, but under separate, explicitly-named functions — the
-inverse of PHP's default, where byte semantics are the unmarked case and anything text-aware needs an
-`mb_` prefix.
+**`string`'s length, indexing and iteration operate on extended grapheme clusters** (Unicode UAX #29) — the
+unit that matches what a person reading the source would call "one character," including a flag emoji, an
+emoji built from a ZWJ sequence, or a letter with a combining accent. Byte-level and codepoint-level
+operations remain available, but under separate, explicitly-named functions — the inverse of PHP's default,
+where byte semantics are the unmarked case and anything text-aware needs an `mb_` prefix.
 
-**This default is conditional, not unconditional**, on the cost being tractable — see *Revisiting* for what
-"tractable" must be shown to mean before this ADR can move from Proposed to Accepted. The named fallback,
-if grapheme-default proves too expensive, is byte length as the default — i.e., `string`'s basic length
-function behaves the way PHP's `strlen` already does, and grapheme-awareness moves to its own explicitly
-named function instead. Codepoint count (what Python 3 or Java effectively give you) is deliberately not the
-fallback; see *Alternatives rejected*.
+Two things settled that, and the second is the one this ADR originally deferred:
+
+1. **Byte length could not have been the default anyway.** The fallback this ADR named — `string`'s basic
+   length counting bytes, as PHP's `strlen` does — is *unimplementable* beside § 2's own UTF-8 invariant,
+   not merely slower. A byte-indexed `Core\Str::at` would have to hand back the interior byte of a
+   multi-byte character, which is not a `string`; so a byte-length default would leave `length` counting one
+   unit and `at`/`slice` addressing another, which is the exact "does length mean what I think" failure this
+   ADR was opened to remove. Byte length survives where it means something — on `bytes`, whose whole point
+   is that it has no other unit.
+2. **The cost is affordable, measured.** *Revisiting*'s guard test is
+   `a_grapheme_index_costs_more_than_a_code_point_index` in
+   [`benches/abi-probe/tests/perf_guards.rs`](../../benches/abi-probe/tests/perf_guards.rs), which owns the
+   figures and their bounds; that file is the only place they are quoted. What decides § 2 is its shape: a
+   grapheme count over plain ASCII costs a small multiple of the UTF-8 validation pass `bytes as string`
+   already pays, because one byte is provably one cluster there and the check for that is a vectorized scan;
+   over text that is *not* plain ASCII it is roughly an order of magnitude more, which is where the
+   O(1)-cached count in *Consequences* earns its place.
+
+`mwl_stdlib::granularity` is where that default is stated in code, once, and every `Core\Str` member with a
+unit reads it from there.
 
 ### 3. Conversion
 
@@ -123,8 +133,8 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
   argument [0007](0007-explicit-type-system.md) already made for numeric input, extended to encoding.
 - No new operator and no new call-site shape: `bytes`/`string` conversion is `as`, exactly like every other
   conversion in [0007](0007-explicit-type-system.md).
-- If the grapheme default survives the cost measurement, `string`'s length finally means what the person
-  writing `strlen($name)` actually expects it to mean, which is the gap this ADR was opened to close.
+- `string`'s length means what the person writing `strlen($name)` actually expects it to mean, which is the
+  gap this ADR was opened to close.
 
 **Negative**
 
@@ -134,27 +144,32 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 
   | # | PHP | MWL |
   |---|---|---|
-  | 1 | `strlen()` counts bytes; character-aware length needs `mb_strlen()` and a correct `mb_internal_encoding()` | `string`'s default length counts grapheme clusters (or, if the *Revisiting* measurement fails, bytes) unconditionally — there is no second, encoding-sensitive function to get wrong |
+  | 1 | `strlen()` counts bytes; character-aware length needs `mb_strlen()` and a correct `mb_internal_encoding()` | `string`'s default length counts grapheme clusters unconditionally — there is no second, encoding-sensitive function to get wrong |
 
-- **A real implementation cost if the grapheme default is kept**: an immutable string's grapheme count can
-  be cached in its header and computed lazily on first use, but concatenation still needs an O(1)
-  boundary-correction check at the seam (a grapheme cluster can span the join, e.g. a base letter in one
-  buffer and a combining mark in the next) rather than a free sum of the two cached counts. That cost lands
-  on the M3 baseline tier's string-building path and needs to be in its budget, not discovered after.
+- **A real implementation cost, and it is not yet paid**: an immutable string's grapheme count can be cached
+  in its header and computed lazily on first use, but concatenation still needs an O(1) boundary-correction
+  check at the seam (a grapheme cluster can span the join, e.g. a base letter in one buffer and a combining
+  mark in the next) rather than a free sum of the two cached counts. Nothing caches today — every count is
+  recomputed — so that work is still owed, and `docs/implementation-plan.md`'s M4S paragraph carries it. It
+  lands on the string-building path and needs to be in that path's budget, not discovered after.
 - **Unicode-version sensitivity.** Extended grapheme cluster boundaries are defined by UAX #29 and gain new
   rules when Unicode adds scripts or emoji sequences. Unlike every other primitive in
   [0007](0007-explicit-type-system.md), what counts as "one character" in a `string` is pinned to whichever
   Unicode version `mwl-runtime` embeds, and can change across a runtime upgrade. Worth stating loudly rather
   than discovering it as a surprising changelog entry.
-- **If the fallback is taken**, `string`'s default length is byte length, which reintroduces exactly the
-  "does length mean what I think" question this ADR set out to remove — without at least the
-  `mbstring`-versus-plain **split**, so still a strict improvement over PHP, but not the preferred outcome.
+- **A `Core\Str::length` is O(n), where PHP's `strlen` is O(1).** A program that calls it inside a loop over
+  the same string pays for the whole string each time, and the cached count above is what removes that. The
+  ASCII path is a vectorized scan and the non-ASCII path is a full segmentation run, so the cost a given
+  program actually sees depends on its data — an unusual property for a length function, and worth stating.
 
 ## Alternatives rejected
 
 - **Codepoint count as the default** (Python 3, Java's effective behaviour). Rejected: it still answers
   "how many Unicode scalar values" rather than "how many characters a person sees" — a flag emoji or a
-  combining-mark letter would not count as one — and is not the fallback named in *Decision § 2*.
+  combining-mark letter would not count as one. It is still *reachable*, as `Core\Str::codePoints` and as
+  `mwl_stdlib::granularity::Unit::CodePoint`; it is simply not what an unmarked length means.
+- **Byte count as the default**, this ADR's own original fallback. Rejected in *Decision § 2* on a stronger
+  ground than cost: it cannot index a guaranteed-UTF-8 `string` at all.
 - **`bytes` as `array<uint>`.** Rejected in *Decision § 1*: 8 bytes of tagged-value overhead per byte of
   data, plus a per-write element-type check for a type whose whole point is "no per-element structure."
 - **`bytes` as a stdlib class rather than a primitive.** Rejected in *Decision § 1*: drags in object
@@ -168,28 +183,33 @@ per the plan's split, this ADR fixes the *semantics*, `docs/spec/00-overview.md`
 
 ## Revisiting
 
-**§ 2's granularity default is not settled until a guard test lands in
-[`benches/abi-probe`](../../benches/abi-probe/)** measuring the cost of extended-grapheme-cluster
-segmentation — both the first-touch cost of counting a fresh buffer and the incremental cost of maintaining
-the count across concatenation — against a stated threshold, in the same style
-[0002](0002-error-propagation.md)'s and [0006](0006-isolated-script-execution.md)'s guard tests hold their
-numbers. A reasonable starting point for that threshold: `bytes as string` already pays an unavoidable O(n)
-UTF-8 validation pass at every such conversion, and that cost is already accepted; if grapheme counting adds
-no more than roughly that same order of magnitude on top of a string's construction, the default in
-*Decision § 2* holds as grapheme-based. If it costs substantially more, the fallback in *Decision § 2*
-(byte length as the default, grapheme-awareness as an explicitly named function) takes over instead. The
-exact multiplier is for whoever writes the guard test, not asserted here.
+**§ 2's granularity is settled and its guard test has landed** —
+`a_grapheme_index_costs_more_than_a_code_point_index` in
+[`benches/abi-probe/tests/perf_guards.rs`](../../benches/abi-probe/tests/perf_guards.rs), holding the cost
+of extended-grapheme-cluster segmentation against the UTF-8 validation pass `bytes as string` already pays,
+over an ASCII corpus and a mixed one. What would re-open § 2 is that test failing on a real regression
+rather than a threshold: the decision rests on the ASCII fast path existing and on segmentation staying
+linear. Two follow-ons named rather than done:
 
-Also deferred, each needing its own resolution before or alongside M1:
+- **The cached count** in *Consequences* is not built. Until it is, a `Core\Str::length` in a loop
+  re-segments the same buffer every iteration.
+- **A different segmenter** is the escape hatch if the non-ASCII figure ever bites. `icu_segmenter` was
+  passed over for its data-provider and locale architecture, not for its correctness or its speed, neither
+  of which was measured here ([`mwl_stdlib::granularity`](../../crates/mwl-stdlib/src/granularity.rs)
+  records that comparison). Swapping it in would be a change behind that one seam.
+
+Two further questions, resolved:
 
 - **`bytes` literal syntax** — resolved in
   [`docs/spec/00-overview.md` § 5](../spec/00-overview.md#5-bytes-no-dedicated-literal): no dedicated
   literal token; `"…" as bytes` covers the valid-UTF-8 case for free, `Core\Bytes::fromHex()`/`::fromBase64()`
-  cover arbitrary binary constants. This is a spelling decision only — it does not touch this ADR's own
-  Proposed status, which still turns on the grapheme-cost guard test below.
-- **Random access by grapheme index.** Sequential iteration is cheap once the boundary logic exists;
-  "the k-th character" without iterating needs either an O(n) scan or a cached offset table, and which one
-  v1 needs should be decided from real MWL programs, not guessed now.
+  cover arbitrary binary constants. A spelling decision only.
+- **Random access by grapheme index** is an O(n) scan, not a cached offset table. `Core\Str::at` walks the
+  clusters, which is the cheaper thing to build and the correct default until a real MWL program shows the
+  table earning its per-string memory — the same "measure first" this ADR's own § 2 turned on.
+
+One that is not:
+
 - **Normalization (NFC/NFD) is explicitly out of scope.** Grapheme-cluster awareness says nothing about
   whether two visually identical strings compare equal — that is a separate question this ADR does not
   touch, exactly as PHP leaves it untouched today.

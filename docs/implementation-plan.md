@@ -7,8 +7,8 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-24. **M3 is done**, and the loop goal's Stages 1-2 plus `examples/report.mwl` are
-> green on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
+> **Status:** 2026-08-24. **M3 is done**, and the loop goal's Stages 1-3 are green on Windows and Linux
+> alike — every fixture, `examples/core.mwl` included. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
 > array, and building that array without its only real consumer produces one that must be rebuilt. M4's
 > language surface is now driven by what Stage 3's `Core` work needs. The docs track that was running
 > beside it is **finished**: a full `Core` roster review against ADR 0063, then all seven `Core` additions
@@ -29,8 +29,8 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Arr` × 9, `Str` × 13, `Order`), `mwl-codegen`, `mwl-cli`, `fuzz/`, `tools/`,
-> `benches/abi-probe`.
+> `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli`, `fuzz/`,
+> `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -39,22 +39,23 @@
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
-> 0065, and **0053 in full**. Each ADR's own *Verification* section says what its slice covers, not this
-> field.
+> 0065, and **0053 and 0009 in full**. Each ADR's own *Verification* section says what its slice covers,
+> not this field.
 >
-> **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag, a union parameter,
-> a callback-bound result type, a `Core`-owned enum and an absent option all work end to end.
-> `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 § 2 granularity. Then
-> `crates/mwl-test`/`mwl test`. Ahead of that, two re-opened M1 grammar slices (`autoload`, the duration
-> literal) — see M1 — plus ADR 0047's now-unblocked M2 checker row. In docs, one thing remains:
+> **Open now:** **`crates/mwl-test` and the `mwl test` subcommand** — the only thing between the
+> acceptance list and its two suites, and the last check either leg fails on. Beside it, the rest of
+> `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result type, a
+> `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one shape still
+> unstatable. Also two re-opened M1 grammar slices (`autoload`, the duration literal) — see M1 — plus
+> ADR 0047's now-unblocked M2 checker row. In docs, one thing remains:
 > `docs/spec/02-php-migration.md` is 31% classified (strings, arrays, numbers, conversions), the rest one
 > pass per PHP domain, reported by `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's
 > `by`-delegation.
 >
-> **Blocking:** nothing external. **Stages 1, 2 and `report.mwl` are green on both legs** — byte for
-> byte on Windows and under WSL against a Linux build, `valgrind --leak-check=full` clean on all twelve
-> fixtures. That leg earned its keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now
-> fixed. `examples/core.mwl` now runs its **line 11's sort** and stops at `Str::length`.
+> **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
+> under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
+> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed. The two suite checks are the
+> only ones left failing, and only because `mwl test` does not exist yet.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -122,7 +123,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
 | Security | Server-level `mwl.toml`, root-owned, TOML ([ADR 0064](adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](adr/0005-config-changeability.md)) |
 | Serving | Built-in HTTP/1.1 + h2c server. FastCGI deferred to optional transport. HTTP/3 out of scope |
-| Text and binary | `string` is guaranteed-valid UTF-8; binary data is the separate `bytes` primitive. Only its default length/indexing granularity is still open ([ADR 0009](adr/0009-string-and-bytes.md) § 2, pending a cost measurement) |
+| Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes ([ADR 0009](adr/0009-string-and-bytes.md)) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
 | Testing | Hand-written suite is normative; `.phpt → .mwlt` transpiler imports PHP's corpus |
@@ -612,7 +613,11 @@ picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::
 `Core\Str::format` land as [ADR 0057](adr/0057-intrinsic-literal-folding.md) intrinsics with the
 compile-time half wired into `mwl-types`. `Duration::parse` shares its grammar and its implementation with
 M1's duration literal ([ADR 0070](adr/0070-duration-literals.md)), so build the literal first and this is
-the same parser reached from a second entry point. `Core\Json` also brings the first **compiler-recognized**
+the same parser reached from a second entry point. `Core\Str`'s
+unit is [ADR 0009](adr/0009-string-and-bytes.md) § 2's grapheme cluster, decided and seamed in
+`mwl_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and
+belongs here, in `mwl_runtime::MwlStr`'s header, alongside the O(1) boundary correction a concatenation
+needs at the seam. `Core\Json` also brings the first **compiler-recognized**
 attribute: [ADR 0071](adr/0071-derived-codecs.md)'s `#[Json\Derive]`, a `mwl-types`→`mwl-ir` pass that emits
 a `Json\Codec` implementation per annotated class, plus the nominal-matching rule that gates it. `#[Db\Derive]`
 is the same pass over a second format and lands with M8. The **second** compiler-recognized attribute lands

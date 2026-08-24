@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     python tools/gen-attribution.py
 
 
-COMPONENTS (82)
+COMPONENTS (83)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, MWL takes the one shown and
@@ -84,6 +84,7 @@ platform MWL builds for, so one may appear that a given build omits.
   thiserror                               2.0.20   MIT                             (MIT OR Apache-2.0)
   thiserror-impl                          2.0.20   MIT                             (MIT OR Apache-2.0)
   unicode-ident                           1.0.24   MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
+  unicode-segmentation                    1.13.3   MIT                             (MIT OR Apache-2.0)
   utf8parse                               0.2.2    MIT                             (Apache-2.0 OR MIT)
   wasmtime-internal-core                  48.0.0   Apache-2.0 WITH LLVM-exception
   wasmtime-internal-jit-icache-coherence  48.0.0   Apache-2.0 WITH LLVM-exception
@@ -426,6 +427,7 @@ DEALINGS IN THE SOFTWARE.
 Applies to:
   gimli 0.33.0
   heck 0.5.0
+  unicode-segmentation 1.13.3
 
 ------------------------------------------------------------------------------
 

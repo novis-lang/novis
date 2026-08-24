@@ -34,6 +34,10 @@
 //! to link, and an implementation nothing registers is dead code the compiler
 //! warns about.
 //!
+//! [`granularity`] is the one module that is not a domain: it holds
+//! ADR 0009 § 2's answer to "what unit does a `string` count in," which more
+//! than one domain reaches for and no domain may decide for itself.
+//!
 //! # A `Core` call is a helper call
 //!
 //! Every member has the one signature
@@ -68,11 +72,10 @@
 //!    `docs/agent/loop-goal.md`'s Stage 4 holds the coverage gate that will name
 //!    every member still missing a conformance case.
 //!
-//!    Within § 1, the members still absent are the ones waiting on something:
-//!    `length`/`at`/`slice` on
-//!    [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s open
-//!    granularity question — which [`str`]'s own docs record as the one thing
-//!    that can still change an already-registered member's answer.
+//!    Within § 1, ADR 0009 § 2's granularity question is closed and
+//!    [`granularity::DEFAULT`] is its answer, so `length` and `at` are
+//!    registered; `slice` is not, and waits on gap 3 below rather than on that
+//!    ADR.
 //! 3. **A `?T` parameter still cannot be stated**, so a member whose spec
 //!    signature declares one — `Core\Str::slice`'s `?int $length = null`, and
 //!    the rest of the spec's most common optional shape — waits on the
@@ -94,6 +97,7 @@
 //!    not do yet.
 
 pub mod arr;
+pub mod granularity;
 pub mod registry;
 pub mod str;
 

@@ -14,14 +14,12 @@
 //! rather than a `panic!`: a broken invariant is a compiler or runtime bug, and
 //! ADR 0020's ladder wants it reported, not left to take the process down.
 //!
-//! # The one thing ADR 0009 has not settled yet
+//! # Granularity is decided elsewhere, and read from one place
 //!
-//! `padStart`/`padEnd` measure their `$length` argument in **code points**.
-//! That is the same open question ADR 0009 parks for `length`/`at`/`slice` —
-//! code point versus grapheme — and the spec's § 1 preamble says as much. None
-//! of those three is registered yet, so nothing here can disagree with them;
-//! when that ADR lands, this module follows it, in these two functions and
-//! nowhere else. Every other member is granularity-independent.
+//! `length`, `at` and `padStart`/`padEnd`'s `$length` all count in
+//! [`crate::granularity::DEFAULT`] — ADR 0009 § 2's answer, stated in that
+//! module and in that ADR, never restated here. Every other member is
+//! granularity-independent.
 //!
 //! # Case conversion is Unicode's, not PHP's
 //!
@@ -51,6 +49,20 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Str",
     methods: &[
+        CoreMethod {
+            name: "length",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "mwl_core_str_length",
+        },
+        CoreMethod {
+            name: "at",
+            params: &[CoreTy::Str, CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_at",
+        },
         CoreMethod {
             name: "isEmpty",
             params: &[CoreTy::Str],
@@ -224,6 +236,8 @@ const REPLACE_OPTIONS: &[CoreOption] = &[
 /// arm here rather than to a single workspace-wide match.
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "mwl_core_str_length" => (mwl_core_str_length as *const ()).cast(),
+        "mwl_core_str_at" => (mwl_core_str_at as *const ()).cast(),
         "mwl_core_str_is_empty" => (mwl_core_str_is_empty as *const ()).cast(),
         "mwl_core_str_contains" => (mwl_core_str_contains as *const ()).cast(),
         "mwl_core_str_starts_with" => (mwl_core_str_starts_with as *const ()).cast(),
@@ -314,6 +328,61 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 /// A freshly built `string` result.
 fn produced(text: &str) -> HelperResult {
     Ok(Value::str(MwlStr::new(text.as_bytes())))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::length(string $s): uint` — how many characters the string
+    /// holds, replacing PHP's `strlen` *and* `mb_strlen` at once.
+    ///
+    /// The unit is [`crate::granularity::DEFAULT`], which is ADR 0009 § 2's
+    /// decision and is stated there and nowhere else. What that means for a
+    /// PHP program being ported is the divergence row in that ADR's
+    /// *Consequences*: `strlen("café")` is 5 and this is 4.
+    ///
+    /// O(n) in the string's bytes, and `granularity`'s own known gap owns the
+    /// cached-count fix ADR 0009 names.
+    fn mwl_core_str_length(_ctx, args: [1]) {
+        let subject = text(&args[0], "length", "the subject")?;
+        // `try_from` rather than `as`: `usize` is no wider than `u64` on any
+        // target `deny.toml` builds for, so this cannot lose a digit, and
+        // spelling it this way keeps the cast lints this crate denies from
+        // needing a silence.
+        let length = u64::try_from(crate::granularity::DEFAULT.length(subject))
+            .map_err(|_| Fault::fatal("Core\\Str::length counted past `uint`"))?;
+        Ok(Value::uint(length))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::at(string $s, int $index): string` — the one character at
+    /// `$index`, replacing PHP's `$s[$i]` and `mb_substr($s, $i, 1)`.
+    ///
+    /// Two things separate it from PHP's `$s[$i]`, and both follow from rules
+    /// already taken rather than being decided here:
+    ///
+    /// * **The unit is a character, not a byte** — [`crate::granularity`],
+    ///   whose own docs record why a byte-indexed `at` cannot exist at all
+    ///   under ADR 0009's UTF-8 invariant.
+    /// * **An index that addresses nothing throws**, rather than PHP's warning
+    ///   plus `""`. The declared return type is `string`, not `?string`, and
+    ///   [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R4/R5
+    ///   make that the difference between the two: absence would have to be
+    ///   spelled in the type.
+    ///
+    /// A negative index counts from the end, which is R8's range rule applied
+    /// to a range of one.
+    fn mwl_core_str_at(_ctx, args: [2]) {
+        let subject = text(&args[0], "at", "the subject")?;
+        let index = integer(&args[1], "at", "the index")?;
+        let unit = crate::granularity::DEFAULT;
+        let found = unit.at(subject, index).ok_or_else(|| {
+            Fault::thrown(format!(
+                "Core\\Str::at: index {index} is outside a string of {} characters",
+                unit.length(subject)
+            ))
+        })?;
+        produced(found)
+    }
 }
 
 mwl_runtime::mwl_helper! {
@@ -629,13 +698,14 @@ mwl_runtime::mwl_helper! {
 }
 
 /// The run of padding `padStart`/`padEnd` prepend or append — `padding`
-/// repeated and then cut to exactly the shortfall, in code points (see this
-/// module's docs for why that unit, and what settles it).
+/// repeated and then cut to exactly the shortfall, counted in
+/// [`crate::granularity::DEFAULT`].
 ///
 /// Empty padding throws rather than looping: it can never close a shortfall,
 /// and PHP's own `str_pad` refuses it too.
 fn padding_run(subject: &str, length: usize, padding: &str, member: &str) -> Result<String, Fault> {
-    let have = subject.chars().count();
+    let unit = crate::granularity::DEFAULT;
+    let have = unit.length(subject);
     if have >= length {
         return Ok(String::new());
     }
@@ -645,8 +715,8 @@ fn padding_run(subject: &str, length: usize, padding: &str, member: &str) -> Res
              length"
         )));
     }
-    Ok(padding
-        .chars()
+    Ok(unit
+        .pieces(padding)
         .cycle()
         .take(length - have)
         .collect::<String>())
@@ -1132,6 +1202,81 @@ mod tests {
                 .expect("no failure")
                 .as_bool(),
             Some(false)
+        );
+    }
+
+    /// `length` counts characters, which is the answer PHP needs two functions
+    /// and a correct `mb_internal_encoding` to reach — and does not reach for
+    /// the last row at all, since `strlen` says 25 and `mb_strlen` says 5.
+    #[test]
+    fn length_counts_characters_not_bytes_or_code_points() {
+        for (subject, want) in [
+            ("", 0u64),
+            ("mwl", 3),
+            ("cafe\u{301}", 4),
+            ("\u{1f1e6}\u{1f1f9}", 1),
+            ("\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}", 1),
+        ] {
+            assert_eq!(
+                run(super::mwl_core_str_length, &[s(subject)])
+                    .expect("no failure")
+                    .as_uint(),
+                Some(want),
+                "length({subject:?})"
+            );
+        }
+    }
+
+    /// `at` addresses the same unit `length` counts, from either end.
+    #[test]
+    fn at_indexes_characters_from_either_end() {
+        for (subject, index, want) in [
+            ("mwl", 0i64, "m"),
+            ("mwl", 2, "l"),
+            ("mwl", -1, "l"),
+            ("cafe\u{301}", 3, "e\u{301}"),
+            ("cafe\u{301}", -1, "e\u{301}"),
+        ] {
+            assert_eq!(
+                taken(
+                    run(super::mwl_core_str_at, &[s(subject), Value::int(index)])
+                        .expect("no failure")
+                ),
+                want,
+                "at({subject:?}, {index})"
+            );
+        }
+    }
+
+    /// An index outside the string throws rather than answering `""` the way
+    /// PHP's `$s[$i]` does — the return type is `string`, so there is nothing
+    /// for an absence to be.
+    #[test]
+    fn an_index_outside_the_string_throws() {
+        for index in [3i64, -4, i64::MAX, i64::MIN] {
+            let status = run(super::mwl_core_str_at, &[s("mwl"), Value::int(index)])
+                .expect_err("the index addresses nothing");
+            assert_eq!(status, mwl_runtime::THROWN, "at(\"mwl\", {index})");
+        }
+        let status = run(super::mwl_core_str_at, &[s(""), Value::int(0)])
+            .expect_err("the empty string has no characters");
+        assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    /// Padding measures in the same unit as `length`, so a target of 3 over a
+    /// one-character emoji adds two pads rather than the twenty-one bytes a
+    /// byte-counting `str_pad` would.
+    #[test]
+    fn padding_measures_the_same_unit_length_counts() {
+        assert_eq!(
+            taken(
+                run(
+                    super::mwl_core_str_pad_start,
+                    &[s("\u{1f1e6}\u{1f1f9}"), Value::uint(3), s(".")]
+                )
+                .expect("no failure")
+            ),
+            "..\u{1f1e6}\u{1f1f9}"
         );
     }
 }

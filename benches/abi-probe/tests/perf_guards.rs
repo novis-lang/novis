@@ -576,3 +576,108 @@ fn a_refcount_one_array_member_mutates_in_place() {
          needs revisiting."
     );
 }
+
+/// The two bodies of text the granularity decision turns on, each repeated
+/// until it is a few kilobytes: the ASCII one every request path is actually
+/// full of, and a mixed one carrying accented Latin built from combining marks
+/// and emoji clusters that span several code points each.
+///
+/// Both, not one. A grapheme segmenter has a fast path for an ASCII run, so an
+/// ASCII-only corpus would measure that fast path and report that granularity
+/// is free; a corpus that is *all* emoji would report the opposite. The
+/// decision needs the common case and the bad case side by side, so this guard
+/// prints and bounds both.
+/// Each corpus with the bound its grapheme count must stay under, in UTF-8
+/// validations of the same buffer.
+///
+/// Baselines measured on the M4S session that closed ADR 0009 § 2: 3.0 for
+/// `ascii`, 24.7 for `mixed`. Each bound is this file's usual order of
+/// magnitude above its own baseline, which is loose enough not to track a
+/// machine and tight enough to catch what actually matters — with
+/// `one_byte_per_cluster` removed, the `ascii` leg measured 657.
+fn corpora() -> [(&'static str, String, f64); 2] {
+    let repeat = |unit: &str| unit.repeat(64);
+    [
+        (
+            "ascii",
+            repeat("the quick brown fox jumps over the lazy dog, "),
+            30.0,
+        ),
+        (
+            "mixed",
+            repeat(concat!(
+                "the quick brown fox jumps over the lazy dog, ",
+                "na\u{131}\u{308}ve cafe\u{301} re\u{301}sume\u{301}, ",
+                "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467} \u{1f1e6}\u{1f1f9} ",
+                "\u{1f3f4}\u{e0067}\u{e0062}\u{e0073}\u{e0063}\u{e0074}\u{e007f} ",
+            )),
+            250.0,
+        ),
+    ]
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_grapheme_index_costs_more_than_a_code_point_index() {
+    // ADR 0009 § 2's granularity, decided by this measurement, which its
+    // *Revisiting* section asked for by name.
+    //
+    // The reference cost that ADR names is UTF-8 validation: `bytes as string`
+    // already pays one O(n) pass over the buffer at every such conversion, and
+    // that cost is already accepted. So the question is how many of those
+    // passes a grapheme count is worth, and the answer splits by corpus —
+    // which is why the bound travels with the corpus rather than being one
+    // constant here. The name is the finding on text that is not plain ASCII:
+    // a grapheme index is the dearer of the two seams, by roughly 300x.
+
+    for (name, text, max_validations) in corpora() {
+        let bytes = text.as_bytes();
+        let graphemes = mwl_stdlib::granularity::Unit::Grapheme.length(&text);
+        let code_points = mwl_stdlib::granularity::Unit::CodePoint.length(&text);
+
+        // Per byte, so the three legs are comparable and the corpus size is
+        // not baked into the threshold.
+        let per_byte = |ns: f64| ns / bytes.len() as f64;
+
+        let validate = per_byte(ns_per_op(2_000, 5, || {
+            black_box(std::str::from_utf8(black_box(bytes)).is_ok());
+        }));
+        let code_point = per_byte(ns_per_op(2_000, 5, || {
+            black_box(mwl_stdlib::granularity::Unit::CodePoint.length(black_box(&text)));
+        }));
+        let grapheme = per_byte(ns_per_op(2_000, 5, || {
+            black_box(mwl_stdlib::granularity::Unit::Grapheme.length(black_box(&text)));
+        }));
+
+        let validations = grapheme / validate;
+        println!(
+            "{name}: {} bytes, {graphemes} graphemes, {code_points} code points — \
+             validate {validate:.3} ns/byte, code point {code_point:.3} ns/byte, \
+             grapheme {grapheme:.3} ns/byte; a grapheme count is {validations:.1} UTF-8 \
+             validations and {:.1}x a code-point count",
+            bytes.len(),
+            grapheme / code_point
+        );
+
+        // Only off the fast path. On plain ASCII a grapheme count *is* the
+        // byte length behind one vectorized scan, so it is legitimately in the
+        // same class as a code-point count there and the comparison says
+        // nothing; asserting it on both legs would be a coin flip.
+        assert!(
+            text.is_ascii() || grapheme >= code_point,
+            "over {name}, a grapheme count now costs {grapheme:.3} ns/byte against a \
+             code-point count's {code_point:.3} ns/byte. The two are meant to be distinct \
+             seams over the same buffer; if segmentation has become free, \
+             `mwl_stdlib::granularity` is no longer measuring what it claims to."
+        );
+
+        assert!(
+            validations < max_validations,
+            "over {name}, a grapheme count now costs {validations:.1} UTF-8 validations of \
+             the same buffer ({grapheme:.3} ns/byte against {validate:.3} ns/byte), over \
+             the {max_validations} guard. ADR 0009 § 2 makes grapheme clusters `string`'s \
+             default unit on the strength of a measured figure well under that; if this is \
+             a real regression, that decision needs revisiting rather than this threshold."
+        );
+    }
+}

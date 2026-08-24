@@ -39,6 +39,10 @@ mwl-types.workspace = true
 mwl-ir.workspace = true
 mwl-codegen.workspace = true
 mwl-runtime.workspace = true
+# ADR 0009 § 2's granularity guard measures the seam `Core\Str` actually calls
+# (`mwl_stdlib::granularity`), not a re-implementation of it — the same reason
+# the arithmetic guards compile the real fixture.
+mwl-stdlib.workspace = true
 
 [[bench]]
 name = "abi"
