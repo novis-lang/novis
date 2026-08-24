@@ -32,8 +32,12 @@ MWL.** `mwl convert` is **one rule table read through two modes**, not two trans
 carries a tier — **E** proven identical, **D** a mechanical destination that may differ, **N** none — and
 the default `--mode=equivalent` emits only E while `--mode=runnable` also emits D under a
 `TODO(convert:<id>)`. An E claim is discharged by a differential case against the PHP oracle or CI refuses
-it. Its § 7 picks the PHP front end — `mago-syntax` leading, `php-ast` the fallback, behind our own facade,
-dialects 7.0–8.5 — **subject to a spike that ADR's *Verification* specifies and that nothing has run yet**.
+it. **Its § 7 front end is now decided and the spike that decided it has run**: `php-rs-parser`, pinned,
+behind the `mwl_convert::php` facade, dialects **7.4–8.6** (8.0 was the hard requirement; 7.4 came free).
+It beat `mago-syntax` on four measured differences, all in § 7's table — a parse-time version knob with
+per-feature `VersionTooLow`, diagnoses rather than token errors for constructs PHP 8.0 removed, a
+`php -l`-pinned acceptance contract, and an owned AST with doc-blocks already attached. What the spike did
+**not** cover, and M11 owes before the first pass: the same comparison over a real corpus.
 
 **[ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) is the other one with a live
 code consequence.** It replaces [0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4's *list* of

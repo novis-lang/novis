@@ -5,7 +5,7 @@
 - **Scope:** what `mwl convert` promises and what it refuses — the two modes and the per-rule tier that
   produces them, what "equivalent" means and who proves it, the determinism contract, the
   nothing-is-dropped rule, the annotation and report format, where the three translation tables live, and
-  the PHP front end with its 7.0–8.5 dialect range. Not in scope: which `Core` member a given PHP name
+  the PHP front end with its 7.4–8.6 dialect range. Not in scope: which `Core` member a given PHP name
   becomes, which is [docs/spec/02-php-migration.md](../spec/02-php-migration.md)'s one row per name; the
   migration path for a construct MWL dropped, which belongs to the ADR that dropped it; M11's schedule and
   its verification targets, which are [the plan](../implementation-plan.md)'s; and database schema
@@ -32,7 +32,8 @@
 > is a test, never an opinion. **Determinism is a contract**: same bytes in, same bytes out, no clock, no
 > hash order, no fixpoint, no model, no network. **Nothing is ever dropped** — every non-trivia byte of
 > input leaves as either converted code or commented-out source. The front end is an existing Rust PHP
-> parser behind our own facade, dialect-aware across PHP 7.0–8.5, and extending that range is a row.
+> parser — `php-rs-parser`, pinned — behind our own facade, dialect-aware across PHP 7.4–8.6, and
+> extending that range is a row.
 
 ## Context
 
@@ -219,10 +220,11 @@ their conditions and their proofs.
 The table will grow for years. That is the accepted price, and it is why the growth is one data row rather
 than one branch in a match.
 
-### 7. The front end is an existing Rust PHP parser behind our own facade
+### 7. The front end is `php-rs-parser`, pinned, behind our own facade
 
-The converter needs an AST for PHP **7.0 through 8.5**, extendable. Requirements, in the order they decide
-the choice:
+The converter needs an AST for PHP **7.4 through 8.6**, extendable. 7.4 is the floor because it is what the
+chosen parser reaches, not because older PHP was ruled out on principle; **8.0 is the hard requirement and
+7.4 came free**. Requirements, in the order they decided the choice:
 
 - **Pure Rust**, per AGENTS.md's default and because a C parser eating source from a package you are
   evaluating is exactly [0051](0051-standard-library-tiers.md) § 4's question 2.
@@ -239,29 +241,49 @@ the choice:
 which is a development-side dependency this repository already has; requiring an installed PHP at convert
 time would make output depend on which build the user happens to have, breaking § 3.
 
-**The choice, with what is known today:**
+**The choice is `php-rs-parser`** (with its `php-ast`, `php-lexer` and `phpdoc-parser` crates), BSD-3-Clause
+and pure Rust, **pinned to an exact version** and upgraded deliberately under
+[0068](0068-dependency-currency-and-the-version-contract.md). It was picked against `mago-syntax` by
+building both and running them over two fixtures — one exercising PHP 8.5 down to 8.0, one holding the
+constructs PHP 8.0 removed — and four measured differences decided it, each of them a requirement above:
 
-- **`mago-syntax` — the leading candidate.** Pure Rust, MIT/Apache-2.0, ~30k SLoC, released within days of
-  this ADR, the parser half of a PHP toolchain whose linter and formatter mean trivia and spans are
-  first-class; it exposes a `cst` module and a companion `mago-php-version` crate modelling a version as
-  `(major, minor, patch)`, which is the version knob in the shape this ADR needs.
-- **`php-ast` — the named fallback.** Pure Rust, BSD-3-Clause, documents PHP 7.4–8.5, a typed AST with
-  spans, comments stored separately, and a parser that always yields a tree. Against it: a single
-  maintainer and a small user base, which is a sustainability risk this ADR would rather carry as a
-  fallback than as the primary.
-- Neither documents PHP 7.0–7.3 coverage. **That, not the API, is what the spike must measure**, and it is
-  why the choice is not locked here.
+| Measured on the same two fixtures | `php-rs-parser` | `mago-syntax` |
+|---|---|---|
+| `$s{0}`, removed in 8.0 | *"array and string offset access syntax with curly braces is no longer supported"* | `UnexpectedToken(OneOf([Semicolon, CloseTag]), LeftBrace)` |
+| `(real)`, removed in 8.0 | *"the `(real)` cast is no longer supported, use `(float)` instead"* | not reported |
+| `never\|string`, which PHP itself rejects | rejected | accepted |
+| The same file targeted at 8.0 | ten `VersionTooLow { feature, required, used, span }` — *"property hooks", required 8.4* | no version knob in the parser at all |
 
-**Locked in only after a spike**, whose acceptance test is stated in *Verification*. Until then and after,
-the passes see only `mwl_convert::php` — our own facade over node kinds, spans and comments — so replacing
-the dependency is a bounded change in one module rather than a rewrite of every pass.
-[0065](0065-third-party-attribution-and-mwl-info.md) covers the notice either way.
+The two structural reasons behind that table, and the ones that would still decide it if a future candidate
+matched the diagnostics: `php-rs-parser` states a **semantic-rejection contract** — *it emits at least one
+diagnostic iff `php -l` would reject that input at the configured target version* — and enforces it in its
+own CI against real PHP output, which is the same discipline § 2 applies to an E rule; and it returns a
+**fully owned `ParseResult`** with comments in source order and doc-blocks attached to the declaration they
+document, where `mago-syntax` returns an arena-bound `&'arena Program<'arena>` whose trivia mixes comments
+with whitespace. `mago-syntax` is the better-resourced project and is named in *Alternatives rejected* with
+exactly that as its case; it lost on fitness, not on maintenance.
+
+**The cost this accepts is the bus factor.** `php-rs-parser` is 0.x with one maintainer, so the insurance
+is: the exact pin above, the facade below, a BSD-3 licence that permits a fork, and a dependency tree small
+enough — four pure-Rust crates — to carry one if it comes to that. It is **not** vendored into this
+repository: owning a PHP parser means owning every future PHP release, which is what AGENTS.md's dependency
+rule exists to refuse.
+
+**The passes see only `mwl_convert::php`** — our own facade over node kinds, spans and comments — so
+replacing the dependency is a bounded change in one module rather than a rewrite of every pass. That facade
+is written first, before any pass, and it is the only module allowed to name the parser crate.
+[0065](0065-third-party-attribution-and-mwl-info.md) covers the notice.
 
 **The parser is behind a Cargo feature and is not linked into the server binary.** A PHP front end has no
 business on a machine serving requests.
 
 **Extending the range is a row**, not a redesign: a new PHP version adds a dialect value, plus a branch on
-any rule whose behaviour it changed.
+any rule whose behaviour it changed. The parser already carries 8.6 as an opt-in, so the next range
+extension is a rule-table edit rather than a dependency question.
+
+**A dialect below 7.4 is refused, not guessed at.** A file the parser cannot accept at any dialect is § 4's
+commented-out file carrying the parse error, and the report names the PHP version it was tried under — so
+a 7.2 codebase gets a bounded, honest answer rather than a silent misparse.
 
 ### 8. What the converter never does
 
@@ -314,6 +336,14 @@ any rule whose behaviour it changed.
   appends from PHP's own counter. What remains is a *difference in a result*, which is a `TODO` sentence,
   not a library. A shim would also let a converted application sit on PHP's semantics forever, which is the
   opposite of what the `idiomatic` field exists to drive.
+- **`mago-syntax` as the front end** — the better-resourced candidate by a wide margin: 3.4k stars, a team
+  behind it, MIT/Apache, and the crate two predecessor projects consolidated into after `php-parser-rs` was
+  archived and PXP was discontinued in March 2025 with its author pointing there. Rejected on fitness,
+  measured rather than argued (§ 7's table): its parser takes no PHP version, so every dialect rule this
+  ADR needs would be ours to build and maintain; it reported a construct removed in PHP 8.0 as an
+  unexpected token and missed a second one entirely; it accepted a type PHP itself rejects; and its
+  arena-bound AST with whitespace-mixed trivia is the wrong shape for passes that must re-attach every
+  doc-block. It stays the named fallback in *Revisiting*, where its resourcing is exactly the argument.
 - **A PHP-hosted front end** (`nikic/PHP-Parser` invoked through a PHP binary) — the most complete PHP
   parser in existence, and rejected anyway: output would depend on the installed PHP build, breaking § 3's
   contract, and it puts a PHP runtime in the path of a tool whose entire purpose is leaving one behind.
@@ -323,6 +353,9 @@ any rule whose behaviour it changed.
 - **Writing our own PHP front end.** Rejected under AGENTS.md's standing rule — anything with an external
   specification is a dependency — and on cost: PHP's grammar moves every year, and chasing it is a
   permanent tax paid to avoid a bounded facade. Reconsidered only under *Revisiting*.
+- **Vendoring the chosen parser into this repository** to remove the bus-factor risk outright. Rejected for
+  the same reason as the line above: a vendored parser is a parser we maintain, and the exact pin plus the
+  facade plus a fork-permitting licence buy most of the insurance at none of the recurring cost.
 - **LLM-assisted conversion for the unproven cases.** Rejected outright and recorded here so it is not
   re-opened as an obvious win: it is non-deterministic by construction, which § 3 forbids; it cannot
   produce a rule id, a tier or a proof; and its failure mode is a confident, wrong rewrite — the exact
@@ -335,12 +368,13 @@ any rule whose behaviour it changed.
 created when that milestone starts, per AGENTS.md. What this ADR fixes today is the shape M11 must build,
 so that milestone's own catalogue of rewrites is now this table's contents rather than a second list.
 
-**The spike that locks § 7's dependency**, before any pass is written: parse a corpus at every dialect from
-7.0 to 8.5 — the `php-src` checkout this repository already uses for
-`crates/mwl-syntax/tests/corpus_parse.rs`, plus a set of widely used libraries — and report, per candidate:
-files parsed without panic, files parsed without error, whether every comment is retrievable with a span,
-and behaviour on the closed list of constructs PHP 8 removed. A candidate that cannot represent 7.0–7.3
-source is not disqualified by itself; it is disqualified if it cannot *report* what it could not parse.
+**The spike that locked § 7's dependency has run**, on two hand-written fixtures — one exercising 8.5 down
+to 8.0, one holding the constructs 8.0 removed — and § 7's table is its result. What it did **not** cover,
+and what M11 owes before the first pass is written: the same two candidates over a real corpus, the
+`php-src` checkout `crates/mwl-syntax/tests/corpus_parse.rs` already uses plus a set of widely used
+libraries, reporting files parsed without panic, files parsed without error, and whether every comment is
+retrievable with a span. A candidate that cannot represent some dialect is not disqualified by that alone;
+it is disqualified if it cannot *report* what it could not parse, which is what decided this one.
 
 **When M11 opens**, these are the tests the milestone owes, each traceable to a section above:
 
@@ -360,11 +394,12 @@ source is not disqualified by itself; it is disqualified if it cannot *report* w
 
 ## Revisiting
 
-- **If the spike shows no crate can be made to cover 7.0–8.5** with spans and comments, § 7's rejection of
-  our own front end is reopened — and only that section, since the facade means nothing else changes.
+- **If `php-rs-parser` is abandoned** — 0.x with one maintainer is § 7's named risk — the order is: fork at
+  the pinned version under its BSD-3 licence, or swap to `mago-syntax` behind the facade and build the
+  dialect gating this ADR would then be missing. Only § 7 changes either way.
 - **If the published equivalent-mode share stays so low that nobody runs the default mode**, the thing to
   revisit is the *definition* of E — for instance, admitting "equivalent under a stated, checked assumption
   about the input" as a fourth tier with its own annotation — not the two-mode split, which is what makes
   the claim auditable at all.
-- **If a dialect older than 7.0 is asked for**, it is a dialect value and a set of rule branches, and this
+- **If a dialect older than 7.4 is asked for**, it is a dialect value and a set of rule branches, and this
   ADR does not need to change.

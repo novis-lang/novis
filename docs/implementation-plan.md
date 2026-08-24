@@ -1193,7 +1193,8 @@ agreeing byte-for-byte on the same file's formatted output and diagnostics — w
 `mwl convert`: PHP source → AST → rewrite passes → `.mwl` output, under the contract
 [ADR 0089](adr/0089-convert-is-one-rule-table-with-two-modes.md) fixes — one rule table read through two
 modes, an equivalence claim that a differential case against the PHP oracle discharges, byte-for-byte
-determinism, nothing dropped, and a front end picked by that ADR's § 7 spike before any pass is written.
+determinism, nothing dropped, and `php-rs-parser` as the pinned front end behind that ADR's § 7 facade,
+covering PHP 7.4 through 8.6.
 **This milestone is now on the critical path for adoption rather than a convenience**, because PHP has no syntax for a `foreach` binding's
 or a destructuring target's type and [ADR 0007](adr/0007-explicit-type-system.md) requires one for both: the
 converter carries the type-inference engine MWL's compiler deliberately does not have for those two
