@@ -1,0 +1,39 @@
+--TEST--
+A `throw` from inside a generator body surfaces at the `foreach` that resumed it, after the values already yielded — ADR 0053 § 4 over ADR 0002
+--FILE--
+<?mwl
+class Feed {
+    public static function upTo(int $n): Iterator<int> {
+        var $i = 0;
+        while ($i < $n) {
+            if ($i === 3) {
+                throw new RuntimeError("bad element 3");
+            }
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function drained(int $n): string {
+        var $out = "";
+        try {
+            foreach (Feed::upTo($n) as int $v) {
+                $out = $out . $v . ";";
+            }
+            $out = $out . "done";
+        } catch (RuntimeError $e) {
+            $out = $out . "!" . $e->message;
+        } finally {
+            $out = $out . "|closed";
+        }
+        return $out;
+    }
+}
+
+echo Feed::drained(2), "\n";
+echo Feed::drained(3), "\n";
+echo Feed::drained(9), "\n";
+--EXPECT--
+0;1;done|closed
+0;1;2;done|closed
+0;1;2;!bad element 3|closed

@@ -1,0 +1,43 @@
+--TEST--
+`Core\Arr`'s shape predicates answer over the four arrays that matter: an empty one, a list, a map, and a list whose keys stopped being consecutive
+--FILE--
+<?mwl
+class Say {
+    public static function of(array<int> $a): string {
+        return (Core\Arr::isEmpty($a) as string) . "/"
+            . (Core\Arr::isList($a) as string) . "/"
+            . Core\Arr::count($a);
+    }
+
+    public static function keys(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . ",";
+        }
+        return $out;
+    }
+}
+
+array<int> $empty = [];
+array<int> $list = [10, 20, 30];
+array<int> $map = ["a" => 1, "b" => 2];
+array<int> $gapped = [10, 20, 30];
+unset($gapped[1]);
+
+echo Say::of($empty), "|", Say::of($list), "|", Say::of($map), "|", Say::of($gapped), "\n";
+echo Say::keys($list), "|", Say::keys($map), "|", Say::keys($gapped), "\n";
+
+echo (Core\Arr::hasKey($list, "0") as string), "|", (Core\Arr::hasKey($list, "3") as string), "|",
+     (Core\Arr::hasKey($map, "a") as string), "|", (Core\Arr::hasKey($map, "z") as string), "|\n";
+
+$gapped[] = 40;
+echo Say::of($gapped), "|", Say::keys($gapped), "\n";
+
+var $values = Core\Arr::values($map);
+echo Say::of($values), "|", Say::keys($values), "\n";
+--EXPECT--
+1/1/0|/1/3|//2|//2
+0,1,2,|a,b,|0,2,
+1||1||
+//3|0,2,3,
+/1/2|0,1,

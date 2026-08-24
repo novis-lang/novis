@@ -1,0 +1,38 @@
+--TEST--
+A `catch` that throws a *different* class is caught by the outer `try` on that class, and the message it built from the inner one survives
+--FILE--
+<?mwl
+class Layer {
+    public static function low(int $n): int {
+        return 100 % $n;
+    }
+
+    public static function middle(int $n): int {
+        try {
+            return Layer::low($n);
+        } catch (ArithmeticError $e) {
+            throw new RuntimeError("middle saw: " . $e->message);
+        }
+    }
+
+    public static function top(int $n): string {
+        try {
+            return "ok " . Layer::middle($n);
+        } catch (RuntimeError $e) {
+            return "top saw: " . $e->message;
+        }
+    }
+}
+
+echo Layer::top(0), "\n";
+echo Layer::top(4), "\n";
+
+try {
+    echo Layer::middle(0), "\n";
+} catch (Throwable $any) {
+    echo "as Throwable: ", $any->message, "\n";
+}
+--EXPECT--
+top saw: middle saw: Modulo by zero
+ok 0
+as Throwable: middle saw: Modulo by zero

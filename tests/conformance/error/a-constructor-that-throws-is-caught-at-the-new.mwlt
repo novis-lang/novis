@@ -1,0 +1,56 @@
+--TEST--
+A `throw` inside a constructor propagates out of the `new` that ran it, and the partially built object never becomes reachable
+--FILE--
+<?mwl
+class Positive {
+    public int $value;
+
+    public function constructor(int $value) {
+        if ($value <= 0) {
+            throw new LogicError("not positive: " . $value);
+        }
+        $this->value = $value;
+    }
+
+    public function doubled(): int {
+        return $this->value * 2;
+    }
+}
+
+class Make {
+    public static function orZero(int $n): int {
+        try {
+            var $p = new Positive($n);
+            return $p->doubled();
+        } catch (LogicError $e) {
+            return 0;
+        }
+    }
+}
+
+echo Make::orZero(5), ";", Make::orZero(0), ";", Make::orZero(-3), ";", Make::orZero(1), "\n";
+
+try {
+    var $bad = new Positive(-1);
+    echo "not reached";
+} catch (LogicError $outer) {
+    echo $outer->message, "\n";
+}
+
+int $made = 0;
+int $failed = 0;
+int $i = -2;
+while ($i < 3) {
+    try {
+        var $one = new Positive($i);
+        $made = $made + 1;
+    } catch (LogicError $each) {
+        $failed = $failed + 1;
+    }
+    $i = $i + 1;
+}
+echo $made, "/", $failed, "\n";
+--EXPECT--
+10;0;0;2
+not positive: -1
+2/3

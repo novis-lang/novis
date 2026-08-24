@@ -1,0 +1,71 @@
+--TEST--
+`foreach` drives the cursor's *runtime* class: a subclass overriding `current()` changes what a base-typed cursor yields, and a second `foreach` over a fresh one starts over — ADR 0053 § 1
+--FILE--
+<?mwl
+class Counter implements Iterator<int> {
+    public int $at;
+    public int $stop;
+
+    public function constructor(int $stop) {
+        $this->at = 0;
+        $this->stop = $stop;
+    }
+
+    public function advance(): bool {
+        if ($this->at >= $this->stop) {
+            return false;
+        }
+        $this->at = $this->at + 1;
+        return true;
+    }
+
+    public function current(): int {
+        return $this->at - 1;
+    }
+}
+
+class Doubled extends Counter {
+    public function current(): int {
+        return parent::current() * 2;
+    }
+}
+
+class Offset extends Doubled {
+    public function current(): int {
+        return parent::current() + 1;
+    }
+}
+
+class Drain {
+    public static function of(Counter $c): string {
+        var $out = "";
+        foreach ($c as int $v) {
+            $out = $out . $v . ";";
+        }
+        return $out;
+    }
+
+    public static function sum(Counter $c): int {
+        var $total = 0;
+        foreach ($c as int $v) {
+            $total = $total + $v;
+        }
+        return $total;
+    }
+}
+
+echo Drain::of(new Counter(4)), "\n";
+echo Drain::of(new Doubled(4)), "\n";
+echo Drain::of(new Offset(4)), "\n";
+echo Drain::of(new Counter(0)), "empty\n";
+echo Drain::sum(new Doubled(5)), "\n";
+
+var $once = new Counter(3);
+echo Drain::of($once), Drain::of($once), "\n";
+--EXPECT--
+0;1;2;3;
+0;2;4;6;
+1;3;5;7;
+empty
+20
+0;1;2;

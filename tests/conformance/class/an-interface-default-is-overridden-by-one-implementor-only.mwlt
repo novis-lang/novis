@@ -1,0 +1,71 @@
+--TEST--
+An interface default body (ADR 0043 § 2) is virtual too: the implementor that overrides it wins, the one that does not still gets the default, and the default's private helper (§ 3) stays reachable
+--FILE--
+<?mwl
+interface Shape {
+    public function area(): int;
+
+    public function label(): string {
+        return $this->tag() . "=" . ($this->area() as string);
+    }
+
+    private function tag(): string {
+        return "shape";
+    }
+}
+
+class Square implements Shape {
+    public int $side;
+
+    public function constructor(int $side) {
+        $this->side = $side;
+    }
+
+    public function area(): int {
+        return $this->side * $this->side;
+    }
+}
+
+class Named implements Shape {
+    public int $size;
+
+    public function constructor(int $size) {
+        $this->size = $size;
+    }
+
+    public function area(): int {
+        return $this->size;
+    }
+
+    public function label(): string {
+        return "named/" . ($this->area() as string);
+    }
+}
+
+class Show {
+    public static function all(array<Shape> $shapes): string {
+        var $out = "";
+        foreach ($shapes as string $k => Shape $s) {
+            $out = $out . $s->label() . ";";
+        }
+        return $out;
+    }
+}
+
+class Holder {
+    public Shape $inner;
+
+    public function constructor(Shape $inner) {
+        $this->inner = $inner;
+    }
+
+    public function show(): string {
+        return $this->inner->label();
+    }
+}
+
+echo Show::all([new Square(3), new Named(7), new Square(2)]), "\n";
+echo (new Holder(new Named(4)))->show(), ";", (new Holder(new Square(5)))->show(), "\n";
+--EXPECT--
+shape=9;named/7;shape=4;
+named/4;shape=25

@@ -1,0 +1,42 @@
+--TEST--
+Three levels deep, a middle class that redeclares nothing inherits the base's body, and the leaf's override is still what a base-typed receiver reaches
+--FILE--
+<?mwl
+class Root {
+    public function kind(): string {
+        return "root";
+    }
+
+    public function describe(): string {
+        return "I am " . $this->kind();
+    }
+}
+
+class Middle extends Root {
+}
+
+class Leaf extends Middle {
+    public function kind(): string {
+        return "leaf(" . parent::kind() . ")";
+    }
+}
+
+class Ask {
+    public static function root(Root $r): string {
+        return $r->describe();
+    }
+
+    public static function middle(Middle $m): string {
+        return $m->kind();
+    }
+}
+
+echo Ask::root(new Root()), ";", Ask::root(new Middle()), ";", Ask::root(new Leaf()), "\n";
+echo Ask::middle(new Middle()), ";", Ask::middle(new Leaf()), "\n";
+echo (new Leaf())->describe(), "\n";
+echo ((new Leaf()) instanceof Middle) as string, "|", ((new Middle()) instanceof Leaf) as string, "|\n";
+--EXPECT--
+I am root;I am root;I am leaf(root)
+root;leaf(root)
+I am leaf(root)
+1||

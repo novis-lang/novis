@@ -1,0 +1,49 @@
+--TEST--
+An enum's cases may be negative or zero, auto-increment continues from a negative one, and the values index an array like any other int — ADR 0010
+--FILE--
+<?mwl
+enum Dir {
+    Back = -2,
+    Left,
+    Still = 0,
+    Right,
+    Fore = 4,
+}
+
+class Move {
+    public static function name(Dir $d): string {
+        var $v = $d as int;
+        if ($v < 0) {
+            return "reverse" . $v;
+        }
+        if ($v === 0) {
+            return "hold";
+        }
+        return "forward" . $v;
+    }
+
+    public static function step(Dir $d, int $from): int {
+        return $from + ($d as int);
+    }
+}
+
+echo (Dir::Back as int), ";", (Dir::Left as int), ";", (Dir::Still as int), ";", (Dir::Right as int), ";", (Dir::Fore as int), "\n";
+echo Move::name(Dir::Back), ";", Move::name(Dir::Still), ";", Move::name(Dir::Fore), "\n";
+echo Move::step(Dir::Back, 10), ";", Move::step(Dir::Fore, 10), ";", Move::step(Dir::Still, 10), "\n";
+
+array<string> $labels = [];
+$labels[Dir::Back as int] = "back";
+$labels[Dir::Still as int] = "still";
+$labels[Dir::Fore as int] = "fore";
+var $out = "";
+foreach ($labels as string $k => string $v) {
+    $out = $out . $k . "=" . $v . ";";
+}
+echo $out, "\n";
+echo Core\Arr::count($labels), "|", Core\Arr::hasKey($labels, "4") as string, "|", Core\Arr::hasKey($labels, "3") as string, "|\n";
+--EXPECT--
+-2;-1;0;1;4
+reverse-2;hold;forward4
+8;14;10
+-2=back;0=still;4=fore;
+3|1||

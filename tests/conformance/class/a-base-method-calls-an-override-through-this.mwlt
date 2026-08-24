@@ -1,0 +1,47 @@
+--TEST--
+A concrete base method calling `$this->m()` reaches the subclass's override — the template-method shape, with `parent::` staying non-virtual beside it
+--FILE--
+<?mwl
+class Report {
+    public function title(): string {
+        return "report";
+    }
+
+    public function body(): string {
+        return "empty";
+    }
+
+    public function render(): string {
+        return "[" . $this->title() . "] " . $this->body();
+    }
+}
+
+class Sales extends Report {
+    public function title(): string {
+        return "sales";
+    }
+
+    public function body(): string {
+        return "10 sold";
+    }
+}
+
+class Quarterly extends Sales {
+    public function title(): string {
+        return "q3 " . parent::title();
+    }
+}
+
+echo (new Report())->render(), "\n";
+echo (new Sales())->render(), "\n";
+echo (new Quarterly())->render(), "\n";
+
+Report $any = new Quarterly();
+echo $any->render(), "\n";
+echo $any->title(), "\n";
+--EXPECT--
+[report] empty
+[sales] 10 sold
+[q3 sales] 10 sold
+[q3 sales] 10 sold
+q3 sales

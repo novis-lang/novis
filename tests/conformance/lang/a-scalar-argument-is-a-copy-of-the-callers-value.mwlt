@@ -1,0 +1,53 @@
+--TEST--
+A scalar parameter is a copy: reassigning it inside the callee leaves the caller's local alone, across every scalar type and through a loop
+--FILE--
+<?mwl
+class Mutate {
+    public static function int(int $n): int {
+        $n = $n + 100;
+        return $n;
+    }
+
+    public static function str(string $s): string {
+        $s = $s . "!";
+        return $s;
+    }
+
+    public static function float(float $f): float {
+        $f = $f * 2.0;
+        return $f;
+    }
+
+    public static function bool(bool $b): bool {
+        $b = false;
+        return $b;
+    }
+
+    public static function loop(int $n): int {
+        int $i = 0;
+        while ($i < 3) {
+            $n = $n * 2;
+            $i = $i + 1;
+        }
+        return $n;
+    }
+}
+
+int $n = 1;
+string $s = "a";
+float $f = 1.5;
+bool $b = true;
+
+echo Mutate::int($n), ";", $n, "\n";
+echo Mutate::str($s), ";", $s, "\n";
+echo Mutate::float($f), ";", $f, "\n";
+echo Mutate::bool($b) as string, ";", $b as string, "|\n";
+echo Mutate::loop($n), ";", $n, "\n";
+echo Mutate::int(Mutate::int($n)), ";", $n, "\n";
+--EXPECT--
+101;1
+a!;a
+3;1.5
+;1|
+8;1
+201;1

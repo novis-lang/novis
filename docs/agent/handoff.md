@@ -6,23 +6,34 @@
 acceptance list and the standing decisions already settled with the user; do not re-open any of them. The
 plan's status block says what is on disk and what is open.
 
-**Conformance is 120 against 250, differential 66 against 60.** Stage 4 fails on that one count alone, and
+**Conformance is 141 against 250, differential 73 against 60.** Stage 4 fails on that one count alone, and
 growing the conformance corpus is the whole remaining gap. The `.mwlt` format — every section,
 `--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl`, and why a `--ORACLE--` case skips
 when PHP is absent — is `crates/mwl-test`'s own module doc, routed from
 [`docs/adr/README.md`](../adr/README.md) § *Where to look*.
 
-**Writing cases is the fastest bug-finder in the repo.** Three real compiler bugs came out of one batch and
-are fixed: `collect_reassigned_locals` never descended into `try`/`catch`/`finally`, so a local written
-inside a protected region in a loop silently kept its pre-loop value; the enum auto-increment counter ran
-over raw `u64` bits, so a case after `= -2` was rejected; and `parent::constructor(...)` was demanded of
-every subclass, including ones whose parent declares no constructor at all — an unsatisfiable requirement.
-Each fix is documented where it lives (`mwl-ir`'s `lower/control.rs`, `mwl-types`' `enums.rs`,
-`ctor_init.rs`). **Expect more of the same: probe a shape with a scratch `.mwl` before writing cases
-around it.**
+**Writing cases is the fastest bug-finder in the repo, and it just found four at once**, all fixed and all
+documented where they live:
+
+- **An instance call never dispatched virtually** — `$base->m()` on a `Child` ran `Base::m`. `mwl_types`
+  now answers "does any subtype redeclare this" once per program
+  (`ClassSignature::overridden_methods` → `ResolvedCall::overridden`), and `mwl-ir` picks `Call` or
+  `CallVirtual` from it, so only a genuinely overridden method pays a name lookup. `mwl-ir` gap 7 and
+  `mwl-codegen` gap 1 now describe what is left: a slot index instead of a string compare.
+- **`mwl-codegen` emitted blocks in creation order**, which is not a dominance order once a nested `try`
+  exists — see `emit::reachable_in_reverse_postorder`, which also drops the dead landing chain a `try`
+  whose body cannot fail leaves behind.
+- **A `return` from a `catch` clause skipped the region's `finally`** — `lower_catch_clauses` now lowers a
+  clause body under a handler-less `TryFrame` that still carries `finally`.
+- **A local declared inside a `try` body leaked on the exception path** — `merge_envs` walked only the
+  *first* incoming env's names, so a name bound on a later edge was dropped with no release. It walks the
+  union now.
+
+**Expect more of the same: probe a shape with a scratch `.mwl` before writing cases around it.**
 
 **Every fixture is green on both legs**, byte for byte, every one `valgrind --leak-check=full` clean, and
-the new try-in-a-loop refcount edge was leak-checked too. Stages 1–3 are done. **Nothing is blocked.**
+the two new refcount edges were leak-checked against a purpose-built fixture. Stages 1–3 are done.
+**Nothing is blocked.**
 
 **PHP 8.5 is on `PATH` under Windows but not inside the WSL distro**, so the Linux leg skips the
 `--ORACLE--` cases and runs the `--ORACLE-DIVERGES--` ones. That is deliberate: the native leg's
@@ -66,26 +77,34 @@ bracket arrays (marked *Open* in [spec § 12](../spec/01-core-library.md)), and 
 machinery, and it splits cleanly across sessions. M4's **Verify** list in
 [the plan](../implementation-plan.md) is the specification; the *Verification* section of ADRs 0014, 0023,
 0028, 0046 and 0069 each names its own required cases. A differential twin is still worth writing when the
-behaviour is one MWL claims is PHP-compatible — that suite is over its bar, not finished.
+behaviour is one MWL claims is PHP-compatible — that suite is over its bar, not finished. **Now that
+dispatch is virtual, whole families of shapes just became testable**: a base-typed collection, a template
+method, an interface default one implementor overrides, an `Iterator` subclass.
 
 **What a case cannot use yet** — each sits in the named crate's known-gap list, and every one panics or
 refuses rather than failing cleanly, so writing around them saves an edit cycle: `&&`/`||`/ternary anywhere
 but a declaration initializer, a `return` value, an assignment right-hand side or a condition (`mwl-ir`
 gap 5, so not inside an `echo` argument); a compound assignment `$x += 1` in any form (gap 16); a *nested*
-array write `$grid[0][1] = v` (gap 6 — reading it is fine); `$f(...)` on a closure-typed local (gap 9); a
-class constant's *value*, a write to a static property, and `do`/`while` (`mwl-ir`'s statement list); an
-implicit `Stringable` in `echo` or `.` (gap 12 — call `toString()` explicitly); `bool as int` and `as ?T`
-(gaps 4 and 3); integer `/` (no single `int|float` IR representation); `for`/`switch` (gap 1). In
-`mwl-codegen`: `<`/`>` over two strings, and gap 9's two refusals — an `int` mixed with a `float` in one
-operator (write `0.0 - 1.5`) and `===` over two enum values (compare `$a as int`). Also: a parameter typed
-`Stringable`/`Comparable` has no method to call, and `instanceof Stringable` panics in `mwl-ir` — both are
-the empty reserved-interface roster, in `mwl-types`' gap list. `lateinit` is checked at compile time, so a
-read-before-write is a diagnostic rather than the ADR 0038 throw. Three spelling traps that produce a
-confusing panic rather than a parse error: `as` binds tighter than comparison, `instanceof` and unary
-minus, so write `($a > $b) as string` and `(-7) as string`; a `foreach` key binding must be declared
-`string` even over a list (ADR 0007 § 5); and `Core\Arr::map` through a *variable* of type `callable`
-yields `array<mixed>` — write the `fn` literal at the call site when the element type matters.
-`Core\Str::length` returns `uint`, so a `{by:}` projection over it is declared `: uint`.
+array write `$grid[0][1] = v` (gap 6 — reading it is fine); `$f(...)` on a closure-typed local (gap 9); an
+object literal `{a: 1}` and a shape-typed parameter (gap 5's expression list); a **named or spread call
+argument**, so `new LogicError("x", previous: $e)` does not lower and `Throwable`'s constructor takes one
+argument; a class constant's *value*, a write to a static property, and `do`/`while` (`mwl-ir`'s statement
+list); an implicit `Stringable` in `echo` or `.` (gap 12 — call `toString()` explicitly); `bool as int` and
+`as ?T` (gaps 4 and 3); integer `/` (no single `int|float` IR representation); `for`/`switch` (gap 1). In
+`mwl-codegen`: `<`/`>` over two strings, `===` over two *objects* (`Eq` over `Ty::Object`), integer
+`+`/`-`/`*` **wrapping instead of throwing on overflow** (gap 8 — do not freeze a case around it), and
+gap 9's two refusals — an `int` mixed with a `float` in one operator (write `0.0 - 1.5`) and `===` over two
+enum values (compare `$a as int`). `<=>` lowers over two *objects* through `Comparable` but not over two
+`int`s. Also: a parameter typed `Stringable`/`Comparable` has no method to call, and `instanceof
+Stringable` panics in `mwl-ir` — both are the empty reserved-interface roster, in `mwl-types`' gap list.
+`lateinit` is checked at compile time, so a read-before-write is a diagnostic rather than the ADR 0038
+throw, and it is refused on a `string`/`int` property (class- or interface-typed only). Three spelling
+traps that produce a confusing panic rather than a parse error: `as` binds tighter than comparison,
+`instanceof` and unary minus, so write `($a > $b) as string` and `(-7) as string`; a `foreach` key binding
+must be declared `string` even over a list (ADR 0007 § 5); and `Core\Arr::map` through a *variable* of type
+`callable` yields `array<mixed>` — write the `fn` literal at the call site when the element type matters.
+`Core\Str::length` returns `uint`, so a `{by:}` projection over it is declared `: uint`. `Iterator<T>`'s
+two members are `advance(): bool` and `current(): T`, not PHP's five.
 
 Two smaller slices, either of which fits a session on its own:
 
@@ -100,18 +119,17 @@ Two smaller slices, either of which fits a session on its own:
 
 ## Backlog
 
+- **A `finally` still does not run when a `catch` clause's own body throws** — `mwl-ir`'s `lower_try` gap;
+  the clause body's frame names no handler on purpose, so the throw skips straight out.
 - **Class-member `private`/`protected` is not enforced at all** — `mwl-types`' own gap list; a PHP-visible
   divergence, and it wants one pass keyed on the accessing class.
 - **The reserved `Comparable`/`Stringable` interfaces carry no member signatures** — same gap list; filling
   the roster is what makes a `Stringable` parameter and `instanceof Stringable` work.
 - **A compound assignment (`+=`, `.=`, …) does not lower** — `mwl-ir`'s known gap 16; every PHP program
   writes one, so it is the widest single hole left in the surface a conformance case can reach.
-- **A `foreach` key binding declared `int` panics in `mwl-ir` instead of getting a diagnostic** —
-  `mwl-types`' own known-gap list; ADR 0007 § 5 makes it always wrong.
 - **ADR 0047's M2 checker row** is unblocked and is what removes `E_LITERAL_TYPE_UNCHECKED`.
 - **A closure literal written as a call argument leaks its environment object when that call throws** —
   `mwl-ir`'s known gap 2; it needs an owned-temporaries stack threaded through `lower_expr`.
-- **`$a + $b` and `$a += $b` over two arrays still have no diagnostic** — ADR 0069 § 2 requires one.
 
 ## Standing rules for this repo
 
@@ -139,7 +157,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   `wsl.exe -- bash /mnt/<drive>/<repo>/tools/wsl-acceptance.sh`. One fixture: `tools/leak-check.sh <paths>`.
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
   valgrind sweep, naming the first failure), or `--list` to see it without running it. It short-circuits on
-  the first failure, so it stops at Stage 4's conformance count today.
+  the first failure, so it stops at Stage 4's conformance count today — run `wsl-acceptance.sh` by hand
+  after touching codegen, since that is the leg the short-circuit hides.
 - **One case, quickly:** `mwl test tests/conformance/core/str-case-members.mwlt`, or
   `mwl test tests/ --filter str-` over the tree.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,

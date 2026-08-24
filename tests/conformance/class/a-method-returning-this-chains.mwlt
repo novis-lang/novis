@@ -1,0 +1,41 @@
+--TEST--
+A method declared to return the class itself can be chained, and every link in the chain is the same object rather than a copy
+--FILE--
+<?mwl
+class Builder {
+    public string $text;
+    public int $steps;
+
+    public function constructor() {
+        $this->text = "";
+        $this->steps = 0;
+    }
+
+    public function add(string $part): Builder {
+        $this->text = $this->text . $part;
+        $this->steps = $this->steps + 1;
+        return $this;
+    }
+
+    public function wrap(string $around): Builder {
+        $this->text = $around . $this->text . $around;
+        return $this->add("");
+    }
+
+    public function render(): string {
+        return $this->text . "#" . $this->steps;
+    }
+}
+
+var $b = new Builder();
+echo $b->add("a")->add("b")->add("c")->render(), "\n";
+echo $b->render(), "\n";
+echo $b->wrap("|")->render(), "\n";
+
+var $fresh = (new Builder())->add("x")->wrap("<")->add("y");
+echo $fresh->render(), "\n";
+--EXPECT--
+abc#3
+abc#3
+|abc|#4
+<x<y#3

@@ -30,8 +30,8 @@
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
 > `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 120 and
-> `tests/differential` × 66, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 141 and
+> `tests/differential` × 73, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -40,15 +40,18 @@
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
-> 0065, and **0053 and 0009 in full**. Each ADR's own *Verification* section says what its slice covers,
+> 0065, and **0053 and 0009 in full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification* section says what its slice covers,
 > not this field.
 >
 > **Open now:** **growing the conformance suite**. `mwl test` runs, both suites are green, and the
-> **differential leg has cleared its threshold — 66 cases against 60**; conformance is 120 against 250, so
-> Stage 4 now fails on that one count alone. The corpus is also the fastest bug-finder there is: writing
-> it turned up, and this milestone fixed, a loop-header phi that skipped `try`/`catch`/`finally` bodies, an
-> enum auto-increment that could not follow a negative case, and a `parent::constructor(...)` obligation
-> demanded of subclasses whose parent declares no constructor.
+> **differential leg is over its threshold — 73 cases against 60**; conformance is 141 against 250, so
+> Stage 4 fails on that one count alone. The corpus is also the fastest bug-finder there is: writing it
+> turned up, and this milestone fixed, a loop-header phi that skipped `try`/`catch`/`finally` bodies, an
+> enum auto-increment that could not follow a negative case, a `parent::constructor(...)` obligation
+> demanded of subclasses whose parent declares no constructor, and then **four more at once — an instance
+> call that never dispatched virtually, a nested `try` whose blocks codegen emitted out of dominance
+> order, a `return` from a `catch` that skipped the `finally`, and a local declared inside a `try` body
+> that leaked on the exception path**.
 > Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
 > rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
 > type, a `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one

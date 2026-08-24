@@ -1,0 +1,47 @@
+--TEST--
+`foreach` iterates the array the loop started with: writing, appending and unsetting through the loop leaves the sequence of visited pairs alone
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $scaled = [1, 2, 3];
+var $seen = "";
+foreach ($scaled as string $k => int $v) {
+    $scaled[$k] = $v * 10;
+    $seen = $seen . $v . ";";
+}
+echo $seen, "\n";
+echo Render::of($scaled), "\n";
+
+array<int> $grown = ["a" => 1, "b" => 2];
+var $order = "";
+foreach ($grown as string $k => int $v) {
+    $grown["z" . $k] = $v + 100;
+    $order = $order . $k . ";";
+}
+echo $order, "\n";
+echo Render::of($grown), "\n";
+
+array<int> $shrunk = ["p" => 1, "q" => 2, "r" => 3];
+var $visited = "";
+foreach ($shrunk as string $k => int $v) {
+    unset($shrunk["r"]);
+    $visited = $visited . $k . ";";
+}
+echo $visited, "\n";
+echo Render::of($shrunk), "\n";
+--EXPECT--
+1;2;3;
+0=10;1=20;2=30;
+a;b;
+a=1;b=2;za=101;zb=102;
+p;q;r;
+p=1;q=2;

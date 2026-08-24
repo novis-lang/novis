@@ -1,0 +1,66 @@
+--TEST--
+A method call binds to the receiver's *runtime* class, not its declared one — an override is reached through a base-typed parameter, local and property alike
+--FILE--
+<?mwl
+class Animal {
+    public function sound(): string {
+        return "...";
+    }
+
+    public function legs(): int {
+        return 4;
+    }
+}
+
+class Dog extends Animal {
+    public function sound(): string {
+        return "woof";
+    }
+}
+
+class Bird extends Animal {
+    public function sound(): string {
+        return "tweet";
+    }
+
+    public function legs(): int {
+        return 2;
+    }
+}
+
+class Pen {
+    public Animal $kept;
+
+    public function constructor(Animal $kept) {
+        $this->kept = $kept;
+    }
+
+    public function heard(): string {
+        return $this->kept->sound();
+    }
+}
+
+class Ask {
+    public static function of(Animal $a): string {
+        return $a->sound() . "/" . ($a->legs() as string);
+    }
+}
+
+echo Ask::of(new Animal()), ";", Ask::of(new Dog()), ";", Ask::of(new Bird()), "\n";
+
+Animal $held = new Dog();
+echo $held->sound(), ";", $held->legs(), "\n";
+
+echo (new Pen(new Bird()))->heard(), ";", (new Pen(new Animal()))->heard(), "\n";
+
+array<Animal> $zoo = [new Bird(), new Dog(), new Animal()];
+var $out = "";
+foreach ($zoo as string $k => Animal $one) {
+    $out = $out . $one->sound() . ",";
+}
+echo $out, "\n";
+--EXPECT--
+.../4;woof/4;tweet/2
+woof;4
+tweet;...
+tweet,woof,...,

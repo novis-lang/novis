@@ -1,0 +1,53 @@
+--TEST--
+`Comparable` reaches the receiver's own `compareTo`, so a subclass that overrides it changes how `<`/`>`/`<=>` answer for a base-typed pair — ADR 0013
+--FILE--
+<?mwl
+class Card implements Comparable {
+    public string $name;
+    public int $rank;
+
+    public function constructor(string $name, int $rank) {
+        $this->name = $name;
+        $this->rank = $rank;
+    }
+
+    public function compareTo(Comparable $other): int {
+        var $mine = $this->rank;
+        var $theirs = ($other as Card)->rank;
+        if ($mine < $theirs) {
+            return -1;
+        }
+        if ($mine > $theirs) {
+            return 1;
+        }
+        return 0;
+    }
+}
+
+class Reversed extends Card {
+    public function compareTo(Comparable $other): int {
+        return 0 - parent::compareTo($other);
+    }
+}
+
+class Cmp {
+    public static function of(Card $a, Card $b): string {
+        return (($a > $b) as string) . "|" . (($a < $b) as string) . "|" . ($a <=> $b);
+    }
+}
+
+var $ace = new Card("ace", 14);
+var $two = new Card("two", 2);
+echo Cmp::of($ace, $two), "\n";
+echo Cmp::of($two, $ace), "\n";
+echo Cmp::of($ace, new Card("also-ace", 14)), "\n";
+
+var $lowAce = new Reversed("ace", 14);
+echo Cmp::of($lowAce, $two), "\n";
+echo Cmp::of($two, $lowAce), "\n";
+--EXPECT--
+1||1
+|1|-1
+||0
+|1|-1
+|1|-1

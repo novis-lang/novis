@@ -1,0 +1,48 @@
+--TEST--
+Copying an array copies the array, not the objects in it — the copy's elements are the same instances, so a write through one is seen through the other
+--FILE--
+<?mwl
+class Box {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+
+    public function bump(): int {
+        $this->n = $this->n + 1;
+        return $this->n;
+    }
+}
+
+class Render {
+    public static function of(array<Box> $boxes): string {
+        var $out = "";
+        foreach ($boxes as string $k => Box $b) {
+            $out = $out . $k . ":" . $b->n . ";";
+        }
+        return $out;
+    }
+}
+
+array<Box> $first = [new Box(1), new Box(2)];
+array<Box> $second = $first;
+
+echo Render::of($first), "|", Render::of($second), "\n";
+
+$first[0]->bump();
+echo Render::of($first), "|", Render::of($second), "\n";
+
+$second[] = new Box(9);
+echo Core\Arr::count($first), "|", Core\Arr::count($second), "\n";
+echo Render::of($first), "|", Render::of($second), "\n";
+
+var $held = $second[2];
+$held->bump();
+echo Render::of($second), "\n";
+--EXPECT--
+0:1;1:2;|0:1;1:2;
+0:2;1:2;|0:2;1:2;
+2|3
+0:2;1:2;|0:2;1:2;2:9;
+0:2;1:2;2:10;

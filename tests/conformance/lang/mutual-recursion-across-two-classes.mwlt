@@ -1,0 +1,55 @@
+--TEST--
+Two classes calling each other's static methods recurse and unwind correctly, and a throw from the deepest frame crosses every one of them
+--FILE--
+<?mwl
+class Even {
+    public static function is(int $n): bool {
+        if ($n === 0) {
+            return true;
+        }
+        return Odd::is($n - 1);
+    }
+
+    public static function down(int $n): string {
+        if ($n <= 0) {
+            throw new RuntimeError("bottom");
+        }
+        return "e" . $n . Odd::down($n - 1);
+    }
+}
+
+class Odd {
+    public static function is(int $n): bool {
+        if ($n === 0) {
+            return false;
+        }
+        return Even::is($n - 1);
+    }
+
+    public static function down(int $n): string {
+        if ($n <= 0) {
+            throw new RuntimeError("bottom");
+        }
+        return "o" . $n . Even::down($n - 1);
+    }
+}
+
+var $out = "";
+int $i = 0;
+while ($i < 6) {
+    $out = $out . (Even::is($i) as string) . ",";
+    $i = $i + 1;
+}
+echo $out, "\n";
+
+echo (Odd::is(7) as string), "|", (Odd::is(8) as string), "|\n";
+
+try {
+    echo Even::down(5), "\n";
+} catch (RuntimeError $e) {
+    echo "caught ", $e->message, "\n";
+}
+--EXPECT--
+1,,1,,1,,
+1||
+caught bottom

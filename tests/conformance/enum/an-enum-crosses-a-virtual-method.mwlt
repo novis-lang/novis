@@ -1,0 +1,68 @@
+--TEST--
+An enum passes through an overridden method unchanged — the argument, the return value and the property all stay the plain integer ADR 0010 makes them
+--FILE--
+<?mwl
+enum Level {
+    Debug = 10,
+    Info = 20,
+    Error = 40,
+}
+
+class Sink {
+    public Level $least;
+
+    public function constructor(Level $least) {
+        $this->least = $least;
+    }
+
+    public function accepts(Level $at): bool {
+        return ($at as int) >= ($this->least as int);
+    }
+
+    public function promote(Level $at): Level {
+        return $at;
+    }
+
+    public function render(Level $at): string {
+        if ($this->accepts($at)) {
+            return "<" . ($this->promote($at) as int) . ">";
+        }
+        return "-";
+    }
+}
+
+class Loud extends Sink {
+    public function promote(Level $at): Level {
+        return Level::Error;
+    }
+}
+
+class Quiet extends Sink {
+    public function accepts(Level $at): bool {
+        return ($at as int) >= (Level::Error as int);
+    }
+}
+
+class Run {
+    public static function over(Sink $s): string {
+        return $s->render(Level::Debug) . $s->render(Level::Info) . $s->render(Level::Error);
+    }
+}
+
+echo Run::over(new Sink(Level::Debug)), "\n";
+echo Run::over(new Loud(Level::Debug)), "\n";
+echo Run::over(new Quiet(Level::Debug)), "\n";
+echo Run::over(new Sink(Level::Info)), "\n";
+
+array<Sink> $sinks = [new Sink(Level::Debug), new Loud(Level::Info), new Quiet(Level::Debug)];
+var $out = "";
+foreach ($sinks as string $k => Sink $one) {
+    $out = $out . $one->render(Level::Info) . ";";
+}
+echo $out, "\n";
+--EXPECT--
+<10><20><40>
+<40><40><40>
+--<40>
+-<20><40>
+<20>;<40>;-;

@@ -1,0 +1,45 @@
+--TEST--
+`lateinit` exempts a non-nullable class-typed property from the constructor's definite-assignment obligation, and a later write makes it readable — ADR 0038 § 1
+--FILE--
+<?mwl
+class Engine {
+    public int $power;
+
+    public function constructor(int $power) {
+        $this->power = $power;
+    }
+}
+
+class Car {
+    public string $name;
+    public lateinit Engine $engine;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function fit(Engine $e): string {
+        $this->engine = $e;
+        return $this->name . " has " . $this->engine->power;
+    }
+
+    public function refit(int $power): string {
+        $this->engine = new Engine($power);
+        return $this->name . " now has " . $this->engine->power;
+    }
+}
+
+var $c = new Car("kit");
+echo $c->fit(new Engine(120)), "\n";
+echo $c->refit(200), "\n";
+echo $c->name, "\n";
+
+var $shared = new Engine(50);
+var $one = new Car("one");
+var $two = new Car("two");
+echo $one->fit($shared), ";", $two->fit($shared), "\n";
+--EXPECT--
+kit has 120
+kit now has 200
+kit
+one has 50;two has 50

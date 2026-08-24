@@ -1,0 +1,52 @@
+--TEST--
+A `catch` clause that returns still runs the region's `finally`, and repeating that thousands of times neither leaks the binding nor changes the answer
+--FILE--
+<?mwl
+class Work {
+    public static function attempt(int $n): string {
+        try {
+            if ($n % 3 === 0) {
+                throw new RuntimeError("multiple of three: " . $n);
+            }
+            return "ok " . $n;
+        } catch (RuntimeError $e) {
+            return "bad " . $e->message;
+        } finally {
+            Tally::step();
+        }
+    }
+}
+
+class Tally {
+    public static int $count = 0;
+
+    public static function step(): void {
+        Tally::bump();
+    }
+
+    public static function bump(): void {
+    }
+}
+
+echo Work::attempt(1), "\n";
+echo Work::attempt(3), "\n";
+
+int $ok = 0;
+int $bad = 0;
+int $i = 1;
+while ($i <= 3000) {
+    var $answer = Work::attempt($i);
+    if (Core\Str::startsWith($answer, "ok")) {
+        $ok = $ok + 1;
+    } else {
+        $bad = $bad + 1;
+    }
+    $i = $i + 1;
+}
+echo $ok, "/", $bad, "\n";
+echo Work::attempt(9), "\n";
+--EXPECT--
+ok 1
+bad multiple of three: 3
+2000/1000
+bad multiple of three: 9

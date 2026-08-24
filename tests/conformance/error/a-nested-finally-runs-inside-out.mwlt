@@ -1,0 +1,65 @@
+--TEST--
+Nested `finally` blocks run innermost first, on the way out of a throw and on the ordinary path alike
+--FILE--
+<?mwl
+class Trace {
+    public static function thrown(): string {
+        var $log = "";
+        try {
+            try {
+                $log = $log . "a";
+                throw new RuntimeError("x");
+            } finally {
+                $log = $log . "b";
+            }
+        } catch (RuntimeError $e) {
+            $log = $log . "c";
+        } finally {
+            $log = $log . "d";
+        }
+        return $log;
+    }
+
+    public static function quiet(): string {
+        var $log = "";
+        try {
+            try {
+                $log = $log . "a";
+            } finally {
+                $log = $log . "b";
+            }
+            $log = $log . "c";
+        } finally {
+            $log = $log . "d";
+        }
+        return $log;
+    }
+
+    public static function crossesAFrame(): string {
+        var $log = "";
+        try {
+            $log = $log . Trace::inner();
+        } catch (RuntimeError $e) {
+            $log = $log . "caught";
+        } finally {
+            $log = $log . "!";
+        }
+        return $log;
+    }
+
+    public static function inner(): string {
+        try {
+            throw new RuntimeError("deep");
+        } finally {
+            echo "inner-finally;";
+        }
+    }
+}
+
+echo Trace::thrown(), "\n";
+echo Trace::quiet(), "\n";
+echo Trace::crossesAFrame(), "\n";
+--EXPECT--
+abcd
+abcd
+inner-finally;caught!

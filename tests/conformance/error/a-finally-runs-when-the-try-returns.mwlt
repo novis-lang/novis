@@ -1,0 +1,51 @@
+--TEST--
+A `return` inside a `try` runs the `finally` on its way out — from a method body and from inside a loop, without the returned value changing
+--FILE--
+<?mwl
+class Fin {
+    public static function straight(): string {
+        try {
+            return "from-try";
+        } finally {
+            echo "fin;";
+        }
+    }
+
+    public static function fromALoop(int $stopAt): int {
+        int $i = 0;
+        while ($i < 5) {
+            try {
+                if ($i === $stopAt) {
+                    return $i * 100;
+                }
+            } finally {
+                echo "f", $i, ";";
+            }
+            $i = $i + 1;
+        }
+        return -1;
+    }
+
+    public static function afterACatch(int $n): string {
+        try {
+            if ($n === 0) {
+                throw new RuntimeError("zero");
+            }
+            return "ok";
+        } catch (RuntimeError $e) {
+            return "caught";
+        } finally {
+            echo "done;";
+        }
+    }
+}
+
+echo Fin::straight(), "\n";
+echo Fin::fromALoop(2), "\n";
+echo Fin::fromALoop(9), "\n";
+echo Fin::afterACatch(1), ";", Fin::afterACatch(0), "\n";
+--EXPECT--
+fin;from-try
+f0;f1;f2;200
+f0;f1;f2;f3;f4;-1
+done;ok;done;caught
