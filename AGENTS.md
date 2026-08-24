@@ -77,6 +77,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
 - **Domain logic is an existing first-class Rust crate; compiler passes and scheduler primitives are ours** —
   anything with an external specification is a dependency, and if no crate exists the feature is not built
   ([docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start*).
+- **SIMD comes from a dependency that dispatches at runtime, never from an intrinsic we wrote or a
+  `target-cpu` flag, and the JIT emits scalar code by design**
+  ([docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start*).
 - **Architecture assumptions are tested, not remembered** — [benches/abi-probe/](benches/abi-probe/) guards
   them on every CI run; if one fails, revisit the ADR it points at rather than the threshold.
 - **Every third-party notice MWL owes is generated, committed and embedded in the binary**

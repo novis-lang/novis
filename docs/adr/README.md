@@ -122,7 +122,7 @@ so you never have to open this file to route a topic.
 | Cross-machine performance history, callgrind instruction counts, why CI guards use wall-clock ratios | [0026](0026-performance-measurement-methodology.md) |
 | Concrete *spelling* an ADR left open — file modes, the declaration-slot grammar, `as`, the `bytes` literal | [docs/spec/00-overview.md](../spec/00-overview.md) — the ADR owns semantics, this owns syntax |
 | How a control-flow statement lowers — `if`/`while`/`for`/`foreach`/`switch`/`match`, `break`/`continue`, where a `finally` runs | [crates/mwl-ir/src/lower/control.rs](../../crates/mwl-ir/src/lower/control.rs)'s methods, each with its own doc comment; `continue` inside a `switch` is § *Decisions taken at project start* below |
-| A decision with no ADR — thread-per-core, value layout, safepoints, shared-nothing requests | § *Decisions taken at project start* below for **why**; the plan's § *Architecture* for the **mechanics** |
+| A decision with no ADR — thread-per-core, value layout, safepoints, shared-nothing requests, SIMD | § *Decisions taken at project start* below for **why**; the plan's § *Architecture* for the **mechanics** |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](../../benches/abi-probe/) — authoritative; docs quote them and can lag |
 | Who MWL is for, what it claims about itself, whether "PHP compatible" may be written anywhere, why this does not end where Hack ended, or which of two slices to build first | [0080](0080-the-audience-mwl-is-built-for.md) |
 | Third-party libraries — the registry, a git dependency, `package.toml`/`package.lock`, `mwl add`/`fetch`/`update`/`vendor`/`audit`/`publish`, version resolution, dependency hell, supply-chain attacks, install scripts, what authority a dependency has | [0081](0081-packages-are-digests-resolution-is-a-maximum.md) |
@@ -259,6 +259,25 @@ semantics implementation to keep correct. The cost is that the first runnable pr
 front end plus a working backend. Mitigated by shipping a *baseline* tier where every operation lowers to a
 call into a Rust runtime helper — mechanically close to an interpreter loop, therefore quick to get
 correct — with typed inlining layered on later behind the same IR boundary.
+
+**SIMD is a dependency's job, and the JIT emits scalar code.** No `target-cpu` flag is set anywhere, on any
+platform: LLVM autovectorizes the Rust crates at each target's *baseline* ISA — SSE2 on x86_64, NEON on
+aarch64 — and no further, because a `native` build produces a binary that faults on the next machine. The
+wide, feature-detected SIMD that actually earns its keep arrives through dependencies that hand-wrote it and
+dispatch at runtime: `memchr` behind every `regex` prefilter ([0056](0056-regex-engine-policy.md)), `blake3`
+on the artifact-cache path ([0042](0042-on-disk-artifact-cache-format.md)). That is the same trade the
+pure-Rust-dependency rule below already makes — the `unsafe` lives in a fuzzed crate with a user base rather
+than in ours, where `unsafe_code = "forbid"` and a stable-pinned toolchain (so no `std::simd`) bar it
+anyway. When a byte-scanning leaf turns out to be hot — UTF-8 validation, grapheme scanning,
+[0024](0024-taint-tracking-for-injection-sinks.md)'s HTML auto-escape — reach for such a crate, never for
+`core::arch` intrinsics. Cranelift, meanwhile, has no autovectorizer: its vector instructions exist to lower
+wasm's fixed 128-bit SIMD, not to be discovered from scalar loops, so JIT-compiled MWL is scalar by design.
+Little is lost — a request's hot path is refcounting, ordered-hash lookups and tagged dispatch, not the
+dense homogeneous loops a vectorizer needs — and vectorizing a `float` reduction would reassociate its
+additions, which the priority ordering's rank 2 forbids outright. Two things to know before anyone claims a
+win: [0026](0026-performance-measurement-methodology.md)'s instruction counts flatter SIMD, because
+callgrind does not model vector port throughput, and [0025](0025-wasm-browser-target.md)'s second backend
+caps any story portable across both at 128 bits.
 
 **Thread-per-core, shared-nothing runtime.** One single-threaded executor pinned per core; a request is
 assigned to a core and never migrates. This is what makes value refcounts *non-atomic* (a heap is only ever
