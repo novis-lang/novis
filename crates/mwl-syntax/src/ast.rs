@@ -304,7 +304,7 @@ impl AssignOp {
     /// plain `=`.
     ///
     /// `$x ⊕= e` means `$x = $x ⊕ e` for every variant here, so this is the
-    /// one place that pairing is written down: `mwl_types::expr::check_assign`
+    /// one place that pairing is written down: `mwl_types::expr::assign::check_assign`
     /// types a compound assignment through it, and `mwl_ir::lower` desugars
     /// through the same answer, rather than each carrying its own copy of a
     /// fourteen-row table that would drift apart the first time an operator

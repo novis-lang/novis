@@ -128,7 +128,7 @@
 //!   property read.
 //!   ADR 0014's "a property
 //!   access on any receiver other than `$this` is checked" half turned out to
-//!   already be done: [`expr::check_property_access`] reports
+//!   already be done: [`expr::members::check_property_access`] reports
 //!   `E_UNKNOWN_MEMBER` for exactly that shape (see its own module docs) —
 //!   `mwl_hir::members`'s and this module's known-gap notes were just stale
 //!   about it. ADR 0022 (definite *property*
@@ -140,7 +140,7 @@
 //!   declares a matching `compareTo`. [`conformance`] checks every *other*
 //!   interface's members against its implementers, and its own docs say why
 //!   `Comparable`/`Stringable` are the two it deliberately leaves out. ADR 0028 (`Stringable`, `unset()` refusal) is done too —
-//!   see [`expr::require_stringable`]/[`expr::check_property_access`]. ADR
+//!   see [`expr::require_stringable`]/[`expr::members::check_property_access`]. ADR
 //!   0036's checker semantics are now done as well: `object` carries real
 //!   subtyping (every class or shape type is `<: object`), a shape type
 //!   ([`ty::Ty::Shape`]) is checked structurally by width subtyping plus
@@ -148,7 +148,7 @@
 //!   and a property access through a shape-missing field or plain `object`
 //!   is silently erased to `mixed` rather than diagnosed — deferred to ADR
 //!   0014 § 5's runtime-checked fallback, which is M4 work (no IR/codegen
-//!   exists yet to throw from) — see [`expr::check_property_access`]'s own
+//!   exists yet to throw from) — see [`expr::members::check_property_access`]'s own
 //!   docs. ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
 //!   symbol" is now done too: `self`/`static`/`$this` inside an enum
 //!   ([`expr::class_of_ctx`], [`lower`]'s `resolve_special`) and a case access
@@ -193,7 +193,7 @@
 //!   property declared on a class is callable and readable from anywhere,
 //!   which is a PHP-observable divergence, not a design choice. It wants one
 //!   pass keyed on the accessing class, over both
-//!   [`expr::check_property_access`] and method resolution.
+//!   [`expr::members::check_property_access`] and method resolution.
 //! - **The reserved `Comparable`/`Stringable` interfaces carry no member
 //!   signatures**, so a parameter declared at either type has no method to
 //!   call — `$s->toString()` on a `Stringable` is `E0405` — and `$x

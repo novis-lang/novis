@@ -129,7 +129,7 @@ pub(super) fn lower_closure(
     let mut param_tys = vec![Ty::Object];
 
     // The captures first, so a parameter of the same name — which shadows one,
-    // per `mwl_types::expr::check_fn_literal` — overwrites it rather than the
+    // per `mwl_types::expr::calls::check_fn_literal` — overwrites it rather than the
     // other way round.
     for (name, ty) in captures {
         let (v, _) = low.emit(

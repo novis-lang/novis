@@ -41,7 +41,7 @@
 //!   chained call result, `self::factory()`'s return, an explicit
 //!   `new Foo()` — is never checked *here*, since this module has no static
 //!   type to check it against. That is not left open: `mwl-types`'
-//!   `expr::check_property_access` closes it once a static type exists,
+//!   `expr::members::check_property_access` closes it once a static type exists,
 //!   reporting `E_UNKNOWN_MEMBER` for the same shape of miss this module
 //!   reports `E_UNDEFINED_PROPERTY` for on `$this` — split across crates by
 //!   which one has the type to check against, not skipped by either.

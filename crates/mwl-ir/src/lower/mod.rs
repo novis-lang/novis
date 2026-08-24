@@ -71,9 +71,9 @@
 
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
-    AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind, FnBody,
-    FnExpr, ForeachBinding, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget, Stmt,
-    StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
+    FnBody, FnExpr, ForeachBinding, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget,
+    Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
 use mwl_types::layout::ClassLayoutTable;
@@ -1673,10 +1673,10 @@ fn cook_str_literal(src: &SourceFile, span: mwl_diagnostics::Span) -> String {
 /// decimal run; a legacy leading-zero octal spelling like PHP's `0755` is
 /// deliberately *not* one of them, so `0755` lexes as decimal 755 with no
 /// prefix to strip), and this is the one place that distinction has to be
-/// undone before `str::from_str_radix` can parse the value. `mwl_types::expr::infer`'s own
-/// `ExprKind::Int` arm now range-checks the same digits (mirroring this function to do so, since
-/// this crate has no reverse dependency on that one) and reports ADR 0007 § 4's diagnostic before
-/// lowering ever runs — see that arm's doc comment — so `lower_expr`'s `ExprKind::Int` arm can
+/// undone before `str::from_str_radix` can parse the value.
+/// `mwl_types::expr::literals::infer_int_literal` range-checks the same digits (mirroring this
+/// function to do so, since this crate has no reverse dependency on that one) and reports ADR 0007
+/// § 4's diagnostic before lowering ever runs — see its doc comment — so [`Lowering::lower_int_literal`] can
 /// treat an out-of-range literal as unreachable input, the same "trusts `mwl_types::check_program`
 /// already ran" contract every other panic in this crate relies on.
 fn int_literal_digits(src: &SourceFile, span: mwl_diagnostics::Span) -> (u32, String) {

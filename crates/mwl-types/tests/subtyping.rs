@@ -10,7 +10,7 @@ use mwl_diagnostics::code;
 
 /// MWL's one nominal subtyping rule: a value of a derived class satisfies
 /// a position declared at any class or interface it reaches through
-/// `extends`/`implements`. See `crate::expr::class_satisfied`.
+/// `extends`/`implements`. See `crate::expr::assign::class_satisfied`.
 #[test]
 fn a_derived_class_satisfies_a_position_declared_at_its_base() {
     let diags = check_src(

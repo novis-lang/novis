@@ -18,7 +18,7 @@
 //! *type* (`crate::check::check_method` already walks every method body,
 //! constructors included, for that), only whether `$this->prop = ...`
 //! (plain `=`, never a compound operator — mirroring
-//! `crate::expr::check_assign`'s own "only `=` counts" rule for locals)
+//! `crate::expr::assign::check_assign`'s own "only `=` counts" rule for locals)
 //! and `parent::constructor(...)` are reached on every path. [`walk_stmt`]
 //! threads one [`InitState`] through the same control-flow shape
 //! [`crate::locals::check_block`] does — `if`/`else`, `switch` and `try`/

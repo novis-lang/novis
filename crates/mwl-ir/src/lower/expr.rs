@@ -74,108 +74,9 @@ impl<'a> Lowering<'a> {
             // `Ty::Null`; `Self::coerce` widens it wherever the position it
             // lands in declares `?T`.
             ExprKind::Null => self.emit(*cur, Ty::Null, InstKind::ConstNull),
-            // ADR 0007 § 4, mirroring `mwl_types::expr::infer`'s own rule: a
-            // bare integer literal means `uint` exactly where that's the
-            // expected type, `int` otherwise. `mwl_types::expr::infer`'s own
-            // `ExprKind::Int` arm now enforces ADR 0007 § 4's magnitude rule
-            // at check time — too large for `int` is only legal where `uint`
-            // is expected, and too large even for `uint`'s full `u64` range
-            // is a diagnostic regardless — so `lower_method`'s usual "trusts
-            // its input already passed `mwl_types::check_program`" contract
-            // (see the crate docs) covers this too: the `unwrap_or_else`
-            // panics below are unreachable for anything the checker accepted,
-            // the same defensive-invariant shape as `Env::get`'s own panic on
-            // an undeclared local just above.
-            ExprKind::Int(span) => {
-                let (radix, digits) = int_literal_digits(self.src, *span);
-                if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
-                    // ADR 0054 § 2's placing rule, integer half: an integer
-                    // literal is scale 0 by construction, so only the mantissa
-                    // can overflow — and `mwl_types` has already reported that
-                    // if it did.
-                    let mantissa = u128::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-                        panic!("mwl-ir: integer literal `{digits}` doesn't fit a `decimal`")
-                    });
-                    return self.emit(
-                        *cur,
-                        Ty::Decimal,
-                        InstKind::ConstDecimal {
-                            negative: false,
-                            mantissa,
-                            scale: 0,
-                        },
-                    );
-                }
-                if expected == Some(Ty::Uint) {
-                    let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-                        panic!("mwl-ir: integer literal `{digits}` doesn't fit a `uint`")
-                    });
-                    self.emit(*cur, Ty::Uint, InstKind::ConstUint(n))
-                } else {
-                    let n: i64 = i64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-                        panic!("mwl-ir: integer literal `{digits}` doesn't fit an `int`")
-                    });
-                    self.emit(*cur, Ty::Int, InstKind::ConstInt(n))
-                }
-            }
-            ExprKind::Float(span) => {
-                let digits = clean_digits(self.src, *span);
-                // ADR 0054 § 2: a fractional literal is untyped until placed,
-                // and `decimal` is one of the two types that may place it —
-                // read from the *text*, so the full 29 significant digits
-                // survive rather than being rounded through an `f64` first.
-                if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
-                    let (mantissa, scale) =
-                        decimal_literal_parts(&digits).unwrap_or_else(|| {
-                            panic!("mwl-ir: float literal `{digits}` doesn't fit a `decimal`")
-                        });
-                    return self.emit(
-                        *cur,
-                        Ty::Decimal,
-                        InstKind::ConstDecimal {
-                            negative: false,
-                            mantissa,
-                            scale,
-                        },
-                    );
-                }
-                let n: f64 = digits
-                    .parse()
-                    .unwrap_or_else(|_| panic!("mwl-ir: float literal `{digits}` failed to parse"));
-                self.emit(*cur, Ty::Float, InstKind::ConstFloat(n))
-            }
-            // ADR 0070 § 3: the grammar is resolved while compiling, so what
-            // reaches the IR is one folded nanosecond count. The value it
-            // becomes is built by the *same* `Core` member a written
-            // `Duration::nanoseconds($n)` calls — `mwl_stdlib::time`'s
-            // `FROM_NANOS_SYMBOL`, named there rather than spelled here — so a
-            // literal and a computed count cannot come to mean different
-            // things.
-            //
-            // § 3 also wants no allocation at all: a constant-pool entry with
-            // an immortal header, which is exactly what a string literal is
-            // owed by `mwl-runtime`'s own gap 3. Both close together; until
-            // then this is one call on a constant.
-            ExprKind::Duration(span) => {
-                let text = span_text(self.src, *span);
-                let nanos = mwl_syntax::duration::parse(text).unwrap_or_else(|err| {
-                    panic!(
-                        "mwl-ir: duration literal `{text}` does not parse ({}) — the lexer \
-                         only produces this token for text that does",
-                        err.message()
-                    )
-                });
-                let (count, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(nanos));
-                self.emit_fallible(
-                    *cur,
-                    Ty::Object,
-                    InstKind::CoreCall {
-                        symbol: mwl_types::CORE_DURATION_FROM_NANOS,
-                        args: vec![count],
-                    },
-                    env,
-                )
-            }
+            ExprKind::Int(span) => self.lower_int_literal(*span, expr, expected, cur),
+            ExprKind::Float(span) => self.lower_float_literal(*span, expr, expected, cur),
+            ExprKind::Duration(span) => self.lower_duration_literal(*span, env, cur),
             // A fresh `Ty::Str` value with exactly one natural owner — see
             // `Self::bind_local`'s doc comment for why a value produced here
             // never needs a retain of its own, only whatever consumes it.
@@ -227,70 +128,13 @@ impl<'a> Lowering<'a> {
                 expr: inner,
             } => (self.lower_not(inner, env, cur), Ty::Bool),
             ExprKind::Unary { op, expr: inner } => {
-                let (v, ty) = self.lower_expr(inner, expected, env, cur);
-                // ADR 0054's scalar has no machine negate: like every other
-                // operator over one it is a helper call. It cannot fail --
-                // the mantissa is unsigned, so there is no asymmetric minimum
-                // to overflow the way `-i64::MIN` does.
-                if ty == Ty::Decimal && matches!(op, AstUnaryOp::Neg) {
-                    return self.emit(
-                        *cur,
-                        Ty::Decimal,
-                        InstKind::HelperCall {
-                            helper: Helper::DecimalNeg,
-                            args: vec![v],
-                        },
-                    );
-                }
-                let uop = match op {
-                    AstUnaryOp::Neg => UnOp::Neg,
-                    other => panic!(
-                        "mwl-ir's control-flow slice only lowers unary `-`/`!` — got {other:?}; \
-                         see the crate docs' known gaps"
-                    ),
-                };
-                self.emit(
-                    *cur,
-                    ty,
-                    InstKind::UnOp {
-                        op: uop,
-                        operand: v,
-                    },
-                )
+                self.lower_unary(*op, inner, expected, env, cur)
             }
-            // `.` concatenation is not `InstKind::BinOp` — it allocates a
-            // fresh buffer rather than computing a native scalar result, so
-            // it gets its own arm (and its own `InstKind::Concat`) ahead of
-            // the scalar-operator table below. Each operand goes through
-            // `Self::concat_operand` first, which converts a scalar through
-            // a new `InstKind::HelperCall` when it isn't already `Ty::Str` —
-            // a `Stringable`-object operand (also accepted by
-            // `mwl_types::expr::check_expr`'s own `require_stringable`) still
-            // panics there, since it needs a resolved `toString` call this
-            // crate can't synthesize yet. `concat_operand` also reports
-            // whether the value it hands back aliases storage a durable slot
-            // still owns; an operand that doesn't (a literal, a nested
-            // `Concat`'s own result, or a freshly converted `HelperCall`
-            // result) is released right after this `Concat` reads it, since
-            // nothing else ever will — the same "release a fresh value once
-            // its one and only use is done" precedent `Self::lower_expr_stmt`
-            // already sets for a bare call/`new` statement.
             ExprKind::Binary {
                 op: BinaryOp::Concat,
                 lhs,
                 rhs,
-            } => {
-                let (lv, l_alias) = self.concat_operand(lhs, env, cur);
-                let (rv, r_alias) = self.concat_operand(rhs, env, cur);
-                let result = self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
-                if !l_alias {
-                    self.emit_release(*cur, lv);
-                }
-                if !r_alias {
-                    self.emit_release(*cur, rv);
-                }
-                result
-            }
+            } => self.lower_concat(lhs, rhs, env, cur),
             // ADR 0013 § 2: ordering two objects is a `Comparable::compareTo`
             // call, never a comparison of the values themselves — there is no
             // property-walk fallback and nothing else an object `<` could
@@ -314,839 +158,38 @@ impl<'a> Lowering<'a> {
             {
                 self.lower_object_comparison(*op, expr, lhs, rhs, env, cur)
             }
-            // `$x === null` / `$x !== null` — a *tag* comparison, not a value
-            // one. Split out ahead of the general arm below for two reasons,
-            // and either alone would be enough: `null` has its own
-            // representation, so the general arm would hand `mwl-codegen` a
-            // `BinOp` over two different ones; and a `Ty::Tagged` operand's
-            // strict identity is `mwl_runtime::value_identical`, never a
-            // machine compare of the register pair. This is also the test
-            // `mwl_types::locals`' narrowing reads, so the two agree on
-            // exactly one spelling.
-            //
-            // Loose `==`/`!=` deliberately stays in the general arm: PHP's
-            // `0 == null` is *true*, so it is a truthy-table question rather
-            // than a tag one (`mwl-ir` gap 1 owns it).
             ExprKind::Binary {
                 op: op @ (BinaryOp::Identical | BinaryOp::NotIdentical),
                 lhs,
                 rhs,
             } if matches!(lhs.kind, ExprKind::Null) != matches!(rhs.kind, ExprKind::Null) => {
-                let operand = if matches!(lhs.kind, ExprKind::Null) {
-                    rhs
-                } else {
-                    lhs
-                };
-                let (v, ty) = self.lower_expr(operand, None, env, cur);
-                // A representation that is not `Ty::Tagged` cannot hold
-                // `null` at all, so the answer is a constant — the same
-                // reasoning `Self::open_nullsafe` applies to `?->` on a
-                // receiver that cannot be `null`. The operand is still
-                // lowered (it may have side effects) and released if nothing
-                // else owns it, exactly like the general arm's comparison.
-                if ty != Ty::Tagged {
-                    if ty.is_refcounted() && !self.aliasing_read(operand) {
-                        self.emit_release(*cur, v);
-                    }
-                    let is_null = matches!(ty, Ty::Null);
-                    return self.emit(
-                        *cur,
-                        Ty::Bool,
-                        InstKind::ConstBool(is_null == (*op == BinaryOp::Identical)),
-                    );
-                }
-                let (is_null, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: v });
-                if !self.aliasing_read(operand) {
-                    self.emit_release(*cur, v);
-                }
-                if *op == BinaryOp::Identical {
-                    return (is_null, Ty::Bool);
-                }
-                self.emit(
-                    *cur,
-                    Ty::Bool,
-                    InstKind::UnOp {
-                        op: UnOp::Not,
-                        operand: is_null,
-                    },
-                )
+                self.lower_null_identity(*op, lhs, rhs, env, cur)
             }
             ExprKind::Binary { op, lhs, rhs } => {
-                let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
-                let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
-                // ADR 0054 § 3's table is a set of runtime helpers rather than
-                // a machine instruction, so a `decimal` on *either* side takes
-                // its own path -- including the mixed `decimal ⊕ int` row,
-                // which the helper promotes from the operand's own tag.
-                if lty == Ty::Decimal || rty == Ty::Decimal {
-                    return self.lower_decimal_binary(*op, lv, rv, env, cur);
-                }
-                let (bop, ty) = match op {
-                    BinaryOp::Add => (BinOp::Add, lty),
-                    BinaryOp::Sub => (BinOp::Sub, lty),
-                    BinaryOp::Mul => (BinOp::Mul, lty),
-                    BinaryOp::Div => (BinOp::Div, lty),
-                    BinaryOp::Mod => (BinOp::Mod, lty),
-                    BinaryOp::Eq | BinaryOp::Identical => (BinOp::Eq, Ty::Bool),
-                    BinaryOp::NotEq | BinaryOp::NotIdentical => (BinOp::NotEq, Ty::Bool),
-                    BinaryOp::Lt => (BinOp::Lt, Ty::Bool),
-                    BinaryOp::LtEq => (BinOp::LtEq, Ty::Bool),
-                    BinaryOp::Gt => (BinOp::Gt, Ty::Bool),
-                    BinaryOp::GtEq => (BinOp::GtEq, Ty::Bool),
-                    other => panic!(
-                        "mwl-ir's control-flow slice only lowers arithmetic/equality/ordering \
-                         operators — got {other:?}; see the crate docs' known gaps"
-                    ),
-                };
-                // A comparison only *reads* its operands, so a refcounted one
-                // that no durable slot owns — a string literal in
-                // `$key === "bad"` is the shape this exists for — is released
-                // right after the instruction reads it, exactly the rule the
-                // `Concat` arm above applies to its own fresh operands.
-                //
-                // Integer `%` is the one operator here that can *fail*: ADR
-                // 0007 § 4 makes a zero divisor throw `ArithmeticError`, which
-                // `mwl-codegen` raises inline rather than through a helper, so
-                // it needs an error edge exactly the way a call does. Every
-                // other operator, `%` on floats included, returns no status at
-                // all — see `Inst::on_error`.
-                let inst = InstKind::BinOp {
-                    op: bop,
-                    lhs: lv,
-                    rhs: rv,
-                };
-                let result = if matches!(bop, BinOp::Mod) && matches!(ty, Ty::Int | Ty::Uint) {
-                    self.emit_fallible(*cur, ty, inst, env)
-                } else {
-                    self.emit(*cur, ty, inst)
-                };
-                if lty.is_refcounted() {
-                    if !self.aliasing_read(lhs) {
-                        self.emit_release(*cur, lv);
-                    }
-                    if !self.aliasing_read(rhs) {
-                        self.emit_release(*cur, rv);
-                    }
-                }
-                result
+                self.lower_binary(*op, lhs, rhs, expected, env, cur)
             }
-            // `new Target(...)` — the constructed class and its resolved
-            // constructor (if any) come from `self.exprs`, not from `target`
-            // itself: `target` may be `self`/`static`/`parent`, which this
-            // crate has no enclosing-class context to resolve on its own
-            // (see `lower_decl_type`'s doc comment).
-            // ADR 0031's `fn` literal. Evaluating one allocates its
-            // captured-environment object and stores a snapshot of every
-            // captured binding into it — "by value at the point the closure
-            // literal is evaluated" (§ 2), which is exactly what a field
-            // store at this program point is. The body itself becomes that
-            // class's one method, lowered later; see `lower_closure`, which
-            // owns the whole representation.
-            ExprKind::Fn(fn_expr) => {
-                let Some(ExprInfo::Closure {
-                    class,
-                    captures,
-                    return_ty,
-                }) = self.exprs.lookup(expr.span)
-                else {
-                    panic!(
-                        "mwl-ir: the `fn` literal at {:?} has no resolved closure recorded in \
-                         the typed-expression table — did this program pass \
-                         mwl_types::check_program with the same table?",
-                        expr.span
-                    );
-                };
-                let class = class.clone();
-                let ret = lower_checked_ty(*return_ty, self.checked_types);
-                let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
-                let (obj, _) = self.emit(
-                    *cur,
-                    Ty::Object,
-                    InstKind::New {
-                        class: class.clone(),
-                        ctor: None,
-                        args: Vec::new(),
-                    },
-                );
-                let arity =
-                    i64::try_from(fn_expr.params.len()).expect("a parameter list fits an i64");
-                let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
-                self.emit_field_set(
-                    *cur,
-                    obj,
-                    class.clone(),
-                    FN_ARITY.to_owned(),
-                    arity_v,
-                );
-                let mut captured = Vec::with_capacity(names.len());
-                for name in names {
-                    let &(v, ty) = env.get(&name).unwrap_or_else(|| {
-                        panic!(
-                            "mwl-ir: the closure at {:?} captures `${name}`, which is not bound \
-                             in the enclosing frame — mwl_types records a capture only for a \
-                             name its own scope resolved",
-                            expr.span
-                        )
-                    });
-                    assert!(
-                        ty != Ty::Ref,
-                        "mwl-ir does not lower a closure capturing the `&$x` parameter \
-                         `${name}`: the cell it addresses is the caller's, and the closure may \
-                         outlive the call that staged it; see the crate docs' known gaps"
-                    );
-                    if ty.is_refcounted() {
-                        self.emit_retain(*cur, v);
-                    }
-                    self.emit_field_set(*cur, obj, class.clone(), name.clone(), v);
-                    captured.push((name, ty));
-                }
-                self.closures.push(PendingClosure {
-                    class,
-                    fn_expr: fn_expr.clone(),
-                    captures: captured,
-                    ret,
-                });
-                (obj, Ty::Object)
-            }
-            ExprKind::New { target, args } => {
-                let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
-                    panic!(
-                        "mwl-ir: `new` at {:?} has no resolved class recorded in the \
-                         typed-expression table — did this program pass \
-                         mwl_types::check_program with the same table?",
-                        expr.span
-                    );
-                };
-                let target_label = class.to_string();
-                // The declaring class, not the constructed one: `new Dog(...)`
-                // on a `Dog` with no `constructor` of its own invokes
-                // `Animal::constructor`. Only `mwl_types` resolved that, so
-                // the label is carried rather than re-derived downstream.
-                let ctor_label = ctor
-                    .as_ref()
-                    .map(|call| format!("{}::{}", call.class, call.method));
-                let arg_values = match ctor {
-                    Some(call) => {
-                        let sig = ArgSig::of(call);
-                        let checked_types = self.checked_types;
-                        self.lower_call_args(
-                            args,
-                            &sig,
-                            checked_types,
-                            ArgOwnership::Transferred,
-                            env,
-                            cur,
-                        )
-                        .values
-                    }
-                    None => {
-                        let CallArgs::List(list) = args else {
-                            panic!(
-                                "mwl-ir: `new {target_label}(...)` has no resolved constructor \
-                                 but wasn't called with a plain argument list — {args:?}"
-                            );
-                        };
-                        assert!(
-                            list.is_empty(),
-                            "mwl-ir: `new {target_label}(...)` has no resolved constructor but \
-                             was called with arguments — mwl_types doesn't yet enforce a \
-                             zero-arity check here (see its own known gaps), so this crate \
-                             cannot trust it was rejected upstream"
-                        );
-                        Vec::new()
-                    }
-                };
-                // `new static()` — ADR-free by construction: the class comes
-                // from this frame's called class rather than from the label
-                // `mwl_types` resolved, which is the enclosing class and so
-                // would allocate the *base* through two levels of
-                // inheritance. `new self()`/`new parent()`/`new Foo()` all
-                // name a fixed class and keep the constant form.
-                let kind = if matches!(target, NewTarget::StaticTy) {
-                    let desc = self.lsb();
-                    InstKind::NewDynamic {
-                        desc,
-                        ctor: ctor_label,
-                        args: arg_values,
-                    }
-                } else {
-                    InstKind::New {
-                        class: target_label,
-                        ctor: ctor_label,
-                        args: arg_values,
-                    }
-                };
-                self.emit_fallible(*cur, Ty::Object, kind, env)
-            }
-            // `$obj->method(...)`/`$this->method(...)` — the receiver is
-            // lowered like any other expression (for `$this`, that's just an
-            // `Env` lookup, since `lower_method` already seeded it as the
-            // implicit parameter 0); the resolved target itself still comes
-            // from `self.exprs`, exactly like a static call/`new` below.
+            ExprKind::Fn(fn_expr) => self.lower_closure_literal(fn_expr, expr, env, cur),
+            ExprKind::New { target, args } => self.lower_new(target, args, expr, env, cur),
             ExprKind::MethodCall {
                 object,
-                method: _,
                 nullsafe,
                 args,
                 ..
-            } => {
-                let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
-                    panic!(
-                        "mwl-ir: an instance method call at {:?} has no resolved target \
-                         recorded in the typed-expression table — did this program pass \
-                         mwl_types::check_program with the same table?",
-                        expr.span
-                    );
-                };
-                // A member of a `Core`-owned class is native Rust behind a
-                // helper symbol, exactly as a static `Core` member is — the
-                // same `InstKind::CoreCall`, the same borrowed arguments, with
-                // the receiver in argument slot 0. Resolved through the
-                // identical `ResolvedCall` up to this point, which is why
-                // `mwl_types` seeds a signature table rather than special-
-                // casing `Core`; see `mwl_stdlib::registry::CoreTy::Instance`.
-                if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
-                    let sig = ArgSig::of_helper(call);
-                    let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
-                    let checked_types = self.checked_types;
-                    let (object_v, receiver_ty, guard) =
-                        self.open_nullsafe(object, *nullsafe, env, cur);
-                    let LoweredArgs {
-                        values,
-                        mut temporaries,
-                    } = self.lower_call_args(
-                        args,
-                        &sig,
-                        checked_types,
-                        ArgOwnership::Borrowed,
-                        env,
-                        cur,
-                    );
-                    // The receiver is borrowed like every other argument to a
-                    // `Core` member, so a *freshly built* one — a nested
-                    // call's own result — has no other owner and this frame
-                    // owes its release. A receiver read out of a local or a
-                    // field is that binding's to release, not this call's.
-                    if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
-                        temporaries.push(object_v);
-                    }
-                    let mut arg_values = Vec::with_capacity(values.len() + 1);
-                    arg_values.push(object_v);
-                    arg_values.extend(values);
-                    let (v, ty) = self.emit_fallible(
-                        *cur,
-                        return_ty,
-                        InstKind::CoreCall {
-                            symbol,
-                            args: arg_values,
-                        },
-                        env,
-                    );
-                    self.release_call_temporaries(temporaries, *cur);
-                    return self.close_nullsafe(guard, v, ty, cur);
-                }
-                let target_label = format!("{}::{}", call.class, call.method);
-                let sig = ArgSig::of(call);
-                let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
-                let checked_types = self.checked_types;
-                let is_static = call.is_static;
-                // `?->` guards everything below on the receiver not being
-                // `null`; `->` opens no guard and lowers exactly as before.
-                let (object_v, receiver_ty, guard) =
-                    self.open_nullsafe(object, *nullsafe, env, cur);
-                // A `static` method reached through an instance
-                // (`$obj->staticMethod()`, which PHP allows) takes no
-                // receiver: its parameter 0 is the *called* class, which here
-                // is the receiver's own — see `mwl_runtime::object`'s module
-                // docs. Nothing is retained for it; a descriptor is not
-                // refcounted.
-                let receiver_v = if is_static {
-                    let (v, _) = self.emit(
-                        *cur,
-                        Ty::ClassDesc,
-                        InstKind::ClassDescOf { object: object_v },
-                    );
-                    v
-                } else {
-                    // The receiver is parameter 0, so it is an ordinary
-                    // argument for ownership purposes: MWL's convention is
-                    // that the caller retains an aliasing argument and the
-                    // callee releases every refcounted parameter at scope exit
-                    // (see `Self::release_all_locals`). `$this->m()` and
-                    // `$obj->m()` both read an existing slot, so both need the
-                    // retain `Self::lower_call_args` already inserts for one.
-                    if receiver_ty.is_refcounted() && self.aliasing_read(object) {
-                        self.emit_retain(*cur, object_v);
-                    }
-                    object_v
-                };
-                let arg_values = self
-                    .lower_call_args(
-                        args,
-                        &sig,
-                        checked_types,
-                        ArgOwnership::Transferred,
-                        env,
-                        cur,
-                    )
-                    .values;
-                // Two shapes have no static answer, and both take the
-                // receiver's own class instead.
-                //
-                // A resolved declaration with **no body** names no compiled
-                // function at all — an `abstract` method, or the interface
-                // method an interface *default* body calls back into
-                // (`$this->name()` inside `Greets::greet`).
-                //
-                // A resolved declaration some subtype **overrides** names the
-                // wrong one: `$base->m()` on a value that is really a `Child`
-                // must run `Child::m`. `mwl_types` answers that whole-program
-                // question once (`ResolvedCall::overridden`), so the ordinary
-                // case — a method nothing overrides — still binds straight to
-                // a label and pays nothing. A `static` method reached through
-                // an instance is never virtual: PHP resolves it on the
-                // written class, and its slot 0 carries a descriptor rather
-                // than a receiver.
-                let late_bound = !call.has_body || (call.overridden && !is_static);
-                let kind = if late_bound {
-                    let (lsb, _) = self.emit(
-                        *cur,
-                        Ty::ClassDesc,
-                        InstKind::ClassDescOf { object: object_v },
-                    );
-                    InstKind::CallVirtual {
-                        lsb,
-                        method: call.method.clone(),
-                        fallback: call.has_body.then_some(target_label),
-                        receiver: if is_static { None } else { Some(receiver_v) },
-                        args: arg_values,
-                    }
-                } else {
-                    InstKind::Call {
-                        target: target_label,
-                        receiver: Some(receiver_v),
-                        args: arg_values,
-                    }
-                };
-                let (v, ty) = self.emit_fallible(*cur, return_ty, kind, env);
-                self.close_nullsafe(guard, v, ty, cur)
-            }
-            // `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
-            //
-            // Written like a static call, but *not* necessarily one: PHP's
-            // `parent::constructor(...)` and `self::helper()` invoke an
-            // instance method on the enclosing `$this` whenever the resolved
-            // target is not declared `static`. So the receiver is decided by
-            // `ResolvedCall::is_static` rather than by the `::` in the source
-            // — passing `null` to a method that reads `$this` would be a
-            // null-pointer write into a field slot, not a diagnostic.
-            //
-            // The `::`'s left-hand side decides the *called* class the callee
-            // sees (`mwl_runtime::object`'s late-static-binding decision):
-            // `Foo::m()` sets it to `Foo`, `self::`/`parent::` forward this
-            // frame's, and `static::m()` additionally resolves the target
-            // itself at run time through `InstKind::CallVirtual`.
+            } => self.lower_method_call(object, *nullsafe, args, expr, env, cur),
             ExprKind::StaticCall { class, args, .. } => {
-                let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
-                    panic!(
-                        "mwl-ir: a static call at {:?} has no resolved target recorded in the \
-                         typed-expression table — did this program pass \
-                         mwl_types::check_program with the same table?",
-                        expr.span
-                    );
-                };
-                // A Tier 0 `Core` member is native Rust behind a helper
-                // symbol, not a compiled MWL function, so it takes a
-                // different instruction and a different argument-ownership
-                // rule — see `InstKind::CoreCall`, which owns both. Resolved
-                // through the identical `ResolvedCall` up to this point,
-                // which is the whole reason `mwl_types` seeds a signature
-                // table rather than special-casing `Core` at each call site.
-                if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
-                    let sig = ArgSig::of_helper(call);
-                    let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
-                    let checked_types = self.checked_types;
-                    // A member on `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS`
-                    // is handed the class its call site wrote, as argument 0 —
-                    // that roster owns the ABI. A descriptor is not
-                    // refcounted, so it is neither retained nor released here.
-                    let written_class = mwl_types::core_takes_written_class(
-                        &call.class.to_string(),
-                        &call.method,
-                    )
-                    .then(|| {
-                        let label = call.written_class.as_ref().unwrap_or_else(|| {
-                            panic!(
-                                "mwl-ir: `{}::{}` needs the class written at its call site, \
-                                 and mwl_types recorded none — did this program pass \
-                                 mwl_types::check_program with the same table?",
-                                call.class, call.method
-                            )
-                        });
-                        let (v, _) = self.emit(
-                            *cur,
-                            Ty::ClassDesc,
-                            InstKind::ClassDescConst {
-                                class: label.to_string(),
-                            },
-                        );
-                        v
-                    });
-                    let lowered = self.lower_call_args(
-                        args,
-                        &sig,
-                        checked_types,
-                        ArgOwnership::Borrowed,
-                        env,
-                        cur,
-                    );
-                    let arg_values = written_class
-                        .into_iter()
-                        .chain(lowered.values)
-                        .collect::<Vec<_>>();
-                    let result = self.emit_fallible(
-                        *cur,
-                        return_ty,
-                        InstKind::CoreCall {
-                            symbol,
-                            args: arg_values,
-                        },
-                        env,
-                    );
-                    // A `Core` member borrows, so a freshly built argument —
-                    // an `fn` literal, a nested `Core` call's own result — has
-                    // no other owner and would leak without this.
-                    self.release_call_temporaries(lowered.temporaries, *cur);
-                    return result;
-                }
-                let target_label = format!("{}::{}", call.class, call.method);
-                let method = call.method.clone();
-                let sig = ArgSig::of(call);
-                let is_static = call.is_static;
-                let has_body = call.has_body;
-                let named_class = call.static_class.as_ref().map(ToString::to_string);
-                let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
-                let checked_types = self.checked_types;
-                // `static::m()` never has a compile-time target; a resolved
-                // declaration with no body has none either, for a different
-                // reason — see `InstKind::CallVirtual::fallback`.
-                let late_bound = matches!(class.kind, ExprKind::StaticExpr) || !has_body;
-                let receiver = if is_static {
-                    // A static callee has no `$this`, so its receiver slot
-                    // carries the *called* class instead — an explicitly named
-                    // one sets it, `self::`/`parent::`/`static::` forward this
-                    // frame's. See `mwl_runtime::object`'s module docs.
-                    Some(match &named_class {
-                        Some(label) => {
-                            let (v, _) = self.emit(
-                                *cur,
-                                Ty::ClassDesc,
-                                InstKind::ClassDescConst {
-                                    class: label.clone(),
-                                },
-                            );
-                            v
-                        }
-                        None => self.lsb(),
-                    })
-                } else {
-                    // The enclosing frame's own `$this`, retained the same way
-                    // an explicit `$obj->m()` receiver is — the callee will
-                    // release it. A file-scope frame has none, which the
-                    // checker has already refused for a non-static target.
-                    let &(this_v, this_ty) = env.get("this").unwrap_or_else(|| {
-                        panic!(
-                            "mwl-ir: `{target_label}` is not static but is reached from a frame \
-                             with no `$this` — mwl_types is expected to have refused that"
-                        )
-                    });
-                    if this_ty.is_refcounted() {
-                        self.emit_retain(*cur, this_v);
-                    }
-                    Some(this_v)
-                };
-                let arg_values = self
-                    .lower_call_args(
-                        args,
-                        &sig,
-                        checked_types,
-                        ArgOwnership::Transferred,
-                        env,
-                        cur,
-                    )
-                    .values;
-                let kind = if late_bound {
-                    // `static::m()` — the target is whichever class this frame
-                    // was *called* on, which is only known at run time.
-                    let lsb = self.lsb();
-                    InstKind::CallVirtual {
-                        lsb,
-                        method,
-                        fallback: has_body.then_some(target_label),
-                        // A static target's slot 0 already holds `lsb`, so the
-                        // dispatch value and the receiver are the same value;
-                        // saying it once keeps `emit_invoke`'s slot rule
-                        // identical to `InstKind::Call`'s.
-                        receiver: if is_static { None } else { receiver },
-                        args: arg_values,
-                    }
-                } else {
-                    InstKind::Call {
-                        target: target_label,
-                        receiver,
-                        args: arg_values,
-                    }
-                };
-                self.emit_fallible(*cur, return_ty, kind, env)
+                self.lower_static_call(class, args, expr, env, cur)
             }
-            // `$obj->prop` — the receiver's declaring class comes from
-            // `self.exprs`, exactly like a call's resolved target; a shape or
-            // plain-`object` receiver (ADR 0036 § 4) has no such entry at
-            // all, so this panics naming that case rather than lowering it —
-            // see the crate docs' known gaps for why (the checker itself
-            // defers the runtime-checked fallback to M4, with no IR/codegen
-            // yet to throw from).
             ExprKind::PropertyAccess {
                 object, nullsafe, ..
-            } => {
-                // ADR 0014 § 1: a read of a property that declares a `get`
-                // hook is a call to that hook's compiled function, with the
-                // receiver in the ordinary parameter-0 slot — see
-                // `lower_property_hook`. A property with only a `set` hook
-                // still reads its own slot, since MWL's hooked properties are
-                // always backed (`mwl_types::signatures::PropertyHooks` owns
-                // that decision), so both shapes recover the same three
-                // fields and only the `get` label decides between them.
-                let (class, name, ty, get) = match self.exprs.lookup(expr.span) {
-                    Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
-                    Some(ExprInfo::HookedProperty {
-                        class,
-                        name,
-                        ty,
-                        get,
-                        ..
-                    }) => (class, name, *ty, get.clone()),
-                    _ => panic!(
-                        "mwl-ir: a property access at {:?} has no resolved declaring class \
-                         recorded in the typed-expression table — either it wasn't checked with \
-                         the same table, or its receiver erased to a shape/plain `object` (ADR \
-                         0036 § 4), which this crate does not yet lower (see the crate docs' \
-                         known gaps)",
-                        expr.span
-                    ),
-                };
-                let field_ty = lower_checked_ty(ty, self.checked_types);
-                let class_label = class.to_string();
-                let field_name = name.clone();
-                // See the `MethodCall` arm above: `?->` guards the access on
-                // the receiver not being `null`, `->` opens no guard.
-                let (object_v, receiver_ty, guard) =
-                    self.open_nullsafe(object, *nullsafe, env, cur);
-                let (v, ty) = match get {
-                    Some(label) => {
-                        // The receiver is parameter 0, so it is an ordinary
-                        // argument for ownership purposes — the same retain
-                        // an explicit `$obj->m()` inserts, for the same reason
-                        // (the callee releases every refcounted parameter at
-                        // scope exit).
-                        if receiver_ty.is_refcounted() && self.aliasing_read(object) {
-                            self.emit_retain(*cur, object_v);
-                        }
-                        self.emit_fallible(
-                            *cur,
-                            field_ty,
-                            InstKind::Call {
-                                target: label,
-                                receiver: Some(object_v),
-                                args: Vec::new(),
-                            },
-                            env,
-                        )
-                    }
-                    None => self.emit(
-                        *cur,
-                        field_ty,
-                        InstKind::FieldGet {
-                            object: object_v,
-                            class: class_label,
-                            field: field_name,
-                        },
-                    ),
-                };
-                self.close_nullsafe(guard, v, ty, cur)
-            }
-            // `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
-            // doc comment for the full policy this mirrors and its known
-            // gaps. `...spread` and `&value` elements are still unsupported
-            // — each panics naming itself rather than guessing at a merge/
-            // reference representation this crate doesn't have yet. A
-            // *purely positional* literal (no element has an explicit
-            // `key =>`) keeps the original single-`ArrayNew` shape: each
-            // element's key is simply its index, auto-numbered from `0`
-            // exactly like PHP's own `[$a, $b]` shorthand, computed at
-            // lowering time with no runtime key instruction at all. A
-            // literal with at least one explicit `key =>` element instead
-            // builds an empty array first and appends one `ArraySet` per
-            // element in source order — seeing `crate::ir::InstKind::ArrayNew`'s
-            // own doc comment for why that's the only shape general enough
-            // to give an explicit key's (possibly runtime-computed) value a
-            // place to live, and the one PHP behavior it deliberately doesn't
-            // reproduce (a positional element's key numbering ignores any
-            // explicit `int`/`uint` key elsewhere in the same literal, rather
-            // than PHP's real "continues from the highest int key used so
-            // far"). Each value that's itself `Ty::is_refcounted` and
-            // `is_aliasing_read` is retained before the array durably owns
-            // it, the same policy `Self::lower_call_args` already applies at
-            // a call-argument boundary; an explicit key gets the identical
-            // treatment via `Self::lower_array_key`'s own aliasing flag. The
-            // array literal's own result needs no retain — a fresh producer,
-            // same as `new`/a call's result.
-            ExprKind::ArrayLiteral(items) => {
-                assert!(
-                    items.iter().all(|item| !item.spread && !item.by_ref),
-                    "mwl-ir does not yet lower a `...spread` or `&value` array-literal element \
-                     — see the crate docs' known gaps"
-                );
-                if items.iter().all(|item| item.key.is_none()) {
-                    let mut entries = Vec::with_capacity(items.len());
-                    for (i, item) in items.iter().enumerate() {
-                        let (v, ty) = self.lower_expr(&item.value, None, env, cur);
-                        if ty.is_refcounted() && self.aliasing_read(&item.value) {
-                            self.emit_retain(*cur, v);
-                        }
-                        entries.push((i.to_string(), v));
-                    }
-                    self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
-                } else {
-                    let array = self.emit(
-                        *cur,
-                        Ty::Array,
-                        InstKind::ArrayNew {
-                            entries: Vec::new(),
-                        },
-                    );
-                    let mut next_index = 0usize;
-                    // Each write yields the array the next one writes into —
-                    // the same pointer every time here, since a literal under
-                    // construction is solely owned, but threaded rather than
-                    // assumed so the one protocol has no exception.
-                    let mut array_v = array.0;
-                    for item in items {
-                        let (key_v, key_aliasing) = match &item.key {
-                            Some(key) => self.lower_array_key(key, env, cur),
-                            None => {
-                                let key_str = next_index.to_string();
-                                next_index += 1;
-                                let (kv, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(key_str));
-                                (kv, false)
-                            }
-                        };
-                        if key_aliasing {
-                            self.emit_retain(*cur, key_v);
-                        }
-                        let (v, ty) = self.lower_expr(&item.value, None, env, cur);
-                        if ty.is_refcounted() && self.aliasing_read(&item.value) {
-                            self.emit_retain(*cur, v);
-                        }
-                        array_v = self.emit_array_set(*cur, array_v, key_v, v);
-                    }
-                    (array_v, Ty::Array)
-                }
-            }
-            // `$arr[$i]` — the element's declared type comes from
-            // `self.exprs`, exactly like a property access's declaring
-            // class: a base that erased to `mixed` (ADR 0007 § 5's own
-            // "nothing compile-time-known to read" case for an unresolved
-            // array) has no `ExprInfo::Index` entry at all, so this panics
-            // naming that case rather than lowering it. `base[]` (`index`
-            // is `None`) has no meaning as a read at all — it is PHP's
-            // append syntax, assignment-target-only — so it panics too.
+            } => self.lower_property_access(object, *nullsafe, expr, env, cur),
+            ExprKind::ArrayLiteral(items) => self.lower_array_literal(items, env, cur),
             ExprKind::Index { base, index } => {
-                let Some(index) = index else {
-                    panic!(
-                        "mwl-ir does not lower `$a[]` as a read expression — append syntax \
-                         (`index` is `None`) is assignment-target-only; see the crate docs' \
-                         known gaps"
-                    );
-                };
-                let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(expr.span) else {
-                    panic!(
-                        "mwl-ir: an array-index read at {:?} has no resolved element type \
-                         recorded in the typed-expression table — either it wasn't checked with \
-                         the same table, or its base erased to `mixed` (an unresolved array), \
-                         which this crate does not yet lower (see the crate docs' known gaps)",
-                        expr.span
-                    );
-                };
-                let result_ty = lower_checked_ty(*elem_ty, self.checked_types);
-                let (array_v, _) = self.lower_expr(base, None, env, cur);
-                let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
-                let result = self.emit(
-                    *cur,
-                    result_ty,
-                    InstKind::ArrayGet {
-                        array: array_v,
-                        key: key_v,
-                    },
-                );
-                if !key_aliasing {
-                    self.emit_release(*cur, key_v);
-                }
-                result
+                self.lower_index(base, index.as_deref(), expr, env, cur)
             }
-            // `$x instanceof Name` — the tested class comes from
-            // `self.exprs`, exactly like a property access's declaring class,
-            // because resolving a bare `Animal` to `Ns\Animal` needs the
-            // namespace/import context this crate cannot see. The dynamic
-            // form (`$x instanceof $name`) records nothing and is refused.
             ExprKind::InstanceOf { expr: inner, .. } => {
-                let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
-                    panic!(
-                        "mwl-ir: an `instanceof` at {:?} has no resolved class recorded in the \
-                         typed-expression table — either it wasn't checked with the same table, \
-                         or its right-hand side is the dynamic `$x instanceof $name` form, which \
-                         this crate does not lower (see the crate docs' known gaps)",
-                        expr.span
-                    );
-                };
-                let class_label = class.to_string();
-                let (value, ty) = self.lower_expr(inner, None, env, cur);
-                assert!(
-                    matches!(ty, Ty::Object),
-                    "mwl-ir lowers `instanceof` only against an object receiver — got \
-                     representation {ty:?}"
-                );
-                self.emit(
-                    *cur,
-                    Ty::Bool,
-                    InstKind::InstanceOf {
-                        value,
-                        class: class_label,
-                    },
-                )
+                self.lower_instanceof(inner, expr, env, cur)
             }
-            // ADR 0023 § 1: PHP's shallow, same-heap, single-level copy, with
-            // no `__clone` hook to run — so the whole operation is one
-            // instruction, and the result is a fresh object with exactly one
-            // owner, the same as `new`.
-            ExprKind::Clone(inner) => {
-                let (v, ty) = self.lower_expr(inner, None, env, cur);
-                assert!(
-                    matches!(ty, Ty::Object),
-                    "mwl-ir lowers `clone` only for an object — got representation {ty:?}. ADR \
-                     0023 § 1 scopes `clone` to an object; an array is already a copy-on-write \
-                     value, and a scalar has nothing to copy"
-                );
-                let result = self.emit(*cur, Ty::Object, InstKind::Clone { object: v });
-                // The operand is only *read* — see `InstKind::Clone`. A fresh
-                // one nothing else owns is released right after, the same
-                // "release a fresh value once its one and only use is done"
-                // rule `Self::concat_operand`'s caller applies.
-                if !self.aliasing_read(inner) {
-                    self.emit_release(*cur, v);
-                }
-                result
-            }
+            ExprKind::Clone(inner) => self.lower_clone_expr(inner, env, cur),
             // Two things wear this syntax, and both are inlined constants.
             // ADR 0010 § 3 makes `EnumName::CaseName` "an integer constant,
             // inlined at every use site"; ADR 0011's `Core\Math::PI` is the
@@ -1181,43 +224,8 @@ impl<'a> Lowering<'a> {
                     expr.span
                 ),
             },
-            // ADR 0007 § 2's `as` — the one conversion spelling. The target
-            // type is resolved by `lower_decl_type`, which reads the checker's
-            // own answer for the annotation, so an enum target/source is
-            // already the right representation by the time `convert` sees it.
             ExprKind::Conversion { expr: inner, ty } => {
-                // ADR 0066's `as ?T` is read off the *annotation*, before
-                // `lower_decl_type` erases it: `?string` and `?int` are both
-                // `Ty::Tagged`, so a conversion between them would look like
-                // `from == to` — the one shape `Self::convert` answers by
-                // doing nothing at all.
-                match nullable_target(ty) {
-                    Some(target) => {
-                        // No placement here, unlike the arm below: placing a
-                        // literal at the target would make `3 as ?uint` the
-                        // `from == to` shape ADR 0066 § 3 calls a compile
-                        // error, which `mwl_types` does not refuse yet, so it
-                        // would panic where it now converts.
-                        let (v, from) = self.lower_expr(inner, None, env, cur);
-                        let to = lower_decl_type(target, self.exprs, self.checked_types);
-                        self.convert_or_null(v, from, to, inner, *cur)
-                    }
-                    None => {
-                        let to = lower_decl_type(ty, self.exprs, self.checked_types);
-                        // ADR 0054 § 2: `expr as T` is itself a *placing*
-                        // position, so a numeric literal written directly
-                        // under one takes `T` as its target rather than being
-                        // typed first and converted afterwards. Mirrors
-                        // `mwl_types::expr::check_expr`'s own `Conversion`
-                        // arm, operand shape included — without it
-                        // `19.99 as decimal` would round-trip through an
-                        // `f64` and lose everything past ~17 digits.
-                        let placed = matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_))
-                            .then_some(to);
-                        let (v, from) = self.lower_expr(inner, placed, env, cur);
-                        self.convert(v, from, to, inner, env, *cur)
-                    }
-                }
+                self.lower_conversion(inner, ty, env, cur)
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
@@ -2675,6 +1683,1124 @@ impl<'a> Lowering<'a> {
                  to have already rejected a float/bool/null key (ADR 0007 § 5) at both the \
                  subscript and array-literal explicit-key sites, so this should be unreachable"
             ),
+        }
+    }
+
+    /// ADR 0007 § 4, mirroring the checker's own rule: a bare integer
+    /// literal means `uint` exactly where that's the expected type,
+    /// `int` otherwise. `mwl_types::expr::literals::infer_int_literal`
+    /// enforces ADR 0007 § 4's magnitude rule
+    /// at check time — too large for `int` is only legal where `uint`
+    /// is expected, and too large even for `uint`'s full `u64` range
+    /// is a diagnostic regardless — so `lower_method`'s usual "trusts
+    /// its input already passed `mwl_types::check_program`" contract
+    /// (see the crate docs) covers this too: the `unwrap_or_else`
+    /// panics below are unreachable for anything the checker accepted,
+    /// the same defensive-invariant shape as `Env::get`'s own panic on
+    /// an undeclared local just above.
+    fn lower_int_literal(
+        &mut self,
+        span: Span,
+        expr: &Expr,
+        expected: Option<Ty>,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (radix, digits) = int_literal_digits(self.src, span);
+        if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
+            // ADR 0054 § 2's placing rule, integer half: an integer
+            // literal is scale 0 by construction, so only the mantissa
+            // can overflow — and `mwl_types` has already reported that
+            // if it did.
+            let mantissa = u128::from_str_radix(&digits, radix).unwrap_or_else(|_| {
+                panic!("mwl-ir: integer literal `{digits}` doesn't fit a `decimal`")
+            });
+            return self.emit(
+                *cur,
+                Ty::Decimal,
+                InstKind::ConstDecimal {
+                    negative: false,
+                    mantissa,
+                    scale: 0,
+                },
+            );
+        }
+        if expected == Some(Ty::Uint) {
+            let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
+                panic!("mwl-ir: integer literal `{digits}` doesn't fit a `uint`")
+            });
+            self.emit(*cur, Ty::Uint, InstKind::ConstUint(n))
+        } else {
+            let n: i64 = i64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
+                panic!("mwl-ir: integer literal `{digits}` doesn't fit an `int`")
+            });
+            self.emit(*cur, Ty::Int, InstKind::ConstInt(n))
+        }
+    }
+
+    fn lower_float_literal(
+        &mut self,
+        span: Span,
+        expr: &Expr,
+        expected: Option<Ty>,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let digits = clean_digits(self.src, span);
+        // ADR 0054 § 2: a fractional literal is untyped until placed,
+        // and `decimal` is one of the two types that may place it —
+        // read from the *text*, so the full 29 significant digits
+        // survive rather than being rounded through an `f64` first.
+        if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
+            let (mantissa, scale) = decimal_literal_parts(&digits).unwrap_or_else(|| {
+                panic!("mwl-ir: float literal `{digits}` doesn't fit a `decimal`")
+            });
+            return self.emit(
+                *cur,
+                Ty::Decimal,
+                InstKind::ConstDecimal {
+                    negative: false,
+                    mantissa,
+                    scale,
+                },
+            );
+        }
+        let n: f64 = digits
+            .parse()
+            .unwrap_or_else(|_| panic!("mwl-ir: float literal `{digits}` failed to parse"));
+        self.emit(*cur, Ty::Float, InstKind::ConstFloat(n))
+    }
+
+    /// ADR 0070 § 3: the grammar is resolved while compiling, so what
+    /// reaches the IR is one folded nanosecond count. The value it
+    /// becomes is built by the *same* `Core` member a written
+    /// `Duration::nanoseconds($n)` calls — `mwl_stdlib::time`'s
+    /// `FROM_NANOS_SYMBOL`, named there rather than spelled here — so a
+    /// literal and a computed count cannot come to mean different
+    /// things.
+    ///
+    /// § 3 also wants no allocation at all: a constant-pool entry with
+    /// an immortal header, which is exactly what a string literal is
+    /// owed by `mwl-runtime`'s own gap 3. Both close together; until
+    /// then this is one call on a constant.
+    fn lower_duration_literal(
+        &mut self,
+        span: Span,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let text = span_text(self.src, span);
+        let nanos = mwl_syntax::duration::parse(text).unwrap_or_else(|err| {
+            panic!(
+                "mwl-ir: duration literal `{text}` does not parse ({}) — the lexer \
+                 only produces this token for text that does",
+                err.message()
+            )
+        });
+        let (count, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(nanos));
+        self.emit_fallible(
+            *cur,
+            Ty::Object,
+            InstKind::CoreCall {
+                symbol: mwl_types::CORE_DURATION_FROM_NANOS,
+                args: vec![count],
+            },
+            env,
+        )
+    }
+
+    fn lower_unary(
+        &mut self,
+        op: AstUnaryOp,
+        inner: &Expr,
+        expected: Option<Ty>,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (v, ty) = self.lower_expr(inner, expected, env, cur);
+        // ADR 0054's scalar has no machine negate: like every other
+        // operator over one it is a helper call. It cannot fail --
+        // the mantissa is unsigned, so there is no asymmetric minimum
+        // to overflow the way `-i64::MIN` does.
+        if ty == Ty::Decimal && matches!(op, AstUnaryOp::Neg) {
+            return self.emit(
+                *cur,
+                Ty::Decimal,
+                InstKind::HelperCall {
+                    helper: Helper::DecimalNeg,
+                    args: vec![v],
+                },
+            );
+        }
+        let uop = match op {
+            AstUnaryOp::Neg => UnOp::Neg,
+            other => panic!(
+                "mwl-ir's control-flow slice only lowers unary `-`/`!` — got {other:?}; \
+                 see the crate docs' known gaps"
+            ),
+        };
+        self.emit(
+            *cur,
+            ty,
+            InstKind::UnOp {
+                op: uop,
+                operand: v,
+            },
+        )
+    }
+
+    /// `.` concatenation is not `InstKind::BinOp` — it allocates a
+    /// fresh buffer rather than computing a native scalar result, so
+    /// it gets its own arm (and its own `InstKind::Concat`) ahead of
+    /// the scalar-operator table below. Each operand goes through
+    /// `Self::concat_operand` first, which converts a scalar through
+    /// a new `InstKind::HelperCall` when it isn't already `Ty::Str` —
+    /// a `Stringable`-object operand (also accepted by
+    /// `mwl_types::expr::check_expr`'s own `require_stringable`) still
+    /// panics there, since it needs a resolved `toString` call this
+    /// crate can't synthesize yet. `concat_operand` also reports
+    /// whether the value it hands back aliases storage a durable slot
+    /// still owns; an operand that doesn't (a literal, a nested
+    /// `Concat`'s own result, or a freshly converted `HelperCall`
+    /// result) is released right after this `Concat` reads it, since
+    /// nothing else ever will — the same "release a fresh value once
+    /// its one and only use is done" precedent `Self::lower_expr_stmt`
+    /// already sets for a bare call/`new` statement.
+    fn lower_concat(
+        &mut self,
+        lhs: &Expr,
+        rhs: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (lv, l_alias) = self.concat_operand(lhs, env, cur);
+        let (rv, r_alias) = self.concat_operand(rhs, env, cur);
+        let result = self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
+        if !l_alias {
+            self.emit_release(*cur, lv);
+        }
+        if !r_alias {
+            self.emit_release(*cur, rv);
+        }
+        result
+    }
+
+    /// `$x === null` / `$x !== null` — a *tag* comparison, not a value
+    /// one. Split out ahead of the general arm below for two reasons,
+    /// and either alone would be enough: `null` has its own
+    /// representation, so the general arm would hand `mwl-codegen` a
+    /// `BinOp` over two different ones; and a `Ty::Tagged` operand's
+    /// strict identity is `mwl_runtime::value_identical`, never a
+    /// machine compare of the register pair. This is also the test
+    /// `mwl_types::locals`' narrowing reads, so the two agree on
+    /// exactly one spelling.
+    ///
+    /// Loose `==`/`!=` deliberately stays in the general arm: PHP's
+    /// `0 == null` is *true*, so it is a truthy-table question rather
+    /// than a tag one (`mwl-ir` gap 1 owns it).
+    fn lower_null_identity(
+        &mut self,
+        op: BinaryOp,
+        lhs: &Expr,
+        rhs: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let operand = if matches!(lhs.kind, ExprKind::Null) {
+            rhs
+        } else {
+            lhs
+        };
+        let (v, ty) = self.lower_expr(operand, None, env, cur);
+        // A representation that is not `Ty::Tagged` cannot hold
+        // `null` at all, so the answer is a constant — the same
+        // reasoning `Self::open_nullsafe` applies to `?->` on a
+        // receiver that cannot be `null`. The operand is still
+        // lowered (it may have side effects) and released if nothing
+        // else owns it, exactly like the general arm's comparison.
+        if ty != Ty::Tagged {
+            if ty.is_refcounted() && !self.aliasing_read(operand) {
+                self.emit_release(*cur, v);
+            }
+            let is_null = matches!(ty, Ty::Null);
+            return self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::ConstBool(is_null == (op == BinaryOp::Identical)),
+            );
+        }
+        let (is_null, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: v });
+        if !self.aliasing_read(operand) {
+            self.emit_release(*cur, v);
+        }
+        if op == BinaryOp::Identical {
+            return (is_null, Ty::Bool);
+        }
+        self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::UnOp {
+                op: UnOp::Not,
+                operand: is_null,
+            },
+        )
+    }
+
+    fn lower_binary(
+        &mut self,
+        op: BinaryOp,
+        lhs: &Expr,
+        rhs: &Expr,
+        expected: Option<Ty>,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
+        let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
+        // ADR 0054 § 3's table is a set of runtime helpers rather than
+        // a machine instruction, so a `decimal` on *either* side takes
+        // its own path -- including the mixed `decimal ⊕ int` row,
+        // which the helper promotes from the operand's own tag.
+        if lty == Ty::Decimal || rty == Ty::Decimal {
+            return self.lower_decimal_binary(op, lv, rv, env, cur);
+        }
+        let (bop, ty) = match op {
+            BinaryOp::Add => (BinOp::Add, lty),
+            BinaryOp::Sub => (BinOp::Sub, lty),
+            BinaryOp::Mul => (BinOp::Mul, lty),
+            BinaryOp::Div => (BinOp::Div, lty),
+            BinaryOp::Mod => (BinOp::Mod, lty),
+            BinaryOp::Eq | BinaryOp::Identical => (BinOp::Eq, Ty::Bool),
+            BinaryOp::NotEq | BinaryOp::NotIdentical => (BinOp::NotEq, Ty::Bool),
+            BinaryOp::Lt => (BinOp::Lt, Ty::Bool),
+            BinaryOp::LtEq => (BinOp::LtEq, Ty::Bool),
+            BinaryOp::Gt => (BinOp::Gt, Ty::Bool),
+            BinaryOp::GtEq => (BinOp::GtEq, Ty::Bool),
+            other => panic!(
+                "mwl-ir's control-flow slice only lowers arithmetic/equality/ordering \
+                 operators — got {other:?}; see the crate docs' known gaps"
+            ),
+        };
+        // A comparison only *reads* its operands, so a refcounted one
+        // that no durable slot owns — a string literal in
+        // `$key === "bad"` is the shape this exists for — is released
+        // right after the instruction reads it, exactly the rule the
+        // `Concat` arm above applies to its own fresh operands.
+        //
+        // Integer `%` is the one operator here that can *fail*: ADR
+        // 0007 § 4 makes a zero divisor throw `ArithmeticError`, which
+        // `mwl-codegen` raises inline rather than through a helper, so
+        // it needs an error edge exactly the way a call does. Every
+        // other operator, `%` on floats included, returns no status at
+        // all — see `Inst::on_error`.
+        let inst = InstKind::BinOp {
+            op: bop,
+            lhs: lv,
+            rhs: rv,
+        };
+        let result = if matches!(bop, BinOp::Mod) && matches!(ty, Ty::Int | Ty::Uint) {
+            self.emit_fallible(*cur, ty, inst, env)
+        } else {
+            self.emit(*cur, ty, inst)
+        };
+        if lty.is_refcounted() {
+            if !self.aliasing_read(lhs) {
+                self.emit_release(*cur, lv);
+            }
+            if !self.aliasing_read(rhs) {
+                self.emit_release(*cur, rv);
+            }
+        }
+        result
+    }
+
+    /// `new Target(...)` — the constructed class and its resolved
+    /// constructor (if any) come from `self.exprs`, not from `target`
+    /// itself: `target` may be `self`/`static`/`parent`, which this
+    /// crate has no enclosing-class context to resolve on its own
+    /// (see `lower_decl_type`'s doc comment).
+    /// ADR 0031's `fn` literal. Evaluating one allocates its
+    /// captured-environment object and stores a snapshot of every
+    /// captured binding into it — "by value at the point the closure
+    /// literal is evaluated" (§ 2), which is exactly what a field
+    /// store at this program point is. The body itself becomes that
+    /// class's one method, lowered later; see `lower_closure`, which
+    /// owns the whole representation.
+    fn lower_closure_literal(
+        &mut self,
+        fn_expr: &FnExpr,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(ExprInfo::Closure {
+            class,
+            captures,
+            return_ty,
+        }) = self.exprs.lookup(expr.span)
+        else {
+            panic!(
+                "mwl-ir: the `fn` literal at {:?} has no resolved closure recorded in \
+                 the typed-expression table — did this program pass \
+                 mwl_types::check_program with the same table?",
+                expr.span
+            );
+        };
+        let class = class.clone();
+        let ret = lower_checked_ty(*return_ty, self.checked_types);
+        let names: Vec<String> = captures.iter().map(|(n, _)| n.clone()).collect();
+        let (obj, _) = self.emit(
+            *cur,
+            Ty::Object,
+            InstKind::New {
+                class: class.clone(),
+                ctor: None,
+                args: Vec::new(),
+            },
+        );
+        let arity = i64::try_from(fn_expr.params.len()).expect("a parameter list fits an i64");
+        let (arity_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(arity));
+        self.emit_field_set(*cur, obj, class.clone(), FN_ARITY.to_owned(), arity_v);
+        let mut captured = Vec::with_capacity(names.len());
+        for name in names {
+            let &(v, ty) = env.get(&name).unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: the closure at {:?} captures `${name}`, which is not bound \
+                     in the enclosing frame — mwl_types records a capture only for a \
+                     name its own scope resolved",
+                    expr.span
+                )
+            });
+            assert!(
+                ty != Ty::Ref,
+                "mwl-ir does not lower a closure capturing the `&$x` parameter \
+                 `${name}`: the cell it addresses is the caller's, and the closure may \
+                 outlive the call that staged it; see the crate docs' known gaps"
+            );
+            if ty.is_refcounted() {
+                self.emit_retain(*cur, v);
+            }
+            self.emit_field_set(*cur, obj, class.clone(), name.clone(), v);
+            captured.push((name, ty));
+        }
+        self.closures.push(PendingClosure {
+            class,
+            fn_expr: fn_expr.clone(),
+            captures: captured,
+            ret,
+        });
+        (obj, Ty::Object)
+    }
+
+    fn lower_new(
+        &mut self,
+        target: &NewTarget,
+        args: &CallArgs,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(ExprInfo::New { class, ctor, .. }) = self.exprs.lookup(expr.span) else {
+            panic!(
+                "mwl-ir: `new` at {:?} has no resolved class recorded in the \
+                 typed-expression table — did this program pass \
+                 mwl_types::check_program with the same table?",
+                expr.span
+            );
+        };
+        let target_label = class.to_string();
+        // The declaring class, not the constructed one: `new Dog(...)`
+        // on a `Dog` with no `constructor` of its own invokes
+        // `Animal::constructor`. Only `mwl_types` resolved that, so
+        // the label is carried rather than re-derived downstream.
+        let ctor_label = ctor
+            .as_ref()
+            .map(|call| format!("{}::{}", call.class, call.method));
+        let arg_values = match ctor {
+            Some(call) => {
+                let sig = ArgSig::of(call);
+                let checked_types = self.checked_types;
+                self.lower_call_args(
+                    args,
+                    &sig,
+                    checked_types,
+                    ArgOwnership::Transferred,
+                    env,
+                    cur,
+                )
+                .values
+            }
+            None => {
+                let CallArgs::List(list) = args else {
+                    panic!(
+                        "mwl-ir: `new {target_label}(...)` has no resolved constructor \
+                         but wasn't called with a plain argument list — {args:?}"
+                    );
+                };
+                assert!(
+                    list.is_empty(),
+                    "mwl-ir: `new {target_label}(...)` has no resolved constructor but \
+                     was called with arguments — mwl_types doesn't yet enforce a \
+                     zero-arity check here (see its own known gaps), so this crate \
+                     cannot trust it was rejected upstream"
+                );
+                Vec::new()
+            }
+        };
+        // `new static()` — ADR-free by construction: the class comes
+        // from this frame's called class rather than from the label
+        // `mwl_types` resolved, which is the enclosing class and so
+        // would allocate the *base* through two levels of
+        // inheritance. `new self()`/`new parent()`/`new Foo()` all
+        // name a fixed class and keep the constant form.
+        let kind = if matches!(target, NewTarget::StaticTy) {
+            let desc = self.lsb();
+            InstKind::NewDynamic {
+                desc,
+                ctor: ctor_label,
+                args: arg_values,
+            }
+        } else {
+            InstKind::New {
+                class: target_label,
+                ctor: ctor_label,
+                args: arg_values,
+            }
+        };
+        self.emit_fallible(*cur, Ty::Object, kind, env)
+    }
+
+    /// `$obj->method(...)`/`$this->method(...)` — the receiver is
+    /// lowered like any other expression (for `$this`, that's just an
+    /// `Env` lookup, since `lower_method` already seeded it as the
+    /// implicit parameter 0); the resolved target itself still comes
+    /// from `self.exprs`, exactly like a static call/`new` below.
+    fn lower_method_call(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        args: &CallArgs,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
+            panic!(
+                "mwl-ir: an instance method call at {:?} has no resolved target \
+                 recorded in the typed-expression table — did this program pass \
+                 mwl_types::check_program with the same table?",
+                expr.span
+            );
+        };
+        // A member of a `Core`-owned class is native Rust behind a
+        // helper symbol, exactly as a static `Core` member is — the
+        // same `InstKind::CoreCall`, the same borrowed arguments, with
+        // the receiver in argument slot 0. Resolved through the
+        // identical `ResolvedCall` up to this point, which is why
+        // `mwl_types` seeds a signature table rather than special-
+        // casing `Core`; see `mwl_stdlib::registry::CoreTy::Instance`.
+        if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+            let sig = ArgSig::of_helper(call);
+            let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+            let checked_types = self.checked_types;
+            let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+            let LoweredArgs {
+                values,
+                mut temporaries,
+            } = self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
+            // The receiver is borrowed like every other argument to a
+            // `Core` member, so a *freshly built* one — a nested
+            // call's own result — has no other owner and this frame
+            // owes its release. A receiver read out of a local or a
+            // field is that binding's to release, not this call's.
+            if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+                temporaries.push(object_v);
+            }
+            let mut arg_values = Vec::with_capacity(values.len() + 1);
+            arg_values.push(object_v);
+            arg_values.extend(values);
+            let (v, ty) = self.emit_fallible(
+                *cur,
+                return_ty,
+                InstKind::CoreCall {
+                    symbol,
+                    args: arg_values,
+                },
+                env,
+            );
+            self.release_call_temporaries(temporaries, *cur);
+            return self.close_nullsafe(guard, v, ty, cur);
+        }
+        let target_label = format!("{}::{}", call.class, call.method);
+        let sig = ArgSig::of(call);
+        let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+        let checked_types = self.checked_types;
+        let is_static = call.is_static;
+        // `?->` guards everything below on the receiver not being
+        // `null`; `->` opens no guard and lowers exactly as before.
+        let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+        // A `static` method reached through an instance
+        // (`$obj->staticMethod()`, which PHP allows) takes no
+        // receiver: its parameter 0 is the *called* class, which here
+        // is the receiver's own — see `mwl_runtime::object`'s module
+        // docs. Nothing is retained for it; a descriptor is not
+        // refcounted.
+        let receiver_v = if is_static {
+            let (v, _) = self.emit(
+                *cur,
+                Ty::ClassDesc,
+                InstKind::ClassDescOf { object: object_v },
+            );
+            v
+        } else {
+            // The receiver is parameter 0, so it is an ordinary
+            // argument for ownership purposes: MWL's convention is
+            // that the caller retains an aliasing argument and the
+            // callee releases every refcounted parameter at scope exit
+            // (see `Self::release_all_locals`). `$this->m()` and
+            // `$obj->m()` both read an existing slot, so both need the
+            // retain `Self::lower_call_args` already inserts for one.
+            if receiver_ty.is_refcounted() && self.aliasing_read(object) {
+                self.emit_retain(*cur, object_v);
+            }
+            object_v
+        };
+        let arg_values = self
+            .lower_call_args(
+                args,
+                &sig,
+                checked_types,
+                ArgOwnership::Transferred,
+                env,
+                cur,
+            )
+            .values;
+        // Two shapes have no static answer, and both take the
+        // receiver's own class instead.
+        //
+        // A resolved declaration with **no body** names no compiled
+        // function at all — an `abstract` method, or the interface
+        // method an interface *default* body calls back into
+        // (`$this->name()` inside `Greets::greet`).
+        //
+        // A resolved declaration some subtype **overrides** names the
+        // wrong one: `$base->m()` on a value that is really a `Child`
+        // must run `Child::m`. `mwl_types` answers that whole-program
+        // question once (`ResolvedCall::overridden`), so the ordinary
+        // case — a method nothing overrides — still binds straight to
+        // a label and pays nothing. A `static` method reached through
+        // an instance is never virtual: PHP resolves it on the
+        // written class, and its slot 0 carries a descriptor rather
+        // than a receiver.
+        let late_bound = !call.has_body || (call.overridden && !is_static);
+        let kind = if late_bound {
+            let (lsb, _) = self.emit(
+                *cur,
+                Ty::ClassDesc,
+                InstKind::ClassDescOf { object: object_v },
+            );
+            InstKind::CallVirtual {
+                lsb,
+                method: call.method.clone(),
+                fallback: call.has_body.then_some(target_label),
+                receiver: if is_static { None } else { Some(receiver_v) },
+                args: arg_values,
+            }
+        } else {
+            InstKind::Call {
+                target: target_label,
+                receiver: Some(receiver_v),
+                args: arg_values,
+            }
+        };
+        let (v, ty) = self.emit_fallible(*cur, return_ty, kind, env);
+        self.close_nullsafe(guard, v, ty, cur)
+    }
+
+    /// `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
+    ///
+    /// Written like a static call, but *not* necessarily one: PHP's
+    /// `parent::constructor(...)` and `self::helper()` invoke an
+    /// instance method on the enclosing `$this` whenever the resolved
+    /// target is not declared `static`. So the receiver is decided by
+    /// `ResolvedCall::is_static` rather than by the `::` in the source
+    /// — passing `null` to a method that reads `$this` would be a
+    /// null-pointer write into a field slot, not a diagnostic.
+    ///
+    /// The `::`'s left-hand side decides the *called* class the callee
+    /// sees (`mwl_runtime::object`'s late-static-binding decision):
+    /// `Foo::m()` sets it to `Foo`, `self::`/`parent::` forward this
+    /// frame's, and `static::m()` additionally resolves the target
+    /// itself at run time through `InstKind::CallVirtual`.
+    fn lower_static_call(
+        &mut self,
+        class: &Expr,
+        args: &CallArgs,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
+            panic!(
+                "mwl-ir: a static call at {:?} has no resolved target recorded in the \
+                 typed-expression table — did this program pass \
+                 mwl_types::check_program with the same table?",
+                expr.span
+            );
+        };
+        // A Tier 0 `Core` member is native Rust behind a helper
+        // symbol, not a compiled MWL function, so it takes a
+        // different instruction and a different argument-ownership
+        // rule — see `InstKind::CoreCall`, which owns both. Resolved
+        // through the identical `ResolvedCall` up to this point,
+        // which is the whole reason `mwl_types` seeds a signature
+        // table rather than special-casing `Core` at each call site.
+        if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+            let sig = ArgSig::of_helper(call);
+            let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+            let checked_types = self.checked_types;
+            // A member on `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS`
+            // is handed the class its call site wrote, as argument 0 —
+            // that roster owns the ABI. A descriptor is not
+            // refcounted, so it is neither retained nor released here.
+            let written_class =
+                mwl_types::core_takes_written_class(&call.class.to_string(), &call.method).then(
+                    || {
+                        let label = call.written_class.as_ref().unwrap_or_else(|| {
+                            panic!(
+                                "mwl-ir: `{}::{}` needs the class written at its call site, \
+                         and mwl_types recorded none — did this program pass \
+                         mwl_types::check_program with the same table?",
+                                call.class, call.method
+                            )
+                        });
+                        let (v, _) = self.emit(
+                            *cur,
+                            Ty::ClassDesc,
+                            InstKind::ClassDescConst {
+                                class: label.to_string(),
+                            },
+                        );
+                        v
+                    },
+                );
+            let lowered =
+                self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
+            let arg_values = written_class
+                .into_iter()
+                .chain(lowered.values)
+                .collect::<Vec<_>>();
+            let result = self.emit_fallible(
+                *cur,
+                return_ty,
+                InstKind::CoreCall {
+                    symbol,
+                    args: arg_values,
+                },
+                env,
+            );
+            // A `Core` member borrows, so a freshly built argument —
+            // an `fn` literal, a nested `Core` call's own result — has
+            // no other owner and would leak without this.
+            self.release_call_temporaries(lowered.temporaries, *cur);
+            return result;
+        }
+        let target_label = format!("{}::{}", call.class, call.method);
+        let method = call.method.clone();
+        let sig = ArgSig::of(call);
+        let is_static = call.is_static;
+        let has_body = call.has_body;
+        let named_class = call.static_class.as_ref().map(ToString::to_string);
+        let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+        let checked_types = self.checked_types;
+        // `static::m()` never has a compile-time target; a resolved
+        // declaration with no body has none either, for a different
+        // reason — see `InstKind::CallVirtual::fallback`.
+        let late_bound = matches!(class.kind, ExprKind::StaticExpr) || !has_body;
+        let receiver = if is_static {
+            // A static callee has no `$this`, so its receiver slot
+            // carries the *called* class instead — an explicitly named
+            // one sets it, `self::`/`parent::`/`static::` forward this
+            // frame's. See `mwl_runtime::object`'s module docs.
+            Some(match &named_class {
+                Some(label) => {
+                    let (v, _) = self.emit(
+                        *cur,
+                        Ty::ClassDesc,
+                        InstKind::ClassDescConst {
+                            class: label.clone(),
+                        },
+                    );
+                    v
+                }
+                None => self.lsb(),
+            })
+        } else {
+            // The enclosing frame's own `$this`, retained the same way
+            // an explicit `$obj->m()` receiver is — the callee will
+            // release it. A file-scope frame has none, which the
+            // checker has already refused for a non-static target.
+            let &(this_v, this_ty) = env.get("this").unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: `{target_label}` is not static but is reached from a frame \
+                     with no `$this` — mwl_types is expected to have refused that"
+                )
+            });
+            if this_ty.is_refcounted() {
+                self.emit_retain(*cur, this_v);
+            }
+            Some(this_v)
+        };
+        let arg_values = self
+            .lower_call_args(
+                args,
+                &sig,
+                checked_types,
+                ArgOwnership::Transferred,
+                env,
+                cur,
+            )
+            .values;
+        let kind = if late_bound {
+            // `static::m()` — the target is whichever class this frame
+            // was *called* on, which is only known at run time.
+            let lsb = self.lsb();
+            InstKind::CallVirtual {
+                lsb,
+                method,
+                fallback: has_body.then_some(target_label),
+                // A static target's slot 0 already holds `lsb`, so the
+                // dispatch value and the receiver are the same value;
+                // saying it once keeps `emit_invoke`'s slot rule
+                // identical to `InstKind::Call`'s.
+                receiver: if is_static { None } else { receiver },
+                args: arg_values,
+            }
+        } else {
+            InstKind::Call {
+                target: target_label,
+                receiver,
+                args: arg_values,
+            }
+        };
+        self.emit_fallible(*cur, return_ty, kind, env)
+    }
+
+    /// `$obj->prop` — the receiver's declaring class comes from
+    /// `self.exprs`, exactly like a call's resolved target; a shape or
+    /// plain-`object` receiver (ADR 0036 § 4) has no such entry at
+    /// all, so this panics naming that case rather than lowering it —
+    /// see the crate docs' known gaps for why (the checker itself
+    /// defers the runtime-checked fallback to M4, with no IR/codegen
+    /// yet to throw from).
+    fn lower_property_access(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        // ADR 0014 § 1: a read of a property that declares a `get`
+        // hook is a call to that hook's compiled function, with the
+        // receiver in the ordinary parameter-0 slot — see
+        // `lower_property_hook`. A property with only a `set` hook
+        // still reads its own slot, since MWL's hooked properties are
+        // always backed (`mwl_types::signatures::PropertyHooks` owns
+        // that decision), so both shapes recover the same three
+        // fields and only the `get` label decides between them.
+        let (class, name, ty, get) = match self.exprs.lookup(expr.span) {
+            Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
+            Some(ExprInfo::HookedProperty {
+                class,
+                name,
+                ty,
+                get,
+                ..
+            }) => (class, name, *ty, get.clone()),
+            _ => panic!(
+                "mwl-ir: a property access at {:?} has no resolved declaring class \
+                 recorded in the typed-expression table — either it wasn't checked with \
+                 the same table, or its receiver erased to a shape/plain `object` (ADR \
+                 0036 § 4), which this crate does not yet lower (see the crate docs' \
+                 known gaps)",
+                expr.span
+            ),
+        };
+        let field_ty = lower_checked_ty(ty, self.checked_types);
+        let class_label = class.to_string();
+        let field_name = name.clone();
+        // See the `MethodCall` arm above: `?->` guards the access on
+        // the receiver not being `null`, `->` opens no guard.
+        let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+        let (v, ty) = match get {
+            Some(label) => {
+                // The receiver is parameter 0, so it is an ordinary
+                // argument for ownership purposes — the same retain
+                // an explicit `$obj->m()` inserts, for the same reason
+                // (the callee releases every refcounted parameter at
+                // scope exit).
+                if receiver_ty.is_refcounted() && self.aliasing_read(object) {
+                    self.emit_retain(*cur, object_v);
+                }
+                self.emit_fallible(
+                    *cur,
+                    field_ty,
+                    InstKind::Call {
+                        target: label,
+                        receiver: Some(object_v),
+                        args: Vec::new(),
+                    },
+                    env,
+                )
+            }
+            None => self.emit(
+                *cur,
+                field_ty,
+                InstKind::FieldGet {
+                    object: object_v,
+                    class: class_label,
+                    field: field_name,
+                },
+            ),
+        };
+        self.close_nullsafe(guard, v, ty, cur)
+    }
+
+    /// `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
+    /// doc comment for the full policy this mirrors and its known
+    /// gaps. `...spread` and `&value` elements are still unsupported
+    /// — each panics naming itself rather than guessing at a merge/
+    /// reference representation this crate doesn't have yet. A
+    /// *purely positional* literal (no element has an explicit
+    /// `key =>`) keeps the original single-`ArrayNew` shape: each
+    /// element's key is simply its index, auto-numbered from `0`
+    /// exactly like PHP's own `[$a, $b]` shorthand, computed at
+    /// lowering time with no runtime key instruction at all. A
+    /// literal with at least one explicit `key =>` element instead
+    /// builds an empty array first and appends one `ArraySet` per
+    /// element in source order — seeing `crate::ir::InstKind::ArrayNew`'s
+    /// own doc comment for why that's the only shape general enough
+    /// to give an explicit key's (possibly runtime-computed) value a
+    /// place to live, and the one PHP behavior it deliberately doesn't
+    /// reproduce (a positional element's key numbering ignores any
+    /// explicit `int`/`uint` key elsewhere in the same literal, rather
+    /// than PHP's real "continues from the highest int key used so
+    /// far"). Each value that's itself `Ty::is_refcounted` and
+    /// `is_aliasing_read` is retained before the array durably owns
+    /// it, the same policy `Self::lower_call_args` already applies at
+    /// a call-argument boundary; an explicit key gets the identical
+    /// treatment via `Self::lower_array_key`'s own aliasing flag. The
+    /// array literal's own result needs no retain — a fresh producer,
+    /// same as `new`/a call's result.
+    fn lower_array_literal(
+        &mut self,
+        items: &[ArrayItem],
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        assert!(
+            items.iter().all(|item| !item.spread && !item.by_ref),
+            "mwl-ir does not yet lower a `...spread` or `&value` array-literal element \
+             — see the crate docs' known gaps"
+        );
+        if items.iter().all(|item| item.key.is_none()) {
+            let mut entries = Vec::with_capacity(items.len());
+            for (i, item) in items.iter().enumerate() {
+                let (v, ty) = self.lower_expr(&item.value, None, env, cur);
+                if ty.is_refcounted() && self.aliasing_read(&item.value) {
+                    self.emit_retain(*cur, v);
+                }
+                entries.push((i.to_string(), v));
+            }
+            self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries })
+        } else {
+            let array = self.emit(
+                *cur,
+                Ty::Array,
+                InstKind::ArrayNew {
+                    entries: Vec::new(),
+                },
+            );
+            let mut next_index = 0usize;
+            // Each write yields the array the next one writes into —
+            // the same pointer every time here, since a literal under
+            // construction is solely owned, but threaded rather than
+            // assumed so the one protocol has no exception.
+            let mut array_v = array.0;
+            for item in items {
+                let (key_v, key_aliasing) = match &item.key {
+                    Some(key) => self.lower_array_key(key, env, cur),
+                    None => {
+                        let key_str = next_index.to_string();
+                        next_index += 1;
+                        let (kv, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(key_str));
+                        (kv, false)
+                    }
+                };
+                if key_aliasing {
+                    self.emit_retain(*cur, key_v);
+                }
+                let (v, ty) = self.lower_expr(&item.value, None, env, cur);
+                if ty.is_refcounted() && self.aliasing_read(&item.value) {
+                    self.emit_retain(*cur, v);
+                }
+                array_v = self.emit_array_set(*cur, array_v, key_v, v);
+            }
+            (array_v, Ty::Array)
+        }
+    }
+
+    /// `$arr[$i]` — the element's declared type comes from
+    /// `self.exprs`, exactly like a property access's declaring
+    /// class: a base that erased to `mixed` (ADR 0007 § 5's own
+    /// "nothing compile-time-known to read" case for an unresolved
+    /// array) has no `ExprInfo::Index` entry at all, so this panics
+    /// naming that case rather than lowering it. `base[]` (`index`
+    /// is `None`) has no meaning as a read at all — it is PHP's
+    /// append syntax, assignment-target-only — so it panics too.
+    fn lower_index(
+        &mut self,
+        base: &Expr,
+        index: Option<&Expr>,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(index) = index else {
+            panic!(
+                "mwl-ir does not lower `$a[]` as a read expression — append syntax \
+                 (`index` is `None`) is assignment-target-only; see the crate docs' \
+                 known gaps"
+            );
+        };
+        let Some(ExprInfo::Index { elem_ty }) = self.exprs.lookup(expr.span) else {
+            panic!(
+                "mwl-ir: an array-index read at {:?} has no resolved element type \
+                 recorded in the typed-expression table — either it wasn't checked with \
+                 the same table, or its base erased to `mixed` (an unresolved array), \
+                 which this crate does not yet lower (see the crate docs' known gaps)",
+                expr.span
+            );
+        };
+        let result_ty = lower_checked_ty(*elem_ty, self.checked_types);
+        let (array_v, _) = self.lower_expr(base, None, env, cur);
+        let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
+        let result = self.emit(
+            *cur,
+            result_ty,
+            InstKind::ArrayGet {
+                array: array_v,
+                key: key_v,
+            },
+        );
+        if !key_aliasing {
+            self.emit_release(*cur, key_v);
+        }
+        result
+    }
+
+    /// `$x instanceof Name` — the tested class comes from
+    /// `self.exprs`, exactly like a property access's declaring class,
+    /// because resolving a bare `Animal` to `Ns\Animal` needs the
+    /// namespace/import context this crate cannot see. The dynamic
+    /// form (`$x instanceof $name`) records nothing and is refused.
+    fn lower_instanceof(
+        &mut self,
+        inner: &Expr,
+        expr: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
+            panic!(
+                "mwl-ir: an `instanceof` at {:?} has no resolved class recorded in the \
+                 typed-expression table — either it wasn't checked with the same table, \
+                 or its right-hand side is the dynamic `$x instanceof $name` form, which \
+                 this crate does not lower (see the crate docs' known gaps)",
+                expr.span
+            );
+        };
+        let class_label = class.to_string();
+        let (value, ty) = self.lower_expr(inner, None, env, cur);
+        assert!(
+            matches!(ty, Ty::Object),
+            "mwl-ir lowers `instanceof` only against an object receiver — got \
+             representation {ty:?}"
+        );
+        self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::InstanceOf {
+                value,
+                class: class_label,
+            },
+        )
+    }
+
+    /// ADR 0023 § 1: PHP's shallow, same-heap, single-level copy, with
+    /// no `__clone` hook to run — so the whole operation is one
+    /// instruction, and the result is a fresh object with exactly one
+    /// owner, the same as `new`.
+    fn lower_clone_expr(&mut self, inner: &Expr, env: &Env, cur: &mut BlockId) -> (ValueId, Ty) {
+        let (v, ty) = self.lower_expr(inner, None, env, cur);
+        assert!(
+            matches!(ty, Ty::Object),
+            "mwl-ir lowers `clone` only for an object — got representation {ty:?}. ADR \
+             0023 § 1 scopes `clone` to an object; an array is already a copy-on-write \
+             value, and a scalar has nothing to copy"
+        );
+        let result = self.emit(*cur, Ty::Object, InstKind::Clone { object: v });
+        // The operand is only *read* — see `InstKind::Clone`. A fresh
+        // one nothing else owns is released right after, the same
+        // "release a fresh value once its one and only use is done"
+        // rule `Self::concat_operand`'s caller applies.
+        if !self.aliasing_read(inner) {
+            self.emit_release(*cur, v);
+        }
+        result
+    }
+
+    /// ADR 0007 § 2's `as` — the one conversion spelling. The target
+    /// type is resolved by `lower_decl_type`, which reads the checker's
+    /// own answer for the annotation, so an enum target/source is
+    /// already the right representation by the time `convert` sees it.
+    fn lower_conversion(
+        &mut self,
+        inner: &Expr,
+        ty: &Type,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        // ADR 0066's `as ?T` is read off the *annotation*, before
+        // `lower_decl_type` erases it: `?string` and `?int` are both
+        // `Ty::Tagged`, so a conversion between them would look like
+        // `from == to` — the one shape `Self::convert` answers by
+        // doing nothing at all.
+        match nullable_target(ty) {
+            Some(target) => {
+                // No placement here, unlike the arm below: placing a
+                // literal at the target would make `3 as ?uint` the
+                // `from == to` shape ADR 0066 § 3 calls a compile
+                // error, which `mwl_types` does not refuse yet, so it
+                // would panic where it now converts.
+                let (v, from) = self.lower_expr(inner, None, env, cur);
+                let to = lower_decl_type(target, self.exprs, self.checked_types);
+                self.convert_or_null(v, from, to, inner, *cur)
+            }
+            None => {
+                let to = lower_decl_type(ty, self.exprs, self.checked_types);
+                // ADR 0054 § 2: `expr as T` is itself a *placing*
+                // position, so a numeric literal written directly
+                // under one takes `T` as its target rather than being
+                // typed first and converted afterwards. Mirrors
+                // `mwl_types::expr::check_expr`'s own `Conversion`
+                // arm, operand shape included — without it
+                // `19.99 as decimal` would round-trip through an
+                // `f64` and lose everything past ~17 digits.
+                let placed =
+                    matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)).then_some(to);
+                let (v, from) = self.lower_expr(inner, placed, env, cur);
+                self.convert(v, from, to, inner, env, *cur)
+            }
         }
     }
 }

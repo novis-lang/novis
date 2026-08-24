@@ -221,7 +221,7 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// accessor the same way PHP's does — for `get` the expression is the value
 /// returned, for `set` it is the value stored — so only `get` checks it
 /// against the property's type here; `set`'s is checked at the assignment
-/// [`crate::expr::check_assign`] already performs for the desugared store.
+/// [`crate::expr::assign::check_assign`] already performs for the desugared store.
 ///
 /// [`Ctx::current_hook`] is what stops `$this->p` inside `$p`'s own hooks
 /// from resolving to a re-entrant call to the very accessor being checked.

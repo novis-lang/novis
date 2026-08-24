@@ -192,7 +192,7 @@ pub enum ExprInfo {
     /// resolved to a known declaring class — never recorded for a shape or
     /// plain-`object` receiver, since ADR 0036 § 4 erases either to `mixed`
     /// with no declaring class to name at all (see
-    /// [`crate::expr::check_property_access`]'s own docs for that erasure).
+    /// [`crate::expr::members::check_property_access`]'s own docs for that erasure).
     /// A consumer with no entry for a `PropertyAccess` span must treat it the
     /// same way the checker did: nothing compile-time-known to read.
     Property {
@@ -800,7 +800,7 @@ mod tests {
 
     /// A plain `object`-typed receiver erases per ADR 0036 § 4 — there is no
     /// declaring class to record, mirroring
-    /// `crate::expr::check_property_access`'s own "nothing diagnosed, nothing
+    /// `crate::expr::members::check_property_access`'s own "nothing diagnosed, nothing
     /// resolved" treatment of that shape.
     #[test]
     fn a_property_access_through_a_plain_object_receiver_records_nothing() {

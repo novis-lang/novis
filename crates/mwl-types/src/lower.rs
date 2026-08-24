@@ -2,7 +2,7 @@
 //! grammar, made concrete).
 //!
 //! A `self`/`static` atom resolves against [`Ctx::current_class`]; `parent`
-//! resolves the same way `crate::expr::resolve_class_expr`'s `ParentExpr` arm
+//! resolves the same way `crate::expr::members::resolve_class_expr`'s `ParentExpr` arm
 //! and `check_new_target`'s `NewTarget::ParentTy` arm do — [`Ctx::current_class`]'s
 //! first `extends` link via [`Env::graph`] — except a `parent` that can't
 //! resolve (no enclosing class, or a class with no `extends`) is a
@@ -201,7 +201,7 @@ fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) 
 }
 
 /// Resolves the `parent` type atom against [`Ctx::current_class`]'s first
-/// `extends` link — the same hop `crate::expr::resolve_class_expr` uses for
+/// `extends` link — the same hop `crate::expr::members::resolve_class_expr` uses for
 /// `parent::` on the expression side, and `check_new_target`'s
 /// `NewTarget::ParentTy` arm uses for `new parent(...)`. Unlike those two,
 /// which fall back to `mixed` with no diagnostic for a `parent` that can't
