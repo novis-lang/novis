@@ -22,7 +22,8 @@
 > local `php-src` checkout and a 5-minute WSL `cargo fuzz run lex`/`parse` both find zero panics).
 > **M1 was re-opened for four grammar additions**, each accepted after it was reported done and each
 > blocking its ADR's already-scheduled M2 slice; **`decimal` (0054) is built, grammar and checker rows
-> alike**, and three remain — literal/enum-case type atoms (0047), `autoload` (0061) and the duration
+> alike, and 0047's literal/enum-case type atoms are built as grammar** — their checker rows are still
+> owed, and the atoms are refused by name until then. Two remain: `autoload` (0061) and the duration
 > literal (0070). M1's own section lists them.
 >
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
@@ -44,8 +45,8 @@
 > **Open now:** Stage 3 — the rest of `Core` §§ 1–12 as registry rows. An options bag, a union parameter,
 > a callback-bound result type, a `Core`-owned enum and an absent option all work end to end.
 > `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 § 2 granularity. Then
-> `crates/mwl-test`/`mwl test`. Ahead of that, three re-opened M1 grammar slices (literal type
-> atoms, `autoload`, the duration literal) — see M1. In docs, one thing remains:
+> `crates/mwl-test`/`mwl test`. Ahead of that, two re-opened M1 grammar slices (`autoload`, the duration
+> literal) — see M1 — plus ADR 0047's now-unblocked M2 checker row. In docs, one thing remains:
 > `docs/spec/02-php-migration.md` is 31% classified (strings, arrays, numbers, conversions), the rest one
 > pass per PHP domain, reported by `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's
 > `by`-delegation.
@@ -444,16 +445,19 @@ TraitName`/`insteadof` grammar that is now a parse-time `E_TRAIT_NOT_SUPPORTED`
 
 **Still owed — four ADRs accepted after this milestone was reported done add grammar it owns.** Each is
 parser-and-lexer work that M2's checker slice is already scheduled against, so each blocks its ADR rather
-than being optional. Item 1 is built; items 2-4 are not:
+than being optional. Items 1-2 are built; items 3-4 are not:
 
 1. **`decimal`** ([ADR 0054](adr/0054-decimal-scalar-type.md)) — **built**, and its M2 checker rows with
    it: the reserved keyword, the type atom, § 2's untyped-until-placed literal (including `as T` as a
    placing position), § 1's mantissa and scale bounds, and § 3's arithmetic table. A trailing `m` is a
    stray identifier the parser refuses, not a suffix. The runtime half is `mwl-ir`'s known gap 15.
-2. **Literal and enum-case type atoms** ([ADR 0047](adr/0047-literal-and-enum-case-types.md)) — a
-   `StringLiteral`/`IntLiteral` atom, unions of them, `?"a"` sugar, and a class-constant or enum-case
-   reference in type position, which needs no production beyond the `ClassName`/`EnumName` ambiguity
-   ADR 0010 § 4 already established.
+2. **Literal and enum-case type atoms** ([ADR 0047](adr/0047-literal-and-enum-case-types.md)) —
+   **built**, grammar only: a `StringLiteral`/`IntLiteral` atom, unions of them, `?"a"` sugar, and a
+   class-constant or enum-case reference in type position, which needed no production beyond the
+   `ClassName`/`EnumName` ambiguity ADR 0010 § 4 already established. That ADR's M2 row — § 4's
+   assignability and conversion table — is **not** built, and the checker refuses all three atoms by name
+   until it is; that ADR's *Verification* section owns why, and names the one step the table's own wording
+   understates.
 3. **`autoload`** ([ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md)) — the two
    file-scope declaration forms whose grammar
    [`docs/spec/00-overview.md`](spec/00-overview.md) § 2 already fixes. M2's name-to-file fixpoint has

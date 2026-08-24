@@ -455,7 +455,17 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// decide, without committing, whether a mandatory type was actually
     /// omitted (e.g. a parameter written without one).
     fn can_start_type(&mut self) -> bool {
-        Self::token_starts_type(self.peek().kind)
+        Self::token_starts_type(self.peek().kind) || self.at_negative_int_literal()
+    }
+
+    /// `-1` — ADR 0047 § 1's one type atom that needs two tokens to
+    /// recognise, which is why it is asked here rather than in
+    /// [`Self::token_starts_type`]. A bare `-` never starts a type on its
+    /// own: routing every statement-initial `-$x;` through
+    /// [`Self::parse_stmt_maybe_local_decl`]'s trial parse would cost a
+    /// backtrack on an extremely common shape for nothing.
+    fn at_negative_int_literal(&mut self) -> bool {
+        self.at(TokenKind::Minus) && matches!(self.peek_at(1).kind, TokenKind::IntLiteral)
     }
 
     /// The token-kind half of [`Self::can_start_type`], factored out so a
@@ -493,6 +503,17 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | TokenKind::Question
                 | TokenKind::LParen
                 | TokenKind::LBrace
+                // ADR 0047 § 1's two literal atoms. A statement that merely
+                // *starts* with one (`1 + 2;`, `"x" . $y;`) is no longer a
+                // free ride to the expression path, but it still gets there:
+                // `parse_stmt_maybe_local_decl` trial-parses the type and
+                // backtracks the moment no `$name` follows.
+                | TokenKind::IntLiteral
+                | TokenKind::SingleQuotedString
+                | TokenKind::DoubleQuoteOpen
+                // Not a type — but ADR 0047 § 7's diagnostic is worth more
+                // than the "expected a type" this would otherwise get.
+                | TokenKind::FloatLiteral
         )
     }
 
@@ -777,11 +798,62 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Ident | TokenKind::Backslash => {
                 let name = self.parse_name();
+                // ADR 0047 §§ 2-3: `Foo::BAR` in type position. Which of the
+                // two meanings it has depends on what `Foo` resolves to, so
+                // the parser records the pair and stops there — exactly what
+                // it already does for a bare name. A type-argument list is
+                // not offered after `::`: neither a class constant nor an
+                // enum case is generic.
+                if self.at(TokenKind::DoubleColon) && Self::is_name_segment(self.peek_at(1).kind) {
+                    self.bump();
+                    let member = self.bump().span;
+                    let span = name.span.to(member);
+                    return Type {
+                        kind: TypeKind::Atom(TypeAtom::Member(name, member)),
+                        span,
+                    };
+                }
                 let (args, span) = self.parse_type_args(name.span);
                 Type {
                     kind: TypeKind::Atom(TypeAtom::Name(name, args)),
                     span,
                 }
+            }
+            // ADR 0047 § 1's literal atoms, the generalisation of the `true`
+            // and `false` atoms just above from `bool`'s two values to every
+            // `string` and `int`.
+            TokenKind::SingleQuotedString => {
+                self.bump();
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::StringLiteral(start)),
+                    span: start,
+                }
+            }
+            TokenKind::DoubleQuoteOpen => self.parse_string_literal_type(),
+            TokenKind::IntLiteral => {
+                self.bump();
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::IntLiteral(start)),
+                    span: start,
+                }
+            }
+            TokenKind::Minus if self.at_negative_int_literal() => {
+                self.bump();
+                let lit = self.bump().span;
+                let span = start.to(lit);
+                Type {
+                    kind: TypeKind::Atom(TypeAtom::IntLiteral(span)),
+                    span,
+                }
+            }
+            TokenKind::FloatLiteral => {
+                self.bump();
+                self.reject_float_literal_type(start)
+            }
+            TokenKind::Minus if matches!(self.peek_at(1).kind, TokenKind::FloatLiteral) => {
+                self.bump();
+                let lit = self.bump().span;
+                self.reject_float_literal_type(start.to(lit))
             }
             _ => {
                 let span = self.error_expected("a type");
@@ -790,6 +862,57 @@ impl<'src, 'd> Parser<'src, 'd> {
                     span,
                 }
             }
+        }
+    }
+
+    /// A double-quoted `"a"` in type position — ADR 0047 § 1's string literal
+    /// atom, spelled the way the ADR spells it. The body is read with the
+    /// ordinary [`Self::parse_string_body`] so escapes lex identically to a
+    /// value position's, and an interpolated one is refused: a type has no
+    /// scope to interpolate a variable from. The refused case still yields
+    /// the atom, so the rest of the declaration parses on.
+    fn parse_string_literal_type(&mut self) -> Type {
+        let open = self.bump().span; // DoubleQuoteOpen
+        let (parts, close) = self.parse_string_body(TokenKind::DoubleQuoteClose);
+        let span = open.to(close);
+        if !parts.iter().all(|p| matches!(p, StringPart::Text(_))) {
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_INTERPOLATION_IN_TYPE,
+                    "a string literal type cannot interpolate",
+                )
+                .with_primary(span, "this type names one exact string")
+                .with_help(
+                    "write the string out — a type is resolved at compile time, so there is \
+                     nothing to interpolate from (ADR 0047 § 1)",
+                ),
+            );
+        }
+        Type {
+            kind: TypeKind::Atom(TypeAtom::StringLiteral(span)),
+            span,
+        }
+    }
+
+    /// ADR 0047 § 7: there is no `float` literal type, deferred until
+    /// floating-point equality has a real answer. Diagnosed by name rather
+    /// than left to `error_expected("a type")`, since the reason a reader
+    /// needs is "not this type, on purpose" and not "unparseable here".
+    fn reject_float_literal_type(&mut self, span: Span) -> Type {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_FLOAT_LITERAL_TYPE,
+                "a `float` literal is not a type",
+            )
+            .with_primary(span, "only `string` and `int` literals name a type")
+            .with_help(
+                "use `float` and guard the value, or name the accepted set with `int` \
+                 literals (ADR 0047 § 7)",
+            ),
+        );
+        Type {
+            kind: TypeKind::Atom(TypeAtom::Float),
+            span,
         }
     }
 
@@ -5031,6 +5154,175 @@ mod tests {
         assert!(decl.implements[1].type_args.is_empty());
         assert!(decl.implements[1].by_field.is_some());
         assert!(decl.implements[2].type_args.is_empty());
+    }
+
+    // --- ADR 0047: literal and enum-case type atoms -------------------------
+
+    /// Parses `<ty>` in the one type position an expression test can reach —
+    /// a conversion's target — and returns it with the source text its span
+    /// covers, since half of what these atoms have to get right is *how much*
+    /// they span (a `-`, a pair of quotes, a `::`).
+    fn conversion_type(ty_src: &str) -> (Type, String) {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", format!("<?mwl $m as {ty_src}"));
+        let mut diags = Diagnostics::new();
+        let mut p = Parser::new(map.file(id), &mut diags);
+        p.bump(); // OpenTagMwl
+        let e = p.parse_expr();
+        assert!(
+            !diags.has_errors(),
+            "unexpected diagnostics for {ty_src:?}: {diags:?}"
+        );
+        let ExprKind::Conversion { ty, .. } = e.kind else {
+            panic!("expected a conversion: {e:?}");
+        };
+        let written = text(&map, id, ty.span).to_owned();
+        (ty, written)
+    }
+
+    /// Whether parsing `<ty>` in type position reported `want`.
+    fn conversion_type_reports(ty_src: &str, want: mwl_diagnostics::Code) -> bool {
+        let mut map = SourceMap::new();
+        let id = map.add("t.mwl", format!("<?mwl $m as {ty_src}"));
+        let mut diags = Diagnostics::new();
+        let mut p = Parser::new(map.file(id), &mut diags);
+        p.bump(); // OpenTagMwl
+        let _ = p.parse_expr();
+        diags.iter().any(|d| d.code == Some(want))
+    }
+
+    #[test]
+    fn a_string_literal_is_a_type_atom() {
+        for src in [r#""a""#, "'a'"] {
+            let (ty, written) = conversion_type(src);
+            assert!(
+                matches!(ty.kind, TypeKind::Atom(TypeAtom::StringLiteral(_))),
+                "expected a string literal type for {src}: {ty:?}"
+            );
+            assert_eq!(written, src, "the span covers the quotes");
+        }
+    }
+
+    #[test]
+    fn an_int_literal_is_a_type_atom_with_or_without_a_sign() {
+        for src in ["1", "-1"] {
+            let (ty, written) = conversion_type(src);
+            assert!(
+                matches!(ty.kind, TypeKind::Atom(TypeAtom::IntLiteral(_))),
+                "expected an int literal type for {src}: {ty:?}"
+            );
+            assert_eq!(written, src, "the span covers a leading `-`");
+        }
+    }
+
+    #[test]
+    fn literal_atoms_union_and_take_the_nullable_sugar() {
+        let (ty, _) = conversion_type(r#""a"|"b"|"c""#);
+        let TypeKind::Union(members) = ty.kind else {
+            panic!("expected a union: {ty:?}");
+        };
+        assert_eq!(members.len(), 3);
+        assert!(
+            members
+                .iter()
+                .all(|m| matches!(m.kind, TypeKind::Atom(TypeAtom::StringLiteral(_))))
+        );
+
+        // `?"a"` is the same `?atom` production every other atom already has.
+        let (ty, _) = conversion_type(r#"?"a""#);
+        let TypeKind::Nullable(inner) = ty.kind else {
+            panic!("expected `?T`: {ty:?}");
+        };
+        assert!(matches!(
+            inner.kind,
+            TypeKind::Atom(TypeAtom::StringLiteral(_))
+        ));
+
+        // A heterogeneous union is not this ADR's business to restrict.
+        let (ty, _) = conversion_type("1|2|int");
+        let TypeKind::Union(members) = ty.kind else {
+            panic!("expected a union: {ty:?}");
+        };
+        assert_eq!(members.len(), 3);
+        assert!(matches!(members[2].kind, TypeKind::Atom(TypeAtom::Int)));
+    }
+
+    #[test]
+    fn a_class_constant_or_enum_case_parses_in_type_position() {
+        let (ty, written) = conversion_type("Foo::TYPE_A");
+        assert!(
+            matches!(ty.kind, TypeKind::Atom(TypeAtom::Member(..))),
+            "expected a member atom: {ty:?}"
+        );
+        assert_eq!(written, "Foo::TYPE_A");
+
+        // A namespace-qualified owner, and a union of two — the shape
+        // ADR 0047 §§ 2-3 are both written in.
+        let (ty, _) = conversion_type("App\\Mode::Read|App\\Mode::Write");
+        let TypeKind::Union(members) = ty.kind else {
+            panic!("expected a union: {ty:?}");
+        };
+        assert!(
+            members
+                .iter()
+                .all(|m| matches!(m.kind, TypeKind::Atom(TypeAtom::Member(..))))
+        );
+    }
+
+    #[test]
+    fn a_float_literal_is_refused_in_type_position() {
+        for src in ["1.5", "-1.5"] {
+            assert!(
+                conversion_type_reports(src, code::E_FLOAT_LITERAL_TYPE),
+                "expected E_FLOAT_LITERAL_TYPE for {src}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_interpolated_string_is_refused_in_type_position() {
+        assert!(
+            conversion_type_reports(r#""a$b""#, code::E_INTERPOLATION_IN_TYPE),
+            "expected E_INTERPOLATION_IN_TYPE"
+        );
+    }
+
+    /// The statement-position half: a literal type declares a local exactly
+    /// as any other type does, and a statement that merely *starts* with a
+    /// literal still reaches the expression path through
+    /// `parse_stmt_maybe_local_decl`'s backtrack.
+    #[test]
+    fn a_literal_type_declares_a_local_without_swallowing_literal_expressions() {
+        let s = parse_stmt_ok(r#""a"|"b" $mode = "a";"#);
+        let StmtKind::LocalDecl { ty: Some(ty), .. } = s.kind else {
+            panic!("expected a typed local: {s:?}");
+        };
+        assert!(matches!(ty.kind, TypeKind::Union(_)));
+
+        for src in ["1 + 2;", r#""x" . $y;"#, "1.5 * $x;", "-1 + $x;"] {
+            let s = parse_stmt_ok(src);
+            assert!(
+                matches!(s.kind, StmtKind::Expr(_)),
+                "expected an expression statement for {src}: {s:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_literal_type_declares_a_parameter() {
+        let stmts = parse_file_ok(
+            "<?mwl\nclass C { public function setMode(\"a\"|\"b\"|\"c\" $mode): void {} }\n",
+        );
+        let StmtKind::ClassDecl(decl) = &stmts[0].kind else {
+            panic!("expected a class: {stmts:?}");
+        };
+        let ClassMemberKind::Method(m) = &decl.members[0].kind else {
+            panic!("expected a method: {decl:?}");
+        };
+        assert!(matches!(
+            m.params[0].ty.as_ref().unwrap().kind,
+            TypeKind::Union(_)
+        ));
     }
 
     #[test]

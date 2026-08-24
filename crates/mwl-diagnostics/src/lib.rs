@@ -140,6 +140,14 @@ pub mod code {
     /// `{[$expr]: value}` — an object literal has no computed/dynamic key;
     /// every field name is a static identifier. See ADR 0036 § 2.
     pub const E_OBJECT_LITERAL_COMPUTED_KEY: Code = Code::new("E0119");
+    /// A `float` literal in type position — ADR 0047 § 7 defers float literal
+    /// types until floating-point equality has a real answer, so `0.1` names
+    /// no type the way `1` and `"a"` now do.
+    pub const E_FLOAT_LITERAL_TYPE: Code = Code::new("E0120");
+    /// An interpolated string in type position — `"a"` is ADR 0047 § 1's
+    /// singleton type, and a type has no scope to interpolate a variable
+    /// from.
+    pub const E_INTERPOLATION_IN_TYPE: Code = Code::new("E0121");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
@@ -566,6 +574,14 @@ pub mod code {
     /// whose scale exceeds 28 — ADR 0054 § 1's layout. `Core\BigDecimal` (§ 6)
     /// is the type for a value beyond it.
     pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
+    /// A literal or enum-case type ([ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md))
+    /// reaching the checker. The grammar is M1's; § 4's assignability and
+    /// conversion table is M2's, and until that lands the honest answer is to
+    /// refuse the type rather than widen it to its base silently — an
+    /// unchecked `"a"|"b"` would accept every `string`, which is the whole
+    /// hole this ADR exists to close. Removing this arm is that ADR's own
+    /// M2 verification row.
+    pub const E_LITERAL_TYPE_UNCHECKED: Code = Code::new("E0457");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

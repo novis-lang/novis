@@ -143,8 +143,33 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
         TypeAtom::Parent => resolve_parent(span, ctx, env),
         TypeAtom::Name(name, args) => resolve_name_type(name, args, span, depth, ctx, env),
+        TypeAtom::StringLiteral(_) | TypeAtom::IntLiteral(_) | TypeAtom::Member(..) => {
+            reject_unchecked_literal_type(atom, span, env)
+        }
         _ => env.interner.mixed(),
     }
+}
+
+/// ADR 0047's three atoms parse (M1) and are not yet checked (M2) — see
+/// [`code::E_LITERAL_TYPE_UNCHECKED`], which owns why refusing is the only
+/// honest answer in between.
+fn reject_unchecked_literal_type(atom: &TypeAtom, span: Span, env: &mut Env<'_>) -> TypeId {
+    let what = match atom {
+        TypeAtom::StringLiteral(_) | TypeAtom::IntLiteral(_) => "a literal type",
+        _ => "a class-constant or enum-case type",
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_LITERAL_TYPE_UNCHECKED,
+            format!("{what} is not checked yet"),
+        )
+        .with_primary(span, "parses, but the checker has no rule for it")
+        .with_help(
+            "declare the base type (`string`, `int`, or the enum) for now — ADR 0047 § 4's \
+             assignability and conversion table is M2's slice",
+        ),
+    );
+    env.interner.mixed()
 }
 
 fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {

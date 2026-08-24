@@ -274,15 +274,30 @@ Deferred deliberately, each needing its own argument:
 
 Verification, in the order it becomes possible:
 
-- **M1**: the grammar in *1* parses — `StringLiteral`/`IntLiteral` atoms, unions of them, `?"a"` sugar — and
-  a class-constant or enum-case reference parses in type position without needing a new production beyond
-  what [ADR 0010](0010-enums-are-a-value-type.md) § 4 already established for `ClassName`/`EnumName`
-  ambiguity.
+- **M1 (landed)**: the grammar in *1* parses — `StringLiteral`/`IntLiteral` atoms in either quote style,
+  a signed `-1`, unions of them, `?"a"` sugar — and `ClassName::CONST_NAME`/`EnumName::CaseName` parses in
+  type position as one atom whose two meanings the checker tells apart, needing no production beyond what
+  [ADR 0010](0010-enums-are-a-value-type.md) § 4 already established for `ClassName`/`EnumName` ambiguity.
+  *7*'s two refusals are diagnosed by name rather than as "expected a type": a `float` literal, and an
+  interpolated string. `mwl-syntax`'s `a_string_literal_is_a_type_atom`,
+  `an_int_literal_is_a_type_atom_with_or_without_a_sign`,
+  `literal_atoms_union_and_take_the_nullable_sugar`,
+  `a_class_constant_or_enum_case_parses_in_type_position`,
+  `a_float_literal_is_refused_in_type_position`, `an_interpolated_string_is_refused_in_type_position`,
+  `a_literal_type_declares_a_local_without_swallowing_literal_expressions` and
+  `a_literal_type_declares_a_parameter`. Until M2 lands, the checker **refuses** all three atoms by name
+  (`E_LITERAL_TYPE_UNCHECKED`, `crates/mwl-types/tests/literal_types.rs`) rather than widening them to
+  their base type: an unchecked `"a"|"b"` would accept every `string`, which is the hole this ADR exists
+  to close.
 - **M2**: a corpus covering every row of *4*'s table — a literal/case-subset type widening for free; a
   checked conversion both succeeding and throwing, for a literal union and a case-subset union alike; a
   narrowing guard (`match`, `===`) required before reaching a member's own operations; an ineligible
   constant (`array`/`object`/`float`-backed) rejected in type position naming the eligible types (*7*); a
   `tainted`/`secret` value still requiring laundering/`reveal()` before satisfying either kind of type.
+  It starts one step earlier than *4*'s table reads, and the same step `true`/`false` never took: a
+  **literal expression** must itself type as its literal type (`"a"` as `"a"`, not as `string`), or nothing
+  a caller can write ever satisfies one of these types except through an `as`. Widening it back to the base
+  type at every other position is what keeps the rest of the checker unchanged.
 - **M4**: codegen confirms *5*'s zero-cost claim — a statically-known literal or case-subset value compiles
   identically to its base type, with no additional check emitted; the runtime membership check only appears
   where the static type is not already known (a `mixed`-typed or isolate-crossing value).

@@ -154,6 +154,26 @@ pub enum TypeAtom {
     True,
     /// `false`, the type inhabited by exactly the literal `false`.
     False,
+    /// `"a"` — the type inhabited by exactly that one string, ADR 0047 § 1:
+    /// the generalisation of [`Self::True`]/[`Self::False`] from `bool`'s two
+    /// values to `string`'s. The span covers the whole literal, quotes
+    /// included, exactly as [`ExprKind::Str`]'s does, so one decoder serves
+    /// both positions; an interpolated `"$x"` is refused in the parser, since
+    /// a type has nothing to interpolate from.
+    StringLiteral(Span),
+    /// `1`, `-1` — the type inhabited by exactly that one integer,
+    /// ADR 0047 § 1. The span covers a leading `-` when one was written.
+    /// There is deliberately no `float` counterpart (§ 7).
+    IntLiteral(Span),
+    /// `Foo::BAR` in type position — ADR 0047 §§ 2-3. The [`Name`] is the
+    /// class or enum, the [`Span`] the member identifier after `::`.
+    ///
+    /// One atom, two meanings, and the parser cannot tell them apart: a
+    /// *class constant* folds to its own literal type (§ 2) while an *enum
+    /// case* stays a narrowed subtype of its enum (§ 3), which needs the name
+    /// resolved. That is the same division of labour [`Self::Name`] already
+    /// has, for the same reason.
+    Member(Name, Span),
     /// `iterable`
     Iterable,
     /// `callable`
