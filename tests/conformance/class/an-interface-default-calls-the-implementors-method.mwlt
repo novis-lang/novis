@@ -1,0 +1,51 @@
+--TEST--
+An interface default body is a template method — it calls the abstract member each implementor supplies, and dispatches to the one the receiver actually has (ADR 0043)
+--FILE--
+<?mwl
+interface Greeter {
+    public function subject(): string;
+
+    public function greeting(): string {
+        return "hello, " . $this->subject();
+    }
+
+    public function twice(): string {
+        return $this->greeting() . "/" . $this->greeting();
+    }
+}
+
+class World implements Greeter {
+    public function subject(): string {
+        return "world";
+    }
+}
+
+class Room implements Greeter {
+    public string $who;
+
+    public function constructor(string $who) {
+        $this->who = $who;
+    }
+
+    public function subject(): string {
+        return $this->who;
+    }
+
+    public function greeting(): string {
+        return "hi " . $this->subject();
+    }
+}
+
+class Ask {
+    public static function of(Greeter $g): string {
+        return $g->twice();
+    }
+}
+
+echo Ask::of(new World()), "\n";
+echo Ask::of(new Room("ann")), "\n";
+echo (new World())->greeting(), "\n";
+--EXPECT--
+hello, world/hello, world
+hi ann/hi ann
+hello, world

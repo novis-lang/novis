@@ -1,0 +1,51 @@
+--TEST--
+A four-arm `if`/`else if`/`else` chain runs exactly one arm, and a chain nested inside another arm does the same
+--FILE--
+<?mwl
+class Grade {
+    public static function of(int $score): string {
+        if ($score >= 90) {
+            return "A";
+        } else if ($score >= 80) {
+            return "B";
+        } else if ($score >= 70) {
+            return "C";
+        } else {
+            return "F";
+        }
+    }
+
+    public static function traced(int $n): string {
+        var $log = "";
+        if ($n > 0) {
+            $log = $log . "pos;";
+            if ($n > 10) {
+                $log = $log . "big;";
+            } else {
+                $log = $log . "small;";
+            }
+        } else if ($n == 0) {
+            $log = $log . "zero;";
+        } else {
+            $log = $log . "neg;";
+            if ($n < -10) {
+                $log = $log . "veryneg;";
+            }
+        }
+        return $log . "end";
+    }
+}
+
+echo Grade::of(95), Grade::of(85), Grade::of(75), Grade::of(10), "\n";
+echo Grade::traced(3), "\n";
+echo Grade::traced(30), "\n";
+echo Grade::traced(0), "\n";
+echo Grade::traced(-2), "\n";
+echo Grade::traced(-20), "\n";
+--EXPECT--
+ABCF
+pos;small;end
+pos;big;end
+zero;end
+neg;end
+neg;veryneg;end

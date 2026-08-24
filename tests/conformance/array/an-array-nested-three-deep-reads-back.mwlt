@@ -1,0 +1,30 @@
+--TEST--
+Three levels of nesting read back by chained subscript and by nested `foreach` alike, keyed and positional levels mixed
+--FILE--
+<?mwl
+class Walk {
+    public static function total(array<array<array<int>>> $cube): int {
+        var $sum = 0;
+        foreach ($cube as string $i => array<array<int>> $plane) {
+            foreach ($plane as string $j => array<int> $row) {
+                foreach ($row as string $k => int $cell) {
+                    $sum = $sum + $cell;
+                }
+            }
+        }
+        return $sum;
+    }
+}
+
+array<array<array<int>>> $cube = [[[1, 2], [3]], [[4, 5, 6]]];
+echo $cube[0][0][1], ";", $cube[0][1][0], ";", $cube[1][0][2], "\n";
+echo Walk::total($cube), "\n";
+
+array<array<int>> $byName = ["ann" => [1, 2], "bob" => [3]];
+echo $byName["ann"][1], ";", $byName["bob"][0], "\n";
+echo Core\Arr::count($byName), ";", Core\Arr::count($byName["ann"]), "\n";
+--EXPECT--
+2;3;6
+21
+2;3
+2;2

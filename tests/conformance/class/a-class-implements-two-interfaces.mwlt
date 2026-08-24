@@ -1,0 +1,64 @@
+--TEST--
+One class satisfies two interfaces at once — each interface type reaches it, and `instanceof` answers for both
+--FILE--
+<?mwl
+interface Shape {
+    public function area(): int;
+}
+
+interface Named {
+    public function name(): string;
+
+    public function shout(): string {
+        return Core\Str::upper($this->name());
+    }
+}
+
+class Square implements Shape, Named {
+    public int $side;
+
+    public function constructor(int $side) {
+        $this->side = $side;
+    }
+
+    public function area(): int {
+        return $this->side * $this->side;
+    }
+
+    public function name(): string {
+        return "square";
+    }
+}
+
+class Circle implements Shape {
+    public function area(): int {
+        return 0;
+    }
+}
+
+class Ask {
+    public static function area(Shape $s): int {
+        return $s->area();
+    }
+
+    public static function shout(Named $n): string {
+        return $n->shout();
+    }
+
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+}
+
+var $q = new Square(3);
+echo Ask::area($q), ";", Ask::shout($q), "\n";
+echo Ask::area(new Circle()), "\n";
+echo Ask::yn($q instanceof Shape), Ask::yn($q instanceof Named), Ask::yn($q instanceof Square), "\n";
+
+var $c = new Circle();
+echo Ask::yn($c instanceof Shape), Ask::yn($c instanceof Named), "\n";
+--EXPECT--
+9;SQUARE
+0
+yyy
+yn

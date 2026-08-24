@@ -1,0 +1,27 @@
+--TEST--
+PHP 8's precedence: `+`/`-`/`*` all bind tighter than `.`, so an unparenthesised arithmetic term inside a concatenation is evaluated first
+--FILE--
+<?mwl
+int $a = 2;
+int $b = 3;
+
+var $sum = "sum:" . $a + $b . ".";
+echo $sum, "\n";
+
+var $prod = "prod:" . $a * $b . ".";
+echo $prod, "\n";
+
+var $diff = "diff:" . $a - $b . ".";
+echo $diff, "\n";
+
+var $forced = "sum:" . ($a as string) . ($b as string) . ".";
+echo $forced, "\n";
+
+var $chain = "a" . "b" . "c" . (($a + $b) as string);
+echo $chain, "\n";
+--EXPECT--
+sum:5.
+prod:6.
+diff:-1.
+sum:23.
+abc5

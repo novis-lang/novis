@@ -1,0 +1,27 @@
+--TEST--
+A literal that names one key twice keeps the last value at the *first* key's position, the same rule a later write to an existing key follows
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out . "n=" . (Core\Arr::count($a) as string);
+    }
+}
+
+array<int> $dup = ["a" => 1, "b" => 2, "a" => 3];
+echo Render::of($dup), "\n";
+
+array<int> $mixed = [0 => 10, "0" => 20, 1 => 30];
+echo Render::of($mixed), "\n";
+
+array<int> $positional = [7, 8, 9];
+$positional[1] = 80;
+echo Render::of($positional), "\n";
+--EXPECT--
+a=3;b=2;n=2
+0=20;1=30;n=2
+0=7;1=80;2=9;n=3

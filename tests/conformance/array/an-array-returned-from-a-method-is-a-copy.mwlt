@@ -1,0 +1,51 @@
+--TEST--
+An array crosses a call boundary by value in both directions — a callee's writes never reach the caller's array, and the caller's writes never reach what it was handed back
+--FILE--
+<?mwl
+class Rows {
+    public array<int> $held;
+
+    public function constructor(array<int> $held) {
+        $this->held = $held;
+    }
+
+    public function take(): array<int> {
+        return $this->held;
+    }
+
+    public function bump(array<int> $seen): uint {
+        $seen[0] = 999;
+        $seen[] = 1000;
+        return Core\Arr::count($seen);
+    }
+}
+
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $v . ",";
+        }
+        return $out;
+    }
+}
+
+array<int> $mine = [1, 2, 3];
+var $r = new Rows($mine);
+
+echo $r->bump($mine), "\n";
+echo Render::of($mine), "\n";
+
+var $out = $r->take();
+$out[0] = 42;
+echo Render::of($out), "\n";
+echo Render::of($r->held), "\n";
+
+$mine[] = 4;
+echo Render::of($mine), ";", Render::of($r->held), "\n";
+--EXPECT--
+4
+1,2,3,
+42,2,3,
+1,2,3,
+1,2,3,4,;1,2,3,

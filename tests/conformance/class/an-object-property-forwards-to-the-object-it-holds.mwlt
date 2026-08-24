@@ -1,0 +1,49 @@
+--TEST--
+An object held in a property is reached through it, mutated through it, and stays the same instance the caller passed in
+--FILE--
+<?mwl
+class Meter {
+    public int $ticks;
+
+    public function constructor() {
+        $this->ticks = 0;
+    }
+
+    public function bump(int $by): int {
+        $this->ticks = $this->ticks + $by;
+        return $this->ticks;
+    }
+}
+
+class Engine {
+    public Meter $meter;
+    public string $label;
+
+    public function constructor(Meter $meter, string $label) {
+        $this->meter = $meter;
+        $this->label = $label;
+    }
+
+    public function run(int $steps): string {
+        int $i = 0;
+        while ($i < $steps) {
+            $this->meter->bump(2);
+            $i = $i + 1;
+        }
+        return $this->label . "=" . ($this->meter->ticks as string);
+    }
+}
+
+var $m = new Meter();
+var $e = new Engine($m, "left");
+echo $e->run(3), "\n";
+echo $m->ticks, "\n";
+
+var $shared = new Engine($m, "right");
+echo $shared->run(1), "\n";
+echo $e->meter->ticks, ";", $m->ticks, "\n";
+--EXPECT--
+left=6
+6
+right=8
+8;8

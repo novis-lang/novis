@@ -1,0 +1,45 @@
+--TEST--
+An enum value is an ordinary array element — stored, iterated, projected to its integer and ordered by it
+--FILE--
+<?mwl
+enum Level {
+    Low,
+    Mid,
+    High,
+}
+
+class Ladder {
+    public static function render(array<Level> $ls): string {
+        var $out = "";
+        foreach ($ls as string $k => Level $l) {
+            $out = $out . ($l as int) . ",";
+        }
+        return $out;
+    }
+
+    public static function highest(array<Level> $ls): int {
+        var $best = -1;
+        foreach ($ls as string $k => Level $l) {
+            var $n = $l as int;
+            if ($n > $best) {
+                $best = $n;
+            }
+        }
+        return $best;
+    }
+}
+
+array<Level> $ls = [Level::High, Level::Low, Level::Mid];
+echo Ladder::render($ls), "\n";
+echo Ladder::highest($ls), "\n";
+
+array<Level> $byName = ["a" => Level::Mid, "b" => Level::High];
+echo Ladder::render($byName), "\n";
+echo $byName["b"] as int, "\n";
+echo Ladder::render(Core\Arr::sort($ls, {by: fn (Level $l): int => $l as int})), "\n";
+--EXPECT--
+2,0,1,
+2
+1,2,
+2
+0,1,2,

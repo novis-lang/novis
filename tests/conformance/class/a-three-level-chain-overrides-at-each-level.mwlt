@@ -1,0 +1,45 @@
+--TEST--
+Three levels of inheritance, each overriding one member and reaching the level above it with `parent::`
+--FILE--
+<?mwl
+class Base {
+    public function tag(): string {
+        return "base";
+    }
+
+    public function path(): string {
+        return $this->tag();
+    }
+}
+
+class Middle extends Base {
+    public function tag(): string {
+        return parent::tag() . ">middle";
+    }
+}
+
+class Leaf extends Middle {
+    public function tag(): string {
+        return parent::tag() . ">leaf";
+    }
+
+    public function path(): string {
+        return "[" . parent::path() . "]";
+    }
+}
+
+class Ask {
+    public static function of(Base $b): string {
+        return $b->path();
+    }
+}
+
+echo Ask::of(new Base()), "\n";
+echo Ask::of(new Middle()), "\n";
+echo Ask::of(new Leaf()), "\n";
+echo (new Leaf())->tag(), "\n";
+--EXPECT--
+base
+base>middle
+[base>middle>leaf]
+base>middle>leaf

@@ -1,0 +1,40 @@
+--TEST--
+A throw from inside two nested protected regions in a loop body runs both `finally` blocks innermost-out on its way to the handler outside the loop
+--FILE--
+<?mwl
+class Scan {
+    public static function upTo(int $stopAt): string {
+        var $log = "";
+        try {
+            array<int> $rows = [1, 2, 3, 4];
+            foreach ($rows as string $k => int $row) {
+                try {
+                    try {
+                        if ($row == $stopAt) {
+                            throw new RuntimeError("row " . ($row as string));
+                        }
+                        $log = $log . "ok" . $row . ";";
+                    } finally {
+                        $log = $log . "in" . $row . ";";
+                    }
+                } finally {
+                    $log = $log . "out" . $row . ";";
+                }
+            }
+            $log = $log . "drained;";
+        } catch (RuntimeError $e) {
+            $log = $log . "caught(" . $e->message . ");";
+        } finally {
+            $log = $log . "done";
+        }
+        return $log;
+    }
+}
+
+echo Scan::upTo(3), "\n";
+echo Scan::upTo(1), "\n";
+echo Scan::upTo(99), "\n";
+--EXPECT--
+ok1;in1;out1;ok2;in2;out2;in3;out3;caught(row 3);done
+in1;out1;caught(row 1);done
+ok1;in1;out1;ok2;in2;out2;ok3;in3;out3;ok4;in4;out4;drained;done

@@ -1,0 +1,49 @@
+--TEST--
+`instanceof` walks up, never sideways or down — a sibling branch, a subclass of the receiver's own class, and an unrelated interface all answer false
+--FILE--
+<?mwl
+interface Flies {
+    public function altitude(): int;
+}
+
+class Animal {
+    public function sound(): string {
+        return "...";
+    }
+}
+
+class Dog extends Animal {
+}
+
+class Bird extends Animal implements Flies {
+    public function altitude(): int {
+        return 100;
+    }
+}
+
+class Chick extends Bird {
+}
+
+class Ask {
+    public static function yn(bool $b): string {
+        return $b ? "y" : "n";
+    }
+
+    public static function of(Animal $a): string {
+        return Ask::yn($a instanceof Animal)
+            . Ask::yn($a instanceof Dog)
+            . Ask::yn($a instanceof Bird)
+            . Ask::yn($a instanceof Chick)
+            . Ask::yn($a instanceof Flies);
+    }
+}
+
+echo Ask::of(new Animal()), "\n";
+echo Ask::of(new Dog()), "\n";
+echo Ask::of(new Bird()), "\n";
+echo Ask::of(new Chick()), "\n";
+--EXPECT--
+ynnnn
+yynnn
+ynyny
+ynyyy
