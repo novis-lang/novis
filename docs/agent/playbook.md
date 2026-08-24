@@ -17,6 +17,14 @@ is why" — is this file.
 
 ## Tooling
 
+- **Another session may be writing this tree right now, and `ls` will not tell you.** Two sessions once
+  reached for the same ADR number on the same day: an ADR referenced `0084` and `0085` by name before those
+  files existed, and the second author only noticed because `git status` showed them untracked. **Claim a
+  number with `git status --short docs/adr/` and not with `ls` or `brief.py` alone**, immediately before
+  creating the file. The same applies to committing: `git commit -a` sweeps in whatever the other session
+  has in flight, which is not wrong — the tree is only internally consistent with all of it — but the
+  commit message then describes half of what it contains, so say so in the message rather than letting
+  `git log` imply one author.
 - **`D:` fills up.** `target/debug` reached 33 GB and `cargo test` failed as a wall of `link.exe` 1180/1318
   errors — the real message (`no space on device`) only appears without a `Select-String` filter. `cargo
   clean` frees it in seconds; the rebuild is a few minutes. Check `Get-PSDrive D` before diagnosing a

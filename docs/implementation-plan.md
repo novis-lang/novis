@@ -1265,6 +1265,54 @@ file using `spawn`, suspension-requiring `Core` I/O, or a `.mwlx` extension for 
 ADR-named diagnostic rather than a miscompile or a silent downgrade; `benches/abi-probe` gains a
 browser-target guard for whatever cost claim this milestone's spike validates.
 
+### M15 — Packages, the registry and the supply chain (~8 weeks; scheduled after M6)
+
+**Not optional and not last** — [ADR 0080](adr/0080-the-audience-mwl-is-built-for.md) § 5 ranks this and M16
+above new `Core` breadth, because they are the two things a new user meets before any language feature. The
+number is an identity, not a position: it runs after **M6**, which is the first point at which capabilities
+exist to be granted per package.
+
+[ADR 0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md) is the whole design. The client half:
+`package.toml`/`package.lock`, `mwl add`/`fetch`/`update`/`outdated`/`vendor`/`audit`/`publish`, minimal
+version selection, the root-only git source, digest verification, transparency-log inclusion and consistency
+checks, and the generated `vendor/packages.mwl` that reaches a fetched package through an ordinary
+[ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md) `autoload` declaration — the piece that
+keeps this out of the language. The compiler half is smaller than it looks: a file → package map, and a
+capability check at every `Core` call site against the package's grants. **There is no name-resolution work
+at all**, which is the design's own assertion and the first thing to verify.
+
+The registry half is a service rather than a milestone deliverable: a static index, an artifact store, an
+append-only Merkle log with signed checkpoints, an advisory feed, accounts with a second factor. It is
+specified here and operated outside the repository.
+
+**Verify:** [ADR 0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md)'s *Verification* is the
+list. The two that matter most: a package calling a `Core` member without a matching grant line fails to
+compile naming the package, the capability and the fix; and a package containing a top-level statement with
+an observable effect produces no effect from `fetch`, `build` or `vendor`.
+
+### M16 — `mwl/web`, `mwl new`, and the framework (~12 weeks; scheduled after M7 and M8)
+
+[ADR 0082](adr/0082-the-first-party-framework.md) is the split and the roster. The privileged half lands in
+M8 with the rest of `Core`; **this milestone is the package** — `Web\Controller` and the middleware pipeline
+over [ADR 0077](adr/0077-compile-time-routing.md)'s table, `Web\Response`, `Web\Auth`, `Web\Validation`,
+`Web\Mail`, `Web\I18n`, `Web\Storage`, `Web\Pagination`, `Web\Job`, `Web\Api` — plus `mwl new`. Wiring is
+constructor injection resolved through
+[ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md) § 3's enumeration, so a missing binding
+is a compile error and there is no runtime container. There is no ORM and no template engine, for the
+reasons that ADR's § 4 gives.
+
+**`Web\Migration` is blocked, deliberately.** [ADR 0082](adr/0082-the-first-party-framework.md) § 7 records
+the open gap — ordering, transactional DDL, fleet locking, reversibility, safety against a live
+multi-tenant database — and nothing in the package may ship a migration runner until an ADR closes it. That
+ADR is the prerequisite for this milestone finishing, not a follow-up to it.
+
+**Verify:** `mwl new` compiles, serves its routes, authenticates a session, reads a row and passes its
+`#[Test]`, on all three platforms, as a first-class CI job. Its `package.lock` names `mwl/web` and nothing
+else. Deleting the scaffold's validation call makes it fail to compile — the assertion that the qualifier
+demonstration is real. And a fixture in which `mwl/web` tries to return an unqualified `string` derived from
+a `tainted` one fails to compile, proving the framework is subject to
+[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 3 like any other package.
+
 ---
 
 ## Overall verification strategy

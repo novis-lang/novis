@@ -106,6 +106,23 @@ Four more, each admitted by a test above and each with its own ADR: `Core\Task`
 `Core\Metrics`'s **exporter** is Native and feature-gated while the class itself is Core, the same split
 this section already uses for the Redis backend behind `Core\Cache`.
 
+**The framework's privileged half is Core by these same tests**
+([ADR 0082](0082-the-first-party-framework.md) § 2, which carries the per-entry table): `Core\Validate` by
+test 2 — it is *the* launderer, so § 2's rule that only Core may remove a qualifier makes it the one member
+that could never be a package; `Core\Password` by tests 1 and 2, as a `Core\Crypto` primitive over a
+`secret` and not an addition to [ADR 0060](0060-application-security-protocols.md)'s closed protocol
+roster; `Core\Queue` by test 1 ([ADR 0084](0084-durable-background-jobs.md));
+`Core\Socket`, `Core\Sse` and `Core\Topic` by tests 1 and 3
+([ADR 0083](0083-persistent-connections-are-isolates.md)); and `Core\Api`'s emitter by test 1, since it
+reads the compiler's own route table ([ADR 0085](0085-openapi-is-generated-from-the-route-table.md)).
+`Core\Mail`'s **transport** and `Core\Storage`'s backends are Native by test 3 — they wait on the outside
+world — while composition and the backend-agnostic file API are the `mwl/web` package's.
+
+**A third-party package is a placement question this ADR now shares.**
+[ADR 0081](0081-packages-are-digests-resolution-is-a-maximum.md) gives § 1's Ext row a defined distribution
+channel — a `.mwlx` and a source package are named, resolved, pinned, granted and vendored identically, and
+only the payload differs — and a Tier 2 Native subsystem is still never a package.
+
 `Core\Zip` is Core rather than Ext despite passing test 5, because its real defects are not the
 memory-safety bugs a sandbox contains: `../` and absolute-path entries, symlink entries and decompression
 bombs are *policy*, and the policy must be non-optional. A sandboxed decoder gets the memory cap for free

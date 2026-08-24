@@ -7,45 +7,57 @@ agent are in [AGENTS.md](../../AGENTS.md); `python tools/brief.py` is the rest o
 ## State
 
 **The live path is unchanged: `Core` breadth for Stage 3.** Six of seven fixtures produce their frozen
-output; `examples/collect.mwl` is the first that does not. **No code changed this session** — the commit is
-documentation only, and it carries the work of **two sessions at once** (see *Note on the commit* below).
+output; `examples/collect.mwl` is the first that does not. **No code has changed** — the last two commits
+are documentation only, and **seven ADRs are written and none is built**.
 
-- **[ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) is written and nothing is built.** It designs
-  `Core\Cli` — which is four members today against a milestone titled *a usable CLI language*. Five
-  decisions: terminal output is an [0024](../adr/0024-taint-tracking-for-injection-sinks.md) sink that
-  substitutes control bytes with **visible** glyphs (`ESC` → `␛`) in every value regardless of qualifier;
-  styling is the `Cli\Text`/`Style`/`Color` value types, never a fifth
-  [0063](../adr/0063-core-api-conventions.md) R11 grammar; the five prompts are `Core` members because raw
-  mode is unreachable with [0052](../adr/0052-closed-doors.md)'s FFI door shut; in-place output is a scoped
-  `live`/`progress` region; and `#[Command]` builds the argument table while compiling, the
-  [0077](../adr/0077-compile-time-routing.md) mechanism with the route table swapped out.
-- **Why the sink is a default rather than a refusal.** HTML auto-escaping transforms *visible* text
-  (`&`→`&amp;`) and 0024 § 5 paid for that surprise. A terminal control sequence is not text — today it is
-  consumed by the terminal and shown to nobody — so substituting it visibly makes `echo` *more* faithful,
-  not less. That asymmetry is the whole argument, and 0024 § 5 now carries it.
-- It **amends five ADRs**, each folded into its body: [0024](../adr/0024-taint-tracking-for-injection-sinks.md)
-  § 4 (the sink roster) and § 5 (no longer "the one exception"); [0033](../adr/0033-secret-qualifier-for-confidential-values.md)
-  § 1 (`Cli::secret` is the first `Core` member that *originates* the qualifier);
-  [0020](../adr/0020-error-escalation-ladder.md) § 4 (the floor restores the terminal — a `finally` cannot,
-  since § 5's panics bypass user code); [0051](../adr/0051-standard-library-tiers.md) § 3 (roster gains
-  `Core\Command`); [0071](../adr/0071-derived-codecs.md) § 1 (three more compiler-recognized attributes).
-- **Do not start it while Stage 3 is open.** Its M4S slice is the `#[Command]` table beside `#[Route]`'s;
-  everything else is M8, since neither argv nor a terminal is reachable before capabilities exist at M6.
-- Verified: `python tools/check-links.py` clean across 93 files, `python tools/verify.py` 4/4 green. The
-  plan's status block was deliberately **not** edited — 0086 is scheduled, not in flight, and `Open now` is
-  already 8× its size target.
+**[ADR 0080](../adr/0080-the-audience-mwl-is-built-for.md) is the one to read first, because it reorders
+the others.** MWL is built first for **multi-tenant and regulated platforms** — teams running code or data
+they do not control — and that ranks the framework and the dependency story **above new `Core` breadth**.
+Three consequences bind every later session: the pitch is isolation and qualifiers rather than speed (two of
+the plan's three original premises have been answered inside PHP itself); **no document may claim PHP
+compatibility**; and where two slices compete, the one serving that audience wins.
 
-## Note on the commit
-
-ADRs **0080–0085** and the `0067` § 13 rewrite in this commit are **another session's work**, written
-concurrently into the same tree and committed here because the doc set is only internally consistent with
-all of it present — 0086 cites 0080 and 0082, and their README rows cite each other. They were not reviewed
-by the session that wrote 0086. If something in that range looks half-finished, `git log` will not
-distinguish the two authors; this paragraph is the only record that they were separate.
-
-Two sessions writing the same tree also nearly collided on ADR numbering: 0084 and 0085 were referenced by
-name from 0082 before their files existed, which is what pushed the CLI ADR to 0086. **Check `git status`
-for untracked `docs/adr/NNNN-*.md` before claiming a number**, not just `ls`.
+- **[0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md) — packages.** Identity is a BLAKE3
+  digest, not a name. Registry *and* git, but git is **root-only**, so no transitive dependency can pull
+  from a URL you never saw. **Minimal version selection**, so there is no solver and no unsolvable graph —
+  the price is that a breaking release is a new package name. **No package code runs before your program
+  does** (no install scripts, no build step, no macros). **Capabilities are granted per package**, one line
+  at a time, and a `Core` call without a grant is a *compile* error — so a compromised dependency has no
+  authority at all. Integrity is a lockfile plus a Go-style transparency log.
+- **[0082](../adr/0082-the-first-party-framework.md) — the framework.** MWL ships one, split by
+  [0051](../adr/0051-standard-library-tiers.md)'s **existing six tests** rather than a new rule: privileged
+  halves in `Core` (`Validate` is the launderer, so it could never be a package), the opinionated layer as
+  the **`mwl/web`** package providing the `Web` namespace. No ORM, no runtime container, and the language
+  itself is the view layer. **`Web\Migration` is blocked** on § 7's open gap — migration semantics are
+  deliberately undecided and need an ADR before that milestone can finish.
+- **[0083](../adr/0083-persistent-connections-are-isolates.md) — WebSocket and SSE.** A connection is its
+  own root isolate, opened by **naming a file** the way `spawn script` does, so 0006's grants/limits/args
+  rules are reused whole. Inside it is an ordinary `while (receive())` loop — no callbacks, because
+  suspension has no colour. `Core\Topic` fans out across cores and **closes a slow subscriber rather than
+  blocking a publisher**.
+- **[0084](../adr/0084-durable-background-jobs.md) — the queue.** A job is a row in a `Core\Db` table, which
+  buys the one property a broker cannot: **`push` inside your transaction commits with it**. At-least-once,
+  stated plainly; `SKIP LOCKED`-shaped claiming makes a fleet safe with no protocol of ours.
+- **[0085](../adr/0085-openapi-is-generated-from-the-route-table.md) — API contracts.** OpenAPI 3.1 emitted
+  while compiling from [0077](../adr/0077-compile-time-routing.md)'s table and
+  [0071](../adr/0071-derived-codecs.md)'s codecs, so it cannot drift. An `#[Api]` that contradicts the code
+  is a compile error, and `mwl api diff` gates a breaking change.
+- **[0086](../adr/0086-core-cli-terminal-is-a-sink.md) — `Core\Cli`.** Terminal output is an
+  [0024](../adr/0024-taint-tracking-for-injection-sinks.md) sink substituting control bytes with **visible**
+  glyphs (`ESC` → `␛`) regardless of qualifier — the asymmetry with HTML escaping is that a control sequence
+  is not text, so substituting it makes `echo` *more* faithful. Styling is the `Cli\Text` value type,
+  prompts are `Core` members because raw mode is unreachable with FFI shut, and `#[Command]` builds the
+  argument table while compiling.
+- **[0067](../adr/0067-core-db.md) § 13 is new and is a rule, not a plan: connections are pooled per core.**
+  Shared-nothing governs *program* state and a connection is host state, so pooling costs the model nothing.
+  What it costs is a **reset that is a security boundary** — a connection that cannot be proven clean is
+  destroyed, per backend, and PostgreSQL's reset deliberately preserves the statement cache while MySQL's
+  cannot.
+- **Do not start any of the seven while Stage 3 is open.** The plan's status block was deliberately **not**
+  edited for the same reason the 0079 and 0086 sessions did not edit it: these are scheduled, not in flight,
+  and `Open now` is already 8× its size target.
+- Verified: `python tools/check-links.py` clean across 100 files, `python tools/verify.py` 4/4 green, 1291
+  tests.
 
 ## Next
 
@@ -71,8 +83,12 @@ asserting a built path must normalize it.
   naming that ADR rather than reading slot 1, so an issue's own fields are unreadable from MWL.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
   *Known gap*: 50 loop iterations of a throwing `Core\Json::decode("…")` inside a `try` lose 50 blocks.
-- **[ADR 0079](../adr/0079-testing-is-a-language-feature.md)'s first slice, after Stage 3** — `#[Test]`
-  parsing plus the compile-time table (§ 1) and the generic `Core\Test` assertion roster (§ 4).
-- **[ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)'s M4S slice, after Stage 3** — the `#[Command]`
-  table beside `#[Route]`'s, sharing [0061](../adr/0061-compile-time-autoload-and-program-discovery.md)
-  § 3's enumeration. Its *Verification* section is the fixture list.
+- **The migration-semantics ADR** — [0082](../adr/0082-the-first-party-framework.md) § 7 is the brief, and
+  it blocks M16 rather than following it.
+- **[0079](../adr/0079-testing-is-a-language-feature.md)'s first slice, after Stage 3** — `#[Test]` parsing
+  plus the compile-time table (§ 1) and the generic `Core\Test` assertion roster (§ 4).
+- **[0086](../adr/0086-core-cli-terminal-is-a-sink.md)'s M4S slice, after Stage 3** — the `#[Command]` table
+  beside `#[Route]`'s, sharing [0061](../adr/0061-compile-time-autoload-and-program-discovery.md) § 3's
+  enumeration.
+- **[0085](../adr/0085-openapi-is-generated-from-the-route-table.md)'s M4S slice** — the emitter beside the
+  same two passes it reads.
