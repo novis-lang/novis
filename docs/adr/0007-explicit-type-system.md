@@ -369,9 +369,26 @@ divergence, not bugs. The tracked number must distinguish the two or it will be 
 
 ## Revisiting
 
-- **User-defined generics, typed callables (`callable(int): string`), generic classes.** The stdlib's
-  parametric signatures already prove the checker can carry type variables; opening them to user code is a
-  language-surface decision, not a checker one.
+- **User-defined generics, typed callables (`callable(int): string`), generic classes** — parked against a
+  stated test, not against taste. Application code does not reach for them: a typed collection is
+  `array<T>` and `Core\Arr`, a `Result<T, E>` is `?T` and a throw, an envelope is a structurally checked
+  `{items: array<User>, total: uint}` shape ([0036](0036-anonymous-object-shapes.md)), and the two
+  boundaries where a caller's type genuinely cannot be inferred already write it —
+  `Core\Json::decodeAs<User>` and `Core\Db`'s `queryAs<T>`. Library code is the real consumer, and *5*
+  already hands parametricity to both library tiers the compiler declares: `Core`, and from M9 an
+  extension's WIT world. One case is left uncovered — **a pure-MWL third-party package** — so that is the
+  one thing measured.
+  - **The test**, fired once the package manager ships and never before: across the published packages,
+    count the API members whose return type had to widen to `object` or `mixed` because it depends on the
+    caller's type, and the `as T` an application writes at those call sites. Few of either and this entry
+    is **deleted** rather than renewed. Many, and the count names the narrowest door that closes them —
+    most likely a *written* type argument on a user-declared method, which is `MethodSig::type_params`
+    reaching a second declaration site rather than a new kind of type.
+  - **A generic *class* stays the expensive answer whatever that count says**: it needs bounds the moment
+    one sorts ([0013](0013-comparable-interface.md)), a variance rule of its own beside *5*'s, and either
+    erasure — checking, with none of the typed path's speed — or per-instantiation monomorphisation, which
+    fights [0042](0042-on-disk-artifact-cache-format.md)'s one-immutable-file-per-unit cache and
+    [0017](0017-hot-reload-without-restart.md)'s reload.
 - **Read-only or covariant array parameters**, if invariance is what people actually trip over.
 - **Integer literal suffixes**, if "too large for `int`, and no `uint` expected here" turns out to be
   frequent rather than rare.

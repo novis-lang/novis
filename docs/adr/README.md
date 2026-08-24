@@ -59,7 +59,7 @@ so you never have to open this file to route a topic.
 | The built-in HTTP server, live cache invalidation, picking up an edited `.mwl` file without a restart | [0017](0017-hot-reload-without-restart.md) |
 | The on-disk compiled-artifact cache — file layout, header format, why a tampered file is a cache miss, eviction | [0042](0042-on-disk-artifact-cache-format.md) |
 | A portable single-file executable, `mwl build --compile`, bundling a CLI app's source | [0048](0048-portable-single-file-executables.md) |
-| Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys, arithmetic result types | [0007](0007-explicit-type-system.md) |
+| Types, `uint`, `array<T>`, unions, `mixed`, conversions, array keys, arithmetic result types, user-defined generics | [0007](0007-explicit-type-system.md) |
 | `decimal`, money, `bcmath`, `gmp`, big integers, why floats aren't used for currency | [0054](0054-decimal-scalar-type.md) |
 | `string` vs `bytes`, the UTF-8 guarantee, text/binary conversion, what `length` counts | [0009](0009-string-and-bytes.md) |
 | `foreach` over an object, `Iterator`/`ArrayAccess`/`Countable`, generators, `yield`, lazy streaming | [0053](0053-iteration-and-generators.md) |
