@@ -793,6 +793,7 @@ same shape rules.
 | `Core\Attributes` | `get<T>`, `all<T>` — structural, not a `Reflect` walk | [0046](../adr/0046-attributes-shape-literal-metadata.md) |
 | `Core\Program` | `implementing<T>()` | [0061](../adr/0061-compile-time-autoload-and-program-discovery.md) |
 | `Core\Router` | `match(Http\Method, tainted string): ?Router\Match` and `url(string $name, array<string, mixed>): string` (**launder**, URL path), over a table built while compiling from `#[Route]`. A duplicate route, a `{param}` with no matching method parameter and an unknown literal `url()` name are compile errors | [0077](../adr/0077-compile-time-routing.md) |
+| `Core\Command` | `run(): uint`, `help(?string): Cli\Text` and `completions(Cli\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\Router` it dispatches, because a CLI has one entry point and no middleware question | [0086](../adr/0086-core-cli-terminal-is-a-sink.md) |
 | `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | [0054](../adr/0054-decimal-scalar-type.md) |
 | `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md) |
 | `Core\Test` | the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `assertCompletes`, `assertMatchesInline` and `request`. Every one is subject-first and generic where it compares | [0079](../adr/0079-testing-is-a-language-feature.md) |
@@ -874,9 +875,15 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   functions. May not use `Core\Cache` ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)).
 - `Core\Env`: `get(string): ?tainted string`, `all()`, and the constants `EOL`, `OS`, `VERSION`. Read-only —
   `putenv` has no equivalent, because a process-global mutation is unsound across cores.
-- `Core\Cli`: `arguments(): array<tainted string>`, `readLine(): ?tainted string`, `isTty()`,
-  `terminalWidth()` — replacing `$argv`, `$argc`, `readline`. Process exit is the `exit` keyword
-  ([ADR 0049](../adr/0049-single-open-tag-and-single-exit-keyword.md)).
+- `Core\Cli`: the terminal surface, owned by [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) —
+  `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli\Stream)`, `width`, `height`,
+  `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and
+  `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types
+  are `Cli\Text`, `Cli\Style` and `Cli\Color`, its enums `Cli\Stream`, `Cli\ColorDepth` and `Cli\Shell`.
+  Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted`
+  sink** that substitutes every control byte with a visible glyph; `Cli\Text` is the only thing that writes
+  raw. The byte-and-line side of standard input is `Core\IO` (§ 14), not here; process exit is the `exit`
+  keyword ([ADR 0049](../adr/0049-single-open-tag-and-single-exit-keyword.md)).
 
 ## 16. Network, data and crypto
 

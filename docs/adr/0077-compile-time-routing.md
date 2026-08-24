@@ -21,7 +21,9 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 13 — a `Core\Router` row.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the table-building pass, M7 the
   matcher.
-- **Amended by:** none.
+- **Amended by:** 0082, 0085 — the framework that § 4 deliberately stopped short of is now named, and the
+  route table gains a second consumer in the OpenAPI emitter. Nothing about matching, the pattern grammar or
+  the three compile errors changes.
 - **Relates to:** 0004, 0007, 0011, 0022, 0027, 0031, 0036, 0042, 0052, 0062, 0076
 
 > **In short:** `#[Route(path: "/users/{id}", method: Http\Method::Get, name: "user.show")]` on a method is

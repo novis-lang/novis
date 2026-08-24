@@ -2,8 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
-- **Scope:** the whole `Core\Db` subsystem — how a connection is obtained, configured and reused; how a
-  statement runs; how a row becomes typed values; transactions; errors; the SQL↔MWL type map; what is
+- **Scope:** the whole `Core\Db` subsystem — how a connection is obtained, configured, pooled and reused;
+  how a statement runs; how a row becomes typed values; transactions; errors; the SQL↔MWL type map; what is
   refused outright. Not in scope: the signature list, which is
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 18; tier placement, which is
   [0051](0051-standard-library-tiers.md); and the shape rules every member obeys, which are
@@ -18,7 +18,8 @@
   MySQL, and § 4's two questions gain the MariaDB authentication-plugin case.
 - **Amended by:** 0071 — § 6's `Core\Db\Codec` may be generated from a class's own properties by
   `#[Db\Derive]` instead of hand-written, and `DbError` carries every failed column rather than the first;
-  both are applied below.
+  both are applied below. 0084 — the durable job queue is a first-party consumer, and its tables are the one
+  schema the runtime itself owns.
 - **Relates to:** 0002, 0005, 0006, 0007, 0009, 0020, 0028, 0033, 0036, 0043, 0047, 0053, 0054, 0057, 0063,
   0064, 0066
 
@@ -48,10 +49,12 @@
   object cannot exist; and [0024](0024-taint-tracking-for-injection-sinks.md) § 4 makes SQL text a sink,
   so escaping-based APIs (`PDO::quote`, `mysqli_real_escape_string`) have nothing to be the correct answer
   to.
-- The runtime is strict shared-nothing with **no pooling in v1**
-  ([the plan](../implementation-plan.md) § *Consequences to accept*), so a connection is a per-request
-  object and its handshake is a per-request cost. That is the accepted trade, and it is what makes
-  memoization (§ 2) worth having rather than a convenience.
+- The runtime is strict shared-nothing for *program* state, and a connection is not program state — it is
+  host state, invisible to MWL code. So connections are **pooled per core** (§ 13) while
+  [0059](0059-cross-request-state-is-explicit.md)'s rule that only compiled code crosses a request boundary
+  stays exactly true. What makes pooling interesting here is not the saved handshake: it is that a pooled
+  connection carrying one tenant's session state into another tenant's request would be a cross-tenant leak,
+  which makes the **reset a security boundary** (priority 1) rather than a performance detail.
 - MariaDB has diverged from MySQL enough that treating them as one driver is a design error, not a
   simplification: its `JSON` is a `LONGTEXT` alias with a `json_valid` constraint rather than a native type,
   it has `RETURNING` and a bulk-execute protocol MySQL lacks, it has a native `UUID` type, and its
@@ -104,8 +107,9 @@ another. A per-request `max_connections` cap throws rather than letting a loop o
 types, not one loose shape: SQLite takes a `path` and has no `host`, `port`, `user` or `password`, so a
 `host` on a SQLite settings literal is a compile error rather than a silently ignored field.
 
-A connection is closed by the runtime at request teardown — the job a destructor would have done, done by
-the arena instead — and `close()` releases one early. `Db::connect` after a `close()` opens a fresh one.
+A connection is **released** by the runtime at request teardown — the job a destructor would have done, done
+by the arena instead — which returns it to its core's pool after the reset § 13 requires, or destroys it if
+that reset fails. `close()` releases one early. `Db::connect` after a `close()` acquires a fresh one.
 
 ### 3. `db.connect` and `db.open`, and what that means for ADR 0058
 
@@ -342,11 +346,57 @@ compromise); `LOAD DATA LOCAL INFILE`; `PDO::quote`/`mysqli_real_escape_string`;
 by-reference parameter or column binding (R3); connection-level `lastInsertId` state; `PDO::ATTR_*`
 get/set; `PDO::inTransaction`.
 
-**Deferred, with the trigger in *Revisiting*:** connection pooling (the plan's reserved
-`PersistentRegistry` seam); LOB streaming; stored procedures returning multiple result sets and `OUT`
+**Deferred, with the trigger in *Revisiting*:** LOB streaming; stored procedures returning multiple result sets and `OUT`
 parameters; PostgreSQL `COPY`; `LISTEN`/`NOTIFY`; scrollable cursors; a portable schema-introspection API.
 Query builders, ORMs and migration tooling are not `Core` at all — [0051](0051-standard-library-tiers.md)
 test 6.
+
+### 13. The pool is per core, and the reset is a security boundary
+
+A connection released at request teardown returns to a pool owned by the core that opened it. **Nothing in
+this ADR's surface changes**: `connect` and `open` already hand back a memoized object, and MWL code cannot
+observe whether the handshake happened.
+
+- **Per core, never shared between cores.** The runtime is thread-per-core, so a per-core pool needs no lock
+  on the acquire path — the reason to prefer it over one process-wide pool, ahead of any simplicity
+  argument.
+- **The pool key includes every credential.** It is the key § 2 already computes — the *name* for `connect`,
+  a hash of *every* settings field for `open` — so two config blocks are two pools and two database users
+  never share a connection.
+- **A released connection is reset before it is reusable, and a failed reset destroys it.** The reset is not
+  best-effort: a connection that cannot be proven clean is closed, and a driver with no reset primitive is
+  not poolable at all. Per backend:
+  - **PostgreSQL** — roll back any open transaction, then `RESET ALL`, `CLOSE ALL`, `UNLISTEN *`,
+    `SELECT pg_advisory_unlock_all()`, and drop the session's temporary schema. Deliberately **not**
+    `DISCARD ALL`, which also deallocates prepared statements and would throw away § 1's statement cache —
+    the thing pooling exists to preserve.
+  - **MySQL and MariaDB** — `COM_RESET_CONNECTION`, which is atomic and complete. It also drops prepared
+    statements, so the statement cache is invalidated with it; that is a real asymmetry with PostgreSQL and
+    it is the protocol's, not a choice.
+  - **SQL Server** — `sp_reset_connection`, the same shape as MySQL's.
+  - **SQLite** — the connection is a file handle with no session state to leak; rolling back an open
+    transaction is the whole reset.
+- **What the reset must remove is stated as a property, not a command list**: after it, no transaction, no
+  temporary table, no session variable, no `SET ROLE`, no advisory lock, no listener, no open cursor and no
+  prepared statement the cache does not still account for. A backend added later satisfies that property or
+  is not pooled.
+- **Bounds are finite with nothing configured**, per [0074](0074-http-defaults-safe-and-finite.md):
+
+  ```toml
+  [db.main.pool]
+  max      = 16      # per core
+  idle     = 2
+  lifetime = 30m     # a connection is retired regardless of health
+  acquire  = 5s      # waiting for a free connection throws rather than hanging
+  ```
+
+  `max` is per core, so a deployment's ceiling on the database is `cores × max` and the documentation must
+  say so in those terms — the number an operator sizes `max_connections` against.
+- **`{shared: false}` still means a dedicated connection for the request** (§ 2), and it is still drawn from
+  and returned to the pool. What it bypasses is memoization within the request, not pooling across requests.
+- **The pool is off by a config switch**, and `pool = false` restores the connect-per-request behaviour
+  exactly. An operator who cannot accept a reused connection — an audited environment where each connection
+  must map to one request — has a supported answer rather than a workaround.
 
 ## Consequences
 
@@ -410,9 +460,8 @@ test 6.
 
 ## Revisiting
 
-- **Connection pooling** — when a benchmark shows the per-request handshake dominating a realistic request,
-  build it behind the `PersistentRegistry` seam. Nothing in this ADR's surface changes when it lands:
-  `connect` already hands back a memoized object.
+- **Pool sizing defaults** (§ 13) — `max` is per core, so the first deployment on a many-core machine will
+  find the product surprising. If operators routinely lower it, the default is wrong rather than the model.
 - **Schema-aware checking** (`mwl check --schema`) — validate literal queries and `queryAs<T>` shapes
   against a live schema, the way `sqlx::query!` does, turning a first-row `DbError` into a compile error.
   Wants its own ADR: it introduces a build-time dependency on a reachable database and a cache format for
@@ -422,8 +471,10 @@ test 6.
 - **Stored procedures with multiple result sets and `OUT` parameters** — when porting an application whose
   business logic lives in procedures. `Rows::next(): ?Rows` and `OUT` values on `Db\Write` are the shapes.
 - **PostgreSQL `COPY`** — when bulk ingest performance is measured and `executeMany` is shown insufficient.
-- **`LISTEN`/`NOTIFY`** — only with a long-lived process to receive on; revisit alongside any background
-  worker or scheduler work.
+- **`LISTEN`/`NOTIFY`** — needs a long-lived process to receive on, which now exists:
+  [0083](0083-persistent-connections-are-isolates.md)'s connection isolates and
+  [0084](0084-durable-background-jobs.md)'s workers are both candidates, and a bridge to `Core\Topic` is the
+  obvious shape. Blocked only on someone needing it.
 - **A portable `Core\Db\Schema`** — if migration tooling in `mwl` itself needs it, rather than userland.
 
 ## Verification

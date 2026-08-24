@@ -16,7 +16,8 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 15 and 16 — `Core\Response::setHeader`'s
   override, and the client's options shape.
   [docs/implementation-plan.md](../implementation-plan.md) — M7 gains the inbound policy, M8 the outbound.
-- **Amended by:** none.
+- **Amended by:** 0083 — its no-unbounded-wait rule extends to a persistent connection's idle, lifetime and
+  send timeouts.
 - **Relates to:** 0004, 0007, 0020, 0024, 0033, 0044, 0056, 0057, 0060, 0070, 0072
 
 > **In short:** one decision with two subsystems — **a default that is unsafe or unbounded is a defect, not

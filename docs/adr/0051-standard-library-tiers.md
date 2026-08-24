@@ -9,8 +9,8 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** 0063, 0067, 0072, 0075, 0076, 0077 — each fold is applied below; this body states the
-  current rule.
+- **Amended by:** 0063, 0067, 0072, 0075, 0076, 0077, 0081, 0082, 0083, 0084, 0086 — each fold is applied
+  below; this body states the current rule.
 - **Relates to:** 0004, 0024, 0033, 0052, 0055
 
 > **In short:** MWL does not inherit PHP's extension partition. That partition tracks 1997 C build
@@ -93,7 +93,9 @@ ADR 0024 launderers. `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by m
 libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd, because all three are HTTP
 `Content-Encoding` values the built-in server needs on the request path). `Core\Zip`. `Core\Decimal` and
 `Core\BigInt` ([ADR 0054](0054-decimal-scalar-type.md)). `Core\Os` (`posix`, minus fork). `Core\Cli`
-(`readline`). `Core\Uuid`. `Core\Cache` ([ADR 0059](0059-cross-request-state-is-explicit.md)). `Core\Csv`.
+and `Core\Command` (`readline`, and the argument parser every other ecosystem leaves to a package —
+[ADR 0086](0086-core-cli-terminal-is-a-sink.md), admitted by test 2 as an output sink and by test 1 for
+raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` ([ADR 0059](0059-cross-request-state-is-explicit.md)). `Core\Csv`.
 `Core\Test`. Plus `Core\Fatal`/`Core\Log` ([ADR 0020](0020-error-escalation-ladder.md)) and
 `Core\Attributes` ([ADR 0046](0046-attributes-shape-literal-metadata.md)), already scheduled for M8.
 Four more, each admitted by a test above and each with its own ADR: `Core\Task`

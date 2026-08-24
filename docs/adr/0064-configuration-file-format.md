@@ -12,7 +12,7 @@
   entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
-- **Amended by:** 0072, 0073, 0074, 0076 — each adds blocks, listed in § 2a; nothing about the format
+- **Amended by:** 0072, 0073, 0074, 0076, 0081 — each adds blocks, listed in § 2a; nothing about the format
   changes. 0078 — the file is re-read on `mwl ctl reload`, not only at boot; each fold is applied below.
 - **Relates to:** 0007, 0011, 0052, 0061
 

@@ -7,7 +7,9 @@
   Redis backend's own configuration, both of which M8 designs.
 - **Amends:** [0004](0004-memory-for-simplicity.md) — § 3 records a second, deliberate exception to
   "memory is attributable to a request": cache memory is charged to a **core**, with its own cap.
-- **Amended by:** 0075 — the fold is applied below; this body states the current rule.
+- **Amended by:** 0075, 0083, 0084 — each fold is applied below; this body states the current rule. The last
+  two add the second and third explicit cross-request mechanisms beside `Core\Cache`, each stating why the
+  lossy tier cannot carry what it carries.
 - **Relates to:** 0006, 0012, 0023, 0051, 0052, 0073, 0075, 0076
 
 > **In short:** APCu's cross-process shared segment is closed by [ADR 0052](0052-closed-doors.md) § 3, and

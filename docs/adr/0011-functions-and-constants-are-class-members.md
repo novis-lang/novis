@@ -14,7 +14,8 @@
   user-defined enum behaviour, in both *Consequences* and *Revisiting*, assumed a free-function concept
   this ADR removes; the only destination left is a static method.
 - **Relates to:** 0004, 0006
-- **Amended by:** 0012, 0015, 0063 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0012, 0015, 0063, 0082 — each fold is applied below; this body states the current rule.
+  0082 adds `Web` beside `Core` as a namespace whose members are all class members; no rule changes.
 
 > **In short:** no `function` and no `const` may be declared outside a class body — a function is always a
 > `static` or instance method, and a constant is always a class constant, with no exception for built-ins.

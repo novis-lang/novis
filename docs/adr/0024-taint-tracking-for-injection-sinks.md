@@ -6,7 +6,8 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** 0033, 0058, 0067 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0033, 0058, 0067, 0086 — each fold is applied below; this body states the current rule.
+  0086 adds terminal output to § 4's sink roster and gives § 5's auto-escape exception its second instance.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -121,6 +122,12 @@ and carries a written reason at the call site, never a silent cast.
 
 - **HTML/text output** — see § 5; the mechanism there makes an explicit launderer unnecessary for ordinary
   text.
+- **Terminal output** — `echo` and `Core\Cli::write` neutralize every control byte, in every value
+  regardless of qualifier, by substituting a *visible* glyph (`ESC` → `␛`) rather than deleting it. Like
+  HTML this needs no explicit launderer on the ordinary path, and unlike HTML it transforms no visible
+  text, because a control sequence was never text — [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1
+  owns the table and the reasoning, and `Core\Cli::escape` is its named launderer for the program that
+  wants the neutralized value rather than the write.
 - **`Core\Db`'s query-text parameter** requires the plain, unqualified `string` — a tainted value cannot
   reach it without an explicit launderer first, which is exactly the nudge toward binding instead of
   concatenating. The **bound-parameters argument stays `array<mixed>`, tainted-friendly by design**: binding
@@ -148,12 +155,19 @@ security log. Stated here so a future reader does not go looking for a redundant
 
 ### 5. HTML: auto-escape by default, `Core\Html\Markup` the only raw-write bypass
 
-This is the one deliberate exception to this project's otherwise-consistent stance that nothing happens by
+This is a deliberate exception to this project's otherwise-consistent stance that nothing happens by
 position, only by declaration ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md),
 [ADR 0013](0013-comparable-interface.md), [ADR 0014](0014-property-observer.md)). AGENTS.md's priority
 ordering ranks security above simplicity for exactly this kind of conflict, and an omitted escape call is
 the single most common real-world XSS root cause — so this ADR spends that priority explicitly rather than
 holding the "no magic" line for its own sake.
+
+It is one of **two**, and the second is cheaper. [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1 gives
+terminal output the same by-default treatment, and the difference is worth carrying: HTML auto-escaping
+transforms *visible* text (`&` becomes `&amp;`), which is the surprise this section pays for, whereas a
+terminal control sequence is not text at all and is today consumed by the terminal and shown to nobody — so
+substituting it visibly makes output *more* faithful, not less. Where that asymmetry does not hold, the
+default does not follow: § 4's other sinks still refuse rather than transform.
 
 `Core\Html\Markup` is a small value type, peer to `string` the way [ADR 0009](0009-string-and-bytes.md)'s
 `bytes` is peer to `string`, representing HTML known to be safe to write raw:

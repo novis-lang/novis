@@ -1,0 +1,393 @@
+# ADR 0086 — The terminal is a sink, styling is a value, and a CLI's commands are compiled
+
+- **Status:** Accepted
+- **Date:** 2026-08-24
+- **Scope:** what `Core\Cli` is — the terminal output sink and its substitution rule, the
+  `Cli\Text`/`Cli\Style`/`Cli\Color` value types, stream/tty/colour-depth/width resolution, the interactive
+  prompt roster, the scoped live region, and the `#[Command]`/`#[Option]` compile-time command table with
+  its generated help and completions. Also: who owns the tty, and what restores it. Not in scope: the
+  byte-and-line side of standard input, which stays `Core\IO`
+  ([docs/spec/01-core-library.md](../spec/01-core-library.md) § 14); running another program, which is
+  [0044](0044-core-process-argv-only-no-shell.md); bidirectional-Unicode spoofing, which § 7 declines with
+  its reason; and a TUI widget layer, which § 7 also declines.
+- **Amends:** [0024](0024-taint-tracking-for-injection-sinks.md) § 4 — the sink roster gains terminal
+  output, and § 5's auto-escape exception gains its second instance, with the one difference between them
+  stated there.
+  [0033](0033-secret-qualifier-for-confidential-values.md) § 1 — the source roster gains `Cli::secret`, the
+  first `Core` member that *originates* a `secret` value rather than accepting one.
+  [0020](0020-error-escalation-ladder.md) § 4 — the engine-native floor gains a terminal-restoration
+  obligation, because a ladder that leaves a terminal in raw mode has broken the shell it was protecting.
+  [0051](0051-standard-library-tiers.md) § 3 — `Core\Cli`'s roster entry grows from `readline` to the
+  surface below, and the roster gains `Core\Command`; both are placed by that ADR's existing six tests.
+  [0071](0071-derived-codecs.md) § 1 — the closed list of **compiler-recognized** attributes gains
+  `Core\Command`, `Core\Option` and `Core\Argument`; the nominal-matching rule is unchanged.
+  [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 13 and 15 — a `Core\Command` row, and the
+  `Core\Cli` bullet replaced by this ADR's roster.
+  [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the command-table pass, M8 the rest.
+- **Amended by:** none.
+- **Relates to:** 0004, 0006, 0007, 0009, 0010, 0025, 0031, 0036, 0048, 0049, 0052, 0063, 0072, 0077,
+  0079, 0080
+
+> **In short:** `Core\Cli` is four members today and M4 is titled *a usable CLI language*. This ADR makes it
+> the surface a CLI program is actually written against, and takes five decisions. **The terminal is an
+> [ADR 0024](0024-taint-tracking-for-injection-sinks.md) sink**: `echo` and `Cli::write` render every `ESC`
+> and control byte *visibly* — `ESC` becomes `␛` — instead of letting the terminal act on it. Twelve
+> terminal CVEs in 2022–23 were reached through exactly the output `git`, `less` and `kubectl` print, and
+> unlike HTML's `&`→`&amp;` this substitution transforms no visible text, because a control sequence was
+> never text: today those bytes vanish into the terminal's command stream and the user sees nothing.
+> **Styling is a value, not a grammar** — `Cli\Text` is peer to `Core\Html\Markup` and the only thing that
+> writes raw, which is what keeps [ADR 0063](0063-core-api-conventions.md) R11's *exactly four grammars*
+> true. **A prompt is a `Core` member** — `ask`, `confirm`, `select<T>`, `multiSelect<T>`, `secret` —
+> because raw mode is unreachable from userland with [0052](0052-closed-doors.md)'s FFI door shut, so if
+> `Core` does not ship it MWL cannot have it; `secret()` returns a `secret string`, so a password read at a
+> prompt cannot be echoed, logged or serialized. **In-place output is a scoped live region**, never a
+> cursor primitive, so the runtime owns resize, repaint and restoration. And **`#[Command]` builds the
+> command table while compiling**, exactly as [0077](0077-compile-time-routing.md)'s `#[Route]` builds the
+> route table: `--help` and shell completions are generated, and a duplicate command or an option bound to
+> no parameter is a compile error.
+
+## Context
+
+- **The gap is not subtle.** M4 is *Language completeness — a usable CLI language*, and `Core\Cli` has four
+  members: `arguments`, `readLine`, `isTty`, `terminalWidth`. That is enough to write a filter and not
+  enough to write a tool anyone enjoys using.
+- **Userland cannot close it.** Every other ecosystem answers this with packages — clap, chalk, inquirer,
+  indicatif. MWL cannot: an arrow-key `select` needs terminal raw mode, [0052](0052-closed-doors.md) closes
+  FFI permanently, and [0003](0003-extension-system.md) puts extensions in a wasm sandbox with no tty. **If
+  `Core` does not ship the interactive half, MWL does not have it at any tier.** That is a stronger
+  argument than convenience and it is why this is Tier 0 rather than a package under
+  [0081](0081-packages-are-digests-resolution-is-a-maximum.md).
+- **Terminal escape injection is live, not historical.** One researcher found twelve CVEs across terminals
+  in current use in 2022–23 — iTerm2, Windows Terminal, xterm, mintty, ConEmu, rxvt-unicode, SwiftTerm,
+  `less`, OpenBSD's console — reached through title reporting that types its payload back on **stdin**
+  (CVE-2022-46387, CVE-2023-39150), `DECRQSS` echoback (CVE-2022-45872, CVE-2022-47583, CVE-2022-23465),
+  working-directory injection (CVE-2022-44702) and `OSC 8` hyperlinks whose display text differs from their
+  target (CVE-2022-46663). `OSC 52` writes the system clipboard, and xterm's upstream default also *reads*
+  it. Separately, CVE-2019-9535 sat in iTerm2 for seven years and was exploitable by `curl`ing an
+  attacker-controlled URL or displaying a web-server log. The published exploit chains ran through
+  `kubectl`, `git`, `less` and Python's `http.server` — none of which escaped control characters in data
+  they printed, and all of which are the shape of program MWL exists to make easy.
+- **MWL can close it more cheaply than anyone else.** [0012](0012-no-superglobals.md) plus
+  [0024](0024-taint-tracking-for-injection-sinks.md) mean the compiler already knows which values came from
+  outside. No other language has that, which is why "escape your terminal output" has stayed advice
+  everywhere else.
+- **What made the sink decision hard, and what resolved it.** [0024](0024-taint-tracking-for-injection-sinks.md)
+  § 5's HTML auto-escape is a real transformation of *visible* text — `&` becomes `&amp;` — and that ADR
+  paid for the surprise deliberately. The reflex is to assume a terminal rule costs the same. It does not:
+  the bytes neutralized here are **not text**, they are commands, and today they are consumed by the
+  terminal and shown to nobody. Substituting them visibly makes `echo` show *more* of what arrived, not
+  less. That asymmetry is what makes the default affordable, and it is why § 1 substitutes rather than
+  deletes.
+- **The audience makes it load-bearing rather than cosmetic.**
+  [0080](0080-the-audience-mwl-is-built-for.md) names the multi-tenant and regulated platform as MWL's
+  first serious user. The deploy scripts, tenant-migration tools and log triage such a team writes are
+  precisely the programs that print data they did not author, to a terminal belonging to an operator with
+  production credentials.
+
+## Decision
+
+### 1. Terminal output is a sink, and it substitutes visibly
+
+Standard output and standard error are [ADR 0024](0024-taint-tracking-for-injection-sinks.md) sinks. Every
+value written through `echo` or `Cli::write` — **regardless of qualifier** — has its control bytes replaced
+before a byte reaches the stream:
+
+| Input | Becomes | Why |
+|---|---|---|
+| `LF` (0x0A), `TAB` (0x09) | passed through | Legitimate text layout, and no terminal parses them as an introducer. |
+| Every other C0 (0x00–0x1F), including `ESC` and `CR` | its U+2400-block Control Picture — `ESC` → `␛`, `CR` → `␍` | Visible, inert, and one code point per input byte. `CR` is included because bare-`CR` overwriting is the oldest text-hiding trick and needs no `ESC`. |
+| `DEL` (0x7F) | `␡` (U+2421) | |
+| A C1 code point (U+0080–U+009F) | `�` (U+FFFD) | Several terminals still parse these as a CSI introducer. The U+2400 block has no glyph for them; losing their identity is deliberate and bounded, because a C1 code point is never legitimate text. |
+
+**Uniform, not qualifier-dependent.** Escaping only `tainted` values was considered and rejected: it makes
+*whether output is escaped* depend on a fact that is not visible at the `echo` line, which is a worse kind
+of implicit than the uniform rule and precisely the objection the uniform rule answers. The rule is one
+sentence a developer learns once:
+
+> **`echo` prints text. `Core\Cli\Text` prints terminal commands.**
+
+**Uniform, not tty-dependent.** Substituting only when the stream is a terminal was also rejected: a CI log
+is written to a pipe and read by a human later, which is the most common deception path, and behaviour that
+changes under redirection is its own surprise. What *is* tty-dependent is styling (§ 3), never neutralizing.
+
+Three mechanisms keep the default from being a trap, and together they are why it is a default at all:
+
+1. **It is self-announcing.** A neutralized byte is *visible* in the output. Nothing is silently dropped —
+   which is more than can be said for the status quo.
+2. **An `ESC` in a source literal is a compile error**, naming the site and the fix: *raw terminal escapes
+   are not how output is styled — use `Core\Cli\Text`.* This catches the one case where the rule could
+   surprise a person, at compile time, at the exact line. With it, the only way to meet the substitution at
+   run time is to print a **computed** escape sequence, which is the attack.
+3. **There is exactly one raw path**, `Cli\Text` (R17), so a developer who wants colour finds it
+   immediately instead of concluding that colour does not work.
+
+`Core\Cli::escape(tainted string): string` is the sink's named launderer under
+[0024](0024-taint-tracking-for-injection-sinks.md) § 3, performing exactly the table above. It exists for
+the program that wants the neutralized form as a value — to put it in a `Core\Str::format` template, or to
+compare it — not because ordinary output needs it.
+
+A `secret`-qualified value is refused outright, with no `Text` bypass, exactly as
+[0033](0033-secret-qualifier-for-confidential-values.md) § 4 already refuses it at HTML output.
+
+### 2. Styling is a value type, never a grammar
+
+[ADR 0063](0063-core-api-conventions.md) R11 fixes the grammar count at four — a regex pattern, a `printf`
+template, a CLDR date pattern, a `pack` format. Both obvious styling designs would be a fifth: raw
+`"\e[31m"` escapes, and a `"<red>…</red>"` markup string. The second would additionally collide with the
+inline-HTML lexer mode ([0049](0049-single-open-tag-and-single-exit-keyword.md)). So styling is typed
+values, and the count stays four.
+
+```mwl
+var $warn = Cli\Style::of({color: Cli\Color::YELLOW, bold: true});
+Cli::write(Cli\Text::styled("deleting ", $warn) + Cli\Text::plain($path));
+```
+
+- **`Cli\Color` is a value type, not an enum.** [ADR 0010](0010-enums-are-a-value-type.md)'s closed named
+  integer type does not fit a set with sixteen million members. The sixteen named colours are class
+  constants — `Color::RED` is exactly as short at the use site as an enum case would be — and
+  `Color::rgb(uint, uint, uint)` and `Color::index(uint)` construct the rest. A `Core` class constant that
+  is an instance is machinery `mwl-stdlib` already has.
+- **`Cli\Style::of({color?, background?, bold?, dim?, italic?, underline?, strikethrough?})`** — R5's `of`
+  for a canonical construction, R2's one trailing shape for the options.
+- **`Cli\Text` is peer to `Core\Html\Markup`.** `Text::plain(string)` and
+  `Text::styled(string, Style)` **both apply § 1's substitution to their input**, so the only control bytes
+  a `Text` can carry are the ones `Style` put there. That is the structural guarantee: `Text` is not a
+  trust assertion a developer can be tricked into making, it is a constructor that cannot produce an
+  injected sequence. `Text + Text` is `Text`, immutable (R20), composing the way `Markup` already does.
+
+### 3. Streams, tty, colour depth and width resolve once
+
+| Member | Signature | Replaces |
+|---|---|---|
+| `Cli::write` | `write(string\|Cli\Text $value, {stream?: Cli\Stream, newline?: bool}): void` | `fwrite(STDOUT, …)`, `print` |
+| `Cli::isTty` | `isTty(Cli\Stream $stream): bool` | `posix_isatty`, `stream_isatty` |
+| `Cli::width` / `Cli::height` | `(): uint` — the controlling terminal's columns/rows, `80`/`24` when there is none | `tput cols` |
+| `Cli::colorDepth` | `(): Cli\ColorDepth` — `None`, `Ansi16`, `Ansi256`, `TrueColor` | nothing |
+| `Cli::displayWidth` | `displayWidth(string $value): uint` — UAX #11 columns | `mb_strwidth` |
+
+`Cli\Stream` is an enum — `In`, `Out`, `Err` — because "is a tty" is always a question about one stream,
+and the existing single `isTty()` cannot express *colour on stdout while stdin is a pipe*, which is the
+common case.
+
+**The profile is resolved once per process, not per call**: whether each stream is a terminal, the colour
+depth (honouring `NO_COLOR`, `CLICOLOR_FORCE`, `FORCE_COLOR` and `TERM=dumb`, and enabling Windows virtual
+terminal processing where it is available), and the width. A program never asks what the terminal supports;
+it writes `Text` and the sink degrades truecolor → 256 → 16 → none at write time. **When the stream is not a
+terminal, styling is dropped entirely**, so `myprog | grep` and a CI log are plain — while § 1's
+substitution still applies, because that is a safety rule and not a presentation one.
+
+**`displayWidth` is sited here, not on `Core\Str`, deliberately.** A terminal column count is a third
+measure beside the two [ADR 0009](0009-string-and-bytes.md) already fixed — bytes for `bytes`, grapheme
+clusters for `string` — and it is a property of the *renderer*, not of the string. Putting it on `Core\Str`
+would imply a string has an intrinsic width, which is the confusion ADR 0009 § 2 spent its length removing.
+
+### 4. Prompts are `Core` members, and they never block forever
+
+| Member | Signature |
+|---|---|
+| `Cli::ask` | `ask(string $question, {default?: string, validate?: callable}): tainted string` |
+| `Cli::confirm` | `confirm(string $question, {default?: bool}): bool` |
+| `Cli::select` | `select<T>(string $question, array<T> $options, {labels?: callable, default?: T}): T` |
+| `Cli::multiSelect` | `multiSelect<T>(string $question, array<T> $options, {labels?: callable}): array<T>` |
+| `Cli::secret` | `secret(string $question): secret tainted string` |
+
+Four properties fall out of rules that already exist:
+
+- **`select<T>` returns the chosen value, not an index** (R4, R5). The generic earns its place: the
+  compiler knows the result's type from the options array.
+- **`confirm` returns a plain `bool`, not `tainted`.** [0024](0024-taint-tracking-for-injection-sinks.md)
+  § 2 already launders a checked conversion, and a closed two-case answer set is exactly one.
+- **`secret` originates a `secret string`** ([0033](0033-secret-qualifier-for-confidential-values.md)), so
+  a password typed at a prompt structurally cannot be echoed, logged, dumped, put in a `Throwable` message
+  or serialized. This costs nothing to build — the qualifier and its five sinks already exist — and it is
+  the single clearest demonstration of why the qualifier was worth having.
+- **Prompts read the controlling terminal, not standard input** — `/dev/tty`, `CONIN$` — so
+  `cat data.csv | myprog` can still ask a question. Without this rule, piping and prompting are mutually
+  exclusive, which is the defect in every hand-rolled version of this.
+
+**With no controlling terminal, a prompt returns its `default` if one was given and otherwise throws
+`Cli\NotInteractive`. It never blocks.** This is [0074](0074-http-defaults-safe-and-finite.md)'s
+"no spelling for an unbounded wait" applied to a second surface: a CLI that hangs in CI waiting for an
+answer nobody can give is the same failure as an outbound request with no deadline.
+
+Under `mwl test` ([0079](0079-testing-is-a-language-feature.md)), prompts drain a scripted answer queue
+supplied by the test rather than reading a terminal, so an interactive flow is assertable instead of
+untestable.
+
+### 5. In-place output is a scoped live region
+
+```mwl
+Cli::live(fn($live) => {
+    foreach ($files as $f) {
+        $live->set([Cli\Text::plain("scanning {$f}")]);
+        // …
+    }
+});
+```
+
+| Member | Signature |
+|---|---|
+| `Cli::live` | `live<T>(callable $body): T` — `$body` receives a `Cli\Live` with `->set(array<Cli\Text> $lines): void` |
+| `Cli::progress` | `progress<T>(uint $total, callable $body): T` — `$body` receives a `Cli\Progress` with `->advance({by?: uint, label?: string})` |
+
+The runtime owns the cursor: it coalesces frames on a timer rather than repainting per `set`, diffs against
+the previous frame, repaints on resize, hides and restores the cursor, and **renders nothing at all when the
+stream is not a terminal**, so a piped run produces clean output instead of a smear of escape sequences.
+
+This is the **scoped-closure** shape the project already uses twice — `Out::capture` and `Db::transaction`
+([0067](0067-core-db.md)) — so it is one precedent with three uses rather than a new idea. It is also what
+makes restoration enforceable: a region has an end, and the runtime is at that end on every path including
+a throw (§ 8).
+
+Cursor primitives — `moveUp`, `clearLine`, `alternateScreen` — are **not** the surface. They break the
+moment output is piped, they cannot survive a resize, they interleave incoherently when two
+[0072](0072-core-task-structured-concurrency.md) tasks write, and a program that dies holding them leaves
+the operator's shell unusable.
+
+The mutable `Cli\Live` and `Cli\Progress` handles are not R3 violations: R5 already carves out *a stateful
+object — a response, a session, a config overlay*, and neither is a value type. `progress` over `live` is
+not an R17 violation either: R17 forbids a procedural twin of a class API and a class wrapper around a
+static, and a closed, named behaviour built on a general one is neither.
+
+### 6. `#[Command]` builds the command table while compiling
+
+Structurally identical to [ADR 0077](0077-compile-time-routing.md), with the route table swapped for a
+command table and reusing the same program enumeration
+([0061](0061-compile-time-autoload-and-program-discovery.md) § 3):
+
+```mwl
+#[Command(name: "deploy", about: "Push the current build")]
+public static function deploy(
+    string $target,
+    #[Option(short: "n", about: "Print what would happen")] bool $dryRun,
+    #[Option] uint $retries = 3,
+): uint
+```
+
+- **A parameter is a positional argument unless it carries `#[Option]`.** One sentence, no inference from
+  defaults or types.
+- **A `bool` `#[Option]` is a flag**; a trailing `array<string>` parameter is variadic.
+- **A matched value's type comes from the parameter**, so `uint $retries` is converted during matching and —
+  because [0024](0024-taint-tracking-for-injection-sinks.md) § 2 launders a checked conversion — arrives
+  **unqualified**, while `string $target` arrives `tainted`. A non-numeric `--retries` is a usage error, not
+  a crash. This is 0077's rule applied unchanged; no new laundering rule is introduced.
+- **Compile errors**, the three that every argument parser discovers at run time: a duplicate command name,
+  two options sharing a short or long spelling, and an `#[Option]` on a parameter whose declared type has no
+  conversion from `string`.
+- **`Core\Command::run(): uint`** is the entry point, returning the process exit status; a `#[Command]`
+  method returns `void` (status 0) or `uint`, and `exit` ([0049](0049-single-open-tag-and-single-exit-keyword.md))
+  still works from inside one.
+- **`Core\Command::help(?string $name): Cli\Text`** and **`Core\Command::completions(Cli\Shell $shell):
+  string`** are generated from the table — `bash`, `zsh`, `fish`, `pwsh`. Nobody writes usage text and
+  nobody lets it rot.
+- **A program with no `#[Command]` builds no table, runs no scan, and pays nothing** — 0077's rule, verbatim.
+
+**One deliberate divergence from 0077: this one dispatches.** ADR 0077 § 4 stopped at matching because a web
+framework must own the pipeline — middleware, controllers, response mapping — and baking a convention in
+would fight it. A CLI has none of that: one entry point, no middleware question, and
+[0082](0082-the-first-party-framework.md) scopes the first-party framework to the web. The reason 0077
+stopped does not exist here, so stopping would be cargo-culting its shape rather than its reasoning.
+
+### 7. What is deliberately not here
+
+- **Spinners and table rendering.** Both are pure text composition over `Core\Str::format` and § 3's
+  `displayWidth`, needing no terminal privilege — so [0051](0051-standard-library-tiers.md) § 2's test 1
+  keeps them out of Tier 0. They are the natural first thing a package provides.
+- **A TUI widget layer** — panes, focus, event loops. That is an application framework, not a language
+  surface, and it would be the largest single thing in `Core` by a wide margin.
+- **Cursor primitives**, per § 5.
+- **Bidirectional-Unicode spoofing** (Trojan Source, CVE-2021-42574). It is the same *family* of
+  "renders differently than it is" and § 1 does **not** address it, because it is a property of legitimate
+  text rather than of control bytes — neutralizing it would mean refusing valid content in Arabic and
+  Hebrew. Named here so a reader does not assume the sink covers it.
+- **Reading the clipboard, setting the window title, or any other `OSC` capability.** Offering them would
+  re-open, as a feature, the exact channel § 1 closes.
+
+### 8. Who owns the terminal, and what restores it
+
+- **The tty belongs to the main task of a CLI program.** In a request context and inside a spawned isolate
+  ([0006](0006-isolated-script-execution.md)), every `Core\Cli` member throws. Two tasks interleaving
+  escape sequences on one terminal produces output no one can reason about, and there is no locking scheme
+  that makes it coherent.
+- **Restoration is an [ADR 0020](0020-error-escalation-ladder.md) obligation, not a `finally`.** Raw mode, a
+  hidden cursor and a live region must be undone on a throw, on a fatal, on an internal panic (§ 5 of that
+  ADR) and on a signal (`Core\Signal`). A ladder that protects the process while leaving the operator's
+  shell in raw mode has failed at the thing it exists for. This is the most-forgotten defect in
+  cross-platform terminal code and it is the reason § 5 is scoped rather than free-form.
+- **Under [ADR 0025](0025-wasm-browser-target.md)'s wasm32 target, `Core\Cli` is absent** and a
+  `#[Command]` program does not target it.
+- Under [ADR 0048](0048-portable-single-file-executables.md), all of the above ships inside the single-file
+  executable, which is the form a CLI tool is actually distributed in.
+
+## Consequences
+
+- **`echo` changes meaning in CLI mode**, and this is the cost the ADR pays knowingly. It is bounded by
+  § 1's compile error: a program whose literals contain no `ESC` — every program that does not currently
+  hand-roll colour — is byte-identical before and after. A program that does hand-roll colour gets a
+  compile error naming `Cli\Text`, not a silent behaviour change.
+- **`Core\Cli` grows from 4 members to roughly 22, plus five types** (`Text`, `Style`, `Color`, `Live`,
+  `Progress`) and three enums (`Stream`, `ColorDepth`, `Shell`). That is a real priority-4 cost. Every
+  member obeys R1–R20 and every decision above reuses an existing precedent rather than inventing one,
+  which is what keeps the surface learnable at that size, but it is still 18 more names.
+- **Two new dependencies, at M8, not now.** `crossterm` for raw mode, key events and resize, and
+  `unicode-width` for UAX #11 columns. Both are pure Rust, so [deny.toml](../../deny.toml)'s default is
+  satisfied and [0051](0051-standard-library-tiers.md) § 4 does not apply — that test gates *C*
+  dependencies. `anstyle` and `anstream` are already workspace dependencies for `mwl-diagnostics` and cover
+  § 3's Windows VT enabling and the strip-when-not-a-terminal path. Both new crates are added when the
+  milestone that uses them starts, per AGENTS.md, and both owe a notice regeneration under
+  [0065](0065-third-party-attribution-and-mwl-info.md).
+- **MWL removes the most-installed third-party dependency in every other ecosystem.** A CLI with parsed
+  arguments, generated help, completions, colour and prompts has no `require` line at all.
+- **A second sink means a second place to get laundering wrong.** The mitigation is that § 1 has no
+  laundering step on the ordinary path — the sink is safe by default and `escape` exists for the program
+  that wants the value, so there is no omitted-call failure mode to have.
+- **Latency and memory are both nil on the request path**, since none of this is on it. The profile is one
+  resolution per process; a live region is one frame buffer, per process, freed at the region's end. § 1's
+  substitution is a scan over bytes already being written.
+
+## Alternatives rejected
+
+- **Raw escape strings, or a `"<red>…</red>"` markup grammar.** A fifth grammar against R11's four, and the
+  markup form additionally collides with inline-HTML mode. Typed values cost more keystrokes at the call
+  site and are the reason `Text` can guarantee what § 2 says it guarantees.
+- **Escape only `tainted` values.** Makes escaping depend on a fact invisible at the `echo` line — a worse
+  implicit than the uniform rule, and it splits the one-sentence rule into two.
+- **Escape only when stdout is a terminal.** Loses the CI-log-read-later case, which is the most common
+  deception path, and makes behaviour depend on redirection.
+- **Delete control bytes rather than substituting them.** Silently lossy, and it discards the property that
+  makes the default defensible: that the rule announces itself in the output.
+- **Refuse `tainted` at the sink and require an explicit launderer** — the ordinary
+  [0024](0024-taint-tracking-for-injection-sinks.md) § 4 shape. Maximally explicit, and rejected because it
+  puts friction on the single most common CLI operation, printing data you just read. That is the pattern
+  that trains a developer to reach for a blanket launderer, which that ADR's own *Context* names as the
+  failure mode to avoid.
+- **Leave prompts to userland.** Not available: § *Context* — raw mode is unreachable with the FFI door shut
+  and no tty in the wasm sandbox.
+- **A runtime-registered argument parser** (a `clap`-shaped builder API). Loses all three compile errors,
+  loses generated completions, and is the design every ecosystem already has.
+- **A TUI widget layer**, per § 7.
+
+## Verification
+
+One `.mwlt` case per rule, plus these, which are the ones that would fail silently:
+
+- **§ 1** — a fixture `echo`ing a string containing `ESC]52;c;…BEL`, `\r`, and a C1 code point asserts the
+  frozen output holds `␛`, `␍` and `�` and **no** byte below 0x20 but `LF`/`TAB`. A second case asserts the
+  same output when the value is untainted, which is what pins *uniform*.
+- **§ 1** — a compile-error case for an `ESC` in a source literal, asserting the diagnostic names
+  `Core\Cli\Text`.
+- **§ 1/§ 3** — the same program's stdout is **byte-identical on Windows, macOS and Linux** when stdout is
+  not a terminal. This is the cross-platform claim, and it is checkable in CI on all three runners.
+- **§ 2** — `Text::plain` on a string holding `ESC[31m` produces no red; the only escapes in a rendered
+  `Text` are the ones its `Style` contributed.
+- **§ 3** — with `NO_COLOR` set, and separately with stdout redirected, a styled `Text` renders with no
+  escape bytes at all.
+- **§ 4** — `Cli::secret`'s result reaching `Core\Log`, a dump, or `Core\Serialize::encode` is refused at
+  compile time; and with no controlling terminal, `ask` with no `default` throws `Cli\NotInteractive`
+  rather than blocking, while `ask` with one returns it.
+- **§ 5** — a `live` region on a non-terminal stream emits nothing; a `body` that throws leaves the cursor
+  visible and the terminal out of raw mode, asserted by the probe rather than by inspection.
+- **§ 6** — compile-error cases for a duplicate command name, two options sharing a short spelling, and an
+  `#[Option]` on a parameter of a type with no conversion from `string`; plus a case asserting a
+  `uint` parameter arrives unqualified and a `string` one arrives `tainted`.
+- **§ 8** — a `Core\Cli` call inside a `spawn script` isolate throws.

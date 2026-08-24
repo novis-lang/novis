@@ -34,7 +34,9 @@
   situation [0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already flagged once. M4 —
   the `var_dump`/`print_r` line item gains this ADR's redaction rule. M8 — the `Core\Log` line item gains
   this ADR's call-site inspection rule.
-- **Amended by:** 0046 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0046, 0084, 0086 — each fold is applied below; this body states the current rule. 0084
+  records that a durable job payload is an output, so a `secret` cannot enter one; 0086 adds `Cli::secret`
+  to § 1 as the one `Core` member that originates the qualifier.
 - **Relates to:** 0004, 0009, 0012, 0015, 0020, 0022, 0023, 0024, 0028
 
 > **In short:** `secret string`/`secret bytes` join `tainted string`/`tainted bytes` as a second, independent
@@ -111,6 +113,15 @@ whether or not their content happens to be a credential. `secret` therefore only
 developer spells it on a declaration — a parameter, return type, property, or local — the same way `uint`
 or `readonly` do. A helper that loads an API key from configuration is expected to declare its own return
 type `secret string`; the language gives no free ride the way it does for request data.
+
+**One `Core` member originates the qualifier**, and it is the exception that proves the rule above:
+`Core\Cli::secret(string $question): secret tainted string`
+([ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 4) reads a password at a terminal prompt with echo
+disabled. It qualifies its own return because the *member's contract* is confidentiality — unlike
+`Core\Env::get()`, there is no reading of it under which the result is not a credential — so this is a
+member whose declared return type happens to be `secret`, not an ambient grant. Nothing about the paragraph
+above changes: there is still no enumerable list of secret-bearing sources, and every other `secret` in a
+program is spelled by a developer on a declaration.
 
 ### 2. Propagation: `secret` poisons; a checked conversion launders it, same as `tainted`
 

@@ -155,14 +155,22 @@ The goal is a new programming language for web servers and CLI, written in Rust,
 - and is fast, safe and simple *first* — spending memory to stay that way rather than the reverse
   ([ADR 0004](adr/0004-memory-for-simplicity.md)).
 
-The motivation is the structural ceiling of PHP itself: process-per-request or worker-pool models, no
-in-language parallelism, no way to run code in isolation short of another process, a C runtime with a long
-CVE history, and a stdlib whose semantics block optimisation. MWL keeps PHP's authoring experience (no
-build step, inline templating, familiar syntax) and replaces the execution model underneath it.
+**Who this is for, and what it claims** — [ADR 0080](adr/0080-the-audience-mwl-is-built-for.md) owns both
+and this states only the headline. The first serious user is the **multi-tenant or regulated platform**: a
+team whose process runs code, or holds data, at more than one trust level. MWL makes exactly three claims to
+that user, and no incumbent language can add any of them later — **injection and secret leakage are compile
+errors**; **a request, a job, a connection and an untrusted script are each a budgeted isolate in one
+process**; and **suspension has no colour**. Raw speed against PHP is measured
+([ADR 0026](adr/0026-performance-measurement-methodology.md)) and is not the pitch: persistent-worker PHP
+runtimes and PHP 8's JIT have answered enough of that argument that it no longer justifies a rewrite on its
+own. The PHP-shaped syntax is an **on-ramp, never a compatibility promise**, and ADR 0080 § 3 forbids any
+document from implying otherwise.
 
 Intended outcome: a self-hosted toolchain (`mwl` binary) that runs `.mwl` files on the CLI, serves them
-over HTTP from one process, and can mechanically transpile existing PHP codebases — including their
-`.phpt` test suites — into MWL.
+over HTTP from one process, ships a working framework and a supply-chain-safe package system
+([0082](adr/0082-the-first-party-framework.md), [0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md)),
+and can mechanically transpile an existing PHP codebase's *own* application code — including its `.phpt`
+test suites — into MWL.
 
 ---
 
@@ -198,6 +206,12 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes ([ADR 0009](adr/0009-string-and-bytes.md)) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
+| Audience | Multi-tenant and regulated platforms first; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise ([ADR 0080](adr/0080-the-audience-mwl-is-built-for.md)) |
+| Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package ([ADR 0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md)) |
+| Framework | First-party and split by [ADR 0051](adr/0051-standard-library-tiers.md)'s six tests: privileged halves in `Core`, the opinionated layer as the `mwl/web` package; no ORM, no runtime container, the language is the view layer ([ADR 0082](adr/0082-the-first-party-framework.md)) |
+| Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` ([ADR 0083](adr/0083-persistent-connections-are-isolates.md)) |
+| Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate ([ADR 0084](adr/0084-durable-background-jobs.md)) |
+| API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `mwl api diff` as a breaking-change gate ([ADR 0085](adr/0085-openapi-is-generated-from-the-route-table.md)) |
 | Testing | Hand-written suite is normative; `.phpt → .mwlt` transpiler imports PHP's corpus |
 | Migration | `mwl convert` — real PHP→MWL transpiler |
 | Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.mwlx`), statically linked native. No `dlopen` ([ADR 0003](adr/0003-extension-system.md)) |
@@ -225,9 +239,18 @@ talks h1/h2 upstream → h3 is pure cost.
   the whole front end *plus* a working native backend. Mitigation: the backend ships as a *baseline* tier
   where every operation lowers to a call into a Rust runtime helper — mechanically close to an interpreter
   loop, so it is fast to get correct, and typed inlining layers on afterwards without redesign.
-- **Strict shared-nothing means reconnecting to the database every request.** That is a real per-request
-  cost frameworks will feel. The host will expose a `PersistentRegistry` seam (unused in v1) so pooling can
-  be added later without architectural change.
+- **Database connections are pooled per core, so a connection reset is a security boundary.** Shared-nothing
+  is a rule about *program* state; a connection is host state MWL code cannot observe, so pooling it costs
+  the model nothing ([ADR 0067](adr/0067-core-db.md) § 13). What it does cost is a reset that must be
+  provable rather than best-effort — a connection that cannot be proven clean is destroyed, because one
+  tenant's session state arriving in another tenant's request is a leak, not a performance bug.
+- **An existing PHP application's framework and packages do not come along.** No trait, no `__call`, no
+  `ArrayAccess`, no runtime autoloader ([ADRs 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md),
+  [0014](adr/0014-property-observer.md), [0053](adr/0053-iteration-and-generators.md),
+  [0061](adr/0061-compile-time-autoload-and-program-discovery.md)) means the ecosystem built on those is
+  unreachable at any price — so `mwl convert` (M11) ports an application's own code onto MWL's own
+  framework, and never onto its old one. [ADR 0080](adr/0080-the-audience-mwl-is-built-for.md) § 4 records
+  why this is survivable and what the alternative cost.
 - **A JIT means a native-codegen component in the trusted core.** User programs stay fully memory-safe
   (all codegen is type-checked and bounds-checked); the codegen itself, the coroutine stack switcher and
   the arena are the audited unsafe surface. See "Unsafe policy".
@@ -712,6 +735,11 @@ here as well: [ADR 0077](adr/0077-compile-time-routing.md)'s `#[Route]`, whose r
 filtering [ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md) § 3's program enumeration and
 whose three compile errors — a duplicate route, a `{param}` with no matching method parameter, an unknown
 literal `url()` name — are the whole point of doing it here. `Core\Router::match` itself waits for M7.
+The **third** rides the same pass: [ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+`#[Command]`/`#[Option]`/`#[Argument]` command table, with its own three compile errors — a duplicate
+command name, two options sharing a spelling, an `#[Option]` on a parameter with no conversion from
+`string`. `Core\Command::run` and the rest of `Core\Cli` wait for M8, since neither argv nor a terminal is
+reachable before capabilities exist at M6.
 
 **Verify:** every member in the spec file has a conformance test, and a mechanical check over that file
 enforces the rules that can be checked mechanically — [ADR 0063](adr/0063-core-api-conventions.md)'s
@@ -727,6 +755,13 @@ is rewritten against `Core` and gets shorter. `python tools/check-migration.py` 
 every PHP name this milestone's classes replace, which is the point at which
 [docs/spec/02-php-migration.md](spec/02-php-migration.md)'s string, array, number and date rows stop being
 a plan and become a tested claim.
+
+**Also here: the OpenAPI emitter** ([ADR 0085](adr/0085-openapi-is-generated-from-the-route-table.md)),
+alongside the `#[Route]` and `#[Json\Derive]` passes it reads. `Core\Api` joins
+[ADR 0071](adr/0071-derived-codecs.md) § 1's closed attribute list, the four contradiction cases become
+compile errors, and `mwl build --openapi` writes a deterministic 3.1 document. `mwl api diff` is the same
+slice — the classification is mechanical over two emitted documents, so it costs a comparison rather than a
+design.
 
 ### M4B — Minimal `mwl-lsp` and the VS Code extension (~3 weeks)
 Pulled ahead of M10 by [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
@@ -904,6 +939,14 @@ a request that resolved the old version runs it to completion while a newer vers
 to new requests; a revalidation that fails to compile fails only requests resolving it afterwards; a `stat`
 storm against one hot, `mtime`-validated file is bounded by `revalidate_freq`, not by request rate.
 
+**Also here: persistent connections** ([ADR 0083](adr/0083-persistent-connections-are-isolates.md)).
+`Core\Socket::upgrade` and `Core\Sse::upgrade` reuse [ADR 0006](adr/0006-isolated-script-execution.md)'s
+`with(...)` clause whole and hand the socket to a **root isolate** — the same `Isolate` M5 built, so this
+milestone adds a lifetime, not an isolation path. `Core\Topic` is the cross-core publish/subscribe bus, with
+a bounded per-subscriber queue that closes a slow subscriber rather than blocking a publisher. That ADR's
+*Verification* is the fixture list; the state-bleed suite above gains connections as a third
+parameterisation rather than a second suite.
+
 ### M8 — Stdlib and databases (~16 weeks)
 **The roster this milestone builds is [ADR 0051](adr/0051-standard-library-tiers.md) § 3** — which class is
 Core, which is a capability-gated native subsystem, which is an extension, and which of PHP's extensions
@@ -912,6 +955,16 @@ decide beyond it. The capability-bearing half of testing lands with the capabili
 `#[Test(db:)]`'s rolled-back transaction, `Core\Test::request`'s in-process dispatch through the compiled
 route table, `#[Test(server: true)]`'s ephemeral listener, and inline snapshots with their source updater
 ([ADR 0079](adr/0079-testing-is-a-language-feature.md) §§ 14, 17, 18).
+
+**`Core\Cli` lands here in full** ([ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md)): the terminal
+output sink and its visible-substitution table, the `Cli\Text`/`Style`/`Color` value types, the once-per-
+process tty/colour-depth/width resolution over `anstream`, the five prompts reading the controlling
+terminal rather than stdin, the scoped `live`/`progress` regions, and `Core\Command::run` plus its
+generated `--help` and shell completions over M4S's table. Two dependencies arrive with it — `crossterm`
+for raw mode, key events and resize, `unicode-width` for UAX #11 columns — both pure Rust, both owing a
+notice regeneration. The [ADR 0020](adr/0020-error-escalation-ladder.md) § 4 terminal-restoration
+obligation is part of this slice, not a follow-up: a live region that survives a panic is the defect the
+whole scoped shape exists to prevent.
 
 Regex is two-tier, and the tiering is a rule rather than an implementation detail: a linear-time engine by
 default, backtracking only for patterns it cannot express and only under a throwing step budget, with a
@@ -981,6 +1034,19 @@ applies to the signatures themselves: the parametric array signatures
 written once for the built-ins and reused by the WIT world, where `uint` now maps to `u64` with no
 conversion. Type variables stay available only to declarations the compiler owns; user-defined generics are
 not part of this milestone.
+
+**Also in this milestone: the framework's privileged half** ([ADR 0082](adr/0082-the-first-party-framework.md)
+§ 2), each entry placed by [ADR 0051](adr/0051-standard-library-tiers.md)'s own six tests rather than by a
+new rule — `Core\Validate` (the launderer, and the one entry that could never be a package),
+`Core\Session`, `Core\Password`, `Core\Mail` transport against an operator-named SMTP endpoint,
+`Core\Storage` over local disk, and `Core\Cldr::pluralCategory`. **`Core\Queue` lands here too**
+([ADR 0084](adr/0084-durable-background-jobs.md)): the jobs and dead-letter tables, `mwl queue migrate`,
+per-backend `SKIP LOCKED`-shaped claiming, the visibility timeout, bounded retries with jittered backoff,
+and the transactional-enqueue property that is the reason for the whole design. **And the connection pool**
+([ADR 0067](adr/0067-core-db.md) § 13) — per core, keyed as `connect`/`open` already key, with a per-backend
+reset that is a security boundary: PostgreSQL's targeted reset that preserves the statement cache, MySQL's
+and SQL Server's protocol resets that do not, and a failed reset destroying the connection rather than
+returning it.
 
 **Verify:** ADRs 0051 and 0054–0060 each carry their own M8 verification list — that is the one home for
 them, and this paragraph does not restate it. Two are worth naming here because they are CI infrastructure

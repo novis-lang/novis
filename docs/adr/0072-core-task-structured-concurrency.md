@@ -16,7 +16,8 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) — a new § 19 holding the signatures.
   [docs/implementation-plan.md](../implementation-plan.md) — M5's `all`/`race`/`timeout`/`parallel_map`
   line is replaced by this roster.
-- **Amended by:** none.
+- **Amended by:** 0083 — § 6 of that ADR states the difference between `afterResponse` and a connection
+  isolate, the two things in MWL that outlive a response.
 - **Relates to:** 0002, 0004, 0007, 0020, 0031, 0053, 0063, 0067
 
 > **In short:** the concurrency shape applications actually reach for is not a scope object — it is *"run

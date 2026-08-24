@@ -6,7 +6,8 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
-- **Amended by:** 0033, 0076 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0033, 0076, 0086 — each fold is applied below; this body states the current rule. 0086
+  adds the terminal-restoration obligation to § 4's floor.
 - **Relates to:** 0002, 0005, 0006, 0007, 0011, 0012, 0072, 0073
 
 > **In short:** nothing MWL runs is ever silently dropped, but not everything is *caught* — those are
@@ -131,6 +132,13 @@ tier, because this is the floor. Writes to an operator-owned, `System`-class sin
 reason. If even this write fails — a full disk, a broken pipe — the failure is swallowed: there is nothing
 further to escalate to, and the request or isolate still tears down normally regardless. That is a boring,
 explicit answer on purpose: an undefined "what then" at the true floor is worse than a defined "give up."
+
+**The floor also restores the terminal**, before it writes and before it gives up. A CLI program holding
+raw mode, a hidden cursor or a live region ([ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 5) has put
+the operator's shell into a state only this ladder can leave. Doing it in a `finally` is not enough —
+§ 5's internal panics bypass user code by design — so restoration is hardcoded here, alongside the write,
+and runs on every path including the swallowed one. A ladder that protects the process while leaving the
+shell unusable has failed at the thing it exists for.
 
 ### 5. Internal panics bypass user code entirely
 

@@ -65,6 +65,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
 
 ### Implementation invariants
 
+- **MWL is built first for platforms that run code, and data, they do not control** — so the framework and
+  the dependency story outrank new breadth, the pitch is isolation and qualifiers rather than speed, and no
+  document may claim PHP compatibility ([0080](docs/adr/0080-the-audience-mwl-is-built-for.md)).
 - **`unsafe` is forbidden workspace-wide**; only `mwl-runtime`, `mwl-codegen`, `mwl-stdlib` and
   `benches/abi-probe` opt down to `deny` with narrow, reasoned allows ([Cargo.toml](Cargo.toml)).
 - **Nothing unwinds through a JIT frame** — every call returns a checked status
@@ -172,6 +175,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
 - **Extensions are sandboxed wasm, never `dlopen`** ([0003](docs/adr/0003-extension-system.md)).
 - **An isolate shares nothing but compiled code, and spends its parent's budget**
   ([0006](docs/adr/0006-isolated-script-execution.md)).
+- **A WebSocket or SSE connection is its own root isolate, opened by naming a file**, and `Core\Topic`
+  closes a slow subscriber rather than blocking a publisher
+  ([0083](docs/adr/0083-persistent-connections-are-isolates.md)).
 - **Compiled code is the only thing a request shares with any other**
   ([0017](docs/adr/0017-hot-reload-without-restart.md)).
 - **Cross-request state is explicit: `Core\Cache` is per-core, copied in and out, charged to the core**
@@ -208,7 +214,19 @@ the mechanism, the exact spellings rejected, and the reasoning.
 - **Reflection and AST parsing are built into `Core`, not left to extensions**
   ([0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)).
 - **One database API: a connection is named in root-owned config, every statement is prepared, and a
-  transaction is a closure** ([0067](docs/adr/0067-core-db.md)).
+  transaction is a closure** — and a released connection rejoins a per-core pool only after a reset that is
+  a security boundary ([0067](docs/adr/0067-core-db.md), § 13 for the pool).
+- **A dependency is a content-addressed archive resolved by minimal version selection, no package code runs
+  before your program does, and a package's capabilities are granted one line at a time rather than
+  inherited** ([0081](docs/adr/0081-packages-are-digests-resolution-is-a-maximum.md)).
+- **MWL ships its own framework, split by ADR 0051's six tests** — privileged halves in `Core`, the
+  opinionated layer as the `mwl/web` package, no ORM and no runtime container
+  ([0082](docs/adr/0082-the-first-party-framework.md)).
+- **A background job is a row in a `Core\Db` table, so an enqueue commits with the write that caused it**,
+  and delivery is at-least-once with bounded retries
+  ([0084](docs/adr/0084-durable-background-jobs.md)).
+- **The OpenAPI document is generated while compiling, and an `#[Api]` that contradicts the code is a
+  compile error** ([0085](docs/adr/0085-openapi-is-generated-from-the-route-table.md)).
 - **`#[Json\Derive]`/`#[Db\Derive]` generate a codec from a class's declared properties, and a failed decode
   reports every bad field at once** — a compiler-recognized attribute is matched by name, unlike
   `Core\Attributes` retrieval ([0071](docs/adr/0071-derived-codecs.md)).
@@ -225,6 +243,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0073](docs/adr/0073-scheduled-work-is-config.md)).
 - **`#[Route]` builds the route table while compiling, and the router stops at matching**
   ([0077](docs/adr/0077-compile-time-routing.md)).
+- **The terminal is a sink that substitutes control bytes visibly, styling is the `Cli\Text` value type,
+  and `#[Command]` builds the argument table while compiling**
+  ([0086](docs/adr/0086-core-cli-terminal-is-a-sink.md)).
 - **The runtime exports what it already measures, and a metric label refuses `tainted`**
   ([0076](docs/adr/0076-observability-export.md)).
 - **A test is a `#[Test]` method whose table is built while compiling, and every test is its own isolate** —

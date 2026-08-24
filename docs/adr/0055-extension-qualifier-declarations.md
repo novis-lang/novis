@@ -12,7 +12,8 @@
   confirmed and given teeth at the extension boundary; § 4's sink roster gains a declarable extension form.
   [0033](0033-secret-qualifier-for-confidential-values.md) — its refusal list gains the extension boundary,
   alongside serialize and isolate-crossing.
-- **Amended by:** none.
+- **Amended by:** 0081 — its only-ever-tighten rule now governs every package, not only an extension; the
+  fold is applied below.
 - **Relates to:** 0006, 0023, 0051
 
 > **In short:** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 2 already says any operation
