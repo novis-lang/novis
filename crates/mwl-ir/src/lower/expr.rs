@@ -508,6 +508,53 @@ impl<'a> Lowering<'a> {
                         expr.span
                     );
                 };
+                // A member of a `Core`-owned class is native Rust behind a
+                // helper symbol, exactly as a static `Core` member is — the
+                // same `InstKind::CoreCall`, the same borrowed arguments, with
+                // the receiver in argument slot 0. Resolved through the
+                // identical `ResolvedCall` up to this point, which is why
+                // `mwl_types` seeds a signature table rather than special-
+                // casing `Core`; see `mwl_stdlib::registry::CoreTy::Instance`.
+                if let Some(symbol) = mwl_types::core_symbol_of(&call.class, &call.method) {
+                    let sig = ArgSig::of_helper(call);
+                    let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
+                    let checked_types = self.checked_types;
+                    let (object_v, receiver_ty, guard) =
+                        self.open_nullsafe(object, *nullsafe, env, cur);
+                    let LoweredArgs {
+                        values,
+                        mut temporaries,
+                    } = self.lower_call_args(
+                        args,
+                        &sig,
+                        checked_types,
+                        ArgOwnership::Borrowed,
+                        env,
+                        cur,
+                    );
+                    // The receiver is borrowed like every other argument to a
+                    // `Core` member, so a *freshly built* one — a nested
+                    // call's own result — has no other owner and this frame
+                    // owes its release. A receiver read out of a local or a
+                    // field is that binding's to release, not this call's.
+                    if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+                        temporaries.push(object_v);
+                    }
+                    let mut arg_values = Vec::with_capacity(values.len() + 1);
+                    arg_values.push(object_v);
+                    arg_values.extend(values);
+                    let (v, ty) = self.emit_fallible(
+                        *cur,
+                        return_ty,
+                        InstKind::CoreCall {
+                            symbol,
+                            args: arg_values,
+                        },
+                        env,
+                    );
+                    self.release_call_temporaries(temporaries, *cur);
+                    return self.close_nullsafe(guard, v, ty, cur);
+                }
                 let target_label = format!("{}::{}", call.class, call.method);
                 let sig = ArgSig::of(call);
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);

@@ -582,6 +582,20 @@ pub mod code {
     /// hole this ADR exists to close. Removing this arm is that ADR's own
     /// M2 verification row.
     pub const E_LITERAL_TYPE_UNCHECKED: Code = Code::new("E0457");
+    /// A `Core` **instance** member written as a static call —
+    /// `Core\Regex\Match::text($m)` rather than `$m->text()`. ADR 0063 R20
+    /// gives every `Core` operation exactly one spelling, and this is the one
+    /// place two could otherwise reach the same helper: an instance member's
+    /// receiver is argument slot 0 at the ABI, so the static spelling would
+    /// pass the arity check with the receiver written as an ordinary argument.
+    pub const E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY: Code = Code::new("E0458");
+    /// A plain `->` on a receiver whose type includes `null` — `?->` is the
+    /// spelling that reaches a member of one. PHP throws for this at run time;
+    /// MWL refuses it while compiling, because `?T` is one union with no class
+    /// to resolve a member against. A `!== null` test does not yet narrow the
+    /// receiver (see `mwl_types::locals`' own gaps), so this fires inside such
+    /// a block too, and will stop when narrowing lands.
+    pub const E_NULLABLE_RECEIVER: Code = Code::new("E0459");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

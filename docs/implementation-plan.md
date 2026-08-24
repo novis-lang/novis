@@ -22,10 +22,14 @@
 > `Core\RoundMode`, and eleven class constants through `registry::CoreConst`, the inlined literal ADR 0011
 > makes one — and `Core\Arr::sum`/`product`/`average` are now written over the
 > `array<int|float|decimal>` the spec gives them, which took widening `array<T>` to **element-covariant on
-> read** (`mwl_types::expr::is_assignable`, the loop's pre-authorized call). **Every M4 control-flow
-> statement lowers but `do`/`while`.** One M4 hole stays folded in: ADR 0070's duration literal, which
-> `Core\Time\Duration::parse` shares an implementation with. Dependencies: `regex` + `fancy-regex` and
-> `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
+> read** (`mwl_types::expr::is_assignable`, the loop's pre-authorized call). A fourth representation now
+> sits beside those three: **a `Core`-owned instance is an ordinary MWL object**, one `ClassDesc` per class
+> per core with every member a native helper taking its receiver in argument slot 0
+> (`mwl_stdlib::instance`) — so § 4's time types, § 9's collections and § 12's `Uri` need only their
+> members written, and `Core\Regex\Match` is the first of them.
+> **Every M4 control-flow statement lowers but `do`/`while`.** One M4 hole stays folded in: ADR 0070's
+> duration literal, which `Core\Time\Duration::parse` shares an implementation with. Dependencies:
+> `regex` + `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -41,9 +45,10 @@
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
 > `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 19, `Math` × 38, `granularity`, `ordering`,
-> `Order` and `RoundMode`, `Regex` × 4 over `regex`/`fancy-regex`, and the conformance-coverage gate),
+> `instance`, `Order` and `RoundMode`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, and
+> the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 296 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/conformance` × 300 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
 > `tests/differential` × 85, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -63,20 +68,20 @@
 > Instance calls dispatch on the receiver's runtime class. Each
 > ADR's own *Verification* section says what its slice covers, not this field.
 >
-> **Open now:** **`Core` breadth.** Spec § 3 is whole and § 2's aggregations are written, so what is left
-> of §§ 1–2 is `Core\Str::slice`, `Arr::diff`/`intersect` — which need only their `SetOn` enum and their
-> `on`/`by`/`comparator` bag, both shapes the registry can already state — and ADR 0069's combination
-> members. § 5 is the first of §§ 4–12 to exist: ADR 0056's two tiers both run, and
-> `matches`/`replace`/`split`/`quote` are registered over them.
-> **Two signature shapes are still missing:** a **variadic** parameter (ADR 0069's three combination
-> members, `append`/`prepend`, `Path::join`), and a **`Core`-owned instance** — `registry::CoreClass` is a
-> namespace for static members with no value representation and no instance dispatch, which is what § 5's
-> `Pattern`/`Match`, § 4's four time types, § 9's three collections and § 12's `Uri` all wait on.
-> `CoreTy::Decimal` is no longer one of them, nor is a class
-> **constant**. Folded in because the corpus cannot route around it: ADR 0070's duration literal. Also
-> open: ADR 0047's checker row, `autoload` (0061), a `decimal` parameter *default*
-> (`mwl_types::defaults`), class-member `private`/`protected`, which nothing enforces, and the reserved
-> `Comparable`/`Stringable` interfaces, which carry no member signatures.
+> **Open now:** **`Core` breadth.** Spec § 3 is whole, § 2's aggregations are written and § 5 is six of
+> its eight members, so what is left of §§ 1–2 is `Core\Str::slice`/`wrap`/`reverse`/`format`/`indexOf`/
+> `before`, `Arr::diff`/`intersect` — which need only their `SetOn` enum and their `on`/`by`/`comparator`
+> bag, both shapes the registry can already state — and ADR 0069's combination members.
+> **One signature shape is still missing:** a **variadic** parameter (ADR 0069's three combination
+> members, `append`/`prepend`, `Path::join`). A **`Core`-owned instance** is no longer one:
+> `registry::CoreClass` carries an `instance` roster and a `slots` layout, `CoreTy::Instance` names one as
+> a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it — so § 4's four time types, § 9's
+> three collections and § 12's `Uri` need only their members. Two language holes now sit on the path:
+> nothing **narrows** a local through `!== null`, so `if ($m !== null) { $m->text(); }` is refused (E0459)
+> where `?->` works, and ADR 0070's duration literal is folded in. Also open: ADR 0047's checker row,
+> `autoload` (0061), a `decimal` parameter *default* (`mwl_types::defaults`), class-member
+> `private`/`protected`, which nothing enforces, and the reserved `Comparable`/`Stringable` interfaces,
+> which carry no member signatures.
 > One PHP divergence stands unfixed — **an abandoned generator never runs the `finally` it is suspended
 > inside**, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP
 > domain remaining, reported by `python tools/check-migration.py`. Off path: ADR 0043's `by`-delegation.
@@ -90,8 +95,8 @@
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
 > on **Stage 3**, `Core` Part I across all twelve spec sections: three of its seven fixtures produce their
 > frozen output — `examples/core.mwl`, `report.mwl` and `numbers.mwl` — and `text.mwl` is the first that
-> does not: `Core\Regex`'s scalar half now runs, and what it still needs is `match`/`matchAll`, whose
-> `?Match` and `array<Match>` are the `Core`-owned instance nothing in the registry can state.
+> does not. Its whole `Core\Regex` half now runs, `Match` included; what it still needs is five `Core\Str`
+> members and the `!== null` narrowing its `if` writes.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

@@ -317,6 +317,8 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_math_format",
         },
     ],
+    instance: &[],
+    slots: &[],
     constants: CONSTANTS,
 };
 

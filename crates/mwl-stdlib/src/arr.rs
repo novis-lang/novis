@@ -293,6 +293,8 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_average",
         },
     ],
+    instance: &[],
+    slots: &[],
     constants: &[],
 };
 
@@ -713,12 +715,16 @@ fn key_bytes(value: &Value, member: &str) -> Result<Vec<u8>, Fault> {
 /// A borrowed `MwlArray` handle over an argument's pointer, for the members
 /// that want the safe handle API rather than the raw primitives.
 ///
+/// `pub(crate)` because borrowing an array argument is not a `Core\Arr`
+/// question: [`crate::regex`]'s `Match` reads the group array it was built
+/// with through exactly this handle, under exactly this reasoning.
+///
 /// Deliberately never dropped: a helper's arguments are *borrowed* (see
 /// [`crate`]'s own docs), so the reference this handle wraps belongs to the
 /// caller and releasing it here would be a double free. Wrapping in
 /// `ManuallyDrop` rather than retaining first keeps the borrow free — there is
 /// no refcount traffic at all.
-fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::ManuallyDrop<MwlArray> {
+pub(crate) fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::ManuallyDrop<MwlArray> {
     #[expect(
         unsafe_code,
         reason = "a Tag::Array argument owns a reference to a live allocation, \

@@ -508,8 +508,20 @@ are [ADR 0056](../adr/0056-regex-engine-policy.md). `preg_match`'s `$matches` ou
 | `split` | `split(string $subject, Pattern\|string $pattern, {limit?: int, keepEmpty?: bool}): array<string>` | `preg_split` and its four flags | **sink** (pattern) |
 | `quote` | `quote(string $literal): string` | `preg_quote` | **launder** (for the pattern sink) |
 
-`$match->group(int\|string)`, `$match->groups()`, `$match->offset()` and `$match->text()` replace the
-positional-array shape. `preg_last_error` has no equivalent: a failure throws (R4). `replaceWith`'s
+`Match` replaces the positional-array shape with four members:
+
+| Member | Signature | Answers |
+|---|---|---|
+| `group` | `$match->group(int\|string $group): ?string` | one group's text; `null` where the pattern declares it and this match did not reach it, and a **throw** for a group the pattern does not declare |
+| `groups` | `$match->groups(): array<?string>` | every group at once, in `preg_match`'s own order: a named group under its name, then under its number |
+| `offset` | `$match->offset(): int` | where the whole match starts, in [ADR 0009](../adr/0009-string-and-bytes.md) § 2's unit — not `PREG_OFFSET_CAPTURE`'s bytes |
+| `text` | `$match->text(): string` | the whole match, which is group `0` |
+
+`match`'s `from` is a position in that same unit, negative counting from the end (R8), and the match is
+still made against the whole subject so a look-behind sees what precedes it. One divergence from
+`preg_match` is deliberate: a declared group that did not participate is **present and `null`** rather than
+absent, which is what lets `group` distinguish "no text" from "no such group". `preg_last_error` has no
+equivalent: a failure throws (R4). `replaceWith`'s
 callback is `callable(Match): string` — the one place a `Core` callback does not receive `($value, $key)`,
 because a match is one value with named parts rather than a pair. `preg_grep` has no member:
 `Arr::filter($a, fn($v) => Regex::matches($v, $p))` is the same thing in the same number of characters.

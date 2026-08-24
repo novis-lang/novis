@@ -188,6 +188,8 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_str_lower_first",
         },
     ],
+    instance: &[],
+    slots: &[],
     constants: &[],
 };
 

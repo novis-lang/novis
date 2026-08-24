@@ -928,8 +928,16 @@ pub enum InstKind {
     /// requirement is what makes it safe. A refcounted *result* is a fresh
     /// reference this frame owns, exactly like a `Call`'s.
     ///
-    /// There is no receiver field at all: ADR 0063 R20 makes every `Core`
-    /// member static, so `$a->count()` resolves to nothing.
+    /// There is no receiver *field*, and an instance member needs none: a
+    /// `Core`-owned class's member (`$match->text()`,
+    /// `mwl_stdlib::registry::CoreTy::Instance`) puts its receiver in
+    /// `args[0]`, which is where the ABI would have carried a separate field
+    /// anyway. `crate::lower`'s `MethodCall` arm is what puts it there, and it
+    /// borrows the receiver exactly as it borrows every other argument — so a
+    /// *freshly built* receiver is released by that arm rather than by the
+    /// callee. ADR 0063 R20 keeps the two directions apart: a static member is
+    /// unreachable through a value and an instance member is a compile error
+    /// through the class name, so no member is ever reached both ways.
     CoreCall {
         /// The linker symbol the implementation is reachable at, from
         /// `mwl_stdlib::registry::CoreMethod::symbol`.

@@ -83,6 +83,18 @@ fn every_part_one_member_has_a_conformance_case() {
                 uncovered.insert(call);
             }
         }
+        for method in class.instance {
+            // An instance member is reached through a value, so what a case
+            // writes is `->name(` and the class name appears nowhere. That is
+            // weaker than the static spelling above — any receiver's `->text(`
+            // answers for `Core\Regex\Match::text` — and deliberately so: the
+            // alternative is inferring a receiver's type here, which would
+            // mean a second checker rather than a coverage gate.
+            let call = format!("->{}(", method.name);
+            if !source.contains(&call) {
+                uncovered.insert(format!("{}::{}", class.name, method.name));
+            }
+        }
         for declared in class.constants {
             // A constant has no parenthesis to bound it, so the boundary is
             // checked instead — otherwise `Core\Math::E` would be covered by

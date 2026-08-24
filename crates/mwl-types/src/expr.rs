@@ -968,7 +968,7 @@ fn infer(
             // the method is resolved against the receiver's non-`null` half
             // and the call's own type gains the `null` that arm yields — see
             // [`nullsafe_result`].
-            let receiver_ty = strip_nullsafe_receiver(*nullsafe, object_ty, env);
+            let receiver_ty = strip_nullsafe_receiver(*nullsafe, object_ty, object.span, env);
             check_member_name(method, live, scope, ctx, env);
             // Unlike a static call, `mwl_hir::members` never checks an
             // instance method call's existence for any receiver — including
@@ -1053,6 +1053,14 @@ fn infer(
                         // resolved target recorded, which panics.
                         if found.is_none() && qname.is_core() {
                             report_unknown_member(expr.span, &qname, &name, "member", env);
+                        }
+                        // ADR 0063 R20's one genuinely reachable two-spellings
+                        // case — see `report_core_instance_member`.
+                        if let Some((owner, _, sig)) = &found
+                            && owner.is_core()
+                            && !sig.is_static
+                        {
+                            report_core_instance_member(expr.span, owner, &name, env);
                         }
                         found
                     })
@@ -1226,6 +1234,16 @@ fn infer(
             let (arg_types, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             if let Some(qname) = &target_qname {
                 reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
+                // A `Core`-owned class has no constructor and never will: its
+                // instances come from the member that produces one, and its
+                // slots are `mwl-stdlib`'s layout rather than a surface a
+                // program fills in (`mwl_stdlib::registry::CoreTy::Instance`).
+                // Reported here rather than left to `mwl-codegen`, which would
+                // fail with "this unit declares no descriptor for it" — an
+                // internal message for an ordinary mistake.
+                if crate::core_lib::is_registered(qname) {
+                    report_unknown_member(expr.span, qname, "constructor", "member", env);
+                }
                 // `mwl-ir` needs the constructed class and its resolved
                 // constructor (if any) to lower `new` — see
                 // `crate::expr_table`'s own module docs.
@@ -2030,7 +2048,7 @@ fn check_property_access(
     // `?->` resolves the property against the receiver's non-`null` half and
     // adds `null` back to the whole access's type — see [`nullsafe_result`],
     // which the method-call arm of [`infer`] shares.
-    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, env);
+    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object.span, env);
     let member_ty = check_property_member(
         object,
         receiver_ty,
@@ -2071,12 +2089,39 @@ fn nullsafe_result(
 /// The half of a `?->` receiver's type that actually reaches the member —
 /// everything but `null`. Left alone for `->`, whose receiver reaches the
 /// member whole.
-fn strip_nullsafe_receiver(nullsafe: bool, object_ty: TypeId, env: &mut Env<'_>) -> TypeId {
+fn strip_nullsafe_receiver(
+    nullsafe: bool,
+    object_ty: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> TypeId {
     if nullsafe {
-        env.interner.without_null(object_ty)
-    } else {
-        object_ty
+        return env.interner.without_null(object_ty);
     }
+    // A plain `->` on a receiver that may be `null` is refused rather than
+    // resolved against its non-`null` half. Two reasons, and the second is the
+    // load-bearing one: PHP throws at run time for exactly this, and
+    // `mwl-ir` has no lowering for it at all — `class_qname_of` answers
+    // nothing for a union, so no target is recorded and lowering panics naming
+    // the span. `?->` is the spelling that works today.
+    //
+    // **This is also what a `!== null` narrowing has to remove.** Nothing
+    // narrows a local's type through a condition yet (`crate::locals`' own
+    // gaps), so `if ($m !== null) { $m->text(); }` — which every PHP program
+    // writes — lands here. When narrowing lands, the receiver inside that
+    // block is no longer nullable and this stops firing on its own.
+    if env.interner.is_nullable(object_ty) && !matches!(env.interner.get(object_ty), Ty::Null) {
+        let described = env.interner.describe(object_ty);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_NULLABLE_RECEIVER,
+                format!("`{described}` may be `null`, so `->` cannot reach a member of it"),
+            )
+            .with_primary(span, "this receiver is nullable")
+            .with_help("use `?->`, which answers `null` instead of reaching the member"),
+        );
+    }
+    object_ty
 }
 
 /// [`check_property_access`]'s member half: everything after the receiver's
@@ -2502,6 +2547,31 @@ fn report_unknown_member(span: Span, qname: &QName, name: &str, kind: &str, env:
             format!("`{qname}` has no {kind} named `{name}`"),
         )
         .with_primary(span, "referenced here"),
+    );
+}
+
+/// ADR 0063 R20, at the one place two spellings can reach one `Core` member:
+/// an instance member's receiver travels in argument slot 0, so
+/// `Core\Regex\Match::text($m)` passes the arity check that `$m->text()`
+/// passes and lowers to the identical helper call. Worse, the *zero*-argument
+/// spelling passes it too, since a `Core` instance member declares no
+/// parameter for its receiver — and that one reaches the helper with an empty
+/// argument slice.
+///
+/// Reported for a `Core` class only. A user-declared class's non-static method
+/// called statically is PHP's own error, and belongs with the visibility rules
+/// this crate still owes rather than here.
+fn report_core_instance_member(span: Span, qname: &QName, name: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY,
+            format!("`{qname}::{name}` is an instance member, so it is called on a value"),
+        )
+        .with_primary(span, "called through the class name here")
+        .with_help(format!(
+            "write `$value->{name}(…)`; ADR 0063 R20 gives every `Core` operation exactly one \
+             spelling"
+        )),
     );
 }
 

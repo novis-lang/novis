@@ -60,15 +60,15 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`compile`, `match`, `matchAll` and `replaceWith` are not registered.**
-//!    All four are stated in terms of a `Core`-owned *object* — spec § 5's
-//!    `Pattern` and `Match` — and [`crate::registry::CoreTy`] has no variant
-//!    for one: a `Core` class is a namespace for static members today, with no
-//!    instance representation and no instance-method dispatch. That is one
-//!    piece of work covering all four, plus `Pattern` as an option-carrying
-//!    handle, and it is what `docs/agent/handoff.md` names next.
+//! 1. **`compile` and `replaceWith` are not registered.** Both are stated in
+//!    terms of `Pattern`, spec § 5's *option-carrying* handle: unlike
+//!    [`MATCH`], whose whole state is values MWL already holds, a `Pattern` is
+//!    a pattern plus four compilation flags, and the flags have to reach
+//!    [`compiled`]'s cache key before either member means anything.
+//!    `replaceWith` additionally hands its callback a `Match`, which
+//!    `mwl_runtime::call_closure` can already carry.
 //!
-//!    The consequence for the four members that *are* registered is that their
+//!    The consequence for the six members that *are* registered is that their
 //!    `Pattern|string $pattern` parameter is registered as `string` alone. It
 //!    widens to the union the spec writes the moment `Pattern` is expressible;
 //!    a program written against the narrow spelling keeps compiling.
@@ -84,12 +84,20 @@
 //!    no configuration subsystem before M6. [`BACKTRACK_BUDGET`] is that
 //!    default, stated once, and reading it from config is a change to that one
 //!    line.
+//! 4. **`matchAll` converts each match's offset over the subject's prefix**,
+//!    so reporting positions for *k* matches in an *n*-byte subject is O(n·k)
+//!    rather than O(n) — [`crate::granularity::Unit::index_of_byte`] counts
+//!    from the start each time. The matches arrive in increasing order, so the
+//!    fix is a cursor that counts only the gap since the previous one; it is
+//!    not written because a cluster can in principle span a match boundary, and
+//!    getting that edge right is worth its own slice rather than a line here.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
+use crate::granularity::DEFAULT;
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
 // ============================================================================
@@ -98,8 +106,9 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
 /// `Core\Regex`'s registry rows, in the spec's own order.
 ///
-/// Four of § 5's eight members; gap 1 above owns which four are missing and
-/// what they wait on.
+/// Six of § 5's eight members; gap 1 above owns which two are missing and what
+/// they wait on. The four members that section states on a `Match` are
+/// [`MATCH`]'s own roster, not this one.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Regex",
     methods: &[
@@ -109,6 +118,20 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "mwl_core_regex_matches",
+        },
+        CoreMethod {
+            name: "match",
+            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(MATCH_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME)),
+            symbol: "mwl_core_regex_match",
+        },
+        CoreMethod {
+            name: "matchAll",
+            params: &[CoreTy::Str, CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(MATCH_NAME)),
+            symbol: "mwl_core_regex_match_all",
         },
         CoreMethod {
             name: "replace",
@@ -137,8 +160,102 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_regex_quote",
         },
     ],
+    instance: &[],
+    slots: &[],
     constants: &[],
 };
+
+/// `Core\Regex\Match`'s fully-qualified name, written once — [`MATCH`]
+/// declares it and every [`CoreTy::Instance`] naming it resolves against
+/// [`crate::registry::CLASSES`], so the two cannot drift apart.
+const MATCH_NAME: &str = r"Core\Regex\Match";
+
+/// Spec § 5's `Core\Regex\Match` — the first `Core`-owned instance, and the
+/// shape that replaces `preg_match`'s `$matches` out-parameter (ADR 0063 R3
+/// forbids one) together with `PREG_OFFSET_CAPTURE`.
+///
+/// Four members over two slots, and no static member at all: a `Match` is only
+/// ever produced by [`mwl_core_regex_match`] or [`mwl_core_regex_match_all`].
+/// [`crate::instance`] owns what a `Core`-owned instance *is*; what belongs
+/// here is what this one holds.
+///
+/// **The groups are materialized when the match is made, not when they are
+/// asked for.** Slot `groups` is the whole `array<?string>` the spec's
+/// `groups()` answers with, and every other member reads it: `group(k)` is a
+/// key lookup in it, `text()` is `group(0)`, and only `offset` is stored
+/// beside it. The alternative — keeping the subject and each group's byte
+/// range, and cutting a string per `group()` call — would make a `Match` cheap
+/// to produce and repeatedly expensive to read, and would leave it holding a
+/// reference to a subject the caller has otherwise finished with. **What it
+/// spends:** one array plus one `string` per participating group (two for a
+/// named one, which is stored under both its name and its number, exactly as
+/// `preg_match` returns it), per match, charged to the request.
+pub const MATCH: CoreClass = CoreClass {
+    name: MATCH_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "group",
+            params: &[CoreTy::Union(&[CoreTy::Int, CoreTy::Str])],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_regex_match_group",
+        },
+        CoreMethod {
+            name: "groups",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Nullable(&CoreTy::Str)),
+            symbol: "mwl_core_regex_match_groups",
+        },
+        CoreMethod {
+            name: "offset",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "mwl_core_regex_match_offset",
+        },
+        CoreMethod {
+            name: "text",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_regex_match_text",
+        },
+    ],
+    slots: &["groups", "offset"],
+    constants: &[],
+};
+
+/// [`MATCH`]'s `groups` slot, by index — what every member below reads.
+///
+/// A constant rather than a `MATCH.slot("groups")` call at each use: the index
+/// is fixed at compile time and the lookup is a string compare per member call.
+/// `the_slot_constants_match_the_registered_layout` holds the two together.
+const GROUPS_SLOT: usize = 0;
+
+/// [`MATCH`]'s `offset` slot, by index — see [`GROUPS_SLOT`].
+const OFFSET_SLOT: usize = 1;
+
+/// `Core\Regex::match`'s `{from?: int}` — the position in the subject to start
+/// searching at, defaulting to its beginning.
+///
+/// A [`crate::granularity::DEFAULT`]-unit index, like every other `string`
+/// position MWL takes or hands back, and negative counts from the end under
+/// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R8. It is
+/// **not** `preg_match`'s `$offset`, which counts bytes and documents that a
+/// value inside a multi-byte character is undefined behaviour.
+///
+/// The match is still made against the whole subject, so a look-behind or a
+/// `^` sees what precedes `from` — the same treatment both engines' own
+/// "search from" entry points give, and the only one under which
+/// `Regex::match($s, $p, {from: $m->offset() + 1})` finds the second match
+/// rather than a different pattern's.
+const MATCH_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "from",
+    ty: CoreTy::Int,
+    default: Const::Int(0),
+}];
 
 /// `Core\Regex::replace`'s `{limit?: uint}` — how many matches to replace,
 /// defaulting to `uint`'s maximum, which is "every one".
@@ -177,6 +294,12 @@ const SPLIT_OPTIONS: &[CoreOption] = &[
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "mwl_core_regex_matches" => (mwl_core_regex_matches as *const ()).cast(),
+        "mwl_core_regex_match" => (mwl_core_regex_match as *const ()).cast(),
+        "mwl_core_regex_match_all" => (mwl_core_regex_match_all as *const ()).cast(),
+        "mwl_core_regex_match_group" => (mwl_core_regex_match_group as *const ()).cast(),
+        "mwl_core_regex_match_groups" => (mwl_core_regex_match_groups as *const ()).cast(),
+        "mwl_core_regex_match_offset" => (mwl_core_regex_match_offset as *const ()).cast(),
+        "mwl_core_regex_match_text" => (mwl_core_regex_match_text as *const ()).cast(),
         "mwl_core_regex_replace" => (mwl_core_regex_replace as *const ()).cast(),
         "mwl_core_regex_split" => (mwl_core_regex_split as *const ()).cast(),
         "mwl_core_regex_quote" => (mwl_core_regex_quote as *const ()).cast(),
@@ -370,6 +493,275 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+// ============================================================================
+// `Core\Regex\Match` — the object the two matching members produce
+// ============================================================================
+
+/// One match reduced to the one shape both engines answer in: every group the
+/// pattern declares, `None` where it did not participate, and each
+/// participating one's byte offset into the subject plus its text.
+type Captured<'a> = Vec<Option<(usize, &'a str)>>;
+
+/// [`Captured`] from the linear tier's own capture set.
+fn linear_groups<'a>(caps: &regex::Captures<'a>) -> Captured<'a> {
+    (0..caps.len())
+        .map(|number| {
+            caps.get(number)
+                .map(|found| (found.start(), found.as_str()))
+        })
+        .collect()
+}
+
+/// [`Captured`] from the backtracking tier's own capture set.
+fn backtracking_groups<'a>(caps: &fancy_regex::Captures<'a, str>) -> Captured<'a> {
+    (0..caps.len())
+        .map(|number| {
+            caps.get(number)
+                .map(|found| (found.start(), found.as_str()))
+        })
+        .collect()
+}
+
+/// Every group's name, indexed by group number — `None` for an unnamed group,
+/// and always `None` at index 0, which is the whole match.
+fn names_of(compiled: &Compiled) -> Vec<Option<&str>> {
+    match compiled {
+        Compiled::Linear(re) => re.capture_names().collect(),
+        Compiled::Backtracking(re) => re.capture_names().collect(),
+    }
+}
+
+/// The byte offset a search starting at unit index `from` begins at.
+///
+/// Negative counts from the end ([`MATCH_OPTIONS`]), and either end saturates:
+/// a `from` past the subject searches an empty remainder and finds nothing,
+/// which composes with a loop where a throw would not.
+fn start_byte(subject: &str, from: i64) -> usize {
+    let index = if from < 0 {
+        let total = i64::try_from(DEFAULT.length(subject)).unwrap_or(i64::MAX);
+        total.saturating_add(from).max(0)
+    } else {
+        from
+    };
+    DEFAULT.byte_of_index(subject, usize::try_from(index).unwrap_or(usize::MAX))
+}
+
+/// One `Core\Regex\Match` over `captured`, as the value a member returns.
+///
+/// [`MATCH`]'s own docs own the shape and what it spends; what is here is the
+/// order, which is `preg_match`'s: a named group is written under its name and
+/// then under its number, so a program migrating from PHP reads the same array
+/// back.
+fn built_match(subject: &str, names: &[Option<&str>], captured: &Captured<'_>) -> Value {
+    let text_of = |group: Option<(usize, &str)>| {
+        group.map_or_else(Value::null, |(_, text)| {
+            Value::str(MwlStr::new(text.as_bytes()))
+        })
+    };
+    let mut groups = MwlArray::new();
+    for (number, group) in captured.iter().enumerate() {
+        if let Some(name) = names.get(number).copied().flatten() {
+            groups.set(MwlStr::new(name.as_bytes()), text_of(*group));
+        }
+        groups.append(text_of(*group));
+    }
+    // The whole match always participates, so the `0` below is unreachable for
+    // any capture set an engine produced.
+    let offset = captured
+        .first()
+        .copied()
+        .flatten()
+        .map_or(0, |(byte, _)| DEFAULT.index_of_byte(subject, byte));
+    crate::instance::build(
+        &MATCH,
+        [
+            Value::array(groups),
+            Value::int(i64::try_from(offset).unwrap_or(i64::MAX)),
+        ],
+    )
+}
+
+/// The group array one of [`MATCH`]'s members reads, borrowed from its
+/// receiver.
+fn group_array(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<MwlArray>, Fault> {
+    let receiver = crate::instance::receiver(args[0], &MATCH, member)?;
+    let groups = crate::instance::slot(receiver, GROUPS_SLOT);
+    let array = groups.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Regex\\Match::{member} found tag {} in its `groups` slot",
+            groups.tag_byte()
+        ))
+    })?;
+    Ok(crate::arr::borrowed(array))
+}
+
+/// One `int|string` group key as the bytes an array is keyed by — an integer
+/// group is stored under its decimal rendering, which is how every integer key
+/// in an MWL array is spelled.
+fn group_key(value: &Value, member: &str) -> Result<Vec<u8>, Fault> {
+    if let Some(number) = value.as_int() {
+        return Ok(number.to_string().into_bytes());
+    }
+    if let Some(bytes) = value.as_str_bytes() {
+        return Ok(bytes.to_vec());
+    }
+    Err(Fault::fatal(format!(
+        "Core\\Regex\\Match::{member} expected an `int|string` group, got tag {}",
+        value.tag_byte()
+    )))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Regex::match(string $subject, string $pattern, {from?: int}): ?Match`
+    /// — replacing `preg_match`, its `$matches` out-parameter and
+    /// `PREG_OFFSET_CAPTURE` at once.
+    ///
+    /// `null` is "no match", which ADR 0063 R5 makes the only absence
+    /// spelling — there is no `0`/`false`/`1` return to read, and no error code
+    /// beside it, because a pattern that cannot run throws
+    /// ([`budget_exhausted`], [`compiled`]).
+    fn mwl_core_regex_match(_ctx, args: [3]) {
+        let subject = text(&args[0], "match", "the subject")?;
+        let pattern = text(&args[1], "match", "the pattern")?;
+        let from = integer(&args[2], "match", "the `from` option")?;
+        let start = start_byte(subject, from);
+
+        let compiled = compiled(pattern, "match")?;
+        let names = names_of(&compiled);
+        let found = match &*compiled {
+            Compiled::Linear(re) => re
+                .captures_at(subject, start)
+                .map(|caps| linear_groups(&caps)),
+            Compiled::Backtracking(re) => re
+                .captures_from_pos(subject, start)
+                .map_err(|err| budget_exhausted("match", pattern, &err))?
+                .map(|caps| backtracking_groups(&caps)),
+        };
+        Ok(found.map_or_else(Value::null, |captured| {
+            built_match(subject, &names, &captured)
+        }))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Regex::matchAll(string $subject, string $pattern): array<Match>` —
+    /// replacing `preg_match_all` and both of its ordering flags.
+    ///
+    /// One `Match` per match, in the order they occur: `PREG_SET_ORDER`'s
+    /// shape, since `PREG_PATTERN_ORDER`'s transpose is a differently-shaped
+    /// return from the same member, which ADR 0063 R7 refuses.
+    /// `Core\Arr::map($matches, fn($m) => $m->group(1))` is the transpose, in
+    /// one line, when a caller wants it.
+    ///
+    /// **Each match's `offset` is converted from bytes independently**, which
+    /// costs a pass over the subject's prefix per match — gap 4 below owns
+    /// that.
+    fn mwl_core_regex_match_all(_ctx, args: [2]) {
+        let subject = text(&args[0], "matchAll", "the subject")?;
+        let pattern = text(&args[1], "matchAll", "the pattern")?;
+
+        let compiled = compiled(pattern, "matchAll")?;
+        let names = names_of(&compiled);
+        let mut out = MwlArray::new();
+        match &*compiled {
+            Compiled::Linear(re) => {
+                for caps in re.captures_iter(subject) {
+                    out.append(built_match(subject, &names, &linear_groups(&caps)));
+                }
+            }
+            Compiled::Backtracking(re) => {
+                for caps in re.captures_iter(subject) {
+                    let caps =
+                        caps.map_err(|err| budget_exhausted("matchAll", pattern, &err))?;
+                    out.append(built_match(subject, &names, &backtracking_groups(&caps)));
+                }
+            }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$match->group(int|string $group): ?string` — one group's text, or
+    /// `null` where the pattern declares that group but this match did not
+    /// reach it.
+    ///
+    /// A group the **pattern** does not declare is a different question, and
+    /// **throws**: ADR 0063 R5's `?T` says "this match has no such text", while
+    /// R4's throw says "there is no such group to ask about." PHP answers both
+    /// with an absent array entry, which is why `preg_match` code so often
+    /// reads a typo as an empty capture.
+    fn mwl_core_regex_match_group(_ctx, args: [2]) {
+        let groups = group_array(args, "group")?;
+        let key = group_key(&args[1], "group")?;
+        let found = groups.get(&key).ok_or_else(|| {
+            Fault::thrown(format!(
+                "Core\\Regex\\Match::group(): the pattern declares no group `{}`",
+                String::from_utf8_lossy(&key)
+            ))
+        })?;
+        #[expect(
+            unsafe_code,
+            reason = "the group array owns the reference this borrowed read \
+                      returned, so the caller needs one of its own"
+        )]
+        unsafe {
+            found.retain();
+        }
+        Ok(found)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$match->groups(): array<?string>` — every group at once, in
+    /// `preg_match`'s own order and shape ([`built_match`]).
+    fn mwl_core_regex_match_groups(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &MATCH, "groups")?;
+        let groups = crate::instance::slot(receiver, GROUPS_SLOT);
+        #[expect(
+            unsafe_code,
+            reason = "the receiver's slot owns the reference this borrowed read \
+                      returned, so the caller needs one of its own"
+        )]
+        unsafe {
+            groups.retain();
+        }
+        Ok(groups)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$match->offset(): int` — where the whole match starts in the subject,
+    /// counted in [`crate::granularity::DEFAULT`]'s unit like every other
+    /// `string` position, not in `PREG_OFFSET_CAPTURE`'s bytes.
+    fn mwl_core_regex_match_offset(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &MATCH, "offset")?;
+        Ok(crate::instance::slot(receiver, OFFSET_SLOT))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$match->text(): string` — the whole match's text, which is group `0`.
+    ///
+    /// Not nullable: group 0 participates in every match an engine reports, so
+    /// a missing slot here is a corrupted instance rather than an absent value.
+    fn mwl_core_regex_match_text(_ctx, args: [1]) {
+        let groups = group_array(args, "text")?;
+        let whole = groups.get(b"0").ok_or_else(|| {
+            Fault::fatal("Core\\Regex\\Match::text() found no group `0` on this match")
+        })?;
+        #[expect(
+            unsafe_code,
+            reason = "the group array owns the reference this borrowed read \
+                      returned, so the caller needs one of its own"
+        )]
+        unsafe {
+            whole.retain();
+        }
+        Ok(whole)
+    }
+}
+
 mwl_runtime::mwl_helper! {
     /// `Core\Regex::replace(string $subject, string $pattern, string $replacement, {limit?: uint}): string`
     /// — replacing `preg_replace`.
@@ -502,6 +894,56 @@ mwl_runtime::mwl_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The two slot constants every member below indexes with are the slots
+    /// [`MATCH`] declares — the one place the fast path and the registered
+    /// layout are held together.
+    #[test]
+    fn the_slot_constants_match_the_registered_layout() {
+        assert_eq!(GROUPS_SLOT, MATCH.slot("groups"));
+        assert_eq!(OFFSET_SLOT, MATCH.slot("offset"));
+    }
+
+    /// A named group is readable under its name *and* its number, and a group
+    /// the pattern declares but the subject did not reach is present and
+    /// `null` — the two properties `group`'s throw-versus-`null` split rests
+    /// on.
+    #[test]
+    fn a_match_carries_every_declared_group_named_and_numbered() {
+        let compiled = compiled(r"(?<word>[a-z]+)(\d+)?", "match").expect("compiles");
+        let names = names_of(&compiled);
+        let Compiled::Linear(re) = &*compiled else {
+            panic!("a plain pattern lands in the linear tier")
+        };
+        let caps = re.captures_at("  abc", 0).expect("matches");
+        let value = built_match("  abc", &names, &linear_groups(&caps));
+        let object = value.obj_ptr().expect("a Match is an object");
+        let groups = crate::instance::slot(object, GROUPS_SLOT);
+        let held = crate::arr::borrowed(groups.array_ptr().expect("an array"));
+        assert_eq!(
+            held.get(b"0")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"abc".to_vec())
+        );
+        assert_eq!(
+            held.get(b"word")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"abc".to_vec())
+        );
+        // Declared, unmatched: present and null, which is what makes
+        // `group(2)` answer `null` while `group(3)` throws.
+        assert!(held.get(b"2").is_some_and(|v| v.tag() == Some(Tag::Null)));
+        assert!(held.get(b"3").is_none());
+        // Two leading spaces, so the offset is not the trivial zero.
+        assert_eq!(crate::instance::slot(object, OFFSET_SLOT).as_int(), Some(2));
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference `built_match` produced"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
 
     /// The tier is chosen by the pattern, never by the caller — ADR 0056 § 1.
     /// A plain pattern lands linear; one with a lookahead the linear engine

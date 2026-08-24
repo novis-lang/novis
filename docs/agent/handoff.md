@@ -2,45 +2,44 @@
 
 ## State
 
-**Stage 3 — `Core` Part I across spec §§ 1–12 — now has its first section outside §§ 1–3: `Core\Regex`.**
-[ADR 0056](../adr/0056-regex-engine-policy.md)'s two tiers are both bound, in `crates/mwl-stdlib/src/regex.rs`
-— that module's own doc comment is the home for why `regex` and `fancy-regex` rather than a C engine, for
-the thread-local compiled-pattern cache and what it spends, and for the three gaps § 5 still has. The tier
-is chosen by the pattern and never by the caller; exhausting the backtracking budget **throws**, which is
-the whole point of that ADR and is held by
-`tests/conformance/core/regex-tiers-and-the-backtracking-budget.mwlt`.
+**The `Core`-owned instance is built, and `Core\Regex\Match` is the first one.** A `Core` class may now
+carry an `instance` member roster and a `slots` layout (`mwl_stdlib::registry::CoreClass`), a
+`CoreTy::Instance` names one as a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it —
+that module's own doc comment is the home for the two decisions it records (a `Core` instance is an
+ordinary MWL object; the descriptors are one leaked `ClassTable` per core) and what each spends. The
+checker seeds an instance member with `is_static: false` and `mwl-ir`'s `MethodCall` arm lowers it to the
+same `InstKind::CoreCall` a static `Core` call uses, with the receiver in argument slot 0.
 
-Four of § 5's eight members are registered: `matches`, `replace`, `split`, `quote`. The other four —
-`compile`, `match`, `matchAll`, `replaceWith` — are all stated in terms of a **`Core`-owned instance**
-(`Pattern`, `Match`), and `registry::CoreClass` has no representation for a value of a `Core` class and no
-dispatch for a method called on one. That single missing capability is now `mwl-stdlib`'s gap 3 and covers
-§ 4's four time types, § 9's three collections and § 12's `Uri` as well.
+§ 5 is now six of eight members: `match` (`?Match`) and `matchAll` (`array<Match>`) joined the four scalar
+ones, and `Match` answers `group`/`groups`/`offset`/`text`. `crates/mwl-stdlib/src/regex.rs` owns what a
+`Match` holds and why it is materialized eagerly; spec § 5 now states the four signatures.
 
-Stage 3's seven fixtures still stand at **three passing** (`core.mwl`, `report.mwl`, `numbers.mwl`).
-`examples/text.mwl` now fails on seven names rather than on the engine: `Regex::match`/`matchAll`, and
-`Core\Str::wrap`/`reverse`/`format`/`indexOf`/`before`.
+Two holes this closed on the way, each with a reject case: `Core\Regex\Match::text()` written as a static
+call used to reach the helper with an empty argument slice and abort the process (**E0458**), and `->` on a
+nullable receiver used to panic `mwl-ir` (**E0459**).
 
-Verified: `cargo build`/`test`/`clippy`/`fmt` green, 296 conformance + 85 differential cases,
-`cargo deny check` and `python tools/gen-attribution.py` re-run for the new dependency, and
-`tools/leak-check.sh` clean over a fixture calling all four members.
+Verified: `cargo build`/`test`/`clippy`/`fmt` green, 300 conformance + 85 differential cases, the whole WSL
+leg including its valgrind sweep, and `tools/leak-check.sh` clean over a fixture that loops fifty times
+through every new refcount edge — including a freshly built receiver, which the borrow rule makes this
+frame's to release.
 
 ## Next
 
-**The `Core`-owned instance** — one capability, four spec sections. `mwl_types::error_lib` already seeds a
-`Core`-owned class the checker resolves properties and methods on, so the missing half is the *value*: a
-`registry::CoreTy` variant naming a `Core` class, what a native helper returns for one, and how
-`$match->group(1)` reaches native code. `Core\Regex`'s `Match` is the smallest first subject — four
-accessors over data the engine already produced — and it unblocks `match`/`matchAll` and half of
-`examples/text.mwl`. `crates/mwl-stdlib/src/regex.rs`'s gap 1 states what those four members need.
+**`Core\Str::wrap`/`reverse`/`format`/`indexOf`/`before`, then `!== null` narrowing.** Those five members
+are the rest of `examples/text.mwl`, and none needs a new signature shape —
+`docs/spec/01-core-library.md` § 1 has the rows. The fixture then still fails on one language hole: it
+writes `if ($found !== null) { $found->group(1); }`, and nothing narrows a local's type through a
+condition, so E0459 fires where `?->` would work. That narrowing is the smaller half of the two and it is
+what every migrated PHP program writes; `mwl_types::locals` is where a local's type lives.
 
 ## Backlog
 
-- **`Core\Str::wrap`/`reverse`/`format`/`indexOf`/`before`** — the other half of `examples/text.mwl`, and
-  none needs a new signature shape. `docs/spec/01-core-library.md` § 1 has the rows.
 - **`Core\Str::slice` and `Arr::diff`/`intersect`** — the last of §§ 1–2 that need no new shape;
   `diff`/`intersect` want a `Core\SetOn { Values, Keys, Both }` enum in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **A variadic parameter** is the other signature shape left — `mwl-stdlib`'s gap 3 owns the member list,
+- **`Core\Regex::compile`/`replaceWith`** — § 5's last two, both stated on `Pattern`, which is a pattern
+  plus four compilation flags reaching the cache key. `crates/mwl-stdlib/src/regex.rs`'s gap 1.
+- **A variadic parameter** is the one signature shape left — `mwl-stdlib`'s gap 3 owns the member list,
   `mwl-ir`'s gap 8 the lowering half.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
   *Known gap*; `Core\Str::padStart("ab", 10, "")` in a loop reproduces it under `tools/leak-check.sh`.
@@ -71,11 +70,12 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   statements, like `examples/*.mwl` — there is no `Main::main` entry point.
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
-  `args: [3]`. A mismatch is an index-out-of-bounds panic at the first call, not a build error.
+  `args: [3]`. **An instance member's receiver is argument slot 0 and is not in `params`**, so
+  `group(int|string)` is `args: [2]`. A mismatch is an index-out-of-bounds panic at the first call.
 - **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
   `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
   symbol, not a link error), and a `.mwlt` case that calls it — `tests/conformance_coverage.rs` fails
-  `cargo test -p mwl-stdlib` without one.
+  `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
   makes the runner *skip the whole case* there, subtracting from the very count Stage 4 measures. Verify
   against PHP while authoring (a `.php` twin under `.agent-tmp/`, `php` is on the Windows `PATH`), then
@@ -85,19 +85,22 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   sentinel character after it.
 - **`MwlStr::from_raw`/`MwlArray::from_raw` return an *owning* handle.** Reading a refcount through one in
   a unit test releases a reference when it drops — wrap it in `std::mem::ManuallyDrop`, or the test ends in
-  a heap corruption rather than an assertion failure.
+  a heap corruption rather than an assertion failure. `crate::arr::borrowed` is that wrapper for an
+  argument, and `crate::instance::slot` is the borrowed read of an object's slot.
 - **`Core\Path` emits a platform separator**, so a fixture or case asserting a built path must normalize it
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
 - **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator *and*
   than unary minus, so write `($a > $b) as string` and `(0 - 3) as ?uint`; a `for` header takes
-  *expressions* only, so the loop variable is declared on the line above it; `bool as string` is PHP's
-  `""`/`"1"`; a bare array literal in a `foreach` head or a call argument types as `mixed`, and `var` refuses
-  one outright; a `foreach` key binding must be declared `string` even over a list; a union interns sorted by
-  type id, so `?string` describes as `string|null`; there is no int-to-float widening, so `Math::sqrt(2)` is
-  a diagnostic and `2.0` is what a `float` parameter takes; a `catch` binding is function-scoped **until this
-  loop re-scopes it** (pre-authorized); `Exception` is spelled `Core\Error`, a caught value's text is
-  `$e->message` and not a getter, and a typed `catch` on a `Core` class does not lower yet — catch
-  `Throwable` instead.
+  *expressions* only, so the loop variable is declared on the line above it (`foreach (Core\Arr::range(…))`
+  is usually shorter); `Core\Str::length` answers `uint`, so a running total it feeds must be one too;
+  `bool as string` is PHP's `""`/`"1"`; a bare array literal in a `foreach` head or a call argument types as
+  `mixed`, and `var` refuses one outright — so `$m?->groups() ?? []` is `array<T>|array<mixed>` and
+  `foreach` refuses it; a `foreach` key binding must be declared `string` even over a list; a union interns
+  sorted by type id, so `?string` describes as `string|null`; there is no int-to-float widening, so
+  `Math::sqrt(2)` is a diagnostic and `2.0` is what a `float` parameter takes; a `catch` binding is
+  function-scoped **until this loop re-scopes it** (pre-authorized); `Exception` is spelled `Core\Error`, a
+  caught value's text is `$e->message` and not a getter, and a typed `catch` on a `Core` class does not
+  lower yet — catch `Throwable` instead.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud

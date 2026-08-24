@@ -41,7 +41,12 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     for class in CLASSES {
         let qname = QName::parse(class.name);
         let mut methods = FxHashMap::default();
-        for method in class.methods {
+        for (method, is_static) in class
+            .methods
+            .iter()
+            .map(|method| (method, true))
+            .chain(class.instance.iter().map(|method| (method, false)))
+        {
             methods.insert(
                 method.name.to_owned(),
                 MethodSig {
@@ -57,7 +62,12 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                     variadic: false,
                     defaults: defaults_of(method),
                     return_ty: lower(&method.return_ty, interner),
-                    is_static: true,
+                    // A `Core` member is reachable exactly one way (ADR 0063
+                    // R20): a static one through its class name, an instance
+                    // one through a value. The registry states which by which
+                    // roster the row is written in — see
+                    // `mwl_stdlib::registry::CoreClass::instance`.
+                    is_static,
                     interface_private: false,
                     // Native Rust behind a helper symbol, not a compiled MWL
                     // function — but it is code, so a call never needs to go
@@ -66,6 +76,10 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                 },
             );
         }
+        // No properties, for either kind: a `Core` instance's slots are
+        // `mwl-stdlib`'s layout rather than a surface a program reads, so
+        // `$match->groups` is an unknown member and `$match->groups()` is the
+        // member. `mwl_stdlib::registry::CoreTy::Instance` owns why.
         table.seed_class(qname, FxHashMap::default(), methods);
     }
 }
@@ -81,8 +95,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
 pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
     let class = mwl_stdlib::registry::class(&qname.to_string())?;
     class
-        .methods
-        .iter()
+        .members()
         .find(|candidate| candidate.name == method)
         .map(|found| found.symbol)
 }
@@ -222,6 +235,12 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             interner.enum_(qname, crate::enums::EnumBacking::Int)
         }
         CoreTy::CallableTo(name) => interner.callable_to(*name),
+        // A `Core`-owned instance is an ordinary class type from here on, for
+        // the reason the enum arm above is an ordinary enum type: `seed` has
+        // already put the class in this very table, so `resolve_method` finds
+        // `$match->text()` through the machinery `$animal->name()` goes
+        // through, and `mwl-ir` lowers the value to `Ty::Object`.
+        CoreTy::Instance(name) => interner.class(QName::parse(name)),
         // Canonicalized by the interner, unlike an options bag: a union has no
         // ABI order to preserve, so `int|string` and `string|int` are one type
         // here exactly as they are when written in source.

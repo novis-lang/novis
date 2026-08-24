@@ -1,0 +1,67 @@
+--TEST--
+Spec § 5: `Core\Regex::match` answers a `?Match`, whose four members read the groups it captured
+--FILE--
+<?mwl
+// ADR 0063 R3: there is no `$matches` out-parameter. The match *is* the
+// return value, and R5 makes "no match" `null` rather than a falsy int.
+var $found = Core\Regex::match("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)");
+echo $found?->text() ?? "none", "|\n";
+echo $found?->group(0) ?? "none", "|\n";
+echo $found?->group(2) ?? "none", "|\n";
+// A named group is readable under its name and its number both, exactly as
+// `preg_match` returns it.
+echo $found?->group("kind") ?? "none", "|\n";
+echo ($found?->offset() ?? -1) as string, "|\n";
+
+var $missing = Core\Regex::match("nothing here", "\\d+");
+echo $missing?->text() ?? "none", "|\n";
+
+// `groups()` is the whole capture set, in `preg_match`'s own order: a named
+// group under its name, then under its number.
+foreach (Core\Regex::matchAll("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)") as Core\Regex\Match $one) {
+    foreach ($one->groups() as string $key => ?string $value) {
+        echo $key, "=", $value ?? "null", " ";
+    }
+}
+echo "|\n";
+
+// A group the pattern declares but this match did not reach is `null`; one
+// the pattern does not declare at all throws (ADR 0063 R4 versus R5).
+var $partial = Core\Regex::match("abc", "([a-z]+)(\\d+)?");
+echo $partial?->group(2) ?? "null", "|\n";
+try {
+    echo $partial?->group(9) ?? "null", "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "declares no group") as string, "|\n";
+}
+
+// `from` counts in the same unit every other `string` position does, and the
+// offset that comes back is in that unit too.
+var $second = Core\Regex::match("a1 b2 c3", "[a-z]\\d", {from: 2});
+echo $second?->text() ?? "none", "@", ($second?->offset() ?? -1) as string, "|\n";
+var $fromEnd = Core\Regex::match("a1 b2 c3", "[a-z]\\d", {from: -2});
+echo $fromEnd?->text() ?? "none", "|\n";
+
+// `matchAll` is one `Match` per match, in the order they occur.
+var $all = Core\Regex::matchAll("a1 b2 c3", "([a-z])(\\d)");
+echo Core\Arr::count($all) as string, "|\n";
+foreach ($all as Core\Regex\Match $one) {
+    echo $one->group(1) ?? "?", $one->group(2) ?? "?", "@", $one->offset() as string, " ";
+}
+echo "|\n";
+echo Core\Arr::count(Core\Regex::matchAll("nothing", "\\d")) as string, "|\n";
+--EXPECT--
+order 4711|
+order 4711|
+4711|
+order|
+0|
+none|
+0=order 4711 kind=order 1=order 2=4711 |
+null|
+1|
+b2@3|
+c3|
+3|
+a1@0 b2@3 c3@6 |
+0|

@@ -140,6 +140,51 @@ impl Unit {
             .ok()
             .and_then(|offset| self.pieces(subject).nth(offset))
     }
+
+    /// How many units of `subject` end at or before byte offset `byte` — the
+    /// index a caller who counts in this unit would give the character starting
+    /// there.
+    ///
+    /// The bridge every member that talks to a **byte**-addressed engine needs:
+    /// `Core\Regex` runs on two crates that report a match in bytes, while
+    /// ADR 0009 § 2 says every `string` position MWL hands back or takes is in
+    /// [`DEFAULT`]'s unit. Converting at that seam is what keeps
+    /// `Core\Regex\Match::offset` and `Core\Str::indexOf` answering in one unit.
+    ///
+    /// **O(`byte`)**, allocation-free: the prefix is counted, not indexed. A
+    /// caller converting many offsets over one subject therefore pays per
+    /// offset — see [`crate::regex`]'s own gap note, which owns that cost for
+    /// the one member that converts more than one.
+    ///
+    /// # Panics
+    ///
+    /// If `byte` is not a character boundary of `subject`, which is a slicing
+    /// bug rather than input: both engines report a match at a boundary.
+    #[must_use]
+    pub fn index_of_byte(self, subject: &str, byte: usize) -> usize {
+        self.length(&subject[..byte])
+    }
+
+    /// The byte offset unit `index` of `subject` starts at, or the subject's
+    /// whole length for an index at or past its end.
+    ///
+    /// [`Self::index_of_byte`]'s inverse, and the direction an *incoming*
+    /// position converts in — `Core\Regex::match`'s `from` option is a
+    /// [`DEFAULT`]-unit index the engine has to be given in bytes. Saturating
+    /// at the end rather than answering `None` is what makes a search from past
+    /// the end find nothing instead of throwing, which is the answer that
+    /// composes with a loop.
+    #[must_use]
+    pub fn byte_of_index(self, subject: &str, index: usize) -> usize {
+        let mut consumed = 0;
+        for (seen, piece) in self.pieces(subject).enumerate() {
+            if seen == index {
+                return consumed;
+            }
+            consumed += piece.len();
+        }
+        consumed
+    }
 }
 
 /// [`Unit::pieces`]'s iterator — one `&str` per unit of the subject.
@@ -290,6 +335,38 @@ mod tests {
                 reference,
                 "{subject:?} split differently from the segmenter"
             );
+        }
+    }
+
+    /// The two conversions are inverses at every boundary of the subject, in
+    /// both units — the property `Core\Regex` depends on when it hands an
+    /// engine a byte offset built from a caller's unit index and reports the
+    /// resulting match back in that unit.
+    #[test]
+    fn a_byte_offset_and_a_unit_index_convert_both_ways() {
+        for subject in ["", "ascii", "cafe\u{301}", "a\u{1f1e6}\u{1f1f9}b", "日本語"] {
+            for unit in [Unit::CodePoint, Unit::Grapheme] {
+                let mut byte = 0;
+                for (index, piece) in unit.pieces(subject).enumerate() {
+                    assert_eq!(unit.index_of_byte(subject, byte), index, "{subject:?}");
+                    assert_eq!(unit.byte_of_index(subject, index), byte, "{subject:?}");
+                    byte += piece.len();
+                }
+                // One past the last unit is the subject's own length, in both
+                // directions — an index nothing starts at still has an answer.
+                assert_eq!(
+                    unit.index_of_byte(subject, subject.len()),
+                    unit.length(subject)
+                );
+                assert_eq!(
+                    unit.byte_of_index(subject, unit.length(subject)),
+                    subject.len()
+                );
+                assert_eq!(
+                    unit.byte_of_index(subject, unit.length(subject) + 9),
+                    subject.len()
+                );
+            }
         }
     }
 

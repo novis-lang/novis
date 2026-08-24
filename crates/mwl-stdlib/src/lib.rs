@@ -34,12 +34,15 @@
 //! to link, and an implementation nothing registers is dead code the compiler
 //! warns about.
 //!
-//! Two modules are not domains, and both exist for the same reason — more than
-//! one domain reaches for what they hold, so no domain may decide it alone.
-//! `granularity` holds ADR 0009 § 2's answer to "what unit does a `string`
-//! count in"; `ordering` holds what "smaller" means with no comparator given,
-//! which `Core\Arr::sort`/`min`/`max` and `Core\Math::min`/`max`/`clamp` would
-//! otherwise be free to answer differently.
+//! Three modules are not domains, and all exist for the same reason — more
+//! than one domain reaches for what they hold, so no domain may decide it
+//! alone. `granularity` holds ADR 0009 § 2's answer to "what unit does a
+//! `string` count in"; `ordering` holds what "smaller" means with no
+//! comparator given, which `Core\Arr::sort`/`min`/`max` and
+//! `Core\Math::min`/`max`/`clamp` would otherwise be free to answer
+//! differently; [`instance`] holds what a value of a `Core`-owned class *is*,
+//! which § 4's time types, § 9's collections and § 12's `Uri` all answer the
+//! same way § 5's `Match` does.
 //!
 //! # A `Core` call is a helper call
 //!
@@ -163,11 +166,14 @@
 
 pub mod arr;
 pub mod granularity;
+mod instance;
 pub mod math;
 mod ordering;
 pub mod regex;
 pub mod registry;
 pub mod str;
+
+use registry::CoreClass;
 
 /// Every `Core` implementation's symbol and address, for the JIT to resolve
 /// against — the same shape and the same purpose as
@@ -191,7 +197,7 @@ pub mod str;
 pub fn symbols() -> Vec<(&'static str, *const u8)> {
     registry::CLASSES
         .iter()
-        .flat_map(|class| class.methods)
+        .flat_map(CoreClass::members)
         .map(|method| {
             let address = str::address(method.symbol)
                 .or_else(|| arr::address(method.symbol))
@@ -222,7 +228,7 @@ mod tests {
             symbols.len(),
             registry::CLASSES
                 .iter()
-                .map(|class| class.methods.len())
+                .map(|class| class.members().count())
                 .sum::<usize>()
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
@@ -235,7 +241,7 @@ mod tests {
     fn no_two_members_share_a_symbol() {
         let mut seen: Vec<&str> = registry::CLASSES
             .iter()
-            .flat_map(|class| class.methods)
+            .flat_map(CoreClass::members)
             .map(|method| method.symbol)
             .collect();
         let total = seen.len();

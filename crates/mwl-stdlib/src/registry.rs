@@ -26,7 +26,9 @@
 //! missing is [`crate`]'s own gap 3, which owns the list: a **variadic**
 //! parameter, and nothing else. A class **constant** is no longer on it — it is
 //! [`CoreConst`], a roster on [`CoreClass`] rather than a [`CoreTy`] variant,
-//! since a constant has a value and no signature.
+//! since a constant has a value and no signature. Nor is a `Core`-owned
+//! **instance**: it is [`CoreTy::Instance`] plus [`CoreClass::instance`] and
+//! [`CoreClass::slots`], and [`crate::instance`] is the value behind it.
 //!
 //! # A `Core` enum is declared here too
 //!
@@ -188,6 +190,24 @@ pub enum CoreTy {
     /// stores one, so the only thing a `uint` backing could buy is a case
     /// past `i64::MAX`.
     Enum(&'static str),
+    /// An **instance** of a `Core`-owned class, named by its fully-qualified
+    /// name — `Core\Regex\Match` in `match(string $s, string $p): ?Match`.
+    ///
+    /// The name is resolved against [`CLASSES`] exactly as [`Self::Enum`]'s is
+    /// against [`ENUMS`]: the class is part of `Core`'s surface, so it is
+    /// declared here and seeded into the checker's signature table, where it
+    /// becomes an ordinary class type. Nothing downstream of that point can
+    /// tell it from a user-declared class — the checker resolves a method on
+    /// it through `resolve_method`, and `mwl-ir` lowers a value of it to
+    /// `Ty::Object`.
+    ///
+    /// What makes it *`Core`*-owned is the two things [`CoreClass::slots`] and
+    /// [`CoreClass::instance`] state: the instance's field slots are
+    /// `mwl-stdlib`'s to lay out rather than a program's to declare, and every
+    /// method on it is a native helper reached with the receiver in argument
+    /// slot 0. So there is no constructor, no property and no subclass — a
+    /// program can only receive one from a member that returns it.
+    Instance(&'static str),
     /// ADR 0063 R2's trailing options shape — `{step?: int}`, one
     /// [`CoreOption`] per declared option, in the order the ABI passes them.
     /// See this module's own docs for why it is its own type rather than a
@@ -355,13 +375,38 @@ pub struct CoreConst {
 
 /// One `Core` domain class — ADR 0011's "every callable is a class member,"
 /// with `Core` as the reserved namespace.
+///
+/// Most are pure **namespaces**: a roster of static members, no state, and
+/// nothing a program can hold a value of. A class that declares
+/// [`Self::slots`] and [`Self::instance`] is the other kind — see
+/// [`CoreTy::Instance`], which owns what a `Core`-owned instance is and what it
+/// is not.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreClass {
     /// The fully-qualified name, backslash-separated exactly as written in
     /// source (`Core\Arr`).
     pub name: &'static str,
-    /// Its members, in the spec's own order.
+    /// Its **static** members, in the spec's own order — `Core\Arr::count`,
+    /// reached through the class name and nothing else.
     pub methods: &'static [CoreMethod],
+    /// Its **instance** members, in the spec's own order — `$match->text()`,
+    /// reached through a value and nothing else.
+    ///
+    /// A separate roster rather than a flag on [`CoreMethod`] because the two
+    /// differ in *shape*, not only in reachability: an instance member's
+    /// receiver is implicit, so it is absent from [`CoreMethod::params`] and
+    /// present in argument slot 0 at the ABI, exactly the way a compiled MWL
+    /// method's is. Empty for every namespace class, which is most of them.
+    pub instance: &'static [CoreMethod],
+    /// One name per field slot an instance of this class holds, in slot order
+    /// — the layout `mwl-stdlib` builds an instance against and the helper
+    /// bodies read back by index.
+    ///
+    /// Named rather than merely counted so the one file that writes a slot and
+    /// the one that reads it agree on more than a number. Empty for a namespace
+    /// class; nothing outside this crate reads it, since a `Core` instance has
+    /// no property a program can reach ([`CoreTy::Instance`]).
+    pub slots: &'static [&'static str],
     /// Its constants, in the spec's own order — empty for a class the spec
     /// gives none, which is most of them.
     pub constants: &'static [CoreConst],
@@ -372,6 +417,29 @@ impl CoreClass {
     #[must_use]
     pub fn constant(&self, name: &str) -> Option<&'static CoreConst> {
         self.constants.iter().find(|found| found.name == name)
+    }
+
+    /// Every member this class declares, static then instance — what a
+    /// consumer that only cares about "the code behind a name" iterates, so
+    /// neither roster can be forgotten at one of them.
+    pub fn members(&self) -> impl Iterator<Item = &'static CoreMethod> {
+        self.methods.iter().chain(self.instance)
+    }
+
+    /// The index of the slot named `slot`, for a helper body reading an
+    /// instance's own state back.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the slot if this class declares none by that name — both
+    /// halves are in this crate, so that is a build-time oversight rather than
+    /// anything a program can cause.
+    #[must_use]
+    pub fn slot(&self, slot: &str) -> usize {
+        self.slots
+            .iter()
+            .position(|found| *found == slot)
+            .unwrap_or_else(|| panic!("{} declares no `{slot}` slot", self.name))
     }
 }
 
@@ -391,6 +459,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::arr::CLASS,
     crate::math::CLASS,
     crate::regex::CLASS,
+    crate::regex::MATCH,
 ];
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
@@ -459,7 +528,7 @@ mod tests {
                     "{segment} is not PascalCase"
                 );
             }
-            for method in class.methods {
+            for method in class.members() {
                 assert!(
                     method.name.starts_with(|c: char| c.is_ascii_lowercase()),
                     "{}::{} is not camelCase",
@@ -488,7 +557,7 @@ mod tests {
     #[test]
     fn no_member_declares_more_defaults_than_parameters() {
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 assert!(
                     method.defaults.len() <= method.positional().len(),
                     "{}::{} declares {} defaults for {} positional parameters",
@@ -509,7 +578,7 @@ mod tests {
     #[test]
     fn an_options_bag_is_last_and_never_empty() {
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 for (index, param) in method.params.iter().enumerate() {
                     let CoreTy::Options(options) = param else {
                         continue;
@@ -557,7 +626,7 @@ mod tests {
     #[test]
     fn a_union_is_never_an_option_type() {
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 for member in method.options().unwrap_or(&[]) {
                     assert!(
                         !matches!(member.ty, CoreTy::Union(_) | CoreTy::Nullable(_)),
@@ -602,7 +671,7 @@ mod tests {
             }
         }
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 let what = format!("{}::{}", class.name, method.name);
                 check(&method.return_ty, &what);
                 for param in method.params {
@@ -628,7 +697,7 @@ mod tests {
             }
         }
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 assert!(
                     !nests_one(&method.return_ty),
                     "{}::{} returns a callback result type",
@@ -664,7 +733,7 @@ mod tests {
             }
         }
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 for param in method.params {
                     let CoreTy::CallableTo(name) = param else {
                         continue;
@@ -686,7 +755,7 @@ mod tests {
     #[test]
     fn a_union_has_at_least_two_members() {
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 for param in method.params {
                     if let CoreTy::Union(members) = param {
                         assert!(
@@ -749,7 +818,7 @@ mod tests {
     #[test]
     fn every_enum_case_default_names_a_real_case() {
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 for option in method.options().unwrap_or(&[]) {
                     let Const::EnumCase(name, case) = option.default else {
                         continue;
@@ -778,7 +847,7 @@ mod tests {
     #[test]
     fn every_enum_typed_option_names_a_registered_enum() {
         for class in CLASSES {
-            for method in class.methods {
+            for method in class.members() {
                 for option in method.options().unwrap_or(&[]) {
                     if let CoreTy::Enum(name) = option.ty {
                         assert!(
@@ -915,6 +984,81 @@ mod tests {
             Some(Const::Uint(u64::MAX))
         ));
         assert!(math.constant("Pi").is_none());
+    }
+
+    /// A [`CoreTy::Instance`] names a class this crate registers, in every
+    /// position a type can appear — the same check
+    /// `every_enum_typed_option_names_a_registered_enum` performs for an enum,
+    /// and for the same reason: the name is *resolved*, so a typo would intern
+    /// a class type nothing can ever produce a value of.
+    #[test]
+    fn every_instance_type_names_a_registered_class() {
+        fn check(ty: &CoreTy, what: &str) {
+            match ty {
+                CoreTy::Instance(name) => assert!(
+                    class(name).is_some(),
+                    "{what} names the unregistered class `{name}`"
+                ),
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) => check(elem, what),
+                CoreTy::Union(members) => {
+                    for member in *members {
+                        check(member, what);
+                    }
+                }
+                CoreTy::Options(options) => {
+                    for option in *options {
+                        check(&option.ty, what);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                let what = format!("{}::{}", class.name, method.name);
+                check(&method.return_ty, &what);
+                for param in method.params {
+                    check(param, &what);
+                }
+            }
+        }
+    }
+
+    /// A class's state is reachable and its members have something to read.
+    /// Slots nothing can read are dead bytes on every instance, and an instance
+    /// member on a class with no slots would be a method with no receiver state
+    /// — either is a half-written class rather than a design.
+    #[test]
+    fn a_class_with_slots_has_instance_members_and_the_reverse() {
+        for class in CLASSES {
+            assert_eq!(
+                class.slots.is_empty(),
+                class.instance.is_empty(),
+                "{} declares {} slot(s) and {} instance member(s)",
+                class.name,
+                class.slots.len(),
+                class.instance.len()
+            );
+            let mut names: Vec<&str> = class.slots.to_vec();
+            let total = names.len();
+            names.sort_unstable();
+            names.dedup();
+            assert_eq!(names.len(), total, "{} names a slot twice", class.name);
+        }
+    }
+
+    /// `Core\Regex\Match`'s four members and two slots, spelled out — the first
+    /// `Core`-owned instance, and the one place spec § 5's own list is stated
+    /// twice on purpose.
+    #[test]
+    fn the_first_core_owned_instance_declares_the_four_members_the_spec_names() {
+        let found = class(r"Core\Regex\Match").expect(r"Core\Regex\Match is registered");
+        assert!(found.methods.is_empty(), "a Match has no static member");
+        let names: Vec<&str> = found.instance.iter().map(|found| found.name).collect();
+        assert_eq!(names, vec!["group", "groups", "offset", "text"]);
+        assert_eq!(found.slots, ["groups", "offset"]);
+        // The receiver is implicit, so `text()` declares no parameter at all.
+        assert!(found.instance[3].params.is_empty());
     }
 
     #[test]

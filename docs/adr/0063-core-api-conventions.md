@@ -271,6 +271,11 @@ member added without one is an incomplete member.
 
 ## Verification
 
+- **Done (M4S).** R20's one genuinely reachable two-spellings case is a compile error: a `Core` *instance*
+  member written as a static call is `E0458`, held by
+  `tests/conformance/reject/a-core-instance-member-has-one-spelling.mwlt`. It needs its own rule because
+  such a member's receiver travels in argument slot 0, so `Core\Regex\Match::text($m)` would otherwise pass
+  the same arity check `$m->text()` passes and reach the identical helper.
 - **M4S:** every member in [docs/spec/01-core-library.md](../spec/01-core-library.md) has a conformance
   test, and a mechanical check over the spec file asserts the rules that can be checked mechanically —
   R5's verb-to-return-type table, R7's full-word rule against the closed abbreviation list, R6's symmetric
