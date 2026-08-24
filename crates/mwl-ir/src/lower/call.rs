@@ -36,13 +36,20 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics naming the unsupported shape for anything outside this slice's
-    /// scope: a variadic signature, a named or spread argument (`mwl_types`
-    /// itself doesn't fully positionally type-check these against a signature
-    /// yet — see its own known gaps), more arguments than `sig` has parameters
-    /// or a missing one with no default (this crate trusts
-    /// `mwl_types::check_program` already enforced arity for a non-variadic
-    /// signature), or a by-reference argument that is neither a bare local nor
-    /// a compile-time-known property.
+    /// scope: a named or spread argument (`mwl_types` itself doesn't fully
+    /// positionally type-check these against a signature yet — see its own
+    /// known gaps), more arguments than `sig` has parameters or a missing one
+    /// with no default (this crate trusts `mwl_types::check_program` already
+    /// enforced arity for a non-variadic signature), or a by-reference
+    /// argument that is neither a bare local nor a compile-time-known
+    /// property.
+    ///
+    /// # A variadic tail
+    ///
+    /// A variadic signature's last parameter takes every remaining argument
+    /// at once, as one array — see [`Self::lower_variadic_tail`], which owns
+    /// the shape and the ownership rule. Everything before it is lowered
+    /// exactly as a fixed parameter, defaults included.
     ///
     /// # Omitted arguments
     ///
@@ -59,11 +66,6 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) -> LoweredArgs {
-        assert!(
-            !sig.variadic,
-            "mwl-ir does not yet lower a call to a variadic signature; see the crate docs' \
-             known gaps"
-        );
         let CallArgs::List(list) = args else {
             panic!(
                 "mwl-ir only lowers a plain positional argument list for a resolved call/`new` \
@@ -75,13 +77,20 @@ impl<'a> Lowering<'a> {
             "mwl-ir does not yet lower a named or spread call argument; see the crate docs' \
              known gaps"
         );
+        // A variadic signature's last parameter is not one ABI argument per
+        // written argument: it is one array holding all of them, built below.
+        // `fixed` is how many parameters still map one-to-one.
+        let fixed = match sig.variadic {
+            true => sig.param_tys.len() - 1,
+            false => sig.param_tys.len(),
+        };
         assert!(
-            list.len() <= sig.param_tys.len(),
+            sig.variadic || list.len() <= fixed,
             "mwl-ir: a resolved call passes more arguments than its signature has parameters — \
              this crate trusts mwl_types::check_program already enforced arity"
         );
         let mut out = LoweredArgs::default();
-        for (index, (arg, &pty)) in list.iter().zip(&sig.param_tys).enumerate() {
+        for (index, (arg, &pty)) in list.iter().take(fixed).zip(&sig.param_tys).enumerate() {
             // ADR 0063 R2's options bag: not one argument but one *per
             // declared option*, so it never reaches `lower_checked_ty` — it
             // has no IR type at all. See [`Self::lower_options_arg`].
@@ -131,7 +140,7 @@ impl<'a> Lowering<'a> {
             let v = self.coerce(*cur, v, ty, expected);
             out.values.push(v);
         }
-        for (index, default) in sig.defaults.iter().enumerate().skip(list.len()) {
+        for (index, default) in sig.defaults.iter().enumerate().take(fixed).skip(list.len()) {
             let default = default.as_ref().unwrap_or_else(|| {
                 panic!(
                     "mwl-ir: parameter {index} was omitted at a call site and has no default — \
@@ -155,8 +164,74 @@ impl<'a> Lowering<'a> {
             self.account_for_arg(v, ty, ownership, false, &mut out, *cur);
             out.values.push(v);
         }
+        if sig.variadic {
+            self.lower_variadic_tail(
+                &list[list.len().min(fixed)..],
+                fixed,
+                sig,
+                ownership,
+                env,
+                cur,
+                &mut out,
+            );
+        }
         out
     }
+
+    /// ADR 0063's variadic tail as the single ABI argument it becomes: every
+    /// argument from parameter `fixed` onward collected into one fresh
+    /// `array<T>`, keyed `"0"`, `"1"`, … in written order.
+    ///
+    /// The array is what `mwl_stdlib::registry::CoreTy::Variadic` promises the
+    /// helper — a `Tag::Array` in a fixed `args: [N]` slot — so a variadic
+    /// member costs one allocation per call and needs no second calling
+    /// convention. A call that writes no trailing argument still passes an
+    /// array, empty rather than absent, so the body has one shape to read.
+    ///
+    /// Ownership follows [`ir::InstKind::ArrayNew`]'s own rule rather than
+    /// [`Self::account_for_arg`]'s: the array *durably owns* each element the
+    /// way a callee's parameter slot does, so a refcounted element that is an
+    /// [`Lowering::aliasing_read`] is retained before it is stored, and the
+    /// array itself is the one value accounted at the call boundary — a fresh
+    /// producer, hence this frame's temporary to release once the call has
+    /// returned.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the same context `lower_call_args` itself threads; splitting it into a struct \
+                  would buy one call site nothing"
+    )]
+    fn lower_variadic_tail(
+        &mut self,
+        rest: &[mwl_syntax::ast::Arg],
+        fixed: usize,
+        sig: &ArgSig,
+        ownership: ArgOwnership,
+        env: &Env,
+        cur: &mut BlockId,
+        out: &mut LoweredArgs,
+    ) {
+        let expected = sig.expectation(fixed, self.checked_types);
+        let mut entries = Vec::with_capacity(rest.len());
+        for (index, arg) in rest.iter().enumerate() {
+            let (v, ty) = self.lower_expr(&arg.value, expected, env, cur);
+            if ty.is_refcounted() && self.aliasing_read(&arg.value) {
+                self.emit_retain(*cur, v);
+            }
+            // The element is stored as a whole `mwl_runtime::Value`, so it is
+            // widened into the parameter's own representation here exactly as
+            // a fixed argument is — `Self::coerce` is ownership-transparent,
+            // so the retain above still pays for what lands in the array.
+            let v = match expected {
+                Some(expected) => self.coerce(*cur, v, ty, expected),
+                None => v,
+            };
+            entries.push((index.to_string(), v));
+        }
+        let (array, ty) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
+        self.account_for_arg(array, ty, ownership, false, out, *cur);
+        out.values.push(array);
+    }
+
     /// Which frame owes a release for one lowered argument, and whether it has
     /// to take a reference first — the caller-side half of the refcount
     /// protocol, in one table:

@@ -85,21 +85,27 @@
 //!    [`granularity::DEFAULT`] is its answer, so `length`, `at`, `slice`,
 //!    `indexOf`, `lastIndexOf` and `wrap` all count in it. Twelve of that
 //!    section's rows are left: `compare`, `chunk`, `lines`, `graphemes`,
-//!    `codePoints`, `replaceAll`, `replaceRange`, `fold`, `normalize`, the two
-//!    `fromCodePoint` members, and `format`, which waits on gap 3's variadic.
+//!    `codePoints`, `replaceAll`, `replaceRange`, `fold`, `normalize` and the
+//!    two `fromCodePoint` members. `format` is written, over the printf
+//!    grammar [`format`] owns and the first variadic parameter in `Core`.
 //!    Section 3 is whole: every one of [`math::CLASS`]'s thirty-eight rows
 //!    runs, and `abs`/`sign`/`format` take the `int|float|decimal` the spec
 //!    writes (see [`math`]'s own gap note for the four rounding rows that do
 //!    not yet). Section 5 is six of its eight: [`regex::CLASS`] holds both of
 //!    ADR 0056's tiers and the `Core`-owned `Match` they answer with, and that
 //!    module's own gap 1 owns `compile`/`replaceWith`, which need `Pattern`.
-//! 3. **One shape a §§ 1–12 signature writes still cannot be stated: a
-//!    variadic parameter.** It blocks ADR 0069's
+//! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
+//!    one was a **variadic** parameter, and it is
+//!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
+//!    `array<T>` of the tail, built by `mwl_ir::lower::lower_variadic_tail`,
+//!    since a helper's `args: [N]` is a fixed arity. `Core\Str::format` is the
+//!    first row to declare one; ADR 0069's
 //!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
-//!    `Arr::prepend`, `Path::join` and `Str::format`; it is a
-//!    `registry::CoreMethod` field plus `mwl-ir`'s gap 8, since a helper's
-//!    `args: [N]` is a fixed arity and a variadic call has to collect its tail
-//!    into an array before it can reach one.
+//!    `Arr::prepend` and `Path::join` need only writing.
+//!
+//!    What is left is not a *type* but a call shape: `mwl-ir`'s gap 8 still
+//!    refuses a **named** or `...spread` argument, which no `Core` signature
+//!    needs and every one of those members can be called without.
 //!
 //!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
 //!    behind [`registry::CoreTy::Instance`], and that module's own docs own
@@ -156,6 +162,7 @@
 //!    not do yet.
 
 pub mod arr;
+mod format;
 pub mod granularity;
 mod instance;
 pub mod math;

@@ -2644,8 +2644,14 @@ fn check_args_typed(
         return (types, Some(sig));
     }
     let required = sig.required();
-    if !sig.variadic && (list.len() < required || list.len() > sig.params.len()) {
-        let expected = if required == sig.params.len() {
+    // A variadic tail removes the *upper* bound and nothing else: a call still
+    // has to supply every fixed parameter before it, which `required` already
+    // stops one short of counting.
+    let too_many = !sig.variadic && list.len() > sig.params.len();
+    if list.len() < required || too_many {
+        let expected = if sig.variadic {
+            format!("at least {required}")
+        } else if required == sig.params.len() {
             format!("{required}")
         } else {
             format!("{required} to {}", sig.params.len())

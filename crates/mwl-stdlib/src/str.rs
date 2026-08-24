@@ -247,6 +247,13 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "mwl_core_str_lower_first",
         },
+        CoreMethod {
+            name: "format",
+            params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_format",
+        },
     ],
     instance: &[],
     slots: &[],
@@ -393,6 +400,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_upper" => (mwl_core_str_upper as *const ()).cast(),
         "mwl_core_str_upper_first" => (mwl_core_str_upper_first as *const ()).cast(),
         "mwl_core_str_lower_first" => (mwl_core_str_lower_first as *const ()).cast(),
+        "mwl_core_str_format" => (mwl_core_str_format as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1271,6 +1279,60 @@ mwl_runtime::mwl_helper! {
     /// `Core\Str::lowerFirst(string $s): string` — replacing PHP's `lcfirst`.
     fn mwl_core_str_lower_first(_ctx, args: [1]) {
         produced(&map_first(text(&args[0], "lowerFirst", "the subject")?, false))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::format(string $template, mixed ...$arguments): string` —
+    /// replacing PHP's `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`
+    /// and `vfprintf` at once, since none of the six differs in anything but
+    /// where its answer goes.
+    ///
+    /// The **first `Core` member with a variadic parameter**, so the second
+    /// argument slot is not one value per written argument but a single
+    /// `Tag::Array` holding all of them, built at the call site by
+    /// `mwl_ir::lower::lower_variadic_tail` — see
+    /// [`crate::registry::CoreTy::Variadic`] for why that shape rather than a
+    /// second calling convention. A call that writes no argument at all still
+    /// receives an array here, empty rather than absent.
+    ///
+    /// The template grammar, every refusal and the one thing still owed
+    /// (ADR 0057's compile-time check of a *literal* template) are
+    /// [`crate::format`]'s, which is the whole of this member.
+    fn mwl_core_str_format(_ctx, args: [2]) {
+        let template = text(&args[0], "format", "the template")?;
+        let arguments = args[1].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Str::format expected {:?} for the argument list, got tag {}",
+                Tag::Array,
+                args[1].tag_byte()
+            ))
+        })?;
+
+        let mut collected = Vec::new();
+        let mut from = 0usize;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array argument owns a reference to a live \
+                          allocation, so it is live for the length of this \
+                          call, and `from` only ever advances past a slot \
+                          this same cursor reported"
+            )]
+            let (slot, value) = unsafe {
+                let slot = mwl_runtime::mwl_array_next_slot(arguments, from);
+                let Ok(slot) = usize::try_from(slot) else {
+                    break;
+                };
+                let mut value = Value::null();
+                mwl_runtime::mwl_array_value_at(arguments, slot, &raw mut value);
+                (slot, value)
+            };
+            from = slot + 1;
+            collected.push(value);
+        }
+
+        produced(&crate::format::format(template, &collected)?)
     }
 }
 

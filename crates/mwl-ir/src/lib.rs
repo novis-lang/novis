@@ -187,10 +187,15 @@
 //!    method table [`ir::Class::methods`] carries. A real vtable would index
 //!    that table by slot instead, which is the remaining half — a lookup
 //!    cost, not a correctness gap.
-//! 8. **No variadic, named or spread call argument**, and no `...spread` or
-//!    `&value` array-literal element. `mwl_types` does not fully
-//!    positionally type-check a named or spread argument either, so there is
-//!    no resolved per-argument type to lower against.
+//! 8. **No named or spread call argument**, and no `...spread` or `&value`
+//!    array-literal element. `mwl_types` does not fully positionally
+//!    type-check a named or spread argument either, so there is no resolved
+//!    per-argument type to lower against. A **variadic** signature is no
+//!    longer among them: `lower::Lowering::lower_variadic_tail` collects every
+//!    argument from that parameter's position into one fresh array, which is
+//!    the single value the parameter receives — see
+//!    `mwl_stdlib::registry::CoreTy::Variadic` for why that shape rather than a
+//!    second, count-carrying calling convention.
 //! 9. **A closure literal lowers; `$f(...)` does not.** The only caller today
 //!    is native `Core` code going through `mwl_runtime::mwl_closure_call`.
 //!    ADR 0031 § 3's self-name is parsed and ignored, and a `&$x` capture or

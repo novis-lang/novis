@@ -1,0 +1,25 @@
+--TEST--
+Core\Str::format reads printf's flags, width, precision and %1$s positions
+--FILE--
+<?mwl
+echo Core\Str::format("%s has %d\n", "fox", 2);
+echo Core\Str::format("no placeholder at all\n");
+echo Core\Str::format("[%5s][%-5s][%'*6s]\n", "ab", "ab", "hi");
+echo Core\Str::format("[%05d][%+d][%+d][%u]\n", 42, 42, -42, -1);
+echo Core\Str::format("[%.3f][%10.3f][%-8.2f][%08.3f]\n", 3.14159, 3.14159, 3.14159, -3.14159);
+echo Core\Str::format("[%x][%X][%o][%b]\n", 255, 255, 8, 5);
+echo Core\Str::format('[%1$s-%1$s-%2$s]', "a", "b"), "\n";
+echo Core\Str::format("[%%][%.2s][%s][%s]\n", "abcdef", true, false);
+
+var $unit = "ms";
+echo Core\Str::format("%s took %d%s\n", "the request", 12, $unit);
+--EXPECT--
+fox has 2
+no placeholder at all
+[   ab][ab   ][****hi]
+[00042][+42][-42][18446744073709551615]
+[3.142][     3.142][3.14    ][-003.142]
+[ff][FF][10][101]
+[a-a-b]
+[%][ab][1][]
+the request took 12ms

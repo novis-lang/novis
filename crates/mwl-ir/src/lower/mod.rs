@@ -921,7 +921,10 @@ struct ArgSig {
     param_tys: Vec<TypeId>,
     /// Which parameters are declared `&$x`, positional.
     by_ref: Vec<bool>,
-    /// Whether the last parameter is `...$x`.
+    /// Whether the last parameter is `...$x` — in which case `param_tys`'
+    /// last entry is the type *each* trailing argument is checked against,
+    /// and `Lowering::lower_variadic_tail` turns all of them into the one
+    /// array that parameter actually receives.
     variadic: bool,
     /// Each parameter's evaluated default, positional — `None` for one every
     /// call has to supply. See [`Lowering::lower_call_args`] for what an
@@ -990,9 +993,11 @@ impl ArgSig {
     }
 
     /// Whether the argument at `index` binds by reference. Never true past the
-    /// recorded parameters: `lower_call_args` refuses a variadic signature
-    /// outright, so there is no position-onward rule to apply here the way
-    /// `mwl_types::signatures::MethodSig::is_by_ref` has one.
+    /// recorded parameters, and never consulted for a variadic tail at all:
+    /// `lower_call_args` collects that tail into one array, which is a value
+    /// and not a holder, so there is no position-onward rule to apply here the
+    /// way `mwl_types::signatures::MethodSig::is_by_ref` has one. ADR 0063 R7
+    /// keeps it that way for `Core` — nothing there is by-reference.
     fn is_by_ref(&self, index: usize) -> bool {
         self.by_ref.get(index).copied().unwrap_or(false)
     }

@@ -1,0 +1,33 @@
+--TEST--
+Core\Str::format throws for every argument-mismatch PHP's printf family hides
+--FILE--
+<?mwl
+// Too few arguments for the placeholders written.
+try {
+    echo Core\Str::format("%s and %s", "one"), "\n";
+} catch (Throwable $e) {
+    echo "few: ", $e->message, "\n";
+}
+// An argument no placeholder ever read — PHP ignores this one.
+try {
+    echo Core\Str::format("%s", "read", "unread"), "\n";
+} catch (Throwable $e) {
+    echo "extra: ", $e->message, "\n";
+}
+// A conversion outside the closed list the template grammar allows.
+try {
+    echo Core\Str::format("%q", 1), "\n";
+} catch (Throwable $e) {
+    echo "unknown: ", $e->message, "\n";
+}
+// A value with no reading for the conversion it reached.
+try {
+    echo Core\Str::format("%d", "twelve"), "\n";
+} catch (Throwable $e) {
+    echo "reading: ", $e->message, "\n";
+}
+--EXPECT--
+few: Core\Str::format(): the template reads argument 2 of 1
+extra: Core\Str::format(): argument 2 is never read by the template
+unknown: Core\Str::format(): `%q` is not one of the conversions the template grammar allows (`%s %d %u %f %e %g %x %X %o %b %%`)
+reading: Core\Str::format(): `%d` has no reading for this value

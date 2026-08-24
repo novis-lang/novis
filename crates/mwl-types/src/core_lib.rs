@@ -59,7 +59,13 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                     // no `Core` parameter is ever by-reference. Not a gap in
                     // the registry — a property of the convention.
                     by_ref: vec![false; method.params.len()],
-                    variadic: false,
+                    // The last parameter's own shape says it — a
+                    // `CoreTy::Variadic` there and nowhere else, which that
+                    // variant's docs hold. `MethodSig::params` keeps the
+                    // *element* type in that slot, which is what
+                    // `MethodSig::param_at` hands every argument from that
+                    // position onward.
+                    variadic: method.variadic().is_some(),
                     defaults: defaults_of(method),
                     return_ty: lower(&method.return_ty, interner),
                     // A `Core` member is reachable exactly one way (ADR 0063
@@ -224,6 +230,11 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let elem = lower(elem, interner);
             interner.array(elem)
         }
+        // A variadic tail is not a type of its own: `MethodSig` records the
+        // arity rule in its `variadic` flag, and the parameter slot holds the
+        // type *each* trailing argument is checked against. So this unwraps
+        // rather than interning anything.
+        CoreTy::Variadic(elem) => lower(elem, interner),
         CoreTy::Var(name) => interner.type_var(*name),
         CoreTy::Callable => interner.callable(),
         // A `Core`-owned enum is interned exactly as a declared one is —

@@ -22,9 +22,11 @@
 //! # Known gap
 //!
 //! The enum covers exactly what the members registered so far need, and
-//! [`CoreClass`] covers exactly the *kind* of member they are. What is still
-//! missing is [`crate`]'s own gap 3, which owns the list: a **variadic**
-//! parameter, and nothing else. A class **constant** is no longer on it — it is
+//! [`CoreClass`] covers exactly the *kind* of member they are — [`crate`]'s
+//! own gap 3 owns what is left, and it is now a matter of *named* arguments
+//! rather than shapes. A **variadic** parameter is no longer on it: it is
+//! [`CoreTy::Variadic`], read through [`CoreMethod::variadic`]. A class
+//! **constant** is no longer on it — it is
 //! [`CoreConst`], a roster on [`CoreClass`] rather than a [`CoreTy`] variant,
 //! since a constant has a value and no signature. Nor is a `Core`-owned
 //! **instance**: it is [`CoreTy::Instance`] plus [`CoreClass::instance`] and
@@ -208,6 +210,33 @@ pub enum CoreTy {
     /// slot 0. So there is no constructor, no property and no subclass — a
     /// program can only receive one from a member that returns it.
     Instance(&'static str),
+    /// `...$rest` — a **variadic** tail, wrapping the type *each* trailing
+    /// argument is checked against (`mixed` in
+    /// `format(string $template, mixed ...$arguments)`).
+    ///
+    /// Only ever the **last** entry of [`CoreMethod::params`], never beside a
+    /// [`Self::Options`] bag, and never nested: `a_variadic_tail_is_last_and_alone`
+    /// holds all three. The bag exclusion is not a limitation of the ABI but
+    /// of the *call site* — a trailing `{…}` written after a variadic tail is
+    /// ambiguous between "one more argument" and "the bag", and ADR 0063 R20
+    /// leaves no room for a rule that guesses.
+    ///
+    /// **One ABI argument, not one per written argument.** A helper's
+    /// `args: [N]` is a fixed arity, so `mwl_ir::lower::lower_call_args`
+    /// collects every argument from this position onward into a fresh
+    /// `array<T>` — keys `"0"`, `"1"`, … — and passes that single value. So
+    /// `format` is an ordinary `args: [2]` helper whose second slot is a
+    /// `Tag::Array`, and the body iterates it the way
+    /// [`crate::str`]'s `join` iterates its subject. The rejected alternative
+    /// was a second calling convention carrying a count: it would put a
+    /// variable-arity path into `mwl-codegen`'s helper emission for one member
+    /// shape, and buy only the allocation this spends.
+    ///
+    /// It carries no default and never appears in [`CoreMethod::defaults`]:
+    /// zero trailing arguments is already what an empty array means, so
+    /// `MethodSig::required()` stops one short of the parameter list for a
+    /// variadic signature.
+    Variadic(&'static CoreTy),
     /// ADR 0063 R2's trailing options shape — `{step?: int}`, one
     /// [`CoreOption`] per declared option, in the order the ABI passes them.
     /// See this module's own docs for why it is its own type rather than a
@@ -335,6 +364,17 @@ impl CoreMethod {
     pub fn options(&self) -> Option<&'static [CoreOption]> {
         match self.params.last() {
             Some(CoreTy::Options(options)) => Some(options),
+            _ => None,
+        }
+    }
+
+    /// The type each argument past this member's fixed parameters is checked
+    /// against, or `None` for a member with no variadic tail — the one place
+    /// the "always last" rule of [`CoreTy::Variadic`] is read.
+    #[must_use]
+    pub fn variadic(&self) -> Option<&'static CoreTy> {
+        match self.params.last() {
+            Some(CoreTy::Variadic(elem)) => Some(elem),
             _ => None,
         }
     }
@@ -618,6 +658,66 @@ mod tests {
         }
     }
 
+    /// [`CoreTy::Variadic`], mechanically: at most one per member, always the
+    /// last parameter, never beside an options bag, and never nested inside
+    /// another type. Every one of those is load-bearing — [`CoreMethod::variadic`]
+    /// reads only the last parameter, and `mwl_ir::lower::lower_call_args`
+    /// collects exactly one trailing array from it.
+    #[test]
+    fn a_variadic_tail_is_last_and_alone() {
+        fn nests_one(ty: &CoreTy) -> bool {
+            match ty {
+                CoreTy::Variadic(_) => true,
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) => nests_one(elem),
+                CoreTy::Union(members) => members.iter().any(nests_one),
+                CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
+                _ => false,
+            }
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                assert!(
+                    !nests_one(&method.return_ty),
+                    "{}::{} returns a variadic, which is a parameter shape",
+                    class.name,
+                    method.name
+                );
+                for (index, param) in method.params.iter().enumerate() {
+                    if let CoreTy::Variadic(elem) = param {
+                        assert_eq!(
+                            index,
+                            method.params.len() - 1,
+                            "{}::{} puts its variadic tail at {index} of {} parameters",
+                            class.name,
+                            method.name,
+                            method.params.len()
+                        );
+                        assert!(
+                            !nests_one(elem),
+                            "{}::{} nests a variadic inside its variadic",
+                            class.name,
+                            method.name
+                        );
+                        continue;
+                    }
+                    assert!(
+                        !nests_one(param),
+                        "{}::{} nests a variadic inside parameter {index}",
+                        class.name,
+                        method.name
+                    );
+                }
+                assert!(
+                    method.variadic().is_none() || method.options().is_none(),
+                    "{}::{} declares both a variadic tail and an options bag, which no call \
+                     site could tell apart",
+                    class.name,
+                    method.name
+                );
+            }
+        }
+    }
+
     /// A union is legal in either direction but never as an **option's**
     /// type — see [`CoreTy::Union`], which owns why: a bag flattens to one ABI
     /// argument per option, and the [`Const`] an omitted one passes has no
@@ -656,7 +756,7 @@ mod tests {
                     );
                     check(inner, what);
                 }
-                CoreTy::Array(elem) => check(elem, what),
+                CoreTy::Array(elem) | CoreTy::Variadic(elem) => check(elem, what),
                 CoreTy::Union(members) => {
                     for member in *members {
                         check(member, what);
@@ -690,7 +790,9 @@ mod tests {
         fn nests_one(ty: &CoreTy) -> bool {
             match ty {
                 CoreTy::CallableTo(_) => true,
-                CoreTy::Array(elem) | CoreTy::Nullable(elem) => nests_one(elem),
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) | CoreTy::Variadic(elem) => {
+                    nests_one(elem)
+                }
                 CoreTy::Union(members) => members.iter().any(nests_one),
                 CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
                 _ => false,
@@ -727,7 +829,9 @@ mod tests {
         fn mentions(ty: &CoreTy, name: &str) -> bool {
             match ty {
                 CoreTy::Var(var) => *var == name,
-                CoreTy::Array(elem) | CoreTy::Nullable(elem) => mentions(elem, name),
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) | CoreTy::Variadic(elem) => {
+                    mentions(elem, name)
+                }
                 CoreTy::Union(members) => members.iter().any(|member| mentions(member, name)),
                 _ => false,
             }
@@ -999,7 +1103,9 @@ mod tests {
                     class(name).is_some(),
                     "{what} names the unregistered class `{name}`"
                 ),
-                CoreTy::Array(elem) | CoreTy::Nullable(elem) => check(elem, what),
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) | CoreTy::Variadic(elem) => {
+                    check(elem, what)
+                }
                 CoreTy::Union(members) => {
                     for member in *members {
                         check(member, what);

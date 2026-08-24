@@ -113,12 +113,22 @@ impl MethodSig {
     /// after an optional one is refused at the declaration, so the two are
     /// never interleaved and this count is also the index of the first
     /// optional parameter.
+    ///
+    /// A **variadic** tail never counts, whatever its `defaults` entry says:
+    /// `...$rest` already accepts zero arguments, so it carries no default to
+    /// be optional *by*, and counting it would make every call to
+    /// `Core\Str::format` look one argument short.
     #[must_use]
     pub fn required(&self) -> usize {
-        self.defaults
+        let leading = self
+            .defaults
             .iter()
             .take_while(|default| default.is_none())
-            .count()
+            .count();
+        match self.variadic {
+            true => leading.min(self.params.len().saturating_sub(1)),
+            false => leading,
+        }
     }
 
     /// The parameter type at `index`, following the variadic rule: every
