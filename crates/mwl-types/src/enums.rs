@@ -203,12 +203,15 @@ fn resolve_enum(
     // ADR 0010 § 1: "a case with no explicit literal takes the previous case's
     // value plus one, starting at `0` ... including that an explicit value
     // resets the counter for whatever follows it." Held as the *next* value to
-    // hand out, so both halves are the same assignment.
-    let mut next: u64 = 0;
+    // hand out, so both halves are the same assignment, and as an `EnumValue`
+    // rather than a raw `u64` so the increment runs in the backing type's own
+    // arithmetic: `-2`'s successor is `-1`, not a `u64` bit pattern no `int`
+    // can hold.
+    let mut next = Some(zero_of(backing));
     for case in &decl.cases {
         let value = match &case.value {
             Some(expr) => literal_value(expr, backing, src, diags),
-            None => in_range(next, backing).or_else(|| {
+            None => next.or_else(|| {
                 diags.report(
                     Diagnostic::error(
                         code::E_ENUM_CASE_VALUE_OUT_OF_RANGE,
@@ -221,7 +224,7 @@ fn resolve_enum(
             }),
         };
         let Some(value) = value else { continue };
-        next = raw_of(value).wrapping_add(1);
+        next = successor_of(value);
         cases.insert(span_text(src, case.name.span).to_owned(), value);
     }
     EnumInfo { backing, cases }
@@ -333,14 +336,25 @@ fn in_range(raw: u64, backing: EnumBacking) -> Option<EnumValue> {
     }
 }
 
-/// A value's bits as the `u64` the auto-increment counter runs over — the one
-/// representation both backing types share, so the counter needs no branch of
-/// its own. An `int` case's next value overflowing back past `i64::MAX` is
-/// caught by [`in_range`] when it is actually handed out, not here.
-fn raw_of(value: EnumValue) -> u64 {
+/// Where an enum with no explicit first value starts counting.
+fn zero_of(backing: EnumBacking) -> EnumValue {
+    match backing {
+        EnumBacking::Int => EnumValue::Int(0),
+        EnumBacking::Uint => EnumValue::Uint(0),
+    }
+}
+
+/// `value + 1` in the backing type's own arithmetic, or `None` at the top of
+/// its range — which is the one place the auto-increment counter can run out,
+/// and is reported against the case that would have received it.
+///
+/// Deliberately not a `u64` step shared by both backings: `i64`'s successor
+/// has to run over `i64`, or a negative explicit value's successor comes back
+/// as a bit pattern no `int` can hold.
+fn successor_of(value: EnumValue) -> Option<EnumValue> {
     match value {
-        EnumValue::Int(v) => v.cast_unsigned(),
-        EnumValue::Uint(v) => v,
+        EnumValue::Int(v) => v.checked_add(1).map(EnumValue::Int),
+        EnumValue::Uint(v) => v.checked_add(1).map(EnumValue::Uint),
     }
 }
 

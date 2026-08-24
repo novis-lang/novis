@@ -170,6 +170,19 @@
 //!   diagnosed here. ADR 0007 § 5 gives an array one stored key type, so
 //!   `foreach ($a as int $k => …)` is always wrong; today it type-checks and
 //!   then trips `mwl_ir`'s assertion instead of getting a diagnostic.
+//! - **A class member's `private`/`protected` modifier is not enforced at
+//!   all.** Only ADR 0043 § 3's private *interface* method is
+//!   ([`signatures::MethodSig::interface_private`]); a `private` method or
+//!   property declared on a class is callable and readable from anywhere,
+//!   which is a PHP-observable divergence, not a design choice. It wants one
+//!   pass keyed on the accessing class, over both
+//!   [`expr::check_property_access`] and method resolution.
+//! - **The reserved `Comparable`/`Stringable` interfaces carry no member
+//!   signatures**, so a parameter declared at either type has no method to
+//!   call — `$s->toString()` on a `Stringable` is `E0405` — and `$x
+//!   instanceof Stringable` records no resolved class, which `mwl_ir` then
+//!   panics on rather than lowering. [`conformance`]'s own docs say why the
+//!   roster leaves them out today; filling it in is what closes both.
 
 pub mod check;
 pub(crate) mod conformance;

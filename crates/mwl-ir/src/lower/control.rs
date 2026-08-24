@@ -1119,6 +1119,29 @@ impl<'a> Lowering<'a> {
             StmtKind::While { body, .. } | StmtKind::Foreach { body, .. } => {
                 self.collect_reassigned_locals(body, seen, out);
             }
+            // A protected region is three more places a local is written, and
+            // a loop-header phi that misses one carries the pre-loop value
+            // forever — silently, since nothing downstream can tell a missing
+            // phi from a local the body never touched.
+            StmtKind::Try {
+                body,
+                catches,
+                finally,
+            } => {
+                for s in &body.stmts {
+                    self.collect_reassigned_locals(s, seen, out);
+                }
+                for clause in catches {
+                    for s in &clause.body.stmts {
+                        self.collect_reassigned_locals(s, seen, out);
+                    }
+                }
+                if let Some(block) = finally {
+                    for s in &block.stmts {
+                        self.collect_reassigned_locals(s, seen, out);
+                    }
+                }
+            }
             _ => {}
         }
     }

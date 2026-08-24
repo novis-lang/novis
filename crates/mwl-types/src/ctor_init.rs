@@ -1,8 +1,9 @@
 //! ADR 0022 § 2 — definite property initialization: every constructor a
 //! class declares must assign, on every path out of it, every property the
 //! class declares itself ([`crate::signatures::own_required_properties`]),
-//! and — when the class `extends` another — call `parent::constructor(...)`
-//! on every path too,
+//! and — when the class `extends` another *that declares a constructor*
+//! ([`parent_declares_constructor`]) — call `parent::constructor(...)` on
+//! every path too,
 //! discharging the inherited properties without re-deriving what the
 //! parent's own constructor already assigns (the parent was checked against
 //! this same rule when it was compiled, exactly as an ordinary call's callee
@@ -63,7 +64,7 @@ use mwl_syntax::ast::{
 use rustc_hash::FxHashSet;
 
 use crate::expr::is_this_receiver;
-use crate::signatures::own_required_properties;
+use crate::signatures::{own_required_properties, resolve_method};
 use crate::{Env, span_text, strip_sigil};
 
 /// The `$this->prop = ...`/`parent::constructor(...)` obligations one class
@@ -139,7 +140,7 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         qname,
         required: &required,
         ctor_name: ctor.name,
-        needs_parent_call: decl.extends.is_some(),
+        needs_parent_call: decl.extends.is_some() && parent_declares_constructor(qname, env),
     };
     let mut state = InitState::default();
     let terminates = walk_stmts(&body.stmts, &mut state, &obligations, env);
@@ -148,6 +149,26 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
         // implicit return ADR 0022 § 2 also covers.
         finish(&state, &obligations, env);
     }
+}
+
+/// Whether any ancestor of `qname` declares a `constructor` at all.
+///
+/// The `parent::constructor(...)` obligation is owed only when there is one
+/// to call: an `abstract class Shape` that declares no constructor gives its
+/// subclass nothing to reach, and demanding the call anyway made such a class
+/// impossible to compile — `parent::constructor()` is itself an `E0309`
+/// against a parent with no such method. Nothing is lost by the narrowing:
+/// a parent with no constructor has no inherited property to discharge,
+/// because ADR 0022 § 2's third bullet already refuses one at its own
+/// declaration.
+fn parent_declares_constructor(qname: &QName, env: &Env<'_>) -> bool {
+    let Some(links) = env.graph.get(qname) else {
+        return false;
+    };
+    links
+        .extends
+        .iter()
+        .any(|parent| resolve_method(parent, "constructor", env.signatures, env.graph).is_some())
 }
 
 /// Reports whatever `state` still leaves unsatisfied at one point a
