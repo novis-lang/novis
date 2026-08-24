@@ -1,0 +1,40 @@
+--TEST--
+An object passed to a method is the caller's object; assigning it to a second name does not copy it
+--FILE--
+<?mwl
+class Box {
+    public int $value;
+
+    public function constructor(int $value) {
+        $this->value = $value;
+    }
+}
+
+class Filler {
+    public static function fill(Box $box, int $with): void {
+        $box->value = $with;
+    }
+
+    public static function read(Box $box): int {
+        return $box->value;
+    }
+}
+
+var $box = new Box(1);
+echo Filler::read($box), "|\n";
+
+Filler::fill($box, 42);
+echo $box->value, "|", Filler::read($box), "|\n";
+
+var $other = $box;
+$other->value = 7;
+echo $box->value, "|", $other->value, "|\n";
+
+var $copy = clone $box;
+$copy->value = 0;
+echo $box->value, "|", $copy->value, "|\n";
+--EXPECT--
+1|
+42|42|
+7|7|
+7|0|

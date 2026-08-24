@@ -1,0 +1,17 @@
+--TEST--
+Core\Str::repeat at zero yields the empty string, which Core\Str::isEmpty is the only predicate for
+--FILE--
+<?mwl
+echo Core\Str::repeat("ab", 3), "\n";
+echo "[", Core\Str::repeat("ab", 0), "]\n";
+echo "[", Core\Str::repeat("", 5), "]\n";
+echo Core\Str::isEmpty("") as string, "|", Core\Str::isEmpty(" ") as string, "|\n";
+echo Core\Str::isEmpty(Core\Str::repeat("x", 0)) as string, "|\n";
+echo Core\Str::length(Core\Str::repeat("ab", 4)), "\n";
+--EXPECT--
+ababab
+[]
+[]
+1||
+1|
+8

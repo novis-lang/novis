@@ -1,0 +1,21 @@
+--TEST--
+Core\Str::contains/startsWith/endsWith with an empty needle are all true, as PHP's are
+--FILE--
+<?mwl
+echo Core\Str::contains("haystack", "") as string, "|\n";
+echo Core\Str::startsWith("haystack", "") as string, "|\n";
+echo Core\Str::endsWith("haystack", "") as string, "|\n";
+echo Core\Str::contains("", "") as string, "|\n";
+echo Core\Str::contains("", "x") as string, "|\n";
+echo Core\Str::startsWith("haystack", "haystack") as string, "|\n";
+echo Core\Str::endsWith("haystack", "haystack") as string, "|\n";
+echo Core\Str::contains("haystack", "haystacks") as string, "|\n";
+--EXPECT--
+1|
+1|
+1|
+1|
+|
+1|
+1|
+|

@@ -1,0 +1,22 @@
+--TEST--
+`int` holds i64's two extremes, and arithmetic that stays inside them stays integral — ADR 0007 § 4
+--FILE--
+<?mwl
+int $max = 9223372036854775807;
+int $min = 0 - 9223372036854775807;
+
+echo $max, "\n";
+echo $min, "\n";
+echo $max - 1, "\n";
+echo $min + 1, "\n";
+echo $max as string, "|", $min as string, "|\n";
+echo ($max > $min) as string, "|", ($min < 0) as string, "|\n";
+echo (0 - $max) === $min, "|\n";
+--EXPECT--
+9223372036854775807
+-9223372036854775807
+9223372036854775806
+-9223372036854775806
+9223372036854775807|-9223372036854775807|
+1|1|
+1|

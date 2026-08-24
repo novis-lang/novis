@@ -1,0 +1,21 @@
+--TEST--
+`uint` holds 0, i64::MAX, i64::MAX + 1 and 2^64 − 1, and never mixes signedness in arithmetic — ADR 0007 § 4
+--FILE--
+<?mwl
+uint $zero = 0;
+uint $signedMax = 9223372036854775807;
+uint $pastSigned = 9223372036854775808;
+uint $max = 18446744073709551615;
+uint $one = 1;
+
+echo $zero, "|", $signedMax, "|", $pastSigned, "|", $max, "|\n";
+echo $zero + $one, "|", $signedMax + $one, "|", $pastSigned + $one, "|\n";
+echo $max as string, "|", $pastSigned as string, "|\n";
+echo ($max > $signedMax) as string, "|", ($zero < $one) as string, "|\n";
+echo (255 as uint), "|", ($one as int), "|\n";
+--EXPECT--
+0|9223372036854775807|9223372036854775808|18446744073709551615|
+1|9223372036854775808|9223372036854775809|
+18446744073709551615|9223372036854775808|
+1|1|
+255|1|

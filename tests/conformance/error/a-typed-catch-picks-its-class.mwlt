@@ -1,0 +1,37 @@
+--TEST--
+A typed `catch` matches its class and every subclass of it, and `Throwable` is the root of the tree — spec § 10
+--FILE--
+<?mwl
+class Parser {
+    public static function positive(int $n): int {
+        if ($n < 0) {
+            throw new RuntimeError("negative: " . $n);
+        }
+        return $n;
+    }
+}
+
+try {
+    echo Parser::positive(4), "\n";
+    echo Parser::positive(-1), "\n";
+    echo "not reached\n";
+} catch (RuntimeError $runtime) {
+    echo "runtime: ", $runtime->message, "\n";
+}
+
+try {
+    throw new LogicError("wrong by construction");
+} catch (Throwable $any) {
+    echo "root: ", $any->message, "\n";
+}
+
+try {
+    throw new IOError("disk said no");
+} catch (RuntimeError $io) {
+    echo "subclass: ", $io->message, "\n";
+}
+--EXPECT--
+4
+runtime: negative: -1
+root: wrong by construction
+subclass: disk said no

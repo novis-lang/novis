@@ -1,0 +1,35 @@
+--TEST--
+An enum names a return type and an `array<T>` element type, and stays its own case through both
+--FILE--
+<?mwl
+enum Suit {
+    Clubs,
+    Diamonds,
+    Hearts,
+    Spades,
+}
+
+class Deck {
+    public static function trump(): Suit {
+        return Suit::Hearts;
+    }
+
+    public static function isRed(Suit $s): bool {
+        return ($s as int) === (Suit::Diamonds as int) || ($s as int) === (Suit::Hearts as int);
+    }
+}
+
+echo Deck::trump() as int, "|\n";
+echo Deck::isRed(Deck::trump()) as string, "|", Deck::isRed(Suit::Spades) as string, "|\n";
+
+array<Suit> $hand = [Suit::Clubs, Suit::Hearts, Suit::Spades];
+foreach ($hand as string $k => Suit $s) {
+    echo $k, "=", $s as int, ";";
+}
+echo "\n";
+echo Core\Arr::count($hand), "|", $hand[1] as int, "|\n";
+--EXPECT--
+2|
+1||
+0=0;1=2;2=3;
+3|2|

@@ -1,0 +1,28 @@
+--TEST--
+`echo` evaluates and emits each argument in order, so a side effect in one is visible to the next
+--FILE--
+<?mwl
+class Tick {
+    public int $n;
+
+    public function constructor() {
+        $this->n = 0;
+    }
+
+    public function next(): int {
+        $this->n = $this->n + 1;
+        return $this->n;
+    }
+}
+
+var $t = new Tick();
+echo $t->next(), ",", $t->next(), ",", $t->next(), "\n";
+echo $t->n, "\n";
+
+echo "a", "b", "c", "\n";
+echo 1, 2, 3, "\n";
+--EXPECT--
+1,2,3
+3
+abc
+123

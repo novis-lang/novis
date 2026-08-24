@@ -1,0 +1,21 @@
+--TEST--
+Core\Str::join puts no separator before the first piece, and none at all for zero or one piece
+--FILE--
+<?mwl
+array<string> $none = [];
+array<string> $one = ["only"];
+array<string> $many = ["a", "b", "c"];
+
+echo "[", Core\Str::join($none, ","), "]\n";
+echo "[", Core\Str::join($one, ","), "]\n";
+echo "[", Core\Str::join($many, ","), "]\n";
+echo "[", Core\Str::join($many, ""), "]\n";
+echo "[", Core\Str::join($many), "]\n";
+echo "[", Core\Str::join($many, " and "), "]\n";
+--EXPECT--
+[]
+[only]
+[a,b,c]
+[abc]
+[abc]
+[a and b and c]

@@ -1,0 +1,22 @@
+--TEST--
+Core\Arr::sort renumbers by default and keeps each value's key under `{preserveKeys: true}`
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $scores = ["carol" => 3, "alice" => 1, "bob" => 2];
+echo Render::of(Core\Arr::sort($scores)), "\n";
+echo Render::of(Core\Arr::sort($scores, {preserveKeys: true})), "\n";
+echo Render::of(Core\Arr::sort($scores, {preserveKeys: true, order: Core\Order::Desc})), "\n";
+--EXPECT--
+0=1;1=2;2=3;
+alice=1;bob=2;carol=3;
+carol=3;bob=2;alice=1;

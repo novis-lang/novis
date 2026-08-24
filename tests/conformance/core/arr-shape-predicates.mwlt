@@ -1,0 +1,21 @@
+--TEST--
+Core\Arr::isList, ::hasKey and ::isEmpty answer about an array's shape without touching its values
+--FILE--
+<?mwl
+array<int> $list = [10, 20, 30];
+array<int> $map = ["b" => 2, "a" => 1];
+array<int> $none = [];
+
+echo Core\Arr::isList($list) as string, "|", Core\Arr::isList($map) as string, "|", Core\Arr::isList($none) as string, "|\n";
+echo Core\Arr::isEmpty($none) as string, "|", Core\Arr::isEmpty($list) as string, "|\n";
+echo Core\Arr::hasKey($map, "a") as string, "|", Core\Arr::hasKey($map, "z") as string, "|\n";
+echo Core\Arr::hasKey($list, 0) as string, "|", Core\Arr::hasKey($list, 9) as string, "|\n";
+
+unset($list[1]);
+echo Core\Arr::isList($list) as string, "|", Core\Arr::count($list), "\n";
+--EXPECT--
+1||1|
+1||
+1||
+1||
+|2

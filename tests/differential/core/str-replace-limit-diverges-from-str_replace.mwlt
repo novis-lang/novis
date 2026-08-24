@@ -1,0 +1,15 @@
+--TEST--
+Core\Str::replace takes a `{limit}` PHP's str_replace has no parameter for
+--ORACLE-DIVERGES--
+ADR 0063 R2: one member with an options bag replaces PHP's str_replace/str_ireplace pair, and adds the occurrence cap neither of them has.
+--FILE--
+<?mwl
+echo Core\Str::replace("aAaA", "a", "-"), "\n";
+echo Core\Str::replace("aAaA", "a", "-", {caseInsensitive: true}), "\n";
+echo Core\Str::replace("aAaA", "a", "-", {caseInsensitive: true, limit: 2}), "\n";
+echo Core\Str::replace("aaaa", "a", "-", {limit: 1}), "\n";
+--EXPECT--
+-A-A
+----
+--aA
+-aaa

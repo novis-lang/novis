@@ -1,0 +1,22 @@
+--TEST--
+Core\Arr::map's result element type is the callback's return type, not the input's — the `U` of `map`
+--FILE--
+<?mwl
+array<int> $ns = [1, 2, 3];
+array<string> $labels = Core\Arr::map($ns, fn(int $n): string => "n" . $n);
+echo Core\Str::join($labels, ","), "\n";
+
+array<int> $doubled = Core\Arr::map($ns, fn(int $n): int => $n * 2);
+echo Core\Arr::count($doubled), "|", $doubled[0], "|", $doubled[2], "|\n";
+
+array<string> $words = ["alpha", "be", "c"];
+array<int> $lengths = Core\Arr::map($words, fn(string $s): int => Core\Str::length($s) as int);
+echo $lengths[0], "|", $lengths[1], "|", $lengths[2], "|\n";
+
+array<int> $none = [];
+echo Core\Arr::count(Core\Arr::map($none, fn(int $n): int => $n)), "\n";
+--EXPECT--
+n1,n2,n3
+3|2|6|
+5|2|1|
+0

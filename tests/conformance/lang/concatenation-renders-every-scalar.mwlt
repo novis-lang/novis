@@ -1,0 +1,25 @@
+--TEST--
+`.` renders an int, a float, a bool and a `uint` operand with the same rules `echo` uses
+--FILE--
+<?mwl
+echo "n=" . 5 . "!", "\n";
+echo 1 . 2, "\n";
+echo "f=" . 1.5, "\n";
+echo "whole=" . 2.0, "\n";
+echo "neg=" . (0 - 7), "\n";
+echo "t=" . true . "|f=" . false . "|", "\n";
+
+uint $u = 18446744073709551615;
+echo "u=" . $u, "\n";
+
+string $joined = "a" . "b" . "c";
+echo $joined, "|", Core\Str::length($joined), "\n";
+--EXPECT--
+n=5!
+12
+f=1.5
+whole=2
+neg=-7
+t=1|f=|
+u=18446744073709551615
+abc|3

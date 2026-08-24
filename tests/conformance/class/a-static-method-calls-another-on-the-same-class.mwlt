@@ -1,0 +1,31 @@
+--TEST--
+A static method reaches its siblings by class name, and recursion through one terminates
+--FILE--
+<?mwl
+class Nums {
+    public static function factorial(int $n): int {
+        if ($n <= 1) {
+            return 1;
+        }
+        return $n * Nums::factorial($n - 1);
+    }
+
+    public static function fib(int $n): int {
+        if ($n < 2) {
+            return $n;
+        }
+        return Nums::fib($n - 1) + Nums::fib($n - 2);
+    }
+
+    public static function describe(int $n): string {
+        return "fact=" . Nums::factorial($n) . " fib=" . Nums::fib($n);
+    }
+}
+
+echo Nums::factorial(0), "|", Nums::factorial(1), "|", Nums::factorial(6), "|\n";
+echo Nums::fib(0), "|", Nums::fib(1), "|", Nums::fib(10), "|\n";
+echo Nums::describe(5), "\n";
+--EXPECT--
+1|1|720|
+0|1|55|
+fact=120 fib=5

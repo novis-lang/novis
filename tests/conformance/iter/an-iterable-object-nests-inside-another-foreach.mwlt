@@ -1,0 +1,38 @@
+--TEST--
+Two `foreach` loops over the same `Iterable` object nest without sharing a cursor — ADR 0053
+--FILE--
+<?mwl
+class Countdown implements Iterable<int> {
+    private int $from;
+
+    public function constructor(int $from) {
+        $this->from = $from;
+    }
+
+    public function iterate(): Iterator<int> {
+        var $i = $this->from;
+        while ($i > 0) {
+            yield $i;
+            $i = $i - 1;
+        }
+    }
+}
+
+var $three = new Countdown(3);
+
+foreach ($three as int $outer) {
+    foreach ($three as int $inner) {
+        echo $outer, $inner, ";";
+    }
+    echo "|";
+}
+echo "\n";
+
+int $total = 0;
+foreach ($three as int $n) {
+    $total = $total + $n;
+}
+echo $total, "\n";
+--EXPECT--
+33;32;31;|23;22;21;|13;12;11;|
+6

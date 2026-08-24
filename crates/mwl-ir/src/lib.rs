@@ -127,7 +127,11 @@
 //!    check to M4. Nullsafe `?->` is unsupported on either side. An
 //!    array-element write through a hooked property is refused: the
 //!    copy-on-write separation would have to be written back through the `set`
-//!    hook, and no PHP-compatible rule for that exists yet. Neither
+//!    hook, and no PHP-compatible rule for that exists yet. A *nested* write —
+//!    `$grid[0][1] = v`, whose base is itself an index expression — is refused
+//!    for the same reason: the separated inner array has to be written back
+//!    into the outer one, and only a local or a known property is a place this
+//!    crate can write back to. Reading `$grid[0][1]` is fine. Neither
 //!    [`ir::InstKind::ArrayGet`] nor [`ir::InstKind::ArraySet`] models an
 //!    absent key at runtime — deferred wholesale, like every other checked
 //!    throw. A **static** property is narrower still: it reads, but
@@ -180,7 +184,13 @@
 //!     that ADR's *Consequences* calls "the real implementation cost": `+`,
 //!     `-` and comparison at equal scale inline to i128 operations, while `*`,
 //!     `/` and mixed-scale operands need a wider intermediate. M4 owes it.
-//! 16. **The environment is one flat, function-wide map**, so a nested block
+//! 16. **A compound assignment does not lower.** `$x += 1`, `-=`, `*=`, `.=`
+//!     and the rest reach [`lower::Lowering`]'s expression-statement arm, which
+//!     handles a plain `$x = expr;` and a bare call only, and panic naming the
+//!     operator. Desugaring `$x op= e` to `$x = $x op e` is correct for every
+//!     target this crate can already assign to, so the work is that rewrite
+//!     plus deciding where it belongs — the checker sees the shape first.
+//! 17. **The environment is one flat, function-wide map**, so a nested block
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth
 //!     knowing before trusting `Env` further.

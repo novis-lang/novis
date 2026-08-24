@@ -1,0 +1,18 @@
+--TEST--
+A `foreach` nested in a `foreach` binds each level's own key and value — ADR 0007 § 5 types the key `string`
+--FILE--
+<?mwl
+array<array<int>> $grid = ["top" => [1, 2, 3], "bottom" => [4, 5]];
+int $total = 0;
+foreach ($grid as string $name => array<int> $row) {
+    echo $name, ":";
+    foreach ($row as string $i => int $v) {
+        echo $i, "=", $v, ",";
+        $total = $total + $v;
+    }
+    echo ";";
+}
+echo "\n", $total, "\n";
+--EXPECT--
+top:0=1,1=2,2=3,;bottom:0=4,1=5,;
+15

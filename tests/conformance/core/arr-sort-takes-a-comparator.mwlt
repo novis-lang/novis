@@ -1,0 +1,25 @@
+--TEST--
+Core\Arr::sort's `{comparator}` decides every pair itself, where `{by}` only projects a sort key
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $nums = [5, 9, 1, 7];
+echo Render::of(Core\Arr::sort($nums, {comparator: fn(int $a, int $b): int => $b - $a})), "\n";
+echo Render::of(Core\Arr::sort($nums, {comparator: fn(int $a, int $b): int => $a - $b})), "\n";
+
+array<string> $words = ["ccc", "a", "bb"];
+array<string> $byLength = Core\Arr::sort($words, {by: fn(string $s): int => Core\Str::length($s) as int});
+echo Core\Str::join($byLength, ","), "\n";
+--EXPECT--
+9;7;5;1;
+1;5;7;9;
+a,bb,ccc

@@ -1,0 +1,37 @@
+--TEST--
+A method whose `try` throws returns from its `catch`, and a method that only throws still satisfies its return type
+--FILE--
+<?mwl
+class Safe {
+    public static function parse(string $raw): int {
+        try {
+            return Safe::strict($raw);
+        } catch (Throwable $e) {
+            return 0 - 1;
+        }
+    }
+
+    public static function strict(string $raw): int {
+        if (Core\Str::isEmpty($raw)) {
+            throw new LogicError("empty");
+        }
+        return Core\Str::length($raw) as int;
+    }
+
+    public static function always(): int {
+        throw new RuntimeError("never returns");
+    }
+}
+
+echo Safe::parse("abcd"), "\n";
+echo Safe::parse(""), "\n";
+
+try {
+    echo Safe::always(), "\n";
+} catch (RuntimeError $boom) {
+    echo "boom: ", $boom->message, "\n";
+}
+--EXPECT--
+4
+-1
+boom: never returns

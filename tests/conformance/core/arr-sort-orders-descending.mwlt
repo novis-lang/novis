@@ -1,0 +1,24 @@
+--TEST--
+Core\Arr::sort's `{order}` takes a Core\Order case, so descending is an option rather than a member name
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $nums = [3, 1, 2];
+echo Render::of(Core\Arr::sort($nums)), "\n";
+echo Render::of(Core\Arr::sort($nums, {order: Core\Order::Asc})), "\n";
+echo Render::of(Core\Arr::sort($nums, {order: Core\Order::Desc})), "\n";
+echo Render::of($nums), "\n";
+--EXPECT--
+0=1;1=2;2=3;
+0=1;1=2;2=3;
+0=3;1=2;2=1;
+0=3;1=1;2=2;

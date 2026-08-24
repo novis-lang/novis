@@ -1,0 +1,20 @@
+--TEST--
+`{$name}` interpolates where a bare `$name` would swallow the following characters
+--FILE--
+<?mwl
+string $name = "world";
+int $count = 3;
+
+echo "hi $name, $count times\n";
+echo "brace {$name}s\n";
+echo "{$count}rd\n";
+echo "a $name-$count b\n";
+echo "no interpolation: \$name\n";
+echo 'single $name stays literal', "\n";
+--EXPECT--
+hi world, 3 times
+brace worlds
+3rd
+a world-3 b
+no interpolation: $name
+single $name stays literal

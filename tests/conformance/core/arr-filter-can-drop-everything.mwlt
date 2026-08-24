@@ -1,0 +1,27 @@
+--TEST--
+Core\Arr::filter keeps each survivor's key, and an empty result is still an array
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $scores = ["ann" => 3, "bob" => 8, "cy" => 5];
+
+echo Render::of(Core\Arr::filter($scores, fn(int $n): bool => $n > 4)), "\n";
+echo "[", Render::of(Core\Arr::filter($scores, fn(int $n): bool => $n > 100)), "]\n";
+echo Core\Arr::count(Core\Arr::filter($scores, fn(int $n): bool => $n > 100)), "\n";
+echo Core\Arr::isEmpty(Core\Arr::filter($scores, fn(int $n): bool => $n > 100)) as string, "\n";
+echo Render::of(Core\Arr::filter($scores, fn(int $n): bool => true)), "\n";
+--EXPECT--
+bob=8;cy=5;
+[]
+0
+1
+ann=3;bob=8;cy=5;

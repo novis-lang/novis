@@ -1,0 +1,20 @@
+--TEST--
+Core\Str::split's `{limit}` caps the piece count when positive and drops from the end when negative
+--FILE--
+<?mwl
+array<string> $all = Core\Str::split("a,b,c,d", ",");
+echo Core\Str::join($all, "|"), "\n";
+
+array<string> $two = Core\Str::split("a,b,c,d", ",", {limit: 2});
+echo Core\Str::join($two, "|"), "\n";
+
+array<string> $one = Core\Str::split("a,b,c,d", ",", {limit: 1});
+echo Core\Str::join($one, "|"), "\n";
+
+array<string> $dropOne = Core\Str::split("a,b,c,d", ",", {limit: -1});
+echo Core\Str::join($dropOne, "|"), "|", Core\Arr::count($dropOne), "\n";
+--EXPECT--
+a|b|c|d
+a|b,c,d
+a,b,c,d
+a|b|c|3

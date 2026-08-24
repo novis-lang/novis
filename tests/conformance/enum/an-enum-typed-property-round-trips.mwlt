@@ -1,0 +1,34 @@
+--TEST--
+An enum names a property's type and a parameter's type, and converts to its integer at every use — ADR 0010
+--FILE--
+<?mwl
+enum Level {
+    Low = 1,
+    Mid = 5,
+    High = 9,
+}
+
+class Gate {
+    public Level $level;
+
+    public function constructor(Level $level) {
+        $this->level = $level;
+    }
+
+    public function allows(Level $want): bool {
+        return ($this->level as int) >= ($want as int);
+    }
+}
+
+var $gate = new Gate(Level::Mid);
+echo $gate->level as int, "\n";
+echo $gate->allows(Level::Low) as string, "|", $gate->allows(Level::Mid) as string, "|", $gate->allows(Level::High) as string, "|\n";
+
+$gate->level = Level::High;
+echo $gate->level as int, "\n";
+echo $gate->allows(Level::High) as string, "|\n";
+--EXPECT--
+5
+1|1||
+9
+1|

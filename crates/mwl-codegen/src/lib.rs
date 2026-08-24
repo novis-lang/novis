@@ -174,6 +174,15 @@
 //!    the three sites and giving each an error edge in `mwl_ir::lower`. The
 //!    divergence meanwhile is a wrong *value* in a case PHP would also not
 //!    produce, never a trap.
+//! 9. **A binary operator wants both operands in one representation, and
+//!    knows only the numeric and `bool` ones.** `emit`'s `binary` refuses two
+//!    shapes a conformance case reaches for: `1 + 1.5`, where PHP widens the
+//!    `int` to `float` and nothing here inserts that conversion — so an
+//!    `int`/`float` mix must be spelled `0.0 - 1.5` today — and `===` over two
+//!    enum values, whose `Enum(Int)` representation is not on the integral
+//!    list even though comparing the two integers is exactly right. Both are a
+//!    missing arm rather than a missing mechanism; the enum one is the smaller,
+//!    since ADR 0010 makes an enum *be* its integer.
 
 mod emit;
 mod ty;

@@ -1,0 +1,40 @@
+--TEST--
+An `fn` written in a method that names `$this` stays bound to the instance it was made on — ADR 0008
+--FILE--
+<?mwl
+class Threshold {
+    public int $least;
+
+    public function constructor(int $least) {
+        $this->least = $least;
+    }
+
+    public function test(): callable {
+        return fn(int $v): bool => $v >= $this->least;
+    }
+}
+
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $ns = [1, 2, 3, 4];
+
+var $low = new Threshold(2);
+var $high = new Threshold(4);
+
+echo Render::of(Core\Arr::filter($ns, $low->test())), "\n";
+echo Render::of(Core\Arr::filter($ns, $high->test())), "\n";
+
+$low->least = 4;
+echo Render::of(Core\Arr::filter($ns, $low->test())), "\n";
+--EXPECT--
+1=2;2=3;3=4;
+3=4;
+3=4;

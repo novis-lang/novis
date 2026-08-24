@@ -1,0 +1,21 @@
+--TEST--
+Core\Str::split's separator and Core\Str::padStart/padEnd's pad may both be longer than one character
+--FILE--
+<?mwl
+array<string> $parts = Core\Str::split("a::b::c", "::");
+echo Core\Str::join($parts, "|"), "|", Core\Arr::count($parts), "\n";
+
+array<string> $none = Core\Str::split("abc", "::");
+echo Core\Str::join($none, "|"), "|", Core\Arr::count($none), "\n";
+
+echo Core\Str::padStart("ab", 7, "xy"), "|\n";
+echo Core\Str::padEnd("ab", 7, "xy"), "|\n";
+echo Core\Str::padStart("ab", 2, "xy"), "|\n";
+echo Core\Str::padEnd("", 3, "-"), "|\n";
+--EXPECT--
+a|b|c|3
+abc|1
+xyxyxab|
+abxyxyx|
+ab|
+---|

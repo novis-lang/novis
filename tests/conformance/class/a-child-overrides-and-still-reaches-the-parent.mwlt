@@ -1,0 +1,52 @@
+--TEST--
+An override calls `parent::` for the behaviour it extends, through two levels of inheritance
+--FILE--
+<?mwl
+class Shape {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function describe(): string {
+        return "shape " . $this->name;
+    }
+}
+
+class Polygon extends Shape {
+    public int $sides;
+
+    public function constructor(string $name, int $sides) {
+        parent::constructor($name);
+        $this->sides = $sides;
+    }
+
+    public function describe(): string {
+        return parent::describe() . " with " . $this->sides . " sides";
+    }
+}
+
+class Square extends Polygon {
+    public function constructor() {
+        parent::constructor("square", 4);
+    }
+
+    public function describe(): string {
+        return parent::describe() . ", all equal";
+    }
+}
+
+var $shape = new Shape("blob");
+var $poly = new Polygon("pentagon", 5);
+var $square = new Square();
+
+echo $shape->describe(), "\n";
+echo $poly->describe(), "\n";
+echo $square->describe(), "\n";
+echo ($square instanceof Polygon) as string, "|", ($square instanceof Shape) as string, "|", ($poly instanceof Square) as string, "|\n";
+--EXPECT--
+shape blob
+shape pentagon with 5 sides
+shape square with 4 sides, all equal
+1|1||

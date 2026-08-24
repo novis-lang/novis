@@ -1,0 +1,38 @@
+--TEST--
+A throw unwinds three checked-return frames at once, and the output produced before it survives — ADR 0002
+--FILE--
+<?mwl
+class Chain {
+    public static function top(int $n): int {
+        return Chain::middle($n) + 1;
+    }
+
+    public static function middle(int $n): int {
+        return Chain::bottom($n) * 2;
+    }
+
+    public static function bottom(int $n): int {
+        int $i = 0;
+        while ($i < 10) {
+            if ($i === $n) {
+                throw new RuntimeError("stopped at " . $i);
+            }
+            echo $i, ";";
+            $i = $i + 1;
+        }
+        return $i;
+    }
+}
+
+echo Chain::top(20), "\n";
+
+try {
+    echo Chain::top(3), "\n";
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "\n", $e->message, "\n";
+}
+--EXPECT--
+0;1;2;3;4;5;6;7;8;9;21
+0;1;2;
+stopped at 3

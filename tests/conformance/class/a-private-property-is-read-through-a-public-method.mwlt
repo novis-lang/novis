@@ -1,0 +1,44 @@
+--TEST--
+A private property is reachable from every method of its own class, including a static one taking an instance
+--FILE--
+<?mwl
+class Account {
+    private int $balance;
+    private string $owner;
+
+    public function constructor(string $owner, int $balance) {
+        $this->owner = $owner;
+        $this->balance = $balance;
+    }
+
+    public function deposit(int $amount): int {
+        $this->balance = $this->balance + $amount;
+        return $this->balance;
+    }
+
+    public function describe(): string {
+        return $this->owner . " has " . $this->balance;
+    }
+
+    public static function richer(Account $a, Account $b): string {
+        if ($a->balance >= $b->balance) {
+            return $a->owner;
+        }
+        return $b->owner;
+    }
+}
+
+var $ada = new Account("ada", 100);
+var $bob = new Account("bob", 250);
+
+echo $ada->describe(), "\n";
+echo $ada->deposit(50), "\n";
+echo $ada->describe(), "\n";
+echo Account::richer($ada, $bob), "\n";
+echo Account::richer($bob, $ada), "\n";
+--EXPECT--
+ada has 100
+150
+ada has 150
+bob
+bob

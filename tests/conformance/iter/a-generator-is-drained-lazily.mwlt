@@ -1,0 +1,48 @@
+--TEST--
+A generator runs only as far as the `foreach` asks, and a fresh call starts it over — ADR 0053
+--FILE--
+<?mwl
+class Series {
+    public static function squaresUpTo(int $n): Iterator<int> {
+        var $i = 1;
+        while ($i <= $n) {
+            yield $i * $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function announced(int $n): Iterator<int> {
+        var $i = 0;
+        while ($i < $n) {
+            echo "make", $i, ";";
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+foreach (Series::squaresUpTo(5) as int $v) {
+    echo $v, ";";
+}
+echo "\n";
+
+int $sum = 0;
+foreach (Series::squaresUpTo(4) as int $v) {
+    $sum = $sum + $v;
+}
+echo $sum, "\n";
+
+foreach (Series::squaresUpTo(0) as int $v) {
+    echo "not reached";
+}
+echo "empty\n";
+
+foreach (Series::announced(3) as int $v) {
+    echo "use", $v, ";";
+}
+echo "\n";
+--EXPECT--
+1;4;9;16;25;
+30
+empty
+make0;use0;make1;use1;make2;use2;

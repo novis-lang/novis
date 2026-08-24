@@ -1,0 +1,34 @@
+--TEST--
+`return` inside a `while` leaves the method at once, and `continue` skips only the rest of one iteration
+--FILE--
+<?mwl
+class Search {
+    public static function firstOver(array<int> $ns, int $least): int {
+        foreach ($ns as string $k => int $v) {
+            if ($v > $least) {
+                return $v;
+            }
+        }
+        return 0 - 1;
+    }
+
+    public static function sumOdd(int $upTo): int {
+        int $i = 0;
+        int $sum = 0;
+        while ($i < $upTo) {
+            $i = $i + 1;
+            if ($i % 2 === 0) {
+                continue;
+            }
+            $sum = $sum + $i;
+        }
+        return $sum;
+    }
+}
+
+array<int> $ns = [3, 8, 1, 9];
+echo Search::firstOver($ns, 5), "|", Search::firstOver($ns, 100), "|\n";
+echo Search::sumOdd(10), "|", Search::sumOdd(1), "|", Search::sumOdd(0), "|\n";
+--EXPECT--
+8|-1|
+25|1|0|

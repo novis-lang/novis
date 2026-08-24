@@ -1,0 +1,38 @@
+--TEST--
+A `throw` from inside a `catch` is not caught by the same `try`; it leaves the frame for the caller's
+--FILE--
+<?mwl
+class Outer {
+    public static function run(): string {
+        try {
+            Outer::inner();
+        } catch (LogicError $inner) {
+            throw new RuntimeError("wrapped: " . $inner->message);
+        }
+        return "not reached";
+    }
+
+    public static function inner(): void {
+        throw new LogicError("deep");
+    }
+
+    public static function quiet(): string {
+        try {
+            Outer::inner();
+        } catch (LogicError $swallowed) {
+            return "swallowed: " . $swallowed->message;
+        }
+        return "not reached";
+    }
+}
+
+try {
+    echo Outer::run(), "\n";
+} catch (Throwable $outer) {
+    echo $outer->message, "\n";
+}
+
+echo Outer::quiet(), "\n";
+--EXPECT--
+wrapped: deep
+swallowed: deep

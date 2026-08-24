@@ -1,0 +1,24 @@
+--TEST--
+`$a[] =` takes one past the highest integer key ever used, whatever the insertion order was
+--FILE--
+<?mwl
+array<int> $a = [];
+$a[100] = 1;
+$a[] = 2;
+$a[5] = 3;
+$a[] = 4;
+foreach ($a as string $k => int $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+
+array<int> $b = ["x" => 1];
+$b[] = 2;
+$b[] = 3;
+foreach ($b as string $k => int $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+--EXPECT--
+100=1;101=2;5=3;102=4;
+x=1;0=2;1=3;

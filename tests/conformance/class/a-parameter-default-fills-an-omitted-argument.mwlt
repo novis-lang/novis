@@ -1,0 +1,34 @@
+--TEST--
+A trailing parameter's default fills in when the argument is omitted, and is overridden when it is not
+--FILE--
+<?mwl
+class Greeter {
+    public static function hello(string $who, string $mark = "!"): string {
+        return "hi " . $who . $mark;
+    }
+
+    public static function repeat(string $what, int $times = 2, string $glue = "-"): string {
+        var $out = "";
+        int $i = 0;
+        while ($i < $times) {
+            if ($i > 0) {
+                $out = $out . $glue;
+            }
+            $out = $out . $what;
+            $i = $i + 1;
+        }
+        return $out;
+    }
+}
+
+echo Greeter::hello("ada"), "|", Greeter::hello("bob", "?"), "|\n";
+echo Greeter::repeat("x"), "|\n";
+echo Greeter::repeat("x", 3), "|\n";
+echo Greeter::repeat("x", 3, "+"), "|\n";
+echo Greeter::repeat("x", 0), "|\n";
+--EXPECT--
+hi ada!|hi bob?|
+x-x|
+x-x-x|
+x+x+x|
+|

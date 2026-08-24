@@ -30,8 +30,8 @@
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
 > `mwl-stdlib` (`Arr` × 9, `Str` × 15, `granularity`, `Order`), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 18 and
-> `tests/differential` × 10, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 94 and
+> `tests/differential` × 66, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
 > 10.0.26100 for linking, PHP 8.5.9 as the differential oracle, `cargo-fuzz` 0.13.2 and `valgrind` under a
@@ -43,8 +43,9 @@
 > 0065, and **0053 and 0009 in full**. Each ADR's own *Verification* section says what its slice covers,
 > not this field.
 >
-> **Open now:** **growing the two suites**. `mwl test` runs, and both suites are green — 52 conformance
-> cases and 34 differential, against thresholds of 250 and 60, so Stage 4 now fails on corpus size alone.
+> **Open now:** **growing the conformance suite**. `mwl test` runs, both suites are green, and the
+> **differential leg has cleared its threshold — 66 cases against 60**; conformance is 94 against 250, so
+> Stage 4 now fails on that one count alone.
 > Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
 > rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
 > type, a `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one
@@ -56,8 +57,8 @@
 >
 > **Blocking:** nothing external. **Every fixture is green on both legs** — byte for byte on Windows and
 > under WSL against a Linux build, `valgrind --leak-check=full` clean on all thirteen. That leg earned its
-> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed. The two suite checks are the
-> only ones left failing, and they now fail on a count rather than on a missing runner.
+> keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed. The conformance suite's case
+> count is the one check left failing.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

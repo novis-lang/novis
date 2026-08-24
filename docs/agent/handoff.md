@@ -6,10 +6,10 @@
 acceptance list and the standing decisions already settled with the user; do not re-open any of them. The
 plan's status block says what is on disk and what is open.
 
-**`mwl test` exists and both suites are green: 52 conformance cases, 34 differential**, against thresholds
-of 250 and 60, so Stage 4 still **fails on corpus size alone**. The `.mwlt` format — every section,
-`--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl`, and why a `--ORACLE--` case skips
-when PHP is absent — is `crates/mwl-test`'s own module doc, routed from
+**The differential suite has cleared its threshold: 66 cases against 60.** Conformance is **94 against
+250**, so Stage 4 now fails on that one count alone, and growing it is the whole remaining gap. The
+`.mwlt` format — every section, `--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl`,
+and why a `--ORACLE--` case skips when PHP is absent — is `crates/mwl-test`'s own module doc, routed from
 [`docs/adr/README.md`](../adr/README.md) § *Where to look*.
 
 **Every fixture is green on both legs**, byte for byte, every one `valgrind --leak-check=full` clean.
@@ -54,22 +54,27 @@ bracket arrays (marked *Open* in [spec § 12](../spec/01-core-library.md)), and 
 
 ## Next
 
-**Keep growing `tests/conformance/` and `tests/differential/`.** It is the only thing between the loop and
-Stage 4, it needs no new machinery, and it splits cleanly across sessions. M4's **Verify** list in
+**Keep growing `tests/conformance/`.** It is the only thing between the loop and Stage 4, it needs no new
+machinery, and it splits cleanly across sessions. M4's **Verify** list in
 [the plan](../implementation-plan.md) is the specification; the *Verification* section of ADRs 0014, 0023,
-0028, 0046 and 0069 each names its own required cases. Write a `--ORACLE--` twin whenever the behaviour is
-one MWL claims is PHP-compatible, and an `--ORACLE-DIVERGES--` with its one-line reason whenever it is not.
+0028, 0046 and 0069 each names its own required cases. A differential twin is still worth writing when the
+behaviour is one MWL claims is PHP-compatible — that suite is over its bar, not finished.
 
-**What a case cannot use yet** — each already sits in the named crate's known-gap list, and every one of
-these panics or refuses rather than failing cleanly, so writing around them saves a whole edit cycle:
-`&&`/`||`/ternary anywhere but a declaration initializer, a `return` value, an assignment right-hand side
-or a condition (`mwl-ir` gap 5, so not inside an `echo` argument); `$f(...)` on a closure-typed local (gap
-9); a class constant's *value*, and a write to a static property (gaps 6 and the `mwl-types` list); `as`
-on a `Stringable` (gap 12); `bool as int` and `as ?T` (gaps 4 and 3); `<`/`>` over two strings
-(`mwl-codegen`); `for`/`switch` (gap 1). Two precedence traps that produce a confusing panic rather than a
-parse error: `as` binds tighter than comparison, `instanceof` and unary minus, so write `($a > $b) as
-string` and `(-7) as string`. And a `foreach` key binding must be declared `string` even over a list —
-ADR 0007 § 5 — which is what a list case should assert rather than avoid.
+**What a case cannot use yet** — each sits in the named crate's known-gap list, and every one panics or
+refuses rather than failing cleanly, so writing around them saves an edit cycle: `&&`/`||`/ternary anywhere
+but a declaration initializer, a `return` value, an assignment right-hand side or a condition (`mwl-ir`
+gap 5, so not inside an `echo` argument); a compound assignment `$x += 1` in any form (gap 16); a *nested*
+array write `$grid[0][1] = v` (gap 6 — reading it is fine); `$f(...)` on a closure-typed local (gap 9); a
+class constant's *value*, and a write to a static property (gaps 6 and the `mwl-types` list); an implicit
+`Stringable` in `echo` or `.` (gap 12 — call `toString()` explicitly); `bool as int` and `as ?T` (gaps 4
+and 3); `for`/`switch` (gap 1). In `mwl-codegen`: `<`/`>` over two strings, and gap 9's two refusals — an
+`int` mixed with a `float` in one operator (write `0.0 - 1.5`) and `===` over two enum values (compare
+`$a as int`). Three spelling traps that produce a confusing panic rather than a parse error: `as` binds
+tighter than comparison, and than `instanceof` and unary minus, so write `($a > $b) as string` and
+`(-7) as string`; a `foreach` key binding must be declared `string` even over a list (ADR 0007 § 5), which
+is what a list case should assert rather than avoid; and `Core\Arr::map` through a *variable* of type
+`callable` yields `array<mixed>`, because `callable` is opaque — write the `fn` literal at the call site
+when the element type matters.
 
 Two smaller slices, either of which fits a session on its own:
 
@@ -84,6 +89,8 @@ Two smaller slices, either of which fits a session on its own:
 
 ## Backlog
 
+- **A compound assignment (`+=`, `.=`, …) does not lower** — `mwl-ir`'s known gap 16; every PHP program
+  writes one, so it is the widest single hole left in the surface a conformance case can reach.
 - **A `foreach` key binding declared `int` panics in `mwl-ir` instead of getting a diagnostic** —
   `mwl-types`' own known-gap list; ADR 0007 § 5 makes it always wrong.
 - **ADR 0047's M2 checker row** is unblocked and is what removes `E_LITERAL_TYPE_UNCHECKED`.
@@ -91,11 +98,9 @@ Two smaller slices, either of which fits a session on its own:
   known gap 3, and what `Core\Str::slice` waits on.
 - **A closure literal written as a call argument leaks its environment object when that call throws** —
   `mwl-ir`'s known gap 2; it needs an owned-temporaries stack threaded through `lower_expr`.
-- **Integer `+`/`-`/`*` wrap rather than throw, and integer `/` is refused two phases deep** —
-  `mwl-codegen`'s known gaps 8 and 5; read `a_typed_arithmetic_loop_contains_no_call` before adding a raise.
+- **Integer `+`/`-`/`*` wrap rather than throw** — `mwl-codegen`'s known gap 8; read
+  `a_typed_arithmetic_loop_contains_no_call` before adding a raise.
 - **`$a + $b` and `$a += $b` over two arrays still have no diagnostic** — ADR 0069 § 2 requires one.
-- **Still-large files, deliberately not split yet** — `mwl-syntax`'s `parser.rs` (split it as the first
-  step of ADR 0040's M4B work) and `mwl-types`'s `expr.rs`.
 
 ## Standing rules for this repo
 
@@ -109,6 +114,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **The Bash tool eats a backslash inside a heredoc**, and an apostrophe-heavy one can fail to parse at
   all. For a multi-line Rust edit, write the old and new blocks to files under `.agent-tmp/` with the
   Write tool, then `python tools/splice.py <target> <old> <new>`.
+- **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
+  lowers**, and is worth doing before writing a batch of cases around it.
 - **Another agent may be editing this repo at the same time.** **Check the ADR directory for the next free
   number immediately before writing one**, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it.
@@ -120,10 +127,9 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   `wsl.exe -- bash /mnt/<drive>/<repo>/tools/wsl-acceptance.sh`. One fixture: `tools/leak-check.sh <paths>`.
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
   valgrind sweep, naming the first failure), or `--list` to see it without running it. It short-circuits on
-  the first failure, so it stops at Stage 4's case counts today.
+  the first failure, so it stops at Stage 4's conformance count today.
 - **One case, quickly:** `mwl test tests/conformance/core/str-case-members.mwlt`, or
-  `mwl test tests/ --filter str-` over the tree. A scratch program under `.agent-tmp/` run with
-  `mwl run` is the fastest way to find out whether a shape lowers before writing a case around it.
+  `mwl test tests/ --filter str-` over the tree.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
   `python tools/check-links.py` — broken *and* mis-cased relative links, the second kind being the one that
   works on Windows and 404s on Linux.
