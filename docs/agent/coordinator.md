@@ -44,6 +44,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `tools/loop.py` | The driver. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
 | `docs/agent/playbook.md` | The traps a session paid for once. Append-mostly, and outlives every session. |
+| `docs/agent/conventions.md` | The shape of everything the repo writes, so no session re-derives it from an existing example. |
 | `.loop/status.txt` | One line written by each session: `CONTINUE …`, `DONE …`, or `BLOCKED …`. |
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. |

@@ -10,7 +10,8 @@ Run these in order, then **stop**. This is `AGENTS.md` § *Session workflow*, wi
 added; that file is authoritative for steps 1–5.
 
 1. **Orient.** `python tools/brief.py`, then `AGENTS.md`, then `docs/agent/handoff.md` for where the work
-   stands and `docs/agent/playbook.md` for the traps. Do the work the handoff names — if it lists several
+   stands, `docs/agent/playbook.md` for the traps, and `docs/agent/conventions.md` for the shape of
+   anything you are about to write. Do the work the handoff names — if it lists several
    independent items, pick the one that fits a single focused session, the same judgment a human session
    would make. `docs/agent/loop-goal.md` holds the loop's target; steer toward it and do not invent
    busywork once it is reached.
@@ -50,7 +51,13 @@ So:
   Serialize only what genuinely depends on a previous answer. (`AGENTS.md` § *Commands* has the rule and
   the one thing it does not weaken.)
 - **`python tools/brief.py`'s map already answers "which file is this in".** One line per module and the
-  file:line of the definitions sessions grep for most. Read it before you search for one of them.
+  file:line of the definitions sessions grep for most. It also prints the next free diagnostic code and
+  ADR number, so neither needs deriving.
+- **`docs/agent/conventions.md` already answers "what shape does this take".** Do not open an existing
+  `.mwlt` case, registry row, ADR or commit to copy its form — that answer is identical every session and
+  it is written down.
+- **Edit the plan's status block with `python tools/plan.py --set`,** never by locating its bytes and
+  splicing them. That cycle averaged 11.6 tool calls a session.
 - **Read a file once, not in slices.** A sequence of narrow `sed -n` windows costs a turn each and usually
   more tokens in total than the whole file would have.
 - **Verify with one call**, per step 3.

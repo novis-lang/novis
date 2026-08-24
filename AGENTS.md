@@ -267,12 +267,18 @@ Use a shell for what it is for — `cargo`, `git`, `python tools/brief.py`, `wsl
 needs a multi-line argument, put the text in a file with the Write tool and pass the path: `git commit -F
 <file>`, never an inline heredoc or a `-m` string spanning lines.
 
-**An Edit the tool cannot express goes through `python tools/splice.py <target> <old> <new>`** — write
-the exact old and new blocks to files under `.agent-tmp/` (gitignored; create it if it is not there) with
-the Write tool and let that script swap them. It matches plain text and refuses anything but exactly one
-hit, so a stale anchor is an error rather than a silent wrong edit. Never reach for a `sed`/`python - <<'PY'`
-one-liner instead: a heredoc is a shell string, so it eats the backslashes and apostrophes this
-repository's Rust and prose are full of.
+**An Edit the tool cannot express goes through `python tools/splice.py <target> --patch <file>`** — write
+one patch file under `.agent-tmp/` (gitignored; create it if it is not there) with the Write tool, holding
+the old and new blocks between `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` markers, and let that script swap
+them. It refuses anything but exactly one match per block, so a stale anchor is an error rather than a
+silent wrong edit, and a multi-block patch that half-matches leaves the file untouched. Never reach for a
+`sed`/`python - <<'PY'`/`cat > f <<'EOF'` one-liner instead: a heredoc is a shell string, so it eats the
+backslashes and apostrophes this repository's Rust and prose are full of. The exact format is in
+[docs/agent/conventions.md](docs/agent/conventions.md).
+
+**The plan's status block is edited with `python tools/plan.py --set "<field>" --from <file>`**, not by
+hand — locating a field's exact bytes and splicing them was the single most expensive repeated action a
+session performed.
 
 **One shell call runs one command, and its exit status is the last one's.** Do not `;`-chain several probes
 into a single call. A chain reports only the final command's status, so a probe that is *allowed* to fail —
@@ -381,6 +387,9 @@ Every session runs the same five steps, in this order, and **stops**:
 1. **Orient.** `python tools/brief.py`, this file, then `docs/agent/handoff.md` for what to pick up.
    [docs/agent/playbook.md](docs/agent/playbook.md) is the trap list — read it before writing a `Core`
    member, a `.mwlt` case or any MWL source, and add a bullet to it when something new bites you.
+   [docs/agent/conventions.md](docs/agent/conventions.md) holds the shape of everything this repository
+   writes — a commit message, a `.mwlt` case, a `Core` member's four edits, an ADR, a diagnostic. Open it
+   instead of reading an existing example to copy; that lookup has the same answer every session.
 2. **Do the work.** One focused slice. Keep it small enough to finish.
 3. **Verify what you touched** — `python tools/verify.py`, plus whatever the change specifically warrants
    (a `valgrind` run for a new refcount edge, per *Commands*). **This is the only place verification

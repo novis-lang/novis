@@ -47,8 +47,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
 ADR_README = ROOT / "docs" / "adr" / "README.md"
+ADR_DIR = ROOT / "docs" / "adr"
 PROBE = ROOT / "benches" / "abi-probe"
 CRATES = ROOT / "crates"
+DIAGNOSTICS = CRATES / "mwl-diagnostics" / "src" / "lib.rs"
 
 # --------------------------------------------------------------- display excerpts
 #
@@ -84,8 +86,9 @@ STATUS_FULL = {"Open now", "Blocking"}
 # stored, and a pattern that stops matching is reported rather than quietly dropped.
 ANCHORS = [
     ("the helper-body macro", r"^macro_rules! mwl_helper\b"),
-    ("the `Core` signature table", r"^pub const CLASSES\b"),
-    ("one `Core` member's row", r"^pub struct CoreMethod\b"),
+    ("the roster of `Core` classes", r"^pub const CLASSES\b"),
+    ("one class's member rows (one per stdlib module)", r"^pub const CLASS: CoreClass\b"),
+    ("what a member's row may say", r"^pub struct CoreMethod\b"),
     ("a `Core` signature's type", r"^pub enum CoreTy\b"),
     ("a helper symbol -> address arm (one per stdlib module)",
      r"^pub\(crate\) fn address\("),
@@ -778,6 +781,69 @@ def run_map():
         )
 
 
+# ------------------------------------------------------- the next free number
+#
+# Two numbers a session has to look up before it can write anything, and both were being
+# derived with a grep every time. Worse, the ADR one is a race: two agents that both grep for
+# the highest number pick the same next one.
+
+
+CODE_DECL_RE = re.compile(r'Code::new\("(E(\d{2})\d{2})"\)')
+CODE_LEGEND_RE = re.compile(r"^///\s*\|\s*`E(\d{2})xx`\s*\|\s*([^|]+?)\s*\|")
+ADR_FILE_RE = re.compile(r"^(\d{4})-.*\.md$")
+
+
+def run_numbers():
+    section(
+        "THE NEXT FREE NUMBER",
+        f"{rel(DIAGNOSTICS)} (every `Code::new`) and {rel(ADR_DIR)}/ (the filenames)",
+    )
+
+    text = read(DIAGNOSTICS)
+    if text is None:
+        warn(f"could not read {rel(DIAGNOSTICS)} -- it is the diagnostic-code registry")
+    else:
+        legend = {}
+        highest = {}
+        for line in text.split("\n"):
+            m = CODE_LEGEND_RE.match(line)
+            if m:
+                legend[m.group(1)] = m.group(2).strip()
+        for m in CODE_DECL_RE.finditer(text):
+            band = m.group(2)
+            highest[band] = max(highest.get(band, 0), int(m.group(1)[1:]))
+        if not highest:
+            warn(f"no `Code::new(\"Ennnn\")` declarations in {rel(DIAGNOSTICS)}")
+        else:
+            emit("diagnostic codes -- next free in each band (max + 1; a retired code is never")
+            emit("reused, so this is deliberately not the lowest hole):")
+            for band in sorted(highest):
+                meaning = legend.get(band, "(no row for this band in that file's legend table)")
+                emit(f"  E{band}xx  {meaning:<48} next: E{highest[band] + 1:04d}")
+            unlisted = sorted(set(legend) - set(highest))
+            if unlisted:
+                emit(f"  bands with a legend row but no code yet: "
+                     + ", ".join(f"E{b}xx" for b in unlisted))
+
+    if not ADR_DIR.is_dir():
+        warn(f"no {rel(ADR_DIR)}/ directory")
+        return
+    numbers = [
+        int(m.group(1))
+        for p in ADR_DIR.iterdir()
+        for m in [ADR_FILE_RE.match(p.name)]
+        if m
+    ]
+    emit()
+    if not numbers:
+        warn(f"no `NNNN-*.md` files in {rel(ADR_DIR)}/")
+        return
+    emit(f"ADRs: {len(numbers)} on disk, highest {max(numbers):04d} -- "
+         f"next free is {max(numbers) + 1:04d}")
+    emit("Claim it by creating the file, and re-check this immediately before you do: another")
+    emit("agent working the same tree derives the same answer from the same directory.")
+
+
 # -------------------------------------------------------------- what exists
 
 
@@ -874,6 +940,7 @@ def build(opts):
     run_guard_tests()
     if "--no-map" not in opts:
         run_map()
+    run_numbers()
     run_disk()
     if "--no-git" not in opts:
         run_git()

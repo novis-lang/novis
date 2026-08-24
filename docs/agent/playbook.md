@@ -10,8 +10,10 @@ about 2.4k tokens of stable lore as if it were state, and reworded it a little e
 *state* and is overwritten every session; this is *knowledge* and outlives all of them.
 
 **Scope.** A rule that binds every agent goes in [AGENTS.md](../../AGENTS.md). A decision with reasoning
-goes in an ADR. How a subsystem works goes in that crate's own module doc comment. What is left — "this
-looks like it should work and does not, and here is why" — is this file.
+goes in an ADR. How a subsystem works goes in that crate's own module doc comment. The *shape* of
+something you are about to write — a commit message, a `.mwlt` case, a `Core` member, an ADR — is
+[conventions.md](conventions.md). What is left — "this looks like it should work and does not, and here
+is why" — is this file.
 
 ## Tooling
 
@@ -22,11 +24,12 @@ looks like it should work and does not, and here is why" — is this file.
 - **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
   exact-match splice — a `\\` written in a `python - <<'PY'` heredoc arrives as `\`, and a `"\n"` arrives
   as a real newline, so a block containing either will silently fail to match. Use the Write/Edit tools, or
-  `python tools/splice.py <target> <old> <new>` with both blocks written to `.agent-tmp/`.
-  `splice.py` matches the anchor **exactly**, trailing newline included — the Write tool ends a file with
-  one, so strip it from both blocks when splicing mid-paragraph. A Rust string holding a `Core\Name`
-  label needs `r"..."`, or the backslash is an unknown escape. `python -c` with `chr(92)` for a backslash
-  is the reliable way to patch a file that contains one.
+  `python tools/splice.py <target> --patch <file>` with the patch **written by the Write tool**
+  ([conventions.md](conventions.md) has the format). This is the rule sessions break most: reaching for
+  `cat > f <<'EOF'` to save a call is how the mangling gets in. `splice.py` matches the anchor **exactly**,
+  trailing newline included — the Write tool ends a file with one, so strip it when splicing
+  mid-paragraph, and use `--dry-run` if you are unsure the anchor is still current. A Rust string holding
+  a `Core\Name` label needs `r"..."`, or the backslash is an unknown escape.
 - **`cargo test` does not always relink `target/debug/mwl.exe`** — `cargo build -p mwl-cli` before running
   a fixture or a `.mwlt` case by hand, or a stale binary reports a member you just registered as `mixed`.
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and WSL's
@@ -64,7 +67,8 @@ looks like it should work and does not, and here is why" — is this file.
   `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
   symbol, not a link error), and a `.mwlt` case that calls it — `tests/conformance_coverage.rs` fails
   `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
-  `python tools/brief.py`'s *anchors* block resolves all four of those spellings to a file and line.
+  [conventions.md](conventions.md) writes all four out; `python tools/brief.py`'s *anchors* block
+  resolves each spelling to a file and line.
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
   `args: [3]`. A **variadic tail is one argument**, whatever the call writes. **An instance member's

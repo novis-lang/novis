@@ -32,6 +32,7 @@ so you never have to open this file to route a topic.
 | Deciding what to build next; scoping a milestone; checking what exists | [docs/implementation-plan.md](../implementation-plan.md) — status block first. The plan of record. |
 | Which file holds a thing; where a symbol is defined; what a module is for | `python tools/brief.py` — one line per module, plus the file:line of the definitions most often searched for |
 | Something that looks like it should work and does not — a `Core` member's four required edits, a `.mwlt` case that skips a leg, an MWL shape that will not compile | [docs/agent/playbook.md](../agent/playbook.md) — the trap list, append-mostly |
+| The *shape* of something you are about to write — a commit message, a `.mwlt` case, a `Core` member, an ADR, a diagnostic code, a splice patch | [docs/agent/conventions.md](../agent/conventions.md) — skeletons plus a worked example CI runs |
 | Running the build, the tests, clippy and fmt; what "verified" means for a session | `python tools/verify.py`, defined in [AGENTS.md](../../AGENTS.md) § *Commands* |
 | Exceptions, the call ABI, helper signatures, panic containment | [0002](0002-error-propagation.md) — the only normative copy of the calling convention |
 | Extensions, wasm, WIT, `.mwlx` | [0003](0003-extension-system.md) |
