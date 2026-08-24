@@ -60,6 +60,69 @@ pub const LOCATION_SLOT: usize = 3;
 /// operation here refuses it rather than reading past the allocation.
 pub const SLOT_COUNT: usize = 4;
 
+/// Which of [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// § 10's classes a runtime helper's failure lands in.
+///
+/// A closed enum rather than a `&'static str` a helper writes, for
+/// `mwl_stdlib::registry::CoreTy`'s reason: a misspelled class name would be
+/// a silent *runtime* miss — the `catch` clause that was meant to handle it
+/// simply would not match — rather than a compile error. The roster is spec
+/// § 10's tree minus its root, since a helper that means "anything at all"
+/// means [`Self::Runtime`].
+///
+/// `mwl-runtime` depends on nothing (see [`crate`]'s own docs), so the names
+/// below restate `mwl_hir::errors::TREE`'s; `mwl-codegen`'s
+/// `every_thrown_class_is_in_the_compiler_s_exception_tree` is the test that
+/// holds the two together, exactly as
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot` holds the slot
+/// order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ThrownClass {
+    /// `RuntimeError` — "the world said no", which is what a helper failure
+    /// with nothing more specific to say is, and the class
+    /// [`Ctx::set_runtime_error_class`] installs.
+    #[default]
+    Runtime,
+    /// `LogicError` — a bug in the program: a bad argument, a bad state, a
+    /// bad index.
+    Logic,
+    /// `IOError` — a file, socket or process failed.
+    Io,
+    /// `ParseError` — input did not match a format this code declared, which
+    /// is what `Core\Json::decode` and `Core\Time::parse` answer with.
+    Parse,
+    /// `TimeoutError` — a deadline passed.
+    Timeout,
+    /// `ArithmeticError` — overflow (ADR 0007), division by zero.
+    Arithmetic,
+}
+
+impl ThrownClass {
+    /// The class's name, as `mwl_hir::errors::TREE` spells it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Runtime => "RuntimeError",
+            Self::Logic => "LogicError",
+            Self::Io => "IOError",
+            Self::Parse => "ParseError",
+            Self::Timeout => "TimeoutError",
+            Self::Arithmetic => "ArithmeticError",
+        }
+    }
+
+    /// Every class in the roster — what a guard test iterates.
+    pub const ALL: &'static [Self] = &[
+        Self::Runtime,
+        Self::Logic,
+        Self::Io,
+        Self::Parse,
+        Self::Timeout,
+        Self::Arithmetic,
+    ];
+}
+
 /// One owned reference to a pending exception object.
 ///
 /// Exists so [`crate::Ctx`] can hold a raw `*mut ObjHeader` without either

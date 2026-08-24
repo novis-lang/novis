@@ -91,7 +91,7 @@ use std::sync::OnceLock;
 use jiff::civil::{self, Weekday};
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
-use mwl_runtime::{Fault, MwlStr, Value};
+use mwl_runtime::{Fault, MwlStr, ThrownClass, Value};
 use mwl_syntax::duration;
 
 use crate::registry::{Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy};
@@ -472,10 +472,10 @@ mwl_runtime::mwl_helper! {
         let text = text_of(args, 0, "Core\\Time\\Duration::parse")?;
         match duration::parse(text) {
             Ok(nanos) => Ok(built(nanos)),
-            Err(err) => Err(Fault::thrown(format!(
-                "Core\\Time\\Duration::parse(): {}",
-                err.message()
-            ))),
+            Err(err) => Err(Fault::thrown_as(
+                ThrownClass::Parse,
+                format!("Core\\Time\\Duration::parse(): {}", err.message()),
+            )),
         }
     }
 }
@@ -2131,11 +2131,18 @@ mwl_runtime::mwl_helper! {
         let text = text_of(args, 0, "Core\\Time::parse")?;
         let pattern = text_of(args, 1, "Core\\Time::parse")?;
         let zone = zone_of(args, 2, "parse")?;
-        let pieces = crate::cldr::compile(pattern)
-            .map_err(|why| Fault::thrown(format!("Core\\Time::parse(): {why}")))?;
+        // The two failures are different spec § 10 classes on purpose: a
+        // pattern this call site wrote wrongly is a bug in the program, while
+        // text that does not match a well-formed pattern is exactly "input did
+        // not match a format this code declared".
+        let pieces = crate::cldr::compile(pattern).map_err(|why| {
+            Fault::thrown_as(ThrownClass::Logic, format!("Core\\Time::parse(): {why}"))
+        })?;
         crate::cldr::read(&pieces, text, &zone)
             .map(|at| datetime_built(&at))
-            .map_err(|why| Fault::thrown(format!("Core\\Time::parse(): {why}")))
+            .map_err(|why| {
+                Fault::thrown_as(ThrownClass::Parse, format!("Core\\Time::parse(): {why}"))
+            })
     }
 }
 

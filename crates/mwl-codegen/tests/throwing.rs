@@ -23,6 +23,30 @@ class Deep {
 }
 ";
 
+/// A helper names the class its failure lands in as a `mwl_runtime::ThrownClass`,
+/// and `mwl-runtime` depends on nothing — so this is the one place the roster
+/// and `mwl_hir::errors::TREE` are held together. A class named here but absent
+/// there would degrade silently to `RuntimeError`
+/// (`mwl_runtime::Ctx::set_runtime_error_class` says why it degrades rather
+/// than fails).
+#[test]
+fn every_thrown_class_is_in_the_compiler_s_exception_tree() {
+    for class in mwl_runtime::ThrownClass::ALL {
+        assert!(
+            mwl_hir::errors::is_exception_class(class.name()),
+            "{} is not in the exception tree",
+            class.name()
+        );
+    }
+    // The default is the one every bare `Fault::thrown` lands in, and
+    // `Unit::runtime_error_class` looks it up by exactly this name.
+    assert_eq!(
+        mwl_runtime::ThrownClass::default().name(),
+        "RuntimeError",
+        "the default class is what `Ctx::set_runtime_error_class` installs"
+    );
+}
+
 #[test]
 fn the_runtime_and_the_compiler_agree_on_every_throwable_slot() {
     use mwl_hir::errors::PROPERTIES;

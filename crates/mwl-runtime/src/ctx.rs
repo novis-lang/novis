@@ -38,7 +38,7 @@ use std::borrow::Cow;
 use std::io::{self, Write};
 
 use crate::object::{ClassDesc, ClassId, ClassTable};
-use crate::throwable::Thrown;
+use crate::throwable::{Thrown, ThrownClass};
 
 bitflags::bitflags! {
     /// What a safepoint poll has been asked to do.
@@ -180,6 +180,22 @@ impl ErrorClass {
     pub fn desc(&self) -> *const ClassDesc {
         self.table.desc(self.id)
     }
+
+    /// A handle on another class of the *same* table, by name — how
+    /// [`Ctx::error_desc`] reaches spec § 10's `ParseError` from the
+    /// `RuntimeError` the embedder installed.
+    ///
+    /// Sharing the table is the point: the returned handle keeps it alive by
+    /// itself, so a `catch` clause's descriptor and this one are two addresses
+    /// in the same table and compare by pointer the way `crate::object`'s
+    /// conformance test requires.
+    #[must_use]
+    pub fn sibling(&self, name: &str) -> Option<Self> {
+        Some(Self::new(
+            std::rc::Rc::clone(&self.table),
+            self.table.id_of(name)?,
+        ))
+    }
 }
 
 /// What is behind a pending non-[`crate::OK`] status.
@@ -216,8 +232,9 @@ impl ErrorClass {
 /// `FATAL` ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)).
 #[derive(Debug)]
 enum Pending {
-    /// A message alone, with no exception object behind it yet.
-    Message(Cow<'static, str>),
+    /// A message alone, with no exception object behind it yet, plus the
+    /// class it will be promoted to — see [`ThrownClass`].
+    Message(ThrownClass, Cow<'static, str>),
     /// MWL's own exception object.
     Thrown(Thrown),
 }
@@ -226,8 +243,17 @@ impl Pending {
     /// The message, whichever shape this is.
     fn message(&self) -> Cow<'_, str> {
         match self {
-            Self::Message(message) => Cow::Borrowed(message),
+            Self::Message(_, message) => Cow::Borrowed(message),
             Self::Thrown(thrown) => Cow::Owned(thrown.message()),
+        }
+    }
+
+    /// The class a promotion would build, or `None` for a failure that is
+    /// already an object.
+    fn class(&self) -> Option<ThrownClass> {
+        match self {
+            Self::Message(class, _) => Some(*class),
+            Self::Thrown(_) => None,
         }
     }
 
@@ -246,7 +272,7 @@ impl Pending {
     unsafe fn into_thrown(self, class: *const ClassDesc) -> Thrown {
         match self {
             #[expect(unsafe_code, reason = "forwarding this function's own contract")]
-            Self::Message(message) => unsafe { Thrown::new(class, &message) },
+            Self::Message(_, message) => unsafe { Thrown::new(class, &message) },
             Self::Thrown(thrown) => thrown,
         }
     }
@@ -414,14 +440,29 @@ impl Ctx {
         true
     }
 
-    /// Records the message behind a `THROWN` or `FATAL` status.
+    /// Records the message behind a `THROWN` or `FATAL` status, as spec
+    /// § 10's `RuntimeError`.
     pub fn set_pending(&mut self, message: impl Into<Cow<'static, str>>) {
-        self.pending = Some(Pending::Message(message.into()));
+        self.set_pending_as(ThrownClass::Runtime, message);
+    }
+
+    /// Records the message behind a `THROWN`, naming which of spec § 10's
+    /// classes a `catch` will see — [`ThrownClass`] owns the roster.
+    pub fn set_pending_as(&mut self, class: ThrownClass, message: impl Into<Cow<'static, str>>) {
+        self.pending = Some(Pending::Message(class, message.into()));
     }
 
     /// Installs the class a bare-message failure is promoted to — spec
     /// § 10's `RuntimeError`, "the world said no", which is what a runtime
     /// helper's failure is.
+    ///
+    /// It is also this context's *anchor into the compiled unit's class
+    /// table*: every other § 10 class is reached from it by name
+    /// ([`ErrorClass::sibling`]), so a helper that throws a
+    /// [`ThrownClass::Parse`] needs no second installation call. One handle
+    /// rather than six because the six are not independent — they all come
+    /// from the one table a `Unit` owns, and installing a subset would make
+    /// "which classes can this request throw" a property of the embedder.
     ///
     /// A caller that never installs one gets the degraded behaviour
     /// [`Pending`] describes, never a crash.
@@ -429,11 +470,21 @@ impl Ctx {
         self.runtime_error_class = Some(class);
     }
 
-    /// The installed descriptor's address, or null.
-    fn runtime_error_desc(&self) -> *const ClassDesc {
-        self.runtime_error_class
-            .as_ref()
-            .map_or(std::ptr::null(), ErrorClass::desc)
+    /// The descriptor `class` names, or the installed `RuntimeError`'s if the
+    /// table holds no such class, or null if none was installed at all.
+    ///
+    /// Falling back rather than failing is deliberate: a compiled unit always
+    /// carries the whole seeded tree (`mwl_hir::errors::TREE`), so a miss here
+    /// means an embedder built a table by hand — and a failure that arrives as
+    /// a `RuntimeError` is strictly better than one that arrives as no object
+    /// at all.
+    fn error_desc(&self, class: ThrownClass) -> *const ClassDesc {
+        let Some(installed) = self.runtime_error_class.as_ref() else {
+            return std::ptr::null();
+        };
+        installed
+            .sibling(class.name())
+            .map_or_else(|| installed.desc(), |found| found.desc())
     }
 
     /// Records an already-built exception as the pending `THROWN` — what
@@ -454,7 +505,7 @@ impl Ctx {
     #[must_use]
     pub fn take_pending(&mut self) -> Option<Cow<'static, str>> {
         Some(match self.pending.take()? {
-            Pending::Message(message) => message,
+            Pending::Message(_, message) => message,
             Pending::Thrown(thrown) => Cow::Owned(thrown.message()),
         })
     }
@@ -471,13 +522,16 @@ impl Ctx {
         let Some(pending) = self.pending.take() else {
             return Thrown::none();
         };
+        let desc = pending
+            .class()
+            .map_or(std::ptr::null(), |class| self.error_desc(class));
         #[expect(
             unsafe_code,
             reason = "`set_runtime_error_class`'s own contract makes the \
                       installed descriptor outlive every instance built here"
         )]
         unsafe {
-            pending.into_thrown(self.runtime_error_desc())
+            pending.into_thrown(desc)
         }
     }
 
@@ -493,14 +547,19 @@ impl Ctx {
         // promotion cannot produce an object for — see `Pending`'s note on an
         // uninstalled class.
         let message = pending.message().into_owned();
+        let class = pending.class();
+        let desc = class.map_or(std::ptr::null(), |class| self.error_desc(class));
         #[expect(
             unsafe_code,
             reason = "`set_runtime_error_class`'s own contract makes the \
                       installed descriptor outlive every instance built here"
         )]
-        let thrown = unsafe { pending.into_thrown(self.runtime_error_desc()) };
+        let thrown = unsafe { pending.into_thrown(desc) };
         if thrown.is_none() {
-            self.pending = Some(Pending::Message(Cow::Owned(message)));
+            self.pending = Some(Pending::Message(
+                class.unwrap_or_default(),
+                Cow::Owned(message),
+            ));
             return;
         }
         thrown.push_frame(label);

@@ -52,7 +52,13 @@ pub type HelperFn = MwlFn;
 #[non_exhaustive]
 pub enum Fault {
     /// An MWL exception a `catch` may handle; becomes [`THROWN`].
-    Thrown(std::borrow::Cow<'static, str>),
+    ///
+    /// The class is which of spec § 10's tree the promoted object is built
+    /// from, so `Core\Json::decode("{oops}")` is caught by
+    /// `catch (ParseError $e)` and not only by `catch (Throwable $e)`.
+    /// [`Fault::thrown`] means [`ThrownClass::Runtime`], which is what a
+    /// failure with nothing more specific to say is.
+    Thrown(crate::ThrownClass, std::borrow::Cow<'static, str>),
     /// Unrecoverable; becomes [`FATAL`].
     Fatal(std::borrow::Cow<'static, str>),
     /// A callee this helper invoked already failed and already recorded what
@@ -67,10 +73,20 @@ pub enum Fault {
 }
 
 impl Fault {
-    /// A [`Fault::Thrown`] with a message.
+    /// A [`Fault::Thrown`] with a message, as spec § 10's `RuntimeError`.
     #[must_use]
     pub fn thrown(message: impl Into<std::borrow::Cow<'static, str>>) -> Self {
-        Self::Thrown(message.into())
+        Self::Thrown(crate::ThrownClass::Runtime, message.into())
+    }
+
+    /// A [`Fault::Thrown`] with a message, as a *named* class of spec § 10's
+    /// tree — what a member whose own signature promises one throws.
+    #[must_use]
+    pub fn thrown_as(
+        class: crate::ThrownClass,
+        message: impl Into<std::borrow::Cow<'static, str>>,
+    ) -> Self {
+        Self::Thrown(class, message.into())
     }
 
     /// A [`Fault::Fatal`] with a message.
@@ -157,8 +173,8 @@ where
             }
             OK
         }
-        Ok(Err(Fault::Thrown(message))) => {
-            ctx.set_pending(message);
+        Ok(Err(Fault::Thrown(class, message))) => {
+            ctx.set_pending_as(class, message);
             THROWN
         }
         Ok(Err(Fault::Fatal(message))) => {

@@ -220,7 +220,7 @@ pub use string::{
     mwl_str_new, mwl_str_release, mwl_str_retain,
 };
 pub use throwable::{
-    BACKTRACE_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown, mwl_raise,
-    mwl_raise_new, mwl_take_thrown, mwl_trace_push,
+    BACKTRACE_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, SLOT_COUNT, Thrown, ThrownClass,
+    mwl_raise, mwl_raise_new, mwl_take_thrown, mwl_trace_push,
 };
 pub use value::{Tag, Value, mwl_value_release, mwl_value_retain};
