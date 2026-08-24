@@ -23,10 +23,18 @@ classification, and every member has one:
 
 | Mark | Meaning |
 |---|---|
-| *(blank)* | **contagious** — a `tainted`/`secret` argument yields a `tainted`/`secret` result. The default, and the overwhelming majority |
+| *(blank)* | **contagious** — a `tainted`/`secret` argument yields a `tainted`/`secret` result. The overwhelming majority |
 | **sink** | refuses a qualified argument in the named position |
 | **launder** | removes a qualifier; its contract names the sink it launders for |
 | **neutral** | the result never carries a qualifier from the argument (a `bool`, a count, a hash of a secret) |
+
+A blank cell here means *contagious was chosen*, never *nobody looked*: the classification is declared per
+parameter in `mwl-stdlib`'s member registry, an unclassified `string`/`bytes` parameter **refuses** a
+tainted argument, and a member that ships with one fails that crate's own test suite
+([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 2). Which parameters are
+sinks follows from that ADR's § 1 predicate — *the content becomes an instruction something executes,
+rather than data something returns or frames* — of which one corollary is that all four
+[R11](../adr/0063-core-api-conventions.md) grammars are sinks.
 
 Two conventions apply throughout and are not repeated per entry:
 
@@ -158,7 +166,7 @@ equivalent to pass it.
 | `normalize` | `normalize(string $s, NormalForm $form): string` | `Normalizer::normalize` | |
 | `fromCodePoint` | `fromCodePoint(uint $codePoint): string` | `chr`, `mb_chr` | neutral |
 | `fromCodePoints` | `fromCodePoints(array<uint> $codePoints): string` | `implode(array_map("mb_chr", …))` | neutral |
-| `format` | `format(string $template, mixed ...$arguments): string` | `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf` | |
+| `format` | `format(string $template, mixed ...$arguments): string` | `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf` | **sink** (template) |
 
 `format` is an [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic: a literal template has its
 placeholder count and types checked against the argument list at compile time, which turns PHP's
@@ -166,7 +174,12 @@ placeholder count and types checked against the argument list at compile time, w
 deliberately — a closed conversion list (`%s %d %u %f %e %g %x %X %o %b %%`) with `printf`'s flag, width,
 precision and `%1$s` positional syntax, minus everything that reads ambient state. It is a *grammar*, not a
 mode string, so R11 does not reach it; the same is true of `Core\Regex`'s patterns, `Core\Bytes::pack`'s
-format and CLDR date patterns, and those four are the only ones in the library.
+format and CLDR date patterns, and those four are the only ones in the library. **All four are `tainted`
+sinks**, because a grammar is an instruction rather than data
+([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 1, 6): a tainted `format`
+template hands an attacker `%2$s` and `%999999999d`. The *arguments* stay contagious, and none of the four
+gets a launderer except `Regex::quote` — a grammar is written by the program, so the fix at a rejected call
+site is a literal, which ADR 0057 already folds.
 
 `ucwords` and title casing are **not** here — word segmentation is locale-dependent and belongs to intl;
 the mechanical rewrite for an ASCII-ish name is
@@ -415,7 +428,10 @@ short.
 | `at` | `at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime` | `mktime`, `gmmktime`, `DateTime::setDate` | neutral |
 
 `Core\Time::parse` is an [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic — a literal format
-string is validated and its plan prepared at compile time. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
+string is validated and its plan prepared at compile time. **A CLDR pattern is a `tainted` sink** wherever
+one is taken — `Time::parse`'s `$format` and every `format(string $pattern)` below — because it is one of
+R11's four grammars, per `Core\Str::format`'s note in § 1; the `$text` being parsed is data and stays
+contagious. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
 `EEEE, d MMMM yyyy`), not PHP's `date()` letters: both grammars are closed and the argument is almost
 always a literal, so `mwl convert` rewrites one into the other mechanically, and the intl extension needs
 CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
@@ -593,7 +609,8 @@ only inside `Core\Mail`, which is the one thing that ever needed it.
 names wherever the operation is the same: `length`, `at`, `slice`, `indexOf`, `compare`, `contains`,
 `startsWith`, `endsWith`, `join(array<bytes> $parts, bytes $separator = "")`, `fill`, `repeat`, plus
 `pack(string $format, mixed ...$values)` and `unpack(bytes $b, string $format): array<mixed>` (replacing
-`pack`/`unpack`, with the format string an ADR 0057 intrinsic). The three predicates are what magic-byte
+`pack`/`unpack`, with the format string an ADR 0057 intrinsic and, on both members, a **sink** — it is one
+of R11's four grammars, per `Core\Str::format` above). The three predicates are what magic-byte
 sniffing needs, and `join` rather than a `concat` of its own keeps R6's pairing with `Core\Str`. There is
 no `bytes` literal — see [00-overview § 5](00-overview.md).
 
@@ -769,13 +786,19 @@ is not.
 |---|---|---|---|
 | `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | `str_getcsv`, the parsing half of `fgetcsv` | |
 | `Csv::format` | `format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string` | `fputcsv`'s formatting half | |
-| `Out::capture` | `capture(callable $fn, {through?: callable}): string` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
+| `Out::capture` | `capture(callable $fn, {through?: callable}): Sink` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
 
 `Core\Out` has exactly this one member. A buffer is scoped to a closure and nests by call nesting, so
 PHP's global `ob_*` stack — start in one function, end in another, ten functions to inspect the stack — has
 no equivalent, and neither does implicit flushing. `capture` always **swallows**: `{through: $filter}`
 transforms what was captured, and re-emitting it is a visible `echo Out::capture(…)` rather than
 `ob_start($callback)`'s invisible pass-through.
+
+`Sink` above is not a type name — it is **the carrier of the sink in force**, `Core\Html\Markup` under an
+HTTP request and `Cli\Text` in every other context
+([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 3, 5). It is not a plain
+`string`, because the captured bytes have already been through the sink and re-emitting them as a string
+would escape them a second time. `{through:}` therefore takes and returns that same carrier.
 
 `Csv::parse`'s `{header: true}` consumes the first row as column names and keys every returned row by
 them — the return type is unchanged, because every array key is a `string` already — and the header row is
@@ -864,12 +887,17 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 
 - `Core\Request`: `method`, `path`, `query`, `body`, `header`, `headers`, `cookie`, `files`, `clientIp` —
   replacing `$_GET`, `$_POST`, `$_FILES`, `$_COOKIE`, `$_REQUEST`, `filter_input`.
-- `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `write`, `redirect`, `sendFile` — replacing
-  `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`. `setHeader` is a header
-  **sink** and overrides a policy-owned header on one response; `addCookie`'s options shape defaults every
-  field from `[http.cookies]`, so a cookie written with no options is `Secure; HttpOnly; SameSite=Lax;
-  Path=/` and `SameSite` is an enum, never a string
-  ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)).
+- `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members
+  `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
+  `sendFile(…)` — replacing `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`.
+  `setHeader` is a header **sink** and overrides a policy-owned header on one response; `addCookie`'s
+  options shape defaults every field from `[http.cookies]`, so a cookie written with no options is
+  `Secure; HttpOnly; SameSite=Lax; Path=/` and `SameSite` is an enum, never a string
+  ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)). **One body member per shape, each setting its
+  own `Content-Type`**, replacing a single `write`: `json` serializes the value itself so a tainted one is
+  safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
+  `echo` is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile
+  error ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
 - `Core\Server`: the request's own environment — replacing `$_SERVER`.
 - `Core\Session`: `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*`
   functions. May not use `Core\Cache` ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)).

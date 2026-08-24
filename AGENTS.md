@@ -170,6 +170,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
 - **Untrusted input carries a `tainted` qualifier that `Core` sinks refuse until it is laundered** — the
   HTML sink additionally auto-escapes by default
   ([0024](docs/adr/0024-taint-tracking-for-injection-sinks.md)).
+- **A sink is a parameter whose content becomes an instruction, and an unclassified one refuses** — `echo`
+  binds to the terminal sink everywhere but an HTTP request, where a body is one typed `Core\Response`
+  member ([0088](docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)).
 - **A confidential value carries a `secret` qualifier that output, logs, dumps, `Throwable` messages and
   serialization all refuse** ([0033](docs/adr/0033-secret-qualifier-for-confidential-values.md)).
 - **An extension's manifest can only tighten the qualifier analysis, never loosen it**

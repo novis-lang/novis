@@ -6,9 +6,10 @@
   removed; the sinks that refuse a tainted value (HTML output, SQL query text, process arguments, HTTP
   header values, filesystem paths); the `Core\Html\Markup` safe-markup type and the HTML output sink's
   auto-escape default.
-- **Amended by:** 0033, 0058, 0067, 0086, 0087 — each fold is applied below; this body states the current
-  rule. 0086 adds terminal output to § 4's sink roster and gives § 5's auto-escape exception its second
-  instance; 0087 adds the unterminated-bidi rule to § 5's escaper.
+- **Amended by:** 0033, 0058, 0067, 0086, 0087, 0088 — each fold is applied below; this body states the
+  current rule. 0086 adds terminal output to § 4's sink roster and gives § 5's auto-escape exception its
+  second instance; 0087 adds the unterminated-bidi rule to § 5's escaper; 0088 turns § 4's roster into a
+  predicate with a fail-closed default and gives § 5 the rest of the response body.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — adds a `tainted` qualifier axis to the conversion
   table for `string`/`bytes`, following the same total/checked shape as every other conversion; every other
   row is unchanged.
@@ -121,6 +122,14 @@ and carries a written reason at the call site, never a silent cast.
 
 ### 4. Sinks that refuse a tainted value
 
+**What makes something a sink is a predicate, not this list.**
+[ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 1 owns it — *a parameter is a sink
+when its content becomes an instruction that a parser executes, rather than data that a parser returns or
+that a serializer frames* — and § 2 of that ADR makes an **unclassified** `string`/`bytes` parameter on a
+`Core` member refuse a tainted argument, so a member nobody classified fails closed instead of accepting
+silently. The entries below are the worked cases of that predicate, each with the reasoning its own sink
+needs; they are not the definition, and a new sink does not need an ADR to become one.
+
 - **HTML/text output** — see § 5; the mechanism there makes an explicit launderer unnecessary for ordinary
   text.
 - **Terminal output** — `echo` and `Core\Cli::write` neutralize every control byte, in every value
@@ -184,9 +193,14 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   auto-escapes it via `Core\Html::escape()` and lifts the result to `Markup`. This is the sink's *only*
   behavior: it never distinguishes tainted from untainted, because escaping already neutralizes either one
   structurally.
-- The HTTP response-write sink accepts only `Markup`. A developer never manually calls an escape function
-  for ordinary text interpolation — only hand-composing a raw markup fragment reaches for `Markup`/
-  `as Markup` on a literal.
+- **`echo` is this sink, and only in an HTTP request.** It accepts only `Markup`, implies
+  `Content-Type: text/html`, and a developer never manually calls an escape function for ordinary text
+  interpolation — only hand-composing a raw markup fragment reaches for `Markup`/`as Markup` on a literal.
+  Every other body shape is a typed `Core\Response` member — `json`, `text`, `bytes`, `sendFile` — each
+  framing its own content, so a JSON body is never escaped into corruption; mixing `echo` with one of them
+  on a single response is a compile error. Which sink `echo` binds to in every *other* context, and why
+  the default is the terminal rather than this one, is
+  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 3–4.
 - `Core\Html::escape` additionally **neutralizes an unterminated bidirectional control**, substituting
   `�` — [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns that predicate and its two
   other callers. Escaping `<`, `>`, `&` and quotes does nothing about display order, so without this row a

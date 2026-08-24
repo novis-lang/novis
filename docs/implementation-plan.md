@@ -113,7 +113,10 @@
 > by declaration. One PHP divergence stands unfixed — **an abandoned generator never runs the
 > `finally` it is suspended inside**, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is
 > 31% classified, one pass per PHP domain remaining, reported by `python tools/check-migration.py`.
-> Off path: ADR 0043's `by`-delegation.
+> **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier
+> classification at all, so `Core\Str::format`'s template is not yet the sink that ADR makes it, and
+> neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test that
+> refuses an unclassified member exists. Off path: ADR 0043's `by`-delegation.
 >
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop
 > reaches is pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the
@@ -729,7 +732,12 @@ contract. `crates/mwl-stdlib` starts here — the Tier 0 crate
 declares; `Core\Regex` binds the engine [ADR 0056](adr/0056-regex-engine-policy.md)
 picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
 `Core\Str::format` land as [ADR 0057](adr/0057-intrinsic-literal-folding.md) intrinsics with the
-compile-time half wired into `mwl-types`. `Duration::parse` shares its grammar and its implementation with
+compile-time half wired into `mwl-types` — and, per
+[ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 6, all three grammars are
+`tainted` **sinks** alongside `Core\Regex`'s pattern. **`mwl-stdlib`'s member registry gains a per-parameter
+qualifier classification here**, with an unclassified `string`/`bytes` parameter refusing `tainted` and that
+crate's own test suite failing on any member that ships without one (§ 2 of the same ADR); the pass that
+marks the existing rows is part of building §§ 1–12 rather than a separate slice. `Duration::parse` shares its grammar and its implementation with
 M1's duration literal ([ADR 0070](adr/0070-duration-literals.md)), so build the literal first and this is
 the same parser reached from a second entry point. `Core\Str`'s
 unit is [ADR 0009](adr/0009-string-and-bytes.md) § 2's grapheme cluster, decided and seamed in
@@ -906,7 +914,13 @@ classes populated from it (`Core\Request::query()`/`::post()`/`::cookie()`/`::fi
 [ADR 0012](adr/0012-no-superglobals.md)), returning `tainted string`/`tainted bytes` per
 [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md), multipart and urlencoded body parsing with
 limits, streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured
-request logging, optional TLS via `rustls`.
+request logging, optional TLS via `rustls`. **`Core\Response`'s body surface is the five typed members**
+`html`/`json`/`text`/`bytes`/`sendFile` rather than a single `write`, each setting its own `Content-Type`,
+with `echo` the HTML-only sixth path and mixing the two a compile error
+([ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4) — which is also where a JSON
+body stops being an `echo` the auto-escape sink would corrupt. The **`echo` binding table** (§ 3 of that
+ADR) is enforced from here: the HTML sink is attached by a request and by nothing else, so a scheduled
+script's and an isolate's `echo` take the terminal sink's neutralization instead.
 
 **Also here: the control socket and `mwl ctl`** — a local unix socket (named pipe on Windows), created
 `0600` and refused if its directory is world-writable, speaking HTTP so that a network listener would later

@@ -24,8 +24,10 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 13 and 15 — a `Core\Command` row, and the
   `Core\Cli` bullet replaced by this ADR's roster.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the command-table pass, M8 the rest.
-- **Amended by:** 0087 — § 1's substitution table gains the unterminated-bidi row and § 7's refusal to
-  address it is withdrawn; the fold is applied below and this body states the current rule.
+- **Amended by:** 0087, 0088 — each fold is applied below and this body states the current rule. 0087 adds
+  § 1's unterminated-bidi row and withdraws § 7's refusal to address it; 0088 makes this sink the
+  **default** one every context without an HTTP request binds `echo` to, and separates `echo` from
+  `Core\Cli`'s members in § 8.
 - **Relates to:** 0004, 0006, 0007, 0009, 0010, 0025, 0031, 0036, 0048, 0049, 0052, 0063, 0072, 0077,
   0079, 0080
 
@@ -312,6 +314,13 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
   ([0006](0006-isolated-script-execution.md)), every `Core\Cli` member throws. Two tasks interleaving
   escape sequences on one terminal produces output no one can reason about, and there is no locking scheme
   that makes it coherent.
+- **`echo` is not one of those members, and does not throw.** It binds to whatever sink its context has —
+  the response body under a request, this one everywhere else, including a scheduled script, a job worker,
+  a test and a spawned isolate's buffer
+  ([ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3). § 1's substitution is what
+  those contexts get, because a run whose output is read out of a CI log later is exactly the case § 1's
+  *uniform, not tty-dependent* rule was written for. What throws is claiming the *terminal*; writing text
+  never does.
 - **Restoration is an [ADR 0020](0020-error-escalation-ladder.md) obligation, not a `finally`.** Raw mode, a
   hidden cursor and a live region must be undone on a throw, on a fatal, on an internal panic (§ 5 of that
   ADR) and on a signal (`Core\Signal`). A ladder that protects the process while leaving the operator's

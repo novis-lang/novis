@@ -103,6 +103,7 @@ so you never have to open this file to route a topic.
 | `Core\Reflect`, `ReflectionClass`-equivalents, `Core\Ast`, runtime introspection or source parsing | [0019](0019-reflection-and-ast-parsing-are-core-features.md) |
 | Uncaught exceptions, memory/CPU-limit fatals, internal panics, `Core\Fatal`, `Core\Log` | [0020](0020-error-escalation-ladder.md) |
 | XSS, SQL injection, command/header/path injection, taint tracking, `tainted string`, `Core\Html\Markup` | [0024](0024-taint-tracking-for-injection-sinks.md) |
+| Whether a given parameter is a sink, what an unclassified one does, what `echo` writes to in a request / a CLI / an isolate / a scheduled run, how a JSON or plain-text response body is written, `Core\Response::json` | [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
 | A database — `Core\Db`, `PDO`/`mysqli`/`pgsql`/`sqlite3`, drivers, connections, prepared statements, transactions, result rows, an ORM | [0067](0067-core-db.md) — signatures in [spec § 18](../spec/01-core-library.md) |
 | SSRF, fetching a user-supplied URL, `Core\Http\Client`, the `net.connect` address policy, DNS rebinding | [0058](0058-outbound-request-policy.md) |
 | `exec`/`system`/`shell_exec`/backticks/`proc_open`, running another program, shell injection | [0044](0044-core-process-argv-only-no-shell.md) |
@@ -237,6 +238,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0085](0085-openapi-is-generated-from-the-route-table.md) | An OpenAPI 3.1 document is generated while compiling from the route table and derived codecs, an `#[Api]` attribute that contradicts the code is a compile error, and `mwl api diff` fails a build on a breaking change | Accepted |
 | [0086](0086-core-cli-terminal-is-a-sink.md) | Terminal output is a sink that substitutes control bytes with visible glyphs, styling is the `Cli\Text` value type rather than a fifth grammar, prompts are `Core` members because raw mode is unreachable from userland, in-place output is a scoped live region, and `#[Command]` builds the argument table while compiling | Accepted |
 | [0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) | A directional control that opens a scope and never closes it is a hard compile error in source and is substituted at both output sinks, by one predicate with three callers; balanced controls, invisibles and homoglyphs are each left alone with their reason | Accepted |
+| [0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) | A parameter is a sink when its content becomes an instruction rather than data, an unclassified `string`/`bytes` parameter on a `Core` member refuses `tainted`, `echo` binds to the terminal sink in every context but an HTTP request, and each response-body shape gets its own typed member | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

@@ -6,8 +6,8 @@
   `script.spawn` capability, per-tree limit accounting
 - **Validated by:** `benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`
   (`an_os_process_costs_orders_of_magnitude_more_than_a_task`)
-- **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073, 0083, 0084 — each fold is applied below; this body states the
-  current rule.
+- **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073, 0083, 0084, 0088 — each fold is applied below; this
+  body states the current rule.
 - **Relates to:** 0002, 0003, 0004, 0005, 0008
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
@@ -202,6 +202,14 @@ on the failure path rather than an implicit landing pad.
 ordering deterministic under concurrency — a genuinely interleaved write into a live HTTP response needs an
 ordering model, and that question is deferred to M7 rather than answered badly here. Capture is the default
 because the alternative silently mixes another script's bytes into a response the parent is responsible for.
+
+A child's `echo` writes to the **parent's sink**, so the captured output carries that sink's carrier type —
+`Core\Html\Markup` under a request, `Cli\Text` everywhere else — rather than a plain `string`
+([ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 3, 5). That is what lets a parent
+re-emit a captured result without escaping it twice, and it is why `'inherit'` needs no separate rule: the
+two carriers already match. `Core\Cli`'s *members* still throw inside an isolate
+([ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 8) — that rule is about owning the tty, which an
+isolate's buffered output never touches.
 
 ### One isolation implementation, not two
 
