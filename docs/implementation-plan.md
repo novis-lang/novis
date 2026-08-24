@@ -13,8 +13,9 @@
 > **`mixed`, `?T` and every other union share `mwl_ir::Ty::Tagged`**, a 16-byte `Value` in a register
 > pair, with `Tag`/`Untag`/`IsNull` to get in, out and test — that variant's own doc comment and
 > `mwl-runtime`'s own are the two homes. `??` and the literal `null` came with it, and `mwl-ir`'s gap 5
-> closed behind it, so a short-circuit composes in any nested position. Still owed before a `?T`-returning
-> `Core` member can be *registered*: a variadic parameter, a union return, and `CoreTy` growing a nullable.
+> closed behind it, so a short-circuit composes in any nested position. **A `?T`-returning `Core` member
+> can now be written down too**: `CoreTy::Nullable` interns as `null|T`, and a union is legal in either
+> direction. A **variadic** parameter is the one signature shape still missing, and `decimal` the one type.
 > Three M4 holes stay folded in — compound assignment, `for`/`switch`/`match`, `decimal`'s IR — as is ADR
 > 0070's duration literal, which `Duration::parse` shares an implementation with. Dependencies: `regex` +
 > `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
@@ -32,9 +33,9 @@
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Arr` × 20, `Str` × 19, `granularity`, `Order`, and the conformance-coverage gate),
+> `mwl-stdlib` (`Arr` × 28, `Str` × 19, `granularity`, `Order`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 263 (in
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 265 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -50,10 +51,12 @@
 > all run, leaving that ADR's `as ?T` operator owed. Instance calls dispatch on the receiver's runtime
 > class. Each ADR's own *Verification* section says what its slice covers, not this field.
 >
-> **Open now:** **`Core` breadth, and the three signature shapes it still needs.** A `?T`-returning member
-> now has a representation but no way to be *written down*: `mwl_stdlib::registry`'s `CoreTy` has no
-> nullable, no variadic parameter and no union return, which between them block every `?T` row in spec
-> §§ 1–12, ADR 0069's three combination members, `Math::abs` and `Arr::sum`. Behind them, `Core` §§ 3–12
+> **Open now:** **`Core` breadth, and the one comparison every set member needs.** `?T` rows can be
+> registered now, and eight `Core\Arr` members answering absence are; what the next batch waits on is a
+> **strict identity** comparison over two `mwl_runtime::Value`s, which `keyOf`, `contains`, `min`, `max`,
+> `unique`, `diff` and `intersect` all need. Two signature shapes are still missing behind that: a
+> **variadic** parameter (ADR 0069's three combination members, `append`/`prepend`, `Path::join`) and
+> `CoreTy::Decimal` (`sum`/`product`/`average`). `Core` §§ 3–12
 > have no registry class at all, and `Core\Str`/`Core\Arr` are incomplete. Folded in because the corpus
 > cannot route around them: compound assignment, `for`/`switch`/`match`, `decimal`'s IR, ADR 0070's duration
 > literal. Also open: ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
@@ -67,8 +70,8 @@
 > representation (now settled and recorded in `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
 > own handler block, widening `array<T>` to element-covariant-on-read, defining object identity, and
 > picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
-> so any failure below Stage 2 is a regression rather than unfinished work. Stage 2 now stops on a missing
-> `Core` member rather than on a missing representation.
+> so any failure below Stage 2 is a regression rather than unfinished work. Stage 2 stops on
+> `examples/nullable.mwl`, which needs `Core\Arr::keyOf` — a missing member, not a missing shape.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

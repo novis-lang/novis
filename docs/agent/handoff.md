@@ -2,49 +2,46 @@
 
 ## State
 
-**The keystone is built.** `mixed`, `?T` and every other union now share one representation —
-`mwl_ir::Ty::Tagged`, a 16-byte `mwl_runtime::Value` in a register pair — with `Tag`/`Untag`/`IsNull` to
-widen into it, narrow out of it and test it, and `Lowering::coerce` as the one place the first two are
-emitted. That variant's own doc comment owns the decision and what it spends; `mwl-runtime`'s module doc
-owns the heap half (which is: nothing is allocated). `??` and the literal `null` landed with it, and
-`mwl-ir`'s gap 5 closed behind it, so a short-circuit composes in **any** nested position — `lower_expr`
-and `lower_expr_top` are one function now.
+**A `?T`-returning `Core` member can now be written down, and eight are.** `mwl_stdlib::registry`'s
+`CoreTy` grew `Nullable`, which `mwl_types::core_lib` interns as exactly `null|T` — the same id a
+source-written `?T` gets, so `??`, assignability and `mwl_ir::lower_checked_ty`'s `Ty::Tagged` all meet one
+shape. The union-return ban went with it: `CoreTy::Union`'s own doc comment now says a union is legal in
+either direction, and the surviving restriction (never an *option's* type) is
+`a_union_is_never_an_option_type`. `Core\Arr` gained `first`, `last`, `firstKey`, `lastKey`, `find`,
+`findKey`, `any` and `all`, each with its own doc comment and two conformance cases under
+`tests/conformance/core/`.
 
-Both legs are green, valgrind included: Stage 1 of [`loop-goal.toml`](loop-goal.toml) passes on Windows and
-under WSL, 263 conformance and 82 differential cases pass, and `tools/leak-check.sh` reports zero definite
-losses over two fixtures written for the new refcount edges. Stage 2 now stops on
-`` `Core\Arr` has no member named `first` `` — a missing member, not a missing representation.
+Both legs' verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 265 conformance cases, and
+`tools/leak-check.sh` reports zero definite losses over two scratch fixtures written for the new retain
+edge (a `?string` bound inside a loop). Stage 2 of [`loop-goal.toml`](loop-goal.toml) now stops on
+`` `Core\Arr` has no member named `keyOf` ``.
 
 ## Next
 
-**Teach `mwl_stdlib::registry`'s `CoreTy` the three shapes a Part I signature needs, then land the members
-that were waiting on them.** A `?T` return has a representation now but no way to be *written down*: that
-enum has no nullable, no variadic parameter and no union return (its own module doc's *Known gap* names the
-first). Each is a variant here plus a lowering arm in `mwl_types::core_lib` — `Nullable` interns as
-`Union([Null, T])`, which is exactly what `mwl_ir::lower_checked_ty` already maps to `Ty::Tagged`.
-
-With them: `Core\Arr::first`, `last`, `keyOf`, `firstKey`, `lastKey`, `find`, `findKey`, `min`, `max`,
-`sum` and ADR 0069's `overlay`/`underlay`/`appendAll` — the set `examples/nullable.mwl` and
-`examples/collect.mwl` gate. **Every new `Core` member owes a `.mwlt` case in the same session**;
+**Define strict identity over two `mwl_runtime::Value`s, then land the members that compare.** That one
+comparison is what `Core\Arr::keyOf`, `contains`, `min`, `max`, `unique`, `diff` and `intersect` all need,
+and `examples/nullable.mwl` — Stage 2's current stopping point — needs `keyOf` specifically. Deciding what
+object identity *means* there is pre-authorized in [`loop-goal.md`](loop-goal.md) § *Standing decisions*,
+and the home for the answer is `mwl-runtime`'s own module doc. `mwl-stdlib`'s known gap 3 lists the same
+set. **Every new `Core` member owes a `.mwlt` case in the same session**;
 `every_part_one_member_has_a_conformance_case` fails naming it otherwise.
 
 ## Backlog
 
+- **A `?T` parameter defaulting to `null` is untried** — `Core\Str::slice`'s `?int $length = null`, the
+  spec's most common optional shape. Every piece is in place; `mwl-stdlib`'s gap 3 says so.
+- **A variadic parameter, and `CoreTy::Decimal`** — the two signature shapes still missing, blocking ADR
+  0069's combination members and `Arr::sum`/`product`/`average`. `mwl-stdlib`'s gap 3 names both sets.
 - **ADR 0066's `as ?T` operator does not lower** — it needs `mwl-ir`'s gap 4, the *checked* conversion
   rows, in a non-throwing form. `examples/nullable.mwl` uses `"4x" as ?int`.
-- **`?->` does not lower on either side** — `mwl-ir` gap 6. It is one `IsNull` over the receiver plus the
-  branch `lower_coalesce` already builds.
-- **A ternary whose branches lower to two different representations panics** — `mwl-ir` gap 5, all that is
-  left in that slot. Closing it is an `ExprInfo` entry like `Coalesce`'s, plus `coerce` on each arm.
-- **`private`/`protected` is not enforced at all**, and the reserved `Comparable`/`Stringable` interfaces
-  carry no member signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the
-  second.
+- **`?->` does not lower on either side** — `mwl-ir` gap 6, also in `examples/nullable.mwl`. It is one
+  `IsNull` over the receiver plus the branch `lower_coalesce` already builds.
 - **`for`/`switch`/`match`, compound assignment and `decimal`'s IR** — `mwl-ir` gaps 1, 16 and 15, all
   in scope per [`loop-goal.md`](loop-goal.md). `examples/match.mwl` needs the first two.
+- **`private`/`protected` is not enforced at all**, and `Comparable`/`Stringable` carry no member
+  signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the second.
 - **An abandoned generator skips the `finally` it is suspended inside** — `mwl-ir` gap 18, the one PHP
   divergence the corpus has found and not closed.
-- **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of the kind AGENTS.md forbids —
-  the one doc genuinely owed a trim, but never from inside the loop.
 
 ## Standing rules for this repo
 
@@ -59,19 +56,24 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   exact-match splice. Use the Write tool, or `python tools/splice.py <target> <old> <new>` with both blocks
   written to `.agent-tmp/`. A throwaway `.agent-tmp/*.py` script run with `python` is fine for a bulk edit.
 - **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
-  lowers**, and is worth doing before writing a batch of cases around it. Keep a PHP twin beside it.
+  lowers**, and is worth doing before writing a batch of cases around it. A scratch file is top-level
+  statements, like `examples/*.mwl` — there is no `Main::main` entry point.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
   makes the runner *skip the whole case* there, subtracting from the very count Stage 4 measures. Verify
   against PHP while authoring, then drop the section or put the case in `tests/differential/`. The `.mwlt`
   format is `crates/mwl-test`'s module doc.
+- **`MwlStr::from_raw`/`MwlArray::from_raw` return an *owning* handle.** Reading a refcount through one in
+  a unit test releases a reference when it drops — wrap it in `std::mem::ManuallyDrop`, or the test ends in
+  a heap corruption rather than an assertion failure.
 - **`Core\Path` emits a platform separator**, so a fixture or case asserting a built path must normalize it
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
 - **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator, so
   write `($a > $b) as string`; `bool as string` is PHP's `""`/`"1"`, not `"false"`/`"true"`; a bare array
   literal in a `foreach` head types as `mixed`; a `foreach` key binding must be declared `string` even over
-  a list; `Core\Str::length` and `Core\Arr::count` return `uint`; a `catch` binding is function-scoped
-  **until this loop re-scopes it** (pre-authorized); `Exception` is spelled `Core\Error` and a typed
-  `catch` on a `Core` class does not lower yet.
+  a list; `Core\Str::length` and `Core\Arr::count` return `uint`; a union interns sorted by type id, so
+  `?string` describes as `string|null`; a `catch` binding is function-scoped **until this loop re-scopes
+  it** (pre-authorized); `Exception` is spelled `Core\Error` and a typed `catch` on a `Core` class does not
+  lower yet.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud
