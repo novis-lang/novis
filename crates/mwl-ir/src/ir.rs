@@ -47,6 +47,18 @@ pub struct Class {
     /// runtime descriptor's method table holds, which is what
     /// [`InstKind::CallVirtual`] dispatches through.
     pub methods: Vec<(String, String)>,
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
+    /// codec, as `(wire key, field slot index)` in declaration order — empty
+    /// for a class carrying no `#[Json\Derive]`, which is every class in a
+    /// program that never writes the attribute.
+    ///
+    /// The join of two tables neither crate holds alone:
+    /// `mwl_types::derive` reads the attribute and the wire keys off the
+    /// declaration, and `mwl_types::layout` fixes the slot order — see
+    /// `crate::lower::lower_file`, which is where the two meet. Carried
+    /// through to `mwl_runtime::ClassDesc` so `Core\Json::encode` can write an
+    /// instance without asking the program anything.
+    pub codec: Vec<(String, usize)>,
 }
 
 /// One lowered method or function.

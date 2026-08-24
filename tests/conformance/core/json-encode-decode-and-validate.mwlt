@@ -51,9 +51,10 @@ try {
     echo "too large\n";
 }
 
-// A class participates by implementing Core\Json\Codec, which nothing does
-// yet — so encoding an instance is refused rather than guessed at, and it is a
-// LogicError because the value was built by this program.
+// A class participates in a wire format by writing so (ADR 0063 § 4): with no
+// `#[Json\Derive]` on it, encoding an instance is refused rather than guessed
+// at, and it is a LogicError because the value was built by this program.
+// `json-derive-encodes-declared-fields` is the other side of this.
 class Point {
     public int $x;
     public function constructor(int $x) {

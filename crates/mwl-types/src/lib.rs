@@ -59,6 +59,12 @@
 //!   to lower one — see that module's own docs for the full design and why
 //!   `mwl-ir` reads this instead of depending on [`signatures`]/[`ClassGraph`]
 //!   directly.
+//! - [`derive`] — `derive::check_class_derive`: ADR 0071's derive pass —
+//!   which classes carry `#[Json\Derive]`, matched *nominally* against a
+//!   closed `Core`-owned list, and what the field list and wire keys of each
+//!   are. Runs from [`check`]'s walk because that is what holds the namespace
+//!   and import set a nominal match needs; its answer is recorded in
+//!   [`expr_table`] and joined against [`layout`]'s slot order by `mwl-ir`.
 //! - [`layout`] — [`layout::build_class_layouts`]: every declared class's
 //!   instance-field *slot order* and its flattened supertype set, the second
 //!   thing this crate publishes for `mwl-ir` to read back. See that module's
@@ -200,6 +206,7 @@ pub(crate) mod conformance;
 pub mod core_lib;
 pub mod ctor_init;
 pub mod defaults;
+pub mod derive;
 pub mod enums;
 pub mod error_lib;
 pub mod expr;
@@ -217,6 +224,7 @@ pub mod ty;
 pub use check::{HOOK_VALUE_PARAM, check_program};
 pub use core_lib::symbol_of as core_symbol_of;
 pub use defaults::ConstArg;
+pub use derive::{CodecField, DerivedCodec};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};

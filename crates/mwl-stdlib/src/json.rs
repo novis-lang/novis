@@ -68,13 +68,25 @@
 //!    through a private map token and is a workspace-wide switch, or a
 //!    `RawValue` pre-pass. Neither is worth a whole document's re-scan for a
 //!    band that starts at 1.8e19.
-//! 2. **`decodeAs<T>`, `Core\Json\Codec` and `#[Json\Derive]` are not built**,
-//!    so § 6 is three of its four members and [`Tag::Object`] refuses to
-//!    encode. All three are one design —
-//!    [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) — and it needs a
-//!    language feature nothing else in `Core` does: an *explicit* type argument
-//!    at a call site (`decodeAs<User>(…)`).
-//! 3. **`isValid` decodes and discards.** It answers exactly what [`mwl_core_json_decode`]
+//! 2. **`#[Json\Derive]` generates only the encode half.**
+//!    [`Encodable::serialize_object`] writes an instance from the field list
+//!    `mwl_types::derive` read off its declaration, so § 6's `encode` is whole;
+//!    `decodeAs<T>`, the generated decoder and
+//!    [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's accumulated
+//!    `issues` on `ParseError` are still owed, and until they land § 6 is three
+//!    of its four members.
+//! 3. **A hand-written `Core\Json\Codec` is not consulted.** ADR 0071 § 7 lets
+//!    a class write its own `toJson()` and keep the generated decoder; today
+//!    only the derived field list is read, so a class with a hand-written
+//!    encoder and no attribute still refuses. Closing it is a
+//!    `ClassDesc::method("toJson")` lookup and a call back into compiled code.
+//! 4. **The encoder walks a per-class field list rather than straight-line
+//!    code.** ADR 0071 § 8 asks for IR emitted per derived class; what is built
+//!    is one compile-time-built descriptor per class, read by native Rust. No
+//!    reflection and nothing per object either way — the difference is one
+//!    bounded loop and one `String` compare per field, against a table that is
+//!    O(derived classes) in the artifact.
+//! 5. **`isValid` decodes and discards.** It answers exactly what [`mwl_core_json_decode`]
 //!    would accept, which is the property that matters, but it allocates the
 //!    document to do it. A second `()`-producing visitor would avoid that; it
 //!    is a duplicate of [`Decode`] with every body replaced by `Ok(())`, and
@@ -82,7 +94,7 @@
 
 use std::fmt;
 
-use mwl_runtime::{Fault, MwlArray, MwlStr, Tag, ThrownClass, Value};
+use mwl_runtime::{Fault, MwlArray, MwlObj, MwlStr, Tag, ThrownClass, Value};
 use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -274,11 +286,7 @@ impl Serialize for Encodable {
             }
             Some(Tag::Str) => ser.serialize_str(self.text()?),
             Some(Tag::Array) => self.serialize_array(ser),
-            Some(Tag::Object) => Err(S::Error::custom(format!(
-                "an instance of `{}` has no JSON encoding — a class participates by \
-                 implementing `Core\\Json\\Codec`",
-                crate::instance::class_name(self.value).unwrap_or_else(|| "?".to_owned())
-            ))),
+            Some(Tag::Object) => self.serialize_object(ser),
             _ => Err(S::Error::custom(format!(
                 "tag {} has no JSON encoding",
                 self.value.tag_byte()
@@ -305,6 +313,58 @@ impl Encodable {
                  `Core\\Encoding::toBase64` first",
             )
         })
+    }
+
+    /// An object, as the document its class's
+    /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) derived codec
+    /// declares: one entry per field, in declaration order, under the field's
+    /// own wire key.
+    ///
+    /// The field list is compiled in — `mwl_runtime::ClassDesc::codec`, filled
+    /// by `mwl-codegen` from what `mwl_types::derive` read off the declaration
+    /// — so nothing here asks the program a question at run time. An empty
+    /// list means the class carries no `#[Json\Derive]`, which is the refusal
+    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) § 4 asks
+    /// for: participation in a wire format is written, never inferred.
+    fn serialize_object<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        if self.depth >= DEPTH_CEILING_U32 {
+            return Err(S::Error::custom(format!(
+                "a value nested past {DEPTH_CEILING} levels has no JSON encoding"
+            )));
+        }
+        let ptr = self
+            .value
+            .obj_ptr()
+            .ok_or_else(|| S::Error::custom("a `Tag::Object` value is always an object"))?;
+        #[expect(
+            unsafe_code,
+            reason = "the value owns a reference to a live allocation, so it is live \
+                      for this borrow; the handle is never dropped, so the reference \
+                      is not released twice"
+        )]
+        let object = std::mem::ManuallyDrop::new(unsafe { MwlObj::from_raw(ptr) });
+        #[expect(
+            unsafe_code,
+            reason = "a live object's descriptor is owned by the compiled unit that \
+                      defined its class, which outlives every instance of it"
+        )]
+        let desc = unsafe { &*object.class() };
+        let fields = desc.codec();
+        if fields.is_empty() {
+            return Err(S::Error::custom(format!(
+                "an instance of `{}` has no JSON encoding — a class participates by \
+                 carrying `#[Json\\Derive]`",
+                desc.name()
+            )));
+        }
+        let mut map = ser.serialize_map(Some(fields.len()))?;
+        for (key, slot) in fields {
+            // A borrowed read, exactly as `mwl_ir::InstKind::FieldGet` is: the
+            // object holds the reference for the length of this call and
+            // nothing here hands the value on to MWL code.
+            map.serialize_entry(key, &self.child(object.field(*slot)))?;
+        }
+        map.end()
     }
 
     /// An array, as a JSON array if its keys are `0, 1, …, n-1` and a JSON

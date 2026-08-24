@@ -405,6 +405,19 @@ pub fn lower_file(
             fields: layout.fields.clone(),
             conforms: layout.conforms.clone(),
             methods: layout.methods.clone(),
+            // ADR 0071's field list, joined to this class's slot order — the
+            // one place both tables are in hand. A field the layout has no
+            // slot for is dropped rather than mis-indexed: `mwl_types::derive`
+            // has already reported the declaration that caused it (a promoted
+            // parameter is that module's gap 2), and guessing a slot here
+            // would write another property's value under this one's key.
+            codec: exprs.codec(label).map_or_else(Vec::new, |codec| {
+                codec
+                    .fields
+                    .iter()
+                    .filter_map(|field| Some((field.key.clone(), layout.slot_of(&field.property)?)))
+                    .collect()
+            }),
         })
         .collect();
     // ADR 0053 § 4's generator state classes have no source declaration and

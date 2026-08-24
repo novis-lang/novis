@@ -606,6 +606,27 @@ pub mod code {
     /// something in that block assigns the local again, which takes the
     /// narrowing back off.
     pub const E_NULLABLE_RECEIVER: Code = Code::new("E0459");
+    /// A `#[Json\Derive]` field that is not a same-named constructor parameter.
+    /// ADR 0071 § 2 makes a decode an ordinary `new`, so every field the codec
+    /// reads has to have a parameter to arrive through; `#[Json\Field(skip:
+    /// true)]` is the stated way out.
+    pub const E_DERIVE_FIELD_NOT_A_PARAMETER: Code = Code::new("E0460");
+    /// A `#[Json\Derive]` field whose constructor parameter is declared with a
+    /// different type than the property. ADR 0071 § 2: the two lists are one
+    /// declaration for a promoted parameter, so a divergence is always written
+    /// by hand and always a mistake.
+    pub const E_DERIVE_FIELD_TYPE_MISMATCH: Code = Code::new("E0461");
+    /// A `secret` property on a class carrying `#[Json\Derive]`. ADR 0071 § 6
+    /// moves ADR 0033's refusal from wherever the value reached the encoder to
+    /// the declaration that put it on the wire contract.
+    pub const E_DERIVE_SECRET_FIELD: Code = Code::new("E0462");
+    /// A `lateinit` property on a class carrying `#[Json\Derive]`. ADR 0071
+    /// § 2: `lateinit` (ADR 0038) is by definition not constructor-assigned,
+    /// so it can never be a field.
+    pub const E_DERIVE_LATEINIT_FIELD: Code = Code::new("E0463");
+    /// A `#[Json\Field(...)]` argument that is not one of ADR 0071 § 3's two
+    /// options, or whose value is not a literal of that option's type.
+    pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

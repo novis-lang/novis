@@ -365,6 +365,9 @@ pub(super) fn lower_generator(
             (GEN_ADVANCE.to_owned(), class.clone()),
             (GEN_CURRENT_METHOD.to_owned(), class),
         ],
+        // A generator state class is synthesized, so nothing wrote an
+        // attribute on it.
+        codec: Vec::new(),
     });
     (functions, classes)
 }

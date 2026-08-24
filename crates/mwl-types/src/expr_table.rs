@@ -367,6 +367,7 @@ pub struct ExprTypeTable {
     methods: FxHashMap<Span, String>,
     types: FxHashMap<Span, TypeId>,
     foreach: FxHashMap<Span, ForeachDrive>,
+    codecs: FxHashMap<String, crate::derive::DerivedCodec>,
 }
 
 impl ExprTypeTable {
@@ -449,6 +450,25 @@ impl ExprTypeTable {
     #[must_use]
     pub fn method_label(&self, span: Span) -> Option<&str> {
         self.methods.get(&span).map(String::as_str)
+    }
+
+    /// Records the class labelled `label` as carrying ADR 0071's
+    /// `#[Json\Derive]`, with the field list [`crate::derive`] read off its
+    /// declaration.
+    pub(crate) fn record_codec(&mut self, label: String, codec: crate::derive::DerivedCodec) {
+        self.codecs.insert(label, codec);
+    }
+
+    /// The derived JSON codec of the class labelled `label`, or `None` when it
+    /// carries no `#[Json\Derive]`.
+    ///
+    /// Keyed by a class label rather than a span, for [`Self::method_label`]'s
+    /// reason one step further: the fact is about a *declaration*, and the one
+    /// consumer (`mwl_ir::lower::lower_file`, joining it against the slot order
+    /// in `mwl_types::layout`) reaches it by label, never by AST node.
+    #[must_use]
+    pub fn codec(&self, label: &str) -> Option<&crate::derive::DerivedCodec> {
+        self.codecs.get(label)
     }
 
     /// Records how the `foreach` whose subject sits at `span` reaches its

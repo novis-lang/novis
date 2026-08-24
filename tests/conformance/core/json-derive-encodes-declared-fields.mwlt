@@ -1,0 +1,74 @@
+--TEST--
+#[Json\Derive] makes a class encodable from its declared properties, in declaration order, with per-field renaming and skipping — ADR 0071 §§ 1-3
+--FILE--
+<?mwl
+use Core\Json;
+
+// ADR 0071 § 1: the attribute is matched *nominally*, so the `use`d short
+// spelling and the fully-qualified one are the same attribute.
+#[Json\Derive]
+class Address {
+    public string $city;
+    public function constructor(string $city) {
+        $this->city = $city;
+    }
+}
+
+#[Core\Json\Derive]
+class User {
+    public string $name;
+    public int $age;
+    // § 3: `name` renames one field's key; there is no whole-class policy.
+    #[Json\Field(name: "is_admin")]
+    public bool $isAdmin;
+    // § 3: `skip` removes the field entirely, and exempts it from § 2's
+    // constructor-parameter requirement.
+    #[Json\Field(skip: true)]
+    public int $cachedHash;
+    // § 2: another class with a codec is a codec-reachable field type, and a
+    // `?T` one always emits, `null` included (§ 4's "no omit-when-null").
+    public Address $address;
+    public ?int $score;
+
+    public function constructor(string $name, int $age, bool $isAdmin, Address $address, ?int $score) {
+        $this->name = $name;
+        $this->age = $age;
+        $this->isAdmin = $isAdmin;
+        $this->cachedHash = 0;
+        $this->address = $address;
+        $this->score = $score;
+    }
+}
+
+// Declaration order is the encode order, which is what makes the document
+// byte-deterministic across runs and machines (§ 2).
+echo Json::encode(new User("ada", 36, true, new Address("london"), null)), "\n";
+echo Json::encode(new User("bob", 7, false, new Address("rome"), 12)), "\n";
+
+// The same object twice is the same bytes — the property the ordering rule
+// exists for.
+var $grace = new User("grace", 45, false, new Address("nyc"), 1);
+echo Json::encode($grace) == Json::encode($grace) ? "stable" : "varies", "\n";
+
+// § 1: a userland `type Derive = {};` is not the compiler's attribute, no
+// matter how it is spelled — so this class gets nothing and stays unencodable.
+type Derive = {};
+
+#[Derive]
+class Impostor {
+    public int $n;
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+try {
+    echo Json::encode(new Impostor(1)), "\n";
+    echo "not reached\n";
+} catch (LogicError $unencodable) {
+    echo "no codec\n";
+}
+--EXPECT--
+{"name":"ada","age":36,"is_admin":true,"address":{"city":"london"},"score":null}
+{"name":"bob","age":7,"is_admin":false,"address":{"city":"rome"},"score":12}
+stable
+no codec

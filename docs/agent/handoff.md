@@ -2,30 +2,34 @@
 
 ## State
 
-**A call site can now write its own type argument.** `Core\Json::decodeAs<User>($body)` parses, resolves
-and binds; `docs/spec/01-core-library.md` § 6's fourth member is no longer blocked on the *language*, only
-on ADR 0071's derive. Stage 3 is unchanged at five of seven fixtures.
+**ADR 0071's derive is half built — the encode half runs end to end.** A class carrying
+`#[Json\Derive]` now encodes: `Core\Json::encode(new User(…))` writes its declared properties in
+declaration order, under the keys `#[Json\Field(name: …)]` gives them. Stage 3 is still five of seven
+fixtures; `examples/json.mwl` now reports only `decodeAs<T>` and `$bad->issues`.
 
-- **`mwl_stdlib::registry::CoreTy::Written` marks a variable the call site supplies** rather than one
-  inferred from an argument, and `CoreMethod::written` is the one place their order comes from. That
-  variant's own docs hold why the two kinds are separate; `MethodSig::type_params` is the checker's half
-  and `mwl_types::expr::check_written_type_args` the rule (`E0441`/`E0442`, reusing the type-position
-  codes). **No member declares one yet**, so every written list is refused today — which is what the new
-  `tests/conformance/reject/a-written-type-argument-needs-a-member-that-declares-one.mwlt` asserts.
-- **The `<` ambiguity is a checkpointed trial parse** in `Parser::parse_call_type_args`: it commits only
-  when the list parses with no diagnostic *and* a `(` follows, so `Foo::BAR < $c > $d` is untouched. ADR
-  0007 § 3 is folded — "`array<T>` is parsed only in type position" was the claim this changes.
-- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 404 `.mwlt` cases pass. No runtime or codegen change,
-  so no new refcount edge and no `valgrind` run.
+- **`mwl_types::derive` is the pass**, called from `check::check_stmts`' `ClassDecl` arm because that is
+  what holds the namespace and imports ADR 0071 § 1's *nominal* match needs. `ATTRIBUTES` is the closed
+  `Core`-owned list. That module's own docs hold the design and its four gaps — the biggest being that a
+  **promoted constructor parameter is not a field**, since `mwl_types::layout` gives one no slot.
+- **The field list reaches native code as data**: `ExprTypeTable::codec` → `ir::Class::codec` (joined
+  against the slot order in `lower_file`) → `ClassDesc::codec` → `json::Encodable::serialize_object`.
+  `mwl_stdlib::json`'s gap 4 records that this is a per-class descriptor walk rather than ADR 0071 § 8's
+  straight-line IR, and what the difference costs.
+- **Five new diagnostics, E0460–E0464**: no matching constructor parameter, a parameter of a different
+  type, a `secret` field, a `lateinit` field, and a `#[Json\Field]` argument that is not one of § 3's two
+  options. Four `.mwlt` cases cover them plus the encode path (`core/json-derive-encodes-declared-fields`).
+- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 408 `.mwlt` cases pass, every `examples/*.mwl`
+  behaves as before. The encoder takes no reference and releases none, so no new refcount edge and no
+  `valgrind` run.
 
 ## Next
 
-**ADR 0071's `#[Json\Derive]`** — the pass that makes `decodeAs<T>` have something to decode *into*, and
-with it `examples/json.mwl`. [ADR 0071](../adr/0071-derived-codecs.md) § 1 is the nominal-match rule (a
-closed `Core`-owned attribute-name list, matched after resolution), § 2 the field list and its
-constructor-parameter requirement, § 5 the accumulating decoder. Register `Core\Json::decodeAs` with
-`CoreTy::Written("T")` in the same slice, and spec § 10's `issues: array<Core\Issue>` on `ParseError`
-alongside it — § 5 makes that the one throw carrying every failed field.
+**The decode half**: register `Core\Json::decodeAs` with `CoreTy::Written("T")`, give
+`CodecField` the declared type the decoder needs, and generate the decoder ADR 0071 § 5 describes —
+decode every field, accumulate `{path, message}` issues, throw once before the constructor runs. Spec
+§ 10's `issues: array<Core\Issue>` on `ParseError` lands with it (`mwl_types::error_lib`). The
+constructor is reachable from native code through `ClassDesc::method("constructor")` plus
+`mwl_runtime::call`, which is what makes § 2's "a decode is an ordinary `new`" cheap to honour.
 
 ## Backlog
 
@@ -38,13 +42,10 @@ alongside it — § 5 makes that the one throw carrying every failed field.
 - **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
 - **The rest of `Core` still throws `RuntimeError` for everything** — `Core\Math`'s overflow and
-  zero-divisor rows are spec § 10's `ArithmeticError`, a `Core\Regex` budget exhaustion arguably
-  `TimeoutError`. One pass per module, each a `thrown` → `thrown_as`.
+  zero-divisor rows are spec § 10's `ArithmeticError`. One pass per module, each a `thrown` → `thrown_as`.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
   *Known gap*: 50 loop iterations of a throwing `Core\Json::decode("{oops}")` inside a `try` lose 50
   blocks, one per string literal argument.
-- **`==` over two enum operands does not lower** (`mwl-codegen`), so a case comparison is written
-  `($a as int) == ($b as int)` today.
 
 ## Standing rules for this repo
 

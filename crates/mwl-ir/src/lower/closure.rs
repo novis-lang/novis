@@ -207,6 +207,8 @@ pub(super) fn lower_closure(
                 .collect(),
             conforms: Vec::new(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone())],
+            // A closure is not a declaration and carries no attribute.
+            codec: Vec::new(),
         },
         more,
     )

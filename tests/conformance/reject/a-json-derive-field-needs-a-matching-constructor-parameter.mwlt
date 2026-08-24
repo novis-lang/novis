@@ -1,0 +1,25 @@
+--TEST--
+a `#[Json\Derive]` field must be a constructor parameter of the same name and the same type, because a decode is an ordinary `new` — ADR 0071 § 2
+--FILE--
+<?mwl
+#[Core\Json\Derive]
+class User {
+    public string $name;
+    public int $age;
+
+    public function constructor(string $age) {
+        $this->name = "";
+        $this->age = 0;
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0460]: `$name` is a `#[Json\Derive]` field with no constructor parameter
+  --> case.mwl:4:19
+%A
+error[E0461]: `$age` is declared `int` but its constructor parameter is `string`
+  --> case.mwl:5:16
+%A
+error: aborting due to 2 errors

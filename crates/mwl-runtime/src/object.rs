@@ -175,6 +175,16 @@ pub struct ClassDesc {
     /// the unit is finalized: see this module's docs for why a name and not a
     /// slot index.
     methods: Vec<(String, *const u8)>,
+    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
+    /// field list, as `(wire key, field slot)` in declaration order — empty
+    /// for every class not carrying `#[Json\Derive]`, which is the default and
+    /// costs one empty `Vec` per descriptor.
+    ///
+    /// Compiled in rather than reflected: `mwl_types::derive` reads the
+    /// attribute, `mwl-codegen` copies the answer here, and
+    /// `mwl_stdlib::json`'s encoder walks it. Filled by
+    /// [`ClassTable::set_codec`].
+    codec: Vec<(String, usize)>,
 }
 
 impl ClassDesc {
@@ -228,6 +238,16 @@ impl ClassDesc {
     #[must_use]
     pub fn method_count(&self) -> usize {
         self.methods.len()
+    }
+
+    /// ADR 0071's derived JSON field list — `(wire key, field slot)` in
+    /// declaration order, empty for a class carrying no `#[Json\Derive]`.
+    ///
+    /// Declaration order is the encode order, which is what makes an encoded
+    /// document byte-deterministic across runs and machines (that ADR § 2).
+    #[must_use]
+    pub fn codec(&self) -> &[(String, usize)] {
+        &self.codec
     }
 }
 
@@ -317,8 +337,28 @@ impl ClassTable {
             field_count,
             conforms,
             methods: Vec::new(),
+            codec: Vec::new(),
         }));
         id
+    }
+
+    /// Fills in `id`'s ADR 0071 derived-codec field list — see
+    /// [`ClassDesc::codec`].
+    ///
+    /// Separate from [`ClassTable::define`] only because the two facts come
+    /// from two different `mwl-ir` tables; unlike [`ClassTable::set_methods`]
+    /// there is no address to wait for, so `mwl-codegen` calls this straight
+    /// after defining the class.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_codec(&mut self, id: ClassId, codec: Vec<(String, usize)>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.codec = codec;
     }
 
     /// Fills in `id`'s method table — `(name, code address)` pairs, which this
