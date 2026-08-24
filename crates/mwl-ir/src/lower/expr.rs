@@ -1140,7 +1140,7 @@ impl<'a> Lowering<'a> {
                 // a constant whichever side of the call it was written on.
                 Some(ExprInfo::CoreConst { value }) => {
                     let value = value.clone();
-                    self.emit_const_arg(&value, *cur)
+                    self.emit_const_arg(&value, env, *cur)
                 }
                 _ => panic!(
                     "mwl-ir: a `Class::CONST` at {:?} with no resolved enum case or `Core` \

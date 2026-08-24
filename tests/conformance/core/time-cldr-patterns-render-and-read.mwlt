@@ -1,0 +1,77 @@
+--TEST--
+Spec § 4: `format` and `parse` share one CLDR pattern grammar, and it is closed
+--FILE--
+<?mwl
+// § 4's patterns are CLDR (`yyyy-MM-dd`), never PHP's `date()` letters — and
+// `format` and `parse` read the same closed grammar, so what one writes the
+// other reads back.
+var $utc = Core\Time\Zone::UTC;
+var $d = Core\Time::at(2024, 3, 1, $utc, {hour: 14, minute: 5, second: 9, nanos: 123456789});
+
+// A count picks the width or the name form; nothing here is locale-dependent,
+// because there is no locale (`Core` has no `setlocale`).
+echo $d->format("y|yy|yyyyy"), "|\n";
+echo $d->format("M|MM|MMM|MMMM|MMMMM"), "|\n";
+echo $d->format("d|dd|D|DDD"), "|\n";
+echo $d->format("E|EEEE|EEEEE|EEEEEE"), "|\n";
+echo $d->format("h|H|K|k|a"), "|\n";
+echo $d->format("m|mm|s|ss|S|SSS"), "|\n";
+echo $d->format("X|x|xx|xxx|VV"), "|\n";
+
+// CLDR quoting: a `'...'` run is literal and `''` is one apostrophe, so a
+// letter that would otherwise be a field can still be emitted.
+echo $d->format("yyyy-MM-dd'T'HH:mm:ss"), "|\n";
+echo $d->format("''EEEE'' 'at' HH'h'"), "|\n";
+
+// `parse` reads the same grammar, with the zone as its own third argument.
+var $read = Core\Time::parse("15/07/2024 02:30 pm", "dd/MM/yyyy hh:mm a", $utc);
+echo $read->format("yyyy-MM-dd HH:mm"), "|\n";
+echo Core\Time::parse("3 June 24", "d MMMM yy", $utc)->format("yyyy-MM-dd"), "|\n";
+
+// A zone the pattern named would be a second answer beside that argument, so
+// a zonal field is refused when reading rather than silently ignored.
+try {
+    Core\Time::parse("2024 Z", "yyyy X", $utc);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "third argument") as string, "|\n";
+}
+
+// The grammar is closed: an unquoted letter outside it is a diagnostic naming
+// itself, which is CLDR's own rule and the opposite of `strftime`'s.
+try {
+    $d->format("yyyy G");
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "not a pattern letter") as string, "|\n";
+}
+try {
+    $d->format("yyyy 'unclosed");
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "nothing closes") as string, "|\n";
+}
+try {
+    Core\Time::parse("2024-03-", "yyyy-MM-dd", $utc);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "digits of day") as string, "|\n";
+}
+try {
+    Core\Time::parse("2024-03-01 and more", "yyyy-MM-dd", $utc);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "trailing text") as string, "|\n";
+}
+--EXPECT--
+2024|24|02024|
+3|03|Mar|March|M|
+1|01|61|061|
+Fri|Friday|F|Fr|
+2|14|2|14|PM|
+5|05|9|09|1|123|
+Z|+00|+0000|+00:00|UTC|
+2024-03-01T14:05:09|
+'Friday' at 14h|
+2024-07-15 14:30|
+2024-06-03|
+1|
+1|
+1|
+1|
+1|

@@ -151,13 +151,13 @@ impl<'a> Lowering<'a> {
             // default, in the same declared order a written one flattens in.
             if let mwl_types::ConstArg::Options(options) = default {
                 for (_, value) in options {
-                    let (v, ty) = self.emit_const_arg(value, *cur);
+                    let (v, ty) = self.emit_const_arg(value, env, *cur);
                     self.account_for_arg(v, ty, ownership, false, &mut out, *cur);
                     out.values.push(v);
                 }
                 continue;
             }
-            let (v, ty) = self.emit_const_arg(default, *cur);
+            let (v, ty) = self.emit_const_arg(default, env, *cur);
             // A materialized default is always freshly built, never a read of
             // storage someone else owns — so `aliasing` is `false` here by
             // construction.
@@ -338,7 +338,7 @@ impl<'a> Lowering<'a> {
                          option"
                     )
                 });
-            let (v, ty) = self.emit_const_arg(default, *cur);
+            let (v, ty) = self.emit_const_arg(default, env, *cur);
             self.account_for_arg(v, ty, ownership, false, out, *cur);
             out.values.push(v);
         }
@@ -357,11 +357,45 @@ impl<'a> Lowering<'a> {
     /// A `ConstArg::Str` allocates a fresh string per evaluation, exactly as a
     /// written string literal does today (`mwl-codegen`'s known gap 4); it is
     /// the same `InstKind::ConstStr` and closing that gap closes both.
+    ///
+    /// `ConstArg::Built` is the one entry that emits a **call** rather than a
+    /// constant — an instance has no constant form, so what an ADR 0011 class
+    /// constant of instance type inlines is the `Core` member that produces
+    /// one. It is therefore the one entry that can fail, and it carries ADR
+    /// 0002's error edge like any other call.
     pub(super) fn emit_const_arg(
         &mut self,
         default: &mwl_types::ConstArg,
+        env: &Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
+        if let mwl_types::ConstArg::Built { symbol, args } = default {
+            let lowered: Vec<(ValueId, Ty)> = args
+                .iter()
+                .map(|arg| self.emit_const_arg(arg, env, cur))
+                .collect();
+            let values = lowered.iter().map(|(v, _)| *v).collect();
+            let built = self.emit_fallible(
+                cur,
+                Ty::Object,
+                InstKind::CoreCall {
+                    symbol,
+                    args: values,
+                },
+                env,
+            );
+            // A `Core` member *borrows* its arguments (`InstKind::CoreCall`),
+            // and each of these was freshly materialized here, so this frame
+            // is the only owner — a `Const::Str` argument leaks without this,
+            // once per use site of the constant. Normal edge only, which is
+            // [`Self::release_call_temporaries`]' own known gap.
+            for (value, ty) in lowered {
+                if ty.is_refcounted() {
+                    self.emit_release(cur, value);
+                }
+            }
+            return built;
+        }
         let (ty, kind) = match default {
             mwl_types::ConstArg::Null => (Ty::Null, InstKind::ConstNull),
             mwl_types::ConstArg::Bool(b) => (Ty::Bool, InstKind::ConstBool(*b)),
@@ -375,6 +409,8 @@ impl<'a> Lowering<'a> {
                 "mwl-ir: an options bag has no IR constant of its own; \
                  `Lowering::lower_options_arg` expands it per option"
             ),
+            // Handled above, before the constant table: it is a call.
+            mwl_types::ConstArg::Built { .. } => unreachable!(),
         };
         self.emit(cur, ty, kind)
     }

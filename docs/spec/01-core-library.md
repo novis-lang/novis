@@ -416,7 +416,10 @@ short.
 string is validated and its plan prepared at compile time. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
 `EEEE, d MMMM yyyy`), not PHP's `date()` letters: both grammars are closed and the argument is almost
 always a literal, so `mwl convert` rewrites one into the other mechanically, and the intl extension needs
-CLDR anyway. The same patterns serve `DateTime::format`.
+CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
+and the fact that a name renders in CLDR's root locale because there is no `setlocale`
+([ADR 0051](../adr/0051-standard-library-tiers.md)), are `crates/mwl-stdlib/src/cldr.rs`'s own docs; a
+letter outside the subset is a diagnostic naming itself, never a silent literal.
 
 PHP's free-form `strtotime` is **not** implemented, in either half. Every expression it accepts is a typed
 call:
@@ -458,7 +461,7 @@ what `Duration::parse` takes. "Next monday" is not a value a config file supplie
 | `with` | `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime` | replaces `setDate`, `setTime`, `setISODate` |
 | `withTime` | `$d->withTime(TimeOfDay $t): DateTime` | the common half of `with`, spelled as the operation it is |
 | `startOf` / `endOf` | `$d->startOf(Unit $u): DateTime` | distinct operations at a DST boundary, which is why both exist |
-| `difference` | `$d->difference(DateTime $other, Unit $unit): int` | whole units between two civil times — an age in years, a term in months. Replaces `date_diff` + `DateInterval`'s `y`/`m`/`d` fields |
+| `difference` | `$d->difference(DateTime $other, Unit $unit): int` | whole units from the receiver **to** `$other`, counted in the *receiver's* zone — an age in years, a term in months. Replaces `date_diff` + `DateInterval`'s `y`/`m`/`d` fields |
 | `toInstant` | `$d->toInstant(): Instant` | |
 | `date` / `timeOfDay` / `zone` | `$d->date(): Date` | component views |
 | `weekday` | `$d->weekday(): Weekday` | replaces `date("N")` |

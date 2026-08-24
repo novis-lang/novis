@@ -171,6 +171,7 @@
 //!    not do yet.
 
 pub mod arr;
+mod cldr;
 mod format;
 pub mod granularity;
 mod instance;

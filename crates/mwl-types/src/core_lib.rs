@@ -205,6 +205,13 @@ fn lower_const(value: &Const) -> ConstArg {
                     panic!("mwl-stdlib defaults an option to `{name}::{case}`, which it does not register")
                 }),
         ),
+        // An instance has no constant form, so what is carried across is the
+        // call that builds one — `mwl_stdlib::registry::Const::Built` owns why
+        // that is still an inlined constant.
+        Const::Built { symbol, args } => ConstArg::Built {
+            symbol,
+            args: args.iter().map(lower_const).collect(),
+        },
         // `Const` is `#[non_exhaustive]`: a variant this arm has not learned
         // yet has no safe `ConstArg` to become, so it fails loudly here rather
         // than silently defaulting a parameter to the wrong value. Both tables

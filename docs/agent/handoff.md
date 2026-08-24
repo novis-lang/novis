@@ -2,53 +2,54 @@
 
 ## State
 
-**Spec § 4's absolute half is built over `jiff`**: `Core\Time`'s five zone-free entry points (`now`,
-`monotonic`, `sleep`, `fromEpoch`, `fromIso`), `Core\Time\Instant` (eight members) and `Core\Time\Zone`
-(four), beside the `Duration` that was already there. There is no ambient timezone anywhere — a `Zone` is
-an explicit value, and an offset is asked for at an instant. `Core` breadth is now six sections deep;
-Stage 3 is still four of its seven fixtures.
+**Spec § 4 runs whole but its two component types.** `Core\Time\DateTime` (fourteen members over
+`jiff::Zoned`), `Core\Unit` and `Core\Weekday`, `Core\Time::parse`/`at`, `$instant->in($zone)` and the
+`Core\Time\Zone::UTC` constant all landed, over a new CLDR pattern module. `examples/dates.mwl` produces
+its frozen output, so Stage 3 is **five** of its seven fixtures; `json.mwl` is now the first that fails.
 
-- **`crates/mwl-stdlib/src/time.rs` is the one module** for all four classes, and its own docs own the
-  `jiff` pick, the two-slot `Instant` layout, the one-slot `Zone` (an IANA id *or* a `±HH:MM[:SS]` offset
-  spelling, told apart by the first byte) and what each spends. Its gap list is what § 4 still owes.
-- **A `Core` member may now return `void`.** `Core\Time::sleep` is the first; the fix was one
-  `Ty::Void` filter in `mwl_codegen::emit`'s `emit_helper`, matching the one `emit_call` already had.
-- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 399 `.mwlt` cases pass, `cargo deny check` and
-  `python tools/gen-attribution.py` both run for the new dependency, and `tools/leak-check.sh` is clean
-  over a fifty-iteration fixture exercising every new refcount edge. The one leak that fixture finds when
-  a `Core` call is made to *throw* inside it is the pre-existing `landing_block` gap below, not a time edge.
-- **`D:` filled up mid-session.** `target/debug/incremental` and `target/release` were deleted to finish;
-  a corrupt `.pdb` left behind by the out-of-space link shows up as `LNK1285` and is fixed by deleting
-  that one file. Nothing else was touched, but a `--release` guard run rebuilds from scratch now.
+- **`crates/mwl-stdlib/src/cldr.rs` is the pattern grammar** `DateTime::format` and `Time::parse` share —
+  its own docs own the closed letter subset, the English root locale (there is no `setlocale`), CLDR
+  quoting, and why `icu` was not taken. A letter outside the subset is a diagnostic naming itself.
+- **`crates/mwl-stdlib/src/time.rs` still owns all of § 4.** A `DateTime` is three slots — an `Instant`'s
+  two plus a `Zone`'s one — and `DATETIME`'s own docs own why that beats seven civil fields. Its gap list
+  is what § 4 still owes.
+- **A `Core` class constant may now be an *instance*.** `registry::Const::Built` names the member that
+  builds one and its constant arguments; `mwl_types::ConstArg::Built` carries it, and
+  `mwl_ir::lower::emit_const_arg` inlines the `InstKind::CoreCall` at the use site (and releases the
+  arguments, which is where the one leak this session found was).
+- Two semantic calls, both recorded where they live: `difference` counts in the **receiver's** zone (spec
+  § 4's row now says so), and a *parse* pattern refuses a zone-naming field because `Time::parse` takes
+  the zone as its own third argument.
+- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 401 `.mwlt` cases pass, and
+  `tools/leak-check.sh` is clean over `examples/dates.mwl` plus a fifty-iteration fixture exercising every
+  new refcount edge. `python tools/loop.py --goal-only` reaches `examples/json.mwl`.
 
 ## Next
 
-**Spec § 4's calendar half** — `Core\Time\DateTime`, `Core\Time\Date`, `Core\Time\TimeOfDay`, the
-`Weekday`/`Month`/`Unit` enums, and the three members that answer with a `DateTime` (`Time::parse`,
-`Time::at`, `$instant->in($zone)`). The real work in it is the **CLDR pattern grammar** that
-`DateTime::format` and `Time::parse` share (§ 4 says CLDR, never PHP's `date()` letters); everything else
-is registry rows over `jiff::civil` and `jiff::Zoned`. `examples/dates.mwl` is the frozen check, and it
-also wants `Core\Time\Zone::UTC` — see `time.rs`'s gap 2, which names the one registry shape that is
-missing for it and why `Zone::of("UTC")` is the spelling that works today.
+**Spec § 6, `Core\Json`** — `examples/json.mwl` is the frozen check and wants `encode`, `decode`,
+`decodeAs<T>` and a validity predicate, with a decode failure reporting **every** bad field at once
+([ADR 0071](../adr/0071-derived-codecs.md) § 5). Pick the crate under
+[ADR 0051](../adr/0051-standard-library-tiers.md) § 4 and record the pick in the module's own docs; a new
+dependency owes the three things `AGENTS.md` names. The `?T`/`mixed` representation a decoded value needs
+already exists (`mwl_ir::Ty::Tagged`).
 
 ## Backlog
 
+- **`Core\Time\Date`, `Core\Time\TimeOfDay`, `Core\Month`, and `DateTime::date`/`timeOfDay`/`withTime`** —
+  `time.rs`'s gap 1; the machinery all exists now, so each is a registry row and a body.
 - **`Core\Str::compare`, `chunk`, `lines`, `graphemes`, `codePoints`, `replaceAll`, `replaceRange`,
-  `fold`, `normalize`, `fromCodePoint(s)`** — the rest of § 1, none needing a new shape except a Unicode
-  normalization dependency for `normalize`. `mwl-stdlib`'s gap 1 is the list.
+  `fold`, `normalize`, `fromCodePoint(s)`** — the rest of § 1. `mwl-stdlib`'s gap 1 is the list.
 - **ADR 0069's `overlay`/`overlayDeep`/`underlay`/`appendAll`, plus `Arr::append`/`prepend`** — all four
-  declare the variadic that now exists, so each is a registry row and a body.
+  declare the variadic that exists, so each is a registry row and a body.
 - **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **`.` and `as string` over a `Stringable` object** (`mwl-ir` gap 12) — `"took " . $d` panics in
-  lowering rather than diagnosing. `mwl_types::expr::require_stringable` exempts `Core` classes, which is
-  the other half.
-- **`Core\Regex::compile`/`replaceWith`** — § 5's last two, both stated on `Pattern`.
-  `crates/mwl-stdlib/src/regex.rs`'s gap 1.
+- **`==` over two enum operands does not lower** (`mwl-codegen`: "does not lower a `Eq` over
+  representation Enum(Int)"), so a case comparison is written `($a as int) == ($b as int)` today.
+- **`.` and `as string` over a `Stringable` object** (`mwl-ir` gap 12), and **`Core\Regex::compile`/
+  `replaceWith`** (`regex.rs`'s gap 1).
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
-  *Known gap*: 50 loop iterations of `Zone::of("Nowhere/Nothing")` inside a `try` lose 50 blocks.
-- **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still panic**, and
-  **`do`/`while`, `$i++`/`$i--` and every bitwise operator do not lower** (`mwl-ir` gaps 1, 15, 16).
+  *Known gap*: 50 loop iterations of a throwing `Core\Time::parse("nope", …)` inside a `try` lose 100
+  blocks, two per string literal argument.
 
 ## Standing rules for this repo
 
@@ -65,7 +66,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   `python tools/splice.py <target> <old> <new>` with both blocks written to `.agent-tmp/`.
   `splice.py` matches the anchor **exactly**, trailing newline included — the Write tool ends a file with
   one, so strip it from both blocks when splicing mid-paragraph. A Rust string holding a `Core\Name`
-  label needs `r"..."`, or the backslash is an unknown escape.
+  label needs `r"..."`, or the backslash is an unknown escape. In a Python heredoc, an `r"""…"""` literal
+  is what keeps a `\M`/`\T` in MWL prose from being a unicode-escape error.
 - **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
   lowers**, and is worth doing before writing a batch of cases around it. A scratch file is top-level
   statements, like `examples/*.mwl` — there is no `Main::main` entry point.
@@ -128,7 +130,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   The dependency *sweep* is a pass the user fires by hand (ADR 0068); never start it as a side effect.
 - **`cargo test` does not always relink `target/debug/mwl.exe`** — `cargo build -p mwl-cli` before running
   a fixture or a `.mwlt` case by hand, or a stale binary reports a member you just registered as `mixed`.
-- **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles. Whole suite:
+- **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and WSL's
+  default shell has no `grep`/`sed` on `PATH` from a bare `bash -c`. Whole suite:
   `wsl.exe -- bash /mnt/<drive>/<repo>/tools/wsl-acceptance.sh` (background it; minutes). One fixture:
   `tools/leak-check.sh <paths>`. PHP 8.5 is on `PATH` under Windows but **not** inside WSL, deliberately.
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the

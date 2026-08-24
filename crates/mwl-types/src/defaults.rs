@@ -98,6 +98,24 @@ pub enum ConstArg {
     /// [`eval_param_default`]: user code cannot declare a bag, so this only
     /// ever comes from [`crate::core_lib`].
     Options(Vec<(String, ConstArg)>),
+    /// A `Core`-owned instance, named by the symbol that builds it and the
+    /// constant arguments that symbol takes —
+    /// `mwl_stdlib::registry::Const::Built`, which owns the rule that this is
+    /// a class *constant*'s value and never a default.
+    ///
+    /// The second variant with no single `mwl_ir::ir::InstKind` constant under
+    /// it, and unlike [`Self::Options`] it does reach `mwl-ir`: an instance
+    /// has no constant form at all, so what is inlined at the use site is the
+    /// call, which is the same `InstKind::CoreCall` a written
+    /// `Zone::of("UTC")` lowers to. Never produced by [`eval_param_default`],
+    /// for the same reason [`Self::Options`] is not: user code cannot declare
+    /// one.
+    Built {
+        /// The `Core` symbol that builds the value.
+        symbol: &'static str,
+        /// Its arguments, positional.
+        args: Vec<ConstArg>,
+    },
 }
 
 /// Evaluates a written `= expr` parameter default against the parameter's own

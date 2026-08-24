@@ -320,6 +320,31 @@ pub enum Const {
     /// `mwl_types::core_lib` resolves it there; `every_enum_case_default_names_a_real_case`
     /// holds that it resolves at all.
     EnumCase(&'static str, &'static str),
+    /// A `Core`-owned **instance**, named by the symbol that builds it and the
+    /// constant arguments it takes — `Core\Time\Zone::UTC` is
+    /// `Zone::of("UTC")`.
+    ///
+    /// The one variant with no scalar under it, and the only shape a
+    /// [`CoreTy::Instance`]-typed [`CoreConst`] can have: an instance has a
+    /// heap layout that nothing outside [`crate::instance`] lays out, so what
+    /// is stated here is the *call* that produces one rather than the bytes it
+    /// holds. `mwl-ir` lowers it to exactly the `InstKind::CoreCall` a written
+    /// `Zone::of("UTC")` lowers to — so a constant is still ADR 0010 § 3's
+    /// "inlined at every use site" and still has no storage, no descriptor and
+    /// no address; what it has instead is one allocation per use site, which
+    /// is what an instance costs however it is reached.
+    ///
+    /// **A constant's value only, never an option or a parameter default.**
+    /// A default is materialized inside an argument list whose ownership rule
+    /// is "borrowed", and a fresh instance there would have no owner to
+    /// release it; `a_built_constant_is_never_a_default` holds that.
+    Built {
+        /// The `Core` symbol that builds the value — a member of the class the
+        /// constant is declared on, so the two cannot drift apart.
+        symbol: &'static str,
+        /// Its arguments, positional, each a constant in its own right.
+        args: &'static [Const],
+    },
 }
 
 /// One `Core` member.
@@ -502,6 +527,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::regex::MATCH,
     crate::time::TIME,
     crate::time::INSTANT,
+    crate::time::DATETIME,
     crate::time::DURATION,
     crate::time::ZONE,
 ];
@@ -530,13 +556,20 @@ pub struct CoreEnum {
 /// through — the same "seed a table rather than special-case `Core`" rule
 /// `mwl_types::core_lib` states for members.
 ///
-/// The spec's § 2 names a second one, `SetOn { Values, Keys, Both }`. It is
-/// deliberately absent: no member that takes it is registered yet, and an
-/// entry here is reachable from source the moment it exists.
+/// The spec's § 2 names `SetOn { Values, Keys, Both }` and its § 4 names
+/// `Month { January … December }`. Both are deliberately absent: no member
+/// takes or answers with either yet, and an entry here is reachable from
+/// source the moment it exists — a case a program can write and pass nowhere
+/// is surface with no meaning behind it.
 ///
 /// One line per enum, declared beside the member that takes it — the same
 /// rule [`CLASSES`] follows, for the same reason.
-pub const ENUMS: &[CoreEnum] = &[crate::arr::ORDER, crate::math::ROUND_MODE];
+pub const ENUMS: &[CoreEnum] = &[
+    crate::arr::ORDER,
+    crate::math::ROUND_MODE,
+    crate::time::UNIT,
+    crate::time::WEEKDAY,
+];
 
 /// Looks a class up by its fully-qualified name.
 #[must_use]
@@ -949,6 +982,59 @@ mod tests {
         }
     }
 
+    /// [`Const::Built`] appears as a *constant's* value and nowhere else —
+    /// see that variant's own docs for why a fresh instance materialized
+    /// inside a borrowed argument list would have no owner.
+    #[test]
+    fn a_built_constant_is_never_a_default() {
+        for class in CLASSES {
+            for method in class.members() {
+                for option in method.options().unwrap_or(&[]) {
+                    assert!(
+                        !matches!(option.default, Const::Built { .. }),
+                        "{}::{} defaults `{}` to a built instance",
+                        class.name,
+                        method.name,
+                        option.name
+                    );
+                }
+                for default in method.defaults {
+                    assert!(
+                        !matches!(default, Const::Built { .. }),
+                        "{}::{} defaults a parameter to a built instance",
+                        class.name,
+                        method.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// Every [`Const::Built`] names a symbol its own class registers, and
+    /// every [`CoreTy::Instance`]-typed constant is one — the two halves of
+    /// "a constant that is an instance states the call that produces it".
+    #[test]
+    fn every_built_constant_names_a_member_of_its_own_class() {
+        for class in CLASSES {
+            for constant in class.constants {
+                match constant.value {
+                    Const::Built { symbol, .. } => assert!(
+                        class.members().any(|method| method.symbol == symbol),
+                        "{}::{} is built by `{symbol}`, which that class does not register",
+                        class.name,
+                        constant.name
+                    ),
+                    _ => assert!(
+                        !matches!(constant.ty, CoreTy::Instance(_)),
+                        "{}::{} is typed as an instance but is not built by one of its members",
+                        class.name,
+                        constant.name
+                    ),
+                }
+            }
+        }
+    }
+
     /// An option typed as a `Core` enum names one this crate registers — the
     /// name is resolved rather than declared, so a typo would otherwise intern
     /// a type nothing can ever produce a value of.
@@ -1049,6 +1135,12 @@ mod tests {
                         | (CoreTy::Uint, Const::Uint(_))
                         | (CoreTy::Float, Const::Float(_))
                         | (CoreTy::Str, Const::Str(_))
+                        // An instance's own agreement is a different question
+                        // — the *symbol* has to be one of this class's
+                        // members — and
+                        // `every_built_constant_names_a_member_of_its_own_class`
+                        // is where it is asked.
+                        | (CoreTy::Instance(_), Const::Built { .. })
                 );
                 assert!(
                     agrees,

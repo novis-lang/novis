@@ -1,0 +1,96 @@
+--TEST--
+Spec § 4: a `DateTime` is a civil time in a zone, and its arithmetic counts calendar units
+--FILE--
+<?mwl
+// `Zone::UTC` is the one zone that is ever a default, and only where it is
+// written — an ADR 0011 class constant, inlined at the use site.
+var $utc = Core\Time\Zone::UTC;
+var $d = Core\Time::at(2024, 2, 29, $utc, {hour: 13, minute: 45});
+echo $d->format("yyyy-MM-dd HH:mm:ss"), "|\n";
+
+// The component views: a weekday is the enum case, not `date("N")`'s number,
+// and a day-of-year is one-based.
+echo (($d->weekday() as int) == (Core\Weekday::Thursday as int)) as string, "|\n";
+echo $d->dayOfYear() as string, "|", $d->isLeapYear() as string, "|\n";
+echo $d->zone()->offsetAt($d->toInstant())->toSeconds() as string, "|\n";
+echo $d->toInstant()->toIso(), "|\n";
+
+// § 4's *calendar* arithmetic: `1, Unit::Month` lands on the same day-of-month
+// clamped to the month's length, so a leap day plus a year is the 28th.
+echo $d->plus(1, Core\Unit::Year)->format("yyyy-MM-dd"), "|\n";
+echo $d->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "|\n";
+echo $d->minus(1, Core\Unit::Week)->format("yyyy-MM-dd"), "|\n";
+echo $d->plus(1, Core\Unit::Quarter)->format("yyyy-MM-dd"), "|\n";
+
+// `startOf`/`endOf` are distinct operations, and `endOf` is the last instant
+// of the unit rather than the first of the next one.
+echo $d->startOf(Core\Unit::Month)->format("yyyy-MM-dd HH:mm:ss"), "|\n";
+echo $d->endOf(Core\Unit::Month)->format("yyyy-MM-dd HH:mm:ss.SSS"), "|\n";
+echo $d->startOf(Core\Unit::Week)->format("EEE yyyy-MM-dd"), "|\n";
+echo $d->endOf(Core\Unit::Quarter)->format("yyyy-MM-dd"), "|\n";
+echo $d->startOf(Core\Unit::Hour)->format("HH:mm:ss"), "|\n";
+
+// `next`/`previous` are strictly later and strictly earlier, time preserved.
+echo $d->next(Core\Weekday::Monday)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo $d->previous(Core\Weekday::Thursday)->format("yyyy-MM-dd"), "|\n";
+
+// `with` replaces `setDate`/`setTime`; an omitted option leaves its field.
+echo $d->with({year: 2000, hour: 1, nanos: 5})->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|\n";
+
+// `difference` counts whole units from the receiver **to** its argument, so a
+// later argument is positive and an earlier one negative.
+var $later = Core\Time::at(2026, 8, 24, $utc);
+echo $d->difference($later, Core\Unit::Year) as string, "|\n";
+echo $d->difference($later, Core\Unit::Month) as string, "|\n";
+echo $later->difference($d, Core\Unit::Day) as string, "|\n";
+
+// There is no ambient timezone: `in` is the only instant→calendar conversion,
+// and it is the same instant seen from another zone.
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+echo $d->toInstant()->in($berlin)->format("yyyy-MM-dd HH:mm XXX VV"), "|\n";
+
+// A calendar unit is defined against one calendar, so `difference` counts in
+// the **receiver's** zone: the same instant seen from Berlin is zero days away
+// from itself, not a throw and not one.
+echo $d->difference($d->toInstant()->in($berlin), Core\Unit::Day) as string, "|\n";
+
+// Crossing a DST boundary is what makes the two arithmetics differ: 24 hours
+// of exact `Duration` is not the same civil time on the day Berlin springs
+// forward, while one calendar day is.
+var $before = Core\Time::at(2024, 3, 30, $berlin, {hour: 12});
+echo $before->plus(1, Core\Unit::Day)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo $before->toInstant()->plus(24h)->in($berlin)->format("yyyy-MM-dd HH:mm"), "|\n";
+
+// A date that does not exist throws where it is built, which is why there is
+// no `checkdate`.
+try {
+    Core\Time::at(2023, 2, 29, $utc);
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "Core\\Time::at") as string, "|\n";
+}
+--EXPECT--
+2024-02-29 13:45:00|
+1|
+60|1|
+0|
+2024-02-29T13:45:00Z|
+2025-02-28|
+2024-03-29|
+2024-02-22|
+2024-05-29|
+2024-02-01 00:00:00|
+2024-02-29 23:59:59.999|
+Mon 2024-02-26|
+2024-03-31|
+13:00:00|
+2024-03-04 13:45|
+2024-02-22|
+2000-02-29 01:45:00.000000005|
+2|
+29|
+-906|
+2024-02-29 14:45 +01:00 Europe/Berlin|
+0|
+2024-03-31 12:00|
+2024-03-31 13:00|
+1|
