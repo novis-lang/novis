@@ -111,9 +111,11 @@ impl<'a> Lowering<'a> {
     /// # Known gaps
     ///
     /// * A `finally` does **not** run when the exception path enters a
-    ///   `catch` clause whose *own body* then throws: the frame for this
-    ///   region is popped before a handler is lowered, so that throw reaches
-    ///   the enclosing region directly. PHP runs the `finally` first.
+    ///   `catch` clause whose *own body* then throws: the frame the clause
+    ///   body is lowered under names no handler, so that throw reaches the
+    ///   enclosing region directly. PHP runs the `finally` first. A `return`
+    ///   out of a clause body *does* run it — that frame carries `finally`
+    ///   for exactly that reason.
     /// * A `break`/`continue` out of a protected region does not run a
     ///   pending `finally` either — [`Self::lower_break`] refuses that shape
     ///   outright rather than lowering it wrong.
@@ -129,7 +131,7 @@ impl<'a> Lowering<'a> {
         let after_block = self.new_block();
 
         self.try_stack.push(TryFrame {
-            handler: handler_block,
+            handler: Some(handler_block),
             edges: Vec::new(),
             finally,
         });
@@ -218,7 +220,19 @@ impl<'a> Lowering<'a> {
                 // `TakeThrown` produced has no slot to live in.
                 None => self.emit_release(handler, thrown),
             }
+            // A `return` inside the clause body still owes this region's
+            // `finally` — so the body is lowered under a frame that carries
+            // it. The frame names no handler: a throw from a `catch` body is
+            // the enclosing region's, not this clause list's own.
+            self.try_stack.push(crate::lower::TryFrame {
+                handler: None,
+                edges: Vec::new(),
+                finally,
+            });
             self.lower_stmts(&clause.body.stmts, &mut handler_cur, &mut handler_env);
+            self.try_stack
+                .pop()
+                .expect("just pushed this clause's own frame above");
             if !self.is_terminated(handler_cur) {
                 if let Some(name) = &bound
                     && let Some(&(v, _)) = handler_env.get(name)

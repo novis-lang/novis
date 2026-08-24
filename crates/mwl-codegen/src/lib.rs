@@ -94,25 +94,28 @@
 //! decision:
 //!
 //! 0. **A `finally` does not run on every exit.** It runs on the normal exit,
-//!    on a `return` out of the protected region, on the exception path, and
-//!    at the end of a matched `catch` clause — but not when a `catch`
-//!    clause's own body throws, and a `break`/`continue` out of a protected
-//!    region is refused outright rather than lowered without one. See
+//!    on a `return` out of the protected region *or out of a matched `catch`
+//!    clause*, on the exception path, and at the end of a matched clause —
+//!    but not when a `catch` clause's own body throws, and a
+//!    `break`/`continue` out of a protected region is refused outright rather
+//!    than lowered without one. See
 //!    [`mwl_ir::lower::Lowering::lower_try`], which owns the whole policy.
 //!    Exceptions themselves are ordinary objects: `Ty::Throwable` is gone,
 //!    a user class `extends Throwable` compiles like any other, and a typed
 //!    `catch` is an [`mwl_ir::ir::InstKind::InstanceOf`] chain.
-//! 1. **A call does not dispatch virtually.** Its target is whatever
-//!    `mwl_types` resolved from the receiver's *static* type, so an overridden
-//!    method reached through a base-typed variable still calls the base's.
-//!    The exceptions are the two shapes with no static answer at all:
-//!    `static::method(...)`/`new static(...)`, and a call resolving to a
-//!    declaration with no *body* (an `abstract` method, or the interface
-//!    method an ADR 0043 § 2 default body calls back into). Both lower to
-//!    [`mwl_ir::ir::InstKind::CallVirtual`]/`NewDynamic`, resolve against the
-//!    receiver's or the late-static-binding class through
+//! 1. **Virtual dispatch is by name, not by slot.** An instance call whose
+//!    resolved declaration some subtype overrides — and the two shapes with
+//!    no static answer at all, `static::method(...)`/`new static(...)` and a
+//!    call resolving to a declaration with no *body* — lower to
+//!    [`mwl_ir::ir::InstKind::CallVirtual`]/`NewDynamic`, look the method up
+//!    on the receiver's or the late-static-binding class through
 //!    [`mwl_runtime::mwl_class_method`], and call the address it returns
-//!    indirectly under the same ADR 0002 signature.
+//!    indirectly under the same ADR 0002 signature. Everything else binds
+//!    straight to a label, because `mwl_types` answers "does anything
+//!    override this" for the whole program once
+//!    (`mwl_types::expr_table::ResolvedCall::overridden`). What is left is a
+//!    per-class slot index instead of a string compare, which
+//!    [`mwl_ir::ir::Program::classes`] already carries the table for.
 //!
 //!    Everything else about objects and arrays compiles: `New`, `FieldGet`,
 //!    `FieldSet`, an instance `Call`, every array instruction — `ArrayNew`,

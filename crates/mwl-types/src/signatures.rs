@@ -289,6 +289,17 @@ pub struct ClassSignature {
     /// `Counter` yield" is answered here and the plain "does `Counter` reach
     /// `Iterable` at all" stays there.
     pub implements: Vec<(QName, Vec<TypeId>)>,
+    /// This declaration's own method names that some *subtype* redeclares —
+    /// the set that decides whether `$obj->m()` can be bound to a compiled
+    /// label at all, or has to dispatch on the receiver's runtime class.
+    ///
+    /// Filled by [`mark_overridden_methods`] once the whole table is
+    /// collected, because the question is about declarations this one has
+    /// never heard of: a class cannot know who extends it. Empty for the
+    /// overwhelming majority of classes, which is the point — an
+    /// instance call only pays for a name lookup where the language
+    /// actually admits two answers (`mwl_ir::ir::InstKind::CallVirtual`).
+    pub overridden_methods: FxHashSet<String>,
 }
 
 /// Every declaration's own [`ClassSignature`], keyed by its [`QName`].
@@ -309,6 +320,23 @@ impl SignatureTable {
     #[must_use]
     pub fn get(&self, qname: &QName) -> Option<&ClassSignature> {
         self.by_class.get(qname)
+    }
+
+    /// Every declaration in the table, name and signatures, in no particular
+    /// order — the whole-table view [`mark_overridden_methods`] needs, since
+    /// "does anything extend me" is not a question the extended class's own
+    /// entry can answer.
+    pub fn iter(&self) -> impl Iterator<Item = (&QName, &ClassSignature)> {
+        self.by_class.iter()
+    }
+
+    /// Whether `owner`'s own declaration of `method` can be reached by a
+    /// receiver whose runtime class answers `method` with different code —
+    /// see [`ClassSignature::overridden_methods`].
+    #[must_use]
+    pub fn is_overridden(&self, owner: &QName, method: &str) -> bool {
+        self.get(owner)
+            .is_some_and(|sig| sig.overridden_methods.contains(method))
     }
 
     fn entry(&mut self, qname: QName) -> &mut ClassSignature {
@@ -382,7 +410,67 @@ pub fn build_signatures(
         closure_seq: 0,
     };
     collect_stmts(stmts, &[], &FxHashMap::default(), &mut table, &mut env);
+    mark_overridden_methods(&mut table, graph);
     table
+}
+
+/// Fills every [`ClassSignature::overridden_methods`] set, once the whole
+/// table is collected.
+///
+/// The question — "can a call that statically resolves to `Owner::m` land on
+/// a different body at run time" — is one no single declaration can answer,
+/// because it is about subtypes it has never heard of. So it is asked here,
+/// once per program, rather than per call site: `mwl_types::expr` records the
+/// answer on every [`crate::expr_table::ResolvedCall`] it builds, and
+/// `mwl-ir` reads it back to pick
+/// [`InstKind::Call`](../../mwl_ir/ir/enum.InstKind.html) or `CallVirtual`.
+///
+/// A redeclaration counts whether or not it has a body of its own: an
+/// `abstract` override still means a *further* subclass supplies one, and
+/// over-marking only costs a name lookup, while under-marking calls the
+/// wrong code. The ancestor's own declaration must have a body, though —
+/// without one there is no static label to devirtualize *to*, and the call
+/// already dispatches on the receiver for that separate reason.
+fn mark_overridden_methods(table: &mut SignatureTable, graph: &ClassGraph) {
+    let mut marks: Vec<(QName, String)> = Vec::new();
+    for (qname, sig) in table.iter() {
+        for name in sig.methods.keys() {
+            let mut seen = FxHashSet::default();
+            seen.insert(qname.clone());
+            let mut queue: Vec<QName> = supertypes(qname, graph);
+            while let Some(ancestor) = queue.pop() {
+                if !seen.insert(ancestor.clone()) {
+                    continue;
+                }
+                if table
+                    .get(&ancestor)
+                    .and_then(|found| found.methods.get(name))
+                    .is_some_and(|found| found.has_body)
+                {
+                    marks.push((ancestor.clone(), name.clone()));
+                }
+                queue.extend(supertypes(&ancestor, graph));
+            }
+        }
+    }
+    for (qname, method) in marks {
+        table.entry(qname).overridden_methods.insert(method);
+    }
+}
+
+/// One declaration's direct `extends` and `implements` targets, together —
+/// the step [`mark_overridden_methods`] walks upwards, matching
+/// [`resolve_method`]'s own chain exactly so the two agree on what "inherits
+/// from" means.
+fn supertypes(qname: &QName, graph: &ClassGraph) -> Vec<QName> {
+    graph.get(qname).map_or_else(Vec::new, |links| {
+        links
+            .extends
+            .iter()
+            .chain(links.implements.iter())
+            .cloned()
+            .collect()
+    })
 }
 
 fn qname_segments(src: &SourceFile, name: &mwl_syntax::ast::Name) -> Vec<String> {
@@ -975,6 +1063,33 @@ mod tests {
         assert!(!sig.variadic);
         assert_eq!(interner.describe(sig.params[0]), "string");
         assert_eq!(interner.describe(sig.return_ty), "bool");
+    }
+
+    /// The whole point of [`mark_overridden_methods`]: a declaration nothing
+    /// redeclares stays bindable to its label, and one something does is
+    /// marked no matter how many levels down the redeclaration is, or whether
+    /// the two are related by `extends` or by `implements`.
+    #[test]
+    fn a_method_is_marked_overridden_only_where_something_overrides_it() {
+        let (table, _module, _interner, _diags) = build(
+            "<?mwl
+             interface Shape { function area(): int; function label(): string { return \"s\"; } }
+             class Root { function kind(): string { return \"root\"; }              function alone(): int { return 1; } }
+             class Middle extends Root {}
+             class Leaf extends Middle { function kind(): string { return \"leaf\"; } }
+             class Plain implements Shape { function area(): int { return 1; } }
+             class Loud implements Shape { function area(): int { return 2; }              function label(): string { return \"l\"; } }
+",
+        );
+        assert!(table.is_overridden(&QName::parse("Root"), "kind"));
+        assert!(!table.is_overridden(&QName::parse("Root"), "alone"));
+        assert!(!table.is_overridden(&QName::parse("Leaf"), "kind"));
+        // `Middle` declares nothing at all, so it owns no entry to mark.
+        assert!(!table.is_overridden(&QName::parse("Middle"), "kind"));
+        assert!(table.is_overridden(&QName::parse("Shape"), "label"));
+        // `area` is bodiless, so it already dispatches; marking it would say
+        // nothing a caller does not already know.
+        assert!(!table.is_overridden(&QName::parse("Shape"), "area"));
     }
 
     #[test]

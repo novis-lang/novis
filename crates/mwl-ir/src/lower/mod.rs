@@ -49,7 +49,11 @@
 //! declared only inside one branch) never reaches the merge, because
 //! `mwl_types::check_program` already required it to be definitely assigned
 //! on every path before this slice's input is trusted; using it after would
-//! already have been rejected there.
+//! already have been rejected there. Such a name still owes a *release* on
+//! the edges that do bind it, which is why the merge walks the union of every
+//! incoming environment's names rather than the first one's — a local
+//! declared inside a `try` body is bound on the landing edges taken after its
+//! declaration and not on the ones taken before it, in either order.
 //!
 //! A `while` loop's header phis are seeded before the body is lowered (their
 //! back-edge incoming value isn't known yet) and patched afterwards once the
@@ -202,7 +206,13 @@ struct TryFrame<'a> {
     /// Where a failure inside this region goes: the `catch` dispatch block, or
     /// — for a `try`/`finally` with no clauses — the block that runs the
     /// `finally` body and re-raises.
-    handler: BlockId,
+    ///
+    /// `None` for the frame pushed around a `catch` clause's *own body*: that
+    /// body still owes this region's `finally` on the way out
+    /// ([`Lowering::run_pending_finallys`]), but a throw inside it belongs to
+    /// the enclosing region rather than to the clause list it is already
+    /// running — so [`Lowering::landing_block`] looks straight past it.
+    handler: Option<BlockId>,
     /// One `(landing block, env)` pair per protected call site lowered inside
     /// this region's body, in source order.
     edges: Vec<(BlockId, Env)>,
@@ -1115,15 +1125,19 @@ impl<'a> Lowering<'a> {
     /// different one.
     pub(super) fn landing_block(&mut self, env: &Env) -> BlockId {
         let b = self.new_block();
-        match self.try_stack.last().map(|frame| frame.handler) {
-            Some(handler) => {
-                self.try_stack
-                    .last_mut()
-                    .expect("just read the top frame above")
-                    .edges
-                    .push((b, env.clone()));
+        // The innermost frame that actually has a handler — not simply the
+        // innermost frame. See [`TryFrame::handler`] for the one shape that
+        // sits on the stack without being a destination.
+        let innermost = self
+            .try_stack
+            .iter()
+            .rposition(|frame| frame.handler.is_some());
+        match innermost.map(|at| (at, self.try_stack[at].handler)) {
+            Some((at, Some(handler))) => {
+                self.try_stack[at].edges.push((b, env.clone()));
                 self.seal(b, Terminator::Catch { handler });
             }
+            Some((_, None)) => unreachable!("rposition only matches a frame with a handler"),
             None => {
                 self.release_all_locals(b, env, None);
                 let frame = self.frame_label();

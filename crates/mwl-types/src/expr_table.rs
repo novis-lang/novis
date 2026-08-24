@@ -136,6 +136,18 @@ pub struct ResolvedCall {
     /// reason: resolving a bare `LeafRegistry` against the active namespace
     /// and imports needs context only this crate and `mwl-hir` have.
     pub static_class: Option<QName>,
+    /// Whether some subtype of [`Self::class`] redeclares [`Self::method`],
+    /// so a receiver's runtime class can answer it with different code than
+    /// the label [`Self::class`] names —
+    /// [`crate::signatures::ClassSignature::overridden_methods`], recorded
+    /// here for the same reason [`Self::by_ref`] is: it is a whole-program
+    /// question about declarations the call site cannot see, and `mwl-ir`
+    /// has no class graph to ask.
+    ///
+    /// `false` is the common case and the fast one — the call binds to a
+    /// compiled label. `true` sends it through
+    /// `mwl_ir::ir::InstKind::CallVirtual` with that label as the fallback.
+    pub overridden: bool,
 }
 
 /// One resolved expression a later pass (today, only `mwl-ir`) needs more

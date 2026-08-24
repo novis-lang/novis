@@ -100,6 +100,45 @@ pub struct BasicBlock {
     pub term: Terminator,
 }
 
+impl BasicBlock {
+    /// Every block control can reach from this one, in no meaningful order.
+    ///
+    /// Both kinds of edge, because a consumer walking the CFG needs both:
+    /// the terminator's own targets, and every
+    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md) error edge
+    /// ([`Inst::on_error`]) an instruction in the body carries. Leaving the
+    /// second kind out is how a landing block ends up looking unreachable
+    /// from a block that plainly branches into it.
+    ///
+    /// A block may appear more than once — a `Branch` whose two arms are the
+    /// same block lists it twice, and so does a call whose error edge is a
+    /// landing block another call already named. Callers dedupe if they care;
+    /// `mwl-codegen`'s reverse-postorder walk does, by visiting marks.
+    #[must_use]
+    pub fn successors(&self) -> Vec<BlockId> {
+        let mut out: Vec<BlockId> = self.insts.iter().filter_map(|inst| inst.on_error).collect();
+        match &self.term {
+            Terminator::Return(_) | Terminator::Propagate { .. } => {}
+            Terminator::Jump(target) => out.push(*target),
+            Terminator::Throw { landing, .. } => out.push(*landing),
+            Terminator::Catch { handler } => out.push(*handler),
+            Terminator::Switch { arms, default, .. } => {
+                out.extend(arms.iter().map(|(_, target, _)| *target));
+                out.push(*default);
+            }
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => {
+                out.push(*then_block);
+                out.push(*else_block);
+            }
+        }
+        out
+    }
+}
+
 /// One SSA instruction. Not every instruction defines a value — a
 /// [`InstKind::StmtMarker`] never does, the same way a future `void`-returning
 /// call would not.

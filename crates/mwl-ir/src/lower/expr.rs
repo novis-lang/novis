@@ -458,20 +458,25 @@ impl<'a> Lowering<'a> {
                         cur,
                     )
                     .values;
-                // A resolved declaration with no body names no compiled
-                // function — an `abstract` method, or the interface method an
-                // interface *default* body calls back into (`$this->name()`
-                // inside `Greets::greet`). There is nothing to call
-                // statically, so the receiver's own class answers it. Every
-                // other instance call stays statically resolved
-                // (`mwl-codegen`'s known gap 1).
-                let kind = if call.has_body {
-                    InstKind::Call {
-                        target: target_label,
-                        receiver: Some(receiver_v),
-                        args: arg_values,
-                    }
-                } else {
+                // Two shapes have no static answer, and both take the
+                // receiver's own class instead.
+                //
+                // A resolved declaration with **no body** names no compiled
+                // function at all — an `abstract` method, or the interface
+                // method an interface *default* body calls back into
+                // (`$this->name()` inside `Greets::greet`).
+                //
+                // A resolved declaration some subtype **overrides** names the
+                // wrong one: `$base->m()` on a value that is really a `Child`
+                // must run `Child::m`. `mwl_types` answers that whole-program
+                // question once (`ResolvedCall::overridden`), so the ordinary
+                // case — a method nothing overrides — still binds straight to
+                // a label and pays nothing. A `static` method reached through
+                // an instance is never virtual: PHP resolves it on the
+                // written class, and its slot 0 carries a descriptor rather
+                // than a receiver.
+                let late_bound = !call.has_body || (call.overridden && !is_static);
+                let kind = if late_bound {
                     let (lsb, _) = self.emit(
                         cur,
                         Ty::ClassDesc,
@@ -480,8 +485,14 @@ impl<'a> Lowering<'a> {
                     InstKind::CallVirtual {
                         lsb,
                         method: call.method.clone(),
-                        fallback: None,
+                        fallback: call.has_body.then_some(target_label),
                         receiver: if is_static { None } else { Some(receiver_v) },
+                        args: arg_values,
+                    }
+                } else {
+                    InstKind::Call {
+                        target: target_label,
+                        receiver: Some(receiver_v),
                         args: arg_values,
                     }
                 };

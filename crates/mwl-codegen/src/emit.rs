@@ -109,9 +109,13 @@ pub(crate) fn emit_function(
     let args_p = b.block_params(abi_entry)[1];
     let out_p = b.block_params(abi_entry)[2];
 
+    // One walk, used twice: which blocks exist at all, and the order they are
+    // filled in — see [`reachable_in_reverse_postorder`] for both reasons.
+    let order = reachable_in_reverse_postorder(f);
     let mut blocks = FxHashMap::default();
     let mut phi_counts = FxHashMap::default();
-    for block in &f.blocks {
+    for &index in &order {
+        let block = &f.blocks[index];
         let clif = b.create_block();
         let phis = leading_phis(block)?;
         for inst in &block.insts[..phis] {
@@ -158,6 +162,7 @@ pub(crate) fn emit_function(
         args_p,
         out_p,
         landing_status: None,
+        order,
     };
     emitter.emit_blocks()?;
     emitter.b.seal_all_blocks();
@@ -201,6 +206,62 @@ fn internal(what: &str) -> CodegenError {
     CodegenError::Unsupported(format!("{what} (this is a bug in mwl-ir or mwl-codegen)"))
 }
 
+/// The blocks of `f` that codegen touches at all, in the order it walks them:
+/// reverse postorder from [`Function::entry`], as indices into
+/// [`Function::blocks`].
+///
+/// **Order.** [`Emitter::values`] is one flat map filled as blocks are
+/// emitted, so a value has to be *defined* before the block using it is
+/// reached — a stronger requirement than SSA's, which only asks that the
+/// definition dominate the use. Reverse postorder turns one into the other: a
+/// dominator always precedes what it dominates, so every non-loop-carried
+/// value is in the map by the time it is read, and a loop-carried one arrives
+/// through a block parameter rather than the map. `mwl-ir` numbers a block
+/// when it *creates* one, which coincides with this order for straight-line
+/// and loop code but not for
+/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s landing blocks:
+/// a nested `try`'s inner cleanup block is created *after* the outer one it
+/// flows into, so the outer one reads a value the inner one defines.
+///
+/// **Reachability.** A block this walk never reaches is dropped rather than
+/// emitted — no Cranelift block is created for it at all. `mwl-ir` lowers a
+/// `try`'s landing block unconditionally, so a protected region whose body
+/// turns out to contain nothing fallible leaves a whole dead cleanup chain
+/// behind; emitting one would mean asking Cranelift to fill blocks nothing
+/// branches to, and there is no order that satisfies the map for a region
+/// with no entry.
+fn reachable_in_reverse_postorder(f: &Function) -> Vec<usize> {
+    let mut index_of: FxHashMap<u32, usize> = FxHashMap::default();
+    for (index, block) in f.blocks.iter().enumerate() {
+        index_of.insert(block.id.index(), index);
+    }
+    let Some(&entry) = index_of.get(&f.entry.index()) else {
+        return Vec::new();
+    };
+    let mut seen = vec![false; f.blocks.len()];
+    let mut postorder = Vec::with_capacity(f.blocks.len());
+    // An explicit stack rather than recursion: a long straight-line function
+    // is one deep chain of blocks, and this runs on the compiler's own stack.
+    seen[entry] = true;
+    let mut stack: Vec<(usize, usize)> = vec![(entry, 0)];
+    while let Some((index, next)) = stack.pop() {
+        let successors = f.blocks[index].successors();
+        if next == successors.len() {
+            postorder.push(index);
+            continue;
+        }
+        stack.push((index, next + 1));
+        if let Some(&child) = index_of.get(&successors[next].index())
+            && !seen[child]
+        {
+            seen[child] = true;
+            stack.push((child, 0));
+        }
+    }
+    postorder.reverse();
+    postorder
+}
+
 struct Emitter<'a, 'f> {
     b: FunctionBuilder<'f>,
     module: &'a mut JITModule,
@@ -228,11 +289,16 @@ struct Emitter<'a, 'f> {
     /// The status parameter of the landing block currently being emitted, or
     /// `None` for an ordinary block — see [`is_landing`].
     landing_status: Option<Value>,
+    /// Which of `f`'s blocks to emit, in the order to emit them —
+    /// [`reachable_in_reverse_postorder`], computed once before any Cranelift
+    /// block was created and reused here so the two cannot disagree.
+    order: Vec<usize>,
 }
 
 impl Emitter<'_, '_> {
     fn emit_blocks(&mut self) -> Result<(), CodegenError> {
-        for block in &self.f.blocks {
+        for index in std::mem::take(&mut self.order) {
+            let block = &self.f.blocks[index];
             let start = self.block(block.id)?;
             self.b.switch_to_block(start);
 

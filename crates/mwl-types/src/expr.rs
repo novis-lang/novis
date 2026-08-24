@@ -124,10 +124,17 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// `sig` (already computed for this call's own type-checking) get bundled
 /// into the shape `mwl-ir` reads back, so the `MethodCall`/`StaticCall`/`New`
 /// arms below don't each repeat the field list.
-fn resolved_call(qname: QName, name: String, sig: &MethodSig) -> ResolvedCall {
+fn resolved_call(
+    qname: QName,
+    name: String,
+    sig: &MethodSig,
+    signatures: &SignatureTable,
+) -> ResolvedCall {
+    let overridden = signatures.is_overridden(&qname, &name);
     ResolvedCall {
         class: qname,
         method: name,
+        overridden,
         param_tys: sig.params.clone(),
         by_ref: sig.by_ref.clone(),
         variadic: sig.variadic,
@@ -960,10 +967,8 @@ fn infer(
             // survives a call site, and this record is the one thing that
             // carries a signature past it.
             if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-                env.exprs.record(
-                    expr.span,
-                    ExprInfo::Call(resolved_call(qname.clone(), name.clone(), sig)),
-                );
+                let call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
+                env.exprs.record(expr.span, ExprInfo::Call(call));
             }
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
@@ -1011,7 +1016,7 @@ fn infer(
             // survives a call site, and this record is the one thing that
             // carries a signature past it.
             if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-                let mut call = resolved_call(qname.clone(), name.clone(), sig);
+                let mut call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
                 // Late static binding: an explicitly named class *sets* the
                 // called class, while `self`/`static`/`parent` forward the
                 // caller's. See `ResolvedCall::static_class`.
@@ -1132,10 +1137,9 @@ fn infer(
                 // `mwl-ir` needs the constructed class and its resolved
                 // constructor (if any) to lower `new` — see
                 // `crate::expr_table`'s own module docs.
-                let ctor = sig
-                    .as_ref()
-                    .zip(ctor_owner)
-                    .map(|(s, owner)| resolved_call(owner, "constructor".to_owned(), s));
+                let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
+                    resolved_call(owner, "constructor".to_owned(), s, env.signatures)
+                });
                 env.exprs.record(
                     expr.span,
                     ExprInfo::New {
@@ -2823,7 +2827,7 @@ fn object_comparison_result(
     // so `has_body` is `false` and the call dispatches on the receiver's
     // runtime class, exactly like any other call to an interface method.
     if let Some((owner, sig)) = resolve_method(&lhs_q, "compareTo", env.signatures, env.graph) {
-        let call = resolved_call(owner, "compareTo".to_owned(), &sig);
+        let call = resolved_call(owner, "compareTo".to_owned(), &sig, env.signatures);
         env.exprs.record(span, ExprInfo::Call(call));
     }
     Some(match op {

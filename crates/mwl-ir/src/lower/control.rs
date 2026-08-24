@@ -943,13 +943,27 @@ impl<'a> Lowering<'a> {
             [(_, only)] => only.clone(),
             _ => {
                 let mut merged = Env::default();
+                // The *union* of every edge's names, not the first edge's:
+                // the two directions are not symmetric to look at but are to
+                // account for. A name bound on the first edge and missing
+                // elsewhere is dropped and released below; a name bound only
+                // on a *later* edge owes exactly the same release, and
+                // reading the first edge's keys alone would never see it — a
+                // local declared inside a `try` body leaks precisely that
+                // way, since the landing edge taken before the declaration
+                // does not bind it.
+                //
                 // Sorted rather than left in `FxHashMap`'s bucket order: a
                 // phi's id must depend only on source order (see the crate's
                 // `ids` module docs on why), never on hash-table internals.
-                let mut names: Vec<String> = incoming[0].1.keys().cloned().collect();
+                let mut names: Vec<String> = incoming
+                    .iter()
+                    .flat_map(|(_, e)| e.keys().cloned())
+                    .collect();
                 names.sort_unstable();
+                names.dedup();
                 for name in names {
-                    if !incoming[1..].iter().all(|(_, e)| e.contains_key(&name)) {
+                    if !incoming.iter().all(|(_, e)| e.contains_key(&name)) {
                         // Not bound on every incoming edge — per the module
                         // docs, checked input never uses such a name past
                         // this point, so it needs no entry in the merged env.

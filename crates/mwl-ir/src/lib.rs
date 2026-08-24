@@ -137,15 +137,18 @@
 //!    throw. A **static** property is narrower still: it reads, but
 //!    [`lower::Lowering`]'s assignment arm has no target for one, so
 //!    `C::$p = v` panics.
-//! 7. **No general virtual dispatch.** [`ir::InstKind::Call`]'s target is the
-//!    statically resolved declaring class, so an overridden method reached
-//!    through a base-typed local still calls the base's. The two shapes with
-//!    no static answer — `static::`/`new static`, and a call resolving to a
-//!    body-less declaration — do dispatch, through
-//!    [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`] over
-//!    [`ty::Ty::ClassDesc`]. That builds the per-class method table
-//!    ([`ir::Class::methods`]) a real vtable would index, so closing this is a
-//!    question of picking a slot index over a name, not of building a table.
+//! 7. **Virtual dispatch resolves by name, not by slot.** An instance call
+//!    lowers to [`ir::InstKind::Call`] — bound to the statically resolved
+//!    label — only when nothing in the program overrides that declaration;
+//!    `mwl_types` answers that whole-program question once, per call, as
+//!    `mwl_types::expr_table::ResolvedCall::overridden`. When something does,
+//!    and for the two shapes with no static answer at all (`static::`/`new
+//!    static`, and a call resolving to a body-less declaration), the call
+//!    goes through [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`]
+//!    over [`ty::Ty::ClassDesc`], which looks the name up in the per-class
+//!    method table [`ir::Class::methods`] carries. A real vtable would index
+//!    that table by slot instead, which is the remaining half — a lookup
+//!    cost, not a correctness gap.
 //! 8. **No variadic, named or spread call argument**, and no `...spread` or
 //!    `&value` array-literal element. `mwl_types` does not fully
 //!    positionally type-check a named or spread argument either, so there is
