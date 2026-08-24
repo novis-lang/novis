@@ -1,0 +1,763 @@
+# ADR 0079 — Testing is a language feature: `#[Test]` compiles to a table, every test is its own isolate, and `Core\Test` is typed
+
+- **Status:** Accepted
+- **Date:** 2026-08-24
+- **Scope:** the testing capability MWL programs use — how a test is declared, discovered, isolated,
+  parameterized, doubled, timed and reported, and what `mwl test` does with a program's own tests. It does
+  **not** decide: the `.mwlt` conformance format or how MWL's own suite is written
+  ([crates/mwl-test](../../crates/mwl-test/src/lib.rs)'s module doc, unchanged and § 23 below); how
+  coverage is collected or exported ([0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md));
+  how MWL's *own implementation* is measured over time
+  ([0026](0026-performance-measurement-methodology.md)); the VS Code Test Explorer
+  ([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)).
+- **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) — its probe sites
+  gain a **counting** mode beside the timing one, and the resulting counters are the shared stream
+  §§ 15 and 21 consume. [0026](0026-performance-measurement-methodology.md) — its *Scope* now says
+  explicitly that user-program benchmarking is this ADR's, not its.
+- **Relates to:** 0006, 0013, 0020, 0022, 0023, 0031, 0033, 0036, 0042, 0043, 0046, 0051, 0052, 0063,
+  0067, 0071, 0072, 0077
+
+> **In short:** PHP has no built-in test framework, and the userland one everybody uses builds its mocks by
+> generating source and calling `eval`. MWL closed `eval` ([0052](0052-closed-doors.md)), so that road does
+> not exist here — which turns out to be the good news, because everything PHPUnit reaches for `eval` and
+> reflection to fake, MWL can do at compile time with types. A test is an ordinary method carrying
+> `#[Test]`; the runner's table is built **while compiling**, exactly as `#[Route]`'s is
+> ([0077](0077-compile-time-routing.md)), so a duplicate or malformed test is a compile error rather than a
+> silent skip. Every test runs in **its own isolate** ([0006](0006-isolated-script-execution.md)), so state
+> cannot bleed between two tests and parallelism is the default rather than a flag. Assertions are
+> **generic**: `assertEquals($count, "3")` does not compile. A failure is a catchable `Throwable`, so you
+> can write your own assertion helpers — and the runner keeps its **own ledger**, so a stray
+> `catch (Throwable)` cannot turn a red test green. Doubles are **shape literals of closures** structurally
+> checked against an interface, needing no builder, no generated class and no `eval`. Data rows live in
+> `#[TestWith(...)]` attributes that the **checker matches against the method's parameters**. Time,
+> randomness and UUIDs are declared on the test and applied to its isolate. Property-based testing derives
+> its generators from declared parameter types. `#[Bench]` reports the **deterministic counter stream** —
+> statements, calls, allocations, bytes, GC cycles — which is bit-identical across machines and OSes,
+> because it counts MWL's semantic work rather than a CPU's instructions. `mwl test --mutate` closes the
+> loop by asking whether any test would have noticed the code being wrong.
+
+## Context
+
+- **PHP's gap is the starting point.** PHP ships `assert()` — a construct whose string form
+  [0052](0052-closed-doors.md) already refuses — and nothing else. Every PHP project of consequence depends
+  on PHPUnit, a userland package. Testing is not a library concern in a language whose pitch is running web
+  requests *securely and fast*: a suite is the only evidence that a security property holds, and a
+  first-class framework is the only way the compiler's knowledge can be brought to bear on it.
+- **Almost nothing about PHPUnit's mechanism ports.** Mock generation is `eval` on generated source; private
+  access is reflection; data providers are `array<array<mixed>>`; process isolation is a rarely-used
+  escape hatch. Each of those is either closed to MWL or strictly improvable with types.
+- **The machinery this needs mostly exists.** [0006](0006-isolated-script-execution.md) gives a cheap
+  isolate that shares nothing but compiled code. [0077](0077-compile-time-routing.md) proves an attribute
+  can build a table while compiling and reject a bad entry as a diagnostic.
+  [0071](0071-derived-codecs.md) proves the checker can read a declaration and generate code from it.
+  [0046](0046-attributes-shape-literal-metadata.md) makes an attribute's payload a typed shape literal.
+  [0023](0023-clone-serialize-and-cross-boundary-copy.md) already owns exactly one graph-copy operation.
+  [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) already compiles a probe at
+  every statement boundary and call site. This ADR mostly composes what is already decided.
+- **Before this, the plan was one table row.** `docs/spec/01-core-library.md` § 13 listed `Core\Test` with
+  four assertion names, no ADR, and "the runner is M10 tooling, not this surface". That row is replaced by
+  § 4 below.
+
+## Decision
+
+### 1. A test is a `#[Test]` method, and the table is built while compiling
+
+Every function in MWL is a method ([0011](0011-functions-and-constants-are-class-members.md)), so a test is
+a method on an ordinary class. `#[Test]` marks it. There is no naming convention, no base class to extend
+and no interface to implement: nothing about a test is inferred from spelling, which is the same position
+[0029](0029-identifier-casing-is-checked.md) takes everywhere else.
+
+```mwl
+class UserTest {
+    #[Test]
+    public function aNameIsTrimmed(): void {
+        Core\Test::assertEquals(User::normalize("  ada "), "ada");
+    }
+
+    #[Test(skip: "blocked on Core\\Db, M8")]
+    public function itPersists(): void { }
+}
+```
+
+The compiler collects every `#[Test]` into a table, the way `#[Route]` builds the route table
+([0077](0077-compile-time-routing.md)). Discovery therefore costs nothing at startup, and these are
+**compile errors**, not skipped tests:
+
+- two `#[Test]` methods with the same name in one class;
+- a `#[Test]` method that is `static`, that returns anything but `void`, or that is not `public`;
+- a `#[Test]` method with a parameter that no `#[Fixture]` supplies and no data row fills (§§ 8–9);
+- `#[Test(skip: true)]` — a skip states a reason (§ 20).
+
+`#[Test]`'s option shape is `{skip?: string, at?: string, seed?: int, db?: string, server?: bool,
+retries?: int, because?: string}`. Every field is validated at compile time as an attribute shape literal
+under [0046](0046-attributes-shape-literal-metadata.md).
+
+### 2. Every test runs in its own isolate, and the suite runs in parallel
+
+Each test gets a fresh isolate ([0006](0006-isolated-script-execution.md)): it shares compiled code with
+its siblings and nothing else — not a static, not a `Core\Cache` entry, not an open handle. A static
+counter incremented by one test reads its initial value in the next, always, with no flag to change it.
+
+This is not a hardening measure bolted onto a sequential runner; it is the reason the runner can be
+parallel at all. PHPUnit's `@runInSeparateProcess` costs a process fork and is therefore reached for once
+per suite, if ever. An isolate is cheap enough to be the default, so MWL gets total isolation *and*
+parallelism from one decision.
+
+Two consequences follow and are dealt with below: shared expensive setup needs an answer (§ 8), and
+execution order becomes meaningless — so the runner reports in **declaration order** regardless of the
+order things finished (§ 20).
+
+Each test isolate spends its parent's budget, so a suite has an enforceable ceiling on memory and CPU the
+same way a request does, and a runaway test is terminated rather than left to consume the machine.
+
+### 3. A test may live beside the code it tests, and never reaches a built binary
+
+A `#[Test]` method may be declared in any file — in `src/User.mwl` next to `User`, or in a separate tree.
+The compiler decides what a test is by the attribute, never by the path.
+
+`mwl test` compiles and runs them. **`mwl run` and `mwl build` do not lower them at all**: a `#[Test]`
+method, its `#[Fixture]` methods, its data rows, its assertion messages and its doubles are absent from a
+built artifact. Production pays nothing, and no test surface is reachable at runtime.
+
+`mwl check` *does* type-check test code, so a test cannot rot silently while the code around it changes.
+This is the one place tests and non-tests are treated alike, and deliberately so.
+
+### 4. `Core\Test` is generic, subject-first, and has three equality members
+
+The assertion surface is static members on `Core\Test`, in the shape
+[0063](0063-core-api-conventions.md) requires of every `Core` member: **subject first**, one trailing
+options shape, nothing mutates, failure throws.
+
+```mwl
+Core\Test::assertEquals($user->name, "ada");
+Core\Test::assertTrue($user->isActive, {message: "a fresh user is active"});
+Core\Test::assertNull($user->deletedAt);
+Core\Test::assertCount($rows, 3);
+Core\Test::assertThrows(fn() => User::parse(""), ParseError::class);
+```
+
+Subject first means `assertEquals($actual, $expected)` — the **opposite** of PHPUnit's argument order.
+This is not a preference; it falls out of [0063](0063-core-api-conventions.md), which every other `Core`
+member already obeys. Because reversing them is the single most common mistake in the PHP ecosystem, the
+failure report labels both sides by name rather than by position, so a reversed call still reads correctly.
+
+**Assertions are generic, and a type mismatch is a compile error.** This is the capability PHPUnit
+structurally cannot have, and the main reason this belongs in the language rather than in a package:
+
+```mwl
+Core\Test::assertEquals($user->age, "36");
+// E0xxx: `assertEquals` compares two values of the same type; `$actual` is `int`
+//        and `$expected` is `string`.
+//   help: compare `$user->age as string`, or write `36` without quotes.
+```
+
+Three equality members, and which one you asked for is always visible at the call site:
+
+| Member | Compares |
+|---|---|
+| `assertSame` | identity, via `mwl_runtime::identity` |
+| `assertEquals` | value: scalars natively; objects **only** if they implement `Comparable` |
+| `assertEqualsDeep` | an explicit structural walk of properties, arrays and shapes, with a diff |
+
+`assertEquals` on an object that does not implement `Comparable`
+([0013](0013-comparable-interface.md)) is a **compile error naming `assertEqualsDeep`**. There is no
+silent property-walk fallback, for the same reason 0013 refused one for ordering: a comparison that
+quietly changes meaning when a class gains a field is a bug you find years later. The walk exists —
+refusing it would make MWL worse than what people are migrating from — but it is a member you name.
+
+### 5. A failure is a catchable `Throwable`, and the runner keeps a ledger the catch cannot erase
+
+`Core\Test\Failure` is an ordinary `Throwable`. Catching it is not only allowed, it is necessary: a
+user-written composite assertion, a retry wrapper, a soft-assert block and any test *of* an assertion all
+need to intercept one.
+
+```mwl
+public function assertValidUser(User $u): void {
+    try {
+        Core\Test::assertTrue($u->isActive);
+    } catch (Core\Test\Failure $f) {
+        throw new Core\Test\Failure("user invalid: " . $f->message);
+    }
+}
+```
+
+Every assertion **also** records its outcome into a per-test ledger the test's own code cannot reach.
+At the end of a test the runner reads the ledger, not the exception state. So the classic
+silently-passing test does not exist here:
+
+```mwl
+try { Core\Test::assertEquals($a, $b); } catch (Throwable $t) { }
+// FAILED  1 assertion failed and was caught without Core\Test::expectFailure().
+```
+
+`Core\Test::expectFailure(callable)` is how a helper consumes a failure deliberately: it runs the callable,
+requires that it fail, and removes that entry from the ledger. It is the greppable, single spelling for
+"this failure was on purpose", in the shape [0024](0024-taint-tracking-for-injection-sinks.md) established
+with `Core\Taint::assertTrusted`.
+
+The ledger is also what makes § 20's zero-assertion rule possible, and it is the mechanism a future
+"report every failure in this test rather than the first" mode would use — the shape
+[0071](0071-derived-codecs.md) already chose for decoding.
+
+### 6. A `secret` operand is compared but never rendered
+
+An assertion diff is simultaneously output, a log line, a dump and a `Throwable` message — all four of the
+things [0033](0033-secret-qualifier-for-confidential-values.md) forbids for a `secret` value. The
+assertion still runs; the **report is redacted, always**, with no flag and no build mode that lifts it.
+`Failure->diff` is itself redacted, so catching the failure does not recover the value either.
+
+```
+FAILED  AuthTest::itMintsAToken
+  values differ
+  actual:   <secret string, 43 bytes>
+  expected: <secret string, 40 bytes>
+  note: both operands are `secret`; ADR 0033 forbids rendering them. Compare a
+        derived value instead, e.g. Core\Hash::of($token, Digest::Sha256).
+```
+
+Byte length is reported because it is not the secret. Debugging a redacted failure is genuinely harder,
+and the intended answer is the one the note gives: assert on a derived value.
+
+Separately and always, the reporter **escapes control characters** in every value it renders. A `tainted`
+string is not confidential and may be shown — but a test fixture full of ANSI escapes must not be able to
+rewrite the developer's terminal from inside a failure message.
+
+### 7. The constructor is `setUp`; `#[After]` is only for state outside the isolate
+
+There is no `#[Before]`: the constructor already is it, and it is a better one than PHP can offer, because
+[0022](0022-definite-property-initialization.md) guarantees every property is assigned before any test
+body runs. There is no `#[BeforeAll]`/`#[AfterAll]`: across isolates they would either lie or need § 8's
+machinery, and § 8 is the honest spelling of what they were for.
+
+```mwl
+class UserTest {
+    private Repo $repo;
+
+    public function constructor() {
+        $this->repo = new Repo();       // this IS setUp
+    }
+
+    #[Test]
+    public function itFinds(): void { }
+
+    #[After]
+    public function cleanup(): void {   // only for state outside the isolate
+        Core\Fs::remove($this->tmp);
+    }
+}
+```
+
+Teardown is mostly unnecessary here: the isolate dies and takes everything inside it with it. `#[After]`
+exists for the residue that outlives the isolate — a file, a row, a remote object — every one of which is
+capability-bearing, so `#[After]` has nothing it can usefully do before M8.
+
+### 8. `#[Fixture]` is built once in the parent and injected by parameter
+
+Total isolation would make expensive setup cost N times without an answer. The answer is a fixture built
+**once, in the parent isolate**, and copied into each test isolate that asks for it by declaring a
+parameter of its type. The copy is [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s one graph-copy
+operation — the same one `spawn` uses — so its cost is a known quantity rather than a new mechanism.
+
+```mwl
+class RepoTest {
+    #[Fixture]
+    public static function schema(): Schema {
+        return Schema::build();             // runs once for the whole class
+    }
+
+    #[Test]
+    public function itFinds(Schema $schema): void { }
+
+    #[Test]
+    public function itMisses(Widget $w): void { }
+    // E0xxx: no `#[Fixture]` in scope returns `Widget`.
+}
+```
+
+Resolution is by **type**, checked while compiling, so an unsatisfiable parameter is a diagnostic rather
+than a null at runtime. A fixture may itself declare fixture parameters; a cycle is a compile error.
+
+This is pytest's best idea with types on it, and the cost is stated rather than hidden: a fixture crossing
+into a test is a graph copy, and a fixture holding something that cannot be copied — a live connection, a
+handle — is refused at compile time by the same rule that governs the `spawn` boundary.
+
+### 9. Data rows are compile-checked shape literals
+
+`#[TestWith(...)]` carries a shape literal ([0046](0046-attributes-shape-literal-metadata.md)) that the
+checker matches against the method's parameters **by name and by type**. Each row is its own reported,
+separately isolated case.
+
+```mwl
+#[TestWith(input: "  ada ", want: "ada")]
+#[TestWith(input: "ADA",    want: "ada")]
+#[TestWith(input: "",       want: "")]
+public function itNormalizes(string $input, string $want): void {
+    Core\Test::assertEquals(User::normalize($input), $want);
+}
+
+#[TestWith(input: 7, want: "ada")]
+// E0xxx: data row field `input` is `int`; parameter `$input` is `string`.
+```
+
+`#[TestSource(Fixtures::names)]` names a static method returning rows, for data that is computed or too
+large to write out. Its rows are checked when the suite runs rather than while compiling — that is the
+price of computing them, and it is why the literal form is the one to reach for first.
+
+A `#[Test]` method with parameters must have every parameter satisfied by a fixture (§ 8) or by data rows;
+a mix of the two in one method is allowed, and each parameter's source is unambiguous because fixtures
+resolve by type and rows by name.
+
+### 10. A double is a shape of closures, structurally checked against an interface
+
+PHPUnit builds a mock by generating class source and `eval`-ing it. [0052](0052-closed-doors.md) closed
+`eval`, and there is no FFI, so MWL cannot do that and will not gain a way to. What it has instead is
+better: shapes ([0036](0036-anonymous-object-shapes.md)), closures
+([0031](0031-callable-is-the-only-closure-type.md)) and a checker that can compare a shape to an interface.
+
+```mwl
+interface Clock { public function now(): Instant; }
+
+var $clock = Core\Test::double<Clock>({
+    now: fn(): Instant => Core\Time::at(0),
+});
+
+var $session = new Session($clock);        // it *is* a Clock
+
+Core\Test::double<Clock>({ tomorrow: fn() => 1 });
+// E0xxx: `Clock` declares no method `tomorrow`.
+// E0xxx: `Clock::now` is not implemented by this double.
+```
+
+`Core\Test::partial<T>($real, {...})` overrides named methods and delegates the rest to a real
+implementation — the same shape [0043](0043-interface-default-methods-and-delegation-replace-traits.md)'s
+`implements Interface by $field;` already gives, reached without declaring a class.
+
+Note what this design does **not** need: a builder, a matcher mini-language, a generated class appearing in
+backtraces, and any notion of a "nice" or "loose" mock. The last one is not a choice we made — MWL is
+strictly typed, so a double of `now(): Instant` has nothing legal to return by default. Every double is
+strict because nothing else is expressible.
+
+### 11. Interaction is asserted after the fact, never expected in advance
+
+A double records the calls made to it; you assert on them afterwards, with ordinary assertions, in the
+order the test reads.
+
+```mwl
+var $mailer = Core\Test::double<Mailer>({ send: fn(string $to): void => {} });
+
+$service->register("ada@example.com");
+
+Core\Test::assertCalled($mailer, Mailer::send, {times: 1, with: ["ada@example.com"]});
+Core\Test::assertNeverCalled($mailer, Mailer::purge);
+```
+
+`Mailer::send` is a compile-checked method reference: renaming the method updates or breaks the test, and
+can never leave it silently passing against a method that no longer exists. There is no `expects()` — an
+expectation declared before the exercise reads backwards and reports its failure from a line that is no
+longer where the problem is.
+
+### 12. Time, randomness and identifiers are declared on the test
+
+`Core\Random\Seeded` already exists as a separate *type* so that a reproducible generator cannot be reached
+for in production. Time had no equivalent. Rather than add a `Clock` parameter to every time-aware class in
+every MWL program forever, the isolate's clock and generator are configured **on the test declaration**,
+where they are visible:
+
+```mwl
+#[Test(at: "2026-01-01T00:00:00Z", seed: 42)]
+public function itExpiresAfterAnHour(): void {
+    var $t  = Core\Time::now();       // exactly 2026-01-01T00:00:00Z
+    var $id = Core\Uuid::v7();        // deterministic
+    var $n  = Core\Random::int(1, 6); // seeded
+
+    Core\Test::advance(Duration::hours(2));
+}
+```
+
+This does not violate [0008](0008-static-and-global.md)'s "nothing holds state behind a function's back":
+the clock is *isolate configuration*, declared at the test and inert everywhere else, in the same category
+as a timezone set in `mwl.toml`. `#[Test]` methods do not exist in a built binary at all (§ 3), so nothing
+about this reaches production even in principle.
+
+### 13. Property-based testing, with generators derived from declared types
+
+`#[Property]` runs a method against generated inputs. Generators are **derived from the parameters'
+declared types** — including user classes, by the same declaration walk
+[0071](0071-derived-codecs.md) uses to derive a codec. This is why property testing belongs in `Core`
+rather than in a package: only the compiler can walk a declared type, so an extension's version would need
+a hand-written generator per type, which is exactly the boilerplate that keeps property testing rare.
+
+```mwl
+#[Property(cases: 1000)]
+public function encodeThenDecodeRoundTrips(string $name, int $age): void {
+    var $u = new User($name, $age);
+    Core\Test::assertEquals(Core\Json::decodeAs<User>(Core\Json::encode($u)), $u);
+}
+```
+
+A failure **shrinks** to a minimal counterexample and reports the seed that reproduces it:
+
+```
+FAILED after 37 cases, shrunk to:
+  $name = "\u{0}"   $age = 0
+  reproduce: mwl test --seed 8814327
+```
+
+`#[Property(gen: {age: Core\Test\Gen::int(0, 130)})]` narrows a single parameter's generator where the
+declared type is wider than the domain. `string` generates valid UTF-8 including combining marks and
+grapheme clusters, because that is what [0009](0009-string-and-bytes.md) says a `string` is — a property
+that only holds for ASCII is a property that is not true.
+
+### 14. Snapshots are inline, and the updater writes into the test
+
+`Core\Test::assertMatchesInline($value, "...")` holds the expected value in the source file. `mwl test
+--update` splices the produced value in.
+
+```mwl
+#[Test]
+public function itRendersTheSummary(): void {
+    Core\Test::assertMatchesInline($report->render(), """
+        Users: 3
+        Active: 2
+        """);
+}
+```
+
+Inline rather than separate `.snap` files, because the failure mode of snapshot testing is a reviewer
+approving a diff they did not read, and a diff inside the test body is one they will. The rendering is
+canonical and ordered, and it redacts `secret` under § 6 — so a snapshot cannot become the place secrets
+get committed.
+
+### 15. `#[Bench]` reports the deterministic counter stream, shared with 0018 and 0041
+
+Wall-clock is not comparable across machines, which is the whole finding of
+[0026](0026-performance-measurement-methodology.md). But that ADR's remedy — callgrind — is Linux-only,
+about fifty times slow, and cannot resolve symbols inside JIT frames, so it is not available to a user on
+Windows benchmarking their own program.
+
+The remedy that *is* available costs almost nothing, because
+[0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) already compiles a probe at every
+statement boundary and every call site, and its profiler already observes every call rather than sampling.
+**Those probes gain a counting mode.** What they count is MWL's own semantic work, which is bit-identical
+on Windows, Linux and macOS, on x86 and on ARM, because it has nothing to do with a CPU:
+
+```
+$ mwl test --bench
+encodingALargeUser
+  statements     18,204        exact
+  calls           1,097        exact
+  allocations       412        exact
+  bytes          96,512        exact
+  gc cycles           0        exact
+  wall-clock       1.84 µs     advisory
+
+$ mwl test --bench --against baseline.json
+  statements   18,204 -> 12,880   -29.2%
+  bytes        96,512 -> 40,960   -57.6%
+  wall-clock     1.84 -> 1.31 µs  (advisory)
+```
+
+`bytes` is not a new instrument: memory must already be attributable to a request under an enforceable cap
+([0004](0004-memory-for-simplicity.md), [0006](0006-isolated-script-execution.md)), so the accounting
+exists and is exact. No per-member cost table is written or maintained — a hand-written claim about what
+`Core\Str::replace` costs would be a number with no guard test, which this repository does not keep.
+
+CI may gate on the exact rows. It may not gate on wall-clock, and the output says so on every run.
+
+**One probe stream, three consumers**: coverage (0018), the timeline export
+([0041](0041-timeline-export-and-gc-spawn-trace-events.md)), and `#[Bench]`. Adding a fourth number would
+mean adding a fifth place to look.
+
+The counters are comparable **across machines, not across MWL versions**: M12's optimising tier will
+eliminate work, so the same program's statement count will fall between releases. That is the correct
+behaviour for "did my algorithm improve" and the wrong measure for "did MWL get faster" — which is exactly
+the question [0026](0026-performance-measurement-methodology.md) already owns, so the split between the two
+ADRs stays clean rather than overlapping.
+
+### 16. The runner owns the test's task tree, and the clock is virtual
+
+[0072](0072-core-task-structured-concurrency.md) makes a test's task tree a bounded thing: `Core\Task::all`
+and `::map` return with nothing still running. The runner awaits the whole tree before judging the test,
+and **a task still running when the test returns is a failure**, named as such.
+
+Because § 12 already puts the clock under the test's control, a `Duration` sleep inside a task can elapse
+instantly. That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes,
+and the least tested — testable in microseconds:
+
+```mwl
+#[Test(at: "2026-01-01T00:00:00Z")]
+public function itRetriesWithBackoff(): void {
+    var $t = Core\Task::spawn(fn() => $client->fetchWithRetry($url));
+
+    Core\Test::advance(Duration::seconds(30));      // three backoffs elapse at once
+
+    Core\Test::assertEquals($t->await(), $body);
+    Core\Test::assertCalled($client, Http::get, {times: 3});
+}
+
+Core\Test::assertCompletes(fn() => $q->drain(), {within: Duration::millis(50)});
+```
+
+### 17. A database test is a transaction the runner rolls back
+
+`#[Test(db: "test")]` opens a transaction against the named connection before the test and rolls it back
+after, using [0067](0067-core-db.md)'s existing closure form. The test sees a pristine database and writes
+no cleanup code. A transaction opened *inside* the test becomes a savepoint, so code under test that uses
+`Core\Db::transaction` behaves normally.
+
+Tests run in parallel (§ 2), so N transactions contend on one database. Rollback makes this correct but not
+free: a deadlock is reported as a test failure that **names the other test involved**, rather than as an
+opaque driver error.
+
+### 18. An HTTP test dispatches in-process through the compiled route table
+
+`Core\Test::request(...)` builds a request and runs it through
+[0077](0077-compile-time-routing.md)'s compiled table and the real middleware chain — no socket, no port,
+microseconds per test. It exercises the actual routing rather than a mock of it.
+
+```mwl
+#[Test]
+public function itReturnsTheUser(): void {
+    var $rs = Core\Test::request(Http\Method::Get, "/users/1",
+        {headers: {"Accept": "application/json"}});
+
+    Core\Test::assertEquals($rs->status, 200);
+    Core\Test::assertEquals(Core\Json::decodeAs<User>($rs->body)->name, "ada");
+}
+```
+
+The synthetic request's body and parameters arrive **`tainted`**, exactly as a real request's would
+([0024](0024-taint-tracking-for-injection-sinks.md)). A handler that forgets to launder therefore fails its
+test rather than production.
+
+`#[Test(server: true)]` starts a real listener on an ephemeral port for the cases that genuinely need the
+wire — that the [0074](0074-http-defaults-safe-and-finite.md) security headers are actually emitted, that
+chunking and keep-alive behave. Two mechanisms are justified here, unlike the two-clock case § 12 refused,
+because they answer measurably different questions.
+
+### 19. A test sees `private` members declared in the same file, and nowhere else
+
+A `#[Test]` method may reach `private` and `protected` members of classes declared **in the same file**.
+A test in a separate file is held to the public contract.
+
+```mwl
+// src/User.mwl
+class User { private function normalize(string $s): string { } }
+
+class UserTest {                                 // same file: allowed
+    #[Test] public function itNormalizes(): void { (new User("ada"))->normalize(" x "); }
+}
+
+// tests/UserTest.mwl
+// E0xxx: `normalize` is private to `User`. Test the public surface, or co-locate the test.
+```
+
+This is the narrowest rule that avoids the failure it exists to prevent: a `public` method that exists only
+because a test needed to reach it. White-box testing stays possible where the author has already chosen to
+put the test next to the code; everything at a distance tests behaviour. The rule is stated now, before
+`private`/`protected` enforcement lands, rather than being retrofitted around it.
+
+### 20. The runner is strict, and flakiness is visible rather than absent
+
+- **A test that asserts nothing fails.** The ledger (§ 5) already knows the count. `Core\Test::assertDoesNotThrow(callable)` is how a test states "this must merely not throw", explicitly.
+- **A skip states a reason.** `#[Test(skip: true)]` is a compile error; `#[Test(skip: "blocked on Core\\Db, M8")]` is not.
+- **Retries exist and are reported as flaky, never as green.** `#[Test(retries: 2, because: "real DNS")]` requires a written reason, and a test that passed on a later attempt is counted in its own `FLAKY` section. Retrying is sometimes the right engineering call; hiding that it happened never is.
+- **A leaked task fails** (§ 16), and **a deadlocked DB test names its counterparty** (§ 17).
+- **Report order is declaration order**, even though execution is parallel and unordered. Total isolation (§ 2) makes execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is worth a great deal.
+
+### 21. `mwl test --mutate` asks whether any test would have noticed
+
+Coverage reports that a line ran. It says nothing about whether an assertion would have objected had the
+line been wrong — a suite at full line coverage routinely fails to detect most introduced defects. Mutation
+testing is the measurement that closes that gap: make a small, deliberate change to the code, re-run the
+tests, and record whether anything failed.
+
+```
+$ mwl test --mutate src/Cart.mwl
+  63 mutants   58 killed   4 survived   1 timed out   MSI 92.1%   (4m 12s)
+
+  SURVIVED  src/Cart.mwl:41
+    -  if ($qty >= $stock) { throw new OutOfStock(); }
+    +  if ($qty >  $stock) { throw new OutOfStock(); }
+    covered by 6 tests, killed by none
+```
+
+Two things make the built-in version categorically better than an external one, and both are unavailable
+outside the compiler:
+
+- **Mutants are generated from typed HIR**, so every one is type-valid and compiles. A tool mutating an AST
+  produces many mutants that will not build, and pays a compile to discover each.
+- **Mutant runs are coverage-directed.** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+  data says which tests touch the mutated line, so a mutant runs against those six tests rather than the
+  whole suite. On two thousand tests and five hundred mutants that is the difference between minutes and
+  most of a day.
+
+[0042](0042-on-disk-artifact-cache-format.md)'s per-unit immutable cache means one mutant recompiles one
+unit, and § 2's isolation means mutants run in parallel safely. The mutation operator set is enumerated
+where it is implemented, not here, so that adding an operator does not amend this ADR.
+
+### 22. Human output by default; JUnit XML and a versioned JSON for machines
+
+Following [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s reasoning exactly —
+it chose Clover and lcov over an MWL-native format because those are what existing dashboards ingest:
+
+```
+$ mwl test
+  UserTest
+    ✓ a name is trimmed                0.4 ms
+    ✗ an empty name is refused         0.2 ms
+
+  1 failed, 23 passed, 2 skipped, 1 flaky in 41 ms
+
+$ mwl test --format=junit > results.xml     # every CI system ingests this
+$ mwl test --format=json  > results.json    # versioned schema
+$ mwl test --coverage=clover:cov.xml        # unchanged, ADR 0018
+```
+
+The JSON schema is versioned and documented, and carries what JUnit XML has nowhere to put: a structured
+diff, `#[Bench]`'s counters, a shrunk property counterexample, per-data-row results, and **per-test
+coverage** — which is also what § 21 consumes. The VS Code Test Explorer
+([0040](0040-vscode-deep-tooling-and-resilient-parsing.md)) reads that schema rather than parsing human
+text.
+
+### 23. `.mwlt` is not this, and does not become this
+
+[crates/mwl-test](../../crates/mwl-test/src/lib.rs)'s `.mwlt` format is unchanged and stays what it is: a
+whole-program, expected-stdout conformance case, a deliberate superset of PHP's `.phpt` so that importing
+PHP's corpus at M11 stays mechanical. It is how **MWL's own conformance to its specification** is proven,
+including the `--ORACLE--` differential comparison against real PHP.
+
+`#[Test]` is how **a program written in MWL** tests itself. The two formats answer different questions and
+are not unified, now or later. `mwl test` runs both — a path of `.mwlt` files, or a program's compiled test
+table — and reports them the same way.
+
+### 24. Milestones
+
+| Lands | What |
+|---|---|
+| M4/M4S tail | `Core\Test` assertions (§§ 4–6), `#[Test]` and its compile-time table (§ 1), `#[Fixture]` and `#[TestWith]` (§§ 8–9), single-process runner, human + JUnit + JSON output (§ 22) |
+| M5 | isolate-per-test and parallelism (§ 2), the task tree and virtual clock (§ 16), `#[Test(at:, seed:)]` (§ 12) |
+| M6 | capability-restricted test runs; `#[After]` becomes able to do anything (§ 7) |
+| M8 | `#[Test(db:)]` (§ 17), `#[Test(server:)]` and `Core\Test::request` (§ 18), inline snapshots (§ 14) |
+| M10 | `#[Bench]` (§ 15), `--mutate` (§ 21), coverage wiring and the Test Explorer, both already planned there |
+
+Doubles (§§ 10–11) and property testing (§ 13) land with M4S if the checker work is ready and M5 otherwise;
+neither blocks anything else.
+
+## Consequences
+
+- **Security (priority 1) gains and is not spent.** A suite is the evidence a security property holds, so
+  making it structurally harder to write a meaningless test is a security improvement. § 6 closes a leak
+  that would otherwise have been introduced by this feature. § 18's `tainted` request bodies move a class
+  of injection bug from production to CI. § 3 keeps test code out of shipped binaries.
+- **Correctness (priority 2) gains substantially.** § 4's typed assertions, § 9's checked data rows, § 8's
+  checked fixtures and § 1's rejected malformed tests each delete a class of test that passes without
+  meaning anything. § 21 measures whether the rest of the suite means anything.
+- **Latency (priority 3) is untouched on the request path.** Nothing here compiles into a built artifact
+  (§ 3). § 15's counting mode reuses probe sites [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+  already committed to and pays only when a debug flag is on, exactly as that ADR specifies.
+- **Simplicity (priority 4) is spent, and this is the real cost.** `Core` gains roughly thirty members and
+  six attributes. Set against it: no base class, no annotations-in-comments, no mock builder DSL, no
+  reflection, no separate config file, and one framework instead of the four PHP projects reach for
+  (PHPUnit, Mockery, Faker, Infection). The surface is larger; the number of *concepts* is smaller.
+- **Memory (priority 5) is spent deliberately, and here is the figure.** Per test in flight: one isolate,
+  plus one graph copy of each fixture it declares, plus a ledger entry per assertion executed. It is
+  O(tests *running*), not O(tests *in the suite*) — the parallelism cap bounds it, so a hundred-thousand-test
+  suite costs what a ten-test suite does at any instant.
+- **Migrating a PHPUnit suite is real work, and mostly in three places.** Argument order reverses (§ 4).
+  Mocks become closure shapes (§ 10). Tests that depended on shared state between cases will fail, loudly,
+  which is the point. `mwl convert` (M11) can mechanise the first and detect the third; it cannot write the
+  second, and should say so rather than guess.
+- **Compile time grows for test builds only**, by the table build (§ 1), the fixture and data-row checks
+  (§§ 8–9), and the double conformance check (§ 10). `mwl build` does none of it.
+
+## Alternatives rejected
+
+- **A `test` keyword.** `test "a name is trimmed" { ... }` reads better than an attribute. It costs new
+  grammar, a second scoping rule, and a construct `mwl fmt`, `mwl-lsp`, `mwl-syntax`'s resilient parser and
+  `mwl convert` must each learn — for a readability gain over a mechanism (`#[Route]`) the language already
+  has and already understands.
+- **PHPUnit's `test*` naming convention.** Rejected on the same grounds as
+  [0029](0029-identifier-casing-is-checked.md): the compiler does not read meaning out of spelling. A
+  method named `tsetFoo` would silently be nothing.
+- **Sharing an isolate per test class.** Cheaper, familiar, and it restores exactly the ordering dependence
+  that makes real suites flaky. § 8 recovers the performance it was bought with, without the coupling.
+- **A generated double class with a builder** (`->when(...)->returns(...)`). Richest API, and it needs a
+  matcher mini-language, a builder object per double, and a class the user never wrote appearing in every
+  backtrace — to express what a shape of closures expresses with no new machinery.
+- **Loose or "nice" doubles.** Not rejected so much as inexpressible: a double of `now(): Instant` has
+  nothing legal to return by default.
+- **`Core\Time\Clock` injection as the only way to control time.** Strictly honest, mirrors
+  `Core\Random\Seeded`, and taxes every time-aware class in every program with a constructor parameter
+  forever. § 12's attribute is isolate configuration declared at the point of use, and § 3 means it cannot
+  reach production.
+- **Expectation-style verification** (`expects()->once()`). Reads backwards and reports failures from a
+  line that is no longer where the problem is.
+- **Separate `.snap` snapshot files.** Better for very large payloads; worse at the thing that actually goes
+  wrong, which is a reviewer approving a snapshot diff unread.
+- **Wall-clock benchmarks with statistical treatment.** What every other language ships, and it produces a
+  number CI cannot gate on. § 15 costs less and produces one that it can.
+- **A declared per-member cost table for § 15.** Higher fidelity for native-heavy code, at the price of
+  ~450 hand-written cost claims, each a number with no guard test — which
+  [docs/adr/README.md](README.md) § *Measured numbers* forbids.
+- **Leaving property testing, snapshots or mutation to a Tier 1 library** under
+  [0051](0051-standard-library-tiers.md) test 6. Each of the three needs something only the compiler has —
+  a walk over declared types, a source updater, typed-HIR mutants plus coverage-directed selection — so the
+  userland version would be strictly and permanently worse, not merely external.
+- **Failures that escalate past `catch`** via [0020](0020-error-escalation-ladder.md). Strongest guarantee,
+  and it makes user-written assertion helpers, retry wrappers and soft-assert blocks impossible to express.
+  § 5's ledger delivers the guarantee without the loss.
+- **Unifying `.mwlt` with `#[Test]`.** They answer different questions; § 23 says so once so that nobody
+  re-opens it.
+
+## Verification
+
+- **§ 1:** a fixture per compile error the section lists — duplicate name, `static`, non-`void` return,
+  non-`public`, unsatisfiable parameter, `skip: true` — each asserting a diagnostic that names this ADR.
+- **§ 2:** a two-test class where the first writes a `static` and the second asserts it reads its initial
+  value; a suite whose tests each allocate to the cap, asserting the parent budget is what bounds them.
+- **§ 3:** `mwl build` on a file containing a `#[Test]` produces an artifact in which neither the method
+  symbol nor any assertion message string appears; `mwl check` on the same file reports a type error inside
+  the test body.
+- **§ 4:** `assertEquals(int, string)` is a diagnostic; `assertEquals` on a non-`Comparable` object is a
+  diagnostic naming `assertEqualsDeep`; `assertSame` distinguishes two structurally equal objects.
+- **§ 5:** a test that catches its own failure with `catch (Throwable)` is reported failed; the same test
+  using `expectFailure` passes; a user-written helper that catches and rethrows a `Failure` reports the
+  rethrown message.
+- **§ 6:** a failing `assertEquals` on two `secret` strings whose output contains neither value and does
+  contain both byte lengths; a `Failure` caught and its `diff` printed, asserting the same; a `tainted`
+  value containing `\x1b[2J` rendered with the escape neutralised.
+- **§§ 8–9:** a fixture invoked once for a three-test class; a fixture cycle as a diagnostic; a
+  `#[TestWith]` row whose field type mismatches as a diagnostic; three rows reported as three cases.
+- **§ 10:** a double missing a method, and one declaring a method the interface lacks, each a diagnostic; a
+  double satisfying an interface passed to a parameter of that interface type.
+- **§ 12:** two runs of a `#[Test(at:, seed:)]` test producing byte-identical output, on both the Windows
+  and the WSL leg.
+- **§ 13:** a property with a known counterexample shrinks to the minimal one deterministically, and its
+  reported seed reproduces the failure exactly.
+- **§ 15:** the same `#[Bench]` run on the Windows and WSL legs producing **identical** counter rows and
+  differing wall-clock; a bench whose output is checked to carry the advisory label. Guarded in
+  `benches/abi-probe` per [README.md](README.md) § *Measured numbers*.
+- **§ 16:** a test spawning a task it never awaits is reported failed naming the task; a backoff test whose
+  wall-clock is under a millisecond while its virtual clock advanced thirty seconds.
+- **§ 19:** the same private access, co-located and in a separate file, passing and diagnosing
+  respectively.
+- **§ 20:** a test with no assertion reported failed; `skip: true` a diagnostic; a test passing on retry
+  appearing under `FLAKY` and not in the pass count; a suite's report order matching declaration order
+  across repeated parallel runs.
+- **§ 21:** a fixture with a deliberately weak test whose surviving mutant is reported, and a strengthened
+  test that kills it; an assertion that every generated mutant compiles.
+- **§ 22:** the JSON output validated against its committed schema; the JUnit XML validated against the
+  schema CI consumers use.
+
+## Revisiting
+
+- **If `#[Fixture]`'s graph copy becomes the dominant cost of real suites**, the answer is not to relax § 2
+  but to add a copy-on-write path for immutable fixtures — measured first, per
+  [README.md](README.md) § *Measured numbers*.
+- **If `assertEqualsDeep` turns out to be what people always reach for**, that is evidence
+  [0013](0013-comparable-interface.md)'s no-fallback rule is costing more than it buys in this one context,
+  and the tradeoff should be re-examined there rather than worked around here.
+- **If § 15's counters prove a poor proxy for real cost** on native-heavy code — measurable by correlating
+  them against callgrind counts on the Linux leg — the rejected per-member cost table becomes worth its
+  maintenance burden after all.

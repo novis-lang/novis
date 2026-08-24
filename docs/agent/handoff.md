@@ -6,37 +6,29 @@ agent are in [AGENTS.md](../../AGENTS.md); `python tools/brief.py` is the rest o
 
 ## State
 
-**`Core\Json::decodeAs<T>` runs**, so spec § 6 is whole and `examples/json.mwl` produces its frozen
-output. Stage 3 is six of seven fixtures; `examples/collect.mwl` is the first that does not.
+**The live path is unchanged: `Core` breadth for Stage 3.** Six of seven fixtures produce their frozen
+output; `examples/collect.mwl` is the first that does not. Nothing in the tree changed this session.
 
-**Three files that every slice lands in were split, and nothing else changed** — 1291 tests before and
-after each commit. `mwl_types::expr`, `mwl_syntax::parser` and `mwl_ir::lower::lower_expr` are now a
-directory, a directory and a dispatch of seventeen methods; the seams are ADR- and grammar-shaped, and
-each `mod.rs` header states the charter that keeps it from growing back. AGENTS.md's length-target table
-carries the rule, and the playbook's *Splitting a file that got too big* carries the mechanism. What this
-changes for a reader: the checker's rules are in `expr/{args,assign,calls,iteration,literals,members,
-operators,quals}.rs`, the grammar in `parser/{ty,expr,stmt,decl}.rs` with its tests mirroring it, and a
-`lower_expr` arm's reasoning is now its method's doc comment.
-
-- **A `Core` member can now be handed the class its call site wrote.** The roster is
-  `mwl_stdlib::registry::WRITTEN_CLASS_MEMBERS` (one entry), and its docs own the ABI: the descriptor is
-  argument 0, so the helper's `args: [N]` is one more than the row's `params`. The checker records it on
-  `ResolvedCall::written_class`; `mwl-ir` emits an `InstKind::ClassDescConst` ahead of the arguments.
-- **`mwl_runtime::CodecField` is the one shared codec record** — key, slot, constructor position, erased
-  type, nullability — produced by `mwl_types::derive`, joined to the slot order in
-  `mwl_ir::lower::lower_file`, consumed by `mwl_stdlib::json`. `mwl_types::derive::DerivedField` is the
-  declaration-side half (it carries the property *name*, not a slot).
-- **`mwl_runtime::construct` is how native code runs a class's constructor** — the transfer-direction
-  twin of `call_closure`'s borrow direction; its own doc comment owns the ownership rule.
-- What the decoder still owes is `mwl_stdlib::json`'s gaps 2, 3 and 6: no enum/`decimal`/`Instant`/
-  `array`/nested-class field, no parameter default making a key optional, no dotted issue path.
-- Verified: `python tools/verify.py` green, 1291 tests, 324 `.mwlt` cases. The refcount edges added for
-  `decodeAs` are `valgrind`-clean on the success path; a *throwing* `decodeAs` in a loop still loses one
-  block per iteration, sized exactly `literal + 16`, which is the backlog item below.
+- **[ADR 0079](../adr/0079-testing-is-a-language-feature.md) is written and nothing is built.** It designs
+  the testing capability MWL programs use — `#[Test]` compiling to a table, isolate-per-test, generic
+  assertions, closure-shape doubles, `#[Fixture]`, `#[TestWith]`, property testing, inline snapshots,
+  `#[Bench]`, `mwl test --mutate`. Its § 24 is the milestone table; the plan's M4/M5/M8/M10 sections now
+  each name their slice of it. **Do not start it while Stage 3 is open** — the assertions land at the M4S
+  tail, after `Core` breadth.
+- It **amends two ADRs**, both folded into their bodies: [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+  gains a *counting* mode on its existing probe sites (statements, calls, allocations, bytes, GC cycles —
+  bit-identical across machines, which is what `#[Bench]` reports and what CI can gate on), and
+  [0026](../adr/0026-performance-measurement-methodology.md)'s *Scope* now says user-program benchmarking
+  is 0079's, not its.
+- `.mwlt` is untouched and stays MWL's own conformance format ([0079](../adr/0079-testing-is-a-language-feature.md) § 23).
+  `crates/mwl-test`'s module doc is still the one home for it.
+- Verified: `python tools/check-links.py` clean across 92 files, `python tools/verify.py` green. The plan's
+  status block was deliberately **not** edited — 0079 is scheduled, not in flight, and `Open now` is
+  already 8× its size target.
 
 ## Next
 
-**`Core\Path` — spec § 11.** It is the cheapest slice inside `examples/collect.mwl`: `join` (variadic,
+**`Core\Path` — spec § 11.** Still the cheapest slice inside `examples/collect.mwl`: `join` (variadic,
 which exists), `basename({withoutExtension})`, `extension(): ?string`, `SEPARATOR`, and no new
 dependency. `docs/agent/loop-goal.md` § *Standing decisions* has the two-legs rule for `SEPARATOR` — a
 case asserting a built path must normalize it.
@@ -58,3 +50,6 @@ case asserting a built path must normalize it.
   naming that ADR rather than reading slot 1, so an issue's own fields are unreadable from MWL.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
   *Known gap*: 50 loop iterations of a throwing `Core\Json::decode("…")` inside a `try` lose 50 blocks.
+- **[ADR 0079](../adr/0079-testing-is-a-language-feature.md)'s first slice, after Stage 3** — `#[Test]`
+  parsing plus the compile-time table (§ 1) and the generic `Core\Test` assertion roster (§ 4). Its
+  *Verification* section is the fixture list.

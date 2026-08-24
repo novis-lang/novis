@@ -7,8 +7,12 @@
   `benches/abi-probe/tests/perf_guards.rs` (unchanged by this ADR) and from
   [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s in-language profiler
   exposed to *MWL programs* (also unchanged; that ADR is about profiling code written in MWL, this one is
-  about profiling the compiler/runtime itself).
-- **Relates to:** 0002, 0004, 0006, 0018
+  about profiling the compiler/runtime itself). **Benchmarking an MWL program's own code** is likewise not
+  this ADR's: it is [ADR 0079](0079-testing-is-a-language-feature.md) § 15, which reports ADR 0018's
+  deterministic counters rather than callgrind, because callgrind has no native Windows build and cannot
+  resolve symbols inside JIT frames. The two remain distinct measurements of distinct things — a counter
+  falls between MWL releases as the optimiser improves, which is the very trend this ADR exists to track.
+- **Relates to:** 0002, 0004, 0006, 0018, 0079
 - **Validated by:** `benches/abi-probe/examples/callgrind_spike.rs`, run under `valgrind --tool=callgrind`
   3.22.0 in WSL (Ubuntu on the Windows host also used for `x86_64-pc-windows-msvc` CI), against a
   Cranelift 0.128.4 JIT-compiled 8-frame call chain (the same trampoline machinery

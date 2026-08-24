@@ -6,7 +6,7 @@
   the probe-emission points added to `mwl-codegen`, the `Ctx` fields that back them, and the coverage/trace/
   profile output formats
 - **Relates to:** 0002, 0004, 0005, 0006, 0016
-- **Amended by:** 0041, 0064, 0076 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0041, 0064, 0076, 0079 — each fold is applied below; this body states the current rule.
 
 > **In short:** MWL gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
 > deterministic per-call profiler — enabled with one `mwl.toml` directive or one `Core\Debug` call, exported
@@ -183,6 +183,27 @@ production sampling view vs. an opt-in exact call graph for a specific debugging
 not fold one into the other. `mwl dap`'s breakpoints stay on the safepoint poll itself, unrelated to the
 per-statement/per-call probes added here — a debugged request may or may not also be collecting coverage or
 a trace, and the two mechanisms are independent bits, not tiers of the same thing.
+
+### The probes count as well as time, and three consumers read the counters
+
+Each probe site has a **counting** mode beside its timing one, selected by its own bit in the same `Ctx`
+bitset and costing the same already-measured flag check. What it accumulates is MWL's own semantic work —
+statements executed, calls made, allocations, bytes attributed, GC cycles — never a CPU's instructions or a
+clock reading. That distinction is the point: a count of statements is **bit-identical across machines,
+operating systems and architectures**, where a time is not, so it is a number CI can gate on.
+
+`bytes` costs no new instrument. Memory must already be attributable to a request under an enforceable cap
+([ADR 0004](0004-memory-for-simplicity.md), [ADR 0006](0006-isolated-script-execution.md)); this reads that
+accounting rather than adding a second one. No per-`Core`-member cost table exists or will: a hand-written
+claim about what a native member costs would be a number with no guard test, which
+[README.md](README.md) § *Measured numbers* forbids.
+
+One stream, three consumers — coverage above, [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s
+timeline, and [ADR 0079](0079-testing-is-a-language-feature.md) § 15's `#[Bench]`. A fourth number would be a
+fifth place to look. The counters are comparable across machines but **not across MWL versions**, since M12's
+optimising tier will eliminate work; comparing MWL's own releases is
+[ADR 0026](0026-performance-measurement-methodology.md)'s question and uses callgrind, which is why the two
+do not overlap.
 
 ## Consequences
 

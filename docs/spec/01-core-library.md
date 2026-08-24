@@ -68,9 +68,11 @@ compile-time table with M4S's other attribute pass, the matcher with M7.
 `Core\Program` needs [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)'s `autoload`,
 `Core\Ast` needs [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s inert-AST
 surface, `Core\Attributes`' retrieval body is M8 by [ADR 0046](../adr/0046-attributes-shape-literal-metadata.md)
-(its `#[...]` *syntax* is M4), and `Core\Reflect`, `Core\Decimal`, `Core\BigInt` and `Core\Test` want a
-finished object representation under them. They land with whichever milestone closes their dependency, to
-this same contract.
+(its `#[...]` *syntax* is M4), and `Core\Reflect`, `Core\Decimal` and `Core\BigInt` want a finished object
+representation under them. They land with whichever milestone closes their dependency, to this same
+contract. `Core\Test` is the one entry whose schedule is already fixed rather than dependency-driven:
+[ADR 0079](../adr/0079-testing-is-a-language-feature.md) § 24 names the milestone for each of its pieces,
+from the assertions at the M4S tail to `#[Bench]` and mutation testing at M10.
 
 ---
 
@@ -793,10 +795,17 @@ same shape rules.
 | `Core\Router` | `match(Http\Method, tainted string): ?Router\Match` and `url(string $name, array<string, mixed>): string` (**launder**, URL path), over a table built while compiling from `#[Route]`. A duplicate route, a `{param}` with no matching method parameter and an unknown literal `url()` name are compile errors | [0077](../adr/0077-compile-time-routing.md) |
 | `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | [0054](../adr/0054-decimal-scalar-type.md) |
 | `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md) |
-| `Core\Test` | `assert(bool, {message?})`, `assertEquals`, `assertThrows(callable, string $class)`, `assertMatches`. The runner is M10 tooling, not this surface | — |
+| `Core\Test` | the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `assertCompletes`, `assertMatchesInline` and `request`. Every one is subject-first and generic where it compares | [0079](../adr/0079-testing-is-a-language-feature.md) |
 
 `Core\Reflect::typeOf` is the single replacement for PHP's 14 `is_*` predicates plus `gettype`: they are
 only meaningful on a `mixed`, and the checker already knows every other case.
+
+**`Core\Test` is a surface plus a compiler feature**, which is why it sits here rather than in Part I. Its
+members are ordinary `Core` members obeying [ADR 0063](../adr/0063-core-api-conventions.md); what is not
+ordinary is that `#[Test]`, `#[Fixture]`, `#[TestWith]`, `#[Property]` and `#[Bench]` are read while
+compiling, that `assertEquals<T>` makes a type-mismatched comparison a compile error, and that each test
+runs in its own isolate. [ADR 0079](../adr/0079-testing-is-a-language-feature.md) owns all of that,
+including which milestone each piece lands in; this file fixes only the roster's shape.
 
 **`Core\Serialize::decode` is a `tainted` sink**, which is the whole reason the class is worth having
 rather than deferring to `Core\Json`. `unserialize()` on attacker-controlled bytes is PHP's most

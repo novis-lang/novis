@@ -111,6 +111,7 @@ so you never have to open this file to route a topic.
 | `mwl fmt`'s style — indentation, braces, quoting, trailing commas, why it never reflows | [0039](0039-canonical-code-formatting.md) |
 | The VS Code extension's feature catalog, why a minimal `mwl-lsp` ships in M4B, `mwl-syntax`'s resilient parse mode | [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) |
 | Writing a test case — the `.mwlt` sections, `--EXPECTF--`'s escapes, `--ORACLE--`/`--ORACLE-DIVERGES--`, how `mwl test` decides pass or fail, importing a `.phpt` | [crates/mwl-test/src/lib.rs](../../crates/mwl-test/src/lib.rs)'s module doc — the one home for the format |
+| Testing a program *written in* MWL — `#[Test]`, `Core\Test`, assertions, doubles, fixtures, parameterized cases, property testing, snapshots, `#[Bench]`, mutation testing, why PHPUnit's mechanism does not port | [0079](0079-testing-is-a-language-feature.md) — distinct from the `.mwlt` row above, which is MWL's own conformance suite |
 | Third-party licenses, attribution, what `mwl info` prints, whether a new dependency's license may ship | [0065](0065-third-party-attribution-and-mwl-info.md) |
 | Updating a crate, the Rust toolchain, a CI action or the PHP oracle; SemVer, what a break costs a release, deprecation, MSRV, pinning, a stale dependency | [0068](0068-dependency-currency-and-the-version-contract.md) for the policy; [docs/agent/dependency-update.md](../agent/dependency-update.md) for the procedure — a pass the user fires by hand |
 | Cross-machine performance history, callgrind instruction counts, why CI guards use wall-clock ratios | [0026](0026-performance-measurement-methodology.md) |
@@ -218,6 +219,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0076](0076-observability-export.md) | The runtime exports what ADRs 0018/0041 already measure, plus a three-member `Core\Metrics`; a label refuses `tainted`, and a full series registry refuses new series rather than evicting old ones | Accepted |
 | [0077](0077-compile-time-routing.md) | `#[Route]` builds a route table while compiling, making a duplicate route, an unbound placeholder and a stale `url()` name compile errors; the router stops at matching | Accepted |
 | [0078](0078-config-reload-and-control-socket.md) | `mwl.toml` reloads over a local-socket-only control API, validated whole before it is published; every directive says whether it needs a restart, and the extension set joins the key both compiled-unit caches share | Accepted |
+| [0079](0079-testing-is-a-language-feature.md) | `#[Test]` builds the runner's table while compiling and every test is its own isolate; assertions are generic, a failure is catchable but ledgered, and doubles are closure shapes checked against an interface | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

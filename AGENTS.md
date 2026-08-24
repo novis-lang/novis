@@ -227,6 +227,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0077](docs/adr/0077-compile-time-routing.md)).
 - **The runtime exports what it already measures, and a metric label refuses `tainted`**
   ([0076](docs/adr/0076-observability-export.md)).
+- **A test is a `#[Test]` method whose table is built while compiling, and every test is its own isolate** —
+  assertions are generic, so a type-mismatched comparison never runs
+  ([0079](docs/adr/0079-testing-is-a-language-feature.md)).
 - **Coverage, tracing and profiling are always-emitted, flag-gated probes, never a second compiled tier**
   ([0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)); GC and spawn events
   are instrumented in their own routines, off the hot path

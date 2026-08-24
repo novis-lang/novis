@@ -659,6 +659,12 @@ sections**, so the M11 importer is mechanical rather than a rewrite. Both are bu
 `--EXPECTF--`'s escapes match, and why a case runs in a subprocess. What is left here is the corpus, and
 the **Verify** list below is what it has to cover.
 
+**Distinct from that, and landing at this milestone's tail with M4S:** the testing capability MWL *programs*
+use — `#[Test]` and the table the compiler builds from it, `#[Fixture]`, `#[TestWith]`, the generic
+`Core\Test` assertion roster, the ledger behind a catchable failure, and the human/JUnit/JSON reporters.
+[ADR 0079](adr/0079-testing-is-a-language-feature.md) owns all of it, including § 24's milestone table for
+the pieces that land later; `.mwlt` and `#[Test]` answer different questions and are never unified (§ 23).
+
 **Verify:** hand-written conformance suite ≥ 1000 `.mwlt` cases green, including `uint` at `0`, `i64::MAX`,
 `i64::MAX + 1` and `2^64 − 1`; every conversion in ADR 0007 both succeeding and throwing; overflow throwing
 rather than promoting to `float`; key order preserved across insert, delete, re-insert and every sort
@@ -752,7 +758,11 @@ cross-core worker dispatch with deep-copy-or-move, structured concurrency (a tas
 roster — `::all` over a shape literal of `fn` literals binding each field's own type, `::map` (what
 `parallel_map` becomes, subject-first), `{limit, deadline}` as the one options shape in place of a
 `timeout` wrapper, and `race` deferred with a named future spelling. That ADR also fixes what cancellation
-does: no user code runs, native teardown does, and no call returns with a child still running.
+does: no user code runs, native teardown does, and no call returns with a child still running. The isolate
+this milestone builds is also what makes `mwl test` parallel: from here every `#[Test]` runs in its own
+isolate sharing nothing but compiled code, the runner owns the test's task tree, and `#[Test(at:, seed:)]`
+puts the clock and the generator under the test's control
+([ADR 0079](adr/0079-testing-is-a-language-feature.md) §§ 2, 12, 16).
 `serialize()`/`unserialize()` share this milestone's deep-copy-or-move graph walk, externalized to MWL's own
 closed byte format ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)); `unserialize()` refuses
 anything not in that format, with no `__serialize`/`__unserialize`/`__sleep`/`__wakeup` hook. That same graph
@@ -898,7 +908,10 @@ storm against one hot, `mtime`-validated file is bounded by `revalidate_freq`, n
 **The roster this milestone builds is [ADR 0051](adr/0051-standard-library-tiers.md) § 3** — which class is
 Core, which is a capability-gated native subsystem, which is an extension, and which of PHP's extensions
 has no equivalent at all. That ADR is the one home for the list; this paragraph covers only what M8 must
-decide beyond it.
+decide beyond it. The capability-bearing half of testing lands with the capabilities it needs:
+`#[Test(db:)]`'s rolled-back transaction, `Core\Test::request`'s in-process dispatch through the compiled
+route table, `#[Test(server: true)]`'s ephemeral listener, and inline snapshots with their source updater
+([ADR 0079](adr/0079-testing-is-a-language-feature.md) §§ 14, 17, 18).
 
 Regex is two-tier, and the tiering is a rule rather than an implementation detail: a linear-time engine by
 default, backtracking only for patterns it cannot express and only under a throwing step budget, with a
@@ -1043,7 +1056,12 @@ probe mechanism landed with M3
 ([ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), a deterministic per-call
 profiler distinct from the sampling one above), plus a speedscope-evented export rendering that same
 trace data — now tagged `call`/`gc`/`spawn` — as one scrollable timeline
-([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)).
+([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)). The same probe sites, in their
+**counting** mode, are what `mwl test --bench` reports: statements, calls, allocations, bytes and GC cycles,
+bit-identical across machines and OSes and therefore gateable in CI, with wall-clock printed as advisory
+only ([ADR 0079](adr/0079-testing-is-a-language-feature.md) § 15). `mwl test --mutate` lands here too,
+generating type-valid mutants from typed HIR and running each against only the tests the coverage data says
+touch the mutated line (§ 21).
 
 **Also in this milestone: the rest of the two editor clients.** M4B already shipped `mwl-lsp`'s minimal
 slice and `editors/vscode`'s baseline; what lands here per
