@@ -6,7 +6,8 @@
   `script.spawn` capability, per-tree limit accounting
 - **Validated by:** `benches/abi-probe/src/process.rs` + `tests/perf_guards.rs`
   (`an_os_process_costs_orders_of_magnitude_more_than_a_task`)
-- **Amended by:** 0012, 0021, 0023, 0064 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0012, 0021, 0023, 0064, 0072, 0073 — each fold is applied below; this body states the
+  current rule.
 - **Relates to:** 0002, 0003, 0004, 0005, 0008
 
 > **In short:** `spawn script 'file.mwl'` runs another file in-process as a child isolate —
@@ -272,8 +273,16 @@ state-bleed suite for isolates, and that a fix on either path cannot forget the 
 Reopen if a use case needs an isolate to **outlive its parent** — a fire-and-forget background job that
 survives the response. That is a different feature with different lifetime and accounting rules (whose
 budget does it spend after its parent is gone?), and it should not be smuggled in by relaxing the tree
-accounting here. The same applies to *persistent* isolates reused across requests: attractive for warm
-state, and it directly contradicts strict shared-nothing, so it needs its own argument in its own ADR.
+accounting here. It is **not** what
+[ADR 0072](0072-core-task-structured-concurrency.md) § 6's `afterResponse` does: there the *connection*
+ends and the request tree does not, so the work still spends the tree's budget under the rule above, which
+is exactly why that case was affordable and this one is still open. The same applies to *persistent*
+isolates reused across requests: attractive for warm state, and it directly contradicts strict
+shared-nothing, so it needs its own argument in its own ADR.
+
+A **scheduled** run ([ADR 0073](0073-scheduled-work-is-config.md)) needs no relaxation either, and is not
+an exception to the budget rule: it is a second **root** isolate, built by the same `Isolate` code path as
+an inbound request, spending `[limits]` capped by `[limits.hard]` like any other root.
 
 Verification, in the order it becomes possible:
 

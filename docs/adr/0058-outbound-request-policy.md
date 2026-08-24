@@ -9,8 +9,8 @@
   and § 3's launderer roster gains `Core\Http::allowUrl`, which is the first launderer whose check is
   partly a *runtime* one. [0005](0005-config-changeability.md) — the `net.connect` grant gains an address
   policy, not just a host list.
-- **Amended by:** 0067 — the fold is applied below; this body states the current rule.
-- **Relates to:** 0051, 0055, 0057, 0067
+- **Amended by:** 0067, 0074 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0051, 0055, 0057, 0067, 0074
 
 > **In short:** SSRF is structurally an injection — untrusted data reaching a sink — but unlike the others
 > it cannot be settled at compile time alone, because the dangerous part is what a hostname *resolves to*
@@ -93,10 +93,16 @@ regrettable.
 
 ### 4. Redirects
 
-Redirects are **not followed by default**. When enabled they are capped in count, and every hop is
-re-checked and re-pinned by § 2's procedure. A redirect to a denied address fails the request rather than
-being silently dropped from the chain — a redirect is the standard way to defeat a check applied only to
-the first URL.
+Redirects are **not followed by default**. When enabled they are capped in count — the cap is
+`[http.client] max_redirects`, defaulting to `0`
+([ADR 0074](0074-http-defaults-safe-and-finite.md) § 5) — and every hop is re-checked and re-pinned by
+§ 2's procedure. A redirect to a denied address fails the request rather than being silently dropped from
+the chain — a redirect is the standard way to defeat a check applied only to the first URL.
+
+A **retry** is the opposite case and must not re-resolve: every attempt of a retried call reuses the
+`Target` § 2 pinned, so retrying opens no second resolution for a rebinding attack to poison. Both the
+redirect chain and every retry attempt are covered by one `deadline`
+([ADR 0074](0074-http-defaults-safe-and-finite.md) §§ 5–6).
 
 ### 5. The policy lives in the capability, not in the client
 

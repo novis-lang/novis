@@ -5,7 +5,9 @@
 - **Scope:** the directive registry, `Core\Config::set`/`::get`, per-request limit enforcement
 - **Amends:** [0004](0004-memory-for-simplicity.md) — the enforceable per-request cap is now the *ceiling*
   directive, not the default one
-- **Amended by:** 0064 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0064, 0072, 0073, 0074, 0076 — each fold is applied below; this body states the current
+  rule. The registry's full block list, with the ADR that argues each block's directives, is
+  [0064 § 2a](0064-configuration-file-format.md).
 
 > **In short:** `mwl.toml` states defaults, not ceilings. Every directive carries a changeability
 > class: `System` (settable in `mwl.toml` only), `Runtime` (`mwl.toml` gives the default and a request
@@ -97,6 +99,15 @@ will not perform.
 Everything read once at boot, and everything whose enforcement is the reason it exists: the `[[extension]]`
 entries and their hash pins, `cache.dir`, `opcache.validate`, the per-app blocks, and `[limits.hard]` itself. A directive
 being `System` is what makes it a limit; there is no separate notion of a "locked" value.
+
+A second pattern has since shown up often enough to name: **a directive is `System` when changing it from
+inside a request would affect something other than that request** — every `[[schedule]]` key
+([0073](0073-scheduled-work-is-config.md) § 4), `[deferred] max_concurrent`
+([0072](0072-core-task-structured-concurrency.md) § 7) and both observability blocks
+([0076](0076-observability-export.md) § 6) are `System` for that reason rather than because they are read
+at boot. A response header is the counter-example and is ordinary `Runtime`: a request may set any of
+[0074](0074-http-defaults-safe-and-finite.md)'s policy directives for itself, because it could already
+write the header directly and the change dies with the request.
 
 ## Consequences
 

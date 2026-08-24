@@ -67,6 +67,12 @@ so you never have to open this file to route a topic.
 | Restricting a parameter to a fixed set of values (`#[ExpectedValues]`), `"a"\|"b"` literal types, a subset of an enum's cases | [0047](0047-literal-and-enum-case-types.md) |
 | `#[Attribute]`-style metadata, annotations, `Core\Attributes`, why there's no attribute base class | [0046](0046-attributes-shape-literal-metadata.md) |
 | Hydrating a class from JSON or a database row — `#[Json\Derive]`, `#[Db\Derive]`, `JsonSerializable`, `PDO::FETCH_CLASS`, serde-style derives, reporting every bad field of a submitted form | [0071](0071-derived-codecs.md) |
+| Routing — `#[Route]`, URL patterns and `{id}` placeholders, reverse URL generation, why the router does not dispatch, `Core\Router` | [0077](0077-compile-time-routing.md) |
+| Running several things at once — `Task::all`/`::map`, `parallel_map`, a task deadline, cancellation, work after the response is sent, `fastcgi_finish_request`, why there is no job queue | [0072](0072-core-task-structured-concurrency.md) |
+| Cron, scheduled jobs, a nightly task, running something once across a fleet, `[[schedule]]` | [0073](0073-scheduled-work-is-config.md) |
+| Response security headers, CORS, cookie defaults, HSTS, CSP; and outbound timeouts, retries, backoff, idempotency keys | [0074](0074-http-defaults-safe-and-finite.md) |
+| Rate limiting, throttling logins, per-tenant quotas, `Retry-After`, `429`, load shedding | [0075](0075-core-ratelimit.md) |
+| Metrics, Prometheus, OpenTelemetry, distributed tracing, `traceparent`, `Core\Metrics`, label cardinality | [0076](0076-observability-export.md) |
 | Regex, `preg_*`, `Core\Regex`, ReDoS, backreferences, lookaround | [0056](0056-regex-engine-policy.md) |
 | Why a literal regex/URI/format string is checked by `mwl check`, compile-time preparation | [0057](0057-intrinsic-literal-folding.md) |
 | `enum`, enum cases, backing type, anything enum-shaped | [0010](0010-enums-are-a-value-type.md) |
@@ -196,6 +202,12 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0069](0069-array-combination-is-key-type-independent.md) | Arrays combine by the member's name, never by a key's type: `overlay`/`underlay`/`appendAll`, no `merge`, and `array + array` does not compile | Accepted |
 | [0070](0070-duration-literals.md) | A duration is a literal — `30s`, `1h30m` — typed `Duration` and folded to a constant, over one grammar shared with `Duration::parse` and `mwl.toml` | Accepted |
 | [0071](0071-derived-codecs.md) | `#[Json\Derive]`/`#[Db\Derive]` generate a codec from a class's declared properties, and a failed decode reports every bad field at once | Accepted |
+| [0072](0072-core-task-structured-concurrency.md) | `Core\Task::all`/`::map` return with nothing still running, cancellation runs no user code, and `afterResponse` keeps the request tree alive past the connection | Accepted |
+| [0073](0073-scheduled-work-is-config.md) | Scheduled work is a `[[schedule]]` block firing a `spawn script`, with no API surface and a mandatory `scope` of `"fleet"` or `"host"` | Accepted |
+| [0074](0074-http-defaults-safe-and-finite.md) | HTTP response defaults are secure with nothing configured, and an outbound call has no spelling for "wait forever"; retry is opt-in, jittered and deadline-covered | Accepted |
+| [0075](0075-core-ratelimit.md) | `Core\RateLimit` limits what only the application knows, over the shared store; the approximate per-core tier is a differently-named member, and edge limiting is the proxy's | Accepted |
+| [0076](0076-observability-export.md) | The runtime exports what ADRs 0018/0041 already measure, plus a three-member `Core\Metrics`; a label refuses `tainted`, and a full series registry refuses new series rather than evicting old ones | Accepted |
+| [0077](0077-compile-time-routing.md) | `#[Route]` builds a route table while compiling, making a duplicate route, an unbound placeholder and a stale `url()` name compile errors; the router stops at matching | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

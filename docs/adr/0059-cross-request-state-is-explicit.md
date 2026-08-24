@@ -7,8 +7,8 @@
   Redis backend's own configuration, both of which M8 designs.
 - **Amends:** [0004](0004-memory-for-simplicity.md) — § 3 records a second, deliberate exception to
   "memory is attributable to a request": cache memory is charged to a **core**, with its own cap.
-- **Amended by:** none.
-- **Relates to:** 0006, 0012, 0023, 0051, 0052
+- **Amended by:** 0075 — the fold is applied below; this body states the current rule.
+- **Relates to:** 0006, 0012, 0023, 0051, 0052, 0073, 0075, 0076
 
 > **In short:** APCu's cross-process shared segment is closed by [ADR 0052](0052-closed-doors.md) § 3, and
 > what replaces it is a **per-core in-process cache** — one copy per core, no coherence between them. That
@@ -89,7 +89,15 @@ applies to locks, rate limits, idempotency keys and any counter whose value is r
 shared tier or the database.
 
 This is enforced rather than documented: `Core\Session`'s configurable backends do not include the local
-tier as an option.
+tier as an option. Two of the things named above now have their own homes over the shared tier rather than
+being left to the application: **rate limits** are [ADR 0075](0075-core-ratelimit.md)'s
+`Core\RateLimit::consume`, and the **fleet lease** a scheduled job takes is
+[ADR 0073](0073-scheduled-work-is-config.md) § 3's.
+
+The test this section states is a test of *what a program relies on*, not of where bytes live, and one
+thing that looks like a violation is not one: a per-core **metrics** registry
+([ADR 0076](0076-observability-export.md) § 5) is mutable state outliving a request, and it passes, because
+no program ever reads it to make a decision and its values are approximate aggregates merged at scrape.
 
 ## Consequences
 

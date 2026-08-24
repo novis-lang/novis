@@ -11,8 +11,8 @@
   0018 already committed to, and does not cover coroutine suspend/resume events, an external/live attach
   mechanism, or memory/allocation profiling — all named and deliberately deferred, see *Revisiting*.
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-- **Amended by:** 0067 — the fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0006, 0040, 0067
+- **Amended by:** 0067, 0076 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0006, 0040, 0067, 0076
 
 > **In short:** ADR 0018's deterministic profiler exports aggregate Callgrind totals (whole-run self/inclusive
 > time per function, no per-instance timeline) and a per-instance trace only as MWL-native NDJSON, which no
@@ -112,6 +112,15 @@ Callgrind (aggregate profile), Clover/lcov (coverage) and MWL-native NDJSON (raw
 ADR 0018 — this is an additional export, not a replacement. The exact CLI flag spelling is left to whoever
 implements M10's exporters (see *Revisiting*), the same way ADR 0018 already left exact Clover/lcov shape to
 implementation.
+
+### 5. A fifth consumer, and which kinds may become a span
+
+[ADR 0076](0076-observability-export.md) reads these same four kinds for **production** telemetry, adding no
+instrumentation of its own. It is bound by one rule stated here because this section owns the taxonomy:
+**a `call`-kind event never becomes a distributed-tracing span** — exactly four things do, the request or
+scheduled-run root, a `query`, an outbound HTTP call and a `spawn` — and `gc` becomes a metric rather than a
+span, because a collection pause is not a unit of work in a request's causal graph. A trace with one span
+per function call is unstorable, and admitting one would put export cost on the path ADR 0018 keeps cheap.
 
 ## Consequences
 

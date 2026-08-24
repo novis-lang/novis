@@ -11,8 +11,8 @@
   is now only half the answer: this ADR states what replaces the mechanism PHP actually uses
   (`spl_autoload_register`), which § 6 never named. [`docs/spec/00-overview.md`](../spec/00-overview.md) § 2
   gains `autoload` beside `require`/`spawn script` — that document owns the grammar, this ADR owns why.
-- **Amended by:** none.
-- **Relates to:** 0008, 0017, 0021, 0025, 0029, 0042, 0046, 0048, 0052
+- **Amended by:** 0077 — the fold is applied below; this body states the current rule.
+- **Relates to:** 0008, 0017, 0021, 0025, 0029, 0042, 0046, 0048, 0052, 0077
 
 > **In short:** PHP's autoloader does two jobs. *"Which file declares this name?"* becomes `autoload`, a
 > top-level declaration with literal paths resolved **relative to the file that declares it** — no manifest
@@ -148,6 +148,12 @@ Answering the query requires parsing and collecting declarations from every file
 — the one place resolution is not lazy. Type checking and lowering stay lazy: a discovered class nobody
 calls is never checked past its declaration and never reaches codegen. **A program containing no
 `implementing<T>()` call never performs the scan.**
+
+**The scan has a second caller**, under the identical opt-in rule: the compile-time route table of
+[ADR 0077](0077-compile-time-routing.md), which filters the same enumeration by a `#[Core\Route]`
+attribute instead of by an implemented interface. A program calling neither `implementing<T>()` nor
+`Core\Router::match`/`::url` performs no scan; a program calling either pays § 5's directory-listing
+dependency once, not twice.
 
 ### 4. What is deliberately absent
 

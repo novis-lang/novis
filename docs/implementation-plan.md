@@ -10,10 +10,11 @@
 > **Status:** 2026-08-24. **M3 is done**, and the loop goal's Stages 1-2 plus `examples/report.mwl` are
 > green on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
 > array, and building that array without its only real consumer produces one that must be rebuilt. M4's
-> language surface is now driven by what Stage 3's `Core` work needs. Docs are running a second track: a
-> full `Core` roster review against ADR 0063 landed, then seven `Core` additions were decided with the
-> user and queued in `docs/agent/core-additions.md`, one ADR per session. **0071 (derived codecs) is
-> written**; six queued entries remain, `Core\Task` next.
+> language surface is now driven by what Stage 3's `Core` work needs. The docs track that was running
+> beside it is **finished**: a full `Core` roster review against ADR 0063, then all seven `Core` additions
+> decided with the user, written as **ADRs 0071–0077** — derived codecs, `Core\Task`, `[[schedule]]`, HTTP
+> defaults both directions, `Core\RateLimit`, observability export, compile-time routing. The queue file is
+> deleted; nothing is owed from that track.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -44,10 +45,10 @@
 > a callback-bound result type, a `Core`-owned enum and an absent option all work end to end.
 > `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 § 2 granularity. Then
 > `crates/mwl-test`/`mwl test`. Ahead of that, three re-opened M1 grammar slices (literal type
-> atoms, `autoload`, the duration literal) — see M1. In docs: six `Core` additions still queued in
-> `docs/agent/core-additions.md`, one ADR per session; `docs/spec/02-php-migration.md` is 31% classified
-> (strings, arrays, numbers, conversions), the rest one pass per PHP domain, reported by
-> `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
+> atoms, `autoload`, the duration literal) — see M1. In docs, one thing remains:
+> `docs/spec/02-php-migration.md` is 31% classified (strings, arrays, numbers, conversions), the rest one
+> pass per PHP domain, reported by `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's
+> `by`-delegation.
 >
 > **Blocking:** nothing external. **Stages 1, 2 and `report.mwl` are green on both legs** — byte for
 > byte on Windows and under WSL against a Linux build, `valgrind --leak-check=full` clean on all twelve
@@ -610,7 +611,11 @@ M1's duration literal ([ADR 0070](adr/0070-duration-literals.md)), so build the 
 the same parser reached from a second entry point. `Core\Json` also brings the first **compiler-recognized**
 attribute: [ADR 0071](adr/0071-derived-codecs.md)'s `#[Json\Derive]`, a `mwl-types`→`mwl-ir` pass that emits
 a `Json\Codec` implementation per annotated class, plus the nominal-matching rule that gates it. `#[Db\Derive]`
-is the same pass over a second format and lands with M8.
+is the same pass over a second format and lands with M8. The **second** compiler-recognized attribute lands
+here as well: [ADR 0077](adr/0077-compile-time-routing.md)'s `#[Route]`, whose route table is built by
+filtering [ADR 0061](adr/0061-compile-time-autoload-and-program-discovery.md) § 3's program enumeration and
+whose three compile errors — a duplicate route, a `{param}` with no matching method parameter, an unknown
+literal `url()` name — are the whole point of doing it here. `Core\Router::match` itself waits for M7.
 
 **Verify:** every member in the spec file has a conformance test, and a mechanical check over that file
 enforces the rules that can be checked mechanically — [ADR 0063](adr/0063-core-api-conventions.md)'s
@@ -650,9 +655,14 @@ with no logic duplicated into the extension. The AST panel renders `mwl ast --js
 file.
 
 ### M5 — Concurrency and script isolates (~5 weeks)
-Per-core runtimes, coroutine scheduler, `spawn` / `await` / `all` / `race` / `timeout`, `Channel` with
-backpressure, `parallel_map`, cross-core worker dispatch with deep-copy-or-move, structured concurrency
-(a task tree dies with its parent — no orphans), async-native file I/O, sockets, timers and HTTP client.
+Per-core runtimes, coroutine scheduler, `spawn` / `await` and `Core\Task\Channel` with backpressure,
+cross-core worker dispatch with deep-copy-or-move, structured concurrency (a task tree dies with its parent
+— no orphans), async-native file I/O, sockets, timers and HTTP client. The earlier `all`/`race`/`timeout`/
+`parallel_map` verb list is now [ADR 0072](adr/0072-core-task-structured-concurrency.md)'s `Core\Task`
+roster — `::all` over a shape literal of `fn` literals binding each field's own type, `::map` (what
+`parallel_map` becomes, subject-first), `{limit, deadline}` as the one options shape in place of a
+`timeout` wrapper, and `race` deferred with a named future spelling. That ADR also fixes what cancellation
+does: no user code runs, native teardown does, and no call returns with a child still running.
 `serialize()`/`unserialize()` share this milestone's deep-copy-or-move graph walk, externalized to MWL's own
 closed byte format ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)); `unserialize()` refuses
 anything not in that format, with no `__serialize`/`__unserialize`/`__sleep`/`__wakeup` hook. That same graph
@@ -675,8 +685,12 @@ event with a parent/child overhead split, once ADR 0018's `TRACE`/`PROFILE` bits
 ([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)).
 
 **Verify:** stress tests with 100k concurrent tasks; a deliberate deadlock test proves cancellation
-works; `parallel_map` shows near-linear speedup across cores on a CPU-bound benchmark; ThreadSanitizer
-clean. For isolates: a child cannot read or write a parent variable, global, static, or output buffer, and
+works; `Core\Task::map` shows near-linear speedup across cores on a CPU-bound benchmark; ThreadSanitizer
+clean. [ADR 0072](adr/0072-core-task-structured-concurrency.md)'s own *Verification* section is the one home
+for what `Core\Task` owes, including the two that are easy to skip: a `Task::all` field holding a `callable`
+variable rather than an `fn` literal is a compile error, and a cancelled task's `catch` and cleanup blocks
+do not execute while its arena is still released. For isolates: a child cannot read or write a parent
+variable, global, static, or output buffer, and
 a `Core\Request`/`Core\Server`/`Core\Session` call inside it throws rather than seeing the parent's request
 ([ADR 0012](adr/0012-no-superglobals.md)); a closure, reference or resource is refused at the boundary; a
 cyclic argument crosses without
@@ -691,7 +705,9 @@ or that name a class whose declared properties no longer match, are refused rath
 
 ### M6 — Config, limits, capabilities, disk cache (~3 weeks)
 Directive registry with changeability classes, boot config parsing (TOML via `serde`, with duplicate and
-unknown keys refused — [ADR 0064](adr/0064-configuration-file-format.md)), per-request overlay,
+unknown keys refused — [ADR 0064](adr/0064-configuration-file-format.md); § 2a there is the block list and
+names the ADR that argues each block's directives, including this milestone's new `[deferred]`,
+`[[schedule]]`, `[http.*]`, `[metrics]` and `[trace]`), per-request overlay,
 `Core\Config::set` semantics, capability enforcement at every syscall-touching stdlib entry point, safepoint-driven limit
 enforcement, content-addressed artifact cache with integrity verification and a refusal to use a
 world-writable cache directory — the exact file layout, header format, mmap-verify-then-execute read path
@@ -708,6 +724,13 @@ statically-resolved `require` graph to the host `mwl` binary as plain source, re
 artifact cache with no new mechanism. Scope, the source-not-precompiled-artifacts trade, and why bundling a
 web-serving deployment is explicitly out of scope are all in
 [ADR 0048](adr/0048-portable-single-file-executables.md), the only copy of the reasoning.
+
+**Also here: the boot-time validation the four new blocks owe**, each ADR's own *Verification* section
+being the one home for its list — a `[[schedule]]` entry with no `scope`, a malformed `cron`, a `script`
+outside `script.spawn`'s roots or `scope = "fleet"` with no shared store all refuse to boot
+([ADR 0073](adr/0073-scheduled-work-is-config.md)); `origins = ["*"]` with `credentials = true`, and
+`same_site = "None"` with `secure = false`, are refused at boot and by `Core\Config::set` alike
+([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)).
 
 **Verify:** adversarial suite — a script attempting to widen a capability or set a `System` directive
 fails; `Core\Config::set('memory', '512M')` above the `[limits]` default succeeds and takes effect, above the
@@ -729,7 +752,20 @@ classes populated from it (`Core\Request::query()`/`::post()`/`::cookie()`/`::fi
 [ADR 0012](adr/0012-no-superglobals.md)), returning `tainted string`/`tainted bytes` per
 [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md), multipart and urlencoded body parsing with
 limits, streaming responses, static-file serving, graceful shutdown and zero-downtime reload, structured
-request logging, optional TLS via `rustls`. **Not yet named here:** raw/unparsed body access (a JSON
+request logging, optional TLS via `rustls`.
+
+**Four subsystems land on top of that server, each with its own ADR holding the only copy of its rules.**
+The **response policy** — secure headers, closed CORS and `Secure; HttpOnly; SameSite=Lax` cookies applying
+with nothing configured, every directive `Runtime` so a request may change it for itself
+([ADR 0074](adr/0074-http-defaults-safe-and-finite.md) §§ 1–4). The **`[[schedule]]` ticker**, firing each
+entry as a **root** isolate through the same `Isolate` M5 built, with the fleet lease over the shared store
+([ADR 0073](adr/0073-scheduled-work-is-config.md)). **`Core\Task::afterResponse`**, whose tree stays alive
+past the connection and is bounded by `[deferred] max_concurrent`
+([ADR 0072](adr/0072-core-task-structured-concurrency.md) §§ 6–7). And the **observability export** —
+`Core\Metrics`, the default series, W3C `traceparent` inbound, and spans derived from
+[ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)'s existing event kinds with no probe
+added to ADR 0018's measured path ([ADR 0076](adr/0076-observability-export.md)). **`Core\Router::match`**
+lands here too, over the table M4S compiled. **Not yet named here:** raw/unparsed body access (a JSON
 payload, a webhook body, an arbitrary content-type) — a gap [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)'s *Revisiting* flags for whoever designs `Core\Request`'s full surface at this milestone.
 
 **Also in this milestone: hot-reload of the compiled-unit cache**, which is what makes "no restart to see an
@@ -769,9 +805,18 @@ already built ([ADR 0054](adr/0054-decimal-scalar-type.md)) — including `divEx
 `allocate`, since division is the one place a decimal result may be inexact. `Core\Cache`'s two tiers, the
 copy-in/copy-out rule and the per-core memory cap are [ADR 0059](adr/0059-cross-request-state-is-explicit.md);
 `Core\Http\Client`'s `tainted`-refusing URL parameter, the `Core\Http::allowUrl` launderer and the
-`net.connect` address policy are [ADR 0058](adr/0058-outbound-request-policy.md); the closed
+`net.connect` address policy are [ADR 0058](adr/0058-outbound-request-policy.md), and its finiteness half —
+no spelling for an unbounded wait, jittered opt-in retry under one covering deadline, and a `post` retried
+without an `idempotencyKey` being a compile error — is
+[ADR 0074](adr/0074-http-defaults-safe-and-finite.md) §§ 5–7; the closed
 signed-cookie/CSRF/TOTP/JWT roster and its correct-by-construction constraints are
-[ADR 0060](adr/0060-application-security-protocols.md).
+[ADR 0060](adr/0060-application-security-protocols.md). **`Core\RateLimit`** lands here too — GCRA over the
+shared store as `consume`, per-core and approximate as `shed`, no configuration at all, and an unreachable
+store throwing rather than deciding *allowed*
+([ADR 0075](adr/0075-core-ratelimit.md)); the shared tier's atomic script is ours, since no distributed
+rate limiter exists as a crate. `Core\Http\Client` also gains outbound `traceparent` propagation
+([ADR 0076](adr/0076-observability-export.md) § 2), which is the point at which a trace crosses a service
+boundary at all.
 
 Also: JSON; hashing and crypto (RustCrypto: sha2, blake3, argon2,
 bcrypt, aes-gcm), AEAD-only per ADR 0051 § 3; date/time with PHP-compatible formatting; filesystem and

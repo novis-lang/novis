@@ -186,6 +186,11 @@ the mechanism, the exact spellings rejected, and the reasoning.
   opt-in ([0052](docs/adr/0052-closed-doors.md)).
 - **A closed four-entry roster of application-layer security protocols lives in `Core`**
   ([0060](docs/adr/0060-application-security-protocols.md)).
+- **HTTP defaults are safe inbound and finite outbound** — secure headers and closed CORS with nothing
+  configured, and no spelling for an unbounded outbound wait
+  ([0074](docs/adr/0074-http-defaults-safe-and-finite.md)).
+- **`Core\RateLimit` limits what only the application knows** — per account, per tenant — while edge and
+  flood limiting stay the proxy's ([0075](docs/adr/0075-core-ratelimit.md)).
 
 ### Runtime, tooling and the standard library
 
@@ -208,6 +213,15 @@ the mechanism, the exact spellings rejected, and the reasoning.
 - **Configuration is TOML, in a root-owned `mwl.toml`, read once at boot**
   ([0064](docs/adr/0064-configuration-file-format.md)); it states defaults, not ceilings
   ([0005](docs/adr/0005-config-changeability.md)).
+- **`Core\Task::all`/`::map` return with nothing still running, and `afterResponse` keeps the request tree
+  alive past the connection** — cancellation runs no user code
+  ([0072](docs/adr/0072-core-task-structured-concurrency.md)).
+- **Scheduled work is a `[[schedule]]` block firing a `spawn script`, never an API** — `scope` is mandatory
+  ([0073](docs/adr/0073-scheduled-work-is-config.md)).
+- **`#[Route]` builds the route table while compiling, and the router stops at matching**
+  ([0077](docs/adr/0077-compile-time-routing.md)).
+- **The runtime exports what it already measures, and a metric label refuses `tainted`**
+  ([0076](docs/adr/0076-observability-export.md)).
 - **Coverage, tracing and profiling are always-emitted, flag-gated probes, never a second compiled tier**
   ([0018](docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)); GC and spawn events
   are instrumented in their own routines, off the hot path

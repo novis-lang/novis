@@ -1,0 +1,334 @@
+# ADR 0074 — HTTP defaults are safe inbound and finite outbound, by construction
+
+- **Status:** Accepted
+- **Date:** 2026-08-24
+- **Scope:** the response-policy blocks `[http.headers]`, `[http.cors]` and `[http.cookies]` enforced by the
+  M7 server, their directives and their changeability class; and `[http.client]` plus `Core\Http\Client`'s
+  options shape, in which there is no spelling for *wait forever* and retry is opt-in, jittered and
+  deadline-covered. Not in scope: `Core\Request`'s full surface (M7's own design), the TLS configuration,
+  and [ADR 0058](0058-outbound-request-policy.md)'s address policy, which is unchanged and enforced under
+  everything here.
+- **Amends:** [0064](0064-configuration-file-format.md) — four new blocks.
+  [0005](0005-config-changeability.md) — their changeability classes, and one refusal that applies at boot
+  and at runtime alike. [0058](0058-outbound-request-policy.md) § 4 — the redirect cap it requires gets a
+  directive and a name, and every retry reuses the pinned `Target` rather than re-resolving.
+  [0051](0051-standard-library-tiers.md) § 3 — `Core\Http\Client`'s Native entry gains the retry surface.
+  [docs/spec/01-core-library.md](../spec/01-core-library.md) §§ 15 and 16 — `Core\Response::setHeader`'s
+  override, and the client's options shape.
+  [docs/implementation-plan.md](../implementation-plan.md) — M7 gains the inbound policy, M8 the outbound.
+- **Amended by:** none.
+- **Relates to:** 0004, 0007, 0020, 0024, 0033, 0044, 0056, 0057, 0060, 0070, 0072
+
+> **In short:** one decision with two subsystems — **a default that is unsafe or unbounded is a defect, not
+> a neutral starting point**. Inbound: a deployment with **no HTTP configuration written at all** already
+> sends `nosniff`, `frame-ancestors 'none'`, a referrer policy and HSTS over TLS, and every cookie is
+> `Secure; HttpOnly; SameSite=Lax`. CORS stays **closed** until origins are named, and
+> `origins = ["*"]` together with `credentials = true` is **refused at boot and at runtime alike**. Every
+> directive is **`Runtime`** class, so a request may change or disable any of it *for itself* and the change
+> dies with the request — because userland already controls response headers and pretending otherwise would
+> only forbid the legitimate case. Outbound: **`Core\Http\Client` has no spelling for "wait forever"** —
+> `Duration` has no infinite value, there is no `deadline: null`, and a call that names nothing inherits a
+> finite default from `[http.client]`. Retry is **opt-in**, exponential with **full jitter**, and its
+> `deadline` covers **all** attempts rather than each one. A `POST` or `PATCH` is not retried without an
+> `idempotencyKey`, and because [ADR 0063](0063-core-api-conventions.md) R2 makes the options bag a
+> compile-time-constant literal, that is a **diagnostic** rather than a runtime surprise.
+
+## Context
+
+- MWL already removes whole classes of bug by making the safe thing the only representable thing — SQL
+  injection ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)), SSRF
+  ([ADR 0058](0058-outbound-request-policy.md)), shell injection
+  ([ADR 0044](0044-core-process-argv-only-no-shell.md)), ReDoS
+  ([ADR 0056](0056-regex-engine-policy.md)), `alg: none`
+  ([ADR 0060](0060-application-security-protocols.md)). Response headers and outbound timeouts are the two
+  places left where the *default* is what hurts, and where every application re-solves the same problem
+  with the same middleware copied from the same blog post.
+- **Inbound, the numbers are not close.** A scan of any large sample of production sites finds a minority
+  sending `X-Content-Type-Options`, a smaller minority sending a framing policy, and cookies missing
+  `HttpOnly` or `SameSite` routinely. Not because anyone decided against them, but because the framework's
+  default was nothing and adding them is a task that never reaches the top of a backlog.
+- **CORS is the opposite failure**: the default is nothing, the fix people find is `Access-Control-Allow-Origin:
+  *`, and the combination of that with `Allow-Credentials: true` is a same-origin-policy bypass. Browsers
+  refuse the combination, which means the deployment that wrote it *thinks* it works and has no idea why it
+  does not — and any non-browser client reading the headers as policy is now wrong about them. It is not a
+  configuration to warn about; it is a configuration with no correct meaning.
+- **Outbound, the unbounded call is how one slow dependency becomes an outage.** PHP's `curl` defaults to
+  no timeout at all; `file_get_contents` defaults to `default_socket_timeout`, which is 60 seconds and which
+  nobody knows. A handler waiting forever on a third-party API holds a worker, and enough of them hold every
+  worker. MWL's request-level `wall_time` bounds the damage, but only after the fact and only per request —
+  it does not stop the dependency's latency from becoming the application's.
+- **Retry is the other half of the same problem, and adding it naively makes things worse.** Unjittered
+  retries synchronise into a thundering herd against a service that is already struggling; a per-attempt
+  timeout with three attempts means a "5-second timeout" can take 15 seconds; and a retried `POST` that
+  actually succeeded the first time charges the card twice. Each of those has a mechanical answer, and each
+  answer only works if it is the only shape available.
+
+## Decision
+
+### 1. Inbound: secure headers with nothing written
+
+```toml
+[http.headers]                    # Runtime — the values below are the shipped defaults
+content_type_options = true       # X-Content-Type-Options: nosniff
+frame_ancestors      = "none"     # CSP: frame-ancestors 'none'  — "none" | "self" | a list of origins
+referrer_policy      = "strict-origin-when-cross-origin"
+hsts                 = "365d"     # Strict-Transport-Security max-age; false to disable
+hsts_subdomains      = false
+content_security_policy = ""      # empty: nothing emitted beyond frame-ancestors — see below
+permissions_policy      = ""      # empty: nothing emitted
+```
+
+Applied to every response the M7 server writes, with no configuration present. Three details are decisions
+rather than transcription:
+
+- **HSTS is emitted only over TLS.** A browser ignores it on a plaintext connection anyway, so emitting it
+  there would be noise; more importantly, a deployment that terminates TLS at a proxy and speaks plaintext
+  to MWL must set the header at the proxy, and pretending otherwise would hide that. `localhost`,
+  `127.0.0.1` and `::1` are secure contexts in every current browser, so local development over plain HTTP
+  is unaffected by anything in this section.
+- **`hsts_subdomains` defaults to `false`.** `includeSubDomains` is the HSTS setting that has actually taken
+  deployments down — a sibling subdomain on plain HTTP becomes unreachable, for a year, with no way to
+  revoke it from the client. Whether a domain's subdomains are all TLS-only is knowledge MWL does not have.
+- **There is no default `Content-Security-Policy` beyond `frame-ancestors`.** A `default-src` policy that
+  is wrong breaks the page silently and is the single most abandoned security header there is; a policy
+  that is right is application-specific. `frame-ancestors 'none'` is the one directive that is safe for
+  every application, because it governs who may frame the response rather than what the response may load.
+  The XSS half of what a CSP buys is closed structurally in MWL by
+  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 5's auto-escaping HTML sink, which is a stronger
+  guarantee than a policy header and does not depend on being configured.
+
+### 2. Inbound: CORS is closed, and one combination has no correct meaning
+
+```toml
+[http.cors]                       # Runtime — closed until origins are named
+origins     = []                  # exact origins; ["*"] is permitted only with credentials = false
+methods     = ["GET", "HEAD", "POST"]
+headers     = []                  # request headers a preflight may allow
+expose      = []                  # response headers exposed to script
+credentials = false
+max_age     = "10m"
+```
+
+With `origins = []` no CORS header is emitted at all and a preflight is answered `403` — which is what
+"closed" means, and it is the correct default because a browser's same-origin policy is doing its job until
+someone deliberately relaxes it.
+
+**`origins = ["*"]` together with `credentials = true` is refused**, at boot with the line named
+([ADR 0064](0064-configuration-file-format.md) § 3's diagnostic shape) and at runtime by
+`Core\Config::set` returning `false` and leaving the value unchanged
+([ADR 0005](0005-config-changeability.md)'s existing rule, not a new one). Refused rather than warned,
+because the combination is not risky — it is meaningless: every browser rejects it, so the deployment that
+wrote it has an access-control policy that does not do what it says and no signal that it does not.
+
+### 3. Inbound: cookies are `Secure; HttpOnly; SameSite=Lax`
+
+```toml
+[http.cookies]                    # Runtime — the defaults every Core\Response::addCookie inherits
+secure    = true
+http_only = true
+same_site = "Lax"                 # "Lax" | "Strict" | "None"
+path      = "/"
+```
+
+`same_site = "None"` with `secure = false` is refused by the same mechanism as § 2's pair, for the same
+reason: browsers reject it, so it is a policy with no meaning rather than a weak one.
+
+`Core\Response::addCookie`'s options shape carries the same four settings as an
+[ADR 0010](0010-enums-are-a-value-type.md) enum and booleans — `SameSite` is an enum, never the string
+above ([ADR 0063](0063-core-api-conventions.md) R11) — and each defaults to the configured value. A cookie
+that genuinely needs to be readable by script says so at the call site, in one field, visibly.
+
+### 4. Every directive is `Runtime`, and `setHeader` still wins
+
+All three blocks are [ADR 0005](0005-config-changeability.md) **`Runtime`** class: `mwl.toml` states the
+default a request starts with, a request may set any value for itself, and the change is discarded when the
+request ends. `Core\Response::setHeader` additionally overrides a policy-owned header on **one** response
+with no configuration involved at all.
+
+This is deliberate and it costs nothing in security, because the alternative buys nothing. A request can
+already write any response header it likes through `setHeader` — that is what a response object is — so
+making the *policy* narrowing-only would forbid the legitimate case (one API route with an open CORS
+policy beside an application that has none; one embeddable widget route that permits framing) while
+stopping nothing. `RuntimeTighten` is reserved for grants where "may drop rights, never add them" is the
+whole mechanism ([ADR 0005](0005-config-changeability.md)); a response header is not a grant.
+
+A policy-owned header replaced through `setHeader` is **not** logged. A response header is ordinary output,
+the request wrote it deliberately, and logging every override would produce a line per response on any
+route that customises one — noise that trains people to ignore the log.
+
+### 5. Outbound: there is no spelling for "wait forever"
+
+```toml
+[http.client]                     # Runtime
+connect_timeout = "5s"
+deadline        = "30s"           # total, covering every attempt and every redirect hop
+max_redirects   = 0               # ADR 0058 § 4: redirects are off by default
+```
+
+```php
+type Core\Http\Options = {
+    deadline?:        Duration,
+    connectTimeout?:  Duration,
+    headers?:         array<string, string>,
+    followRedirects?: uint,
+    retry?:           {attempts: uint, backoff?: Duration, idempotencyKey?: string},
+};
+```
+
+**The absence is the decision.** `Duration` ([ADR 0070](0070-duration-literals.md)) has no infinite value,
+there is no `deadline: null` and no `0` meaning unbounded, and omitting the field inherits `[http.client]
+deadline` rather than removing the bound. So an unbounded outbound call is not something a program can
+express, in the same way a shell string is not something `Core\Process` can express
+([ADR 0044](0044-core-process-argv-only-no-shell.md)) — the guarantee comes from the absence of a spelling,
+not from a check.
+
+`deadline` covers the **whole call**: connection, every redirect hop, every retry attempt and every backoff
+between them. A single stated number is what a caller can reason about; the per-attempt timeout that most
+clients offer is the one that turns "5 seconds" into fifteen.
+
+Expiry throws `TimeoutError` ([docs/spec/01-core-library.md](../spec/01-core-library.md) § 10), never a
+falsy return ([ADR 0063](0063-core-api-conventions.md) R4).
+
+### 6. Outbound: retry is opt-in, jittered, and covered by the same deadline
+
+`retry` absent means one attempt. Present:
+
+- **`attempts`** is the **total** number of attempts including the first, and must be at least 1.
+- **`backoff`** is the base delay, default `100ms`, growing exponentially per attempt with **full jitter** —
+  the actual wait is uniformly random in `[0, base × 2^n]`. Jitter is not optional and not configurable:
+  unjittered retries from many hosts synchronise into a burst against a service that is already failing,
+  which is the failure mode retry is supposed to relieve.
+- **The `deadline` is not extended.** When it would expire during a backoff, the call throws immediately
+  rather than sleeping and then failing.
+- **What is retried:** a connection failure, a timeout, and status `429`, `502`, `503`, `504`. Nothing else
+  — a `400` or a `403` is an answer, and retrying it is a load generator. A `Retry-After` header on a `429`
+  or `503` replaces the computed backoff, clamped to the remaining deadline.
+- **Every attempt reuses the `Core\Http\Target` [ADR 0058](0058-outbound-request-policy.md) § 2 pinned.**
+  A retry does not re-resolve, so there is no second resolution for a rebinding attack to poison. A
+  *redirect* hop still re-checks and re-pins, exactly as that ADR requires.
+
+### 7. Outbound: a non-idempotent retry is a compile error
+
+`GET`, `HEAD`, `PUT`, `DELETE`, `OPTIONS` and `TRACE` retry freely. **`POST` and `PATCH` require
+`retry.idempotencyKey`**, sent as an `Idempotency-Key` header identical across attempts — the de-facto
+convention every payment API already implements.
+
+Because [ADR 0063](0063-core-api-conventions.md) R2 makes the options bag a compile-time-constant shape
+literal, and because the method is usually the member's own name (`Client::post`), **both halves are
+statically known at an ordinary call site and the missing key is a diagnostic**, naming the field and this
+section. That is the payoff R2 was designed for, showing up in a place nobody planned it for.
+
+Where the method is genuinely dynamic — `Client::send($request)` with a runtime method — the check moves to
+the call, and it **throws before the first attempt** rather than before the second, so a test run finds it
+rather than production finding it on the one retry that matters.
+
+An `idempotencyKey` supplied for a method that does not need one is accepted and sent; some servers want it
+regardless, and refusing it would buy nothing.
+
+## Consequences
+
+**Positive**
+
+- **A deployment that writes no HTTP configuration is already in better shape than most production PHP.**
+  That is the whole return: the security comes from the default, not from a task somebody has to do.
+- **One combination that cannot mean anything can no longer be written.** `*` plus credentials is a
+  configuration with no correct interpretation, and refusing it costs nothing and removes the whole class.
+- **An unbounded outbound call is not expressible.** One slow dependency can still be slow; it can no
+  longer be infinite, and the number that bounds it is written down where an operator can change it.
+- **Retry, done once and done right.** Jitter, a single covering deadline, a closed retryable-status set and
+  idempotency enforcement are four things every application gets wrong separately and gets for free here.
+- **The idempotency diagnostic is a compile-time catch of a money bug.** Charging a card twice because a
+  retried `POST` had already succeeded is about as expensive as an application bug gets, and R2's constant
+  options literal turns it into a red squiggle.
+- **Per-request override keeps the policy usable.** An API route with its own CORS policy and an embeddable
+  route that permits framing are both ordinary, and neither needs a second configuration mechanism.
+
+**Negative**
+
+- **Secure defaults break something on somebody's first deployment.** A site that framed itself, a cookie a
+  script needed to read, an origin that was implicitly allowed by having no policy — each is now a
+  deliberate line of configuration. That is the trade, and the diagnostics have to name the directive.
+- **`Runtime` class means a request can turn all of it off for itself.** Justified in § 4, and it remains
+  true that a compromised handler can disable its own response's protections. It could already write any
+  header it wanted; this changes nothing about that, but it will be raised as an objection.
+- **No default CSP will disappoint people** who expected a `default-src` policy in the box. § 1 says why,
+  and [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 5 is the answer for the part that matters.
+- **A finite default deadline will time out a call somebody expected to take five minutes.** A long-poll or
+  a large upload names its own `deadline`, which is one field — and having to name it is the point.
+- **Four more configuration blocks** (priority 4), on top of a file that is already growing. Each is a table
+  of defaults an operator never has to touch, which is the cheapest kind of directive, but the count is real.
+- **The retryable-status set is a policy baked into `Core`.** A service that signals overload with a `500`
+  will not be retried. Deliberate — widening the set to `5xx` retries genuine application errors — but it is
+  a judgement call and somebody will disagree with it.
+
+## Alternatives rejected
+
+- **Ship no defaults; document the headers.** The status quo everywhere. Rejected on the evidence in
+  *Context*: documentation-shaped security produces the adoption rates it produces, and this project's
+  entire argument is that a class of bug should be removed rather than described.
+- **A full default `Content-Security-Policy`.** Maximal-looking. Rejected: a wrong CSP breaks the page with
+  no diagnostic, which is how CSP gets disabled permanently after one incident. Framing is the safe subset
+  and it is the one shipped.
+- **`hsts_subdomains = true` by default.** Stronger. Rejected: it is unrevocable from the client for the
+  max-age, and MWL does not know whether the sibling subdomains are TLS-only.
+- **Make the policy blocks `RuntimeTighten`.** Rejected in § 4: `setHeader` already exists, so it forbids
+  legitimate per-route policy while preventing nothing.
+- **Warn on `*` + credentials rather than refusing.** Rejected: the configuration has no correct meaning,
+  and a boot warning is read once.
+- **Edge concerns in `mwl.toml` too** — request-size caps, per-IP connection limits, slow-loris timeouts.
+  Rejected as this ADR's business: a proxy in front of MWL does those earlier and better, which is the same
+  line [ADR 0075](0075-core-ratelimit.md) draws for flood limiting. M7 still caps a request body, because
+  that is memory it allocates itself.
+- **A per-attempt timeout instead of one covering deadline.** What most HTTP clients offer. Rejected: three
+  attempts at a "5-second timeout" is a fifteen-second call, and the caller reasoned about five.
+- **Configurable jitter, including off.** Rejected: the one setting whose wrong value harms a service that
+  is already failing, and nobody has a reason to turn it off.
+- **Retrying every `5xx`.** Rejected in § 6: a `500` is usually a real application error and retrying it
+  multiplies load on a service that is already broken.
+- **Making the missing `idempotencyKey` a runtime warning.** Rejected: the failure it prevents is a double
+  charge, and R2 already makes the compile-time check available for free at an ordinary call site.
+- **An `Idempotency-Key` generated automatically** when one is missing. Rejected: a key the client generates
+  per call is a different key on the next request, so it makes the header present and useless, which is
+  worse than absent.
+
+## Revisiting
+
+- **A default CSP** if a shape emerges that is safe for every application. `frame-ancestors` was that shape;
+  nothing else currently is.
+- **The retryable-status set** if a real service signals overload outside it. Widening it is a one-line
+  change with a stated reason, not a redesign.
+- **Circuit breaking** — refusing outbound calls to an endpoint that has been failing — was considered and
+  not taken. It needs per-endpoint state shared across a core, which is
+  [ADR 0059](0059-cross-request-state-is-explicit.md)'s territory, and its interaction with
+  [ADR 0075](0075-core-ratelimit.md)'s approximate tier should be argued once for both rather than twice.
+- **Per-attempt observability** — whether a retried call reports one span or one per attempt — is
+  [ADR 0076](0076-observability-export.md)'s question, and it should say so rather than being decided here.
+
+## Verification
+
+- **M7:** a deployment with no `[http.*]` block at all sends `nosniff`, `frame-ancestors 'none'` and a
+  referrer policy on every response, and sends HSTS over TLS and not over plaintext.
+- **M7:** `Core\Response::addCookie` with no options produces `Secure; HttpOnly; SameSite=Lax; Path=/`; a
+  cookie explicitly marked script-readable omits `HttpOnly` and nothing else.
+- **M7:** with `origins = []`, no CORS header is emitted and a preflight is answered `403`; with an origin
+  named, a matching origin is echoed and a non-matching one is not.
+- **M6/M7:** `origins = ["*"]` with `credentials = true` refuses to boot naming the line, and
+  `Core\Config::set` of either half into that combination returns `false` with the previous value intact —
+  the same pair of fixtures for `same_site = "None"` with `secure = false`.
+- **M7:** a request disabling `frame_ancestors` for itself affects only its own response, and the next
+  request on the same core sees the configured value — the same shape
+  [ADR 0005](0005-config-changeability.md)'s own `Core\Config::set` test already uses.
+- **M8:** a `Core\Http\Client` call naming no `deadline` inherits `[http.client] deadline` and throws
+  `TimeoutError` at it; a fixture asserts that no member, option or configured value can express an
+  unbounded wait.
+- **M8:** with `retry: {attempts: 3}`, a server failing twice then succeeding produces one successful call
+  and exactly three attempts; the recorded inter-attempt delays are not equal across repeated runs, which is
+  what jitter means; a `Retry-After` header is honoured and clamped to the remaining deadline.
+- **M8:** the deadline expiring during a backoff throws immediately rather than sleeping first; the total
+  elapsed time of a retried call does not exceed its deadline plus one connection timeout.
+- **M8:** `Client::post` with `retry` and no `idempotencyKey` is a compile-time diagnostic naming the field;
+  the same through `Client::send` with a dynamic method throws before the first attempt; with a key present,
+  every attempt carries the identical `Idempotency-Key`.
+- **M8:** a retried call reuses the pinned address and performs exactly one DNS resolution, asserted against
+  [ADR 0058](0058-outbound-request-policy.md)'s existing test resolver; a redirect hop re-resolves and
+  re-checks.

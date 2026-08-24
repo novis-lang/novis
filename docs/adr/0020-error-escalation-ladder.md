@@ -6,8 +6,8 @@
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
-- **Amended by:** 0033 — each fold is applied below; this body states the current rule.
-- **Relates to:** 0002, 0005, 0006, 0007, 0011, 0012
+- **Amended by:** 0033, 0076 — each fold is applied below; this body states the current rule.
+- **Relates to:** 0002, 0005, 0006, 0007, 0011, 0012, 0072, 0073
 
 > **In short:** nothing MWL runs is ever silently dropped, but not everything is *caught* — those are
 > different guarantees, and conflating them is what this ADR avoids. `FATAL` stays exactly what
@@ -153,7 +153,9 @@ implementation, not two") — so a Loki dashboard never has to reconcile two log
 tier happened to produce a given line.
 
 The shared record is **JSON Lines**: one JSON object per line — `ts` (RFC3339), `level`, `msg`,
-`request_id`, and a `fields` object carrying whatever structured context that call site has (error class,
+`request_id`, `trace_id` and `span_id` when a trace is active
+([ADR 0076](0076-observability-export.md) § 6; both fields are omitted rather than empty when it is not),
+and a `fields` object carrying whatever structured context that call site has (error class,
 limit name, a stack summary). Chosen over `logfmt`: an arbitrary error message or a multi-line stack trace
 needs escaping that is correct on the first and only attempt at the true floor, and JSON's escaping is a
 solved, mechanical problem where `logfmt`'s quoting of embedded quotes/newlines/spaces is not — exactly the

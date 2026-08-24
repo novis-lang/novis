@@ -59,6 +59,11 @@ no `isA`.
 open file — so they can be implemented, tested and depended upon before the HTTP server exists. **M8**
 builds §§ 14–17, which need one of those things, under the same rules and the same conformance checks.
 
+Three entries in Part II land earlier than M8 because their dependency is not a capability:
+**`Core\Task`** (§ 19) needs the M5 scheduler and lands with it; **`Core\Metrics`** and its exporter (§ 16)
+need the M7 server's own series to be testable and land there; and **`Core\Router`** (§ 13) is split — the
+compile-time table with M4S's other attribute pass, the matcher with M7.
+
 § 13 is neither: each of its entries is pure, but each also waits on something outside `Core`.
 `Core\Program` needs [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md)'s `autoload`,
 `Core\Ast` needs [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s inert-AST
@@ -755,6 +760,7 @@ same shape rules.
 | `Core\Ast` | `parse(string): Node` returning inert typed data | [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) |
 | `Core\Attributes` | `get<T>`, `all<T>` — structural, not a `Reflect` walk | [0046](../adr/0046-attributes-shape-literal-metadata.md) |
 | `Core\Program` | `implementing<T>()` | [0061](../adr/0061-compile-time-autoload-and-program-discovery.md) |
+| `Core\Router` | `match(Http\Method, tainted string): ?Router\Match` and `url(string $name, array<string, mixed>): string` (**launder**, URL path), over a table built while compiling from `#[Route]`. A duplicate route, a `{param}` with no matching method parameter and an unknown literal `url()` name are compile errors | [0077](../adr/0077-compile-time-routing.md) |
 | `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | [0054](../adr/0054-decimal-scalar-type.md) |
 | `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md) |
 | `Core\Test` | `assert(bool, {message?})`, `assertEquals`, `assertThrows(callable, string $class)`, `assertMatches`. The runner is M10 tooling, not this surface | — |
@@ -781,7 +787,8 @@ compatible with PHP's, and there is no hook to customise it
 
 Everything below needs a capability grant, the reactor, an open handle or a driver. It is listed at one
 line per member because the semantics are owned by [ADR 0051](../adr/0051-standard-library-tiers.md)'s
-roster and by each subsystem's own ADR; the shape rules are identical to Part I's.
+roster and by each subsystem's own ADR; the shape rules are identical to Part I's. Three entries land
+before M8 — see *Milestones* above for which and why.
 
 ## 14. `Core\IO`
 
@@ -818,7 +825,11 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 - `Core\Request`: `method`, `path`, `query`, `body`, `header`, `headers`, `cookie`, `files`, `clientIp` —
   replacing `$_GET`, `$_POST`, `$_FILES`, `$_COOKIE`, `$_REQUEST`, `filter_input`.
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `write`, `redirect`, `sendFile` — replacing
-  `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`.
+  `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`. `setHeader` is a header
+  **sink** and overrides a policy-owned header on one response; `addCookie`'s options shape defaults every
+  field from `[http.cookies]`, so a cookie written with no options is `Secure; HttpOnly; SameSite=Lax;
+  Path=/` and `SameSite` is an enum, never a string
+  ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)).
 - `Core\Server`: the request's own environment — replacing `$_SERVER`.
 - `Core\Session`: `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25 `session_*`
   functions. May not use `Core\Cache` ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)).
@@ -832,7 +843,10 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 
 | Class | Surface | ADR |
 |---|---|---|
-| `Core\Http\Client` | `get`, `post`, `send(Request)`, `stream`; `Core\Http::allowUrl` is the SSRF launderer that pins an address. Replaces all ~30 `curl_*` functions and their handle | [0058](../adr/0058-outbound-request-policy.md) |
+| `Core\Http\Client` | `get`, `post`, `send(Request)`, `stream`; `Core\Http::allowUrl` is the SSRF launderer that pins an address. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\Http\Options` shape — `{deadline?, connectTimeout?, headers?, followRedirects?, retry?: {attempts, backoff?, idempotencyKey?}}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, retry is jittered, and `post`/`patch` with `retry` and no `idempotencyKey` is a compile error | [0058](../adr/0058-outbound-request-policy.md), [0074](../adr/0074-http-defaults-safe-and-finite.md) |
+| `Core\RateLimit` | `consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws | [0075](../adr/0075-core-ratelimit.md) |
+| `Core\Metrics` | `increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name | [0076](../adr/0076-observability-export.md) |
+| `Core\Task` | § 19 below — `all`, `map`, `afterResponse` | [0072](../adr/0072-core-task-structured-concurrency.md) |
 | `Core\Net` | TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | [0067](../adr/0067-core-db.md) |
 | `Core\Crypto` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces `openssl_*`'s primitive half and `sodium_*` | [0051](../adr/0051-standard-library-tiers.md) |
@@ -960,6 +974,36 @@ Two `Throwable`s join § 10's tree, both under `Core\Db`:
   ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)).
 - `RolledBack extends RuntimeError` — readonly `reason: string`; thrown by `Transaction::rollBack` and
   propagated out of the owning `transaction()` call.
+
+## 19. `Core\Task`
+
+Semantics are [ADR 0072](../adr/0072-core-task-structured-concurrency.md) — what cancellation does and does
+not run, why control never leaves a call with work still running, and the `[deferred]` bound. This section
+owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits
+in Part II and lands at **M5** rather than M8.
+
+| Member | Signature | Replaces | Q |
+|---|---|---|---|
+| `all` | `all({name: callable, …} $tasks, {limit?: uint, deadline?: Duration}): {name: T, …}` | — | |
+| `map` | `map(array<T> $items, callable $fn, {limit?: uint, deadline?: Duration}): array<U>` | `curl_multi_*` | |
+| `afterResponse` | `afterResponse(callable $fn, {deadline?: Duration}): void` | `fastcgi_finish_request` | |
+
+`all` takes a shape literal of zero-argument closures and returns a shape with the same field names, each
+carrying **that closure's own declared return type**. Every field must be a written `fn` literal — a
+`callable`-typed variable is a compile error naming the field, pending
+[ADR 0007](../adr/0007-explicit-type-system.md) § 3's typed `callable` signatures. `map` preserves its
+input's keys and order regardless of completion order, and its callback receives `($value, $key)` like
+every other callback here (R9).
+
+The first throw cancels every sibling and propagates after they are gone; a `deadline` cancels everything
+and throws `TimeoutError`. A cancelled task runs **no user code** — no `catch`, no cleanup — while native
+teardown (arena, refcounts, an open transaction's rollback) still runs. `afterResponse` work is charged to
+the request tree, may not touch `Core\Response`, and throws at the call site past
+`[deferred] max_concurrent` rather than queueing. It is **not a durable queue**: nothing retries and a lost
+process loses the work.
+
+`Core\Task\Channel` and the `spawn`/`await` keywords are the concurrency *language* surface and belong to
+[docs/spec/00-overview.md](00-overview.md) § 2 with M5, not to this file.
 
 ---
 

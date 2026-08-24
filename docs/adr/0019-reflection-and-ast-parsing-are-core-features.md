@@ -5,7 +5,8 @@
 - **Scope:** whether a running MWL program can introspect its own compiled program (classes, methods,
   properties, constants, attributes) and whether it can parse MWL/PHP source text into a structured AST at
   runtime; the shape both take as `Core` domain classes; what each is and is not allowed to do
-- **Relates to:** 0006, 0007, 0010, 0011, 0013, 0014
+- **Amended by:** 0077 — the fold is applied below; this body states the current rule.
+- **Relates to:** 0006, 0007, 0010, 0011, 0013, 0014, 0061, 0077
 
 > **In short:** PHP ships reflection (`ReflectionClass` and friends) as a built-in extension, but has no
 > in-language AST facility at all — `token_get_all()` returns a flat token list, not a tree, and a real AST
@@ -117,8 +118,12 @@ as `Core\Json::decode()` on one.
 
 - One parser, two call sites (`mwl` toolchain, running program) — a rejected construct is rejected
   identically everywhere, unlike PHP's engine-parser/userland-parser split.
-- A migrated framework's DI container, ORM hydration, or attribute-driven router gets the reflection surface
-  it already expects, with no new privilege-escalation primitive PHP's `setAccessible(true)` gave it.
+- A migrated framework's DI container or ORM hydration gets the reflection surface it already expects, with
+  no new privilege-escalation primitive PHP's `setAccessible(true)` gave it. **An attribute-driven router is
+  no longer one of those cases**: [ADR 0077](0077-compile-time-routing.md) makes the route table a compiler
+  pass over [ADR 0061](0061-compile-time-autoload-and-program-discovery.md)'s program enumeration, so it
+  never reaches `Core\Reflect` at all — which is the better outcome, since it turns three runtime routing
+  bugs into compile errors.
 - `Core\Ast`'s typed tree makes a source-rewriting tool (a linter, a codemod, `mwl fmt` itself) a program any
   MWL user can write, not a capability reserved for the toolchain's own Rust code.
 

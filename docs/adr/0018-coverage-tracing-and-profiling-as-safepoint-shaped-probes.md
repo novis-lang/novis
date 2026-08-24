@@ -6,7 +6,7 @@
   the probe-emission points added to `mwl-codegen`, the `Ctx` fields that back them, and the coverage/trace/
   profile output formats
 - **Relates to:** 0002, 0004, 0005, 0006, 0016
-- **Amended by:** 0041, 0064 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0041, 0064, 0076 — each fold is applied below; this body states the current rule.
 
 > **In short:** MWL gets first-class, Xdebug-equivalent code coverage, function-call tracing and a
 > deterministic per-call profiler — enabled with one `mwl.toml` directive or one `Core\Debug` call, exported
@@ -162,6 +162,16 @@ back as data on the result, the same way a child's failure already does: `Script
 `coverage`/`trace`/`profile` fields, populated only when the corresponding flag was active, crossing by the
 same copy-out rule `value`/`error`/`usage` already use. [ADR 0006](0006-isolated-script-execution.md) named
 its `ScriptResult` shape provisional pending M5; this fills in that detail rather than amending a decided one.
+
+### Relationship to production telemetry
+
+This ADR's audience is a **developer debugging a request**, and every format it names — Clover, lcov,
+Callgrind, NDJSON — reflects that. What a **production dashboard** needs is read from the same
+instrumentation by [ADR 0076](0076-observability-export.md), which adds no probe site to the
+per-statement/per-call path measured here: it consumes
+[ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s `gc`, `spawn` and `query` event kinds,
+turns exactly four of them into distributed-tracing spans, and never turns a `call` event into one. The
+cost claim below is therefore unaffected by it, and the guard test named in *Consequences* covers both.
 
 ### Relationship to the M10 sampling profiler and `mwl dap`
 

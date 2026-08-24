@@ -12,7 +12,8 @@
   entry carrying its own hash pin. [0006](0006-isolated-script-execution.md) — `script.spawn`'s
   `:`-joined root list becomes a TOML array. [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
   — `[debug] mode`'s comma-separated string becomes a TOML array.
-- **Amended by:** none.
+- **Amended by:** 0072, 0073, 0074, 0076 — each adds blocks, listed in § 2a; nothing about the format
+  changes.
 - **Relates to:** 0007, 0011, 0052, 0061
 
 > **In short:** MWL's server configuration is a TOML file named `mwl.toml`, read once at boot through the
@@ -105,6 +106,28 @@ needs quoting.
 The `:`-joined root list disappears with its Windows bug, and the extension hash pin gets a shape instead
 of a convention — which matters more than the others, because that pin is what [0003](0003-extension-system.md)
 rests on to accept a precompiled binary from outside.
+
+### 2a. The blocks, and where each one's directives are argued
+
+This ADR owns the *format*; every block's directives, defaults and changeability class are argued in the
+ADR that adds them, and [0005](0005-config-changeability.md) owns the class model. The complete list, so
+that a reader of `mwl.toml` has one place to start:
+
+| Block | Owner |
+|---|---|
+| `[limits]`, `[limits.hard]` | [0005](0005-config-changeability.md) |
+| `[capabilities]` | [0005](0005-config-changeability.md), [0006](0006-isolated-script-execution.md) |
+| `[[extension]]` | [0003](0003-extension-system.md) |
+| `[debug]` | [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
+| `[log]` | [0020](0020-error-escalation-ladder.md) |
+| `[db.<name>]` | [0067](0067-core-db.md) |
+| `[deferred]` | [0072](0072-core-task-structured-concurrency.md) § 7 |
+| `[[schedule]]` | [0073](0073-scheduled-work-is-config.md) |
+| `[http.headers]`, `[http.cors]`, `[http.cookies]`, `[http.client]` | [0074](0074-http-defaults-safe-and-finite.md) |
+| `[metrics]`, `[trace]` | [0076](0076-observability-export.md) |
+
+`[[schedule]]` is an array-of-tables for § 2's stated reason — a repeated record with several fields — and
+is the second such block after `[[extension]]`.
 
 ### 3. A duplicate key is an error, and so is an unknown one
 

@@ -9,7 +9,8 @@
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
   Tier 0 survives unchanged as test 4. [0011](0011-functions-and-constants-are-class-members.md) — the
   domain-class roster is extended, and § 5 adds a rule about what may claim the `Core` prefix at all.
-- **Amended by:** 0063, 0067 — each fold is applied below; this body states the current rule.
+- **Amended by:** 0063, 0067, 0072, 0075, 0076, 0077 — each fold is applied below; this body states the
+  current rule.
 - **Relates to:** 0004, 0024, 0033, 0052, 0055
 
 > **In short:** MWL does not inherit PHP's extension partition. That partition tracks 1997 C build
@@ -95,6 +96,13 @@ libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd, bec
 (`readline`). `Core\Uuid`. `Core\Cache` ([ADR 0059](0059-cross-request-state-is-explicit.md)). `Core\Csv`.
 `Core\Test`. Plus `Core\Fatal`/`Core\Log` ([ADR 0020](0020-error-escalation-ladder.md)) and
 `Core\Attributes` ([ADR 0046](0046-attributes-shape-literal-metadata.md)), already scheduled for M8.
+Four more, each admitted by a test above and each with its own ADR: `Core\Task`
+([ADR 0072](0072-core-task-structured-concurrency.md), test 1 — it *is* the request lifecycle),
+`Core\RateLimit` ([ADR 0075](0075-core-ratelimit.md), tests 1 and 3),
+`Core\Metrics` ([ADR 0076](0076-observability-export.md), test 1 — it reads the runtime's own counters) and
+`Core\Router` ([ADR 0077](0077-compile-time-routing.md), test 1 — its table is built by a compiler pass).
+`Core\Metrics`'s **exporter** is Native and feature-gated while the class itself is Core, the same split
+this section already uses for the Redis backend behind `Core\Cache`.
 
 `Core\Zip` is Core rather than Ext despite passing test 5, because its real defects are not the
 memory-safety bugs a sandbox contains: `../` and absolute-path entries, symlink entries and decompression

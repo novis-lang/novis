@@ -17,18 +17,31 @@ session, in the plan's M1 section: literal/enum-case type atoms (0047), `autoloa
 literal (0070). `decimal`'s runtime half is **`mwl-ir`'s known gap 15**, which that crate's module doc owns:
 a program declaring one panics naming the shape rather than miscompiling.
 
-**Seven `Core` additions were decided with the user, and one ADR per session is writing them up.**
-[`core-additions.md`](core-additions.md) is the queue; an entry is deleted as its ADR lands, and its numbers
-are stable, so a gap means that one is done. **Entry 1 landed as
-[ADR 0071](../adr/0071-derived-codecs.md)** — derived codecs. Six remain, in order: `Core\Task`, the
-`[schedule]` block, HTTP defaults in both directions, `Core\RateLimit`, observability export, compile-time
-routing. The general rule 0071 settled, which two of them lean on: a **compiler-recognized** attribute is
-matched **nominally** against a closed `Core`-owned list, leaving ADR 0046 § 4's *structural*
-`Core\Attributes` retrieval untouched — so entry 7's "real interaction to resolve" is already resolved.
+**The docs track is finished and owes nothing.** All seven `Core` additions decided with the user are
+written, as **ADRs 0071–0077**: derived codecs, `Core\Task`, `[[schedule]]`, HTTP defaults both directions,
+`Core\RateLimit`, observability export, compile-time routing. `core-additions.md` — the queue — is deleted,
+because an ADR's body is the only home for its rule. Nothing about them needs summarising here; each ADR's
+*Verification* section names what its milestone owes, and `python tools/brief.py --where <keyword>` routes
+to whichever one a topic belongs to. Four cross-cutting rules those seven produced, because they will be
+reached for from outside their own ADRs:
 
-**Declined in that same session**, reasons recorded in the queue file so they are not re-argued: typed
-templates, `mwl migrate`, Markdown in `Core` (it becomes a first-party extension), and a DI container at any
-tier — whose real fix is user-defined generics, an open ADR 0007 question.
+- A **compiler-recognized** attribute is matched **nominally**, against a closed `Core`-owned list — now
+  five names, `#[Json\Derive]`/`#[Json\Field]`/`#[Db\Derive]`/`#[Db\Field]` plus `#[Core\Route]`
+  ([0071](../adr/0071-derived-codecs.md) § 1). ADR 0046 § 4's *structural* `Core\Attributes` retrieval is
+  untouched.
+- Every `mwl.toml` block now has one routing table: [0064 § 2a](../adr/0064-configuration-file-format.md),
+  naming the ADR that argues each block's directives.
+- **Typed `callable` signatures** ([ADR 0007](../adr/0007-explicit-type-system.md) § 3) now block four
+  separate features — enough that the deferral itself should be re-argued rather than re-deferred. The
+  four are named in [0077](../adr/0077-compile-time-routing.md)'s *Revisiting*.
+- [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) § 3's program scan has a second
+  caller (the route table), under the identical opt-in rule and cache consequence.
+
+**Declined with the additions**, reasons now recorded in each owning ADR's *Alternatives rejected* rather
+than in a queue file: typed templates, `mwl migrate`, Markdown in `Core` (a first-party extension instead),
+a DI container at any tier (its real fix is user-defined generics), edge/flood rate limiting
+([0075](../adr/0075-core-ratelimit.md) § 4), and a durable job queue
+([0072](../adr/0072-core-task-structured-concurrency.md) § 6).
 
 **Two questions the user has not answered**, both recorded in place rather than guessed:
 
@@ -44,22 +57,19 @@ a pass the user fires by hand**. Never start it, and never bump as a side effect
 
 ## Next
 
-**One ADR per session from [`core-additions.md`](core-additions.md), in its order** — next is **entry 2,
-`Core\Task`** (`::all`/`::map` with `{limit, deadline}`, plus `::afterResponse`; explicitly not a durable
-queue). Check the ADR directory for the next free number immediately before writing: another agent may have
-taken 0072.
-
-**The code path is unchanged and runs in parallel with that.** The next M1 grammar slice is **literal and
-enum-case type atoms** ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)), the smallest of the three
-left; `autoload` (0061) and the duration literal (0070) follow. Then **settle
+**The code path is the only track left.** The next M1 grammar slice is **literal and enum-case type atoms**
+([ADR 0047](../adr/0047-literal-and-enum-case-types.md)), the smallest of the three left; `autoload` (0061)
+and the duration literal (0070) follow. Then **settle
 [ADR 0009](../adr/0009-string-and-bytes.md) § 2 by measurement** and land `Core\Str::length`/`at`/`slice`,
 the last thing between `examples/core.mwl` and its frozen six lines: implement both granularities behind one
 seam, write the figure into `a_grapheme_index_costs_more_than_a_code_point_index` in
 `benches/abi-probe/tests/perf_guards.rs`, and pick the default it justifies. After that: more cheap § 1–2
 rows, then `crates/mwl-test` and `mwl test`.
 
-**When a session is short**, one migration-table pass instead: pick a domain from that file's *Not yet
-classified* list, run `python tools/check-migration.py --report`, classify it against the spec.
+**When a session is short**, one migration-table pass instead: pick a domain from
+[`docs/spec/02-php-migration.md`](../spec/02-php-migration.md)'s *Not yet classified* list, run
+`python tools/check-migration.py --report`, classify it against the spec. It is 31% classified and is the
+one doc item still open.
 
 ## Backlog
 
@@ -70,7 +80,8 @@ classified* list, run `python tools/check-migration.py --report`, classify it ag
   `Core\Str::lenght($s)` is not diagnosed. `mwl_types::core_lib`'s module doc owns the trust rule.
 - **A `Core` member cannot return a union or `?T`, and a `?T` parameter cannot be declared** — one
   `mwl_ir::ty::Ty::Mixed` representation question under both, `mwl-ir`'s known gap 3.
-- **Only a written `fn` literal binds a callback's result type** — `mwl_types::generics`' own *Known gap*.
+- **Only a written `fn` literal binds a callback's result type** — `mwl_types::generics`' own *Known gap*,
+  and now also what [ADR 0072](../adr/0072-core-task-structured-concurrency.md) § 1 restricts `Task::all` by.
 - **Integer `+`/`-`/`*` wrap rather than throw, and integer `/` is refused two phases deep** —
   `mwl-codegen`'s known gaps 8 and 5. `a_typed_arithmetic_loop_contains_no_call` counts every `call` in
   `Bench::sum`, so read that guard's claim before adding a raise block.
@@ -110,8 +121,6 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   works on Windows and 404s on Linux.
 - **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file,
   so `src/foo.rs` becoming `src/foo/mod.rs` means `src/snapshots/` moves to `src/foo/snapshots/`.
-- **`check_expr` enforces its `expected`; `infer` only places against it** — reach for `infer` where a
-  target type is a *placement* rather than an assignment, as `as T` is (ADR 0054 § 2).
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>` (note
   `test --accept`); a renamed test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe`
   takes over two minutes — run it in the background.
