@@ -151,6 +151,12 @@ Core\Test::assertEquals($user->age, "36");
 //   help: compare `$user->age as string`, or write `36` without quotes.
 ```
 
+**Finding the right assertion is the LSP's job, not the API's.** The roster is wide, and a wide static
+roster is the usual argument for a fluent chain instead. It is the wrong fix here: `mwl-lsp` knows the
+subject's type at the call site, so it ranks `assertStartsWith` above `assertCount` when the first argument
+is a `string` ([0016](0016-ide-integration.md)). Completion ranking is a tooling concern; restructuring a
+`Core` API to compensate for tooling that does not exist yet would be paying for it twice.
+
 Three equality members, and which one you asked for is always visible at the call site:
 
 | Member | Compares |
@@ -682,6 +688,26 @@ neither blocks anything else.
   method named `tsetFoo` would silently be nothing.
 - **Sharing an isolate per test class.** Cheaper, familiar, and it restores exactly the ordering dependence
   that makes real suites flaky. § 8 recovers the performance it was bought with, without the coupling.
+- **A fluent matcher chain** — `Core\Test::that($actual)->equals($expected)->and()->isNotNull()`. Rejected
+  on a type-system finding rather than on [0063](0063-core-api-conventions.md)'s no-builder rule, which it
+  also breaks. `Core\Test\Assertion<T>` is expressible: it is a *compiler-owned* generic class, the category
+  `new Core\ObjectMap<Tag, int>()` already occupies, so 0007's parking of user-defined generics does not
+  block it. What blocks it is the benefit. A chain's advantage over a static roster is **type-scoped
+  matchers** — `startsWith` offered on `Assertion<string>` and not on `Assertion<int>` — and that requires
+  members existing only at certain instantiations, i.e. specialization, which MWL does not have and which no
+  ADR has ever parked or contemplated. Without it every matcher is declared on `Assertion<T>` for all `T`,
+  so `Core\Test::that(5)->startsWith("x")` checks the *prefix* and not the *subject*: it compiles and fails
+  when run, where `Core\Test::assertStartsWith(5, "x")` is a compile error. The chain is therefore
+  **strictly weaker at compile-time checking than the static roster, for exactly the matchers that motivate
+  reaching for it**, while additionally costing a builder, a second shape unlike every other `Core` member,
+  and a generic class that does not parse yet. Discoverability, the remaining argument, is answered by
+  completion ranking in § 4.
+- **A hybrid: static for scalars, `thatArray<T>(array<T>): ArrayAssertion<T>` for collections.** This one
+  does work — a distinct class per subject kind is not specialization, so its matchers are correctly scoped.
+  It buys not repeating the subject across three consecutive assertions, and costs two spellings for
+  "assert something about an array" and a boundary between them to defend forever. Repeating `$rows` on
+  three lines is not a problem worth a second mechanism, and each of those lines carries its own failure
+  location.
 - **A generated double class with a builder** (`->when(...)->returns(...)`). Richest API, and it needs a
   matcher mini-language, a builder object per double, and a class the user never wrote appearing in every
   backtrace — to express what a shape of closures expresses with no new machinery.
@@ -720,7 +746,10 @@ neither blocks anything else.
   symbol nor any assertion message string appears; `mwl check` on the same file reports a type error inside
   the test body.
 - **§ 4:** `assertEquals(int, string)` is a diagnostic; `assertEquals` on a non-`Comparable` object is a
-  diagnostic naming `assertEqualsDeep`; `assertSame` distinguishes two structurally equal objects.
+  diagnostic naming `assertEqualsDeep`; `assertSame` distinguishes two structurally equal objects. Plus one
+  case that pins what *Alternatives rejected* turns on: `assertStartsWith(5, "x")` is a diagnostic naming
+  the **subject**, not the prefix — the property a fluent `Assertion<T>` could not hold without
+  specialization.
 - **§ 5:** a test that catches its own failure with `catch (Throwable)` is reported failed; the same test
   using `expectFailure` passes; a user-written helper that catches and rethrows a `Failure` reports the
   rethrown message.
@@ -752,6 +781,11 @@ neither blocks anything else.
 
 ## Revisiting
 
+- **The fluent matcher chain becomes worth reconsidering if, and only if, MWL gains member specialization
+  on a generic class** — matchers existing at some instantiations of `Assertion<T>` and not others. Roster
+  size is *not* the trigger, and neither is developer preference: without specialization a chain type-checks
+  strictly less than § 4's static roster, so a wider roster is an argument for better completion ranking,
+  never for the chain. If specialization never lands, this never reopens.
 - **If `#[Fixture]`'s graph copy becomes the dominant cost of real suites**, the answer is not to relax § 2
   but to add a copy-on-write path for immutable fixtures — measured first, per
   [README.md](README.md) § *Measured numbers*.
