@@ -215,12 +215,22 @@
 //!     that ADR's *Consequences* calls "the real implementation cost": `+`,
 //!     `-` and comparison at equal scale inline to i128 operations, while `*`,
 //!     `/` and mixed-scale operands need a wider intermediate. M4 owes it.
-//! 16. **A compound assignment does not lower.** `$x += 1`, `-=`, `*=`, `.=`
-//!     and the rest reach [`lower::Lowering`]'s expression-statement arm, which
-//!     handles a plain `$x = expr;` and a bare call only, and panic naming the
-//!     operator. Desugaring `$x op= e` to `$x = $x op e` is correct for every
-//!     target this crate can already assign to, so the work is that rewrite
-//!     plus deciding where it belongs — the checker sees the shape first.
+//! 16. **`$x++` and `--$x` do not lower, the bitwise operators have no
+//!     [`ir::BinOp`] variant at all, and a compound assignment inherits both
+//!     holes.** [`lower::Lowering::lower_compound_assignment`] rewrites
+//!     `$x op= e` into the `$x = $x op e` it means, so an operator gains its
+//!     compound form exactly when its binary form lowers — which leaves
+//!     `&=`, `|=`, `^=`, `<<=`, `>>=` and `**=` out for the same reason `&`
+//!     and `**` themselves are out: [`ir::BinOp`] stops at the arithmetic,
+//!     equality and ordering rows, so [`lower::Lowering::lower_expr`] panics
+//!     naming the operator. The rewrite also reads its target twice, so
+//!     `is_reevaluable_target` refuses `f()->count += 1` rather than calling
+//!     `f()` twice where PHP calls it once; closing that means splitting the
+//!     target's address computation out of
+//!     [`lower::Lowering::lower_reassignment`]. An increment needs the same
+//!     split for a second reason: its `1` has no source span to build an
+//!     [`mwl_syntax::ast::ExprKind::Int`] from, so it cannot be desugared
+//!     into an AST node the way every other compound form is.
 //! 17. **The environment is one flat, function-wide map**, so a nested block
 //!     declaring a local that shadows an outer one is not distinguished from a
 //!     reassignment. Not observable for any program in scope today, but worth

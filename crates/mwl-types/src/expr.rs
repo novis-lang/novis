@@ -849,7 +849,7 @@ fn infer(
         }
         ExprKind::Assign {
             op, target, value, ..
-        } => check_assign(*op, target, value, live, scope, ctx, env),
+        } => check_assign(*op, expr.span, target, value, live, scope, ctx, env),
         ExprKind::Ternary { cond, then, else_ } => {
             let cond_ty = check_expr(cond, None, live, scope, ctx, env);
             // `$a ?: $b` (`then` omitted) evaluates to `$a` itself on the
@@ -1472,8 +1472,25 @@ fn check_fn_literal(
     env.interner.callable()
 }
 
-fn check_assign(
-    op: AssignOp,
+/// `$x ⊕= e`, typed as the `$x = $x ⊕ e` it means — [`AssignOp::binary_op`]
+/// is the one place that pairing is written down, and `mwl_ir::lower`
+/// desugars through the same answer.
+///
+/// The target is read first, then the value is checked *against the target's
+/// own type*, so the bare `1` in `uint $u = 0; $u += 1;` takes `uint` from
+/// the position rather than defaulting to `int` and colliding with it (ADR
+/// 0007 § 4's literal rule). The operator's result must then be assignable
+/// back to the target: `int $i = 0; $i .= "x";` is a mismatch reported at the
+/// assignment, never a silent re-typing of `$i` — ADR 0037 fixes a local's
+/// type at its declaration. `.=` demands a `Stringable` operand exactly the
+/// way the plain `.` does.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the five-parameter checking context every expression walker in \n              this module carries, plus the operator, the assignment's span and \n              its two operand expressions"
+)]
+fn check_compound_assign(
+    op: BinaryOp,
+    span: Span,
     target: &Expr,
     value: &Expr,
     live: &mut FxHashSet<String>,
@@ -1481,6 +1498,42 @@ fn check_assign(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    let target_ty = check_expr(target, None, live, scope, ctx, env);
+    // [`infer`] rather than [`check_expr`]: the target's type is a *hint* for
+    // an untyped literal here, not a position the value has to satisfy — the
+    // operator decides that, and it is the operator's result this function
+    // checks below. Handing the value to `check_expr` instead would report
+    // `$i .= "x"` twice, once for a `string` where the `int` target sits and
+    // once for the concatenation that is the actual mistake.
+    let value_ty = infer(value, Some(target_ty), live, scope, ctx, env);
+    if op == BinaryOp::Concat {
+        require_stringable(target_ty, target.span, env);
+        require_stringable(value_ty, value.span, env);
+    }
+    let result = binary_result(op, target_ty, value_ty, span, env);
+    if !is_assignable(result, target_ty, env.interner, env.graph, env.signatures) {
+        report_mismatch(span, target_ty, result, env);
+    }
+    target_ty
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the same context [`check_compound_assign`] states, with the \n              assignment operator in place of the binary one it maps to"
+)]
+fn check_assign(
+    op: AssignOp,
+    span: Span,
+    target: &Expr,
+    value: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if let Some(binop) = op.binary_op() {
+        return check_compound_assign(binop, span, target, value, live, scope, ctx, env);
+    }
     if let (AssignOp::Assign, ExprKind::Variable(span)) = (op, &target.kind) {
         let name = strip_sigil(span_text(env.src, *span)).to_owned();
         let declared = scope.declared_ty(&name);

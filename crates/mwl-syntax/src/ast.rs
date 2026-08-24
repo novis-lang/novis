@@ -299,6 +299,37 @@ pub enum AssignOp {
     CoalesceAssign,
 }
 
+impl AssignOp {
+    /// The binary operator a compound assignment applies, or `None` for the
+    /// plain `=`.
+    ///
+    /// `$x ⊕= e` means `$x = $x ⊕ e` for every variant here, so this is the
+    /// one place that pairing is written down: `mwl_types::expr::check_assign`
+    /// types a compound assignment through it, and `mwl_ir::lower` desugars
+    /// through the same answer, rather than each carrying its own copy of a
+    /// fourteen-row table that would drift apart the first time an operator
+    /// is added.
+    #[must_use]
+    pub fn binary_op(self) -> Option<BinaryOp> {
+        Some(match self {
+            Self::Assign => return None,
+            Self::AddAssign => BinaryOp::Add,
+            Self::SubAssign => BinaryOp::Sub,
+            Self::MulAssign => BinaryOp::Mul,
+            Self::DivAssign => BinaryOp::Div,
+            Self::ModAssign => BinaryOp::Mod,
+            Self::PowAssign => BinaryOp::Pow,
+            Self::ConcatAssign => BinaryOp::Concat,
+            Self::BitAndAssign => BinaryOp::BitAnd,
+            Self::BitOrAssign => BinaryOp::BitOr,
+            Self::BitXorAssign => BinaryOp::BitXor,
+            Self::ShlAssign => BinaryOp::Shl,
+            Self::ShrAssign => BinaryOp::Shr,
+            Self::CoalesceAssign => BinaryOp::Coalesce,
+        })
+    }
+}
+
 /// The name on the right of `->`, `?->` or `::` — almost always a plain
 /// identifier, but PHP also allows a dynamic member name.
 #[derive(Clone, Debug, PartialEq)]

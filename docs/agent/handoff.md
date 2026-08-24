@@ -2,33 +2,36 @@
 
 ## State
 
-**`?->` reads end to end, so `examples/nullable.mwl` — Stage 2's first check and the whole point of this
-loop's keystone — runs whole.** A nullsafe call and a nullsafe property read share one guard:
-`mwl_ir::lower::Lowering::open_nullsafe` tests the receiver's tag and `close_nullsafe` merges the member's
-value with the `null` arm's; those two doc comments are the home. A receiver whose representation cannot
-be `null` opens no guard at all and lowers to exactly what `->` emits. The checker half is
-`mwl_types::expr`'s `nullsafe_result`: the member resolves against the receiver's non-`null` half and the
-access's own type gains `null` back, so `string $s = $maybe?->name();` is `E0401`. A nullsafe *assignment
-target* still panics — PHP refuses it outright and `mwl_types` has no diagnostic for it yet.
+**A compound assignment lowers as the `$x = $x op e` it means**, so `examples/match.mwl`'s `+=` and `.=`
+are no longer what blocks Stage 2's second check — only `match`, `switch` and `for` are (`mwl-ir` gap 1).
+`AssignOp::binary_op` in `mwl-syntax`'s AST is the one home of the operator pairing; `mwl_types::expr`'s
+`check_compound_assign` types the rewrite (the target's type is a *hint* for the value, and the operator's
+result must be assignable back to the target, so `int $i; $i .= "x";` is `E0401`), and
+`mwl_ir::lower::Lowering::lower_compound_assignment` rewrites the AST node and hands it to
+`lower_reassignment`, so a local, a property, an array element and a `&$x` parameter all gained their
+compound form at once with no new refcount code. `collect_reassigned_locals` now counts *every* assignment
+operator: it counted only `=`, so `while ($n < 4) { $n += 1; }` got no loop-header phi and spun forever.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 353 cases through `mwl test tests/`,
-`tools/leak-check.sh` clean over a fixture chaining `?->` through a temporary receiver, and PHP 8.5 agrees
-line for line with the new conformance case's expected output.
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 357 cases through `mwl test tests/`,
+`tools/leak-check.sh` clean over three fixtures (`.=` in a loop into a local, a property and an element;
+and through a `&$s` parameter), and PHP 8.5 agrees line for line with all three new conformance cases.
 
 ## Next
 
-**`examples/match.mwl`** — Stage 2's second and last check, and now the only thing between the loop and
-Stage 3. It needs all four of `match`, `switch`, `for` (`mwl-ir` gap 1) and compound assignment
-(`gap 16` — a desugar of `$x op= e` to `$x = $x op e`, `.=` included). Every terminator the first three
-need already exists; `lower_expr` panics naming the case at `crates/mwl-ir/src/lower/expr.rs`'s catch-all
-arm. All four are pre-authorized in [`loop-goal.md`](loop-goal.md) § *Standing decisions*. Compound
-assignment first — it is the smallest and `for`'s third clause uses it.
+**`for`, `switch` and `match`** — `mwl-ir` gap 1, and the last thing between the loop and Stage 3.
+`examples/match.mwl` needs all three. Every terminator they want already exists
+(`ir::Terminator::Branch`/`Switch`), and `lower_while`'s seed-then-patch phi dance is the pattern `for`'s
+header reuses; `lower_expr`'s catch-all arm panics naming the case. All three are pre-authorized in
+[`loop-goal.md`](loop-goal.md) § *Standing decisions*. `for` first — it is `while` plus an init and a step,
+and its step clause is the compound assignment that now lowers.
 
 ## Backlog
 
 - **`Core\Arr::diff`/`intersect`** — the last two set members; they need a `Core\SetOn { Values, Keys,
   Both }` enum in `registry::ENUMS` and an `{on?, by?, comparator?}` bag, both shapes the registry can
   already state. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
+- **The bitwise operators have no `ir::BinOp` variant**, so `&`/`|`/`^`/`<<`/`>>`/`**` and their compound
+  forms all panic in lowering — `mwl-ir`'s gap 16. PHP throws `ArithmeticError` on a negative shift.
 - **ADR 0066 § 3's refusals are `mwl_types`' half and are not built** — a conversion that cannot fail
   (`$i as ?string`) and one that does not exist (`$arr as ?int`) both reach `mwl-ir` and panic naming
   that ADR where a diagnostic belongs.
@@ -53,6 +56,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
   exact-match splice. Use the Write tool, or `python tools/splice.py <target> <old> <new>` with both blocks
   written to `.agent-tmp/`. A throwaway `.agent-tmp/*.py` script run with `python` is fine for a bulk edit.
+  `splice.py` matches the anchor **exactly**, trailing newline included — the Write tool ends a file with
+  one, so strip it from both blocks when splicing mid-paragraph.
 - **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
   lowers**, and is worth doing before writing a batch of cases around it. A scratch file is top-level
   statements, like `examples/*.mwl` — there is no `Main::main` entry point.

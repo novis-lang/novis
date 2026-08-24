@@ -222,6 +222,15 @@ impl<'a> Lowering<'a> {
                 by_ref: false,
                 ..
             } => self.lower_reassignment(e, env, cur),
+            ExprKind::Assign {
+                op,
+                target,
+                value,
+                by_ref: false,
+            } if op.binary_op().is_some() => {
+                let binop = op.binary_op().expect("guarded by the arm's own condition");
+                self.lower_compound_assignment(e, binop, target, value, env, cur);
+            }
             ExprKind::MethodCall { .. } | ExprKind::StaticCall { .. } | ExprKind::New { .. } => {
                 let (v, ty) = self.lower_expr(e, None, env, cur);
                 if ty.is_refcounted() {
@@ -252,6 +261,63 @@ impl<'a> Lowering<'a> {
                  docs' known gaps"
             ),
         }
+    }
+    /// `$x ⊕= e;` — rewritten into the `$x = $x ⊕ e;` it means and handed
+    /// straight to [`Self::lower_reassignment`], so every target that crate
+    /// can already assign to (a local, a compile-time-known property, an
+    /// array element) gains its compound form at once, with that function's
+    /// retain-before-release ordering unchanged. [`AssignOp::binary_op`] is
+    /// the one home of the operator pairing; `mwl_types::expr`'s
+    /// `check_compound_assign` types the same rewrite, so the synthesized
+    /// [`ExprKind::Binary`] node carries the *assignment's* own span — the
+    /// span the checker recorded any [`ExprInfo`] under (`??=` records an
+    /// [`ExprInfo::Coalesce`] there) — while both operands keep their real
+    /// ones.
+    ///
+    /// The rewrite lowers the target expression twice, once as the read and
+    /// once as the write, which is why [`is_reevaluable_target`] gates it:
+    /// for a local, `$this`, or a property/element path over those, a second
+    /// evaluation is the same load and observes the same value, but
+    /// `f()->count += 1` would call `f()` twice where PHP calls it once.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the target when it is not one [`is_reevaluable_target`]
+    /// accepts.
+    pub(super) fn lower_compound_assignment(
+        &mut self,
+        e: &Expr,
+        op: BinaryOp,
+        target: &Expr,
+        value: &Expr,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
+        assert!(
+            is_reevaluable_target(&target.kind),
+            "mwl-ir lowers a compound assignment by rewriting it to `$x = $x op e`, which reads \
+             the target twice, so its target must be a local, `$this`, or a property/element \
+             path over those — got {:?}; see the crate docs' known gaps",
+            target.kind
+        );
+        let read = Expr {
+            kind: ExprKind::Binary {
+                op,
+                lhs: Box::new(target.clone()),
+                rhs: Box::new(value.clone()),
+            },
+            span: e.span,
+        };
+        let desugared = Expr {
+            kind: ExprKind::Assign {
+                op: AssignOp::Assign,
+                target: Box::new(target.clone()),
+                value: Box::new(read),
+                by_ref: false,
+            },
+            span: e.span,
+        };
+        self.lower_reassignment(&desugared, env, cur);
     }
     /// `$x = expr;` or `$obj->prop = expr;` as a bare expression statement —
     /// SSA renaming needs no join logic here, only a fresh binding in `env`
@@ -513,4 +579,37 @@ impl<'a> Lowering<'a> {
         }
         self.write_back_array(base, written, env, cur);
     }
+}
+
+/// Whether lowering this expression twice observes the same value and runs
+/// no side effect the second time — the precondition
+/// [`Lowering::lower_compound_assignment`]'s rewrite needs, since `$x op= e`
+/// becomes `$x = $x op e` with the target appearing on both sides.
+///
+/// A local read (`$this` is one, spelled as an ordinary variable), and a
+/// property or element path built over those, are the shapes that qualify: each is a load, and a `get` hook (ADR 0014
+/// § 1) still runs exactly once because the write side of a property
+/// assignment never reads its own target back through the hook. A call, a
+/// `new`, an assignment, or anything else that can run user code is refused
+/// rather than silently duplicated.
+fn is_reevaluable_target(kind: &ExprKind) -> bool {
+    match kind {
+        ExprKind::Variable(_) => true,
+        ExprKind::PropertyAccess {
+            object,
+            nullsafe: false,
+            ..
+        } => is_reevaluable_target(&object.kind),
+        ExprKind::Index { base, index } => {
+            is_reevaluable_target(&base.kind) && index.as_ref().is_none_or(|i| is_pure_key(&i.kind))
+        }
+        _ => false,
+    }
+}
+
+/// Whether an array key expression can be lowered twice — the same question
+/// [`is_reevaluable_target`] asks of a target, widened by the literal forms a
+/// key is usually written as.
+fn is_pure_key(kind: &ExprKind) -> bool {
+    matches!(kind, ExprKind::Int(_) | ExprKind::Str(_)) || is_reevaluable_target(kind)
 }

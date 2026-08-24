@@ -1,0 +1,20 @@
+--TEST--
+a compound assignment through a `&$x` parameter updates the caller's own binding
+--FILE--
+<?mwl
+class Bump {
+    public static function twice(int &$n, string &$s): void {
+        $n += 2;
+        $s .= "!";
+    }
+}
+
+int $count = 5;
+var $label = "go";
+Bump::twice($count, $label);
+Bump::twice($count, $label);
+echo $count, "\n";
+echo $label, "\n";
+--EXPECT--
+9
+go!!

@@ -1115,9 +1115,14 @@ impl<'a> Lowering<'a> {
         out: &mut Vec<String>,
     ) {
         match &stmt.kind {
+            // Every assignment operator counts, not just `=`: a compound
+            // `$n += 1` re-points its local exactly the way the `$n = $n + 1`
+            // it lowers to does (`Self::lower_compound_assignment`), and a
+            // loop header that misses its phi reads the pre-loop value on
+            // every iteration — an infinite `while ($n < 4) { $n += 1; }`
+            // rather than a diagnostic.
             StmtKind::Expr(e) => {
                 if let ExprKind::Assign {
-                    op: AssignOp::Assign,
                     target,
                     by_ref: false,
                     ..
