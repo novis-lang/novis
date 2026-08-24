@@ -12,7 +12,7 @@
 //!
 //! # One module per domain; adding a class is two lines
 //!
-//! A domain module ([`arr`], [`math`], [`regex`], [`str`]) holds everything about its class: the
+//! A domain module ([`arr`], [`math`], [`regex`], [`str`], [`time`]) holds everything about its class: the
 //! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering
 //! for its own symbols and nothing else.
@@ -94,6 +94,10 @@
 //!    not yet). Section 5 is six of its eight: [`regex::CLASS`] holds both of
 //!    ADR 0056's tiers and the `Core`-owned `Match` they answer with, and that
 //!    module's own gap 1 owns `compile`/`replaceWith`, which need `Pattern`.
+//!    Section 4 has its first type: [`time::DURATION`] is `Core\Time\Duration`,
+//!    nineteen members over one `int` slot of nanoseconds, and the value ADR
+//!    0070's `1h30m` literal produces — [`time`]'s own gap 1 owns `Core\Time`
+//!    itself, `Instant`, `DateTime` and `Zone`, which are where `jiff` lands.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
@@ -109,8 +113,9 @@
 //!
 //!    A **`Core`-owned instance** is no longer one: [`instance`] is the value
 //!    behind [`registry::CoreTy::Instance`], and that module's own docs own
-//!    what it is and what it spends — so § 4's four time types, § 9's three
-//!    collections and § 12's `Uri` need only their members written.
+//!    what it is and what it spends — so § 9's three collections and § 12's
+//!    `Uri` need only their members written, exactly as § 4's `Duration`
+//!    already has.
 //!
 //!    `decimal` is no longer one of them: [`registry::CoreTy::Decimal`] states
 //!    it and `mwl_runtime::Decimal` is the value behind it, so `Arr::sum`,
@@ -170,6 +175,7 @@ mod ordering;
 pub mod regex;
 pub mod registry;
 pub mod str;
+pub mod time;
 
 use registry::CoreClass;
 
@@ -201,6 +207,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 .or_else(|| arr::address(method.symbol))
                 .or_else(|| math::address(method.symbol))
                 .or_else(|| regex::address(method.symbol))
+                .or_else(|| time::address(method.symbol))
                 .unwrap_or_else(|| {
                     panic!(
                         "mwl-stdlib registers `{}` with no implementation address",

@@ -500,6 +500,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::math::CLASS,
     crate::regex::CLASS,
     crate::regex::MATCH,
+    crate::time::DURATION,
 ];
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s

@@ -763,6 +763,13 @@ fn infer(
             record_decimal_placement(expr.span, env)
         }
         ExprKind::Float(_) => env.interner.float(),
+        // ADR 0070 § 2: a duration literal is `Core\Time\Duration` and nothing
+        // places it — the suffix *is* the type, unlike ADR 0054's fractional
+        // literal just above. The lexer has already run the grammar and
+        // reported anything wrong, so there is nothing left to check here.
+        ExprKind::Duration(_) => env
+            .interner
+            .class(QName::parse(mwl_stdlib::time::DURATION_NAME)),
         ExprKind::Str(span) => {
             // A single-quoted literal's own two escapes (`\\`/`\'`) can
             // never produce invalid UTF-8, so it gets no cooking-diagnostic
@@ -870,7 +877,11 @@ fn infer(
             let inner_ty = check_expr(inner, None, live, scope, ctx, env);
             match op {
                 UnaryOp::Not => env.interner.bool_ty(),
-                UnaryOp::Neg | UnaryOp::Plus | UnaryOp::BitNot | UnaryOp::Suppress => inner_ty,
+                UnaryOp::Neg | UnaryOp::Plus | UnaryOp::BitNot => {
+                    reject_arithmetic_on_object(*op, inner_ty, expr.span, env);
+                    inner_ty
+                }
+                UnaryOp::Suppress => inner_ty,
                 _ => inner_ty,
             }
         }
@@ -2533,6 +2544,41 @@ fn reject_enum_to_enum_conversion(from: TypeId, to: TypeId, span: Span, env: &mu
 /// operand (including `Ty::Enum`, `mixed`, and a scalar) and for an
 /// unmodeled `Core` class, the same scoping [`object_comparison_result`] and
 /// [`check_property_access`] already use.
+/// Reports `E_TYPE_MISMATCH` for `-`, `+` or `~` applied to an object.
+///
+/// MWL has no operator overloading, so there is no arithmetic an object can
+/// take part in — and the first place a program reaches for one is
+/// [ADR 0070](../../../docs/adr/0070-duration-literals.md) § 4's `-7d`, which
+/// that ADR refuses outright in favour of `->minus(7d)`. Left unchecked it
+/// reaches `mwl-codegen`, which panics naming the representation; a
+/// diagnostic naming the operator is what the author needs.
+///
+/// Only the three arithmetic prefixes: `!` is ADR 0035's truthy test, which an
+/// object is perfectly legal in, and `@` is a suppression marker that says
+/// nothing about its operand's type.
+fn reject_arithmetic_on_object(op: UnaryOp, ty: TypeId, span: Span, env: &mut Env<'_>) {
+    if !matches!(env.interner.get(ty), Ty::Class(..) | Ty::Object) {
+        return;
+    }
+    let spelling = match op {
+        UnaryOp::Neg => "-",
+        UnaryOp::Plus => "+",
+        _ => "~",
+    };
+    let described = env.interner.describe(ty);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_TYPE_MISMATCH,
+            format!("`{spelling}` has no meaning for `{described}`"),
+        )
+        .with_primary(span, "an object takes part in no arithmetic")
+        .with_help(
+            "MWL has no operator overloading; call the member that does this — a \
+             `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
+        ),
+    );
+}
+
 pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
     let Ty::Class(qname, _) = env.interner.get(ty).clone() else {
         return;

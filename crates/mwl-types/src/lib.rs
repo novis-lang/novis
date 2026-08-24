@@ -220,6 +220,7 @@ pub use defaults::ConstArg;
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
+pub use mwl_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use ty::{Ty, TypeId, TypeInterner};
 
 use mwl_diagnostics::{SourceFile, Span};

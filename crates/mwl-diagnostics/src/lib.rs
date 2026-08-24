@@ -72,6 +72,11 @@ pub mod code {
     pub const E_BAD_HEREDOC: Code = Code::new("E0005");
     /// Input that is not valid UTF-8.
     pub const E_INVALID_UTF8: Code = Code::new("E0006");
+    /// A duration literal that does not follow
+    /// [ADR 0070](../../../docs/adr/0070-duration-literals.md) § 1's grammar —
+    /// out of order, a repeated unit, a fractional count, a mis-cased unit, or
+    /// longer than `Core\Time\Duration` can hold.
+    pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007");
 
     // --- E01xx parser ------------------------------------------------------
     /// A specific token was required here.

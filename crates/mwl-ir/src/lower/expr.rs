@@ -144,6 +144,38 @@ impl<'a> Lowering<'a> {
                     .unwrap_or_else(|_| panic!("mwl-ir: float literal `{digits}` failed to parse"));
                 self.emit(*cur, Ty::Float, InstKind::ConstFloat(n))
             }
+            // ADR 0070 § 3: the grammar is resolved while compiling, so what
+            // reaches the IR is one folded nanosecond count. The value it
+            // becomes is built by the *same* `Core` member a written
+            // `Duration::nanoseconds($n)` calls — `mwl_stdlib::time`'s
+            // `FROM_NANOS_SYMBOL`, named there rather than spelled here — so a
+            // literal and a computed count cannot come to mean different
+            // things.
+            //
+            // § 3 also wants no allocation at all: a constant-pool entry with
+            // an immortal header, which is exactly what a string literal is
+            // owed by `mwl-runtime`'s own gap 3. Both close together; until
+            // then this is one call on a constant.
+            ExprKind::Duration(span) => {
+                let text = span_text(self.src, *span);
+                let nanos = mwl_syntax::duration::parse(text).unwrap_or_else(|err| {
+                    panic!(
+                        "mwl-ir: duration literal `{text}` does not parse ({}) — the lexer \
+                         only produces this token for text that does",
+                        err.message()
+                    )
+                });
+                let (count, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(nanos));
+                self.emit_fallible(
+                    *cur,
+                    Ty::Object,
+                    InstKind::CoreCall {
+                        symbol: mwl_types::CORE_DURATION_FROM_NANOS,
+                        args: vec![count],
+                    },
+                    env,
+                )
+            }
             // A fresh `Ty::Str` value with exactly one natural owner — see
             // `Self::bind_local`'s doc comment for why a value produced here
             // never needs a retain of its own, only whatever consumes it.

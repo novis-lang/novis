@@ -27,8 +27,9 @@
 > per core with every member a native helper taking its receiver in argument slot 0
 > (`mwl_stdlib::instance`) — so § 4's time types, § 9's collections and § 12's `Uri` need only their
 > members written, and `Core\Regex\Match` is the first of them.
-> **Every M4 control-flow statement lowers but `do`/`while`.** One M4 hole stays folded in: ADR 0070's
-> duration literal, which `Core\Time\Duration::parse` shares an implementation with. Dependencies:
+> **Every M4 control-flow statement lowers but `do`/`while`.** The M4 hole that was folded in is now
+> closed: **ADR 0070's duration literal lexes, types and runs**, `30s` and `Duration::parse("30s")` sharing
+> the one grammar in `mwl_syntax::duration` that `mwl.toml` will read too. Dependencies:
 > `regex` + `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
@@ -38,17 +39,18 @@
 > **M1 was re-opened for four grammar additions**, each accepted after it was reported done and each
 > blocking its ADR's already-scheduled M2 slice; **`decimal` (0054) is built, grammar and checker rows
 > alike, and 0047's literal/enum-case type atoms are built as grammar** — their checker rows are still
-> owed, and the atoms are refused by name until then. Two remain: `autoload` (0061) and the duration
-> literal (0070). M1's own section lists them.
+> owed, and the atoms are refused by name until then. The **duration literal (0070)** is now built too,
+> lexer through IR; `autoload` (0061) is the one left. M1's own section lists it.
 >
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
-> `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
-> `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
-> `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 28, `Math` × 38, `format`, `granularity`, `ordering`,
-> `instance`, `Order` and `RoundMode`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, and
-> the conformance-coverage gate),
+> `mwl-syntax` (+ `duration`, ADR 0070's one grammar), `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`,
+> `error_lib`, `iter_lib`, `generics`, `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`,
+> `array`, `throwable`, `closure`, `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 28,
+> `Math` × 38, `format`, `granularity`, `ordering`,
+> `instance`, `Order` and `RoundMode`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`,
+> `Time\Duration` × 19, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 306 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/conformance` × 311 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
 > `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -64,8 +66,11 @@
 > return, `null` itself, `??` and now `as ?int`/`?uint`/`?float`/`?decimal` all run, leaving that ADR's
 > enum target and every § 3 *refusal* owed, and **0056 §§ 1, 2 and 5** — both engines are bound, the tier
 > is chosen by the pattern and the backtracking budget throws, leaving § 3's compile-time tiering (which
-> waits on ADR 0057) and § 4's pattern sink (which waits on a qualifier the registry can state).
-> Instance calls dispatch on the receiver's runtime class. Each
+> waits on ADR 0057) and § 4's pattern sink (which waits on a qualifier the registry can state), and
+> **0070 in full but its § 3 constant** — `30s` lexes as one token, types as `Core\Time\Duration` and
+> runs, over the one grammar `mwl_syntax::duration` holds for the lexer, `Duration::parse` and M6's
+> `mwl.toml`; what is owed is the *immortal* constant-pool value, which `mwl-runtime`'s gap 3 owes a
+> string literal too. Instance calls dispatch on the receiver's runtime class. Each
 > ADR's own *Verification* section says what its slice covers, not this field.
 >
 > **Open now:** **`Core` breadth.** Spec § 3 is whole, § 2's aggregations are written and § 5 is six of
@@ -81,15 +86,17 @@
 > three combination members, `append`/`prepend` and `Path::join` need only writing. A **`Core`-owned
 > instance** is no longer one:
 > `registry::CoreClass` carries an `instance` roster and a `slots` layout, `CoreTy::Instance` names one as
-> a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it — so § 4's four time types, § 9's
-> three collections and § 12's `Uri` need only their members. **A `!== null` test now narrows a local**,
-> so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's flow-sensitive rule, one of its four
+> a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it. **§ 4's `Core\Time\Duration` is
+> the first of them written** — one `int` slot of nanoseconds, nineteen members, and ADR 0070's `1h30m`
+> literal producing the same value as `Duration::parse("1h30m")` through the one grammar in
+> `mwl_syntax::duration`; `Core\Time` itself, `Instant`, `DateTime` and `Zone` are what
+> `examples/dates.mwl` still wants, and they are where `jiff` lands. **A `!== null` test now narrows a
+> local**, so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's flow-sensitive rule, one of its four
 > spellings, with `mwl_types::locals` the home for what invalidates a narrowing and where the walk
-> refuses to prove one. The M4 hole left on the path is ADR 0070's duration literal. Also open: ADR
-> 0047's checker row,
+> refuses to prove one. Also open: ADR 0047's checker row,
 > `autoload` (0061), a `decimal` parameter *default* (`mwl_types::defaults`), class-member
 > `private`/`protected`, which nothing enforces, and the reserved `Comparable`/`Stringable` interfaces,
-> which carry no member signatures.
+> which carry no member signatures — so `Duration` satisfies both by member and neither by declaration.
 > One PHP divergence stands unfixed — **an abandoned generator never runs the `finally` it is suspended
 > inside**, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP
 > domain remaining, reported by `python tools/check-migration.py`. Off path: ADR 0043's `by`-delegation.
@@ -102,8 +109,9 @@
 > `mwl_runtime::identity`), and picking every dependency but the two the user named. Stages 1 and 2 pass
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
 > on **Stage 3**, `Core` Part I across all twelve spec sections: four of its seven fixtures produce their
-> frozen output on both legs — `examples/core.mwl`, `report.mwl`, `numbers.mwl` and now `text.mwl` — and
-> `dates.mwl` is the first that does not, wanting spec § 4's four time types over `jiff`.
+> frozen output on both legs — `examples/core.mwl`, `report.mwl`, `numbers.mwl` and `text.mwl` — and
+> `dates.mwl` is the first that does not, now wanting only `Core\Time`, `Instant`, `DateTime` and `Zone`
+> over `jiff`, since its `Duration` half runs.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -517,12 +525,13 @@ than being optional. Items 1-2 are built; items 3-4 are not:
    file-scope declaration forms whose grammar
    [`docs/spec/00-overview.md`](spec/00-overview.md) § 2 already fixes. M2's name-to-file fixpoint has
    nothing to resolve until this parses.
-4. **The duration literal** ([ADR 0070](adr/0070-duration-literals.md)) — one `DurationLiteral` token over
-   `( DEC_INT unit )+`, recognised only after a plain decimal integer, units strictly descending and
-   unrepeated, lower case only, no sign. It meets item 1 at the lexer: `decimal`'s rejected `m` suffix and
-   this grammar's `m`-for-minutes are the same character in the same position, and
-   `a_trailing_m_is_not_a_decimal_literal_suffix` already pins the boundary from the `decimal` side —
-   `19.99m` must still lex as two tokens once `30m` lexes as one.
+4. **The duration literal** ([ADR 0070](adr/0070-duration-literals.md)) — **built**, and its M2 and M4S
+   halves with it: one `DurationLiteral` token over `( DEC_INT unit )+`, typed `Core\Time\Duration` with
+   nothing placing it, folded to a nanosecond count and lowered to the one member that also serves a
+   computed `Duration::nanoseconds($n)`. The grammar is `crates/mwl-syntax/src/duration.rs`, shared with
+   `Duration::parse` and with M6's `mwl.toml` exactly as § 5 requires. It met item 1 at the lexer, and the
+   ADR decided the boundary: `1.5s` is that grammar's own fractional refusal, so `19.99m` is refused there
+   too rather than lexing as two tokens — a suffix *outside* the unit alphabet, like `19.99x`, still does.
 
 **Verify:** `mwl ast file.mwl` dumps the AST; `insta` snapshot tests; `cargo fuzz` on the lexer and parser
 finds no panic in a 5 minute run; parse the full local `php-src` folder for `.php` files without crashing

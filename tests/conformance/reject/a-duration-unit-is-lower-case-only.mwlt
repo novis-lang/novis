@@ -1,0 +1,12 @@
+--TEST--
+a duration unit has one spelling, and it is lower case — ADR 0070 § 1 over ADR 0062 § 2
+--FILE--
+<?mwl
+var $shouted = 30S;
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0007]: `30S` is not a duration literal
+  --> case.mwl:2:16
+%A

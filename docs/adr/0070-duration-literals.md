@@ -169,14 +169,19 @@ The three share one parser, so a grammar change cannot land in one and miss the 
 
 ## Verification
 
-- **M1:** lexer fixtures for `30s`, `1h30m`, `500ms`, `1w`; diagnostics for `30m1h` (out of order), `1h1h`
-  (repeated unit), `1.5s` (fractional), `30S` (casing, naming ADR 0062) and `-7d` (sign); a fixture
-  asserting `0x1d` still lexes as one hex literal and `3 d` as two tokens. The `lex` fuzz target covers the
-  new production.
-- **M2:** a duration literal types as `Core\Time\Duration` with no placement inference; `var $x = 1h30m;`
-  infers it; an out-of-range literal is a compile error.
-- **M4S:** `1h30m`, `Duration::parse("1h30m")` and `mwl.toml`'s `"1h30m"` produce the same value through the
-  same parser — one conformance case asserting all three, so a divergence cannot land. `Duration`'s
-  `Stringable` output re-parses to the original value.
-- **M4S:** an IR or codegen fixture asserting a literal in an options shape allocates nothing — it is a
-  constant-pool reference, not a constructor call.
+- **Done (M1/M2/M4S).** The grammar is `crates/mwl-syntax/src/duration.rs` — one implementation, whose own
+  module doc says why it sits in the syntax crate — and the lexer, `Core\Time\Duration::parse` and
+  `toString` all reach it. `lexer.rs`'s own tests hold `30s`/`1h30m`/`500ms`/`1w` as one token each,
+  `0x1d` as one hex literal, `3 d` as two tokens, `30foo` as an integer and an identifier, and one
+  diagnostic apiece for `30m1h`, `1h1h`, `1.5s`, `30S` and an out-of-range literal.
+  `tests/conformance/lang/duration-literal-and-parse-share-one-grammar.mwlt` is § 5's divergence check —
+  the literal, `parse` and a re-parsed `toString` are one value — and
+  `tests/conformance/reject/` holds the order, casing and `-7d` refusals. § 2's typing is
+  `mwl_types::expr`'s `ExprKind::Duration` arm: `Core\Time\Duration`, with nothing placing it.
+- **Owed, and what each waits on.** § 3's *constant* half — no allocation at run time, a constant-pool
+  entry with an immortal header — is the same thing `mwl-runtime`'s own gap 3 owes a string literal, and
+  both close together; today a literal is one `Duration::nanoseconds` call on a folded count, so the
+  grammar is resolved while compiling but the value is not immortal. § 5's third place, `mwl.toml`, waits
+  on M6's configuration loader, which calls the same parser.
+- **M6:** a directive written `request_timeout = "30s"` and a source literal `30s` produce the same value,
+  asserted against the parser both already share.

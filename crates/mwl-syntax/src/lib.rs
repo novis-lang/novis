@@ -13,6 +13,10 @@
 //! - [`casing`] — [`check_casing`], the ADR 0029/0030 identifier-casing
 //!   check, run directly on a parsed file's declarations; see its module
 //!   docs for exactly what is and isn't covered.
+//! - [`duration`] — ADR 0070's duration grammar, the one place `30s` is
+//!   defined. Public because it is shared: `mwl-stdlib`'s
+//!   `Core\Time\Duration::parse` and (at M6) `mwl.toml`'s reader both call in,
+//!   which is what stops the three from drifting.
 //!
 //! ```
 //! use mwl_diagnostics::{Diagnostics, SourceMap};
@@ -80,6 +84,7 @@
 
 pub mod ast;
 mod casing;
+pub mod duration;
 mod lexer;
 mod parser;
 mod token;

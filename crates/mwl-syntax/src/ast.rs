@@ -623,6 +623,18 @@ pub enum ExprKind {
     Int(Span),
     /// A float literal; the digits are cooked later.
     Float(Span),
+    /// A duration literal — `30s`, `1h30m`
+    /// ([ADR 0070](../../../docs/adr/0070-duration-literals.md)).
+    ///
+    /// A span like every other literal, cooked by
+    /// [`crate::duration::parse`] wherever the value is wanted. The lexer has
+    /// already run that same parser and reported any failure, so cooking one
+    /// cannot fail.
+    ///
+    /// Its type is `Core\Time\Duration` and nothing places it, unlike
+    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s fractional
+    /// literal — the suffix *is* the type (ADR 0070 § 2).
+    Duration(Span),
     /// A single-quoted string, or a double-quoted/heredoc/nowdoc string with
     /// no interpolation in it — both are plain literal text, uncooked.
     Str(Span),

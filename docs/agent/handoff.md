@@ -2,34 +2,37 @@
 
 ## State
 
-**A `!== null` test now narrows a local**, so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's
-flow-sensitive rule, in its `=== null`/`!== null` spelling. That was the last thing `examples/text.mwl`
-needed, so **Stage 3 is four of its seven fixtures** on both legs; `dates.mwl` is the first that still
-fails, wanting spec § 4's time types over `jiff`.
+**ADR 0070's duration literal is built end to end**, and with it spec § 4's first type: `30s`, `1h30m`
+and `500ms` lex as one token, type as `Core\Time\Duration`, and run. `Core\Time\Duration` is a
+`Core`-owned instance with one `int` slot of nanoseconds and nineteen members, so `Core` breadth is now
+five sections deep. Stage 3 is still four of its seven fixtures; `dates.mwl` now wants only `Core\Time`,
+`Instant`, `DateTime` and `Zone`.
 
-- **`mwl_types::locals`' module doc is the home** for what a narrowing is, what invalidates one
-  (every write path calls `LocalScope::overwrite`, and that list is named there) and the two places the
-  walk deliberately refuses to prove anything — a loop body, and any residue that is not a class.
-- **`mwl-ir` turns a narrowed receiver into one unchecked `Untag`** (`Lowering::untag_receiver`), the
-  same instruction `?->` emits in its non-`null` arm and with the same ownership. `=== null`/`!== null`
-  itself is now one `IsNull` rather than a `BinOp` against a `null` constant, which is what it always
-  had to be — `mwl-ir` gap 3 records both.
-- `crates/mwl-types/tests/narrowing.rs` (11 cases) holds the refusals as tightly as the acceptances,
-  because an over-eager narrowing would be a wrong untag rather than a diagnostic.
+- **`crates/mwl-syntax/src/duration.rs` is the one grammar** ADR 0070 § 5 requires — its module doc owns
+  why the shared code sits in the syntax crate and what the `i64`-nanosecond range buys. The lexer, the
+  run-time `Duration::parse` and (at M6) `mwl.toml` all call it, so `mwl-stdlib` now depends on
+  `mwl-syntax`; ADR 0019's `Core\Ast` owes that edge anyway.
+- **`crates/mwl-stdlib/src/time.rs`** is the class, and its gap list is what § 4 still owes.
+  `mwl_types::expr`'s `ExprKind::Duration` arm is § 2's typing, `mwl-ir`'s is § 3's folding.
+- **`-7d` is now a diagnostic**, not a codegen panic: `mwl_types::expr::reject_arithmetic_on_object`
+  refuses unary `-`/`+`/`~` over any object, which is ADR 0070 § 4's refusal and covers every `Core`
+  class at once.
 
-Verified: `cargo build`/`test`/`clippy`/`fmt` green, 390 `.mwlt` cases on Windows and 310 (differential
-skipped, no PHP in WSL) on Linux, and `tools/leak-check.sh` clean over a fifty-iteration fixture calling
-a `Core` instance member, a user method and a property read *and* write through a narrowed receiver.
+Verified: `cargo build`/`test`/`clippy`/`fmt` green, 397 `.mwlt` cases on Windows and 311 (differential
+skipped, no PHP in WSL) on Linux with the whole `wsl-acceptance.sh` leg passing, and `tools/leak-check.sh`
+clean over a fifty-iteration fixture exercising every new refcount edge — a literal bound in a loop, a
+literal as an argument, a chain of fresh receivers, a string result and a throwing constructor. The one
+leak that fixture *does* find is the pre-existing `landing_block` gap below, not a duration edge.
 
 ## Next
 
-**Spec § 4's time types over `jiff`** — `Instant`, `DateTime`, `Duration`, `Zone`, which
-`examples/dates.mwl` is the frozen check for. Every shape they need exists: `registry::CoreClass`'s
-`instance` roster and `slots` layout carry a `Core`-owned instance (`Core\Regex\Match` is the worked
-example), and `CoreTy::Instance` names one as a type. ADR 0070's **duration literal** is folded into this
-slice by `docs/agent/loop-goal.md` § *Standing decisions*: `Core\Time\Duration::parse` shares one grammar
-and one implementation with it, so build the literal first and `parse` is the same parser from a second
-entry point.
+**Spec § 4's remaining types over `jiff`** — `Core\Time` itself (`now`, `monotonic`, `sleep`,
+`fromEpoch`, `fromIso`, `parse`, `at`), `Instant`, `DateTime`, `Zone`, plus the `Weekday`/`Month`/`Unit`
+enums, which `examples/dates.mwl` is the frozen check for. Every shape they need exists and `Duration` is
+the worked example next door: `registry::CoreClass`'s `instance` roster and `slots` layout, and
+`CoreTy::Instance` to name one. `format`/`Time::parse` take **CLDR** patterns, not PHP's `date()`
+letters; `jiff` is the dependency `docs/agent/loop-goal.md` § *Standing decisions* names, and a new
+dependency owes the three things below.
 
 ## Backlog
 
@@ -40,10 +43,13 @@ entry point.
   declare the variadic that now exists, so each is a registry row and a body.
 - **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
+- **`.` and `as string` over a `Stringable` object** (`mwl-ir` gap 12) — `"took " . $d` panics in
+  lowering rather than diagnosing, and a `Core` class reaches it easily now that `Duration` has a
+  `toString`. `mwl_types::expr::require_stringable` exempts `Core` classes, which is the other half.
 - **`Core\Regex::compile`/`replaceWith`** — § 5's last two, both stated on `Pattern`.
   `crates/mwl-stdlib/src/regex.rs`'s gap 1.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
-  *Known gap*: 50 loop iterations of `Core\Str::padStart("ab", 10, "")` inside a `try` lose 100 blocks.
+  *Known gap*: 50 loop iterations of `Duration::parse("30 seconds")` inside a `try` lose 50 blocks.
 - **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still panic**, and
   **`do`/`while`, `$i++`/`$i--` and every bitwise operator do not lower** (`mwl-ir` gaps 1, 15, 16).
 
@@ -70,7 +76,7 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
   `args: [3]`. A **variadic tail is one argument**, whatever the call writes — so
   `format(string, mixed ...)` is `args: [2]`. **An instance member's receiver is argument slot 0 and is
-  not in `params`**, so `group(int|string)` is `args: [2]`. A mismatch is an index-out-of-bounds panic at
+  not in `params`**, so `plus(Duration)` is `args: [2]`. A mismatch is an index-out-of-bounds panic at
   the first call.
 - **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
   `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
@@ -94,7 +100,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
 - **The traps that cost the most time are not gaps**: a `"%1$s"` template must be written in **single**
   quotes or the `$s` interpolates; `as` binds tighter than every binary operator *and* than unary minus,
-  so write `($a > $b) as string` and `(0 - 3) as ?uint`; a `for` header takes *expressions* only, so the
+  so write `($a > $b) as string` and `(0 - 3) as ?uint`; a duration literal used as a receiver needs
+  parentheses (`(30s)->toSeconds()`); a `for` header takes *expressions* only, so the
   loop variable is declared on the line above it (`foreach (Core\Arr::range(…))` is usually shorter); a
   `foreach` binding declares a type (`as int $i`); `Core\Str::length` answers `uint`, so a running total
   it feeds must be one too, and `?? 0` against a `?uint` needs `?? 0 as uint` to stay one; `bool as

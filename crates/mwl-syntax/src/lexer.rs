@@ -29,6 +29,7 @@ use std::collections::VecDeque;
 
 use mwl_diagnostics::{BytePos, Diagnostic, Diagnostics, SourceFile, Span, code};
 
+use crate::duration;
 use crate::token::{Keyword, Token, TokenKind};
 
 /// One entry in the lexer's mode stack. See the module docs for how `modes[0]`
@@ -369,11 +370,11 @@ impl<'a> Lexer<'a> {
                 return;
             }
             Some(c) if c.is_ascii_digit() => {
-                self.lex_number();
+                self.lex_number(diags);
                 return;
             }
             Some('.') if self.peek_at(1).is_some_and(|c| c.is_ascii_digit()) => {
-                self.lex_number();
+                self.lex_number(diags);
                 return;
             }
             Some('\'') => {
@@ -442,7 +443,20 @@ impl<'a> Lexer<'a> {
         self.push(kind, span);
     }
 
-    fn lex_number(&mut self) {
+    /// A numeric literal, and — [ADR 0070](../../../docs/adr/0070-duration-literals.md)
+    /// § 1 — the duration literal that shares its opening digits.
+    ///
+    /// A duration is reached only from a **plain decimal** integer: the
+    /// `0x`/`0o`/`0b` forms return before this point, so `0x1d` stays one hex
+    /// literal, and a float that is followed by a unit letter is § 1's
+    /// fractional refusal rather than a rounded duration.
+    ///
+    /// The trigger is deliberately narrow. A candidate is scanned with
+    /// [`duration::is_duration_char`] — the digits plus the unit letters in
+    /// **both** cases — so `30foo` is still an integer followed by an
+    /// identifier and gets no duration diagnostic, while `30S` reaches the
+    /// grammar and is told which ADR makes it wrong.
+    fn lex_number(&mut self, diags: &mut Diagnostics) {
         let start = self.pos;
         if self.peek() == Some('0') {
             match self.peek_at(1) {
@@ -498,12 +512,75 @@ impl<'a> Lexer<'a> {
             }
         }
 
+        if self.peek().is_some_and(|c| c.is_ascii_alphabetic()) {
+            self.lex_duration_suffix(start, is_float, diags);
+            return;
+        }
+
         let kind = if is_float {
             TokenKind::FloatLiteral
         } else {
             TokenKind::IntLiteral
         };
         self.push(kind, self.mk_span(start, self.pos));
+    }
+
+    /// The half of [`Self::lex_number`] that runs once a letter follows the
+    /// digits, with `start` the number's first byte and `is_float` whether a
+    /// `.` or an exponent was consumed on the way here.
+    ///
+    /// Leaves the position where it found it — pushing an ordinary
+    /// [`TokenKind::IntLiteral`] and letting the letters lex as an identifier
+    /// — for anything outside the duration alphabet, which is what keeps this
+    /// production from claiming `30foo`.
+    fn lex_duration_suffix(&mut self, start: BytePos, is_float: bool, diags: &mut Diagnostics) {
+        let mut end = self.pos;
+        while (end as usize) < self.text.len()
+            && self.text[end as usize..]
+                .chars()
+                .next()
+                .is_some_and(duration::is_duration_char)
+        {
+            end += 1;
+        }
+        let candidate = &self.text[start as usize..end as usize];
+        // Anything past the alphabet means this was never a duration: leave
+        // the digits as the integer they are and let the letters lex on their
+        // own, exactly as before this production existed.
+        let followed_by_more = self.text[end as usize..]
+            .chars()
+            .next()
+            .is_some_and(Self::is_ident_continue);
+        if followed_by_more {
+            self.push(
+                if is_float {
+                    TokenKind::FloatLiteral
+                } else {
+                    TokenKind::IntLiteral
+                },
+                self.mk_span(start, self.pos),
+            );
+            return;
+        }
+
+        // A fractional count needs no rule of its own: the candidate is sliced
+        // from the number's first byte, so `1.5s` reaches `duration::parse`
+        // with its `.` intact and ADR 0070 § 1's refusal is the grammar's.
+        let span = self.mk_span(start, end);
+        self.pos = end;
+        match duration::parse(candidate) {
+            Ok(_) => self.push(TokenKind::DurationLiteral, span),
+            Err(err) => {
+                diags.report(
+                    Diagnostic::error(
+                        code::E_BAD_DURATION_LITERAL,
+                        format!("`{candidate}` is not a duration literal"),
+                    )
+                    .with_primary(span, err.message()),
+                );
+                self.push(TokenKind::Unknown, span);
+            }
+        }
     }
 
     fn consume_digit_run(&mut self, is_digit: impl Fn(char) -> bool) {
@@ -1258,13 +1335,17 @@ mod tests {
     #[test]
     fn a_trailing_m_is_not_a_decimal_literal_suffix() {
         // ADR 0054 § 2 and its *Alternatives rejected*: MWL has no literal
-        // suffix at all, so `19.99m` is a float literal followed by an
-        // identifier -- two tokens the parser then refuses -- not one decimal
-        // token. This also pins the boundary ADR 0070 § 2 depends on: a
-        // duration is recognised only after a *plain decimal integer*, so
-        // `30m` may become one token later without `19.99m` ever doing so.
+        // suffix at all, so `19.99m` is not one decimal token. ADR 0070 § 1
+        // decides which *kind* of refusal it gets: a duration is recognised
+        // only after a plain decimal integer, and a fractional count is that
+        // ADR's own named lexer error (`1.5s`, its § 4), so `19.99m` is
+        // rejected by the duration grammar rather than lexing as two tokens.
+        // A suffix outside the unit alphabet still splits in two -- see
+        // `a_non_unit_suffix_is_still_an_integer_and_an_identifier`.
+        let (_, diags) = kinds("<?mwl 19.99m");
+        assert!(diags.has_errors());
         assert_eq!(
-            kinds_ok("<?mwl 19.99m"),
+            kinds_ok("<?mwl 19.99x"),
             vec![OpenTagMwl, FloatLiteral, Ident, Eof]
         );
     }
@@ -1327,6 +1408,79 @@ mod tests {
             vec![
                 OpenTagMwl, IntLiteral, IntLiteral, IntLiteral, IntLiteral, IntLiteral, Eof
             ]
+        );
+    }
+
+    /// ADR 0070 § 1: one token per literal, maximal munch, and the units in
+    /// descending order.
+    #[test]
+    fn duration_literal_shapes() {
+        assert_eq!(
+            kinds_ok("<?mwl 30s 1h30m 500ms 1w 1w2d3h4m5s6ms7us8ns"),
+            vec![
+                OpenTagMwl,
+                DurationLiteral,
+                DurationLiteral,
+                DurationLiteral,
+                DurationLiteral,
+                DurationLiteral,
+                Eof
+            ]
+        );
+    }
+
+    /// The two shapes ADR 0070 § 1 protects: `0x1d` stays one hex literal
+    /// because the `0x` form returns before the duration production is
+    /// reached, and `3 d` is two tokens because whitespace ends the candidate.
+    #[test]
+    fn a_duration_literal_does_not_swallow_a_hex_literal_or_a_spaced_identifier() {
+        assert_eq!(kinds_ok("<?mwl 0x1d"), vec![OpenTagMwl, IntLiteral, Eof]);
+        assert_eq!(
+            kinds_ok("<?mwl 3 d"),
+            vec![OpenTagMwl, IntLiteral, Ident, Eof]
+        );
+    }
+
+    /// A suffix outside the unit alphabet is not a duration attempt at all, so
+    /// it keeps the integer-then-identifier lexing it always had rather than
+    /// collecting a duration diagnostic.
+    #[test]
+    fn a_non_unit_suffix_is_still_an_integer_and_an_identifier() {
+        assert_eq!(
+            kinds_ok("<?mwl 30foo 1e 30Something"),
+            vec![
+                OpenTagMwl, IntLiteral, Ident, IntLiteral, Ident, IntLiteral, Ident, Eof
+            ]
+        );
+    }
+
+    /// Each of ADR 0070 § 1's five refusals reaches the lexer, and each
+    /// produces one error rather than a cascade — the grammar itself is tested
+    /// in [`crate::duration`], so what this holds is that the lexer *reaches*
+    /// it.
+    #[test]
+    fn a_malformed_duration_literal_is_one_lexer_error() {
+        for src in [
+            "<?mwl 30m1h",
+            "<?mwl 1h1h",
+            "<?mwl 1.5s",
+            "<?mwl 30S",
+            "<?mwl 100000w",
+        ] {
+            let (kinds, diags) = kinds(src);
+            assert!(diags.has_errors(), "{src} should be refused");
+            assert_eq!(kinds, vec![OpenTagMwl, Unknown, Eof], "for {src}");
+        }
+    }
+
+    /// ADR 0070 § 1 keeps the sign out of the literal, so the parser never has
+    /// to decide whether the `-` in `$a -7d` is binary — it is always its own
+    /// token, and `mwl_types` refuses the arithmetic that results.
+    #[test]
+    fn a_duration_literal_never_carries_a_sign() {
+        assert_eq!(
+            kinds_ok("<?mwl -7d"),
+            vec![OpenTagMwl, Minus, DurationLiteral, Eof]
         );
     }
 

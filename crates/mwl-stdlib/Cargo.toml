@@ -10,6 +10,12 @@ repository.workspace = true
 
 [dependencies]
 mwl-runtime.workspace = true
+# ADR 0070 § 5: the duration grammar has exactly one implementation, and it is
+# `mwl_syntax::duration` -- the lexer reads the source literal with it, this
+# crate reads a run-time string with it, and `mwl.toml` will read a directive
+# with it. That module's own docs own why the shared code sits in the syntax
+# crate; ADR 0019's `Core\Ast` owes this same edge regardless.
+mwl-syntax.workspace = true
 unicode-segmentation.workspace = true
 regex.workspace = true
 fancy-regex.workspace = true

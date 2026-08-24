@@ -78,6 +78,14 @@ pub enum TokenKind {
     IntLiteral,
     /// A floating-point literal, including an exponent (`1e10`, `1.5e-3`).
     FloatLiteral,
+    /// A duration literal — `30s`, `1h30m`, `500ms`
+    /// ([ADR 0070](../../../docs/adr/0070-duration-literals.md)).
+    ///
+    /// **One token, maximal munch**: `1h30m` is this, not three tokens. The
+    /// lexer has already checked the whole grammar
+    /// ([`crate::duration`](../duration/index.html)) and reported anything
+    /// wrong, so a token of this kind always cooks to a nanosecond count.
+    DurationLiteral,
 
     /// `'…'`, a single-quoted string. Recognises only PHP's two escapes
     /// (`\\` and `\'`); everything else is literal, so the whole token is

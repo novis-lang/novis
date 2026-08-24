@@ -1791,6 +1791,13 @@ impl<'src, 'd> Parser<'src, 'd> {
                     kind: ExprKind::Float(start),
                 }
             }
+            TokenKind::DurationLiteral => {
+                self.bump();
+                Expr {
+                    span: start,
+                    kind: ExprKind::Duration(start),
+                }
+            }
             TokenKind::SingleQuotedString => {
                 self.bump();
                 Expr {
