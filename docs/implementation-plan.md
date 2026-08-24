@@ -15,7 +15,9 @@
 > `mwl-runtime`'s own are the two homes. `CoreTy::Nullable` interns as `null|T`, so a `?T`-returning
 > member is writable and thirteen are written. The second answer is **strict identity**:
 > `mwl_runtime::value_identical` decides what one value being another means, object identity included,
-> and `value_hash` indexes it — `mwl_runtime::identity`'s own docs are the home. A **variadic** parameter
+> and `value_hash` indexes it — `mwl_runtime::identity`'s own docs are the home. `examples/nullable.mwl`,
+> the fixture that exercises every part of that keystone, now runs whole: `?->` reads through one
+> `IsNull` guard (`mwl_ir::lower::Lowering::open_nullsafe`). A **variadic** parameter
 > is the one signature shape still missing, and `decimal` the one type. Three M4 holes stay folded in —
 > compound assignment, `for`/`switch`/`match`, `decimal`'s IR — as is ADR 0070's duration literal, which
 > `Duration::parse` shares an implementation with. Dependencies: `regex` + `fancy-regex` and `jiff` are
@@ -36,7 +38,7 @@
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
 > `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `granularity`, `Order`, and the
 > conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 269 (in
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 271 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -72,9 +74,9 @@
 > representation (now settled and recorded in `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
 > own handler block, widening `array<T>` to element-covariant-on-read, object identity (now settled and
 > recorded in `mwl_runtime::identity`), and picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
-> so any failure below Stage 2 is a regression rather than unfinished work. Stage 2 stops on
-> `examples/nullable.mwl`'s **last** line, `?->` — `mwl-ir`'s gap 6, one `IsNull` over the receiver plus
-> the branch `lower_coalesce` already builds.
+> so any failure below Stage 2 is a regression rather than unfinished work. Stage 2's first fixture,
+> `examples/nullable.mwl`, now passes whole; it stops on the second, `examples/match.mwl`, which needs all
+> four of `match`, `switch`, `for` and compound assignment — `mwl-ir`'s gaps 1 and 16.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

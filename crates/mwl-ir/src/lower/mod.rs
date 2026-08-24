@@ -2338,12 +2338,27 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// `$obj?->greet()` on a receiver that may be `null` — one `is.null` over
+    /// the tagged receiver, the call in the arm where it isn't, and a `null`
+    /// in the arm where it is, merged by a `phi`. See
+    /// `Lowering::open_nullsafe`.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn a_nullsafe_method_call_is_still_out_of_scope() {
-        lower_first_method(
+    fn a_nullsafe_method_call_on_a_nullable_receiver() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): ?int {\n    return $obj?->greet();\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// The same call on a receiver whose *representation* rules `null` out
+    /// costs nothing: no branch, no tag test, exactly the instructions `->`
+    /// emits — which is also why `mwl_types` gives it no `null` in its type.
+    #[test]
+    fn a_nullsafe_method_call_on_a_receiver_that_cannot_be_null() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj?->greet();\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// `$this->count` — a property access through the implicit receiver,
@@ -2367,12 +2382,15 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// `$obj?->count` — the same guard a nullsafe *call* opens, wrapped
+    /// around a field read instead: the `field.get` runs only in the arm
+    /// where the tag says the receiver is not `null`.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn a_nullsafe_property_access_is_still_out_of_scope() {
-        lower_first_method(
-            "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(): int {\n    Foo $obj = new Foo();\n    return $obj?->count;\n  }\n}\n",
+    fn a_nullsafe_property_access_on_a_nullable_receiver() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public int $count = 0;\n}\nclass T {\n  function m(?Foo $obj): ?int {\n    return $obj?->count;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// A property access through a plain-`object` receiver erases per ADR

@@ -1,0 +1,72 @@
+--TEST--
+`?->` answers `null` for a `null` receiver instead of reaching the member
+--FILE--
+<?mwl
+class Box {
+    public string $label;
+    public int $size;
+
+    public function constructor(string $label, int $size) {
+        $this->label = $label;
+        $this->size = $size;
+    }
+
+    public function name(): string {
+        return $this->label;
+    }
+
+    public function grownBy(int $by): int {
+        return $this->size + $by;
+    }
+
+    public function announce(): void {
+        echo "announce " . $this->label . "\n";
+    }
+
+    // Always absent, so a chained `?->` has a `null` to short-circuit on.
+    public function inner(): ?Box {
+        return null;
+    }
+}
+
+?Box $some = new Box("here", 3);
+?Box $none = null;
+
+// A call, both ways.
+echo "call=" . ($some?->name() ?? "gone") . "\n";
+echo "call=" . ($none?->name() ?? "gone") . "\n";
+
+// A property read, both ways.
+echo "prop=" . ($some?->label ?? "gone") . "\n";
+echo "prop=" . ($none?->label ?? "gone") . "\n";
+echo "prop=" . ($some?->size ?? -1) . "\n";
+echo "prop=" . ($none?->size ?? -1) . "\n";
+
+// A call with an argument: the argument is not evaluated on the `null` arm.
+echo "arg=" . ($some?->grownBy(4) ?? 0) . "\n";
+echo "arg=" . ($none?->grownBy(4) ?? 0) . "\n";
+
+// Chained: the second `?->` short-circuits on what the first one answered.
+echo "chain=" . ($some?->inner()?->name() ?? "gone") . "\n";
+echo "chain=" . ($none?->inner()?->name() ?? "gone") . "\n";
+
+// A member that answers nothing runs, or doesn't, and yields no value either way.
+$some?->announce();
+$none?->announce();
+
+// A receiver that cannot be `null` reaches the member unconditionally.
+Box $plain = new Box("plain", 1);
+echo "plain=" . $plain?->name() . "\n";
+--EXPECT--
+call=here
+call=gone
+prop=here
+prop=gone
+prop=3
+prop=-1
+arg=7
+arg=0
+chain=gone
+chain=gone
+announce here
+plain=plain

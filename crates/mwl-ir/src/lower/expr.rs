@@ -439,11 +439,6 @@ impl<'a> Lowering<'a> {
                 nullsafe,
                 args,
             } => {
-                assert!(
-                    !*nullsafe,
-                    "mwl-ir does not yet lower a nullsafe method call (`?->`); see the crate \
-                     docs' known gaps"
-                );
                 let Some(ExprInfo::Call(call)) = self.exprs.lookup(expr.span) else {
                     panic!(
                         "mwl-ir: an instance method call at {:?} has no resolved target \
@@ -457,7 +452,10 @@ impl<'a> Lowering<'a> {
                 let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
                 let checked_types = self.checked_types;
                 let is_static = call.is_static;
-                let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                // `?->` guards everything below on the receiver not being
+                // `null`; `->` opens no guard and lowers exactly as before.
+                let (object_v, receiver_ty, guard) =
+                    self.open_nullsafe(object, *nullsafe, env, cur);
                 // A `static` method reached through an instance
                 // (`$obj->staticMethod()`, which PHP allows) takes no
                 // receiver: its parameter 0 is the *called* class, which here
@@ -532,7 +530,8 @@ impl<'a> Lowering<'a> {
                         args: arg_values,
                     }
                 };
-                self.emit_fallible(*cur, return_ty, kind, env)
+                let (v, ty) = self.emit_fallible(*cur, return_ty, kind, env);
+                self.close_nullsafe(guard, v, ty, cur)
             }
             // `parent::method(...)`/`self::method(...)`/`Class::method(...)`.
             //
@@ -682,11 +681,6 @@ impl<'a> Lowering<'a> {
             ExprKind::PropertyAccess {
                 object, nullsafe, ..
             } => {
-                assert!(
-                    !*nullsafe,
-                    "mwl-ir does not yet lower a nullsafe property access (`?->`); see the \
-                     crate docs' known gaps"
-                );
                 // ADR 0014 § 1: a read of a property that declares a `get`
                 // hook is a call to that hook's compiled function, with the
                 // receiver in the ordinary parameter-0 slot — see
@@ -716,8 +710,11 @@ impl<'a> Lowering<'a> {
                 let field_ty = lower_checked_ty(ty, self.checked_types);
                 let class_label = class.to_string();
                 let field_name = name.clone();
-                let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
-                match get {
+                // See the `MethodCall` arm above: `?->` guards the access on
+                // the receiver not being `null`, `->` opens no guard.
+                let (object_v, receiver_ty, guard) =
+                    self.open_nullsafe(object, *nullsafe, env, cur);
+                let (v, ty) = match get {
                     Some(label) => {
                         // The receiver is parameter 0, so it is an ordinary
                         // argument for ownership purposes — the same retain
@@ -747,7 +744,8 @@ impl<'a> Lowering<'a> {
                             field: field_name,
                         },
                     ),
-                }
+                };
+                self.close_nullsafe(guard, v, ty, cur)
             }
             // `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
             // doc comment for the full policy this mirrors and its known
@@ -1498,6 +1496,120 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics if the checker recorded no `ExprInfo::Coalesce` for this
     /// expression, which would mean it was checked with a different table.
+    /// Opens the `null` guard `?->` needs, having first lowered the receiver
+    /// itself — the shared front half of a nullsafe method call and a
+    /// nullsafe property read, closed again by [`Self::close_nullsafe`].
+    ///
+    /// Returns the value the member access should use as its receiver, that
+    /// value's representation, and the guard to close — with `cur` left
+    /// pointing at the block the member access must be emitted into.
+    ///
+    /// A receiver whose representation is not [`Ty::Tagged`] cannot hold
+    /// `null` at runtime, so no guard is opened at all and `?->` lowers to
+    /// exactly what `->` does: the same short-circuit
+    /// [`Self::lower_coalesce`] applies to a left operand that cannot be
+    /// `null`, and the reason `mwl_types` gives such an access no `null` in
+    /// its type either.
+    ///
+    /// The narrowing [`InstKind::Untag`] cannot fail — the branch above it
+    /// already ruled the `null` tag out, and a receiver's only other shape is
+    /// an object. Ownership rides along with it (see [`Self::coerce`]), so
+    /// the member access's own aliasing retain still applies exactly once, to
+    /// the untagged value it now sees.
+    pub(super) fn open_nullsafe(
+        &mut self,
+        object: &Expr,
+        nullsafe: bool,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty, Option<NullsafeGuard>) {
+        let (object_v, object_ty) = self.lower_expr(object, None, env, cur);
+        if !nullsafe || object_ty != Ty::Tagged {
+            return (object_v, object_ty, None);
+        }
+        let is_null = self
+            .emit(*cur, Ty::Bool, InstKind::IsNull { operand: object_v })
+            .0;
+        let null_block = self.new_block();
+        let member_block = self.new_block();
+        let merge_block = self.new_block();
+        let null_edge = self.ids.next_edge(object.span);
+        let member_edge = self.ids.next_edge(object.span);
+        self.seal(
+            *cur,
+            Terminator::Branch {
+                cond: is_null,
+                then_block: null_block,
+                then_edge: null_edge,
+                else_block: member_block,
+                else_edge: member_edge,
+            },
+        );
+        *cur = member_block;
+        let receiver = self
+            .emit(
+                member_block,
+                Ty::Object,
+                InstKind::Untag { operand: object_v },
+            )
+            .0;
+        (
+            receiver,
+            Ty::Object,
+            Some(NullsafeGuard {
+                null_block,
+                merge_block,
+            }),
+        )
+    }
+    /// Closes the guard [`Self::open_nullsafe`] opened, merging the member's
+    /// own value with the `null` the short-circuiting arm answers.
+    ///
+    /// The merged value is always [`Ty::Tagged`], which is what `?T` erases
+    /// to and what `mwl_types` typed the whole access as. `value`/`ty` are
+    /// whatever the member access produced in `*cur` — which need not be the
+    /// block [`Self::open_nullsafe`] handed back, since an argument may
+    /// itself have branched.
+    ///
+    /// A `void` member has nothing to merge: both arms simply rejoin, and the
+    /// value handed back is the unusable one the call produced — the same
+    /// reason `mwl_types` unions no `null` into a `void` member's type.
+    pub(super) fn close_nullsafe(
+        &mut self,
+        guard: Option<NullsafeGuard>,
+        value: ValueId,
+        ty: Ty,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let Some(NullsafeGuard {
+            null_block,
+            merge_block,
+        }) = guard
+        else {
+            return (value, ty);
+        };
+        if ty == Ty::Void {
+            self.seal(*cur, Terminator::Jump(merge_block));
+            self.seal(null_block, Terminator::Jump(merge_block));
+            *cur = merge_block;
+            return (value, ty);
+        }
+        let member_end = *cur;
+        let member_v = self.coerce(member_end, value, ty, Ty::Tagged);
+        self.seal(member_end, Terminator::Jump(merge_block));
+        let null_v = self.emit(null_block, Ty::Null, InstKind::ConstNull).0;
+        let null_v = self.coerce(null_block, null_v, Ty::Null, Ty::Tagged);
+        self.seal(null_block, Terminator::Jump(merge_block));
+        let (merged, _) = self.emit(
+            merge_block,
+            Ty::Tagged,
+            InstKind::Phi {
+                incoming: vec![(member_end, member_v), (null_block, null_v)],
+            },
+        );
+        *cur = merge_block;
+        (merged, Ty::Tagged)
+    }
     pub(super) fn lower_coalesce(
         &mut self,
         whole: &Expr,
@@ -1988,6 +2100,21 @@ impl<'a> Lowering<'a> {
             ),
         }
     }
+}
+
+/// The two blocks a `?->` guard still owes once its member access is lowered
+/// — see [`Lowering::open_nullsafe`], which is the only thing that builds one,
+/// and [`Lowering::close_nullsafe`], which is the only thing that consumes it.
+///
+/// Absent (`None`) whenever the receiver's representation proved it cannot be
+/// `null`, which is what makes a nullsafe access on a non-nullable receiver
+/// cost exactly nothing.
+pub(super) struct NullsafeGuard {
+    /// Where control lands when the receiver was `null` and the member never
+    /// ran; ends holding the `null` the whole access answers with.
+    null_block: BlockId,
+    /// Where both arms rejoin, holding the merged value.
+    merge_block: BlockId,
 }
 
 /// The `T` of an `as ?T` annotation, or `None` for any other target.

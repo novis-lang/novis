@@ -921,15 +921,20 @@ fn infer(
         ExprKind::MethodCall {
             object,
             method,
+            nullsafe,
             args,
-            ..
         } => {
             let object_ty = check_expr(object, None, live, scope, ctx, env);
+            // `?->` never reaches the method when the receiver is `null`, so
+            // the method is resolved against the receiver's non-`null` half
+            // and the call's own type gains the `null` that arm yields — see
+            // [`nullsafe_result`].
+            let receiver_ty = strip_nullsafe_receiver(*nullsafe, object_ty, env);
             check_member_name(method, live, scope, ctx, env);
             // Unlike a static call, `mwl_hir::members` never checks an
             // instance method call's existence for any receiver — including
             // `$this` — so this is the first and only place it's diagnosed.
-            let resolved = match (class_qname_of(object_ty, env.interner), method) {
+            let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
                 (Some(qname), MemberName::Ident(name_span)) => {
                     let name = span_text(env.src, *name_span).to_owned();
                     let found = resolve_method(&qname, &name, env.signatures, env.graph);
@@ -950,7 +955,7 @@ fn infer(
             };
             let sig = resolved
                 .as_ref()
-                .map(|(owner, _, sig)| substitute_receiver_args(object_ty, owner, sig, env));
+                .map(|(owner, _, sig)| substitute_receiver_args(receiver_ty, owner, sig, env));
             let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
             // ADR 0027: `$obj->method(...)` (first-class callable syntax)
             // names a `Closure` value, not the method's return type — the
@@ -970,7 +975,8 @@ fn infer(
                 let call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
                 env.exprs.record(expr.span, ExprInfo::Call(call));
             }
-            sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
+            let returned = sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
+            nullsafe_result(*nullsafe, object_ty, returned, env)
         }
         ExprKind::StaticCall {
             class,
@@ -1040,8 +1046,10 @@ fn infer(
             sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
         }
         ExprKind::PropertyAccess {
-            object, property, ..
-        } => check_property_access(object, property, false, live, scope, ctx, env),
+            object,
+            property,
+            nullsafe,
+        } => check_property_access(object, property, *nullsafe, false, live, scope, ctx, env),
         ExprKind::StaticPropertyAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
             let text = span_text(env.src, *name);
@@ -1880,9 +1888,15 @@ fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option
 /// way; only what happens once a *declared* property is found differs (ADR
 /// 0028 § 3: `unset()` on one is refused outright, per ADR 0022's guarantee
 /// that a declared property can never become uninitialized again).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the same context [`check_property_member`] states, with the \
+              nullsafe flag in place of the receiver type it computes"
+)]
 fn check_property_access(
     object: &Expr,
     property: &MemberName,
+    nullsafe: bool,
     is_unset: bool,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
@@ -1890,6 +1904,76 @@ fn check_property_access(
     env: &mut Env<'_>,
 ) -> TypeId {
     let object_ty = check_expr(object, None, live, scope, ctx, env);
+    // `?->` resolves the property against the receiver's non-`null` half and
+    // adds `null` back to the whole access's type — see [`nullsafe_result`],
+    // which the method-call arm of [`infer`] shares.
+    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, env);
+    let member_ty = check_property_member(
+        object,
+        receiver_ty,
+        property,
+        is_unset,
+        live,
+        scope,
+        ctx,
+        env,
+    );
+    nullsafe_result(nullsafe, object_ty, member_ty, env)
+}
+
+/// The type a `?->` yields once the member itself has one: the member's own
+/// type, plus the `null` the short-circuiting arm answers with.
+///
+/// A receiver that is not nullable in the first place gains nothing — `?->`
+/// on it is exactly `->`, which is also what `mwl-ir` lowers it to. Neither
+/// does a `void` member: there is no `?void`, the value is unusable either
+/// way, and unioning one would make every `$obj?->doThing();` statement carry
+/// a type nothing can consume.
+fn nullsafe_result(
+    nullsafe: bool,
+    receiver_ty: TypeId,
+    member_ty: TypeId,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if !nullsafe
+        || !env.interner.is_nullable(receiver_ty)
+        || matches!(env.interner.get(member_ty), Ty::Void)
+    {
+        return member_ty;
+    }
+    let null = env.interner.null();
+    env.interner.make_union([member_ty, null])
+}
+
+/// The half of a `?->` receiver's type that actually reaches the member —
+/// everything but `null`. Left alone for `->`, whose receiver reaches the
+/// member whole.
+fn strip_nullsafe_receiver(nullsafe: bool, object_ty: TypeId, env: &mut Env<'_>) -> TypeId {
+    if nullsafe {
+        env.interner.without_null(object_ty)
+    } else {
+        object_ty
+    }
+}
+
+/// [`check_property_access`]'s member half: everything after the receiver's
+/// own type is known, so that `?->` and `->` reach it identically.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the four-part checking context every function in this module \
+              threads — live set, scope, ctx, env — plus the receiver, its \
+              already-computed type, the member and `unset()`'s flag"
+)]
+fn check_property_member(
+    object: &Expr,
+    object_ty: TypeId,
+    property: &MemberName,
+    is_unset: bool,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
     check_member_name(property, live, scope, ctx, env);
     let MemberName::Ident(name_span) = property else {
         return env.interner.mixed();
@@ -2011,10 +2095,15 @@ pub(crate) fn check_unset_target(
     env: &mut Env<'_>,
 ) {
     if let ExprKind::PropertyAccess {
-        object, property, ..
+        object,
+        property,
+        nullsafe,
     } = &expr.kind
     {
-        check_property_access(object, property, true, live, scope, ctx, env);
+        // The nullsafe spelling is passed through so ADR 0028 § 3's refusal
+        // fires on `unset($a?->b)` too, rather than silently resolving to
+        // nothing because the receiver's type still carried `null`.
+        check_property_access(object, property, *nullsafe, true, live, scope, ctx, env);
     } else {
         check_expr(expr, None, live, scope, ctx, env);
     }

@@ -2,26 +2,27 @@
 
 ## State
 
-**ADR 0066's `as ?T` runs end to end for the checked numeric targets.** `"42" as ?int` is `42`,
-`"4x" as ?int` is `null`, and so are a `null` operand (§ 2) and a `mixed` one holding something with no
-row into the target (§ 3) — all three are the same code, because the helper dispatches on the operand's
-runtime tag rather than on a statically chosen row. `mwl_ir::lower::Lowering::convert_or_null` and that
-ADR's own *Verification* section are the two homes; each conversion row now has exactly one
-implementation, shared with the throwing form, in `mwl_runtime::helpers`' `row` module. `mwl-ir`'s gap 4
-was stale — the *checked* rows have lowered for a while — and now says what is actually left: ADR 0010
-§ 5's integer-into-an-enum row, and every ADR 0066 § 3 **refusal**, which `mwl_types` does not make.
+**`?->` reads end to end, so `examples/nullable.mwl` — Stage 2's first check and the whole point of this
+loop's keystone — runs whole.** A nullsafe call and a nullsafe property read share one guard:
+`mwl_ir::lower::Lowering::open_nullsafe` tests the receiver's tag and `close_nullsafe` merges the member's
+value with the `null` arm's; those two doc comments are the home. A receiver whose representation cannot
+be `null` opens no guard at all and lowers to exactly what `->` emits. The checker half is
+`mwl_types::expr`'s `nullsafe_result`: the member resolves against the receiver's non-`null` half and the
+access's own type gains `null` back, so `string $s = $maybe?->name();` is `E0401`. A nullsafe *assignment
+target* still panics — PHP refuses it outright and `mwl_types` has no diagnostic for it yet.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 351 cases through `mwl test tests/`, and
-`tools/leak-check.sh` reports zero losses over a fixture that converts a fresh string, an aliased one and
-a tagged local inside a loop body.
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 353 cases through `mwl test tests/`,
+`tools/leak-check.sh` clean over a fixture chaining `?->` through a temporary receiver, and PHP 8.5 agrees
+line for line with the new conformance case's expected output.
 
 ## Next
 
-**Lower `?->`** — `mwl-ir`'s gap 6, and the one line `examples/nullable.mwl` still stops on, so it is the
-whole of Stage 2's first check. The receiver is already `Ty::Tagged`; the shape is one
-`InstKind::IsNull` plus the branch/merge `Lowering::lower_coalesce` builds, with the null arm yielding
-`null` and the other arm `Untag`ing to the receiver before the call it already lowers. The checker
-already types the fixture's `$missing?->get("host")` — lowering is what panics.
+**`examples/match.mwl`** — Stage 2's second and last check, and now the only thing between the loop and
+Stage 3. It needs all four of `match`, `switch`, `for` (`mwl-ir` gap 1) and compound assignment
+(`gap 16` — a desugar of `$x op= e` to `$x = $x op e`, `.=` included). Every terminator the first three
+need already exists; `lower_expr` panics naming the case at `crates/mwl-ir/src/lower/expr.rs`'s catch-all
+arm. All four are pre-authorized in [`loop-goal.md`](loop-goal.md) § *Standing decisions*. Compound
+assignment first — it is the smallest and `for`'s third clause uses it.
 
 ## Backlog
 
@@ -35,8 +36,8 @@ already types the fixture's `$missing?->get("host")` — lowering is what panics
   spec's most common optional shape. `mwl-stdlib`'s gap 3 says every piece is in place.
 - **A variadic parameter, and `CoreTy::Decimal`** — the two signature shapes still missing, blocking ADR
   0069's combination members and `Arr::sum`/`product`/`average`. `mwl-stdlib`'s gap 3 names both sets.
-- **`for`/`switch`/`match`, compound assignment and `decimal`'s IR** — `mwl-ir` gaps 1, 16 and 15, all
-  in scope per [`loop-goal.md`](loop-goal.md). `examples/match.mwl` needs the first two.
+- **`decimal` has no IR representation** — `mwl-ir` gap 15, ADR 0054 § 3's table; `examples/numbers.mwl`
+  declares two.
 - **`private`/`protected` is not enforced at all**, and `Comparable`/`Stringable` carry no member
   signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the second.
 
@@ -57,8 +58,10 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   statements, like `examples/*.mwl` — there is no `Main::main` entry point.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
   makes the runner *skip the whole case* there, subtracting from the very count Stage 4 measures. Verify
-  against PHP while authoring, then drop the section or put the case in `tests/differential/`. The `.mwlt`
-  format is `crates/mwl-test`'s module doc.
+  against PHP while authoring (a `.php` twin under `.agent-tmp/`, `php` is on the Windows `PATH`), then
+  drop the section or put the case in `tests/differential/`. The `.mwlt` format is `crates/mwl-test`'s
+  module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own indentation, which widens
+  with the line number.
 - **`MwlStr::from_raw`/`MwlArray::from_raw` return an *owning* handle.** Reading a refcount through one in
   a unit test releases a reference when it drops — wrap it in `std::mem::ManuallyDrop`, or the test ends in
   a heap corruption rather than an assertion failure.

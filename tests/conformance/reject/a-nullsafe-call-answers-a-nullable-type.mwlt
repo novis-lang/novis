@@ -1,0 +1,26 @@
+--TEST--
+`?->` adds `null` to the member's own type, so its result does not fit a non-nullable binding
+--FILE--
+<?mwl
+class Box {
+    public string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+
+    public function name(): string {
+        return $this->label;
+    }
+}
+
+?Box $maybe = new Box("here");
+string $name = $maybe?->name();
+echo $name . "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|null`
+   --> case.mwl:15:16
+%A
+error: aborting due to 1 error

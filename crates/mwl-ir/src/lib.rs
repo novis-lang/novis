@@ -118,10 +118,11 @@
 //!    ADR 0066's `as ?T` ([`lower::Lowering::convert_or_null`]) is the first
 //!    thing here that *reads* a tag instead — its helper dispatches on the
 //!    operand's, which is what a `mixed` source costs, and is the shape the
-//!    rest of this gap closes in.
+//!    rest of this gap closes in. `?->` reads one too, but only to test it
+//!    ([`lower::Lowering::open_nullsafe`]).
 //!    What does not: reading a tagged value *without* a checker-proven
 //!    narrowing — arithmetic on a `mixed`, `.` concatenation, ADR 0035's
-//!    truthy table, an array access through a tagged base, `?->`. Each panics
+//!    truthy table, an array access through a tagged base. Each panics
 //!    naming itself, and closing them adds [`ir::Helper`] variants dispatching
 //!    on the tag, not a second representation.
 //! 4. **One conversion row is missing, and every ADR 0066 § 3 refusal is.**
@@ -148,7 +149,10 @@
 //! 6. **Property and array access are compile-time-known-target-only.** A
 //!    receiver that erased to a shape or plain `object` (ADR 0036 § 4) has no
 //!    `ExprInfo` entry, so lowering panics; the checker defers that runtime
-//!    check to M4. Nullsafe `?->` is unsupported on either side. An
+//!    check to M4. Nullsafe `?->` *reads* — a call and a property alike, over
+//!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe
+//!    assignment target (`$a?->b = v`) panics, which PHP refuses outright and
+//!    `mwl_types` does not diagnose yet. An
 //!    array-element write through a hooked property is refused: the
 //!    copy-on-write separation would have to be written back through the `set`
 //!    hook, and no PHP-compatible rule for that exists yet. A *nested* write —
