@@ -212,7 +212,15 @@ pub enum CodegenError {
     #[error("mwl-codegen does not lower {0} yet")]
     Unsupported(String),
     /// Cranelift rejected the generated code, or the JIT module did.
-    #[error("internal error: cranelift rejected the code generated for `{function}`: {source}")]
+    ///
+    /// Rendered with the source's `Debug` as well as its `Display`: a verifier
+    /// rejection's `Display` is the bare words "Verifier errors", and the
+    /// instruction and value it actually names — the only part that says
+    /// *which* lowering is wrong — lives one level down in the `Debug` form.
+    #[error(
+        "internal error: cranelift rejected the code generated for `{function}`: {source} \
+         ({source:?})"
+    )]
     Cranelift {
         /// The MWL function being compiled.
         function: String,

@@ -96,12 +96,13 @@
 //!    [`ir::Terminator::Switch`], built general rather than
 //!    resumption-specific precisely so `switch` can reach for it — so widening
 //!    should add no new ones.
-//! 2. **`finally`, a second `catch` clause, a user exception class, and
-//!    `throw` in expression position.** [`lower::Lowering::lower_try`] owns
-//!    the one-clause, global-`Throwable`-only restriction. A narrower gap sits
-//!    inside what does lower: a landing block sweeps the frame's locals, not a
-//!    temporary still in flight inside the expression that threw — which is
-//!    what leaks a closure literal written directly as a call argument.
+//! 2. **A `finally` does not run when a `catch` clause's own body throws.**
+//!    [`lower::Lowering::lower_try`] owns that one — every other exit from a
+//!    protected region runs its `finally`, including a `return`, a `break` and
+//!    a `continue`. A second, narrower gap sits inside what does lower: a
+//!    landing block sweeps the frame's locals, not a temporary still in flight
+//!    inside the expression that threw — which is what leaks a closure literal
+//!    written directly as a call argument.
 //! 3. **`mixed` is a representation to erase *into*, not one to dispatch
 //!    *on*.** There is no runtime type-tag shape, so arithmetic, `.`,
 //!    ADR 0035's truthy table and an array access through a `mixed`-erased

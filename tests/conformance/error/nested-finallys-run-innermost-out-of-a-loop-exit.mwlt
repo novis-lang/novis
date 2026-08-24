@@ -1,0 +1,34 @@
+--TEST--
+Two nested `try` regions inside one loop body run their `finally` blocks innermost-first when a `break` or a `continue` leaves both
+--FILE--
+<?mwl
+class Nest {
+    public static function walk(): string {
+        var $out = "";
+        array<string> $items = ["a", "b", "c", "d"];
+        foreach ($items as string $k => string $item) {
+            try {
+                var $inner = $item . "!";
+                try {
+                    var $deep = $inner . "?";
+                    if ($item == "b") {
+                        continue;
+                    }
+                    if ($item == "d") {
+                        break;
+                    }
+                    $out = $out . $deep . ";";
+                } finally {
+                    $out = $out . "in(" . $item . ");";
+                }
+            } finally {
+                $out = $out . "out(" . $item . ");";
+            }
+        }
+        return $out;
+    }
+}
+
+echo Nest::walk(), "\n";
+--EXPECT--
+a!?;in(a);out(a);in(b);out(b);c!?;in(c);out(c);in(d);out(d);

@@ -133,10 +133,13 @@ pub fn cook_double_quoted_text_str(text: &str, attribute_to: Span) -> (String, V
 /// both `mwl-ir`'s lowering and [`crate::defaults`]'s parameter-default
 /// evaluation without either growing a second escape grammar.
 ///
+/// * A **bareword** span — no delimiters at all — is PHP's simple-syntax array
+///   offset, `"$row[key]"`. Its own text is its value; see the branch itself.
+///
 /// # Panics
 ///
-/// Panics if `span` is empty or opens with something other than `'`, `"` or
-/// `<<<` — a lexer bug, since no other spelling produces an `ExprKind::Str`.
+/// Panics if `span` is empty — a lexer bug, since nothing else produces an
+/// `ExprKind::Str`.
 #[must_use]
 pub fn cook_string_literal(src: &SourceFile, span: Span) -> String {
     let raw = src.span_text(span).unwrap_or_default();
@@ -147,11 +150,18 @@ pub fn cook_string_literal(src: &SourceFile, span: Span) -> String {
         .chars()
         .next()
         .unwrap_or_else(|| panic!("an empty string literal span at {span:?} — lexer bug?"));
-    assert!(
-        quote == '\'' || quote == '"',
-        "only a single-quoted, double-quoted or heredoc/nowdoc string literal can be cooked — \
-         got {raw:?}"
-    );
+    if quote != '\'' && quote != '"' {
+        // A **bareword** offset inside PHP's simple interpolation syntax —
+        // the `key` of `"$row[key]"`, which `mwl_syntax`'s parser turns into
+        // an `ExprKind::Str` over the unquoted span (see its
+        // `parse_simple_interp_variable`). It is the one spelling that reaches
+        // here without delimiters, and it carries no escape grammar at all:
+        // the lexer only ever spans identifier characters, so its own text
+        // *is* its value. A digit run is left a string on purpose — an array
+        // subscript normalises a numeric string key to an integer one
+        // (ADR 0007 § 5), which is exactly what PHP does with `"$n[0]"`.
+        return raw.to_owned();
+    }
     let inner_span = Span::new(span.file, span.start + 1, span.end - 1);
     if quote == '"' {
         return cook_double_quoted_text(src, inner_span).0;

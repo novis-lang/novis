@@ -116,9 +116,10 @@ impl<'a> Lowering<'a> {
     ///   enclosing region directly. PHP runs the `finally` first. A `return`
     ///   out of a clause body *does* run it — that frame carries `finally`
     ///   for exactly that reason.
-    /// * A `break`/`continue` out of a protected region does not run a
-    ///   pending `finally` either — [`Self::lower_break`] refuses that shape
-    ///   outright rather than lowering it wrong.
+    ///
+    /// A `break`/`continue` out of a protected region *does* run the pending
+    /// `finally` of every region it leaves, bounded by the loop it targets —
+    /// [`Self::run_finallys_above`].
     pub(super) fn lower_try(
         &mut self,
         body: &'a Block,
@@ -287,6 +288,38 @@ impl<'a> Lowering<'a> {
     pub(super) fn run_pending_finallys(&mut self, cur: &mut BlockId, env: &mut Env) {
         let mut saved = Vec::new();
         while let Some(frame) = self.try_stack.pop() {
+            if let Some(block) = frame.finally {
+                self.lower_stmts(&block.stmts, cur, env);
+            }
+            let done = self.is_terminated(*cur);
+            saved.push(frame);
+            if done {
+                break;
+            }
+        }
+        while let Some(frame) = saved.pop() {
+            self.try_stack.push(frame);
+        }
+    }
+    /// Lowers a copy of the `finally` body of every protected region *above*
+    /// `depth` on [`Self::try_stack`], innermost first — what a `break` or a
+    /// `continue` owes before it leaves the regions between it and its loop.
+    ///
+    /// The same duplicate-at-each-exit shape as
+    /// [`Self::run_pending_finallys`], and the same pop-before-lowering rule,
+    /// bounded rather than exhaustive: `depth` is
+    /// [`LoopFrame::try_depth`](super::LoopFrame::try_depth), the stack height
+    /// the loop's body started at, so a region enclosing the *whole* loop is
+    /// left alone. Stops early if a `finally` body itself terminates the
+    /// block — a `return` inside one wins, and the caller must re-check
+    /// [`Self::is_terminated`] before sealing its own jump.
+    pub(super) fn run_finallys_above(&mut self, depth: usize, cur: &mut BlockId, env: &mut Env) {
+        let mut saved = Vec::new();
+        while self.try_stack.len() > depth {
+            let frame = self
+                .try_stack
+                .pop()
+                .expect("the loop condition just proved the stack is deeper than `depth`");
             if let Some(block) = frame.finally {
                 self.lower_stmts(&block.stmts, cur, env);
             }

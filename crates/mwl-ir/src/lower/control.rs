@@ -177,6 +177,7 @@ impl<'a> Lowering<'a> {
             iteration_owned: Vec::new(),
             carried: header_env.keys().cloned().collect(),
             loop_private: Vec::new(),
+            try_depth: self.try_stack.len(),
         });
         let mut body_env = header_env.clone();
         let mut body_cur = body_block;
@@ -407,7 +408,16 @@ impl<'a> Lowering<'a> {
             phi_slots.push((name.clone(), inst_index));
         }
 
+        // Both reserved names are read back out of `header_env` rather than
+        // reused from before the loop: inside a generator every live local
+        // gets a header phi (`Self::seed_generator_loop_carried`), because the
+        // resume edge re-enters this header with the values reloaded from the
+        // generator frame. The pre-loop definition does not dominate that
+        // edge, so using it directly builds code Cranelift's verifier rejects.
+        // Outside a generator the phi carries the same value and this is a
+        // no-op.
         let cursor_v = header_env[&cursor_name].0;
+        let array_v = header_env[&array_name].0;
         let (slot_v, _) = self.emit(
             header_block,
             Ty::Int,
@@ -455,6 +465,7 @@ impl<'a> Lowering<'a> {
             iteration_owned,
             carried: header_env.keys().cloned().collect(),
             loop_private: vec![array_name.clone(), cursor_name.clone()],
+            try_depth: self.try_stack.len(),
         });
 
         let mut body_env = header_env.clone();
@@ -651,6 +662,11 @@ impl<'a> Lowering<'a> {
             phi_slots.push((name.clone(), inst_index));
         }
 
+        // Read back out of `header_env` for the reason
+        // [`Self::lower_foreach`] states at the same point: a generator's
+        // resume edge re-enters this header with the cursor reloaded from its
+        // frame, so only the header phi dominates every use below.
+        let cursor_v = header_env[&cursor_name].0;
         let more_v = self.emit_iface_call(
             header_block,
             cursor_v,
@@ -683,6 +699,7 @@ impl<'a> Lowering<'a> {
             iteration_owned: vec![value_name.clone()],
             carried: header_env.keys().cloned().collect(),
             loop_private: vec![cursor_name.clone()],
+            try_depth: self.try_stack.len(),
         });
 
         let mut body_env = header_env.clone();
@@ -780,22 +797,27 @@ impl<'a> Lowering<'a> {
     /// before building a jump with nothing to target.
     pub(super) fn lower_break(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
         self.loop_exit_level(level, "break");
-        let after_block = self
-            .loop_stack
-            .last()
-            .unwrap_or_else(|| {
-                panic!(
-                    "mwl-ir: `break` reached lowering with no enclosing loop on the loop stack \
-                     — mwl_types should have already rejected this; see the crate docs' known \
-                     gaps"
-                )
-            })
-            .after_block;
+        let frame = self.loop_stack.last().unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: `break` reached lowering with no enclosing loop on the loop stack \
+                 — mwl_types should have already rejected this; see the crate docs' known \
+                 gaps"
+            )
+        });
+        let after_block = frame.after_block;
+        let try_depth = frame.try_depth;
+        // A `break` leaves every protected region between it and its loop, so
+        // each one's `finally` runs first — before the iteration's releases,
+        // since the body's locals are still readable from that body.
+        let mut exit_env = env.clone();
+        self.run_finallys_above(try_depth, cur, &mut exit_env);
+        if self.is_terminated(*cur) {
+            return;
+        }
         // A `break` ends the iteration it is in, so it owes exactly what a
         // back edge owes — see `LoopFrame::iteration_owned`. It additionally
         // hides the loop's own bookkeeping names from everything after the
         // loop, which the condition's own false edge never carries either.
-        let mut exit_env = env.clone();
         self.end_iteration(*cur, &mut exit_env);
         for name in &self
             .loop_stack
@@ -863,21 +885,25 @@ impl<'a> Lowering<'a> {
     /// panic doc, the same defensive check applies here.
     pub(super) fn lower_continue(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
         self.loop_exit_level(level, "continue");
-        let header_block = self
-            .loop_stack
-            .last()
-            .unwrap_or_else(|| {
-                panic!(
-                    "mwl-ir: `continue` reached lowering with no enclosing loop on the loop \
-                     stack — mwl_types should have already rejected this; see the crate docs' \
-                     known gaps"
-                )
-            })
-            .header_block;
+        let frame = self.loop_stack.last().unwrap_or_else(|| {
+            panic!(
+                "mwl-ir: `continue` reached lowering with no enclosing loop on the loop \
+                 stack — mwl_types should have already rejected this; see the crate docs' \
+                 known gaps"
+            )
+        });
+        let header_block = frame.header_block;
+        let try_depth = frame.try_depth;
+        // Same obligation a `break` has: every protected region this jump
+        // leaves runs its `finally` first — see `Self::run_finallys_above`.
+        let mut back_env = env.clone();
+        self.run_finallys_above(try_depth, cur, &mut back_env);
+        if self.is_terminated(*cur) {
+            return;
+        }
         // The next iteration rebinds a `foreach` header's key/value from
         // scratch, so this back edge ends the current one — see
         // `LoopFrame::iteration_owned`.
-        let mut back_env = env.clone();
         self.end_iteration(*cur, &mut back_env);
         self.emit_safepoint(*cur);
         self.loop_stack

@@ -1,0 +1,48 @@
+--TEST--
+A `continue` ends the iteration through the same exit a `break` uses, so every protected region it leaves runs its `finally` first
+--FILE--
+<?mwl
+class Skip {
+    public static function odd(): string {
+        var $log = "";
+        int $i = 0;
+        while ($i < 5) {
+            $i = $i + 1;
+            try {
+                if ($i == 2) {
+                    continue;
+                }
+                if ($i == 4) {
+                    continue;
+                }
+                $log = $log . "kept" . $i . ";";
+            } finally {
+                $log = $log . "fin" . $i . ";";
+            }
+        }
+        return $log;
+    }
+
+    public static function overAnArray(): string {
+        var $log = "";
+        array<string> $names = ["ann", "bob", "cid"];
+        foreach ($names as string $k => string $name) {
+            try {
+                var $tag = Core\Str::upper($name);
+                if ($name == "bob") {
+                    continue;
+                }
+                $log = $log . $tag . ";";
+            } finally {
+                $log = $log . "(" . $k . ");";
+            }
+        }
+        return $log;
+    }
+}
+
+echo Skip::odd(), "\n";
+echo Skip::overAnArray(), "\n";
+--EXPECT--
+kept1;fin1;fin2;kept3;fin3;fin4;kept5;fin5;
+ANN;(0);(1);CID;(2);

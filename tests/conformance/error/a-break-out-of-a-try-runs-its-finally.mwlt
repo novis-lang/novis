@@ -1,0 +1,50 @@
+--TEST--
+A `break` leaves a protected region, so that region's `finally` runs before the loop exits — and a `finally` enclosing the whole loop is not re-entered
+--FILE--
+<?mwl
+class Search {
+    public static function stopAt(int $target): string {
+        var $log = "";
+        int $i = 0;
+        while ($i < 5) {
+            $i = $i + 1;
+            try {
+                if ($i == $target) {
+                    break;
+                }
+                $log = $log . "saw" . $i . ";";
+            } finally {
+                $log = $log . "fin" . $i . ";";
+            }
+        }
+        return $log . "done";
+    }
+
+    public static function loopInsideTry(): string {
+        var $log = "";
+        try {
+            int $i = 0;
+            while ($i < 3) {
+                $i = $i + 1;
+                if ($i == 2) {
+                    break;
+                }
+                $log = $log . "n" . $i . ";";
+            }
+            $log = $log . "after;";
+        } finally {
+            $log = $log . "outer;";
+        }
+        return $log;
+    }
+}
+
+echo Search::stopAt(3), "\n";
+echo Search::stopAt(1), "\n";
+echo Search::stopAt(9), "\n";
+echo Search::loopInsideTry(), "\n";
+--EXPECT--
+saw1;fin1;saw2;fin2;fin3;done
+fin1;done
+saw1;fin1;saw2;fin2;saw3;fin3;saw4;fin4;saw5;fin5;done
+n1;after;outer;

@@ -1,0 +1,42 @@
+--TEST--
+A `foreach` inside a generator body suspends across its own loop — the array, the cursor and every loop-carried local survive each resume
+--FILE--
+<?mwl
+class Feed {
+    public static function doubled(array<int> $xs): Iterator<int> {
+        foreach ($xs as string $k => int $x) {
+            yield $x * 2;
+        }
+    }
+
+    public static function labelled(array<string> $names): Iterator<string> {
+        var $seen = 0;
+        foreach ($names as string $k => string $name) {
+            $seen = $seen + 1;
+            yield $k . ":" . $name . "#" . ($seen as string);
+        }
+        yield "end#" . ($seen as string);
+    }
+}
+
+var $out = "";
+foreach (Feed::doubled([1, 2, 3]) as int $n) {
+    $out = $out . $n . ";";
+}
+echo $out, "\n";
+
+$out = "";
+foreach (Feed::labelled(["a" => "ann", "b" => "bob"]) as string $s) {
+    $out = $out . $s . "|";
+}
+echo $out, "\n";
+
+$out = "";
+foreach (Feed::doubled([]) as int $n) {
+    $out = $out . $n . ";";
+}
+echo "[", $out, "]\n";
+--EXPECT--
+2;4;6;
+a:ann#1|b:bob#2|end#2|
+[]

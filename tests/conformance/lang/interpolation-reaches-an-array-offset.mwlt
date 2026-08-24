@@ -1,0 +1,25 @@
+--TEST--
+Simple interpolation syntax subscripts an array three ways — a digit run, an unquoted bareword and a variable — and the digit run reaches the same element a quoted numeric key does
+--FILE--
+<?mwl
+array<int> $n = [10, 20, 30];
+echo "n0=$n[0] n2=$n[2]\n";
+
+array<string> $row = ["name" => "ann", "city" => "graz"];
+echo "who=$row[name] where=$row[city]\n";
+
+string $k = "city";
+echo "byvar=$row[$k]\n";
+echo "braced={$row["name"]}\n";
+
+array<array<string>> $deep = ["a" => ["x" => "one"]];
+echo "deep={$deep["a"]["x"]}\n";
+
+echo "abutting:$n[1]$n[0].\n";
+--EXPECT--
+n0=10 n2=30
+who=ann where=graz
+byvar=graz
+braced=ann
+deep=one
+abutting:2010.

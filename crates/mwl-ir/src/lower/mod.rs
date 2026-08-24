@@ -158,6 +158,16 @@ struct LoopFrame {
     /// the loop can see them; see [`Lowering::lower_foreach`] for why they
     /// live in the `Env` at all.
     loop_private: Vec<String>,
+    /// How deep [`Lowering::try_stack`] was when this loop's body started
+    /// lowering — the boundary a `break`/`continue` unwinds down to.
+    ///
+    /// Every frame *above* it is a protected region the jump leaves, so each
+    /// one's `finally` runs first, innermost out
+    /// ([`Lowering::run_finallys_above`]). Frames at or below it enclose the
+    /// whole loop and are not left at all, which is what separates this from
+    /// [`Lowering::run_pending_finallys`]'s "pop everything" — a `return`
+    /// leaves the function, a `break` leaves one loop.
+    try_depth: usize,
 }
 
 /// Who owns a call argument's reference once the call runs.
