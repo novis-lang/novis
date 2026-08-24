@@ -1,0 +1,37 @@
+--TEST--
+Core\Math's eleven constants are class constants, inlined wherever a literal goes
+--FILE--
+<?mwl
+// ADR 0011: there is no global constant, so PHP's `M_PI`, `M_E` and
+// `PHP_INT_MAX` are members of the class they belong to.
+echo Core\Math::PI, "|", Core\Math::TAU, "|", Core\Math::E, "\n";
+echo Core\Math::INT_MAX, "|", Core\Math::INT_MIN, "|", Core\Math::UINT_MAX, "\n";
+
+// A constant is a value, so it goes wherever a literal goes: an argument, an
+// options bag's subject, an operand.
+echo Core\Math::round(Core\Math::PI, {precision: 2}), "\n";
+echo Core\Math::isFinite(Core\Math::INFINITY) ? "finite" : "infinite", "\n";
+echo Core\Math::isNan(Core\Math::NAN) ? "nan" : "a number", "\n";
+
+// `EPSILON` is the gap the classic float comparison is written against.
+echo (0.3 - 0.1 - 0.2 < Core\Math::EPSILON) ? "equal" : "apart", "\n";
+
+// `FLOAT_MIN` is the smallest positive *normal* float — PHP's
+// `PHP_FLOAT_MIN`, not the negative extreme, which is `0.0 - FLOAT_MAX`.
+echo (Core\Math::FLOAT_MIN > 0.0) ? "positive" : "not positive", "\n";
+echo (Core\Math::FLOAT_MAX > Core\Math::FLOAT_MIN) ? "ordered" : "unordered", "\n";
+
+// ADR 0037 infers a local's type from its initializer: a constant carries its
+// declared type, so this is a `float` and stays one.
+var $tau = Core\Math::TAU;
+echo $tau / 2.0, "\n";
+--EXPECT--
+3.1415926535898|6.2831853071796|2.718281828459
+9223372036854775807|-9223372036854775808|18446744073709551615
+3.14
+infinite
+nan
+equal
+positive
+ordered
+3.1415926535898

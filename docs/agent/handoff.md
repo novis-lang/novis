@@ -2,35 +2,36 @@
 
 ## State
 
-**Stage 3 — `Core` Part I across spec §§ 1–12 — now has one whole section beyond §§ 1–2.**
-`Core\Math` is registered end to end: all thirty-eight rows of spec § 3, plus `Core\RoundMode`
-in `registry::ENUMS`, in `crates/mwl-stdlib/src/math.rs` — whose own module doc owns the two
-rules every member obeys (a division by zero throws; a *domain* error is IEEE's answer, which is
-what leaves `isNan`/`isFinite` something to ask about). Seven rows the spec writes
-`int|float|decimal` are registered at `int|float` and widen when `CoreTy::Decimal` lands.
+**Stage 3 — `Core` Part I across spec §§ 1–12 — has spec § 3 whole, constants included.**
+A class constant is now a kind of member the registry states: `registry::CoreConst`, a roster on
+`CoreClass` beside `methods`, whose own doc comment owns why a constant is a roster rather than a
+`CoreTy` variant. `Core\Math`'s eleven — `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`,
+`UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN`, `INFINITY` — are registered and run. Resolution is
+`mwl_types::expr`'s `ClassConstAccess` arm, which now splits three ways (enum case, `Core`
+constant, unmodeled user-declared constant); lowering is `ExprInfo::CoreConst` through the same
+`emit_const_arg` a parameter default already used, since ADR 0011's constant is inlined at the use
+site exactly as ADR 0010 § 3's enum case is. An unregistered name on a registered `Core` class is
+now `E0405` — the third narrowing of `Core`'s blanket trust, beside the member and enum-case ones.
 
-**One shared module came out of it.** `mwl_stdlib::ordering` holds the natural order of two
-values, moved out of `arr.rs` so `Arr::sort`/`min`/`max` and `Math::min`/`max`/`clamp` cannot
-answer differently; it sits beside `granularity` for the same stated reason.
+**`Core\Path::SEPARATOR` and every later section's constants need only their class.** Two
+signature shapes are still missing: a **variadic** parameter and `CoreTy::Decimal`
+(`mwl-stdlib`'s gap 3 owns both lists).
 
 Stage 3's seven fixtures still stand at two passing (`examples/core.mwl`, `examples/report.mwl`).
-`examples/numbers.mwl` now runs every line but three: `Core\Math::PI` (no constant mechanism),
-and the `decimal` block plus `Arr::sum`/`Arr::max` on it.
+`examples/numbers.mwl` now fails on exactly two things, both `decimal`: `Math::format` over a
+`decimal` sum, and `Arr::sum`/`Arr::max` over one.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 288 conformance + 85 differential
-cases, and `tools/leak-check.sh` clean over a fixture exercising the one new refcount edge — a
-member answering *with* a borrowed argument (`min`/`max`/`clamp`), including where the winning
-argument is a fresh temporary.
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 290 conformance + 85 differential
+cases. No new refcount edge — a constant lowers to an immediate, so no `valgrind` run was owed.
 
 ## Next
 
-**Give `registry::CoreClass` a `constants` field**, then register `Core\Math`'s eleven — `PI`,
-`TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`, `UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN`,
-`INFINITY` (spec `docs/spec/01-core-library.md:369`). `mwl-stdlib`'s gap 3 names the three places
-it touches: a roster here, a lookup in `mwl_types::expr`'s `ClassConstAccess` arm beside the
-enum-case one (recording an `ExprInfo` the way `EnumCase` does), and the matching `mwl-ir` arm,
-which today panics naming an ordinary class constant as unmodeled. It is the last thing between
-`examples/numbers.mwl` and the `decimal` work, and every later section wants it too.
+**`CoreTy::Decimal` and `decimal`'s IR representation** — ADR 0054 § 3's 16-byte register pair,
+`mwl-ir`'s gap 15. It is the last thing between `examples/numbers.mwl` and its frozen output, it
+widens the seven `Core\Math` rows the spec writes `int|float|decimal` at (`math.rs`'s own gap note
+lists them), and it unblocks `Arr::sum`/`product`/`average`, whose subject is
+`array<int|float|decimal>`. The front end already has the keyword, the type atom and the
+arithmetic table, so what is owed is the IR type plus a `registry::CoreTy` variant.
 
 ## Backlog
 
@@ -43,7 +44,7 @@ which today panics naming an ordinary class constant as unmodeled. It is the las
   `lower_expr`.
 - **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still
   panic** — each closes the way rendering did, with a `Helper` variant dispatching on the tag.
-  That variant's own doc comment lists them.
+  That variant's own doc comment lists them. `Core\Math::abs($x) < 1.0` is the shortest repro.
 - **`do`/`while` and `$i++`/`$i--` do not lower** — the first is `lower_while` with the branch
   moved below the body, the second is `lower_compound_assignment` with a synthesized `1`, but
   `mwl_types` types an inc/dec as its operand and checks no target, so that half is owed first.

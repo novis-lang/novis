@@ -161,9 +161,12 @@
 //!   conservatively contribute nothing to definite-assignment after them —
 //!   safe (may reject a few valid programs), never accepts an invalid one.
 //! - References (`&$x`) needing both sides to declare the same type.
-//! - A class constant's type, a promoted constructor-parameter property, and
-//!   a named/spread call argument's positional checking — see
-//!   [`signatures`]/[`expr`]'s own known-gaps lists.
+//! - A **user-declared** class constant's type, a promoted
+//!   constructor-parameter property, and a named/spread call argument's
+//!   positional checking — see [`signatures`]/[`expr`]'s own known-gaps
+//!   lists. A `Core` class's constant is not among them: it is stated by
+//!   `mwl_stdlib::registry::CoreConst` and resolved by [`expr`]'s
+//!   `ClassConstAccess` arm.
 //! - A class with no explicit `constructor` is not held to a zero-argument
 //!   arity check on `new` — see [`expr`]'s `New` handling.
 //! - A `foreach` **key** binding declared at anything but `string` is not

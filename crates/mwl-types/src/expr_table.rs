@@ -58,6 +58,7 @@ use mwl_diagnostics::Span;
 use mwl_hir::QName;
 use rustc_hash::FxHashMap;
 
+use crate::defaults::ConstArg;
 use crate::ty::TypeId;
 
 /// A stable id for one [`ExprInfo`] recorded in an [`ExprTypeTable`] —
@@ -290,6 +291,22 @@ pub enum ExprInfo {
     EnumCase {
         /// The case's constant value, in its enum's backing type.
         value: crate::enums::EnumValue,
+    },
+    /// `Core\Class::CONSTANT`, keyed by the whole access's own span.
+    ///
+    /// [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)'s
+    /// class constant, which `Core\Math::PI` is the first of. It carries the
+    /// value for [`ExprInfo::EnumCase`]'s reason exactly: a constant is
+    /// inlined at every use site, so there is no storage a consumer could read
+    /// it back from, and the [`ConstArg`] here is the same shape a parameter
+    /// default already lowers through.
+    ///
+    /// Never recorded for a **user-declared** class's constant, whose value is
+    /// unmodeled (see [`crate::expr`]'s own known gaps) — only
+    /// `mwl_stdlib::registry` states a constant's value today.
+    CoreConst {
+        /// The constant's value, in its declared type.
+        value: ConstArg,
     },
     /// An [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
     /// `fn` closure literal, keyed by the literal's own span.

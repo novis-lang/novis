@@ -87,6 +87,40 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
         .map(|found| found.symbol)
 }
 
+/// A `Core` class constant's declared type and its value, or `None` if
+/// `qname` names no registered class or `name` no constant on it.
+///
+/// The counterpart of [`symbol_of`] for the one member kind that is not a
+/// call: a constant is [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)'s
+/// "every constant is a class constant", and ADR 0010 § 3's inlining rule for
+/// an enum case is the one it follows — so what a consumer gets back is the
+/// *value*, materialized at the use site, with no storage anywhere.
+///
+/// Not seeded into [`SignatureTable`] the way a method is, because there is
+/// nothing there to seed it into: the table holds properties and methods, and
+/// a user-declared class constant's own type is unmodeled either way (see
+/// [`crate::expr`]'s known gaps). This is read directly by that module's
+/// `ClassConstAccess` arm, which is the one place a constant is resolved at
+/// all.
+#[must_use]
+pub(crate) fn constant(
+    qname: &QName,
+    name: &str,
+    interner: &mut TypeInterner,
+) -> Option<(TypeId, ConstArg)> {
+    let found = mwl_stdlib::registry::class(&qname.to_string())?.constant(name)?;
+    Some((lower(&found.ty, interner), lower_const(&found.value)))
+}
+
+/// Whether `qname` names a class this crate seeded — the question
+/// [`crate::expr`] asks before reporting an unknown *constant*, so an
+/// unregistered `Core` class stays trusted exactly as [`seed`]'s own docs
+/// describe.
+#[must_use]
+pub(crate) fn is_registered(qname: &QName) -> bool {
+    mwl_stdlib::registry::class(&qname.to_string()).is_some()
+}
+
 /// A registry row's end-aligned `CoreMethod::defaults` as the per-parameter
 /// [`MethodSig::defaults`] the checker and `mwl-ir` read — a run of `None` for
 /// the required parameters, then one entry per declared default.

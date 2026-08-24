@@ -1,0 +1,12 @@
+--TEST--
+A `Core` class's constant list is closed while compiling too, so a misspelled one is named rather than waved through — ADR 0011 § 2
+--FILE--
+<?mwl
+echo Core\Math::PHI, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Math` has no constant named `PHI`
+  --> case.mwl:2:6
+%A
+error: aborting due to 1 error

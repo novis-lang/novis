@@ -36,6 +36,18 @@ fn cases(dir: &Path, into: &mut Vec<PathBuf>) {
     }
 }
 
+/// Whether `haystack` writes `needle` as a whole name — the same match
+/// `haystack.contains(needle)` performs, plus the one boundary an identifier
+/// needs on its right.
+fn mentions(haystack: &str, needle: &str) -> bool {
+    haystack.match_indices(needle).any(|(at, _)| {
+        haystack[at + needle.len()..]
+            .chars()
+            .next()
+            .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+    })
+}
+
 #[test]
 fn every_part_one_member_has_a_conformance_case() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/conformance");
@@ -71,11 +83,20 @@ fn every_part_one_member_has_a_conformance_case() {
                 uncovered.insert(call);
             }
         }
+        for declared in class.constants {
+            // A constant has no parenthesis to bound it, so the boundary is
+            // checked instead — otherwise `Core\Math::E` would be covered by
+            // any case that writes `Core\Math::EPSILON`.
+            let write = format!("{}::{}", class.name, declared.name);
+            if !mentions(&source, &write) {
+                uncovered.insert(write);
+            }
+        }
     }
 
     assert!(
         uncovered.is_empty(),
-        "{} registered `Core` member(s) are never called by a conformance case: {}\n\
+        "{} registered `Core` member(s) are never used by a conformance case: {}\n\
          Write one under tests/conformance/ — never with an `--ORACLE--` section, which \
          makes the Linux leg skip the case entirely.",
         uncovered.len(),

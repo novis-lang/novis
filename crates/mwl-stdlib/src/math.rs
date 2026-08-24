@@ -33,7 +33,7 @@
 use mwl_runtime::{Fault, MwlStr, Tag, Value};
 
 use crate::ordering::compare_values;
-use crate::registry::{Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy};
+use crate::registry::{Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, CoreTy};
 
 // ============================================================================
 // Registration — this class's rows, its enum, and where its symbols live
@@ -313,7 +313,81 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_math_format",
         },
     ],
+    constants: CONSTANTS,
 };
+
+/// `Core\Math`'s eleven constants — spec § 3's own list, replacing `M_PI`,
+/// `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
+/// constants under [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md).
+///
+/// **Every one is written as the value, not as an expression.** `TAU` is
+/// spelled out rather than `2.0 * PI` and `EPSILON` rather than an
+/// `f64::EPSILON` reference, because a `Const` is a literal the compiler
+/// inlines at the use site and there is nowhere for a computation to happen;
+/// the two that *are* named through Rust — `i64::MAX` and `u64::MAX` — are
+/// exact integers, where a written digit string could not be checked at all.
+///
+/// `FLOAT_MIN` is the smallest **positive normal** `f64`, which is PHP's
+/// `PHP_FLOAT_MIN` and not `f64::MIN`: the negative extreme is
+/// `0.0 - FLOAT_MAX`, and giving that name to the tiny value is the one
+/// place this roster follows PHP rather than Rust.
+const CONSTANTS: &[CoreConst] = &[
+    CoreConst {
+        name: "PI",
+        ty: CoreTy::Float,
+        value: Const::Float(std::f64::consts::PI),
+    },
+    CoreConst {
+        name: "TAU",
+        ty: CoreTy::Float,
+        value: Const::Float(std::f64::consts::TAU),
+    },
+    CoreConst {
+        name: "E",
+        ty: CoreTy::Float,
+        value: Const::Float(std::f64::consts::E),
+    },
+    CoreConst {
+        name: "EPSILON",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::EPSILON),
+    },
+    CoreConst {
+        name: "INT_MAX",
+        ty: CoreTy::Int,
+        value: Const::Int(i64::MAX),
+    },
+    CoreConst {
+        name: "INT_MIN",
+        ty: CoreTy::Int,
+        value: Const::Int(i64::MIN),
+    },
+    CoreConst {
+        name: "UINT_MAX",
+        ty: CoreTy::Uint,
+        value: Const::Uint(u64::MAX),
+    },
+    CoreConst {
+        name: "FLOAT_MAX",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::MAX),
+    },
+    CoreConst {
+        name: "FLOAT_MIN",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::MIN_POSITIVE),
+    },
+    CoreConst {
+        name: "NAN",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::NAN),
+    },
+    CoreConst {
+        name: "INFINITY",
+        ty: CoreTy::Float,
+        value: Const::Float(f64::INFINITY),
+    },
+];
 
 /// `Core\RoundMode` — spec § 3's six rounding rules, replacing PHP's four
 /// `PHP_ROUND_HALF_*` global constants plus the two whole-direction rules

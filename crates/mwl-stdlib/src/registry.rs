@@ -23,10 +23,10 @@
 //!
 //! The enum covers exactly what the members registered so far need, and
 //! [`CoreClass`] covers exactly the *kind* of member they are. What is still
-//! missing is [`crate`]'s own gap 3, which owns the list: `decimal`, a
-//! **variadic** parameter, and a class **constant** — the last of which is a
-//! field on [`CoreClass`] rather than a [`CoreTy`] variant, since a constant
-//! has a value and no signature.
+//! missing is [`crate`]'s own gap 3, which owns the list: `decimal` and a
+//! **variadic** parameter. A class **constant** is no longer on it — it is
+//! [`CoreConst`], a roster on [`CoreClass`] rather than a [`CoreTy`] variant,
+//! since a constant has a value and no signature.
 //!
 //! # A `Core` enum is declared here too
 //!
@@ -320,6 +320,29 @@ impl CoreMethod {
     }
 }
 
+/// One `Core` class constant — [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md)'s
+/// "every constant is a class constant", which is what `Core\Math::PI`
+/// replaces PHP's global `M_PI` with.
+///
+/// A constant is not a member with an arity, so it is a roster of its own on
+/// [`CoreClass`] rather than a [`CoreTy`] variant: it has a *value* and no
+/// signature, and nothing about it is resolved through the method table.
+/// The value reuses [`Const`] — the same enum an omitted option's default is
+/// written in — because the two want exactly the same thing, a literal the
+/// compiler can materialize at the use site, and ADR 0010 § 3's "inlined at
+/// every use site" rule for an enum case is the one this follows too: a
+/// `Core` constant has no storage, no descriptor and no address.
+#[derive(Clone, Copy, Debug)]
+pub struct CoreConst {
+    /// The constant's own name, `SCREAMING_SNAKE_CASE` per ADR 0029.
+    pub name: &'static str,
+    /// Its declared type — what a `var $x = Core\Math::PI;` binding infers.
+    /// Always a scalar, since [`Const`] can express nothing else.
+    pub ty: CoreTy,
+    /// Its value, inlined wherever the constant is written.
+    pub value: Const,
+}
+
 /// One `Core` domain class — ADR 0011's "every callable is a class member,"
 /// with `Core` as the reserved namespace.
 #[derive(Clone, Copy, Debug)]
@@ -329,6 +352,17 @@ pub struct CoreClass {
     pub name: &'static str,
     /// Its members, in the spec's own order.
     pub methods: &'static [CoreMethod],
+    /// Its constants, in the spec's own order — empty for a class the spec
+    /// gives none, which is most of them.
+    pub constants: &'static [CoreConst],
+}
+
+impl CoreClass {
+    /// Looks one of this class's constants up by name.
+    #[must_use]
+    pub fn constant(&self, name: &str) -> Option<&'static CoreConst> {
+        self.constants.iter().find(|found| found.name == name)
+    }
 }
 
 /// Every `Core` class the compiler knows.
@@ -769,6 +803,103 @@ mod tests {
         ));
         assert!(matches!(options[2].default, Const::Null));
         assert!(matches!(options[3].default, Const::Bool(false)));
+    }
+
+    /// ADR 0029's `SCREAMING_SNAKE_CASE` for every registered constant, and
+    /// no name registered twice on one class — [`CoreClass::constant`]
+    /// returns the first match, so a duplicate would silently hide the second.
+    #[test]
+    fn every_registered_constant_follows_the_casing_rules() {
+        for class in CLASSES {
+            let mut names: Vec<&str> = Vec::new();
+            for declared in class.constants {
+                assert!(
+                    declared
+                        .name
+                        .chars()
+                        .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'),
+                    "{}::{} is not SCREAMING_SNAKE_CASE",
+                    class.name,
+                    declared.name
+                );
+                assert!(
+                    declared.name.starts_with(|c: char| c.is_ascii_uppercase()),
+                    "{}::{} does not start with a letter",
+                    class.name,
+                    declared.name
+                );
+                names.push(declared.name);
+            }
+            let total = names.len();
+            names.sort_unstable();
+            names.dedup();
+            assert_eq!(
+                names.len(),
+                total,
+                "{} registers a constant twice",
+                class.name
+            );
+        }
+    }
+
+    /// A constant's value is of its declared type. The two are written side by
+    /// side and nothing else relates them, so this is the only thing standing
+    /// between a typo and a `float`-typed `Core\Math::PI` that lowers to an
+    /// `int` constant — a wrong program, not a build failure.
+    #[test]
+    fn every_registered_constant_matches_its_declared_type() {
+        for class in CLASSES {
+            for declared in class.constants {
+                let agrees = matches!(
+                    (&declared.ty, &declared.value),
+                    (CoreTy::Bool, Const::Bool(_))
+                        | (CoreTy::Int, Const::Int(_))
+                        | (CoreTy::Uint, Const::Uint(_))
+                        | (CoreTy::Float, Const::Float(_))
+                        | (CoreTy::Str, Const::Str(_))
+                );
+                assert!(
+                    agrees,
+                    "{}::{} is typed {:?} and valued {:?}",
+                    class.name, declared.name, declared.ty, declared.value
+                );
+            }
+        }
+    }
+
+    /// `Core\Math`'s eleven constants, spelled out — spec § 3's own list, and
+    /// the only place `PI` being a `float` and `INT_MAX` an `int` is stated
+    /// twice on purpose. A row dropped from the registry fails here rather
+    /// than only at `examples/numbers.mwl`.
+    #[test]
+    fn math_registers_the_eleven_constants_the_spec_names() {
+        let math = class(r"Core\Math").expect(r"Core\Math is registered");
+        let names: Vec<&str> = math.constants.iter().map(|found| found.name).collect();
+        assert_eq!(
+            names,
+            vec![
+                "PI",
+                "TAU",
+                "E",
+                "EPSILON",
+                "INT_MAX",
+                "INT_MIN",
+                "UINT_MAX",
+                "FLOAT_MAX",
+                "FLOAT_MIN",
+                "NAN",
+                "INFINITY",
+            ]
+        );
+        assert!(matches!(
+            math.constant("INT_MAX").map(|found| found.value),
+            Some(Const::Int(i64::MAX))
+        ));
+        assert!(matches!(
+            math.constant("UINT_MAX").map(|found| found.value),
+            Some(Const::Uint(u64::MAX))
+        ));
+        assert!(math.constant("Pi").is_none());
     }
 
     #[test]

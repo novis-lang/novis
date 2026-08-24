@@ -272,6 +272,7 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_max",
         },
     ],
+    constants: &[],
 };
 
 /// `Core\Order` — the enum [`mwl_core_arr_sort`]'s `{order: ...}` option takes.

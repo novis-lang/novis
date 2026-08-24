@@ -83,7 +83,7 @@
 //!    to write it — see gap 3. Section 3 is whole: every one of
 //!    [`math::CLASS`]'s thirty-eight rows runs, at `int|float` wherever the
 //!    spec writes `int|float|decimal`.
-//! 3. **Three shapes a §§ 1–12 signature writes still cannot be stated**, and
+//! 3. **Two shapes a §§ 1–12 signature writes still cannot be stated**, and
 //!    each blocks a named set of members. A **variadic** parameter blocks ADR
 //!    0069's `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
 //!    `Arr::prepend` and `Path::join`; it is a `registry::CoreMethod` field
@@ -92,14 +92,15 @@
 //!    reach one. `decimal` blocks `Arr::sum`, `product` and `average`, whose
 //!    subject is `array<int|float|decimal>`, and narrows seven `Core\Math`
 //!    rows to the two arms they are registered at; it is a
-//!    [`registry::CoreTy`] variant plus `mwl-ir`'s gap 15. A class
-//!    **constant** has no field on [`registry::CoreClass`] at all, which is
-//!    what leaves `Core\Math`'s `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`,
-//!    `INT_MIN`, `UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN` and `INFINITY`
-//!    unwritable; it needs a roster here, a lookup in `mwl_types::expr`'s
-//!    `ClassConstAccess` arm beside the enum-case one, and the matching arm in
-//!    `mwl-ir` — which today panics naming an ordinary class constant as
-//!    unmodeled.
+//!    [`registry::CoreTy`] variant plus `mwl-ir`'s gap 15.
+//!
+//!    A class **constant** is no longer among them: [`registry::CoreConst`] is
+//!    a roster on [`registry::CoreClass`], resolved by `mwl_types::expr`'s
+//!    `ClassConstAccess` arm and lowered as the inlined literal it is, so
+//!    `Core\Math`'s eleven are written and `Core\Path::SEPARATOR` needs only
+//!    its class. A **user-declared** class's constant is still unmodeled —
+//!    `mwl_types`' own known gaps own that half, which nothing in `Core`
+//!    depends on.
 //!
 //!    Everything else the spec writes is expressible: ADR 0063 R2's options
 //!    bag ([`registry::CoreTy::Options`], first used by `Core\Arr::range`), a

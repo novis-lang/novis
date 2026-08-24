@@ -22,9 +22,11 @@
 > over a `mixed`, a `?T` or any other union all reach one `Helper::TaggedToString`, picking ADR 0007 § 2's
 > row from the tag and throwing where no row exists. That is what let **spec § 3 land whole**:
 > `Core\Math`'s thirty-eight members and `Core\RoundMode` are registered, and `mwl_stdlib::ordering`
-> now holds the one natural order `Arr::sort`/`min`/`max` and `Math::min`/`max`/`clamp` share. A
-> **variadic** parameter is the one signature shape still missing, `decimal` the one type, and a class
-> **constant** the one kind of member. **Every M4 control-flow
+> now holds the one natural order `Arr::sort`/`min`/`max` and `Math::min`/`max`/`clamp` share. A class
+> **constant** is now a kind of member the registry states — `registry::CoreConst`, resolved by
+> `mwl_types::expr` and lowered as the inlined literal ADR 0011 makes it, so `Core\Math`'s eleven all
+> run — leaving a **variadic** parameter the one signature shape missing and `decimal` the one type.
+> **Every M4 control-flow
 > statement now lowers but `do`/`while`**: `for` (`lower_for`), and now `switch` (`lower_switch`) and
 > `match` (`lower_match`), both an equality chain over the labels rather than
 > `Terminator::Switch`, which selects on an integer. A bare `continue` inside a `switch` continues the
@@ -48,7 +50,7 @@
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
 > `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `Math` × 38, `granularity`, `ordering`, `Order` and
 > `RoundMode`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 288 (in
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 290 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 85,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -68,10 +70,10 @@
 > **Open now:** **`Core` breadth.** Spec § 3 is whole — `Core\Math`'s thirty-eight members and
 > `Core\RoundMode` all run — so §§ 4–12 have no registry class and `Core\Str`/`Core\Arr` are still
 > incomplete; `diff`/`intersect` need only their `SetOn` enum and their `on`/`by`/`comparator` bag, both
-> of which the registry can already state. Three signature shapes are missing: a **variadic** parameter
-> (ADR 0069's three combination members, `append`/`prepend`, `Path::join`), `CoreTy::Decimal`
-> (`sum`/`product`/`average`, and seven `Math` rows narrowed to `int|float`), and a class **constant**,
-> which has no field on `CoreClass` and leaves `Math::PI` and its ten siblings unwritable. Folded in
+> of which the registry can already state. Two signature shapes are missing: a **variadic** parameter
+> (ADR 0069's three combination members, `append`/`prepend`, `Path::join`) and `CoreTy::Decimal`
+> (`sum`/`product`/`average`, and seven `Math` rows narrowed to `int|float`). A class **constant** is no
+> longer one of them — `registry::CoreConst` states it and `Core\Math`'s eleven run. Folded in
 > because the corpus cannot route around them: `decimal`'s IR, ADR 0070's duration literal. Also open:
 > ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
 > nothing enforces, and the reserved `Comparable`/`Stringable` interfaces, which carry no member signatures.

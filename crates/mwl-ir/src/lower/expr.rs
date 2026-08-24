@@ -922,31 +922,40 @@ impl<'a> Lowering<'a> {
                 }
                 result
             }
-            // ADR 0010 § 3: `EnumName::CaseName` "is an integer constant,
-            // inlined at every use site" — so it lowers to exactly the
+            // Two things wear this syntax, and both are inlined constants.
+            // ADR 0010 § 3 makes `EnumName::CaseName` "an integer constant,
+            // inlined at every use site"; ADR 0011's `Core\Math::PI` is the
+            // same rule for a class constant. So each lowers to exactly the
             // constant a literal would, with no storage, no descriptor and no
-            // allocation. `mwl_types` resolved the value (including the
-            // auto-increment rule) into `ExprInfo::EnumCase`; an ordinary
-            // `Class::CONST` records nothing there and is still unlowered.
-            ExprKind::ClassConstAccess { .. } => {
-                let Some(ExprInfo::EnumCase { value }) = self.exprs.lookup(expr.span) else {
-                    panic!(
-                        "mwl-ir: a `Class::CONST` at {:?} with no resolved enum case recorded in \
-                         the typed-expression table — an ordinary class constant's value is \
-                         unmodeled in `mwl_types` (see its own known gaps), so there is nothing \
-                         to lower it to",
-                        expr.span
-                    );
-                };
-                match value {
+            // allocation. `mwl_types` resolved the value — the enum's
+            // auto-increment rule for one, `mwl_stdlib::registry`'s own row
+            // for the other — into `ExprInfo::EnumCase`/`ExprInfo::CoreConst`;
+            // a **user-declared** class's constant records neither and is
+            // still unlowered.
+            ExprKind::ClassConstAccess { .. } => match self.exprs.lookup(expr.span) {
+                Some(ExprInfo::EnumCase { value }) => match value {
                     mwl_types::EnumValue::Int(n) => {
                         self.emit(*cur, Ty::Enum(EnumRepr::Int), InstKind::ConstInt(*n))
                     }
                     mwl_types::EnumValue::Uint(n) => {
                         self.emit(*cur, Ty::Enum(EnumRepr::Uint), InstKind::ConstUint(*n))
                     }
+                },
+                // The same `ConstArg` an omitted parameter default is
+                // materialized from, through the same emitter — a constant is
+                // a constant whichever side of the call it was written on.
+                Some(ExprInfo::CoreConst { value }) => {
+                    let value = value.clone();
+                    self.emit_const_arg(&value, *cur)
                 }
-            }
+                _ => panic!(
+                    "mwl-ir: a `Class::CONST` at {:?} with no resolved enum case or `Core` \
+                     constant recorded in the typed-expression table — a user-declared class \
+                     constant's value is unmodeled in `mwl_types` (see its own known gaps), so \
+                     there is nothing to lower it to",
+                    expr.span
+                ),
+            },
             // ADR 0007 § 2's `as` — the one conversion spelling. The target
             // type is resolved by `lower_decl_type`, which reads the checker's
             // own answer for the annotation, so an enum target/source is

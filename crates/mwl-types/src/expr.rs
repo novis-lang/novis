@@ -1058,27 +1058,29 @@ fn infer(
                 .and_then(|qname| resolve_property(&qname, &prop_name, env.signatures, env.graph))
                 .unwrap_or_else(|| env.interner.mixed())
         }
-        // ADR 0010 § 4: `EnumName::CaseName` is the one `Class::CONST`-shaped
-        // access this checker can already type precisely — `mwl_hir::members`
-        // stores a case alongside an ordinary constant in the same
-        // `MemberTable` slot and has already checked it exists, so this only
-        // recovers the case's type as `Ty::Enum`, same split-by-receiver
-        // shape every other static reference in this module uses. An
-        // ordinary class constant's own type is unmodeled (`mixed`) either
-        // way — see the crate docs' known gaps.
+        // Two shapes of `Class::CONST` are typed precisely, and they split by
+        // what the left-hand side names. `EnumName::CaseName` is ADR 0010 § 4's
+        // case, recovered as `Ty::Enum`; `Core\Math::PI` is ADR 0011's class
+        // constant, recovered as the declared type of the
+        // `mwl_stdlib::registry::CoreConst` row. A **user-declared** class's
+        // constant is still unmodeled (`mixed`) — see the crate docs' known
+        // gaps — because nothing collects one into a signature table to look
+        // it up in. `mwl_hir::members` has already checked that every one of
+        // the three exists, so this only recovers the type.
         ExprKind::ClassConstAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
+            let qname = resolve_class_expr(class, ctx, env);
             // A `Core`-owned enum has no `SymbolKind::Enum` entry — nothing
             // declared it — but it is in the same enum table, seeded from
             // `mwl_stdlib::registry::ENUMS`, so asking that table is the one
             // question that answers both. `crate::enums::seed_core` owns why
             // there is one table rather than two.
-            let enum_qname = resolve_class_expr(class, ctx, env).filter(|qname| {
+            let is_enum = qname.as_ref().is_some_and(|qname| {
                 matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
                     || (qname.is_core() && env.enums.get(qname).is_some())
             });
-            match enum_qname {
-                Some(qname) => {
+            match qname {
+                Some(qname) if is_enum => {
                     // ADR 0010 § 3: the case *is* its integer constant, so
                     // `mwl-ir` needs the value, not just the type — see
                     // `ExprInfo::EnumCase`. A name `mwl_hir::members` already
@@ -1102,7 +1104,36 @@ fn infer(
                     let backing = env.enums.backing_of(&qname);
                     env.interner.enum_(qname, backing)
                 }
-                None => env.interner.mixed(),
+                // ADR 0011's class constant, on a `Core` class the registry
+                // states. The *value* is recorded, not just the type, for
+                // exactly ADR 0010 § 3's reason one line above: a constant is
+                // inlined at every use site, so `mwl-ir` needs the constant
+                // itself and there is no storage to read it from at run time.
+                Some(qname) if qname.is_core() => {
+                    let constant = span_text(env.src, *name).to_owned();
+                    match crate::core_lib::constant(&qname, &constant, env.interner) {
+                        Some((ty, value)) => {
+                            env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+                            ty
+                        }
+                        None => {
+                            // The third narrowing of `Core`'s blanket trust,
+                            // on the same terms as the two above: a class the
+                            // registry *states* is checked like any other,
+                            // while one it does not yet know stays trusted so
+                            // the rest of the spec can be written in a fixture
+                            // before it is implemented (`crate::core_lib`'s
+                            // own docs own that rule).
+                            if crate::core_lib::is_registered(&qname) {
+                                report_unknown_member(
+                                    class.span, &qname, &constant, "constant", env,
+                                );
+                            }
+                            env.interner.mixed()
+                        }
+                    }
+                }
+                _ => env.interner.mixed(),
             }
         }
         ExprKind::ClassNameConst { class } => {
