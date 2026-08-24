@@ -1,0 +1,23 @@
+--TEST--
+Braced interpolation takes a whole expression — a property, a method call and a quoted array offset all render in place
+--FILE--
+<?mwl
+class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function upper(): string {
+        return Core\Str::upper($this->name);
+    }
+}
+
+var $t = new Tag("div");
+array<string> $attrs = ["id" => "main", "class" => "wide"];
+echo "<{$t->name} id=\"{$attrs["id"]}\">{$t->upper()}</{$t->name}>\n";
+echo "{$t->upper()}{$t->upper()}\n";
+--EXPECT--
+<div id="main">DIV</div>
+DIVDIV

@@ -1,0 +1,32 @@
+--TEST--
+An enum case converted with `as int` is an ordinary int array key — the array orders by insertion, not by case order
+--FILE--
+<?mwl
+enum Level {
+    Low = 1,
+    Mid = 5,
+    High,
+}
+
+class Names {
+    public static function table(): array<string> {
+        array<string> $names = [];
+        $names[Level::High as int] = "high";
+        $names[Level::Low as int] = "low";
+        $names[Level::Mid as int] = "mid";
+        return $names;
+    }
+
+    public static function lookup(Level $l): string {
+        return Names::table()[$l as int];
+    }
+}
+
+foreach (Names::table() as string $k => string $v) {
+    echo $k, ":", $v, ";";
+}
+echo "\n";
+echo Names::lookup(Level::Mid), ",", Names::lookup(Level::High), "\n";
+--EXPECT--
+6:high;1:low;5:mid;
+mid,high

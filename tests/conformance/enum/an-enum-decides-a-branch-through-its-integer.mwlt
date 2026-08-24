@@ -1,0 +1,36 @@
+--TEST--
+An enum reaches an `if` chain through `as int`, and a constructor stores the case behind an int-typed property
+--FILE--
+<?mwl
+enum Level {
+    Low = 1,
+    Mid = 5,
+    High,
+}
+
+class Cfg {
+    public int $level;
+
+    public function constructor(Level $l) {
+        $this->level = $l as int;
+    }
+
+    public function name(): string {
+        if ($this->level == (Level::Low as int)) {
+            return "low";
+        }
+        if ($this->level == (Level::Mid as int)) {
+            return "mid";
+        }
+        return "high";
+    }
+}
+
+array<Level> $order = [Level::High, Level::Low, Level::Mid];
+foreach ($order as Level $l) {
+    var $c = new Cfg($l);
+    echo $c->level, "=", $c->name(), ";";
+}
+echo "\n";
+--EXPECT--
+6=high;1=low;5=mid;

@@ -1,0 +1,34 @@
+--TEST--
+A method declared `: int` whose body ends in `throw` counts as returning — nothing falls off the end
+--FILE--
+<?mwl
+class Never {
+    public static function always(): int {
+        throw new RuntimeError("never returns");
+    }
+
+    public static function guarded(int $n): int {
+        if ($n < 0) {
+            throw new LogicError("negative");
+        }
+        return $n * 2;
+    }
+
+    public static function safe(int $n): int {
+        try {
+            return Never::guarded($n);
+        } catch (LogicError $e) {
+            return 0;
+        }
+    }
+}
+
+try {
+    echo Never::always();
+} catch (RuntimeError $e) {
+    echo "caught ", $e->message, "\n";
+}
+echo Never::safe(5), ",", Never::safe(-5), "\n";
+--EXPECT--
+caught never returns
+10,0

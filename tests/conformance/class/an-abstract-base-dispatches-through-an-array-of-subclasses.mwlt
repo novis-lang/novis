@@ -1,0 +1,57 @@
+--TEST--
+An `array<Shape>` holds three instances of two subclasses; the base's concrete method reaches each abstract override
+--FILE--
+<?mwl
+abstract class Shape {
+    public abstract function area(): int;
+
+    public function label(): string {
+        return "area=" . $this->area();
+    }
+}
+
+class Square extends Shape {
+    private int $side;
+
+    public function constructor(int $side) {
+        $this->side = $side;
+    }
+
+    public function area(): int {
+        return $this->side * $this->side;
+    }
+}
+
+class Rect extends Shape {
+    private int $w;
+    private int $h;
+
+    public function constructor(int $w, int $h) {
+        $this->w = $w;
+        $this->h = $h;
+    }
+
+    public function area(): int {
+        return $this->w * $this->h;
+    }
+}
+
+class Total {
+    public static function of(array<Shape> $shapes): int {
+        int $sum = 0;
+        foreach ($shapes as Shape $s) {
+            $sum = $sum + $s->area();
+        }
+        return $sum;
+    }
+}
+
+array<Shape> $shapes = [new Square(3), new Rect(2, 5), new Square(1)];
+foreach ($shapes as Shape $s) {
+    echo $s->label(), ";";
+}
+echo "\n";
+echo Total::of($shapes), "\n";
+--EXPECT--
+area=9;area=10;area=1;
+20

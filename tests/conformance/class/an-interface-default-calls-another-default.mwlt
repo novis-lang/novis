@@ -1,0 +1,45 @@
+--TEST--
+One default method calls a second on the same interface, which reaches the implementor's own method — two hops, no override
+--FILE--
+<?mwl
+interface Greets {
+    public function name(): string;
+
+    public function greeting(): string {
+        return "hello, " . $this->name();
+    }
+
+    public function shout(): string {
+        return Core\Str::upper($this->greeting()) . "!";
+    }
+}
+
+class Person implements Greets {
+    private string $who;
+
+    public function constructor(string $who) {
+        $this->who = $who;
+    }
+
+    public function name(): string {
+        return $this->who;
+    }
+}
+
+class Loud implements Greets {
+    public function name(): string {
+        return "loud";
+    }
+
+    public function greeting(): string {
+        return "HEY " . $this->name();
+    }
+}
+
+array<Greets> $all = [new Person("ada"), new Loud()];
+foreach ($all as Greets $g) {
+    echo $g->greeting(), " / ", $g->shout(), "\n";
+}
+--EXPECT--
+hello, ada / HELLO, ADA!
+HEY loud / HEY LOUD!

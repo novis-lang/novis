@@ -1,0 +1,31 @@
+--TEST--
+`clone` copies the array a property holds, because an array is a value — the two objects diverge on the first write
+--FILE--
+<?mwl
+class Holder {
+    public array<int> $rows;
+
+    public function constructor(array<int> $rows) {
+        $this->rows = $rows;
+    }
+
+    public function line(): string {
+        var $out = "";
+        foreach ($this->rows as int $r) {
+            $out = $out . $r . ";";
+        }
+        return $out;
+    }
+}
+
+var $h = new Holder([1, 2, 3]);
+var $copy = clone $h;
+$copy->rows[] = 4;
+$copy->rows[0] = 100;
+echo $h->line(), "\n";
+echo $copy->line(), "\n";
+echo Core\Arr::count($h->rows), ",", Core\Arr::count($copy->rows), "\n";
+--EXPECT--
+1;2;3;
+100;2;3;4;
+3,4

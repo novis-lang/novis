@@ -1,0 +1,26 @@
+--TEST--
+An array parameter is a value: writing, appending and unsetting inside the callee are all invisible outside it
+--FILE--
+<?mwl
+class Edit {
+    public static function scribble(array<int> $a): string {
+        $a[0] = 99;
+        $a[] = 7;
+        unset($a[1]);
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . ":" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $orig = [1, 2, 3];
+echo Edit::scribble($orig), "\n";
+foreach ($orig as string $k => int $v) {
+    echo $k, ":", $v, ";";
+}
+echo "\n";
+--EXPECT--
+0:99;2:3;3:7;
+0:1;1:2;2:3;

@@ -1,0 +1,34 @@
+--TEST--
+`Iterable::iterate` may be a generator body — the object is then drained lazily, and once per `foreach`
+--FILE--
+<?mwl
+class Bag implements Iterable<int> {
+    private array<int> $items;
+
+    public function constructor(array<int> $items) {
+        $this->items = $items;
+    }
+
+    public function iterate(): Iterator<int> {
+        foreach ($this->items as int $v) {
+            echo "<", $v, ">";
+            yield $v * 10;
+        }
+    }
+}
+
+var $b = new Bag([1, 2, 3]);
+foreach ($b as int $v) {
+    echo $v, ";";
+}
+echo "\n";
+foreach ($b as int $v) {
+    if ($v > 10) {
+        break;
+    }
+    echo $v, ";";
+}
+echo "\n";
+--EXPECT--
+<1>10;<2>20;<3>30;
+<1>10;<2>

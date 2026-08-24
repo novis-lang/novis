@@ -1,0 +1,23 @@
+--TEST--
+`unset` frees a key but never lowers where the next append lands — the next-free index only counts up
+--FILE--
+<?mwl
+array<string> $a = ["a", "b", "c"];
+unset($a[2]);
+$a[] = "x";
+foreach ($a as string $k => string $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+
+array<string> $b = ["a", "b", "c"];
+unset($b[0]);
+unset($b[1]);
+$b[] = "y";
+foreach ($b as string $k => string $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+--EXPECT--
+0=a;1=b;3=x;
+2=c;3=y;

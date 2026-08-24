@@ -1,0 +1,33 @@
+--TEST--
+`foreach` walks a copy: an `unset` inside the body is invisible until the next loop, and an array in a condition is judged by whether it is empty
+--FILE--
+<?mwl
+array<int> $a = [1, 2, 3, 4];
+foreach ($a as string $k => int $v) {
+    if ($v == 2) {
+        unset($a[2]);
+        unset($a[3]);
+    }
+    echo $k, ":", $v, ";";
+}
+echo "\n";
+foreach ($a as string $k => int $v) {
+    echo $k, ":", $v, ";";
+}
+echo "\n";
+
+array<int> $e = [];
+if ($e) {
+    echo "empty is truthy\n";
+} else {
+    echo "empty is falsy\n";
+}
+array<int> $one = [0];
+if ($one) {
+    echo "one is truthy\n";
+}
+--EXPECT--
+0:1;1:2;2:3;3:4;
+0:1;1:2;
+empty is falsy
+one is truthy

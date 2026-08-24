@@ -1,0 +1,27 @@
+--TEST--
+A `finally` runs in the enclosing scope, so it observes every assignment the `try` and the matching `catch` made
+--FILE--
+<?mwl
+class F {
+    public static function trace(bool $fail): string {
+        var $out = "";
+        try {
+            $out = $out . "t";
+            if ($fail) {
+                throw new LogicError("x");
+            }
+            $out = $out . "T";
+        } catch (LogicError $e) {
+            $out = $out . "c" . $e->message;
+        } finally {
+            $out = $out . "f";
+        }
+        return $out . "|";
+    }
+}
+
+echo F::trace(true), "\n";
+echo F::trace(false), "\n";
+--EXPECT--
+tcxf|
+tTf|

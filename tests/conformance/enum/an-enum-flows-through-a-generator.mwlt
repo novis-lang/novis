@@ -1,0 +1,34 @@
+--TEST--
+An enum is an ordinary value across a `yield` — a generator declared `Iterator<Level>` suspends and resumes holding one
+--FILE--
+<?mwl
+enum Level {
+    Low = 1,
+    Mid = 5,
+    High,
+}
+
+class G {
+    public static function ladder(): Iterator<Level> {
+        yield Level::Low;
+        yield Level::High;
+        yield Level::Mid;
+    }
+
+    public static function totals(): int {
+        int $sum = 0;
+        foreach (G::ladder() as Level $l) {
+            $sum = $sum + ($l as int);
+        }
+        return $sum;
+    }
+}
+
+foreach (G::ladder() as Level $l) {
+    echo $l as int, ";";
+}
+echo "\n";
+echo G::totals(), "\n";
+--EXPECT--
+1;6;5;
+12

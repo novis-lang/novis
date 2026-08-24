@@ -1,0 +1,15 @@
+--TEST--
+Assigning over an existing key replaces the value in place — the key keeps its position in the iteration order
+--FILE--
+<?mwl
+array<int> $m = ["a" => 1, "b" => 2, "c" => 3];
+$m["a"] = 10;
+$m["c"] = 30;
+$m["d"] = 4;
+$m["b"] = 20;
+foreach ($m as string $k => int $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+--EXPECT--
+a=10;b=20;c=30;d=4;

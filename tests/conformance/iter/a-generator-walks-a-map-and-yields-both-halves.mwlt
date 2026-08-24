@@ -1,0 +1,30 @@
+--TEST--
+A generator's own `foreach` binds a key as well as a value, and re-yields the pair as one string in insertion order
+--FILE--
+<?mwl
+class G {
+    public static function pairs(array<int> $m): Iterator<string> {
+        foreach ($m as string $k => int $v) {
+            yield $k . "=" . $v;
+        }
+    }
+
+    public static function joined(array<int> $m): string {
+        var $out = "";
+        foreach (G::pairs($m) as string $s) {
+            $out = $out . $s . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $m = ["b" => 2, "a" => 1, "c" => 3];
+echo G::joined($m), "\n";
+$m["a"] = 10;
+$m["d"] = 4;
+echo G::joined($m), "\n";
+echo G::joined([]), "\n";
+--EXPECT--
+b=2;a=1;c=3;
+b=2;a=10;c=3;d=4;
+

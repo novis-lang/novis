@@ -1,0 +1,17 @@
+--TEST--
+`uint` holds and prints 2^64 − 1, and an explicit `as uint` is what lets an `int` literal join the arithmetic
+--FILE--
+<?mwl
+uint $u = 18446744073709551615;
+echo $u, "\n";
+echo $u - (1 as uint), "\n";
+uint $z = 0;
+echo $z + (1 as uint), "\n";
+echo (9223372036854775807 as uint) + (1 as uint), "\n";
+echo $u as string, "\n";
+--EXPECT--
+18446744073709551615
+18446744073709551614
+1
+9223372036854775808
+18446744073709551615

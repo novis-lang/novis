@@ -1,0 +1,43 @@
+--TEST--
+A class holding `array<Self>` recurses over its own children — object handles nested inside an array value
+--FILE--
+<?mwl
+class Tree {
+    public int $value;
+    public array<Tree> $children;
+
+    public function constructor(int $value, array<Tree> $children) {
+        $this->value = $value;
+        $this->children = $children;
+    }
+
+    public function sum(): int {
+        int $total = $this->value;
+        foreach ($this->children as Tree $c) {
+            $total = $total + $c->sum();
+        }
+        return $total;
+    }
+
+    public function depth(): int {
+        int $deepest = 0;
+        foreach ($this->children as Tree $c) {
+            int $d = $c->depth();
+            if ($d > $deepest) {
+                $deepest = $d;
+            }
+        }
+        return $deepest + 1;
+    }
+}
+
+var $leaf = new Tree(4, []);
+var $t = new Tree(1, [new Tree(2, []), new Tree(3, [$leaf])]);
+echo $t->sum(), ",", $t->depth(), "\n";
+echo $leaf->sum(), ",", $leaf->depth(), "\n";
+var $shared = new Tree(10, [$leaf, $leaf]);
+echo $shared->sum(), ",", $shared->depth(), "\n";
+--EXPECT--
+10,3
+4,1
+18,2

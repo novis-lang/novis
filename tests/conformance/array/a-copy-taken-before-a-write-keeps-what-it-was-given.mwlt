@@ -1,0 +1,29 @@
+--TEST--
+A second binding taken before a write sees none of it — copy-on-write is invisible to the program
+--FILE--
+<?mwl
+array<int> $a = [1, 2, 3];
+var $before = $a;
+$a[0] = 100;
+$a[] = 4;
+unset($a[1]);
+var $after = $a;
+$a[2] = 300;
+
+class Render {
+    public static function line(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . ":" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+echo Render::line($before), "\n";
+echo Render::line($after), "\n";
+echo Render::line($a), "\n";
+--EXPECT--
+0:1;1:2;2:3;
+0:100;2:3;3:4;
+0:100;2:300;3:4;

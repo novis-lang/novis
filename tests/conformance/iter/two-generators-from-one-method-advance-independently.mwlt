@@ -1,0 +1,39 @@
+--TEST--
+Each call to a generator method makes its own state machine — two live at once interleave without sharing a cursor
+--FILE--
+<?mwl
+class G {
+    public static function count(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+var $a = G::count(4);
+var $b = G::count(4);
+if ($a->advance()) {
+    echo "a:", $a->current(), ";";
+}
+if ($a->advance()) {
+    echo "a:", $a->current(), ";";
+}
+if ($b->advance()) {
+    echo "b:", $b->current(), ";";
+}
+if ($a->advance()) {
+    echo "a:", $a->current(), ";";
+}
+if ($b->advance()) {
+    echo "b:", $b->current(), ";";
+}
+echo "\n";
+foreach ($a as int $v) {
+    echo $v, ";";
+}
+echo "\n";
+--EXPECT--
+a:0;a:1;b:0;a:2;b:1;
+3;

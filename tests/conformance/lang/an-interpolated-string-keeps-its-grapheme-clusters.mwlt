@@ -1,0 +1,20 @@
+--TEST--
+Interpolation and concatenation move a `string` whole; `Core\Str::length` and `::at` count the clusters ADR 0009 § 2 fixes
+--FILE--
+<?mwl
+var $s = "héllo👍";
+echo Core\Str::length($s), "\n";
+echo Core\Str::at($s, 5), "\n";
+echo Core\Str::at($s, 1), "\n";
+echo "len={$s}!", "\n";
+echo $s . $s, "\n";
+echo Core\Str::length($s . $s), "\n";
+echo Core\Str::upper($s), "\n";
+--EXPECT--
+6
+👍
+é
+len=héllo👍!
+héllo👍héllo👍
+12
+HÉLLO👍

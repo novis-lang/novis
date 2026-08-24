@@ -1,0 +1,28 @@
+--TEST--
+A constructor may satisfy its definite-initialization obligation from a private helper's return value
+--FILE--
+<?mwl
+class Slug {
+    public string $text;
+    public int $length;
+
+    public function constructor(string $raw) {
+        $this->text = $this->normalise($raw);
+        $this->length = $this->measure($this->text);
+    }
+
+    private function normalise(string $raw): string {
+        return Core\Str::lower(Core\Str::trim($raw));
+    }
+
+    private function measure(string $s): int {
+        return Core\Str::length($s) as int;
+    }
+}
+
+var $s = new Slug("  Hello World  ");
+echo $s->text, "|", $s->length, "\n";
+echo (new Slug("MWL"))->text, "\n";
+--EXPECT--
+hello world|11
+mwl

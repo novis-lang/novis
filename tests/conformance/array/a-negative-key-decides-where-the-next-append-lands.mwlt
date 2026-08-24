@@ -1,0 +1,15 @@
+--TEST--
+An append after a negative key continues from it, and a lower key added later does not move it back
+--FILE--
+<?mwl
+array<string> $n = [];
+$n[-5] = "m";
+$n[] = "n";
+$n[-9] = "o";
+$n[] = "p";
+foreach ($n as string $k => string $v) {
+    echo $k, "=", $v, ";";
+}
+echo "\n";
+--EXPECT--
+-5=m;-4=n;-9=o;-3=p;

@@ -1,0 +1,32 @@
+--TEST--
+A `try`/`catch` in a loop body handles each iteration on its own — a throw ends that iteration, not the loop
+--FILE--
+<?mwl
+class Attempts {
+    public static function run(int $n): string {
+        var $out = "";
+        int $i = 0;
+        while ($i < $n) {
+            try {
+                if ($i % 2 == 0) {
+                    throw new LogicError("even");
+                }
+                $out = $out . $i;
+            } catch (LogicError $e) {
+                $out = $out . "!";
+            } finally {
+                $out = $out . ".";
+            }
+            $i = $i + 1;
+        }
+        return $out;
+    }
+}
+
+echo Attempts::run(4), "\n";
+echo Attempts::run(1), "\n";
+echo Attempts::run(0), "\n";
+--EXPECT--
+!.1.!.3.
+!.
+
