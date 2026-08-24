@@ -158,8 +158,11 @@
 //!    require a dense or sorted one — and the arms are few in the one
 //!    producer there is today, ADR 0053 § 4's generator resumption (one per
 //!    `yield`, plus the entry and exhausted arms). A `br_table` over a dense
-//!    case set is the obvious optimisation, and is the shape a `switch`
-//!    statement over an `int` subject would want first.
+//!    case set is the obvious optimisation. MWL's own `switch` statement never
+//!    reaches this terminator — it lowers to a `Branch` chain, since a label
+//!    is any expression of the subject's type — so closing this gap would also
+//!    mean teaching `mwl_ir::lower::Lowering::lower_switch` to recognise a
+//!    dense all-integer case set and reach for it.
 //! 7. **Executable memory is never freed.** [`Unit`] holds its `JITModule` for
 //!    the process's lifetime; `cranelift_jit::JITModule::free_memory` is
 //!    `unsafe` and needs the "no compiled frame is still live" proof that

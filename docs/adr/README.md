@@ -110,6 +110,7 @@ so you never have to open this file to route a topic.
 | Updating a crate, the Rust toolchain, a CI action or the PHP oracle; SemVer, what a break costs a release, deprecation, MSRV, pinning, a stale dependency | [0068](0068-dependency-currency-and-the-version-contract.md) for the policy; [docs/agent/dependency-update.md](../agent/dependency-update.md) for the procedure — a pass the user fires by hand |
 | Cross-machine performance history, callgrind instruction counts, why CI guards use wall-clock ratios | [0026](0026-performance-measurement-methodology.md) |
 | Concrete *spelling* an ADR left open — file modes, the declaration-slot grammar, `as`, the `bytes` literal | [docs/spec/00-overview.md](../spec/00-overview.md) — the ADR owns semantics, this owns syntax |
+| How a control-flow statement lowers — `if`/`while`/`for`/`foreach`/`switch`/`match`, `break`/`continue`, where a `finally` runs | [crates/mwl-ir/src/lower/control.rs](../../crates/mwl-ir/src/lower/control.rs)'s methods, each with its own doc comment; `continue` inside a `switch` is § *Decisions taken at project start* below |
 | A decision with no ADR — thread-per-core, value layout, safepoints, shared-nothing requests | § *Decisions taken at project start* below for **why**; the plan's § *Architecture* for the **mechanics** |
 | Any measured number, or checking whether an architecture assumption still holds | the guard tests in [benches/abi-probe/](../../benches/abi-probe/) — authoritative; docs quote them and can lag |
 | What the language should *do* beyond the two spec files | unwritten. `docs/spec/` holds `00-overview.md` and `01-core-library.md` and nothing else — say so rather than inferring semantics. |
@@ -290,6 +291,14 @@ status check would silently swallow an exception, so no caller constructs a raw 
 a stated reason. Currently `mwl-runtime`, `mwl-codegen`, `mwl-stdlib` and `benches/abi-probe`, which must
 call JIT-compiled code to measure it. The probe is `publish = false` and is not a dependency of anything
 shipped, so it does not widen the runtime's unsafe surface.
+
+**`continue` inside a `switch` continues the enclosing loop.** PHP counts a `switch` as a looping structure
+for `continue`, so a bare one there behaves as `break` — and PHP has warned since 7.3 that you probably
+meant `continue 2`. MWL takes the meaning that warning points at: `switch` owns `break` and nothing else, so
+`continue` always means the innermost enclosing loop. The alternative is a keyword that silently means one
+thing inside a `switch` and another everywhere else, which the priority ordering's simplicity rule refuses
+to buy for a compatibility PHP itself discourages. `mwl_ir::lower::Lowering::lower_switch` implements it and
+`tests/differential/lang/a-switch-and-a-match-agree-with-php.mwlt` pins it against PHP's `continue 2`.
 
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them

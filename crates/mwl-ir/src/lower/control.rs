@@ -1,4 +1,4 @@
-//! Control flow — `if`, `while`, both `foreach` shapes, `break`/`continue`, and the env merge every join needs.
+//! Control flow — `if`, `while`, `for`, both `foreach` shapes, `switch`, `break`/`continue`, and the env merge every join needs.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -170,7 +170,7 @@ impl<'a> Lowering<'a> {
         );
 
         self.loop_stack.push(LoopFrame {
-            header_block,
+            continue_target: Some(header_block),
             after_block,
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
@@ -366,7 +366,7 @@ impl<'a> Lowering<'a> {
         );
 
         self.loop_stack.push(LoopFrame {
-            header_block: step_block,
+            continue_target: Some(step_block),
             after_block,
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
@@ -438,6 +438,218 @@ impl<'a> Lowering<'a> {
         let mut after_incoming: Vec<(BlockId, Env)> = vec![(cond_end, header_env.clone())];
         after_incoming.extend(frame.break_edges);
         *env = self.merge_envs(after_block, &after_incoming, &header_env);
+        *cur = after_block;
+    }
+    /// `switch (subject) { case a: … default: … }` — one subject, an equality
+    /// chain, and bodies that fall into each other because nothing separates
+    /// them.
+    ///
+    /// **A chain of [`Terminator::Branch`]es, not [`Terminator::Switch`].**
+    /// The general terminator exists (a generator's resumption dispatch is
+    /// one), but it selects on an integer and a `case` label is any expression
+    /// of the subject's type — `case "A":` is the shape `examples/match.mwl`
+    /// actually writes, and a string comparison is a runtime call
+    /// (`mwl_str_eq`), not a jump-table index. One shape that serves every
+    /// subject type beats two that need the lowering to decide which it is;
+    /// re-deriving a dense integer `switch` back into the jump table is an
+    /// optimisation for the tier that has a cost model, not for this one.
+    ///
+    /// Four things follow from PHP's own semantics:
+    ///
+    /// * **The subject is evaluated once**, before any label is, and every
+    ///   label is then compared against that value in source order. The
+    ///   comparison is [`BinOp::Eq`] — PHP's `switch` compares loosely (`==`)
+    ///   and `match` compares identically (`===`), but both operands are
+    ///   statically the same MWL type here, which is the one condition under
+    ///   which those two agree; see [`Self::lower_expr`]'s `Binary` arm, where
+    ///   `==` and `===` already lower to the same instruction for the same
+    ///   reason.
+    /// * **`default` is the chain's fall-off, wherever it is written.** Every
+    ///   label is tried first; only then does control reach the `default`
+    ///   body, so a `default` written in the middle still runs last — and
+    ///   still falls through into the case *after* it, which is why the body
+    ///   blocks stay in source order while the test chain skips it.
+    /// * **Fallthrough is the absence of a `break`**, so a body that reaches
+    ///   its end jumps to the next body block rather than past the switch.
+    ///   That edge is an ordinary join, merged by [`Self::merge_envs`] like
+    ///   any other — which is also what releases a local the falling-through
+    ///   case declared, since the next body's own label edge does not bind it.
+    /// * **A `switch` is a `break` target without being a loop**, so it pushes
+    ///   a [`LoopFrame`] whose [`LoopFrame::continue_target`] is `None`. A
+    ///   `continue` inside one therefore continues the enclosing **loop**.
+    ///   PHP instead counts a `switch` as a looping structure there, making a
+    ///   bare `continue` behave as `break` — and warns, since PHP 7.3, that
+    ///   you probably meant `continue 2`. MWL takes the meaning that warning
+    ///   points at: the alternative is a keyword that silently means one thing
+    ///   inside a `switch` and another everywhere else, which priority 4
+    ///   (simplicity of the language surface) refuses to buy for a
+    ///   compatibility PHP itself discourages.
+    ///
+    /// The subject's own reference is held exactly the way
+    /// [`Self::lower_foreach`] holds the array it walks: retained if it
+    /// [`is_aliasing_read`]s a slot, parked in the [`Env`] under a reserved
+    /// `switch#N` name so a `return` or a throw out of a case body sweeps it
+    /// ([`Self::release_all_locals`]), hidden from everything after the switch
+    /// by [`LoopFrame::loop_private`], and released once in the after-block —
+    /// which every path out of the switch reaches, so that release runs
+    /// exactly once. It costs one refcount pair per `switch` over a
+    /// refcounted subject, and nothing at all over an `int`/`bool` one.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the case if a label's representation differs from the
+    /// subject's — the checker does not yet reconcile the two (`mwl_types`'
+    /// own `Switch` arm checks each label with no expected type), and
+    /// comparing two different representations would be a miscompile rather
+    /// than a conversion.
+    pub(super) fn lower_switch(
+        &mut self,
+        subject: &Expr,
+        cases: &'a [SwitchCase],
+        cur: &mut BlockId,
+        env: &mut Env,
+    ) {
+        let (subj_v, subj_ty) = self.lower_expr(subject, None, env, cur);
+        let subject_is_alias = self.aliasing_read(subject);
+        // `switch ($x) {}` — PHP still evaluates the subject and then does
+        // nothing with it, so this owes only the release a fresh value owes.
+        if cases.is_empty() {
+            if subj_ty.is_refcounted() && !subject_is_alias {
+                self.emit_release(*cur, subj_v);
+            }
+            return;
+        }
+        let owns_subject = subj_ty.is_refcounted();
+        if owns_subject && subject_is_alias {
+            self.emit_retain(*cur, subj_v);
+        }
+        let seq = self.switch_seq;
+        self.switch_seq += 1;
+        let subject_name = format!("switch#{seq}");
+        if owns_subject {
+            env.insert(subject_name.clone(), (subj_v, subj_ty));
+        }
+
+        let body_blocks: Vec<BlockId> = cases.iter().map(|_| self.new_block()).collect();
+        let after_block = self.new_block();
+        let default_index = cases.iter().position(|c| c.cond.is_none());
+
+        // The equality chain, lowered against the environment the switch was
+        // entered with — a label runs before any body does, so no body's
+        // bindings are in scope for one.
+        let entry_env = env.clone();
+        let mut entry_edges: Vec<Vec<(BlockId, Env)>> = vec![Vec::new(); cases.len()];
+        let mut test_cur = *cur;
+        for (i, case) in cases.iter().enumerate() {
+            let Some(cond) = &case.cond else {
+                continue;
+            };
+            let (cond_v, cond_ty) = self.lower_expr(cond, Some(subj_ty), &entry_env, &mut test_cur);
+            assert_eq!(
+                cond_ty, subj_ty,
+                "mwl-ir lowers a `switch` label only at the subject's own representation — got \
+                 {cond_ty:?} against a {subj_ty:?} subject; see the crate docs' known gaps"
+            );
+            let (eq_v, _) = self.emit(
+                test_cur,
+                Ty::Bool,
+                InstKind::BinOp {
+                    op: BinOp::Eq,
+                    lhs: subj_v,
+                    rhs: cond_v,
+                },
+            );
+            // A comparison only reads its operands, so a label that no
+            // durable slot owns — `case "A":`, the common shape — is released
+            // right after the instruction reads it, exactly the rule
+            // `Self::lower_expr`'s own `Binary` arm applies.
+            if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
+                self.emit_release(test_cur, cond_v);
+            }
+            let next = self.new_block();
+            let hit_edge = self.ids.next_edge(case.span);
+            let miss_edge = self.ids.next_edge(cond.span);
+            self.seal(
+                test_cur,
+                Terminator::Branch {
+                    cond: eq_v,
+                    then_block: body_blocks[i],
+                    then_edge: hit_edge,
+                    else_block: next,
+                    else_edge: miss_edge,
+                },
+            );
+            entry_edges[i].push((test_cur, entry_env.clone()));
+            test_cur = next;
+        }
+        // Nothing matched: the `default` body if there is one, otherwise past
+        // the whole statement. The reserved subject name is dropped from the
+        // latter edge for the same reason `Self::lower_break` drops it —
+        // nothing after the switch may see it, and the after-block releases it.
+        let mut exit_env = entry_env.clone();
+        exit_env.remove(&subject_name);
+        let mut after_incoming: Vec<(BlockId, Env)> = Vec::new();
+        match default_index {
+            Some(i) => {
+                self.seal(test_cur, Terminator::Jump(body_blocks[i]));
+                entry_edges[i].push((test_cur, entry_env.clone()));
+            }
+            None => {
+                self.seal(test_cur, Terminator::Jump(after_block));
+                after_incoming.push((test_cur, exit_env.clone()));
+            }
+        }
+
+        self.loop_stack.push(LoopFrame {
+            continue_target: None,
+            after_block,
+            continue_edges: Vec::new(),
+            break_edges: Vec::new(),
+            iteration_owned: Vec::new(),
+            carried: entry_env.keys().cloned().collect(),
+            loop_private: if owns_subject {
+                vec![subject_name.clone()]
+            } else {
+                Vec::new()
+            },
+            try_depth: self.try_stack.len(),
+        });
+
+        let last_index = cases.len() - 1;
+        let mut fall_in: Option<(BlockId, Env)> = None;
+        for (i, case) in cases.iter().enumerate() {
+            let block = body_blocks[i];
+            let mut incoming = entry_edges[i].clone();
+            incoming.extend(fall_in.take());
+            let mut body_env = self.merge_envs(block, &incoming, &entry_env);
+            let mut body_cur = block;
+            self.lower_stmts(&case.body, &mut body_cur, &mut body_env);
+            if self.is_terminated(body_cur) {
+                continue;
+            }
+            if i < last_index {
+                self.seal(body_cur, Terminator::Jump(body_blocks[i + 1]));
+                fall_in = Some((body_cur, body_env));
+            } else {
+                // Running off the end of the last body leaves the switch, so
+                // it owes exactly what a `break` owes: this case's own locals
+                // released, and the reserved subject name hidden.
+                self.end_iteration(body_cur, &mut body_env);
+                body_env.remove(&subject_name);
+                self.seal(body_cur, Terminator::Jump(after_block));
+                after_incoming.push((body_cur, body_env));
+            }
+        }
+
+        let frame = self
+            .loop_stack
+            .pop()
+            .expect("just pushed this switch's own frame above");
+        after_incoming.extend(frame.break_edges);
+        *env = self.merge_envs(after_block, &after_incoming, &exit_env);
+        if owns_subject {
+            self.emit_release(after_block, subj_v);
+        }
         *cur = after_block;
     }
     /// `foreach ($subject as $k => $v) body` over an `array<T>` — ADR 0007
@@ -654,7 +866,7 @@ impl<'a> Lowering<'a> {
         }
         iteration_owned.push(value_name.clone());
         self.loop_stack.push(LoopFrame {
-            header_block,
+            continue_target: Some(header_block),
             after_block,
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
@@ -888,7 +1100,7 @@ impl<'a> Lowering<'a> {
         );
 
         self.loop_stack.push(LoopFrame {
-            header_block,
+            continue_target: Some(header_block),
             after_block,
             continue_edges: Vec::new(),
             break_edges: Vec::new(),
@@ -1050,7 +1262,23 @@ impl<'a> Lowering<'a> {
     /// internals — the same rule the crate's `ids` module states for value
     /// ids.
     pub(super) fn end_iteration(&mut self, cur: BlockId, env: &mut Env) {
-        let Some(frame) = self.loop_stack.last() else {
+        let Some(at) = self.loop_stack.len().checked_sub(1) else {
+            return;
+        };
+        self.end_iteration_at(cur, env, at);
+    }
+    /// [`Self::end_iteration`] against a named [`Self::loop_stack`] frame
+    /// rather than the innermost one.
+    ///
+    /// The two differ for exactly one caller: a `continue` written inside a
+    /// `switch` inside a loop, which ends an iteration of the **loop** while
+    /// the innermost frame is the `switch`'s ([`Self::lower_switch`]). Reading
+    /// the loop's own [`LoopFrame::carried`] there is what makes both the case
+    /// body's locals and the loop body's locals get released on that edge —
+    /// the switch's carried set names the loop-body locals, so using it would
+    /// silently keep them alive across the back edge.
+    pub(super) fn end_iteration_at(&mut self, cur: BlockId, env: &mut Env, at: usize) {
+        let Some(frame) = self.loop_stack.get(at) else {
             return;
         };
         let owned = frame.iteration_owned.clone();
@@ -1081,14 +1309,24 @@ impl<'a> Lowering<'a> {
     /// panic doc, the same defensive check applies here.
     pub(super) fn lower_continue(&mut self, level: &Option<Expr>, cur: &mut BlockId, env: &Env) {
         self.loop_exit_level(level, "continue");
-        let frame = self.loop_stack.last().unwrap_or_else(|| {
-            panic!(
-                "mwl-ir: `continue` reached lowering with no enclosing loop on the loop \
-                 stack — mwl_types should have already rejected this; see the crate docs' \
-                 known gaps"
-            )
-        });
-        let header_block = frame.header_block;
+        // The innermost frame that *is* a loop, not simply the innermost
+        // frame: an enclosing `switch` pushes one to own the `break` alone —
+        // see `LoopFrame::continue_target`.
+        let at = self
+            .loop_stack
+            .iter()
+            .rposition(|frame| frame.continue_target.is_some())
+            .unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: `continue` reached lowering with no enclosing loop on the loop \
+                     stack — mwl_types should have already rejected this; see the crate docs' \
+                     known gaps"
+                )
+            });
+        let frame = &self.loop_stack[at];
+        let header_block = frame
+            .continue_target
+            .expect("rposition only matches a frame with a continue target");
         let try_depth = frame.try_depth;
         // Same obligation a `break` has: every protected region this jump
         // leaves runs its `finally` first — see `Self::run_finallys_above`.
@@ -1100,13 +1338,9 @@ impl<'a> Lowering<'a> {
         // The next iteration rebinds a `foreach` header's key/value from
         // scratch, so this back edge ends the current one — see
         // `LoopFrame::iteration_owned`.
-        self.end_iteration(*cur, &mut back_env);
+        self.end_iteration_at(*cur, &mut back_env, at);
         self.emit_safepoint(*cur);
-        self.loop_stack
-            .last_mut()
-            .expect("just read the same stack above")
-            .continue_edges
-            .push((*cur, back_env));
+        self.loop_stack[at].continue_edges.push((*cur, back_env));
         self.seal(*cur, Terminator::Jump(header_block));
     }
     /// Validates a `break`/`continue` statement's optional level operand —
@@ -1343,6 +1577,17 @@ impl<'a> Lowering<'a> {
             }
             StmtKind::While { body, .. } | StmtKind::Foreach { body, .. } => {
                 self.collect_reassigned_locals(body, seen, out);
+            }
+            // A `switch` nested in a loop body is one more place a local is
+            // written, and a header phi that misses it reads the pre-loop
+            // value forever — the same silent failure the `Try` arm below
+            // exists for.
+            StmtKind::Switch { cases, .. } => {
+                for case in cases {
+                    for s in &case.body {
+                        self.collect_reassigned_locals(s, seen, out);
+                    }
+                }
             }
             // A `for`'s step clause writes the loop variable of the loop it
             // belongs to, and an enclosing loop needs a header phi for it just

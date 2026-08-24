@@ -1,0 +1,40 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn pick(object, int) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-4:19
+    v2 = const.int 0  ; int
+    ; stmt s1 @5:5-12:6
+    v3 = const.int 1  ; int
+    v4 = eq v1, v3  ; bool
+    branch v4 -> bb1 (e0), bb5 (e1)
+  bb1:
+    jump bb2
+  bb2:
+    ; stmt s2 @8:9-8:20
+    v7 = const.int 1  ; int
+    v8 = add v2, v7  ; int
+    ; stmt s3 @9:9-9:15
+    jump bb4
+  bb3:
+    ; stmt s4 @11:9-11:20
+    v9 = const.int 9  ; int
+    v10 = add v2, v9  ; int
+    jump bb4
+  bb4:
+    v11 = phi [bb3: v10, bb2: v8]  ; int
+    ; stmt s5 @13:5-13:18
+    release v0
+    return v11
+  bb5:
+    v5 = const.int 2  ; int
+    v6 = eq v1, v5  ; bool
+    branch v6 -> bb2 (e2), bb6 (e3)
+  bb6:
+    jump bb3
+}

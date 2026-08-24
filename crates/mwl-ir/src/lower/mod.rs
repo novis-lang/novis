@@ -72,8 +72,8 @@
 use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
     AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind, FnBody,
-    FnExpr, ForeachBinding, MethodMember, Modifier, NamespaceDecl, NewTarget, Stmt, StmtKind,
-    StringPart, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    FnExpr, ForeachBinding, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget, Stmt,
+    StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
 use mwl_types::layout::ClassLayoutTable;
@@ -110,18 +110,30 @@ type Env = FxHashMap<String, (ValueId, Ty)>;
 /// [`Lowering::lower_while`]/[`Lowering::lower_foreach`] push one of these
 /// onto [`Lowering::loop_stack`] before lowering the body and pop it back off
 /// once lowering returns; [`Lowering::lower_break`]/[`Lowering::lower_continue`]
-/// read the top frame's `after_block`/`header_block` and record their own
+/// read the top frame's `after_block`/`continue_target` and record their own
 /// `(block, env)` pair into it. The loop then folds `continue_edges` in
 /// alongside the body's own fall-through exit when patching the header's
 /// phis, and `break_edges` in alongside the condition's false edge when
 /// building the loop's own after-block environment — see
 /// [`Lowering::lower_while`]'s own doc comment for exactly how both are
 /// combined.
+///
+/// A `switch` pushes one too ([`Lowering::lower_switch`]) — it is a `break`
+/// target without being a loop, which is exactly what `continue_target: None`
+/// says.
 struct LoopFrame {
     /// Where a `continue` jumps: the loop header, re-running the condition —
     /// except in a `for`, where it is the step block that runs the header's
     /// third clause and *then* reaches the header ([`Lowering::lower_for`]).
-    header_block: BlockId,
+    ///
+    /// `None` on a `switch`'s frame, which owns a `break` but not a
+    /// `continue`: [`Lowering::lower_continue`] walks past it to the innermost
+    /// frame that has one, so `continue` inside a `switch` continues the
+    /// enclosing **loop**. PHP instead treats a `switch` as a looping
+    /// structure there, making a bare `continue` mean `break` and warning that
+    /// you probably meant `continue 2` — [`Lowering::lower_switch`]'s own doc
+    /// comment records why MWL takes the meaning PHP's own warning points at.
+    continue_target: Option<BlockId>,
     /// Where a `break` jumps — the block right after the loop.
     after_block: BlockId,
     /// One `(block, env)` pair per `continue` lowered inside this loop's
@@ -143,7 +155,9 @@ struct LoopFrame {
     /// names are ordinary members of.
     iteration_owned: Vec<String>,
     /// Every name the loop *header* binds — everything that existed before the
-    /// loop, plus the header phis seeded over it.
+    /// loop, plus the header phis seeded over it. On a `switch`'s frame it is
+    /// simply the environment the `switch` was entered with, so the set a
+    /// [`Lowering::end_iteration`] releases is "whatever a case body declared".
     ///
     /// A name in the body's environment that is **not** here was declared
     /// inside the body, so it lives for exactly one iteration and this frame
@@ -158,7 +172,8 @@ struct LoopFrame {
     /// its retained reference to the array being walked, and its cursor. They
     /// are dropped from a `break` edge's recorded environment so nothing after
     /// the loop can see them; see [`Lowering::lower_foreach`] for why they
-    /// live in the `Env` at all.
+    /// live in the `Env` at all. A `switch` uses the same slot for the one
+    /// reference it holds to its subject ([`Lowering::lower_switch`]).
     loop_private: Vec<String>,
     /// How deep [`Lowering::try_stack`] was when this loop's body started
     /// lowering — the boundary a `break`/`continue` unwinds down to.
@@ -796,6 +811,10 @@ struct Lowering<'a> {
     /// [`Self::lower_foreach`] for why those names exist and why the `#` in
     /// them cannot collide with a local.
     foreach_seq: u32,
+    /// [`Self::foreach_seq`]'s counterpart for `switch`, which reserves one
+    /// [`Env`] name of its own for the subject it compares against every case
+    /// — see [`Self::lower_switch`].
+    switch_seq: u32,
     /// Every `&$x` parameter this frame declares, by name, mapped to the
     /// *pointee's* representation — the declared type its `Env` entry cannot
     /// carry, since that entry holds [`Ty::Ref`] instead (see [`Ty::Ref`] and
@@ -1004,6 +1023,7 @@ impl<'a> Lowering<'a> {
             fn_label: name.to_owned(),
             cur_stmt_span: Span::at(src.id(), 0),
             foreach_seq: 0,
+            switch_seq: 0,
             ref_locals: FxHashMap::default(),
             pending_refs: Vec::new(),
             generator: None,
@@ -2290,6 +2310,74 @@ class T {
     fn for_loop_whose_body_always_returns_leaves_a_dead_step_block() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function head(int $n): int {\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      return $i;\n    }\n    return -1;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `switch`: one subject, an equality chain over the labels, and a
+    /// `default` reached by the chain's own fall-off — see
+    /// [`Lowering::lower_switch`].
+    #[test]
+    fn switch_lowers_to_an_equality_chain_ending_at_the_default() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function rank(int $n): int {\n    switch ($n) {\n      case 1:\n        return 10;\n      case 2:\n        return 20;\n      default:\n        return 0;\n    }\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// Fallthrough is the absence of a `break`, so a body that reaches its end
+    /// jumps into the next body block rather than past the switch, and a
+    /// `break` jumps to the after-block the frame carries.
+    #[test]
+    fn switch_falls_through_a_body_with_no_break() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function pick(int $n): int {\n    int $hits = 0;\n    switch ($n) {\n      case 1:\n      case 2:\n        $hits += 1;\n        break;\n      default:\n        $hits += 9;\n    }\n    return $hits;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `string` subject is retained for the length of the switch and
+    /// released once in the after-block, the same shape
+    /// [`Lowering::lower_foreach`] gives the array it walks.
+    #[test]
+    fn a_switch_over_a_string_holds_one_reference_to_its_subject() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function tier(string $s): int {\n    int $out = 0;\n    switch ($s) {\n      case \"a\":\n        $out = 1;\n        break;\n    }\n    return $out;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `continue` written inside a `switch` inside a loop continues the
+    /// **loop** — the switch's frame carries no continue target, so
+    /// [`Lowering::lower_continue`] walks past it. PHP's own bare `continue`
+    /// there means `break`; see [`Lowering::lower_switch`] for why MWL takes
+    /// the meaning PHP's warning points at instead.
+    #[test]
+    fn continue_inside_a_switch_reaches_the_enclosing_loops_header() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    while ($i < $n) {\n      $i += 1;\n      switch ($i) {\n        case 2:\n          continue;\n        default:\n          $hits += 1;\n      }\n    }\n    return $hits;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `match` is [`Lowering::lower_switch`]'s chain producing a value: each
+    /// arm ends in a jump to one merge block, and the arms join in a phi the
+    /// way a ternary's two branches do.
+    #[test]
+    fn match_arms_join_in_a_phi_at_one_merge_block() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function name(int $n): string {\n    return match ($n) {\n      1, 2 => \"low\",\n      default => \"high\",\n    };\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// With no `default` arm the chain's fall-off raises a `LogicError`
+    /// instead of reaching the merge — `mwl_hir::errors`' closed tree has no
+    /// `UnhandledMatchError` to raise.
+    #[test]
+    fn a_match_with_no_default_throws_where_the_chain_runs_out() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass T {\n  function name(int $n): string {\n    return match ($n) {\n      1 => \"one\",\n    };\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

@@ -1,0 +1,50 @@
+--TEST--
+A `match` expression picks the first arm whose label equals the subject, takes `default` last, and throws a `LogicError` when no arm matches
+--FILE--
+<?mwl
+class Pick {
+    public static function label(int $n): string {
+        return match ($n) {
+            1, 2 => "small",
+            3 => "three",
+            default => "big",
+        };
+    }
+
+    // `match (true)` is the ordered-condition form: every label is a `bool`
+    // and the first true one wins.
+    public static function letter(int $score): string {
+        return match (true) {
+            $score >= 90 => "A",
+            $score >= 80 => "B",
+            default => "F",
+        };
+    }
+}
+
+echo "labels=", Pick::label(1), " ", Pick::label(2), " ", Pick::label(3), " ",
+    Pick::label(9), "\n";
+echo "letters=", Pick::letter(95), Pick::letter(85), Pick::letter(10), "\n";
+
+// A `match` composes in an ordinary expression position — a call argument and
+// an operand of `.` alike.
+echo "nested=", Core\Str::upper(match (2) { 2 => "two", default => "other" }), "\n";
+echo "concat=" . match ("b") { "a" => 1, "b" => 2, default => 0 } . "\n";
+
+// No arm matches and no `default` was written: PHP raises
+// `UnhandledMatchError`, which MWL's closed exception tree spells `LogicError`.
+try {
+    string $x = match (7) {
+        1 => "one",
+        2 => "two",
+    };
+    echo "unreachable=", $x, "\n";
+} catch (LogicError $e) {
+    echo "threw=yes\n";
+}
+--EXPECT--
+labels=small small three big
+letters=ABF
+nested=TWO
+concat=2
+threw=yes

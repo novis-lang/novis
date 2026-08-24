@@ -42,10 +42,11 @@
 //! - **SSA, not a plain CFG.** `if`/`while`/`for` are each a hand-rolled
 //!   merge, not a dominance-based phi-placement algorithm — sufficient for any
 //!   structured nesting, since none produces a join of another shape. There
-//!   are two building blocks and `switch` will reuse them as `for` did:
-//!   `merge_envs` for a set of incoming edges known up front, and
-//!   `lower_while`'s seed-then-patch phi dance for a join whose back edge is
-//!   not known until its body is lowered.
+//!   are two building blocks, and every construct added so far has reused
+//!   them: `merge_envs` for a set of incoming edges known up front (`if`,
+//!   `for`'s step block, a `switch` case body's label and fall-through edges,
+//!   a `match`'s arm phi), and `lower_while`'s seed-then-patch phi dance for a
+//!   join whose back edge is not known until its body is lowered.
 //! - **IR types are representation-level, not the checker's types.** See
 //!   [`ty`]'s own module docs for why [`ty::Ty`] is a small, flat lattice
 //!   rather than a reuse of `mwl_types::ty::Ty`.
@@ -94,14 +95,18 @@
 //!
 //! Each panics naming itself rather than miscompiling.
 //!
-//! 1. **`switch` and `match` do not lower at all**, and neither does
-//!    `do`/`while`. Every shape they need exists —
-//!    [`ir::Terminator::Branch`] with an [`ids::EdgeId`], and
-//!    [`ir::Terminator::Switch`], built general rather than
-//!    resumption-specific precisely so `switch` can reach for it — so widening
-//!    should add no new ones. `for` lowers
-//!    ([`lower::Lowering::lower_for`]); its one restriction is a condition
-//!    clause of more than one comma-separated expression.
+//! 1. **`do`/`while` does not lower** — [`lower::Lowering::lower_while`] with
+//!    the branch moved below the body, and nothing new to build. Every other
+//!    control-flow statement does: `for`
+//!    ([`lower::Lowering::lower_for`]), whose one restriction is a condition
+//!    clause of more than one comma-separated expression, and `switch`
+//!    ([`lower::Lowering::lower_switch`]) and `match`
+//!    ([`lower::Lowering::lower_match`]), whose one restriction is a label
+//!    whose representation differs from the subject's. Both of the latter
+//!    lower to an equality chain of [`ir::Terminator::Branch`]es rather than
+//!    to [`ir::Terminator::Switch`] — that terminator selects on an integer,
+//!    while a label is any expression of the subject's type; `lower_switch`'s
+//!    own doc comment owns why one shape for every subject type beats two.
 //! 2. **A `finally` does not run when a `catch` clause's own body throws.**
 //!    [`lower::Lowering::lower_try`] owns that one — every other exit from a
 //!    protected region runs its `finally`, including a `return`, a `break` and
@@ -140,11 +145,12 @@
 //!    conversion cannot fail (`$i as ?string`) or does not exist at all
 //!    (`$arr as ?int`); `mwl_types` refuses neither yet, so both reach
 //!    lowering and panic naming that ADR instead of being diagnosed.
-//! 5. **A ternary whose branches lower to two different [`ty::Ty`]
-//!    representations panics.** It has no recorded result type to widen both
-//!    arms to, which is the one thing `mwl_types::expr_table::ExprInfo::Coalesce`
-//!    supplies for `??` — so closing it is that same recording, plus
-//!    [`lower::Lowering::coerce`] on each arm. *Where* a short-circuit may
+//! 5. **A ternary — or a `match` — whose branches lower to two different
+//!    [`ty::Ty`] representations panics.** Neither has a recorded result type
+//!    to widen its arms to, which is the one thing
+//!    `mwl_types::expr_table::ExprInfo::Coalesce` supplies for `??` — so
+//!    closing it is that same recording, plus [`lower::Lowering::coerce`] on
+//!    each arm. *Where* a short-circuit may
 //!    appear is no longer a restriction: [`lower::Lowering::lower_expr`] owns
 //!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array

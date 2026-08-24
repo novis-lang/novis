@@ -1,0 +1,35 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn name(object, int) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-6:7
+    v2 = const.int 1  ; int
+    v3 = eq v1, v2  ; bool
+    branch v3 -> bb1 (e0), bb3 (e1)
+  bb1:
+    v8 = const.str "one"  ; string
+    jump bb2
+  bb2:
+    v9 = phi [bb1: v8]  ; string
+    release v0
+    return v9
+  bb3:
+    v4 = const.str "no `match` arm matched the subject"  ; string
+    v5 = new LogicError via Throwable::constructor(v4) ! bb4  ; object
+    v6 = field.get v5, Throwable::location  ; string
+    release v6
+    v7 = const.str "t.mwl:4"  ; string
+    field.set v5, Throwable::location, v7
+    throw v5 -> bb5
+  bb4:
+    release v0
+    propagate "name() at t.mwl:4"
+  bb5:
+    release v0
+    propagate "name() at t.mwl:4"
+}

@@ -177,6 +177,7 @@ impl<'a> Lowering<'a> {
                 value_by_ref,
                 body,
             } => self.lower_foreach(subject, key.as_ref(), value, *value_by_ref, body, cur, env),
+            StmtKind::Switch { subject, cases } => self.lower_switch(subject, cases, cur, env),
             // ADR 0028 § 3 leaves exactly one `unset` target standing — an
             // array element — and `mwl_types::expr::check_unset_target`
             // already rejected a declared property, so anything else reaching
@@ -197,8 +198,8 @@ impl<'a> Lowering<'a> {
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a typed local declaration, a plain \
                  reassignment, `echo`, `unset`, `return`, a nested block, `if`, `while`, `for`, \
-                 `foreach`, `try`/`catch`, `throw` and a loop-scoped `break`/`continue` — got \
-                 {other:?}; see the crate docs' known gaps"
+                 `foreach`, `switch`, `try`/`catch`, `throw` and a loop-scoped \
+                 `break`/`continue` — got {other:?}; see the crate docs' known gaps"
             ),
         }
     }

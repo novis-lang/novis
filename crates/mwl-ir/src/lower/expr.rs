@@ -66,6 +66,9 @@ impl<'a> Lowering<'a> {
             ExprKind::Ternary { cond, then, else_ } => {
                 self.lower_ternary(cond, then.as_deref(), else_, env, cur)
             }
+            ExprKind::Match { subject, arms } => {
+                self.lower_match(subject, arms, expected, env, cur)
+            }
             ExprKind::Bool(b) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(*b)),
             // The literal `null`. Its own type, not a tagged one -- see
             // `Ty::Null`; `Self::coerce` widens it wherever the position it
@@ -1935,6 +1938,168 @@ impl<'a> Lowering<'a> {
         );
         *cur = merge_block;
         (result, then_ty)
+    }
+    /// `match (subject) { a, b => x, default => y }` — [`Self::lower_switch`]'s
+    /// equality chain producing a **value** instead of running statements.
+    ///
+    /// What it shares with `switch`: one evaluation of the subject, one
+    /// [`BinOp::Eq`] per label in source order, and `default` as the chain's
+    /// fall-off wherever it is written. What is its own:
+    ///
+    /// * **An arm is an expression, and the arms join in a phi**, the way
+    ///   [`Self::lower_ternary`]'s two branches do — including its retain
+    ///   rule, since every consumer of this method's result treats it as an
+    ///   ordinary fresh value: an arm body that [`is_aliasing_read`]s a slot
+    ///   is retained right there, one that is already fresh is not.
+    /// * **There is no fallthrough**, so each arm body block is entered only
+    ///   from its own labels and leaves straight for the merge.
+    /// * **No arm matching throws.** PHP raises `UnhandledMatchError`;
+    ///   `mwl_hir::errors`' tree is closed and has no such entry, so this
+    ///   raises the entry that already means "a bug in the program",
+    ///   `LogicError` (`docs/spec/01-core-library.md` § 10). The message names
+    ///   the construct rather than the unmatched value: rendering an arbitrary
+    ///   subject would need the `Stringable`/`mixed` rendering this crate does
+    ///   not have, and `Self::write_throw_location` already puts the file and
+    ///   line on the exception.
+    ///
+    /// The subject's reference is not parked in the [`Env`] the way
+    /// [`Self::lower_switch`] parks its own — an expression is lowered against
+    /// a `&Env` it cannot insert into. Instead a *fresh* subject (one no slot
+    /// owns) is released at the top of every block the chain can leave for:
+    /// each arm body and the throw block. Those are disjoint paths, so the
+    /// release runs exactly once.
+    ///
+    /// # Panics
+    ///
+    /// Panics naming the case for a `match` with no arms at all (there is no
+    /// value for the phi to carry), for a label whose representation differs
+    /// from the subject's, and — [`Self::lower_ternary`]'s own restriction —
+    /// for two arms whose bodies lower to different representations.
+    pub(super) fn lower_match(
+        &mut self,
+        subject: &Expr,
+        arms: &[MatchArm],
+        expected: Option<Ty>,
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        assert!(
+            !arms.is_empty(),
+            "mwl-ir does not lower an arm-less `match`: it is an expression that can only \
+             throw, so there is no value for its merge phi to carry; see the crate docs' \
+             known gaps"
+        );
+        let (subj_v, subj_ty) = self.lower_expr(subject, None, env, cur);
+        // A fresh subject is this expression's to free; an aliasing one stays
+        // the slot's, exactly the split `Self::lower_ternary` applies to its
+        // own reused condition.
+        let owed = subj_ty.is_refcounted() && !self.aliasing_read(subject);
+
+        let arm_blocks: Vec<BlockId> = arms.iter().map(|_| self.new_block()).collect();
+        let merge_block = self.new_block();
+        let default_index = arms.iter().position(|a| a.conditions.is_none());
+
+        let mut test_cur = *cur;
+        for (i, arm) in arms.iter().enumerate() {
+            let Some(conditions) = &arm.conditions else {
+                continue;
+            };
+            for cond in conditions {
+                let (cond_v, cond_ty) = self.lower_expr(cond, Some(subj_ty), env, &mut test_cur);
+                assert_eq!(
+                    cond_ty, subj_ty,
+                    "mwl-ir lowers a `match` label only at the subject's own representation — \
+                     got {cond_ty:?} against a {subj_ty:?} subject; see the crate docs' known \
+                     gaps"
+                );
+                let (eq_v, _) = self.emit(
+                    test_cur,
+                    Ty::Bool,
+                    InstKind::BinOp {
+                        op: BinOp::Eq,
+                        lhs: subj_v,
+                        rhs: cond_v,
+                    },
+                );
+                if cond_ty.is_refcounted() && !self.aliasing_read(cond) {
+                    self.emit_release(test_cur, cond_v);
+                }
+                let next = self.new_block();
+                let hit_edge = self.ids.next_edge(arm.span);
+                let miss_edge = self.ids.next_edge(cond.span);
+                self.seal(
+                    test_cur,
+                    Terminator::Branch {
+                        cond: eq_v,
+                        then_block: arm_blocks[i],
+                        then_edge: hit_edge,
+                        else_block: next,
+                        else_edge: miss_edge,
+                    },
+                );
+                test_cur = next;
+            }
+        }
+        match default_index {
+            Some(i) => self.seal(test_cur, Terminator::Jump(arm_blocks[i])),
+            None => {
+                if owed {
+                    self.emit_release(test_cur, subj_v);
+                }
+                let (message, _) = self.emit(
+                    test_cur,
+                    Ty::Str,
+                    InstKind::ConstStr("no `match` arm matched the subject".to_owned()),
+                );
+                let (exception, _) = self.emit_fallible(
+                    test_cur,
+                    Ty::Object,
+                    InstKind::New {
+                        class: "LogicError".to_owned(),
+                        ctor: Some(THROWABLE_CTOR.to_owned()),
+                        args: vec![message],
+                    },
+                    env,
+                );
+                self.write_throw_location(test_cur, exception);
+                let landing = self.landing_block(env);
+                self.seal(
+                    test_cur,
+                    Terminator::Throw {
+                        value: exception,
+                        landing,
+                    },
+                );
+            }
+        }
+
+        let mut incoming: Vec<(BlockId, ValueId)> = Vec::with_capacity(arms.len());
+        let mut result_ty: Option<Ty> = None;
+        for (i, arm) in arms.iter().enumerate() {
+            let mut arm_cur = arm_blocks[i];
+            if owed {
+                self.emit_release(arm_cur, subj_v);
+            }
+            let (v, ty) = self.lower_expr(&arm.body, expected, env, &mut arm_cur);
+            match result_ty {
+                None => result_ty = Some(ty),
+                Some(first) => assert_eq!(
+                    first, ty,
+                    "mwl-ir's `match` slice only lowers arms that share one IR-level type — the \
+                     checker's union of their static types has no IR representation this crate \
+                     can fold into yet, see `Ty::Tagged`'s own doc comment"
+                ),
+            }
+            if ty.is_refcounted() && self.aliasing_read(&arm.body) {
+                self.emit_retain(arm_cur, v);
+            }
+            self.seal(arm_cur, Terminator::Jump(merge_block));
+            incoming.push((arm_cur, v));
+        }
+        let ty = result_ty.expect("the arm list is non-empty, checked above");
+        let (result, _) = self.emit(merge_block, ty, InstKind::Phi { incoming });
+        *cur = merge_block;
+        (result, ty)
     }
     /// Lowers `ExprKind::Interpolated`'s parts into the single [`Ty::Str`]
     /// value they denote — a left-to-right fold of [`InstKind::Concat`],

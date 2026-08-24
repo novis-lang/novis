@@ -1,0 +1,38 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn rank(object, int) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; int
+    ; stmt s0 @4:5-11:6
+    v2 = const.int 1  ; int
+    v3 = eq v1, v2  ; bool
+    branch v3 -> bb1 (e0), bb5 (e1)
+  bb1:
+    ; stmt s1 @6:9-6:19
+    v6 = const.int 10  ; int
+    release v0
+    return v6
+  bb2:
+    ; stmt s2 @8:9-8:19
+    v7 = const.int 20  ; int
+    release v0
+    return v7
+  bb3:
+    ; stmt s3 @10:9-10:18
+    v8 = const.int 0  ; int
+    release v0
+    return v8
+  bb4:
+    release v0
+    return
+  bb5:
+    v4 = const.int 2  ; int
+    v5 = eq v1, v4  ; bool
+    branch v5 -> bb2 (e2), bb6 (e3)
+  bb6:
+    jump bb3
+}

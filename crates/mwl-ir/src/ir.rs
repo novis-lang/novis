@@ -1126,9 +1126,15 @@ pub enum Terminator {
     /// `value` is entered, `default` when none does.
     ///
     /// Built for ADR 0053 § 4's generator resumption — `crate::lower`'s
-    /// generator section owns what the cases mean there — and shaped as the
-    /// general N-way terminator a `switch` statement will reach for rather
-    /// than as a resumption-specific one, since the two want the same edge.
+    /// generator section owns what the cases mean there — and shaped as a
+    /// general N-way terminator rather than a resumption-specific one, which
+    /// is what keeps every consumer's `match` on [`Terminator`] honest.
+    ///
+    /// **MWL's own `switch` statement does not use it.** Its cases are
+    /// arbitrary expressions of the subject's type rather than integers —
+    /// `case "A":` is one string comparison call — so it lowers to a chain of
+    /// [`Terminator::Branch`]es instead; `crate::lower::Lowering::lower_switch`
+    /// owns that reasoning.
     ///
     /// Cases are matched in order and are **not** required to be dense,
     /// contiguous or sorted; a duplicate case is unreachable rather than an

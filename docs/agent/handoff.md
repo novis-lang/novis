@@ -2,53 +2,52 @@
 
 ## State
 
-**`for` lowers** (`mwl_ir::lower::Lowering::lower_for`), so `examples/match.mwl` — Stage 2's second
-check — is down to `match` and `switch`, `mwl-ir`'s gap 1. The shape: `init` is lowered into the
-caller's own block before the header exists; the header is `lower_while`'s seed-then-patch phi dance
-unchanged; and the step clause gets a **block of its own between the body and the header**, which is
-what `LoopFrame::header_block` points a `continue` at, so the step runs on that path too. Every way an
-iteration ends is an incoming edge to that block, merged by the ordinary `merge_envs`, so the header
-sees exactly one back edge. A body that always leaves the frame reaches the step block on no edge at
-all; it is still sealed back to the header carrying the pre-loop environment, which is the one thing
-that stays defined on a block nothing reaches. `collect_reassigned_locals` gained a `For` arm and an
-extracted `collect_reassigned_in_expr`, because a step clause is a bare `Expr` owed the same phi.
+**Stage 2 of the acceptance list passes whole.** `switch` and `match` lower
+(`mwl_ir::lower::Lowering::lower_switch`/`lower_match`, each with its own doc comment), so
+`examples/match.mwl` produces its frozen output and the loop is on **Stage 3 — `Core` Part I across
+spec §§ 1–12**. `mwl-ir`'s gap 1 is now `do`/`while` alone.
 
-Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 361 cases through `mwl test tests/`,
-and `tools/leak-check.sh` clean over three fixtures (a body-local `string` per iteration, a
-loop-carried `string` and `array` accumulator, `continue`/`break` out of a `try`/`finally`, and a body
-that always returns). PHP 8.5 agrees line for line — `tests/differential/lang/a-for-loop-matches-php.mwlt`.
+Both constructs are an equality chain of `Terminator::Branch`es rather than `Terminator::Switch`,
+which selects on an integer while a label is any expression of the subject's type. `switch` pushes a
+`LoopFrame` whose new `continue_target` is `None` — it owns `break` and nothing else — so a bare
+`continue` inside one continues the **enclosing loop**, PHP's `continue 2`. That divergence is
+recorded in `docs/adr/README.md` § *Decisions taken at project start* and pinned by
+`tests/differential/lang/a-switch-and-a-match-agree-with-php.mwlt`.
+
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 364 cases through `mwl test tests/`
+(280 conformance + 84 differential), six new IR snapshots, and `tools/leak-check.sh` clean over four
+fixtures covering every new refcount edge (a retained `string` subject, a case-body local released on
+a fall-through, a `break` and a `return` out of a case body, a fresh vs. aliasing `match` subject).
 
 ## Next
 
-**`switch`, then `match`** — `mwl-ir` gap 1, and the last thing between the loop and Stage 3.
-`ir::Terminator::Switch` was built general rather than resumption-specific precisely for this, but a
-`switch` over strings needs the equality chain instead; PHP's `switch` compares loosely (`==`), while
-`match` compares identically (`===`), which is `mwl_runtime::value_identical`. Fallthrough is the
-absence of a `break`, so each case body is one block falling into the next, and `LoopFrame`'s
-`after_block` is what a `break` inside one must target — a `switch` therefore pushes a frame whose
-`continue` still belongs to the enclosing loop. `match` is an *expression*: it needs a merge phi for
-its arm values and a throw when no arm matches. Both are pre-authorized in
-[`loop-goal.md`](loop-goal.md) § *Standing decisions*.
+**Stage 3: `Core` §§ 3–12 have no registry class at all.** Read `docs/agent/loop-goal.toml`'s Stage 3
+block for the fixture per domain and its frozen output, and `docs/spec/01-core-library.md` for the
+member rows. The two signature shapes still missing gate part of it: a **variadic** parameter (ADR
+0069's `overlay`/`underlay`/`appendAll`, `Arr::append`/`prepend`, `Path::join`) and `CoreTy::Decimal`
+(`Arr::sum`/`product`/`average`) — `mwl-stdlib`'s gap 3 names both sets. Picking whichever § 3–12
+class the next fixture needs and registering it end-to-end is the smallest slice that moves Stage 3.
 
 ## Backlog
 
 - **`Core\Arr::diff`/`intersect`** — the last two set members; they need a `Core\SetOn { Values, Keys,
   Both }` enum in `registry::ENUMS` and an `{on?, by?, comparator?}` bag, both shapes the registry can
   already state. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
-- **`do`/`while` and `$i++`/`$i--` do not lower either** — the first is `lower_while` with the branch
-  moved below the body, the second is `lower_compound_assignment` with a synthesized `1`, but
-  `mwl_types` types an inc/dec as its operand and checks no target, so that half is owed first.
-- **The bitwise operators have no `ir::BinOp` variant**, so `&`/`|`/`^`/`<<`/`>>`/`**` and their compound
-  forms all panic in lowering — `mwl-ir`'s gap 16. PHP throws `ArithmeticError` on a negative shift.
+- **`do`/`while` and `$i++`/`$i--` do not lower** — the first is `lower_while` with the branch moved
+  below the body, the second is `lower_compound_assignment` with a synthesized `1`, but `mwl_types`
+  types an inc/dec as its operand and checks no target, so that half is owed first.
+- **The bitwise operators have no `ir::BinOp` variant**, so `&`/`|`/`^`/`<<`/`>>`/`**` and their
+  compound forms all panic in lowering — `mwl-ir`'s gap 16. PHP throws `ArithmeticError` on a
+  negative shift.
 - **ADR 0066 § 3's refusals are `mwl_types`' half and are not built** — a conversion that cannot fail
   (`$i as ?string`) and one that does not exist (`$arr as ?int`) both reach `mwl-ir` and panic naming
   that ADR where a diagnostic belongs.
-- **A `?T` parameter defaulting to `null` is untried** — `Core\Str::slice`'s `?int $length = null`, the
-  spec's most common optional shape. `mwl-stdlib`'s gap 3 says every piece is in place.
-- **A variadic parameter, and `CoreTy::Decimal`** — the two signature shapes still missing, blocking ADR
-  0069's combination members and `Arr::sum`/`product`/`average`. `mwl-stdlib`'s gap 3 names both sets.
+- **A `?T` parameter defaulting to `null` is untried** — `Core\Str::slice`'s `?int $length = null`,
+  the spec's most common optional shape. `mwl-stdlib`'s gap 3 says every piece is in place.
 - **`private`/`protected` is not enforced at all**, and `Comparable`/`Stringable` carry no member
   signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the second.
+- **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of the kind AGENTS.md
+  forbids — the one doc in the repo genuinely owed a trim.
 
 ## Standing rules for this repo
 
