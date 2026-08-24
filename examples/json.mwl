@@ -1,0 +1,38 @@
+<?mwl
+#[Core\Json\Derive]
+class User {
+    public string $name;
+    public int $age;
+    #[Core\Json\Field(name: "is_admin")]
+    public bool $isAdmin;
+
+    public function constructor(string $name, int $age, bool $isAdmin) {
+        $this->name = $name;
+        $this->age = $age;
+        $this->isAdmin = $isAdmin;
+    }
+}
+
+var $ada = new User("ada", 36, true);
+echo Core\Json::encode($ada) . "\n";
+
+var $grace = Core\Json::decodeAs<User>("{\"name\":\"grace\",\"age\":45,\"is_admin\":false}");
+echo "decoded=" . $grace->name . "/" . $grace->age . "\n";
+
+echo Core\Json::encode(["a" => 1, "b" => 2]) . "\n";
+echo Core\Json::encode([1, 2, 3]) . "\n";
+echo "valid=" . (Core\Json::isValid("{\"k\":1}") ? "yes" : "no") . "\n";
+
+try {
+    Core\Json::decode("{oops}");
+    echo "not reached\n";
+} catch (ParseError $malformed) {
+    echo "malformed rejected\n";
+}
+
+try {
+    Core\Json::decodeAs<User>("{\"name\":1,\"age\":\"x\",\"is_admin\":\"y\"}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=" . Core\Arr::count($bad->issues) . "\n";
+}

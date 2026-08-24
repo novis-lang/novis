@@ -1,0 +1,16 @@
+<?mwl
+var $utc = Core\Time\Zone::UTC;
+var $start = Core\Time::parse("2024-02-28 23:30:00", "yyyy-MM-dd HH:mm:ss", $utc);
+
+echo "start=" . $start->format("yyyy-MM-dd HH:mm") . "\n";
+echo "nextDay=" . $start->plus(1, Core\Unit::Day)->format("yyyy-MM-dd") . "\n";
+echo "nextMonth=" . $start->plus(1, Core\Unit::Month)->format("yyyy-MM-dd") . "\n";
+echo "endOfMonth=" . $start->endOf(Core\Unit::Month)->format("yyyy-MM-dd") . "\n";
+
+var $later = $start->toInstant()->plus(2h);
+echo "later=" . $later->in($utc)->format("yyyy-MM-dd HH:mm") . "\n";
+echo "spanSeconds=" . $later->since($start->toInstant())->toSeconds() . "\n";
+echo "duration=" . Core\Time\Duration::parse("1h30m")->toSeconds() . "\n";
+
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+echo "berlin=" . $later->in($berlin)->format("yyyy-MM-dd HH:mm") . "\n";

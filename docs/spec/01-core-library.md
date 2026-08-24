@@ -707,8 +707,8 @@ the reason. Password hashing takes no algorithm argument at all and is in § 16.
 | `Uri::isValid` | `isValid(string $uri): bool` | `filter_var(…, FILTER_VALIDATE_URL)` | neutral |
 | `Uri::encodeComponent` / `decodeComponent` | `encodeComponent(string $s): string` | `rawurlencode`, `rawurldecode` | |
 | `Uri::encodeFormValue` / `decodeFormValue` | `encodeFormValue(string $s): string` | `urlencode`, `urldecode` (the `+`-for-space variant) | |
-| `Uri::parseQuery` | `parseQuery(string $query): array<string>` | `parse_str` — returns, never populates variables | |
-| `Uri::buildQuery` | `buildQuery(array<string> $parameters): string` | `http_build_query` | |
+| `Uri::parseQuery` | `parseQuery(string $query): array<mixed>` | `parse_str` — returns, never populates variables | |
+| `Uri::buildQuery` | `buildQuery(array<mixed> $parameters): string` | `http_build_query` | |
 | `$uri->with` | `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` | manual reassembly | |
 | `$uri->resolve` | `$uri->resolve(string $reference): Uri` | nothing | |
 
@@ -716,10 +716,13 @@ the reason. Password hashing takes no algorithm argument at all and is in § 16.
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
 ([ADR 0058](../adr/0058-outbound-request-policy.md)).
 
-**Open:** how `parseQuery`/`buildQuery` treat PHP's bracket convention (`a[]=1&a[]=2`, `a[b]=c`) is not
-settled here. It is not a URL-spec feature, but it is how every PHP form posts, and the same answer has to
-serve `Core\Request::query` — so it is decided with `Core\Request` in M8, and the flat `array<string>`
-above is the placeholder, not the resolution.
+**`parseQuery` reads PHP's bracket convention in full**, and `buildQuery` writes it: `a[]=1&a[]=2` builds
+a list under the key `"a"`, `a[b]=c` builds a map, and the two nest to arbitrary depth. It is not a URL-spec
+feature, but it is how every PHP form posts, and reproducing it here is what lets `Core\Request::query`
+(§ 15) return the same shape from the same code at M8 rather than answering the question a second time. The
+cost is the return type: every value is a `string` **or** a nested `array<mixed>`, which is why the row above
+is `array<mixed>` rather than `array<string>` — the one place in Part I where a member's element type is not
+statable more precisely. A repeated key without brackets (`a=1&a=2`) keeps the last value, as PHP does.
 
 `Core\Validate` is what survives of `filter`: the genuine validators only. Its *sanitizing* filters are
 dropped, because half-escaping produces exactly the false confidence

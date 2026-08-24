@@ -92,7 +92,7 @@ MWL actually has.
 | `implode` | member | `Core\Str::join` |
 | `join` | member | `Core\Str::join` |
 | `lcfirst` | member | `Core\Str::lowerFirst` |
-| `levenshtein` | dropped | byte-oriented, and wrong on any multi-byte input. No member; a UTF-8 edit distance is a candidate, not a decision |
+| `levenshtein` | dropped | byte-oriented, and wrong on any multi-byte input. No member, and no UTF-8 edit-distance replacement either: fuzzy matching does not pass ADR 0051's tests for Tier 0, so it is a library rather than a candidate |
 | `ltrim` | member | `Core\Str::trimStart` |
 | `metaphone` | dropped | an English-only phonetic algorithm |
 | `nl2br` | dropped | it builds markup from text. `Core\Str::replace($s, "\n", "<br>")` after the value is escaped, or a template |

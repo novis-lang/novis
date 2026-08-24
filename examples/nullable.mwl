@@ -1,0 +1,36 @@
+<?mwl
+class Lookup {
+    private array<string> $entries;
+
+    public function constructor(array<string> $entries) {
+        $this->entries = $entries;
+    }
+
+    public function get(string $key): ?string {
+        if (Core\Arr::hasKey($this->entries, $key)) {
+            return $this->entries[$key];
+        }
+
+        return null;
+    }
+}
+
+array<string> $config = ["host" => "example.test", "port" => "8080"];
+var $lookup = new Lookup($config);
+
+echo "host=" . ($lookup->get("host") ?? "unset") . "\n";
+echo "user=" . ($lookup->get("user") ?? "unset") . "\n";
+
+array<int> $nums = [4, 8, 15];
+?int $head = Core\Arr::first($nums);
+?string $where = Core\Arr::keyOf($nums, 8);
+echo "head=" . ($head ?? 0) . " at=" . ($where ?? "absent") . "\n";
+
+array<int> $none = [];
+echo "empty=" . (Core\Arr::first($none) ?? -1) . "\n";
+
+echo "parsed=" . (("42" as ?int) ?? 0) . "\n";
+echo "refused=" . (("4x" as ?int) ?? -1) . "\n";
+
+?Lookup $missing = null;
+echo "nullsafe=" . ($missing?->get("host") ?? "no lookup") . "\n";

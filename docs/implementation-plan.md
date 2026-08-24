@@ -7,18 +7,19 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-24. **M3 is done, and the M4 + M4S loop's acceptance list is fully green** — all five
-> stages and the valgrind sweep, on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop
-> — `Core\Arr`'s contract rests on M4's copy-on-write
-> array, and building that array without its only real consumer produces one that must be rebuilt. M4's
-> language surface is now driven by what Stage 3's `Core` work needs. The docs track that was running
-> beside it is **finished**: a full `Core` roster review against ADR 0063, then all seven `Core` additions
-> decided with the user, written as **ADRs 0071–0077** — derived codecs, `Core\Task`, `[[schedule]]`, HTTP
-> defaults both directions, `Core\RateLimit`, observability export, compile-time routing. The queue file is
-> deleted; nothing is owed from that track. One later decision landed with the user: **ADR 0078** —
-> `mwl.toml` reloads over a local-socket-only control API, and the extension set joins the key both
-> compiled-unit caches share, closing a latent hole where an artifact could outlive the extension set it was
-> compiled against. Docs only; it builds in M6/M7/M9.
+> **Status:** 2026-08-24. **M3 is done; the first M4 + M4S loop reached its acceptance list, and a second
+> loop is now defined against what that list left open.** That list was a threshold, not a milestone: it
+> stopped with `Core` at 39 of ~205 spec member rows, `Core\Str` and `Core\Arr` the only registered classes,
+> and §§ 3–12 not existing. Current: **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be
+> written without**, decided with the user and written into `docs/agent/loop-goal.md` and its `.toml`. The
+> keystone is one representation: **`?T` has no IR arm**, and neither does `null`, which is what makes every
+> `?T`-returning member across all twelve sections unstatable. Beside it, a variadic parameter and a union
+> return. Three M4 holes are folded in because the corpus cannot route around them — compound assignment,
+> `for`/`switch`/`match`, and `decimal`'s IR — as is ADR 0070's duration literal, which `Duration::parse`
+> shares an implementation with. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user; the
+> rest the loop picks under ADR 0051 § 4. Two spec questions closed with the user: `Uri::parseQuery` reads
+> PHP's bracket convention in full (which settles `Core\Request::query` at M8), and there is no
+> `Core\Str::editDistance`.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -50,41 +51,25 @@
 > full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification*
 > section says what its slice covers, not this field.
 >
-> **Open now:** **both Stage 4 suites are over their thresholds — conformance 260 against 250,
-> differential 82 against 60 — and `mwl-stdlib`'s
-> `every_part_one_member_has_a_conformance_case` now exists and passes**: every registered `Core` member
-> is called by a `.mwlt` case, and a new member cannot land without one. The corpus stays the fastest
-> bug-finder there is: writing it turned up, and this milestone fixed, a loop-header phi that skipped
-> `try`/`catch`/`finally` bodies, an enum auto-increment that could not follow a negative case, a
-> `parent::constructor(...)` obligation demanded of subclasses whose parent declares no constructor, four
-> more at once — an instance call that never dispatched virtually, a nested `try` whose blocks codegen
-> emitted out of dominance order, a `return` from a `catch` that skipped the `finally`, and a local
-> declared inside a `try` body that leaked on the exception path — then three more: a `break`/`continue`
-> that silently skipped every `finally` it jumped out of, a `foreach` anywhere inside a generator emitting
-> code Cranelift's verifier rejected, and a panic on PHP's simple-syntax array interpolation
-> `"$row[key]"` — and now **two rules that were written but unreachable: ADR 0029/0030's identifier
-> casing was never called from any pipeline, and a misspelled `Core` member panicked `mwl-ir` instead of
-> being named**. It has also found one divergence still open — **an abandoned generator never runs the
-> `finally` it is suspended inside**, `mwl-ir`'s known gap 18.
-> Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
-> rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
-> type, a `Core`-owned enum and an absent option all work end to end; a `?T` parameter is still
-> unstatable, and `array<T>`'s invariance is what keeps `Arr::flip`'s spec signature from taking an
-> `array<string>` (both in `mwl-stdlib`'s own gap list).
-> Also two re-opened M1 grammar slices (`autoload`, the duration literal) — see
-> M1 — plus ADR 0047's now-unblocked M2 checker row, and **class-member `private`/`protected` visibility,
-> which nothing enforces** (`mwl-types`' own gap list). In docs, one thing remains:
-> `docs/spec/02-php-migration.md` is 31% classified (strings, arrays, numbers, conversions), the rest one
-> pass per PHP domain, reported by `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's
-> `by`-delegation.
+> **Open now:** **the keystone, and everything waiting behind it.** `?T` and `null` have no IR
+> representation, `mixed` is a shape to erase into rather than dispatch on, a variadic parameter and a union
+> return cannot be stated — and between them those four block a `?T`-returning member in every one of spec
+> §§ 1–12, ADR 0069's three combination members, `Math::abs` and `Arr::sum`. Behind them, `Core` §§ 3–12
+> have no registry class at all, and `Core\Str`/`Core\Arr` are incomplete. Folded in because the corpus
+> cannot route around them: compound assignment, `for`/`switch`/`match`, `decimal`'s IR, ADR 0070's duration
+> literal. Also open: ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
+> nothing enforces, and the reserved `Comparable`/`Stringable` interfaces, which carry no member signatures.
+> One PHP divergence stands unfixed — **an abandoned generator never runs the `finally` it is suspended
+> inside**, `mwl-ir`'s gap 18. In docs, `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP
+> domain remaining, reported by `python tools/check-migration.py`. Off path: ADR 0043's `by`-delegation.
 >
-> **Blocking:** nothing external, and **nothing left on the loop's acceptance list**: every check in
-> `docs/agent/loop-goal.toml` passes — all sixteen fixture runs byte for byte on Windows *and* under WSL
-> against a Linux build, both suites over their thresholds, every named guard including
-> `a_class_without_a_property_observer_costs_nothing_extra`, and the `valgrind --leak-check=full` sweep
-> clean over all thirteen acyclic fixtures. `python tools/loop.py --goal-only` reports GOAL REACHED. That
-> leg earned its keep: `report.mwl` found a real per-iteration leak in `mwl-ir`, now fixed, and every
-> `Core\Arr` member added since was leak-checked the same way before it landed.
+> **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop reaches is
+> pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the `?T`/`mixed`
+> representation itself, re-scoping a `catch` binding to its own handler block, widening `array<T>` to
+> element-covariant-on-read, defining object identity, and picking every dependency but the two the user
+> named. The previous loop's acceptance list is the new one's Stage 1 and passes today, so any failure below
+> Stage 2 is a regression rather than unfinished work. The seven new fixtures do not compile yet, which is
+> the goal, not a fault.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

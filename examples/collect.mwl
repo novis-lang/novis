@@ -1,0 +1,47 @@
+<?mwl
+class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+var $red = new Tag("red");
+var $blue = new Tag("blue");
+
+var $seen = new Core\ObjectSet<Tag>();
+$seen->add($red);
+$seen->add($blue);
+$seen->add($red);
+echo "set=" . $seen->count() . "\n";
+
+var $weights = new Core\ObjectMap<Tag, int>();
+$weights->set($red, 3);
+$weights->set($blue, 7);
+echo "weight=" . ($weights->get($red) ?? 0) . "\n";
+echo "absent=" . ($weights->get(new Tag("red")) ?? -1) . "\n";
+
+echo "sha256=" . Core\Encoding::toHex(Core\Hash::of("mwl", Core\Digest::Sha256)) . "\n";
+echo "base64=" . Core\Encoding::toBase64(Core\Encoding::encodeText("mwl", Core\Charset::Utf8)) . "\n";
+
+echo "dice=" . Core\Random::int(5, 5) . "\n";
+echo "uuid=" . (Core\Uuid::isValid("00000000-0000-4000-8000-000000000000") ? "valid" : "invalid") . "\n";
+
+var $joined = Core\Path::join("srv", "app", "index.mwl");
+echo "path=" . Core\Str::replace($joined, Core\Path::SEPARATOR, "/") . "\n";
+echo "stem=" . Core\Path::basename("/srv/app/index.mwl", {withoutExtension: true}) . "\n";
+echo "ext=" . (Core\Path::extension("/srv/app/index.mwl") ?? "none") . "\n";
+
+var $query = Core\Uri::parseQuery("a=1&b[]=2&b[]=3&c[k]=v");
+echo "queryKeys=" . Core\Str::join(Core\Arr::keys($query), ",") . "\n";
+
+var $rows = Core\Csv::parse("name,qty\nfig,2\npear,5\n", {header: true});
+echo "rows=" . Core\Arr::count($rows) . "\n";
+var $head = Core\Arr::first($rows);
+if ($head !== null) {
+    echo "first=" . $head["name"] . "x" . $head["qty"] . "\n";
+}
+
+echo "email=" . (Core\Validate::isEmail("ada@example.test") ? "valid" : "invalid") . "\n";
+echo "captured=[" . Core\Out::capture(fn () => { echo "inner"; }) . "]\n";

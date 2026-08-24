@@ -8,17 +8,20 @@
 # user. It does not restate this list, and this file does not restate its reasoning. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. A fixture may be corrected to a
-# spelling the docs already fix -- its author had to write an option bag and an interface shape from the
-# spec, and an error there is a bug in the fixture, not a decision. What may never change is the expected
-# output, or a fixture's reason for existing. Re-freeze, say why in the commit message, move on. That is
-# not licence to weaken a check to make it pass.
+# spelling the docs already fix -- its author had to write every `Core` signature, every enum's namespace
+# and every options bag from the spec, and an error there is a bug in the fixture, not a decision. What may
+# never change is the expected output, or a fixture's reason for existing. Re-freeze, say why in the commit
+# message, move on. That is not licence to weaken a check to make it pass.
 
-# Every fixture the run touches. Missing one fails before anything is built.
+# Every fixture the run touches. Missing one fails before anything is built, naming the file.
 files = [
   "examples/hello.mwl", "examples/calls.mwl", "examples/throw.mwl", "examples/arith.mwl",
   "examples/trace.mwl", "examples/uncaught.mwl", "examples/fatal.mwl",
   "examples/objects.mwl", "examples/arrays.mwl", "examples/errors.mwl", "examples/hooks.mwl",
   "examples/enums.mwl", "examples/iterate.mwl", "examples/core.mwl", "examples/report.mwl",
+  "examples/nullable.mwl", "examples/match.mwl",
+  "examples/text.mwl", "examples/numbers.mwl", "examples/dates.mwl", "examples/json.mwl",
+  "examples/collect.mwl",
 ]
 
 [valgrind]
@@ -35,37 +38,38 @@ target_dir = "/tmp/mwl-target-wsl"
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 1 -- the object and array gate.  `kind = "exact"` means: exit 0, and stdout line for line equal
-# to `want`. A fixture that prints an extra line has failed.
+# Stage 1 -- what the previous loop reached, unchanged. This is the non-regression floor: nothing below
+# may be traded for anything above it. `kind = "exact"` means: exit 0, and stdout line for line equal to
+# `want`. A fixture that prints an extra line has failed.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/hello.mwl"
 want = ["Hello, World!"]
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/calls.mwl"
 want = ["quadruple(5) = 20"]
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/arith.mwl"
 want = ["sum = 998000"]
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/throw.mwl"
 want = ["caught: boom"]
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/objects.mwl"
 want = [
   "cat has 4 legs", "rex has 4 legs, and barks", "Hello, rex!",
@@ -74,7 +78,7 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/arrays.mwl"
 want = [
   "alpha=1;beta=2;gamma=3;", "alpha=1;gamma=3;", "alpha=1;gamma=3;beta=20;",
@@ -83,7 +87,7 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/errors.mwl"
 want = [
   "checked host", "value-of-host", "checked bad", "config: bad key",
@@ -92,20 +96,26 @@ want = [
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/hooks.mwl"
 want = ["6", "20", "Counter(10)", "n=6"]
 
 [[check]]
 kind = "exact"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/enums.mwl"
 want = ["ana outranks bo", "gold=2", "ana,clone"]
+
+[[check]]
+kind = "exact"
+stage = "1 floor"
+file = "examples/iterate.mwl"
+want = ["generator=15", "iterable=10"]
 
 # A caught throw's own trace, read back from MWL through its backtrace property.
 [[check]]
 kind = "ordered"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/trace.mwl"
 stream = "stdout"
 want = ["#0 Deep::inner()", "#1 Deep::outer()"]
@@ -113,7 +123,7 @@ want = ["#0 Deep::inner()", "#1 Deep::outer()"]
 # An uncaught throw: non-zero exit plus an MWL-level backtrace on stderr.
 [[check]]
 kind = "ordered"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/uncaught.mwl"
 stream = "stderr"
 exit = "nonzero"
@@ -122,7 +132,7 @@ want = ["Uncaught Exception: unhandled", "#0 Boom::inner()", "#1 Boom::outer()"]
 # A contained helper panic: FATAL, non-zero, and the output produced before it survives.
 [[check]]
 kind = "contains"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/fatal.mwl"
 args = ["--fault-inject=helper-panic"]
 exit = "nonzero"
@@ -132,7 +142,7 @@ stdout_contains = ["start"]
 # --dump-asm prints generated code instead of running, the way --dump-ir already does.
 [[check]]
 kind = "min-bytes"
-stage = "1 object/array gate"
+stage = "1 floor"
 file = "examples/arith.mwl"
 args = ["--dump-asm"]
 stream = "stdout"
@@ -140,18 +150,32 @@ min_bytes = 200
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the rest of M4's language surface.
+# Stage 2 -- the keystone. `nullable.mwl` is the whole point of this loop: a `?T` property, a `?T` return,
+# a `?T` local, `??`, `?->` and ADR 0066's `as ?T`, plus the three `Core\Arr` members whose spec signature
+# returns one. `match.mwl` is the surface the corpus cannot be written without: `match`, `switch`, `for`
+# and compound assignment, none of which lowers today.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "exact"
-stage = "2 language surface"
-file = "examples/iterate.mwl"
-want = ["generator=15", "iterable=10"]
+stage = "2 keystone"
+file = "examples/nullable.mwl"
+want = [
+  "host=example.test", "user=unset", "head=4 at=1", "empty=-1",
+  "parsed=42", "refused=-1", "nullsafe=no lookup",
+]
+
+[[check]]
+kind = "exact"
+stage = "2 keystone"
+file = "examples/match.mwl"
+want = ["letters=ABCF", "passes=2", "sum=289", "tier=marginal"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- Core Part I is real.
+# Stage 3 -- `Core` Part I is real, across all twelve sections. One fixture per domain, each reaching
+# members no unit test can prove reachable from MWL source. `report.mwl` keeps its frozen output while its
+# source is rewritten against the finished library -- M4S's own Verify line asks for exactly that.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -166,9 +190,66 @@ stage = "3 Core Part I"
 file = "examples/report.mwl"
 want = ["the...3", "quick.1", "brown.1", "fox...2", "lazy..1", "dog...1", "distinct=6"]
 
+[[check]]
+kind = "exact"
+stage = "3 Core Part I"
+file = "examples/text.mwl"
+want = [
+  "tidy=[The Quick,  brown FOX]", "words=4", "slug=the-quick-brown-fox",
+  "id=4711 region=eu", "digits=3", "wrapped=one two/three/four",
+  "reversed=desserts", "formatted=fox has 2", "where=12", "before=The Quick",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 Core Part I"
+file = "examples/numbers.mwl"
+want = [
+  "abs=7", "clamp=10", "gcd=12", "intDiv=3", "hex=beef", "back=48879",
+  "root=1.5", "even=2", "money=1,234,567.89", "pi=3.1416",
+  "total=24.94", "sum=14", "max=5",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 Core Part I"
+file = "examples/dates.mwl"
+want = [
+  "start=2024-02-28 23:30", "nextDay=2024-02-29", "nextMonth=2024-03-28",
+  "endOfMonth=2024-02-29", "later=2024-02-29 01:30", "spanSeconds=7200",
+  "duration=5400", "berlin=2024-02-29 02:30",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 Core Part I"
+file = "examples/json.mwl"
+want = [
+  "{\"name\":\"ada\",\"age\":36,\"is_admin\":true}",
+  "decoded=grace/45",
+  "{\"a\":1,\"b\":2}",
+  "[1,2,3]",
+  "valid=yes",
+  "malformed rejected",
+  "issues=3",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 Core Part I"
+file = "examples/collect.mwl"
+want = [
+  "set=2", "weight=3", "absent=-1",
+  "sha256=8a9c20f311cc8a96246da473515e5593e01889928ef1d7925df62438794044ba",
+  "base64=bXds", "dice=5", "uuid=valid",
+  "path=srv/app/index.mwl", "stem=index", "ext=mwl",
+  "queryKeys=a,b,c", "rows=2", "first=figx2",
+  "email=valid", "captured=[inner]",
+]
+
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the two suites, plus the mechanical spec-coverage gate behind them. `mwl test <dir>` must
+# Stage 4 -- the two suites, plus the mechanical spec-coverage gates behind them. `mwl test <dir>` must
 # exit 0 AND print an "N passed, M failed" summary: a suite that silently collected nothing exits 0 too,
 # and that is the failure this guards against. These run once, not per leg.
 # ---------------------------------------------------------------------------------------------------
@@ -178,22 +259,28 @@ kind = "cargo-suite"
 stage = "4 suites"
 name = "conformance"
 args = ["run", "--quiet", "-p", "mwl-cli", "--", "test", "tests/conformance/"]
-min_passing = 250
+min_passing = 600
 
 [[check]]
 kind = "cargo-suite"
 stage = "4 suites"
 name = "differential"
 args = ["run", "--quiet", "-p", "mwl-cli", "--", "test", "tests/differential/"]
-min_passing = 60
+min_passing = 150
 
 # A named test must both EXIST and pass -- `cargo test` is green on a suite that never ran the guard.
+# The first of these already exists and keeps the *registered* half honest. The second does not exist yet,
+# and writing it is this loop's real definition of "Part I is complete": it reads the member rows out of
+# docs/spec/01-core-library.md's sections 1-12 and fails naming every one with no registry entry.
 [[check]]
 kind = "cargo-named"
 stage = "4 suites"
 name = "mwl-stdlib"
 args = ["test", "-p", "mwl-stdlib"]
-tests = ["every_part_one_member_has_a_conformance_case"]
+tests = [
+  "every_part_one_member_has_a_conformance_case",
+  "every_part_one_spec_member_is_registered",
+]
 
 
 # ---------------------------------------------------------------------------------------------------
