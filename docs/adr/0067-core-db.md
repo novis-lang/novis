@@ -16,7 +16,9 @@
   standing rule that ADR already states), and § 5's `Core\Db::inList` joins its binding rules.
   [0051](0051-standard-library-tiers.md) — § 3's Native entry names MariaDB as a driver distinct from
   MySQL, and § 4's two questions gain the MariaDB authentication-plugin case.
-- **Amended by:** none.
+- **Amended by:** 0071 — § 6's `Core\Db\Codec` may be generated from a class's own properties by
+  `#[Db\Derive]` instead of hand-written, and `DbError` carries every failed column rather than the first;
+  both are applied below.
 - **Relates to:** 0002, 0005, 0006, 0007, 0009, 0020, 0028, 0033, 0036, 0043, 0047, 0053, 0054, 0057, 0063,
   0064, 0066
 
@@ -189,10 +191,12 @@ two cache entries.
 returning `?T` because a NULL column is an ordinary absence ([0063](0063-core-api-conventions.md) R4).
 
 `queryAs<T>` takes either an inline shape ([0036](0036-anonymous-object-shapes.md)) validated per row
-against the result-set metadata, or a class implementing `Core\Db\Codec` (`static fromRow(Db\Row): static`).
-This is the same split [0063 § 4](0063-core-api-conventions.md) already blessed for
-`Json::decode`/`decodeAs<T>` and `Json\Codec`, not a new pattern. A wrong type, a missing column or a NULL
-in a field declared non-nullable throws `DbError` naming the column and the query's source location. Field
+against the result-set metadata, or a class implementing `Core\Db\Codec` (`static fromRow(Db\Row): static`),
+whose body is hand-written or generated from the class's own declared properties by `#[Db\Derive]`
+([0071](0071-derived-codecs.md)). This is the same split [0063 § 4](0063-core-api-conventions.md) already
+blessed for `Json::decode`/`decodeAs<T>` and `Json\Codec`, not a new pattern. A wrong type, a missing column
+or a NULL in a field declared non-nullable throws `DbError` naming the query's source location and carrying
+**every** offending column in its `issues` list, not the first ([0071 § 5](0071-derived-codecs.md)). Field
 names match column names exactly — `_` is legal inside an identifier
 ([0030](0030-no-leading-underscores-constructor-spelling.md) bans it only leading), so there is no
 snake-to-camel mapping layer and `AS` is the way to rename.

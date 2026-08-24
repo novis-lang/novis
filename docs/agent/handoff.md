@@ -11,48 +11,43 @@ plan's status block says what is on disk and what is open.
 parameter, a callback-bound result type, a `Core`-owned enum and an absent option. `examples/core.mwl` runs
 its line 11 sort and stops at `Core\Str::length`. **Nothing is blocked.**
 
-**Seven `Core` additions were just decided with the user, and none of them is written up.** The session
-asked which everyday userland needs of a modern web application belong in `Core`, filtered every candidate
-through [ADR 0051](../adr/0051-standard-library-tiers.md) § 2's six tests and
-[ADR 0060](../adr/0060-application-security-protocols.md) § 2's three, and settled each one by hand.
-[**`core-additions.md`**](core-additions.md) is the queue: one entry per decision, in the order they should
-be written, each naming the ADRs it amends, the Rust crate that does the work, and the design points the
-session deliberately did *not* settle. **An entry is deleted as its ADR lands**, so the file is a queue and
-never a second home for a rule. In one line each:
+**Seven `Core` additions were decided with the user, and one ADR per session is writing them up.**
+[`core-additions.md`](core-additions.md) is the queue; an entry is deleted as its ADR lands, and its numbers
+are stable, so a gap means that one is done. **Entry 1 landed as
+[ADR 0071](../adr/0071-derived-codecs.md)** — derived codecs. Six remain, in order: `Core\Task`, the
+`[schedule]` block, HTTP defaults in both directions, `Core\RateLimit`, observability export, compile-time
+routing.
 
-1. **Derived codecs** — `#[Json\Derive]` generates `Core\Json\Codec`/`Core\Db\Codec` from declared property
-   types; a bad payload reports **every** failed field, not the first.
-2. **`Core\Task::all`/`::map`** with `{limit, deadline}`, plus **`::afterResponse`** for work that runs once
-   the response is on the wire. Explicitly not a durable queue.
-3. **A `[schedule]` cron block** in `mwl.toml`, firing a `spawn script`; **`scope` is mandatory**, no default.
-4. **HTTP defaults safe and finite in both directions** — `[http.cors]`/`[http.headers]`/`[http.cookies]`
-   with secure defaults on and every directive `Runtime`-class, and a `Core\Http\Client` with no spelling
-   for "wait forever" plus opt-in jittered retry.
-5. **`Core\RateLimit`** over the shared store, filling the hole
-   [ADR 0059 § 4](../adr/0059-cross-request-state-is-explicit.md) already named. Edge/flood limiting is
-   dropped to the proxy.
-6. **Observability export** — automatic request/DB/GC/spawn metrics and W3C trace-context propagation, plus
-   a three-member `Core\Metrics`; exporter is feature-gated Native, cardinality capped.
-7. **Compile-time routing** — `#[Route]` discovered while compiling, `match()` and reverse `url()` only, no
-   dispatch. Carries one real interaction to resolve against ADR 0046's *structural* attribute retrieval.
+**What 0071 settled**, since two of the remaining entries lean on it:
 
-**Also decided: a standing rule.** *Domain logic must be an existing first-class Rust crate; compiler passes
-and scheduler primitives are ours.* If no crate exists for something with an external specification, the
-feature is not built. Its home is a paragraph in *Decisions taken at project start* in
-[`docs/adr/README.md`](../adr/README.md), beside "Pure-Rust dependencies by default", plus an `AGENTS.md`
-bullet. Neither is written yet. **Declined in the same session**, with reasons recorded in the queue file so
-they are not re-argued: typed templates, `mwl migrate`, Markdown in `Core` (it becomes a first-party
-extension), and a DI container at any tier — whose real fix is user-defined generics, an open ADR 0007
-question.
+- `#[Json\Derive]`/`#[Db\Derive]` generate a `Codec` from a class's **declared property list**, and every
+  non-skipped field must also be a same-named, same-typed **constructor parameter** — so a decode is an
+  ordinary `new` and no invariant is bypassed. `#[Json\Field(name?, skip?)]` is the only per-field control.
+- Required / optional / nullable are three existing concepts: a parameter default makes a key optional, `?T`
+  makes `null` legal, and they are independent. No naming policy, no omit-null, no validation.
+- A decode throws **once**, carrying every failed field. `ParseError` and `DbError` gained
+  `issues: array<Core\Issue>` where `type Core\Issue = {path: string, message: string};` — no new exception
+  class, spec § 10's closed set unchanged in shape.
+- **The general rule the queue needed:** a **compiler-recognized** attribute is matched **nominally**,
+  against a closed `Core`-owned list; ADR 0046 § 4's *structural* `Core\Attributes` retrieval is untouched.
+  That is what stops a route scan double-registering a framework's own `#[Route]` literals, so **entry 7's
+  "real interaction to resolve" is already resolved** — it only has to add `Core\Route` to the list.
+- `Core\Serialize` gets no derive (it already handles every object, R17), and `#[Db\Derive]` is
+  one-directional (no `toRow`, no generated `INSERT`).
 
-**The whole `Core` roster had a member-by-member review with the user** in the session before that, against
-[ADR 0063](../adr/0063-core-api-conventions.md)'s twenty rules. Nothing on disk was invalidated. What
-changed, all of it in docs: `Core\Time` lost its relative-date string (no `DateTime::shift`, no `strtotime`
-grammar; CLDR patterns, not PHP's `date()` letters); [ADR 0070](../adr/0070-duration-literals.md) is new —
-`30s`, `1h30m`, one token, always `Duration`, and it is **M1 grammar that is not built**; six duplicates
-removed and eight gaps filled; `Arr::flatten` split into `flatten`/`flattenDeep`.
-[`docs/spec/02-php-migration.md`](../spec/02-php-migration.md) is new, one row per PHP built-in, **31%
-classified**, held by `python tools/check-migration.py` in CI.
+**The standing rule has landed too**: *domain logic is an existing first-class Rust crate; compiler passes
+and scheduler primitives are ours* — [`docs/adr/README.md`](../adr/README.md) § *Decisions taken at project
+start*, plus its `AGENTS.md` bullet. Nothing else is owed from that session.
+
+**Declined in the same session**, reasons recorded in the queue file so they are not re-argued: typed
+templates, `mwl migrate`, Markdown in `Core` (it becomes a first-party extension), and a DI container at any
+tier — whose real fix is user-defined generics, an open ADR 0007 question.
+
+**The `Core` roster review** before that changed docs only, nothing on disk: `Core\Time` lost its
+relative-date string, [ADR 0070](../adr/0070-duration-literals.md) is new and is **M1 grammar that is not
+built**, six duplicates went and eight gaps were filled.
+[`docs/spec/02-php-migration.md`](../spec/02-php-migration.md) is **31% classified**, held by
+`python tools/check-migration.py` in CI.
 
 **Two questions the user has not answered**, both recorded in place rather than guessed:
 
@@ -68,17 +63,17 @@ a pass the user fires by hand**. Never start it, and never bump as a side effect
 
 ## Next
 
-**One ADR per session from [`core-additions.md`](core-additions.md), in its order**, starting with **0071,
-derived codecs** — it is the largest, it folds into two accepted ADRs (0063 § 4 and 0067 § 6) and two spec
-sections, and it is the one whose shape constrains the others. Check the ADR directory for the next free
-number immediately before writing: 0070 landed mid-session from another agent, which is why this one is
-0071. Write the standing rule's two paragraphs (README + `AGENTS.md`) with whichever ADR you write first,
-since it is a sentence rather than a session.
+**One ADR per session from [`core-additions.md`](core-additions.md), in its order** — next is **entry 2,
+`Core\Task`** (`::all`/`::map` with `{limit, deadline}`, plus `::afterResponse`; explicitly not a durable
+queue). Check the ADR directory for the next free number immediately before writing: another agent may have
+taken 0072.
 
 **The code path is unchanged and runs in parallel with that.** Four re-opened M1 grammar slices — `decimal`
 (0054), literal/enum-case type atoms (0047), `autoload` (0061), the duration literal (0070) — one per
-session, smallest first, and build `decimal` before the duration literal because their `m` handling meets at
-the same lexer position. Then **settle [ADR 0009](../adr/0009-string-and-bytes.md) § 2 by measurement** and
+session, smallest first, and build `decimal` before the duration literal because both land on the same
+numeric-literal-suffix branch of the lexer from opposite sides: `19.99m` must stay an *unknown token*
+([0054](../adr/0054-decimal-scalar-type.md) § 2 rejected the `m` suffix outright), while `30m` becomes one
+`DurationLiteral` token. Then **settle [ADR 0009](../adr/0009-string-and-bytes.md) § 2 by measurement** and
 land `Core\Str::length`/`at`/`slice`, the last thing between `examples/core.mwl` and its frozen six lines:
 implement both granularities behind one seam, write the figure into
 `a_grapheme_index_costs_more_than_a_code_point_index` in `benches/abi-probe/tests/perf_guards.rs`, and pick

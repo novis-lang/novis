@@ -6,6 +6,8 @@ that reviewed what modern web applications need from userland every day, and ask
 which point the ADR body is the only home for the rule, per `AGENTS.md`. If this file is empty, delete it.
 
 Entries are ordered by the order they should be written, which is roughly leverage per unit of surface.
+**Numbers are stable across deletions**, so a gap means that entry's ADR has landed — entry 1, derived
+codecs, is [ADR 0071](../adr/0071-derived-codecs.md).
 Each names the ADRs it amends, the Rust crate that does the work, and the design points the ADR still has
 to settle — those are the parts the session did **not** decide, and guessing them is how an overlay gets
 written instead of a fold.
@@ -18,31 +20,6 @@ arguing usefulness: [ADR 0051](../adr/0051-standard-library-tiers.md) § 2's six
 Everything below is admitted by a test. Everything in *Rejected* failed one.
 
 ---
-
-## 1. Derived codecs — `#[Json\Derive]`
-
-**Decision.** The compiler generates `Core\Json\Codec` and `Core\Db\Codec` implementations from a class's
-declared property types, on an explicit opt-in attribute. A decode failure throws **one** error carrying
-**every** field that failed, not the first — a form needs the list.
-
-**Why it survives the alternative ADR 0063 § 4 already rejected.** That rejection was of *structural*
-encoding of public properties, because it makes a class's public shape an implicit wire contract. A written
-attribute is explicit, so the objection does not reach it. The ADR must say this in as many words, or a
-future reader will treat the two as contradictory.
-
-**Amends:** [0063 § 4](../adr/0063-core-api-conventions.md) (the JSON resolution), [0067 § 6](../adr/0067-core-db.md)
-(`queryAs<T>`'s class form), [spec](../spec/01-core-library.md) §§ 6 and 18. Relates to
-[0046](../adr/0046-attributes-shape-literal-metadata.md) (the attribute is a shape literal),
-[0033](../adr/0033-secret-qualifier-for-confidential-values.md) (a `secret` property is never encoded),
-[0024](../adr/0024-taint-tracking-for-injection-sinks.md) (decoded fields stay `tainted`).
-
-**Crate:** `serde_json` or `simd-json` parses. **The derive itself has no crate and cannot have one** —
-serde derives Rust impls for Rust types; this reads MWL type information and emits MWL IR.
-
-**Still to settle:** the rename/skip key's spelling; whether a `?T` property means "absent is fine" or
-"present-and-null is fine" or both; whether the same attribute serves `Core\Serialize`; what the error type
-is called and where it sits in [spec § 10](../spec/01-core-library.md)'s closed exception set; whether a
-derived class may also hand-write one half.
 
 ## 2. `Core\Task` — the concurrency shape people actually use
 
@@ -183,12 +160,12 @@ routes, a `:param` with no matching typed parameter, and a bad `url()` name are 
 are framework opinions, and the user confirmed the point of stopping short is that a framework can ignore
 all of this, use half of it, or use none. No `#[Route]` in a program means no table and no cost.
 
-**A real interaction to resolve, and it is the reason to write this ADR carefully.**
+**The interaction that made this dangerous is now settled**, and this entry only has to apply it.
 [ADR 0046](../adr/0046-attributes-shape-literal-metadata.md) § 4 makes attribute retrieval **structural, not
-nominal**, deliberately, so there is no second namespace of attribute names. A naive route scan therefore
-also matches a *framework's* own `#[Route(path:, method:)]` literals and double-registers routes it does not
-own. The scan must key on the declared `Core\Route` alias specifically, or on an explicit opt-in. Cheap now,
-expensive after M9.
+nominal**, so a naive route scan would also match a *framework's* own `#[Route(path:, method:)]` literals and
+double-register routes it does not own. [ADR 0071 § 1](../adr/0071-derived-codecs.md) answers it generally: a
+**compiler-recognized** attribute is matched **nominally**, against a closed `Core`-owned list. `Core\Route`
+joins that list, and nothing else about 0046 changes.
 
 **Home:** relates to [0061](../adr/0061-compile-time-autoload-and-program-discovery.md),
 [0046](../adr/0046-attributes-shape-literal-metadata.md),
@@ -237,14 +214,6 @@ session, format validators, **email** (`Core\Mail`, Native tier, `lettre` — SM
 attachments, DKIM, rustls), image and intl (Ext), and the inline-HTML template mode, which with
 [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)'s auto-escaping sink is already a safer Twig.
 
-## A standing rule this session produced
-
-**Domain logic must be an existing first-class Rust crate; compiler passes and scheduler primitives are
-ours.** Anything with an external specification — a protocol, a parser, a wire format, a cipher, a codec —
-is a dependency, never our own implementation, and if no crate exists we do not build the feature. Anything
-about *MWL's own* compiler or scheduler has no possible crate and is ours by nature. It is the same split
-the project already lives with: Cranelift compiles, and the IR lowering into it is ours.
-
-**Home:** a paragraph in *Decisions taken at project start* in [docs/adr/README.md](../adr/README.md),
-beside "Pure-Rust dependencies by default", which answers the neighbouring question of what may be
-depended *on*. It needs an `AGENTS.md` bullet too.
+*The standing rule this session produced — "domain logic is an existing first-class Rust crate; compiler
+passes and scheduler primitives are ours" — has landed, in *Decisions taken at project start* in
+[docs/adr/README.md](../adr/README.md) with its `AGENTS.md` bullet. It is not repeated here.*

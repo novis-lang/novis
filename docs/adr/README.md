@@ -66,6 +66,7 @@ so you never have to open this file to route a topic.
 | `list($a, $b) = $pair;`, PHP's `list()` destructuring spelling | [0050](0050-list-destructuring-spelling-rejected.md) |
 | Restricting a parameter to a fixed set of values (`#[ExpectedValues]`), `"a"\|"b"` literal types, a subset of an enum's cases | [0047](0047-literal-and-enum-case-types.md) |
 | `#[Attribute]`-style metadata, annotations, `Core\Attributes`, why there's no attribute base class | [0046](0046-attributes-shape-literal-metadata.md) |
+| Hydrating a class from JSON or a database row — `#[Json\Derive]`, `#[Db\Derive]`, `JsonSerializable`, `PDO::FETCH_CLASS`, serde-style derives, reporting every bad field of a submitted form | [0071](0071-derived-codecs.md) |
 | Regex, `preg_*`, `Core\Regex`, ReDoS, backreferences, lookaround | [0056](0056-regex-engine-policy.md) |
 | Why a literal regex/URI/format string is checked by `mwl check`, compile-time preparation | [0057](0057-intrinsic-literal-folding.md) |
 | `enum`, enum cases, backing type, anything enum-shaped | [0010](0010-enums-are-a-value-type.md) |
@@ -194,6 +195,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0068](0068-dependency-currency-and-the-version-contract.md) | Dependencies stay current; a break in one is absorbed rather than forwarded, and only an enumerated user-facing surface can force a major | Accepted |
 | [0069](0069-array-combination-is-key-type-independent.md) | Arrays combine by the member's name, never by a key's type: `overlay`/`underlay`/`appendAll`, no `merge`, and `array + array` does not compile | Accepted |
 | [0070](0070-duration-literals.md) | A duration is a literal — `30s`, `1h30m` — typed `Duration` and folded to a constant, over one grammar shared with `Duration::parse` and `mwl.toml` | Accepted |
+| [0071](0071-derived-codecs.md) | `#[Json\Derive]`/`#[Db\Derive]` generate a codec from a class's declared properties, and a failed decode reports every bad field at once | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
@@ -252,6 +254,17 @@ is per-directive and is argued in [0005](0005-config-changeability.md).
 **Pure-Rust dependencies by default.** A memory-safe runtime cannot contain arbitrary C. Deviations are
 explicit, argued and few — currently only SQLite (`rusqlite`), where no credible pure-Rust implementation
 exists. The admission test is [0051](0051-standard-library-tiers.md) § 4's.
+
+**Domain logic is an existing first-class Rust crate; compiler passes and scheduler primitives are ours.**
+The neighbouring question to the one above — not *what may we depend on*, but *what may we write ourselves*.
+Anything with an external specification (a protocol, a parser, a wire format, a cipher, a codec, a cron
+expression, a timezone database) is a dependency, and **if no first-class crate exists, the feature is not
+built** — a second-rate implementation of somebody else's specification is a security surface we would then
+own forever. Anything about *MWL's own* compiler or scheduler has no possible crate and is ours by nature.
+It is the same split the project already lives with: Cranelift compiles, and the IR lowering into it is
+ours; `serde_json` parses, and the derive that emits MWL IR from MWL types
+([0071](0071-derived-codecs.md)) could not be a crate if we wanted it to be. When a feature is half of each,
+say which half is which before writing either.
 
 **Checked-return call sites go through one code path.** See [0002](0002-error-propagation.md): a missing
 status check would silently swallow an exception, so no caller constructs a raw `call` instruction.

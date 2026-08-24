@@ -20,6 +20,8 @@
 - **Amended by:** 0069 — § 3's removal item 4 gains the array-combining entries, applied below.
   0070 — a `Duration` constant is a literal, which is what makes R12's "units are types" affordable at
   every call site; § 4's relative-date resolution is rewritten below in consequence.
+  0071 — § 4's JSON resolution is rewritten below: the rejection of *structural* encoding stands, and what
+  an explicitly written `#[Json\Derive]` admits is now stated beside it.
 - **Relates to:** 0004, 0024, 0033, 0036, 0047, 0053
 
 > **In short:** PHP's built-ins have no API. Argument order flips between neighbouring functions
@@ -200,9 +202,12 @@ Each was a live design question; each is now a rule the spec file applies.
   ([ADR 0020](0020-error-escalation-ladder.md)).
 - **JSON uses one explicit interface, both directions.** `Core\Json\Codec` declares `toJson(): mixed` and a
   static `fromJson(mixed): static`. No magic hook survives ([ADR 0028](0028-closing-the-remaining-magic-methods.md)),
-  structural encoding of public properties is rejected because it makes a class's public shape an implicit
-  wire contract, and the decode half — which `JsonSerializable` lacks, forcing every PHP project to hand-write
-  hydration — is part of the same interface. A `secret` property simply never appears in `toJson()`
+  and the decode half — which `JsonSerializable` lacks, forcing every PHP project to hand-write hydration —
+  is part of the same interface. **Structural** encoding of public properties is rejected, because it makes a
+  class's public shape an implicit wire contract that a refactor breaks with no diagnostic; a **written**
+  `#[Json\Derive]` is not that, so it generates both halves from the class's declared properties
+  ([ADR 0071](0071-derived-codecs.md)), and a `secret` property is refused there at the declaration rather
+  than silently omitted from `toJson()`
   ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)).
 - **No lazy pipeline API yet.** A `Core\Seq` over `Iterable` would be a second spelling of `map`/`filter`/
   `reduce`, which [ADR 0051](0051-standard-library-tiers.md) test 6 argues against, and the question is much

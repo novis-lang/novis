@@ -10,10 +10,10 @@
 > **Status:** 2026-08-24. **M3 is done**, and the loop goal's Stages 1-2 plus `examples/report.mwl` are
 > green on Windows and Linux alike. Current: **M4**, run with **M4S** in one loop — `Core\Arr`'s contract rests on M4's copy-on-write
 > array, and building that array without its only real consumer produces one that must be rebuilt. M4's
-> language surface is now driven by what Stage 3's `Core` work needs. The `Core` roster has just had a
-> full member-by-member review against ADR 0063: `Core\Time` lost its relative-date string for typed
-> calendar arithmetic, six duplicates went, eight gaps were filled, and every PHP name now needs a row in
-> `docs/spec/02-php-migration.md`.
+> language surface is now driven by what Stage 3's `Core` work needs. Docs are running a second track: a
+> full `Core` roster review against ADR 0063 landed, then seven `Core` additions were decided with the
+> user and queued in `docs/agent/core-additions.md`, one ADR per session. **0071 (derived codecs) is
+> written**; six queued entries remain, `Core\Task` next.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -43,8 +43,9 @@
 > a callback-bound result type, a `Core`-owned enum and an absent option all work end to end.
 > `examples/core.mwl` has one unblock left: `Str::length`'s ADR 0009 § 2 granularity. Then
 > `crates/mwl-test`/`mwl test`. Ahead of that, four re-opened M1 grammar slices (`decimal`, literal type
-> atoms, `autoload`, the duration literal) — see M1. In docs: `docs/spec/02-php-migration.md` is 31%
-> classified (strings, arrays, numbers, conversions); the rest is one pass per PHP domain, reported by
+> atoms, `autoload`, the duration literal) — see M1. In docs: six `Core` additions still queued in
+> `docs/agent/core-additions.md`, one ADR per session; `docs/spec/02-php-migration.md` is 31% classified
+> (strings, arrays, numbers, conversions), the rest one pass per PHP domain, reported by
 > `python tools/check-migration.py`. Off path: `for`/`switch`, ADR 0043's `by`-delegation.
 >
 > **Blocking:** nothing external. **Stages 1, 2 and `report.mwl` are green on both legs** — byte for
@@ -603,7 +604,10 @@ picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::
 `Core\Str::format` land as [ADR 0057](adr/0057-intrinsic-literal-folding.md) intrinsics with the
 compile-time half wired into `mwl-types`. `Duration::parse` shares its grammar and its implementation with
 M1's duration literal ([ADR 0070](adr/0070-duration-literals.md)), so build the literal first and this is
-the same parser reached from a second entry point.
+the same parser reached from a second entry point. `Core\Json` also brings the first **compiler-recognized**
+attribute: [ADR 0071](adr/0071-derived-codecs.md)'s `#[Json\Derive]`, a `mwl-types`→`mwl-ir` pass that emits
+a `Json\Codec` implementation per annotated class, plus the nominal-matching rule that gates it. `#[Db\Derive]`
+is the same pass over a second format and lands with M8.
 
 **Verify:** every member in the spec file has a conformance test, and a mechanical check over that file
 enforces the rules that can be checked mechanically — [ADR 0063](adr/0063-core-api-conventions.md)'s
@@ -612,7 +616,9 @@ claims PHP-compatible observable behaviour (`Core\Str`, `Core\Arr`, `Core\Math`,
 deliberate divergence is a named fixture rather than a failing comparison. A `tainted` value cannot reach a
 sink and cannot be laundered except by the members the spec marks **launder**. `Core\Arr` mutates in place
 when its argument's refcount is 1 — measured, since it is the whole cost argument for
-[ADR 0063](adr/0063-core-api-conventions.md) R3 — and allocates a copy when it is not. The M4 CLI program
+[ADR 0063](adr/0063-core-api-conventions.md) R3 — and allocates a copy when it is not.
+[ADR 0071](adr/0071-derived-codecs.md)'s own *Verification* section lists the derive's cases, including the
+one that matters most: a decode with four bad fields throws exactly one error listing all four. The M4 CLI program
 is rewritten against `Core` and gets shorter. `python tools/check-migration.py` reports full coverage of
 every PHP name this milestone's classes replace, which is the point at which
 [docs/spec/02-php-migration.md](spec/02-php-migration.md)'s string, array, number and date rows stop being

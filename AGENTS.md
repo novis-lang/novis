@@ -69,6 +69,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0002](docs/adr/0002-error-propagation.md)).
 - **Pure-Rust dependencies by default**, enforced by [deny.toml](deny.toml) in CI; a C dependency must pass
   [0051](docs/adr/0051-standard-library-tiers.md) § 4's two questions.
+- **Domain logic is an existing first-class Rust crate; compiler passes and scheduler primitives are ours** —
+  anything with an external specification is a dependency, and if no crate exists the feature is not built
+  ([docs/adr/README.md](docs/adr/README.md) § *Decisions taken at project start*).
 - **Architecture assumptions are tested, not remembered** — [benches/abi-probe/](benches/abi-probe/) guards
   them on every CI run; if one fails, revisit the ADR it points at rather than the threshold.
 - **Every third-party notice MWL owes is generated, committed and embedded in the binary**
@@ -199,6 +202,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0019](docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)).
 - **One database API: a connection is named in root-owned config, every statement is prepared, and a
   transaction is a closure** ([0067](docs/adr/0067-core-db.md)).
+- **`#[Json\Derive]`/`#[Db\Derive]` generate a codec from a class's declared properties, and a failed decode
+  reports every bad field at once** — a compiler-recognized attribute is matched by name, unlike
+  `Core\Attributes` retrieval ([0071](docs/adr/0071-derived-codecs.md)).
 - **Configuration is TOML, in a root-owned `mwl.toml`, read once at boot**
   ([0064](docs/adr/0064-configuration-file-format.md)); it states defaults, not ceilings
   ([0005](docs/adr/0005-config-changeability.md)).

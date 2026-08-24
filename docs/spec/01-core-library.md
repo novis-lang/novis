@@ -523,6 +523,20 @@ no magic hook and no structural encoding of public properties
 ([ADR 0063 § 4](../adr/0063-core-api-conventions.md)). A `secret` value cannot be encoded at all
 ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)).
 
+Both halves are generated from a class's own declared properties by the opt-in `#[Json\Derive]`
+attribute, whose rules — the field list, the `#[Json\Field(name?, skip?)]` override, and the one throw
+carrying every failed field — are [ADR 0071](../adr/0071-derived-codecs.md). Two `type` aliases are all
+`Core\Json` adds for it:
+
+| Name | Definition | Attaches to |
+|---|---|---|
+| `Core\Json\Derive` | `{}` | a class; generates whichever `Codec` half the class does not declare itself |
+| `Core\Json\Field` | `{name?: string, skip?: bool}` | a property; renames or removes one field |
+
+`decodeAs<T>` accepts an inline shape ([ADR 0036](../adr/0036-anonymous-object-shapes.md)) or a class with a
+`Codec`, derived or hand-written. Over a `tainted` argument it diagnoses a `T` whose text-carrying fields are
+unqualified, naming the field.
+
 ## 7. `Core\Encoding` and `Core\Bytes`
 
 `Core\Encoding` sits exactly at the `bytes`↔`string` boundary, which is the one place a conversion can
@@ -625,7 +639,11 @@ Throwable                     // the root; user classes extend it directly
 Every one is constructed the same way — `new RuntimeError("could not reach the host", {previous: $e})` —
 one required message and one options shape, which is R2 applied to a constructor like any other member.
 Members are readonly properties, not `getX()` accessors: `$e->message`, `$e->previous`, `$e->backtrace`,
-`$e->location`. There is no `getCode()`: an `int` code with no declared meaning is what a user-defined
+`$e->location`. `ParseError` and `Core\Db\DbError` carry one more — `issues: array<Core\Issue>`, where
+`type Core\Issue = {path: string, message: string};` — so a failed decode reports **every** offending field
+at once rather than the first, each located by a dotted path (`"address.city"`, `"tags.3"`) or, for a row, by
+its column name ([ADR 0071 § 5](../adr/0071-derived-codecs.md)). It is empty on any error that has no field
+list to report. There is no `getCode()`: an `int` code with no declared meaning is what a user-defined
 subclass with a typed property does properly. `Throwable`'s message is a `secret` sink
 ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)). Resource-limit reports are **not**
 `Throwable` at all and never reach a `catch` ([ADR 0020](../adr/0020-error-escalation-ladder.md)).
@@ -882,6 +900,15 @@ string-keyed for `:name`, mixing throws.
 
 There is no `commit`, no connection-level `rollBack`, no `inTransaction`, no explicit savepoint member and
 no `lastInsertId` — [ADR 0067](../adr/0067-core-db.md) §§ 7 and 12 say why each is absent.
+
+`queryAs<T>`/`streamAs<T>` take an inline shape or a class implementing `Core\Db\Codec`
+(`static fromRow(Db\Row): static`), whose body is generated from the class's own declared properties by the
+opt-in `#[Db\Derive]` attribute — `type Core\Db\Derive = {};` on a class,
+`type Core\Db\Field = {name?: string, skip?: bool};` on a property, both governed by
+[ADR 0071](../adr/0071-derived-codecs.md). There is no `toRow` and no generated `INSERT`: a write is an
+explicit statement with bound parameters. Because a row is always `tainted`
+([ADR 0067](../adr/0067-core-db.md) § 6), a `T` whose text-carrying fields are unqualified is a diagnostic at
+the call site naming the field.
 
 ### Results
 
