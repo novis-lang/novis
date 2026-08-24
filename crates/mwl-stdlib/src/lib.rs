@@ -15,7 +15,9 @@
 //! A domain module ([`arr`], [`math`], [`regex`], [`str`], [`time`]) holds everything about its class: the
 //! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering
-//! for its own symbols and nothing else.
+//! for its own symbols and nothing else. A domain with more than one class —
+//! [`regex`], [`time`] — names each `CLASS` after it and keeps one `address`
+//! arm per class, so the "one file per domain" rule still holds.
 //!
 //! [`registry`] holds the *shapes* those rows are written in ([`registry::CoreTy`],
 //! [`registry::CoreMethod`], …) plus one list naming each domain's `CLASS`. The
@@ -94,10 +96,12 @@
 //!    not yet). Section 5 is six of its eight: [`regex::CLASS`] holds both of
 //!    ADR 0056's tiers and the `Core`-owned `Match` they answer with, and that
 //!    module's own gap 1 owns `compile`/`replaceWith`, which need `Pattern`.
-//!    Section 4 has its first type: [`time::DURATION`] is `Core\Time\Duration`,
-//!    nineteen members over one `int` slot of nanoseconds, and the value ADR
-//!    0070's `1h30m` literal produces — [`time`]'s own gap 1 owns `Core\Time`
-//!    itself, `Instant`, `DateTime` and `Zone`, which are where `jiff` lands.
+//!    Section 4 is its absolute half: [`time`] holds `Core\Time`'s five
+//!    zone-free entry points, `Core\Time\Instant`, `Core\Time\Duration` and
+//!    `Core\Time\Zone`, over `jiff` — that module's own docs own why that
+//!    crate and what it spends, and its gap 1 owns the calendar half
+//!    (`DateTime`, `Date`, `TimeOfDay`, the three enums, and the three members
+//!    that answer with a `DateTime`), which waits on CLDR patterns.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh

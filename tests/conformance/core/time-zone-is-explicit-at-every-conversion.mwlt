@@ -1,0 +1,63 @@
+--TEST--
+Spec § 4: a `Zone` is an explicit value, and an offset is a property of a zone at an instant
+--FILE--
+<?mwl
+// § 4 has no ambient timezone: a `Zone` is an ordinary value, and an offset is
+// a property of a zone **at an instant** rather than of the zone alone.
+var $utc = Core\Time\Zone::of("UTC");
+var $berlin = Core\Time\Zone::of("Europe/Berlin");
+var $winter = Core\Time::fromIso("2024-01-15T12:00:00Z");
+var $summer = Core\Time::fromIso("2024-07-15T12:00:00Z");
+echo $utc->offsetAt($winter)->toSeconds() as string, "|\n";
+echo $berlin->offsetAt($winter)->toSeconds() as string, "|\n";
+echo $berlin->offsetAt($summer)->toSeconds() as string, "|\n";
+
+// A fixed zone is for a timestamp that carries an offset instead of a region,
+// so it answers the same at every instant.
+var $fixed = Core\Time\Zone::fixed(2h);
+echo $fixed->offsetAt($winter)->toSeconds() as string, "|", $fixed->offsetAt($summer)->toSeconds() as string, "|\n";
+echo Core\Time\Zone::fixed((0s)->minus(5h)->minus(30m))->offsetAt($winter)->toSeconds() as string, "|\n";
+
+// `Zone::of` throws on an unknown identifier rather than falling back to UTC,
+// which is PHP's behaviour and why a mistyped zone there is silently wrong.
+try {
+    echo Core\Time\Zone::of("Europe/Berln")->offsetAt($winter)->toSeconds() as string, "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "unknown time zone") as string, "|\n";
+}
+
+// An offset spelling is `fixed`'s, never `of`'s — ADR 0063 R20 leaves one way
+// to build one value.
+try {
+    echo Core\Time\Zone::of("+02:00")->offsetAt($winter)->toSeconds() as string, "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "unknown time zone") as string, "|\n";
+}
+try {
+    echo Core\Time\Zone::fixed(500ms)->offsetAt($winter)->toSeconds() as string, "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "whole number of seconds") as string, "|\n";
+}
+
+// `Zone::system()` is a value a program asks for and then passes explicitly,
+// not a default a later conversion picks up — so what a portable case can
+// check is that it answers one at all. The two clocks are the same: `now` is
+// past any fixed instant, and `monotonic` only ever measures against itself.
+var $system = Core\Time\Zone::system();
+echo ($system->offsetAt($winter)->toSeconds() > (0 - 100000)) as string, "|\n";
+var $before = Core\Time::monotonic();
+Core\Time::sleep(1ms);
+echo (Core\Time::monotonic()->compareTo($before) >= 0) as string, "|\n";
+echo (Core\Time::now()->compareTo($winter) > 0) as string, "|\n";
+--EXPECT--
+0|
+3600|
+7200|
+7200|7200|
+-19800|
+1|
+1|
+1|
+1|
+1|
+1|

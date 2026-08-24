@@ -1097,7 +1097,11 @@ impl Emitter<'_, '_> {
         let status = self.b.inst_results(call)[0];
         let cont = self.emit_status_check(status, inst.on_error)?;
 
-        if let Some(ty) = inst.ty {
+        // `Ty::Void` is filtered out for [`Self::emit_call`]'s reason: a helper
+        // still writes its `out` slot, but nothing may *read* one — `void` has
+        // no register representation at all (`crate::ty::clif_ty`). The first
+        // helper this mattered for is `Core\Time::sleep`.
+        if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
             let value = self.load_value(out_p, 0, ty)?;
             self.define(inst, value)?;
         }

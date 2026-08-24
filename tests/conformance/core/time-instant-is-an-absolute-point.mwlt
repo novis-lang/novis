@@ -1,0 +1,59 @@
+--TEST--
+Spec § 4: an `Instant` is an absolute point with no zone, and moves only by an exact `Duration`
+--FILE--
+<?mwl
+// An ISO-8601 timestamp carries its own offset, which is the whole of what
+// `strtotime` replaces here — a relative expression is accepted in neither
+// half of § 4.
+var $at = Core\Time::fromIso("2024-01-15T12:00:00Z");
+echo $at->toIso(), "|\n";
+echo $at->toEpochSeconds() as string, "|\n";
+echo $at->toEpochMillis() as string, "|\n";
+echo $at->toEpochMicros() as string, "|\n";
+
+// The same instant written against another offset is the same instant: an
+// `Instant` has no zone of its own for the two to disagree about.
+echo Core\Time::fromIso("2024-01-15T13:00:00+01:00")->compareTo($at) as string, "|\n";
+
+// `fromEpoch`'s `nanos` option is added after the second, so it reads the way
+// it is written on both sides of the epoch.
+echo Core\Time::fromEpoch(1705320000, {nanos: 250000000})->toIso(), "|\n";
+echo Core\Time::fromEpoch(0 - 1)->toIso(), "|\n";
+echo Core\Time::fromEpoch(0, {nanos: 250000000})->toEpochMillis() as string, "|\n";
+
+// Exact arithmetic: an `Instant` moves by a `Duration`, never by a calendar
+// step. ADR 0063 R3: nothing mutates, so `plus` leaves its receiver alone.
+var $later = $at->plus(90m);
+echo $at->toIso(), "|", $later->toIso(), "|\n";
+echo $later->minus(90m)->compareTo($at) as string, "|\n";
+echo $later->since($at)->toSeconds() as string, "|\n";
+echo $at->since($later)->toSeconds() as string, "|\n";
+echo $at->compareTo($later) as string, "|", $later->compareTo($at) as string, "|", $at->compareTo($at) as string, "|\n";
+
+// ADR 0063 R4: failure throws rather than answering a wrong value.
+try {
+    echo Core\Time::fromIso("yesterday")->toIso(), "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "fromIso") as string, "|\n";
+}
+try {
+    echo Core\Time::fromEpoch(0, {nanos: 1000000000})->toIso(), "|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "subsecond") as string, "|\n";
+}
+--EXPECT--
+2024-01-15T12:00:00Z|
+1705320000|
+1705320000000|
+1705320000000000|
+0|
+2024-01-15T12:00:00.25Z|
+1969-12-31T23:59:59Z|
+250|
+2024-01-15T12:00:00Z|2024-01-15T13:30:00Z|
+0|
+5400|
+-5400|
+-1|1|0|
+1|
+1|

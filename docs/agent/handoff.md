@@ -2,37 +2,34 @@
 
 ## State
 
-**ADR 0070's duration literal is built end to end**, and with it spec § 4's first type: `30s`, `1h30m`
-and `500ms` lex as one token, type as `Core\Time\Duration`, and run. `Core\Time\Duration` is a
-`Core`-owned instance with one `int` slot of nanoseconds and nineteen members, so `Core` breadth is now
-five sections deep. Stage 3 is still four of its seven fixtures; `dates.mwl` now wants only `Core\Time`,
-`Instant`, `DateTime` and `Zone`.
+**Spec § 4's absolute half is built over `jiff`**: `Core\Time`'s five zone-free entry points (`now`,
+`monotonic`, `sleep`, `fromEpoch`, `fromIso`), `Core\Time\Instant` (eight members) and `Core\Time\Zone`
+(four), beside the `Duration` that was already there. There is no ambient timezone anywhere — a `Zone` is
+an explicit value, and an offset is asked for at an instant. `Core` breadth is now six sections deep;
+Stage 3 is still four of its seven fixtures.
 
-- **`crates/mwl-syntax/src/duration.rs` is the one grammar** ADR 0070 § 5 requires — its module doc owns
-  why the shared code sits in the syntax crate and what the `i64`-nanosecond range buys. The lexer, the
-  run-time `Duration::parse` and (at M6) `mwl.toml` all call it, so `mwl-stdlib` now depends on
-  `mwl-syntax`; ADR 0019's `Core\Ast` owes that edge anyway.
-- **`crates/mwl-stdlib/src/time.rs`** is the class, and its gap list is what § 4 still owes.
-  `mwl_types::expr`'s `ExprKind::Duration` arm is § 2's typing, `mwl-ir`'s is § 3's folding.
-- **`-7d` is now a diagnostic**, not a codegen panic: `mwl_types::expr::reject_arithmetic_on_object`
-  refuses unary `-`/`+`/`~` over any object, which is ADR 0070 § 4's refusal and covers every `Core`
-  class at once.
-
-Verified: `cargo build`/`test`/`clippy`/`fmt` green, 397 `.mwlt` cases on Windows and 311 (differential
-skipped, no PHP in WSL) on Linux with the whole `wsl-acceptance.sh` leg passing, and `tools/leak-check.sh`
-clean over a fifty-iteration fixture exercising every new refcount edge — a literal bound in a loop, a
-literal as an argument, a chain of fresh receivers, a string result and a throwing constructor. The one
-leak that fixture *does* find is the pre-existing `landing_block` gap below, not a duration edge.
+- **`crates/mwl-stdlib/src/time.rs` is the one module** for all four classes, and its own docs own the
+  `jiff` pick, the two-slot `Instant` layout, the one-slot `Zone` (an IANA id *or* a `±HH:MM[:SS]` offset
+  spelling, told apart by the first byte) and what each spends. Its gap list is what § 4 still owes.
+- **A `Core` member may now return `void`.** `Core\Time::sleep` is the first; the fix was one
+  `Ty::Void` filter in `mwl_codegen::emit`'s `emit_helper`, matching the one `emit_call` already had.
+- Verified: `cargo build`/`test`/`clippy`/`fmt` green, 399 `.mwlt` cases pass, `cargo deny check` and
+  `python tools/gen-attribution.py` both run for the new dependency, and `tools/leak-check.sh` is clean
+  over a fifty-iteration fixture exercising every new refcount edge. The one leak that fixture finds when
+  a `Core` call is made to *throw* inside it is the pre-existing `landing_block` gap below, not a time edge.
+- **`D:` filled up mid-session.** `target/debug/incremental` and `target/release` were deleted to finish;
+  a corrupt `.pdb` left behind by the out-of-space link shows up as `LNK1285` and is fixed by deleting
+  that one file. Nothing else was touched, but a `--release` guard run rebuilds from scratch now.
 
 ## Next
 
-**Spec § 4's remaining types over `jiff`** — `Core\Time` itself (`now`, `monotonic`, `sleep`,
-`fromEpoch`, `fromIso`, `parse`, `at`), `Instant`, `DateTime`, `Zone`, plus the `Weekday`/`Month`/`Unit`
-enums, which `examples/dates.mwl` is the frozen check for. Every shape they need exists and `Duration` is
-the worked example next door: `registry::CoreClass`'s `instance` roster and `slots` layout, and
-`CoreTy::Instance` to name one. `format`/`Time::parse` take **CLDR** patterns, not PHP's `date()`
-letters; `jiff` is the dependency `docs/agent/loop-goal.md` § *Standing decisions* names, and a new
-dependency owes the three things below.
+**Spec § 4's calendar half** — `Core\Time\DateTime`, `Core\Time\Date`, `Core\Time\TimeOfDay`, the
+`Weekday`/`Month`/`Unit` enums, and the three members that answer with a `DateTime` (`Time::parse`,
+`Time::at`, `$instant->in($zone)`). The real work in it is the **CLDR pattern grammar** that
+`DateTime::format` and `Time::parse` share (§ 4 says CLDR, never PHP's `date()` letters); everything else
+is registry rows over `jiff::civil` and `jiff::Zoned`. `examples/dates.mwl` is the frozen check, and it
+also wants `Core\Time\Zone::UTC` — see `time.rs`'s gap 2, which names the one registry shape that is
+missing for it and why `Zone::of("UTC")` is the spelling that works today.
 
 ## Backlog
 
@@ -44,12 +41,12 @@ dependency owes the three things below.
 - **`Arr::diff`/`intersect`** — want a `Core\SetOn { Values, Keys, Both }` in `registry::ENUMS` and an
   `{on?, by?, comparator?}` bag; `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
 - **`.` and `as string` over a `Stringable` object** (`mwl-ir` gap 12) — `"took " . $d` panics in
-  lowering rather than diagnosing, and a `Core` class reaches it easily now that `Duration` has a
-  `toString`. `mwl_types::expr::require_stringable` exempts `Core` classes, which is the other half.
+  lowering rather than diagnosing. `mwl_types::expr::require_stringable` exempts `Core` classes, which is
+  the other half.
 - **`Core\Regex::compile`/`replaceWith`** — § 5's last two, both stated on `Pattern`.
   `crates/mwl-stdlib/src/regex.rs`'s gap 1.
 - **A `Core` call that throws leaks a fresh string argument** — `mwl_ir::lower::landing_block`'s own
-  *Known gap*: 50 loop iterations of `Duration::parse("30 seconds")` inside a `try` lose 50 blocks.
+  *Known gap*: 50 loop iterations of `Zone::of("Nowhere/Nothing")` inside a `try` lose 50 blocks.
 - **Arithmetic, ADR 0035's truthy table and an array access over a `Ty::Tagged` operand still panic**, and
   **`do`/`while`, `$i++`/`$i--` and every bitwise operator do not lower** (`mwl-ir` gaps 1, 15, 16).
 
@@ -82,6 +79,10 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   `mwl_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
   symbol, not a link error), and a `.mwlt` case that calls it — `tests/conformance_coverage.rs` fails
   `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
+- **Registering a `Core` class narrows `Core`'s blanket trust for that name.** An unregistered
+  `Core\X::y()` is waved through by `mwl_hir::members`; once `X` is in `registry::CLASSES`, an unknown
+  member on it is a diagnostic. So adding a class can turn a fixture that "compiled" into one that
+  reports — which is the point, but check the fixtures that name it.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
   makes the runner *skip the whole case* there, subtracting from the very count Stage 4 measures. Verify
   against PHP while authoring (a `.php` twin under `.agent-tmp/`, `php` is on the Windows `PATH`), then
@@ -98,6 +99,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   argument, and `crate::instance::slot` is the borrowed read of an object's slot.
 - **`Core\Path` emits a platform separator**, so a fixture or case asserting a built path must normalize it
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
+  A `Core\Time` case has the same hazard in a different place: never assert `Zone::system()`'s answer, and
+  never assert a wall-clock value.
 - **The traps that cost the most time are not gaps**: a `"%1$s"` template must be written in **single**
   quotes or the `$s` interpolates; `as` binds tighter than every binary operator *and* than unary minus,
   so write `($a > $b) as string` and `(0 - 3) as ?uint`; a duration literal used as a receiver needs

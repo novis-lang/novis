@@ -72,6 +72,15 @@ unicode-segmentation = "1"
 regex = "1"
 fancy-regex = "0.19"
 
+# --- dates, times and the IANA zone database (spec § 4, named by the user) ---
+# `jiff`'s type set maps almost one-to-one onto that section's
+# `Instant`/`DateTime`/`Duration`/`Zone`, and it is the one Rust date crate
+# that treats a civil time and an absolute one as different types — which is
+# the distinction § 4 is built on. Pure Rust, no C, and it bundles the IANA
+# database on a platform that has none (Windows) rather than shelling out.
+# `crates/mwl-stdlib/src/time.rs` owns why this crate and not another.
+jiff = "0.2"
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so

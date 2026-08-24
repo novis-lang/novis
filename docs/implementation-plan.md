@@ -29,7 +29,9 @@
 > members written, and `Core\Regex\Match` is the first of them.
 > **Every M4 control-flow statement lowers but `do`/`while`.** The M4 hole that was folded in is now
 > closed: **ADR 0070's duration literal lexes, types and runs**, `30s` and `Duration::parse("30s")` sharing
-> the one grammar in `mwl_syntax::duration` that `mwl.toml` will read too. Dependencies:
+> the one grammar in `mwl_syntax::duration` that `mwl.toml` will read too. **`jiff` is bound**, and with it
+> § 4's *absolute* half — `Core\Time`'s five zone-free entry points, `Instant` and `Zone` — leaving the
+> calendar half (`DateTime`, `Date`, `TimeOfDay`, three enums) waiting on CLDR patterns. Dependencies:
 > `regex` + `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
@@ -48,9 +50,10 @@
 > `array`, `throwable`, `closure`, `identity`, `decimal`), `mwl-stdlib` (`Arr` × 36, `Str` × 28,
 > `Math` × 38, `format`, `granularity`, `ordering`,
 > `instance`, `Order` and `RoundMode`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`,
-> `Time\Duration` × 19, and the conformance-coverage gate),
+> `Time` × 5 plus `Time\Instant` × 8, `Time\Duration` × 19 and `Time\Zone` × 4 over `jiff`, and the
+> conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 311 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/conformance` × 313 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
 > `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -86,11 +89,11 @@
 > three combination members, `append`/`prepend` and `Path::join` need only writing. A **`Core`-owned
 > instance** is no longer one:
 > `registry::CoreClass` carries an `instance` roster and a `slots` layout, `CoreTy::Instance` names one as
-> a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it. **§ 4's `Core\Time\Duration` is
-> the first of them written** — one `int` slot of nanoseconds, nineteen members, and ADR 0070's `1h30m`
-> literal producing the same value as `Duration::parse("1h30m")` through the one grammar in
-> `mwl_syntax::duration`; `Core\Time` itself, `Instant`, `DateTime` and `Zone` are what
-> `examples/dates.mwl` still wants, and they are where `jiff` lands. **A `!== null` test now narrows a
+> a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it. **§ 4's absolute half is
+> written** over `jiff` — `Duration`'s nineteen members, `Instant`'s eight, `Zone`'s four and `Core\Time`'s
+> five zone-free entry points, with no ambient timezone anywhere; what `examples/dates.mwl` still wants is
+> the calendar half, `DateTime`/`Date`/`TimeOfDay` and the `Weekday`/`Month`/`Unit` enums, which wait on
+> the CLDR pattern grammar `format` and `Time::parse` share. **A `!== null` test now narrows a
 > local**, so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's flow-sensitive rule, one of its four
 > spellings, with `mwl_types::locals` the home for what invalidates a narrowing and where the walk
 > refuses to prove one. Also open: ADR 0047's checker row,
@@ -110,8 +113,8 @@
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
 > on **Stage 3**, `Core` Part I across all twelve spec sections: four of its seven fixtures produce their
 > frozen output on both legs — `examples/core.mwl`, `report.mwl`, `numbers.mwl` and `text.mwl` — and
-> `dates.mwl` is the first that does not, now wanting only `Core\Time`, `Instant`, `DateTime` and `Zone`
-> over `jiff`, since its `Duration` half runs.
+> `dates.mwl` is the first that does not, now wanting only § 4's calendar half: `DateTime` with CLDR
+> `format`, `Time::parse`, `Instant::in`, the `Unit` enum and `Zone::UTC`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
