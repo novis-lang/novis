@@ -105,11 +105,18 @@ pub(crate) fn check_expr(
     actual
 }
 
+/// The dispatch: one arm per AST expression variant, each either a couple of
+/// lines or a single call into the module that owns its rule.
+///
+/// `pub(super)` for one caller: [`super::operators::infer_conversion`] needs
+/// the *placing* walk rather than [`check_expr`]'s conforming one, so a numeric
+/// literal written directly under an `as` takes the target as its expectation
+/// (ADR 0054 § 2).
 #[expect(
     clippy::too_many_lines,
     reason = "one match arm per AST expression variant, each a couple of lines"
 )]
-fn infer(
+pub(super) fn infer(
     expr: &Expr,
     expected: Option<TypeId>,
     live: &mut FxHashSet<String>,
@@ -120,71 +127,8 @@ fn infer(
     match &expr.kind {
         ExprKind::Null => env.interner.null(),
         ExprKind::Bool(_) => env.interner.bool_ty(),
-        // ADR 0007 § 4: "An integer literal that does not fit `int` is legal
-        // only where a `uint` is expected, and is otherwise a diagnostic
-        // saying exactly that." The literal's own digits are never negative —
-        // a leading `-` is a separate, wrapping `ExprKind::Unary` node (see
-        // that arm below), which already produces an ordinary `int`/`uint`
-        // type mismatch on its own when negated and assigned into a `uint`
-        // target, with no magnitude check needed for that half. What *does*
-        // need one: whether the bare digit run fits `int`'s `0..=i64::MAX`
-        // half, `uint`'s full `0..=u64::MAX` range, or neither at all.
-        ExprKind::Int(span) if wants_decimal(expected, env) => {
-            // ADR 0054 §§ 3-4: an `int`/`uint` is exact in a 96-bit mantissa,
-            // so an integer literal placed at `decimal` needs only that wider
-            // bound checked — not `int`'s 64-bit one below.
-            check_decimal_int_literal(*span, expr.span, env);
-            record_decimal_placement(expr.span, env)
-        }
-        ExprKind::Int(span) => {
-            let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
-            let (radix, digits) = int_literal_digits(env.src, *span);
-            match u64::from_str_radix(&digits, radix) {
-                Ok(n) if i64::try_from(n).is_ok() => {
-                    if wants_uint {
-                        env.interner.uint()
-                    } else {
-                        env.interner.int()
-                    }
-                }
-                Ok(_) if wants_uint => env.interner.uint(),
-                Ok(_) => {
-                    env.diags.report(
-                        Diagnostic::error(
-                            code::E_INT_LITERAL_OUT_OF_RANGE,
-                            "this integer literal is too large for `int`; it is only legal \
-                             where a `uint` is expected",
-                        )
-                        .with_primary(expr.span, "does not fit `int`"),
-                    );
-                    env.interner.int()
-                }
-                Err(_) => {
-                    env.diags.report(
-                        Diagnostic::error(
-                            code::E_INT_LITERAL_OUT_OF_RANGE,
-                            "this integer literal is too large to represent in either `int` or \
-                             `uint`",
-                        )
-                        .with_primary(expr.span, "too large for a 64-bit integer"),
-                    );
-                    if wants_uint {
-                        env.interner.uint()
-                    } else {
-                        env.interner.int()
-                    }
-                }
-            }
-        }
-        // ADR 0054 § 2: a literal carrying a fractional part or an exponent is
-        // untyped until placed, and takes `decimal` or `float` from the type
-        // of the position it appears in. `float` is the answer everywhere
-        // else, including `var $x = 19.99;`, which has no target at all.
-        ExprKind::Float(span) if wants_decimal(expected, env) => {
-            check_decimal_float_literal(*span, expr.span, env);
-            record_decimal_placement(expr.span, env)
-        }
-        ExprKind::Float(_) => env.interner.float(),
+        ExprKind::Int(span) => infer_int_literal(*span, expr.span, expected, env),
+        ExprKind::Float(span) => infer_float_literal(*span, expr.span, expected, env),
         // ADR 0070 § 2: a duration literal is `Core\Time\Duration` and nothing
         // places it — the suffix *is* the type, unlike ADR 0054's fractional
         // literal just above. The lexer has already run the grammar and
@@ -192,85 +136,8 @@ fn infer(
         ExprKind::Duration(_) => env
             .interner
             .class(QName::parse(mwl_stdlib::time::DURATION_NAME)),
-        ExprKind::Str(span) => {
-            // A single-quoted literal's own two escapes (`\\`/`\'`) can
-            // never produce invalid UTF-8, so it gets no cooking-diagnostic
-            // pass at all. A double-quoted literal runs the richer escape
-            // grammar `check_double_quoted_text_issues` cooks. A
-            // heredoc/nowdoc-sourced `Str` (whose span opens with `<`, not a
-            // quote) runs `crate::string_lit`'s flexible-indentation check
-            // first, then the same escape grammar too — unless it's a
-            // nowdoc, which (like PHP's) applies no escapes at all.
-            let raw = span_text(env.src, *span);
-            if raw.starts_with('"') {
-                check_double_quoted_text_issues(inner_quoted_span(*span), env);
-            } else if raw.starts_with("<<<") {
-                let (shape, indent_issues) = crate::string_lit::heredoc_shape(env.src, *span);
-                report_heredoc_indent_issues(indent_issues, env);
-                let run_escapes = !crate::string_lit::heredoc_is_nowdoc(raw);
-                check_heredoc_run_issues(&shape.indent, shape.body, true, true, run_escapes, env);
-            }
-            env.interner.string()
-        }
-        ExprKind::Interpolated(parts) => {
-            // Only a heredoc/nowdoc can ever reach this arm with the
-            // opening `<<<`-only span it needs its own flexible-indentation
-            // strip (`mwl_syntax::parser::collapse_string_parts` never
-            // produces a nowdoc `Interpolated` at all: a nowdoc has no
-            // interpolation syntax by construction, so it always collapses
-            // to `ExprKind::Str`, whose arm above already handles it).
-            let raw = span_text(env.src, expr.span);
-            let is_heredoc = raw.starts_with("<<<");
-            let indent = if is_heredoc {
-                let (shape, indent_issues) = crate::string_lit::heredoc_shape(env.src, expr.span);
-                report_heredoc_indent_issues(indent_issues, env);
-                shape.indent
-            } else {
-                String::new()
-            };
-            let last_text_idx = is_heredoc
-                .then(|| parts.iter().rposition(|p| matches!(p, StringPart::Text(_))))
-                .flatten();
-            let mut tainted = false;
-            let mut secret = false;
-            for (i, part) in parts.iter().enumerate() {
-                match part {
-                    StringPart::Expr(e) => {
-                        let ty = check_expr(e, None, live, scope, ctx, env);
-                        require_stringable(ty, e.span, env);
-                        tainted |= is_tainted(ty, env.interner);
-                        secret |= is_secret(ty, env.interner);
-                    }
-                    // A `Text` run's escapes follow exactly the same grammar
-                    // regardless of whether the overall literal is
-                    // double-quoted or an interpolated heredoc — see
-                    // `crate::string_lit`'s own module docs for why one
-                    // routine cooks both. The span never includes a quote
-                    // character (`mwl_syntax::parser::parse_string_body`
-                    // never emits one as part of a `Text` token), so no
-                    // quote-kind check is needed here the way `Str` above
-                    // needs one — except a heredoc's own flexible
-                    // indentation, which has to be stripped from each run
-                    // first (`is_heredoc`'s own doc comment above: this
-                    // literal is never a nowdoc, so escapes always run).
-                    StringPart::Text(span) => {
-                        if is_heredoc {
-                            check_heredoc_run_issues(
-                                &indent,
-                                *span,
-                                i == 0,
-                                Some(i) == last_text_idx,
-                                true,
-                                env,
-                            );
-                        } else {
-                            check_double_quoted_text_issues(*span, env);
-                        }
-                    }
-                }
-            }
-            qualified_scalar(false, tainted, secret, env.interner)
-        }
+        ExprKind::Str(span) => infer_str_literal(*span, env),
+        ExprKind::Interpolated(parts) => infer_interpolated(expr, parts, live, scope, ctx, env),
         ExprKind::Variable(span) => {
             let name = strip_sigil(span_text(env.src, *span)).to_owned();
             check_read(&name, expr.span, live, scope, env)
@@ -336,51 +203,10 @@ fn infer(
             env.interner.make_union([then_ty, else_ty])
         }
         ExprKind::Conversion { expr: inner, ty } => {
-            let result = lower_type(ty, ctx, env);
-            // ADR 0054 § 2: `expr as T` is itself a placing position, so a
-            // numeric *literal* written directly under one takes `T` as its
-            // target rather than being typed first and converted afterwards.
-            // Without this, `19.99 as decimal` would round-trip through an
-            // `f64` and lose everything past ~17 digits — § 4's `float →
-            // decimal` row — making a wider literal unwritable anywhere that
-            // lacks an annotation. Restricted to a literal operand on purpose:
-            // any other operand already has a type of its own, and handing it
-            // an expectation would silently change what `as` converts *from*.
-            // `infer` rather than `check_expr`, because a placement is not an
-            // assignment: `1 as string` still places the literal at `string`
-            // and still converts, so the conformance check `check_expr` would
-            // run here would reject every conversion that does any work.
-            let inner_ty = if matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)) {
-                infer(inner, Some(result), live, scope, ctx, env)
-            } else {
-                check_expr(inner, None, live, scope, ctx, env)
-            };
-            if matches!(env.interner.get(result), Ty::String) {
-                require_stringable(inner_ty, inner.span, env);
-            }
-            reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
-            reject_secret_markup_conversion(inner_ty, result, expr.span, env);
-            reject_non_literal_markup_conversion(inner, result, expr.span, env);
-            apply_qualifier_conversion_rule(inner_ty, result, env.interner)
+            infer_conversion(expr, inner, ty, live, scope, ctx, env)
         }
         ExprKind::InstanceOf { expr: inner, class } => {
-            check_expr(inner, None, live, scope, ctx, env);
-            // A bare `Foo` on the right of `instanceof` is a class name, not a
-            // constant read — recorded here so `mwl-ir` never has to resolve
-            // one (see `crate::expr_table::ExprInfo::InstanceOf`). Anything
-            // else is the dynamic form, which still checks as an ordinary
-            // expression and records nothing.
-            if let ExprKind::ConstFetch(name) = &class.kind {
-                let text = span_text(env.src, name.span);
-                let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
-                if env.symbols.get(&qname).is_some() || qname.is_reserved_global_class() {
-                    env.exprs
-                        .record(expr.span, ExprInfo::InstanceOf { class: qname });
-                }
-            } else {
-                check_expr(class, None, live, scope, ctx, env);
-            }
-            env.interner.bool_ty()
+            infer_instanceof(expr, inner, class, live, scope, ctx, env)
         }
         ExprKind::Call { callee, args } => {
             let callee_ty = check_expr(callee, None, live, scope, ctx, env);
@@ -397,149 +223,15 @@ fn infer(
             nullsafe,
             type_args,
             args,
-        } => {
-            let object_ty = check_expr(object, None, live, scope, ctx, env);
-            // `?->` never reaches the method when the receiver is `null`, so
-            // the method is resolved against the receiver's non-`null` half
-            // and the call's own type gains the `null` that arm yields — see
-            // [`nullsafe_result`].
-            let receiver_ty = strip_nullsafe_receiver(*nullsafe, object_ty, object.span, env);
-            check_member_name(method, live, scope, ctx, env);
-            // Unlike a static call, `mwl_hir::members` never checks an
-            // instance method call's existence for any receiver — including
-            // `$this` — so this is the first and only place it's diagnosed.
-            let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
-                (Some(qname), MemberName::Ident(name_span)) => {
-                    let name = span_text(env.src, *name_span).to_owned();
-                    let found = resolve_method(&qname, &name, env.signatures, env.graph);
-                    if found.is_none() && !qname.is_core() && !qname.is_reserved_global_class() {
-                        report_unknown_member(object.span, &qname, &name, "method", env);
-                    }
-                    if let Some((owner, sig)) = &found {
-                        check_interface_private_visibility(owner, &name, sig, *name_span, ctx, env);
-                    }
-                    // The *declaring* class, not the receiver's: that is what
-                    // `ResolvedCall::class` promises, and `mwl-ir` renders the
-                    // call's target label from it — `$dog->name()` on a `Dog`
-                    // that inherits `name` must name `Animal::name`, the
-                    // symbol that actually exists.
-                    found.map(|(owner, sig)| (owner, name, sig))
-                }
-                _ => None,
-            };
-            let sig = resolved
-                .as_ref()
-                .map(|(owner, _, sig)| substitute_receiver_args(receiver_ty, owner, sig, env));
-            let label = resolved
-                .as_ref()
-                .map(|(owner, name, _)| format!("{owner}::{name}"));
-            let (sig, _written) =
-                check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
-            let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
-            // ADR 0027: `$obj->method(...)` (first-class callable syntax)
-            // names a `Closure` value, not the method's return type — the
-            // sentinel `CallArgs::FirstClassCallable` marks exactly this
-            // shape, ahead of the ordinary-call typing below.
-            if matches!(args, CallArgs::FirstClassCallable) {
-                return env.interner.callable();
-            }
-            // `mwl-ir` needs this call's resolved target (not just its return
-            // type) to lower an eventual instance-call instruction — see
-            // `crate::expr_table`'s own module docs.
-            // The *substituted* signature, never the one `resolve_method`
-            // returned: `crate::generics` guarantees a type variable never
-            // survives a call site, and this record is the one thing that
-            // carries a signature past it.
-            if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-                let call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
-                env.exprs.record(expr.span, ExprInfo::Call(call));
-            }
-            let returned = sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
-            nullsafe_result(*nullsafe, object_ty, returned, env)
-        }
+        } => infer_method_call(
+            expr, object, method, *nullsafe, type_args, args, live, scope, ctx, env,
+        ),
         ExprKind::StaticCall {
             class,
             method,
             type_args,
             args,
-        } => {
-            check_expr(class, None, live, scope, ctx, env);
-            check_member_name(method, live, scope, ctx, env);
-            // `mwl_hir::members` already checks this reference's existence
-            // (`self::`/`static::`/`parent::`/an explicit class name) — this
-            // only recovers the call's *type* when a signature resolves, and
-            // adds no second diagnostic when it doesn't.
-            let resolved = match method {
-                MemberName::Ident(name_span) => {
-                    resolve_class_expr(class, ctx, env).and_then(|qname| {
-                        let name = span_text(env.src, *name_span).to_owned();
-                        let found = resolve_method(&qname, &name, env.signatures, env.graph).map(
-                            |(owner, sig)| {
-                                check_interface_private_visibility(
-                                    &owner, &name, &sig, *name_span, ctx, env,
-                                );
-                                // The declaring class — see the `MethodCall`
-                                // arm above for why the receiver's own is the
-                                // wrong label.
-                                (owner, name.clone(), sig)
-                            },
-                        );
-                        // The same narrowing of `Core`'s blanket trust the
-                        // `ClassConstAccess` arm below explains: `mwl_hir`
-                        // waves every `Core\…::anything` through because
-                        // nothing declares it, but `mwl_stdlib::registry`
-                        // states every member `Core` has, so a name that is
-                        // not one is knowably wrong *here*. Without this a
-                        // typo reaches `mwl-ir` as a static call with no
-                        // resolved target recorded, which panics.
-                        if found.is_none() && qname.is_core() {
-                            report_unknown_member(expr.span, &qname, &name, "member", env);
-                        }
-                        // ADR 0063 R20's one genuinely reachable two-spellings
-                        // case — see `report_core_instance_member`.
-                        if let Some((owner, _, sig)) = &found
-                            && owner.is_core()
-                            && !sig.is_static
-                        {
-                            report_core_instance_member(expr.span, owner, &name, env);
-                        }
-                        found
-                    })
-                }
-                _ => None,
-            };
-            let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
-            let label = resolved
-                .as_ref()
-                .map(|(owner, name, _)| format!("{owner}::{name}"));
-            let (sig, written) =
-                check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
-            let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
-            // See the `MethodCall` arm above: first-class callable syntax
-            // names a `Closure`, not the resolved method's return type.
-            if matches!(args, CallArgs::FirstClassCallable) {
-                return env.interner.callable();
-            }
-            // See the `MethodCall` arm above: persisted for `mwl-ir` to read
-            // back a resolved static call's target.
-            // The *substituted* signature, never the one `resolve_method`
-            // returned: `crate::generics` guarantees a type variable never
-            // survives a call site, and this record is the one thing that
-            // carries a signature past it.
-            if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
-                let mut call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
-                // Late static binding: an explicitly named class *sets* the
-                // called class, while `self`/`static`/`parent` forward the
-                // caller's. See `ResolvedCall::static_class`.
-                if matches!(class.kind, ExprKind::ConstFetch(_)) {
-                    call.static_class = resolve_class_expr(class, ctx, env);
-                }
-                call.written_class =
-                    written_class_of(qname, name, &written, type_args, expr.span, env);
-                env.exprs.record(expr.span, ExprInfo::Call(call));
-            }
-            sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
-        }
+        } => infer_static_call(expr, class, method, type_args, args, live, scope, ctx, env),
         ExprKind::PropertyAccess {
             object,
             property,
@@ -553,83 +245,8 @@ fn infer(
                 .and_then(|qname| resolve_property(&qname, &prop_name, env.signatures, env.graph))
                 .unwrap_or_else(|| env.interner.mixed())
         }
-        // Two shapes of `Class::CONST` are typed precisely, and they split by
-        // what the left-hand side names. `EnumName::CaseName` is ADR 0010 § 4's
-        // case, recovered as `Ty::Enum`; `Core\Math::PI` is ADR 0011's class
-        // constant, recovered as the declared type of the
-        // `mwl_stdlib::registry::CoreConst` row. A **user-declared** class's
-        // constant is still unmodeled (`mixed`) — see the crate docs' known
-        // gaps — because nothing collects one into a signature table to look
-        // it up in. `mwl_hir::members` has already checked that every one of
-        // the three exists, so this only recovers the type.
         ExprKind::ClassConstAccess { class, name } => {
-            check_expr(class, None, live, scope, ctx, env);
-            let qname = resolve_class_expr(class, ctx, env);
-            // A `Core`-owned enum has no `SymbolKind::Enum` entry — nothing
-            // declared it — but it is in the same enum table, seeded from
-            // `mwl_stdlib::registry::ENUMS`, so asking that table is the one
-            // question that answers both. `crate::enums::seed_core` owns why
-            // there is one table rather than two.
-            let is_enum = qname.as_ref().is_some_and(|qname| {
-                matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
-                    || (qname.is_core() && env.enums.get(qname).is_some())
-            });
-            match qname {
-                Some(qname) if is_enum => {
-                    // ADR 0010 § 3: the case *is* its integer constant, so
-                    // `mwl-ir` needs the value, not just the type — see
-                    // `ExprInfo::EnumCase`. A name `mwl_hir::members` already
-                    // reported as undeclared records nothing.
-                    let case = span_text(env.src, *name).to_owned();
-                    if let Some(value) = env.enums.case(&qname, &case) {
-                        env.exprs.record(expr.span, ExprInfo::EnumCase { value });
-                    } else if qname.is_core() {
-                        // One of the two places `Core`'s blanket trust is
-                        // *narrowed* rather than relied on — the `StaticCall`
-                        // arm above does the same for a member name:
-                        // `mwl_hir::members` waves a
-                        // `Core\…::Anything` through because nothing declares
-                        // it, but `mwl_stdlib::registry::ENUMS` states every
-                        // case a `Core` enum has, so a name that is not one is
-                        // knowably wrong here. Without this the mistake
-                        // reaches `mwl-ir` as a `Class::CONST` with no value
-                        // recorded, which panics.
-                        report_unknown_member(class.span, &qname, &case, "case", env);
-                    }
-                    let backing = env.enums.backing_of(&qname);
-                    env.interner.enum_(qname, backing)
-                }
-                // ADR 0011's class constant, on a `Core` class the registry
-                // states. The *value* is recorded, not just the type, for
-                // exactly ADR 0010 § 3's reason one line above: a constant is
-                // inlined at every use site, so `mwl-ir` needs the constant
-                // itself and there is no storage to read it from at run time.
-                Some(qname) if qname.is_core() => {
-                    let constant = span_text(env.src, *name).to_owned();
-                    match crate::core_lib::constant(&qname, &constant, env.interner) {
-                        Some((ty, value)) => {
-                            env.exprs.record(expr.span, ExprInfo::CoreConst { value });
-                            ty
-                        }
-                        None => {
-                            // The third narrowing of `Core`'s blanket trust,
-                            // on the same terms as the two above: a class the
-                            // registry *states* is checked like any other,
-                            // while one it does not yet know stays trusted so
-                            // the rest of the spec can be written in a fixture
-                            // before it is implemented (`crate::core_lib`'s
-                            // own docs own that rule).
-                            if crate::core_lib::is_registered(&qname) {
-                                report_unknown_member(
-                                    class.span, &qname, &constant, "constant", env,
-                                );
-                            }
-                            env.interner.mixed()
-                        }
-                    }
-                }
-                _ => env.interner.mixed(),
-            }
+            infer_class_const(expr, class, *name, live, scope, ctx, env)
         }
         ExprKind::ClassNameConst { class } => {
             check_expr(class, None, live, scope, ctx, env);
@@ -663,52 +280,7 @@ fn infer(
                 None => env.interner.mixed(),
             }
         }
-        ExprKind::New { target, args } => {
-            let target_ty = check_new_target(target, live, scope, ctx, env);
-            let target_qname = class_qname_of(target_ty, env.interner);
-            // A class with no explicit `constructor` accepts a bare `new
-            // Foo()` in PHP; not diagnosing an arity mismatch against zero
-            // parameters here is deliberate — see the crate docs' known gaps.
-            // The *declaring* class is kept, not the constructed one: `new
-            // Dog(...)` on a `Dog extends Animal` that declares no constructor
-            // of its own invokes `Animal::constructor`, and `mwl-ir` cannot
-            // re-walk the hierarchy to find that out (see
-            // `crate::expr_table::ExprInfo::New::ctor`).
-            let resolved = target_qname
-                .clone()
-                .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
-            let ctor_owner = resolved.as_ref().map(|(owner, _)| owner.clone());
-            let sig = resolved.map(|(_, sig)| sig);
-            let (arg_types, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
-            if let Some(qname) = &target_qname {
-                reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
-                // A `Core`-owned class has no constructor and never will: its
-                // instances come from the member that produces one, and its
-                // slots are `mwl-stdlib`'s layout rather than a surface a
-                // program fills in (`mwl_stdlib::registry::CoreTy::Instance`).
-                // Reported here rather than left to `mwl-codegen`, which would
-                // fail with "this unit declares no descriptor for it" — an
-                // internal message for an ordinary mistake.
-                if crate::core_lib::is_registered(qname) {
-                    report_unknown_member(expr.span, qname, "constructor", "member", env);
-                }
-                // `mwl-ir` needs the constructed class and its resolved
-                // constructor (if any) to lower `new` — see
-                // `crate::expr_table`'s own module docs.
-                let ctor = sig.as_ref().zip(ctor_owner).map(|(s, owner)| {
-                    resolved_call(owner, "constructor".to_owned(), s, env.signatures)
-                });
-                env.exprs.record(
-                    expr.span,
-                    ExprInfo::New {
-                        class: qname.clone(),
-                        ctor,
-                        ty: target_ty,
-                    },
-                );
-            }
-            target_ty
-        }
+        ExprKind::New { target, args } => infer_new(expr, target, args, live, scope, ctx, env),
         ExprKind::Clone(inner) => check_expr(inner, None, live, scope, ctx, env),
         ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
@@ -728,65 +300,16 @@ fn infer(
                 env.interner.make_union(arm_types)
             }
         }
-        // ADR 0053 § 4. Whether this is legal here at all, and what the
-        // operand has to satisfy, are the same question — see
-        // `Ctx::generator_elem`, which `crate::check::check_method` set from
-        // the enclosing body's own shape.
-        ExprKind::Yield { key, value } => {
-            if let Some(k) = key {
-                check_expr(k, None, live, scope, ctx, env);
-                env.diags.report(
-                    Diagnostic::error(
-                        code::E_YIELD_FORM_UNSUPPORTED,
-                        "a `yield` has no key half in MWL",
-                    )
-                    .with_primary(k.span, "no key exists here")
-                    .with_help(
-                        "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and \
-                         `current()`; drop the `key =>`",
-                    ),
-                );
-            }
-            match (ctx.generator_elem, value) {
-                (Some(elem), Some(v)) => {
-                    check_expr(v, Some(elem), live, scope, ctx, env);
-                }
-                (Some(_), None) => {
-                    // ADR 0007 leaves no position untyped, and a bare `yield`
-                    // would have to produce a `T` out of nothing.
-                    env.diags.report(
-                        Diagnostic::error(
-                            code::E_YIELD_FORM_UNSUPPORTED,
-                            "a `yield` needs a value",
-                        )
-                        .with_primary(expr.span, "nothing is yielded here")
-                        .with_help("ADR 0053 § 1: `current()` returns a `T`, never nothing"),
-                    );
-                }
-                (None, _) => {
-                    if let Some(v) = value {
-                        check_expr(v, None, live, scope, ctx, env);
-                    }
-                    report_yield_outside_generator(expr.span, env);
-                }
-            }
-            env.interner.void()
-        }
-        ExprKind::YieldFrom(inner) => {
-            check_expr(inner, None, live, scope, ctx, env);
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_YIELD_FORM_UNSUPPORTED,
-                    "`yield from` does not exist in MWL",
-                )
-                .with_primary(expr.span, "this delegation form")
-                .with_help(
-                    "ADR 0053 § 5: write `foreach ($inner as T $v) { yield $v; }`, which is \
-                     what it is a second spelling of",
-                ),
-            );
-            env.interner.void()
-        }
+        ExprKind::Yield { key, value } => infer_yield(
+            expr,
+            key.as_deref(),
+            value.as_deref(),
+            live,
+            scope,
+            ctx,
+            env,
+        ),
+        ExprKind::YieldFrom(inner) => infer_yield_from(expr, inner, live, scope, ctx, env),
         ExprKind::Print(inner) => {
             let ty = check_expr(inner, None, live, scope, ctx, env);
             require_stringable(ty, inner.span, env);

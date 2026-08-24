@@ -24,6 +24,45 @@
 
 use super::*;
 
+/// `expr as T` — [`super::infer`]'s `ExprKind::Conversion` arm, and the only
+/// conversion spelling there is (ADR 0034 rejects PHP's legacy `(T)expr`).
+///
+/// ADR 0054 § 2: `expr as T` is itself a placing position, so a numeric
+/// *literal* written directly under one takes `T` as its target rather than
+/// being typed first and converted afterwards. Without this, `19.99 as decimal`
+/// would round-trip through an `f64` and lose everything past ~17 digits — § 4's
+/// `float → decimal` row — making a wider literal unwritable anywhere that lacks
+/// an annotation. Restricted to a literal operand on purpose: any other operand
+/// already has a type of its own, and handing it an expectation would silently
+/// change what `as` converts *from*. [`super::infer`] rather than
+/// [`check_expr`], because a placement is not an assignment: `1 as string` still
+/// places the literal at `string` and still converts, so the conformance check
+/// [`check_expr`] would run here would reject every conversion that does any
+/// work.
+pub(super) fn infer_conversion(
+    expr: &Expr,
+    inner: &Expr,
+    ty: &Type,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let result = lower_type(ty, ctx, env);
+    let inner_ty = if matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)) {
+        super::infer(inner, Some(result), live, scope, ctx, env)
+    } else {
+        check_expr(inner, None, live, scope, ctx, env)
+    };
+    if matches!(env.interner.get(result), Ty::String) {
+        require_stringable(inner_ty, inner.span, env);
+    }
+    reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
+    reject_secret_markup_conversion(inner_ty, result, expr.span, env);
+    reject_non_literal_markup_conversion(inner, result, expr.span, env);
+    apply_qualifier_conversion_rule(inner_ty, result, env.interner)
+}
+
 /// The binary-operator result-type table, ADR 0007 § 4, amended by ADR 0013
 /// § 6 for `< <= > >= <=>` when both operands are objects. Beyond that one
 /// amendment, only `int`/`uint`/`float` operands are modeled this slice —

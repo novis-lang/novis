@@ -24,6 +24,179 @@
 
 use super::*;
 
+/// `123` — [`super::infer`]'s `ExprKind::Int` arm.
+///
+/// ADR 0007 § 4: "An integer literal that does not fit `int` is legal only
+/// where a `uint` is expected, and is otherwise a diagnostic saying exactly
+/// that." The literal's own digits are never negative — a leading `-` is a
+/// separate, wrapping `ExprKind::Unary` node, which already produces an
+/// ordinary `int`/`uint` type mismatch on its own when negated and assigned
+/// into a `uint` target, with no magnitude check needed for that half. What
+/// *does* need one: whether the bare digit run fits `int`'s `0..=i64::MAX`
+/// half, `uint`'s full `0..=u64::MAX` range, or neither at all.
+///
+/// Placed at `decimal` instead, ADR 0054 §§ 3-4 apply: an `int`/`uint` is
+/// exact in a 96-bit mantissa, so the literal needs only that wider bound
+/// checked rather than `int`'s 64-bit one.
+pub(super) fn infer_int_literal(
+    span: Span,
+    report_span: Span,
+    expected: Option<TypeId>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if wants_decimal(expected, env) {
+        check_decimal_int_literal(span, report_span, env);
+        return record_decimal_placement(report_span, env);
+    }
+    let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
+    let (radix, digits) = int_literal_digits(env.src, span);
+    match u64::from_str_radix(&digits, radix) {
+        Ok(n) if i64::try_from(n).is_ok() => {
+            if wants_uint {
+                env.interner.uint()
+            } else {
+                env.interner.int()
+            }
+        }
+        Ok(_) if wants_uint => env.interner.uint(),
+        Ok(_) => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_INT_LITERAL_OUT_OF_RANGE,
+                    "this integer literal is too large for `int`; it is only legal \
+                     where a `uint` is expected",
+                )
+                .with_primary(report_span, "does not fit `int`"),
+            );
+            env.interner.int()
+        }
+        Err(_) => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_INT_LITERAL_OUT_OF_RANGE,
+                    "this integer literal is too large to represent in either `int` or `uint`",
+                )
+                .with_primary(report_span, "too large for a 64-bit integer"),
+            );
+            if wants_uint {
+                env.interner.uint()
+            } else {
+                env.interner.int()
+            }
+        }
+    }
+}
+
+/// `19.99` — [`super::infer`]'s `ExprKind::Float` arm.
+///
+/// ADR 0054 § 2: a literal carrying a fractional part or an exponent is
+/// untyped until placed, and takes `decimal` or `float` from the type of the
+/// position it appears in. `float` is the answer everywhere else, including
+/// `var $x = 19.99;`, which has no target at all.
+pub(super) fn infer_float_literal(
+    span: Span,
+    report_span: Span,
+    expected: Option<TypeId>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if wants_decimal(expected, env) {
+        check_decimal_float_literal(span, report_span, env);
+        return record_decimal_placement(report_span, env);
+    }
+    env.interner.float()
+}
+
+/// `'a'` / `"a"` / a heredoc or nowdoc body — [`super::infer`]'s
+/// `ExprKind::Str` arm.
+///
+/// A single-quoted literal's own two escapes (`\\`/`\'`) can never produce
+/// invalid UTF-8, so it gets no cooking-diagnostic pass at all. A
+/// double-quoted literal runs the richer escape grammar
+/// [`check_double_quoted_text_issues`] cooks. A heredoc/nowdoc-sourced `Str`
+/// (whose span opens with `<`, not a quote) runs [`crate::string_lit`]'s
+/// flexible-indentation check first, then the same escape grammar too — unless
+/// it is a nowdoc, which (like PHP's) applies no escapes at all.
+pub(super) fn infer_str_literal(span: Span, env: &mut Env<'_>) -> TypeId {
+    let raw = span_text(env.src, span);
+    if raw.starts_with('"') {
+        check_double_quoted_text_issues(inner_quoted_span(span), env);
+    } else if raw.starts_with("<<<") {
+        let (shape, indent_issues) = crate::string_lit::heredoc_shape(env.src, span);
+        report_heredoc_indent_issues(indent_issues, env);
+        let run_escapes = !crate::string_lit::heredoc_is_nowdoc(raw);
+        check_heredoc_run_issues(&shape.indent, shape.body, true, true, run_escapes, env);
+    }
+    env.interner.string()
+}
+
+/// `"a $b c"` — [`super::infer`]'s `ExprKind::Interpolated` arm.
+///
+/// Only a heredoc/nowdoc can ever reach this with the opening `<<<`-only span
+/// it needs its own flexible-indentation strip
+/// (`mwl_syntax::parser::collapse_string_parts` never produces a nowdoc
+/// `Interpolated` at all: a nowdoc has no interpolation syntax by
+/// construction, so it always collapses to `ExprKind::Str`, which
+/// [`infer_str_literal`] handles). Each interpolated expression must be
+/// `Stringable` (ADR 0028 § 1) and poisons the result on the `tainted` and
+/// `secret` axes independently — see [`super::quals`].
+pub(super) fn infer_interpolated(
+    expr: &Expr,
+    parts: &[StringPart],
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let raw = span_text(env.src, expr.span);
+    let is_heredoc = raw.starts_with("<<<");
+    let indent = if is_heredoc {
+        let (shape, indent_issues) = crate::string_lit::heredoc_shape(env.src, expr.span);
+        report_heredoc_indent_issues(indent_issues, env);
+        shape.indent
+    } else {
+        String::new()
+    };
+    let last_text_idx = is_heredoc
+        .then(|| parts.iter().rposition(|p| matches!(p, StringPart::Text(_))))
+        .flatten();
+    let mut tainted = false;
+    let mut secret = false;
+    for (i, part) in parts.iter().enumerate() {
+        match part {
+            StringPart::Expr(e) => {
+                let ty = check_expr(e, None, live, scope, ctx, env);
+                require_stringable(ty, e.span, env);
+                tainted |= is_tainted(ty, env.interner);
+                secret |= is_secret(ty, env.interner);
+            }
+            // A `Text` run's escapes follow exactly the same grammar regardless
+            // of whether the overall literal is double-quoted or an
+            // interpolated heredoc — see `crate::string_lit`'s own module docs
+            // for why one routine cooks both. The span never includes a quote
+            // character (`mwl_syntax::parser::parse_string_body` never emits one
+            // as part of a `Text` token), so no quote-kind check is needed the
+            // way [`infer_str_literal`] needs one — except a heredoc's own
+            // flexible indentation, which has to be stripped from each run
+            // first (this literal is never a nowdoc, so escapes always run).
+            StringPart::Text(span) => {
+                if is_heredoc {
+                    check_heredoc_run_issues(
+                        &indent,
+                        *span,
+                        i == 0,
+                        Some(i) == last_text_idx,
+                        true,
+                        env,
+                    );
+                } else {
+                    check_double_quoted_text_issues(*span, env);
+                }
+            }
+        }
+    }
+    qualified_scalar(false, tainted, secret, env.interner)
+}
+
 /// ADR 0054 § 1's mantissa bound: 96 bits, unsigned, with the sign carried
 /// beside it rather than in it.
 const MAX_DECIMAL_MANTISSA: u128 = (1u128 << 96) - 1;

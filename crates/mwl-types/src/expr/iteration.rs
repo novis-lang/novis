@@ -23,6 +23,83 @@
 
 use super::*;
 
+/// `yield` / `yield $v` / `yield $k => $v` — [`super::infer`]'s
+/// `ExprKind::Yield` arm.
+///
+/// ADR 0053 § 4. Whether this is legal here at all, and what the operand has to
+/// satisfy, are the same question — see `Ctx::generator_elem`, which
+/// `crate::check::check_method` set from the enclosing body's own shape.
+pub(super) fn infer_yield(
+    expr: &Expr,
+    key: Option<&Expr>,
+    value: Option<&Expr>,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if let Some(k) = key {
+        check_expr(k, None, live, scope, ctx, env);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_YIELD_FORM_UNSUPPORTED,
+                "a `yield` has no key half in MWL",
+            )
+            .with_primary(k.span, "no key exists here")
+            .with_help(
+                "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and \
+                 `current()`; drop the `key =>`",
+            ),
+        );
+    }
+    match (ctx.generator_elem, value) {
+        (Some(elem), Some(v)) => {
+            check_expr(v, Some(elem), live, scope, ctx, env);
+        }
+        (Some(_), None) => {
+            // ADR 0007 leaves no position untyped, and a bare `yield` would
+            // have to produce a `T` out of nothing.
+            env.diags.report(
+                Diagnostic::error(code::E_YIELD_FORM_UNSUPPORTED, "a `yield` needs a value")
+                    .with_primary(expr.span, "nothing is yielded here")
+                    .with_help("ADR 0053 § 1: `current()` returns a `T`, never nothing"),
+            );
+        }
+        (None, _) => {
+            if let Some(v) = value {
+                check_expr(v, None, live, scope, ctx, env);
+            }
+            report_yield_outside_generator(expr.span, env);
+        }
+    }
+    env.interner.void()
+}
+
+/// `yield from $inner` — [`super::infer`]'s `ExprKind::YieldFrom` arm, which
+/// exists only to refuse it (ADR 0053 § 5).
+pub(super) fn infer_yield_from(
+    expr: &Expr,
+    inner: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    check_expr(inner, None, live, scope, ctx, env);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_YIELD_FORM_UNSUPPORTED,
+            "`yield from` does not exist in MWL",
+        )
+        .with_primary(expr.span, "this delegation form")
+        .with_help(
+            "ADR 0053 § 5: write `foreach ($inner as T $v) { yield $v; }`, which is \
+             what it is a second spelling of",
+        ),
+    );
+    env.interner.void()
+}
+
 /// What one `foreach` subject turns out to be — ADR 0053 § 3's three
 /// accepted shapes, plus the two that are neither accepted nor worth a second
 /// diagnostic.

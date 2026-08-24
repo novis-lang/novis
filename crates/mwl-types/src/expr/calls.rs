@@ -30,6 +30,223 @@
 
 use super::*;
 
+/// `$obj->method(...)` / `$obj?->method(...)` — [`super::infer`]'s
+/// `ExprKind::MethodCall` arm.
+///
+/// Unlike a static call, `mwl_hir::members` never checks an instance method
+/// call's existence for any receiver — including `$this` — so this is the
+/// first and only place it is diagnosed.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the four-part checking context every function in this module \
+              threads — live set, scope, ctx, env — plus the call expression \
+              and the four parts of the syntax it destructures"
+)]
+pub(super) fn infer_method_call(
+    expr: &Expr,
+    object: &Expr,
+    method: &MemberName,
+    nullsafe: bool,
+    type_args: &[Type],
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let object_ty = check_expr(object, None, live, scope, ctx, env);
+    // `?->` never reaches the method when the receiver is `null`, so the
+    // method is resolved against the receiver's non-`null` half and the call's
+    // own type gains the `null` that arm yields — see [`nullsafe_result`].
+    let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object.span, env);
+    check_member_name(method, live, scope, ctx, env);
+    let resolved = match (class_qname_of(receiver_ty, env.interner), method) {
+        (Some(qname), MemberName::Ident(name_span)) => {
+            let name = span_text(env.src, *name_span).to_owned();
+            let found = resolve_method(&qname, &name, env.signatures, env.graph);
+            if found.is_none() && !qname.is_core() && !qname.is_reserved_global_class() {
+                report_unknown_member(object.span, &qname, &name, "method", env);
+            }
+            if let Some((owner, sig)) = &found {
+                check_interface_private_visibility(owner, &name, sig, *name_span, ctx, env);
+            }
+            // The *declaring* class, not the receiver's: that is what
+            // `ResolvedCall::class` promises, and `mwl-ir` renders the call's
+            // target label from it — `$dog->name()` on a `Dog` that inherits
+            // `name` must name `Animal::name`, the symbol that actually exists.
+            found.map(|(owner, sig)| (owner, name, sig))
+        }
+        _ => None,
+    };
+    let sig = resolved
+        .as_ref()
+        .map(|(owner, _, sig)| substitute_receiver_args(receiver_ty, owner, sig, env));
+    let label = resolved
+        .as_ref()
+        .map(|(owner, name, _)| format!("{owner}::{name}"));
+    let (sig, _written) =
+        check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
+    let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // ADR 0027: `$obj->method(...)` (first-class callable syntax) names a
+    // `Closure` value, not the method's return type — the sentinel
+    // `CallArgs::FirstClassCallable` marks exactly this shape, ahead of the
+    // ordinary-call typing below.
+    if matches!(args, CallArgs::FirstClassCallable) {
+        return env.interner.callable();
+    }
+    // `mwl-ir` needs this call's resolved target (not just its return type) to
+    // lower an eventual instance-call instruction — see `crate::expr_table`'s
+    // own module docs. The *substituted* signature, never the one
+    // `resolve_method` returned: `crate::generics` guarantees a type variable
+    // never survives a call site, and this record is the one thing that carries
+    // a signature past it.
+    if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+        let call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
+        env.exprs.record(expr.span, ExprInfo::Call(call));
+    }
+    let returned = sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
+    nullsafe_result(nullsafe, object_ty, returned, env)
+}
+
+/// `Class::method(...)` — [`super::infer`]'s `ExprKind::StaticCall` arm.
+///
+/// `mwl_hir::members` already checks this reference's existence
+/// (`self::`/`static::`/`parent::`/an explicit class name), so this only
+/// recovers the call's *type* when a signature resolves, and adds no second
+/// diagnostic when it doesn't.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the same context [`infer_method_call`] threads, with the class \
+              expression in place of the receiver and its nullsafe flag"
+)]
+pub(super) fn infer_static_call(
+    expr: &Expr,
+    class: &Expr,
+    method: &MemberName,
+    type_args: &[Type],
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    check_expr(class, None, live, scope, ctx, env);
+    check_member_name(method, live, scope, ctx, env);
+    let resolved = match method {
+        MemberName::Ident(name_span) => resolve_class_expr(class, ctx, env).and_then(|qname| {
+            let name = span_text(env.src, *name_span).to_owned();
+            let found =
+                resolve_method(&qname, &name, env.signatures, env.graph).map(|(owner, sig)| {
+                    check_interface_private_visibility(&owner, &name, &sig, *name_span, ctx, env);
+                    // The declaring class — see [`infer_method_call`] for why
+                    // the receiver's own is the wrong label.
+                    (owner, name.clone(), sig)
+                });
+            // The same narrowing of `Core`'s blanket trust
+            // [`super::members::infer_class_const`] explains: `mwl_hir` waves
+            // every `Core\…::anything` through because nothing declares it, but
+            // `mwl_stdlib::registry` states every member `Core` has, so a name
+            // that is not one is knowably wrong *here*. Without this a typo
+            // reaches `mwl-ir` as a static call with no resolved target
+            // recorded, which panics.
+            if found.is_none() && qname.is_core() {
+                report_unknown_member(expr.span, &qname, &name, "member", env);
+            }
+            // ADR 0063 R20's one genuinely reachable two-spellings case — see
+            // `report_core_instance_member`.
+            if let Some((owner, _, sig)) = &found
+                && owner.is_core()
+                && !sig.is_static
+            {
+                report_core_instance_member(expr.span, owner, &name, env);
+            }
+            found
+        }),
+        _ => None,
+    };
+    let sig = resolved.as_ref().map(|(_, _, sig)| sig.clone());
+    let label = resolved
+        .as_ref()
+        .map(|(owner, name, _)| format!("{owner}::{name}"));
+    let (sig, written) =
+        check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
+    let (_, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
+    // not the resolved method's return type.
+    if matches!(args, CallArgs::FirstClassCallable) {
+        return env.interner.callable();
+    }
+    // See [`infer_method_call`]: persisted for `mwl-ir` to read back a resolved
+    // static call's target, always as the *substituted* signature.
+    if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig) {
+        let mut call = resolved_call(qname.clone(), name.clone(), sig, env.signatures);
+        // Late static binding: an explicitly named class *sets* the called
+        // class, while `self`/`static`/`parent` forward the caller's. See
+        // `ResolvedCall::static_class`.
+        if matches!(class.kind, ExprKind::ConstFetch(_)) {
+            call.static_class = resolve_class_expr(class, ctx, env);
+        }
+        call.written_class = written_class_of(qname, name, &written, type_args, expr.span, env);
+        env.exprs.record(expr.span, ExprInfo::Call(call));
+    }
+    sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty)
+}
+
+/// `new Target(...)` — [`super::infer`]'s `ExprKind::New` arm.
+///
+/// A class with no explicit `constructor` accepts a bare `new Foo()` in PHP;
+/// not diagnosing an arity mismatch against zero parameters here is deliberate
+/// — see the crate docs' known gaps. The *declaring* class is kept, not the
+/// constructed one: `new Dog(...)` on a `Dog extends Animal` that declares no
+/// constructor of its own invokes `Animal::constructor`, and `mwl-ir` cannot
+/// re-walk the hierarchy to find that out (see
+/// `crate::expr_table::ExprInfo::New::ctor`).
+pub(super) fn infer_new(
+    expr: &Expr,
+    target: &NewTarget,
+    args: &CallArgs,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let target_ty = check_new_target(target, live, scope, ctx, env);
+    let target_qname = class_qname_of(target_ty, env.interner);
+    let resolved = target_qname
+        .clone()
+        .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
+    let ctor_owner = resolved.as_ref().map(|(owner, _)| owner.clone());
+    let sig = resolved.map(|(_, sig)| sig);
+    let (arg_types, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
+    if let Some(qname) = &target_qname {
+        reject_secret_throwable_message(qname, arg_types.first().copied(), expr.span, env);
+        // A `Core`-owned class has no constructor and never will: its instances
+        // come from the member that produces one, and its slots are
+        // `mwl-stdlib`'s layout rather than a surface a program fills in
+        // (`mwl_stdlib::registry::CoreTy::Instance`). Reported here rather than
+        // left to `mwl-codegen`, which would fail with "this unit declares no
+        // descriptor for it" — an internal message for an ordinary mistake.
+        if crate::core_lib::is_registered(qname) {
+            report_unknown_member(expr.span, qname, "constructor", "member", env);
+        }
+        // `mwl-ir` needs the constructed class and its resolved constructor (if
+        // any) to lower `new` — see `crate::expr_table`'s own module docs.
+        let ctor = sig
+            .as_ref()
+            .zip(ctor_owner)
+            .map(|(s, owner)| resolved_call(owner, "constructor".to_owned(), s, env.signatures));
+        env.exprs.record(
+            expr.span,
+            ExprInfo::New {
+                class: qname.clone(),
+                ctor,
+                ty: target_ty,
+            },
+        );
+    }
+    target_ty
+}
+
 /// Builds the [`ExprInfo::Call`] entry [`crate::expr_table::ExprTypeTable`]
 /// persists for a resolved method/static call — the one place `qname`/`name`/
 /// `sig` (already computed for this call's own type-checking) get bundled
