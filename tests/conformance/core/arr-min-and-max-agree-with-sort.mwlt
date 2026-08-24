@@ -1,0 +1,22 @@
+--TEST--
+Core\Arr::min and max answer null over an empty array and name the same entries sort puts at the ends
+--FILE--
+<?mwl
+array<int> $nums = [15, 4, 8];
+array<int> $empty = [];
+array<string> $words = ["pear", "apple", "fig"];
+
+echo Core\Arr::min($nums) ?? -1, "|", Core\Arr::max($nums) ?? -1, "\n";
+// Empty is `null`, not PHP's ValueError: absence is an answer, not a failure.
+echo Core\Arr::min($empty) ?? -1, "|", Core\Arr::max($empty) ?? -1, "\n";
+echo Core\Arr::min($words) ?? "none", "|", Core\Arr::max($words) ?? "none", "\n";
+
+// One ordering, so the two members and `sort` cannot disagree.
+var $sorted = Core\Arr::sort($nums);
+echo ((Core\Arr::min($nums) ?? -1) === (Core\Arr::first($sorted) ?? -1)) as string, "|",
+     ((Core\Arr::max($nums) ?? -1) === (Core\Arr::last($sorted) ?? -1)) as string, "|\n";
+--EXPECT--
+4|15
+-1|-1
+apple|pear
+1|1|

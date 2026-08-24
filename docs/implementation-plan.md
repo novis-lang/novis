@@ -7,18 +7,19 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-24. **M3 is done, and the second M4 + M4S loop has its keystone.** The goal is
-> **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written without**, in
+> **Status:** 2026-08-24. **M3 is done, and the second M4 + M4S loop has both of its shared answers.** The
+> goal is **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written without**, in
 > `docs/agent/loop-goal.md` and its `.toml`. The keystone was one representation, and it is built:
 > **`mixed`, `?T` and every other union share `mwl_ir::Ty::Tagged`**, a 16-byte `Value` in a register
 > pair, with `Tag`/`Untag`/`IsNull` to get in, out and test — that variant's own doc comment and
-> `mwl-runtime`'s own are the two homes. `??` and the literal `null` came with it, and `mwl-ir`'s gap 5
-> closed behind it, so a short-circuit composes in any nested position. **A `?T`-returning `Core` member
-> can now be written down too**: `CoreTy::Nullable` interns as `null|T`, and a union is legal in either
-> direction. A **variadic** parameter is the one signature shape still missing, and `decimal` the one type.
-> Three M4 holes stay folded in — compound assignment, `for`/`switch`/`match`, `decimal`'s IR — as is ADR
-> 0070's duration literal, which `Duration::parse` shares an implementation with. Dependencies: `regex` +
-> `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
+> `mwl-runtime`'s own are the two homes. `CoreTy::Nullable` interns as `null|T`, so a `?T`-returning
+> member is writable and thirteen are written. The second answer is **strict identity**:
+> `mwl_runtime::value_identical` decides what one value being another means, object identity included,
+> and `value_hash` indexes it — `mwl_runtime::identity`'s own docs are the home. A **variadic** parameter
+> is the one signature shape still missing, and `decimal` the one type. Three M4 holes stay folded in —
+> compound assignment, `for`/`switch`/`match`, `decimal`'s IR — as is ADR 0070's duration literal, which
+> `Duration::parse` shares an implementation with. Dependencies: `regex` + `fancy-regex` and `jiff` are
+> named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -32,10 +33,10 @@
 >
 > **On disk:** the workspace, CI on three platforms, lint/deny/fmt/notice policy, `mwl-diagnostics`,
 > `mwl-syntax`, `mwl-hir`, `mwl-types` (+ `layout`, `core_lib`, `error_lib`, `iter_lib`, `generics`,
-> `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
-> `mwl-stdlib` (`Arr` × 28, `Str` × 19, `granularity`, `Order`, and the conformance-coverage gate),
-> `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 265 (in
+> `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`,
+> `identity`), `mwl-stdlib` (`Arr` × 33, `Str` × 19, `granularity`, `Order`, and the
+> conformance-coverage gate), `mwl-codegen`, `mwl-cli` (`ast`, `check`,
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 268 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -51,12 +52,12 @@
 > all run, leaving that ADR's `as ?T` operator owed. Instance calls dispatch on the receiver's runtime
 > class. Each ADR's own *Verification* section says what its slice covers, not this field.
 >
-> **Open now:** **`Core` breadth, and the one comparison every set member needs.** `?T` rows can be
-> registered now, and eight `Core\Arr` members answering absence are; what the next batch waits on is a
-> **strict identity** comparison over two `mwl_runtime::Value`s, which `keyOf`, `contains`, `min`, `max`,
-> `unique`, `diff` and `intersect` all need. Two signature shapes are still missing behind that: a
-> **variadic** parameter (ADR 0069's three combination members, `append`/`prepend`, `Path::join`) and
-> `CoreTy::Decimal` (`sum`/`product`/`average`). `Core` §§ 3–12
+> **Open now:** **`Core` breadth.** `?T` rows register and strict identity is defined, so the two answers
+> the last batches waited on are spent: `contains`, `keyOf`, `unique`, `min` and `max` run, and
+> `diff`/`intersect` need only their `SetOn` enum and their `on`/`by`/`comparator` bag, both of which the
+> registry can already state. Two signature shapes are still missing: a **variadic** parameter (ADR 0069's
+> three combination members, `append`/`prepend`, `Path::join`) and `CoreTy::Decimal`
+> (`sum`/`product`/`average`). `Core` §§ 3–12
 > have no registry class at all, and `Core\Str`/`Core\Arr` are incomplete. Folded in because the corpus
 > cannot route around them: compound assignment, `for`/`switch`/`match`, `decimal`'s IR, ADR 0070's duration
 > literal. Also open: ADR 0047's checker row, `autoload` (0061), class-member `private`/`protected`, which
@@ -68,10 +69,11 @@
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop reaches is
 > pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the `?T`/`mixed`
 > representation (now settled and recorded in `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
-> own handler block, widening `array<T>` to element-covariant-on-read, defining object identity, and
-> picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
+> own handler block, widening `array<T>` to element-covariant-on-read, object identity (now settled and
+> recorded in `mwl_runtime::identity`), and picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
 > so any failure below Stage 2 is a regression rather than unfinished work. Stage 2 stops on
-> `examples/nullable.mwl`, which needs `Core\Arr::keyOf` — a missing member, not a missing shape.
+> `examples/nullable.mwl`, now inside ADR 0066's `as ?int` — `mwl-ir`'s gap 4, the checked conversion
+> rows in a non-throwing form.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

@@ -103,9 +103,12 @@
 //!    legal positional default — so the first member to declare one is the
 //!    check, not a further gap.
 //!
-//!    A third blocker is not a *shape*: `keyOf`, `contains`, `min`, `max`,
-//!    `unique`, `diff` and `intersect` all compare two values by **strict
-//!    identity**, and `mwl_runtime` defines no such comparison yet.
+//!    Strict identity is no longer among them:
+//!    `mwl_runtime::value_identical` defines it and
+//!    `mwl_runtime::value_hash` indexes it, so `contains`, `keyOf` and
+//!    `unique` are registered and `diff`/`intersect` need only their `SetOn`
+//!    enum and their `on`/`by`/`comparator` bag — every one of which
+//!    [`registry`] can already state.
 //! 4. **`array<T>` is invariant, so a `array<int|string>` parameter takes
 //!    only that exact spelling.** `Core\Arr::flip` is the first member whose
 //!    spec signature declares one, and `Core\Arr::flip($stringArray)` is

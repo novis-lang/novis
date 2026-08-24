@@ -1,0 +1,24 @@
+--TEST--
+Core\Arr::unique keeps the first occurrence with its own key, and compares by identity rather than by spelling
+--FILE--
+<?mwl
+array<int> $dupes = [1, 2, 1, 3, 2];
+var $once = Core\Arr::unique($dupes);
+echo Core\Str::join(Core\Arr::map($once, fn(int $v) => $v as string), ","), "\n";
+// The survivor keeps the key the first occurrence had, so the result is not
+// renumbered — the same rule `filter` follows.
+echo Core\Str::join(Core\Arr::keys($once), ","), "\n";
+
+array<string> $names = ["Ann", "ann", "Bob", "BOB"];
+echo Core\Str::join(Core\Arr::unique($names), ","), "\n";
+// `{by: ...}` names what to compare by; what survives is still the entry.
+echo Core\Str::join(Core\Arr::unique($names, {by: fn(string $n) => Core\Str::lower($n)}), ","), "\n";
+
+array<int> $empty = [];
+echo Core\Arr::count(Core\Arr::unique($empty)), "\n";
+--EXPECT--
+1,2,3
+0,1,3
+Ann,ann,Bob,BOB
+Ann,Bob
+0

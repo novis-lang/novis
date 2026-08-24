@@ -1,0 +1,39 @@
+--TEST--
+Core\Arr::contains and keyOf answer about the first identical entry, never a loose match
+--FILE--
+<?mwl
+array<int> $nums = [4, 8, 15, 8];
+array<int> $empty = [];
+array<string> $words = ["b" => "bee", "a" => "ay", "c" => "bee"];
+
+echo Core\Arr::contains($nums, 8) as string, "|", Core\Arr::keyOf($nums, 8) ?? "absent", "\n";
+echo Core\Arr::contains($nums, 9) as string, "|", Core\Arr::keyOf($nums, 9) ?? "absent", "\n";
+echo Core\Arr::contains($empty, 4) as string, "|", Core\Arr::keyOf($empty, 4) ?? "absent", "\n";
+
+// The *first* match's key — "c" holds "bee" too.
+echo Core\Arr::keyOf($words, "bee") ?? "absent", "\n";
+
+// A string is compared by content, so a computed needle matches a literal
+// entry; `array_search`'s `=== false` trap has nothing to catch, since a key
+// is a string and absence is null.
+echo Core\Arr::contains($words, "b" . "ee") as string, "\n";
+
+// An array is compared entry by entry, in order: the same two entries the
+// other way round are a different value.
+array<int> $needle = [3];
+array<int> $reordered = [2, 1];
+array<array<int>> $rows = [[1, 2], [3]];
+echo Core\Arr::keyOf($rows, $needle) ?? "absent", "|",
+     Core\Arr::contains($rows, $reordered) as string, "|\n";
+
+// `0.0` and `-0.0` are one value, so the answer never turns on a sign bit.
+array<float> $floats = [0.0, 1.5];
+echo Core\Arr::contains($floats, -0.0) as string, "\n";
+--EXPECT--
+1|1
+|absent
+|absent
+b
+1
+1||
+1

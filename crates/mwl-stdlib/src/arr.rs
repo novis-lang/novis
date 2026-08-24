@@ -86,6 +86,20 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_has_key",
         },
         CoreMethod {
+            name: "contains",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Var("T")],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_arr_contains",
+        },
+        CoreMethod {
+            name: "keyOf",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Var("T")],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_arr_key_of",
+        },
+        CoreMethod {
             name: "isList",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
@@ -235,6 +249,27 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Uint),
             symbol: "mwl_core_arr_count_by",
         },
+        CoreMethod {
+            name: "unique",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Options(BY_OPTION)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_unique",
+        },
+        CoreMethod {
+            name: "min",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_min",
+        },
+        CoreMethod {
+            name: "max",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_max",
+        },
     ],
 };
 
@@ -362,6 +397,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_find_key" => (mwl_core_arr_find_key as *const ()).cast(),
         "mwl_core_arr_any" => (mwl_core_arr_any as *const ()).cast(),
         "mwl_core_arr_all" => (mwl_core_arr_all as *const ()).cast(),
+        "mwl_core_arr_contains" => (mwl_core_arr_contains as *const ()).cast(),
+        "mwl_core_arr_key_of" => (mwl_core_arr_key_of as *const ()).cast(),
+        "mwl_core_arr_unique" => (mwl_core_arr_unique as *const ()).cast(),
+        "mwl_core_arr_min" => (mwl_core_arr_min as *const ()).cast(),
+        "mwl_core_arr_max" => (mwl_core_arr_max as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1425,17 +1465,19 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-/// One entry's `by`-extracted sort key, owned by the frame that extracted it.
+/// What a `{by: ...}` option extracted, owned by the frame that extracted it —
+/// [`mwl_core_arr_sort`]'s sort keys and [`mwl_core_arr_unique`]'s identity
+/// keys, which are the same obligation under two names.
 ///
 /// `mwl_runtime::call_closure` hands back one fresh reference per call, so the
-/// extracted keys are this frame's to free — unlike the entries themselves,
+/// extracted values are this frame's to free — unlike the entries themselves,
 /// which belong to the subject array. Held in a guard rather than released at
-/// the end of [`mwl_core_arr_sort`] because a `by` closure, a comparator or a
-/// wrong tag can all leave part-way through, and a `Drop` is the only release
-/// every one of those paths runs.
-struct SortKeys(Vec<Value>);
+/// the end of the member because a `by` closure, a comparator or a wrong tag
+/// can all leave part-way through, and a `Drop` is the only release every one
+/// of those paths runs.
+struct Extracted(Vec<Value>);
 
-impl Drop for SortKeys {
+impl Drop for Extracted {
     fn drop(&mut self) {
         for value in self.0.drain(..) {
             #[expect(
@@ -1568,7 +1610,7 @@ mwl_runtime::mwl_helper! {
 
         // Decorate. Dropped by the guard on every exit path below, including
         // a throw out of the extractor itself.
-        let mut sort_keys = SortKeys(Vec::new());
+        let mut sort_keys = Extracted(Vec::new());
         if let Some(by) = by {
             for (index, value) in values.iter().enumerate() {
                 let key_arg = Value::str(keys[index].clone());
@@ -2078,6 +2120,256 @@ mwl_runtime::mwl_helper! {
         let failed = find_slot(ctx, &subject, args[1], true)?;
         Ok(Value::bool(failed.is_none()))
     }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::contains(array<T> $haystack, T $needle): bool` — whether any
+    /// entry is the needle, replacing PHP's `in_array`.
+    ///
+    /// **Always strict.** `in_array`'s default is a loose comparison, so
+    /// `in_array("abc", [0])` is `true` in PHP versions before 8.0 and
+    /// `in_array(0, ["a"])` still surprises people; the spec's § 2 table
+    /// names this one "(always strict)" and there is no third argument to
+    /// forget. What "strict" means is `mwl_runtime::value_identical`, whose
+    /// own module docs own every row of it, including the two that differ
+    /// from a naive bit comparison (`0.0` and `-0.0` are one value, `NaN` is
+    /// identical to nothing) and the one that has no PHP counterpart at all
+    /// (an `int` and a `uint` are one integer domain).
+    fn mwl_core_arr_contains(_ctx, args: [2]) {
+        let subject = subject(args, "contains")?;
+        Ok(Value::bool(slot_of(&subject, args[1]).is_some()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::keyOf(array<T> $haystack, T $needle): ?string` — the key of
+    /// the first entry that is the needle, replacing PHP's `array_search`.
+    ///
+    /// `?string` rather than `string|false`: ADR 0063 R5 makes `?T` the one
+    /// absence spelling, which is the whole of what removes `array_search`'s
+    /// `=== false` trap — a `0` key and a "not found" answer are the same
+    /// value under `==` in PHP, and the reason its manual warns to compare
+    /// strictly. [`mwl_core_arr_first_key`] owns why a key is a `string`, and
+    /// [`mwl_core_arr_contains`] owns what "is the needle" means.
+    ///
+    /// The *first* match, in insertion order, exactly as `array_search`
+    /// answers the first.
+    fn mwl_core_arr_key_of(_ctx, args: [2]) {
+        let subject = subject(args, "keyOf")?;
+        Ok(match slot_of(&subject, args[1]) {
+            Some(slot) => owned_key_at(&subject, slot),
+            None => Value::null(),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::unique(array<T> $a, {by?: callable}): array<T>` — the
+    /// entries whose value has not been seen before, replacing PHP's
+    /// `array_unique`.
+    ///
+    /// **The first occurrence of each wins, and keeps its key**, which is
+    /// `array_unique`'s own behaviour; the spec's § 2 table names no
+    /// `preserveKeys` option here, for the reason [`mwl_core_arr_filter`]
+    /// gives — a member that renumbered would change what a following
+    /// `Core\Arr::keys` answers.
+    ///
+    /// **Compared by strict identity**, so `1` and `"1"` are two entries.
+    /// That is the spec's § 2 *Combining* note in full: PHP's default is
+    /// `SORT_STRING`, which casts every element to a string and therefore
+    /// collapses `0`, `"0"`, `false` and `null` into one. Reproducing that
+    /// would make this the one member whose answer depends on a value's
+    /// *spelling* rather than its identity.
+    ///
+    /// `{by: fn}` names what to compare *by* — the callback receives
+    /// `($value, $key)` like every other `Core\Arr` callback, is called
+    /// exactly once per entry, and its result rather than the entry is what
+    /// identity is asked about. The entry kept is still the entry, not the
+    /// extracted key, which is what makes `unique($users, {by: fn($u) =>
+    /// $u->email})` mean what it reads as.
+    ///
+    /// The seen set is a hash set over [`Identity`], not a linear scan:
+    /// scanning would make this quadratic, and a quadratic `Core` member over
+    /// request-shaped input is a denial of service rather than a slow path.
+    /// The cost is one `HashSet` entry per *distinct* value.
+    fn mwl_core_arr_unique(ctx, args: [2]) {
+        let subject = subject(args, "unique")?;
+        let by = optional_callback(&args[1], "unique", "by")?;
+
+        // Freed on every exit path, including a throw out of the extractor —
+        // see [`Extracted`]. Declared before the set so the values it owns
+        // outlive every borrow of them; the set holds only `Value` bits,
+        // which own nothing themselves.
+        let mut extracted = Extracted(Vec::new());
+        let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = subject.next_slot(from) {
+            let value = subject
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            let key = subject
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+            from = slot + 1;
+
+            let compared = match by {
+                None => value,
+                Some(by) => {
+                    // One reference for the duration of the call, released
+                    // right after: `call_closure` takes its own.
+                    let key_arg = Value::str(key.clone());
+                    let named = mwl_runtime::call_closure(ctx, by, &[value, key_arg]);
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame owns exactly the reference \
+                                  `key.clone()` just produced"
+                    )]
+                    unsafe {
+                        key_arg.release();
+                    }
+                    let named = named?;
+                    extracted.0.push(named);
+                    named
+                }
+            };
+
+            if !seen.insert(Identity(compared)) {
+                continue;
+            }
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            out.set(key, value);
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::min(array<T> $a): ?T` — the smallest entry under the
+    /// natural ordering, replacing PHP's `min` with an array argument.
+    ///
+    /// `null` over an empty array rather than PHP's `ValueError`, on
+    /// [`mwl_core_arr_first`]'s terms: ADR 0063 R5 makes `?T` the absence
+    /// spelling, and "what is the smallest of nothing" is a question with an
+    /// answer, not a failure.
+    ///
+    /// The ordering is [`compare_values`] — the same total order
+    /// [`mwl_core_arr_sort`] uses without a comparator, so
+    /// `min($a) === first(sort($a))` holds by construction. It is therefore
+    /// *not* PHP's `min`, which compares loosely: `min([0, "a"])` is `"a"` in
+    /// PHP 8 and a throw here, because a `string` and an `int` have no order
+    /// between them. The spec's § 2 has no comparator option on either
+    /// member; a caller who wants one writes `first(sort($a, {by: ...}))`.
+    ///
+    /// PHP's variadic `min(1, 2, 3)` has no member at all: that is what `<`
+    /// and a ternary are for (ADR 0063 R17), and the array form is the one
+    /// that cannot be written in the language.
+    fn mwl_core_arr_min(_ctx, args: [1]) {
+        let subject = subject(args, "min")?;
+        extremum(&subject, std::cmp::Ordering::Less)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::max(array<T> $a): ?T` — the largest entry under the natural
+    /// ordering, replacing PHP's `max` with an array argument.
+    ///
+    /// [`mwl_core_arr_min`] owns the ordering, the empty case and the
+    /// divergence from PHP's loose comparison.
+    fn mwl_core_arr_max(_ctx, args: [1]) {
+        let subject = subject(args, "max")?;
+        extremum(&subject, std::cmp::Ordering::Greater)
+    }
+}
+
+/// One value, compared and hashed the way `mwl_runtime` defines identity —
+/// what puts a `Core\Arr` set member's seen values in a `HashSet` instead of a
+/// linear scan.
+///
+/// It borrows: a `Value` owns nothing on its own (`mwl_runtime::Value`'s
+/// *Ownership* section), so whatever reference keeps the payload alive must
+/// outlive the set. Every use below satisfies that by construction — the
+/// subject array outlives the call, and a `by`-extracted value is held by an
+/// [`Extracted`] guard declared first.
+///
+/// **`Eq` is not quite reflexive**, because identity is not: a `NaN` entry is
+/// identical to nothing, itself included. The consequence is the intended one
+/// and the only one — a set never matches a `NaN`, so every `NaN` entry
+/// survives `unique` — and it is a logic-error-only contract in `std`, never
+/// a soundness one.
+#[derive(Clone, Copy)]
+struct Identity(Value);
+
+impl PartialEq for Identity {
+    fn eq(&self, other: &Self) -> bool {
+        mwl_runtime::value_identical(self.0, other.0)
+    }
+}
+
+impl Eq for Identity {}
+
+impl std::hash::Hash for Identity {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        mwl_runtime::value_hash(self.0, state);
+    }
+}
+
+/// The first slot holding `needle`, by strict identity, or `None`.
+///
+/// Shared by [`mwl_core_arr_contains`] and [`mwl_core_arr_key_of`], which ask
+/// the same question and read a different half of the answer — the same
+/// pairing [`find_slot`] serves for the predicate members. Linear, and
+/// deliberately so: both members answer about *one* needle, so there is
+/// nothing to amortize an index over.
+fn slot_of(subject: &MwlArray, needle: Value) -> Option<usize> {
+    let mut from = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        if mwl_runtime::value_identical(value, needle) {
+            return Some(slot);
+        }
+        from = slot + 1;
+    }
+    None
+}
+
+/// The entry that compares `wanted` against every other, as a fresh reference,
+/// or `null` over an empty array — [`mwl_core_arr_min`] and
+/// [`mwl_core_arr_max`] in one walk.
+///
+/// The **first** extreme wins a tie, so a stable sort and this member name the
+/// same entry.
+fn extremum(subject: &MwlArray, wanted: std::cmp::Ordering) -> Result<Value, Fault> {
+    let mut best: Option<(usize, Value)> = None;
+    let mut from = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+        match best {
+            None => best = Some((slot, value)),
+            Some((_, incumbent)) => {
+                if compare_values(&value, &incumbent)? == wanted {
+                    best = Some((slot, value));
+                }
+            }
+        }
+    }
+    Ok(match best {
+        Some((slot, _)) => owned_value_at(subject, slot),
+        None => Value::null(),
+    })
 }
 
 #[cfg(test)]

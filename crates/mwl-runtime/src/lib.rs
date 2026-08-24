@@ -96,7 +96,15 @@
 //!   `_has_key`/`_count`/`_next_slot`/`_key_at`/`_value_at` primitives behind
 //!   `mwl_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the
 //!   `foreach` cursor. Landed ahead of the codegen that emits them, same as
-//!   the two above.
+//!   the two above;
+//! * [`value_identical`], the one strict-identity comparison over two
+//!   [`Value`]s, and [`value_hash`], the hash that agrees with it. What
+//!   identity *means* — including what it means for an object — is
+//!   [`identity`]'s own docs, which is the home
+//!   `docs/agent/loop-goal.md` names for that decision. It lives here rather
+//!   than in `mwl-stdlib` because `Core\Arr`'s set members, `ObjectSet` and
+//!   `ObjectMap` all ask the same question, and a second answer would be a
+//!   second set of PHP-divergence rules nothing keeps in step.
 //!
 //! ## Known gaps
 //!
@@ -157,6 +165,7 @@ mod counting_alloc;
 mod ctx;
 mod fmt;
 pub mod helpers;
+pub mod identity;
 pub mod object;
 pub mod release;
 mod string;
@@ -185,6 +194,7 @@ pub use ctx::{
 };
 pub use fmt::php_float_to_string;
 pub use helpers::{symbols, value_truthy};
+pub use identity::{value_hash, value_identical};
 pub use object::{
     ClassDesc, ClassId, ClassTable, FIELD_STRIDE, FIELDS_OFFSET, MwlObj, OBJ_CLASS_OFFSET,
     OBJ_REFCOUNT_OFFSET, ObjHeader, field_offset, mwl_abstract_method, mwl_class_method,

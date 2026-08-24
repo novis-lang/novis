@@ -87,6 +87,7 @@ so you never have to open this file to route a topic.
 | Leading underscores in identifiers, whether the constructor is `__construct` or `constructor` | [0030](0030-no-leading-underscores-constructor-spelling.md) |
 | `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$argv`, or anything PHP populates ambiently | [0012](0012-no-superglobals.md) |
 | Comparing two objects with `<`/`>`/`<=>`, operator overloading, `Comparable` | [0013](0013-comparable-interface.md) |
+| What "the same value" means — strict identity, `in_array`'s strict flag, `array_search`, `array_unique`, whether two objects/arrays/`NaN`/`-0.0` match | [crates/mwl-runtime/src/identity.rs](../../crates/mwl-runtime/src/identity.rs) — one row per representation, and the hash that agrees with it |
 | Property hooks, `__get`/`__set`, `PropertyObserver`, undefined properties, `__call`/`__callStatic` | [0014](0014-property-observer.md) |
 | `class_alias`, `use … as …`, or a `type` alias | [0015](0015-no-name-aliasing.md) |
 | `trait`, horizontal code reuse, mixins, `insteadof`, how a PHP trait migrates | [0043](0043-interface-default-methods-and-delegation-replace-traits.md) |

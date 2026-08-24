@@ -2,38 +2,37 @@
 
 ## State
 
-**A `?T`-returning `Core` member can now be written down, and eight are.** `mwl_stdlib::registry`'s
-`CoreTy` grew `Nullable`, which `mwl_types::core_lib` interns as exactly `null|T` — the same id a
-source-written `?T` gets, so `??`, assignability and `mwl_ir::lower_checked_ty`'s `Ty::Tagged` all meet one
-shape. The union-return ban went with it: `CoreTy::Union`'s own doc comment now says a union is legal in
-either direction, and the surviving restriction (never an *option's* type) is
-`a_union_is_never_an_option_type`. `Core\Arr` gained `first`, `last`, `firstKey`, `lastKey`, `find`,
-`findKey`, `any` and `all`, each with its own doc comment and two conformance cases under
-`tests/conformance/core/`.
+**Strict identity is defined, and the five members that compare are registered.**
+`mwl_runtime::value_identical` is the one comparison `contains`, `keyOf`, `unique`, `diff`, `intersect`
+and every future `ObjectSet` ask; `mwl_runtime::value_hash` is the hash that agrees with it, so a set
+member indexes instead of scanning. What identity *means* — an object is itself and nothing else, `int`
+and `uint` are one integer domain, an array is compared entry by entry in order, `NaN` matches nothing —
+is `crates/mwl-runtime/src/identity.rs`'s own module doc, which is the home
+[`loop-goal.md`](loop-goal.md) § *Standing decisions* names for that call. `Core\Arr` gained `contains`,
+`keyOf`, `unique`, `min` and `max`, each with three conformance cases under `tests/conformance/core/`.
 
-Both legs' verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 265 conformance cases, and
-`tools/leak-check.sh` reports zero definite losses over two scratch fixtures written for the new retain
-edge (a `?string` bound inside a loop). Stage 2 of [`loop-goal.toml`](loop-goal.toml) now stops on
-`` `Core\Arr` has no member named `keyOf` ``.
+Verification passed: `cargo build`/`test`/`clippy`/`fmt` green, 350 cases through `mwl test tests/`, and
+`tools/leak-check.sh` reports zero definite losses over a fixture that exercises every new retain edge
+inside a loop body. Stage 2 of [`loop-goal.toml`](loop-goal.toml) now stops one line further into
+`examples/nullable.mwl`, on `"42" as ?int`.
 
 ## Next
 
-**Define strict identity over two `mwl_runtime::Value`s, then land the members that compare.** That one
-comparison is what `Core\Arr::keyOf`, `contains`, `min`, `max`, `unique`, `diff` and `intersect` all need,
-and `examples/nullable.mwl` — Stage 2's current stopping point — needs `keyOf` specifically. Deciding what
-object identity *means* there is pre-authorized in [`loop-goal.md`](loop-goal.md) § *Standing decisions*,
-and the home for the answer is `mwl-runtime`'s own module doc. `mwl-stdlib`'s known gap 3 lists the same
-set. **Every new `Core` member owes a `.mwlt` case in the same session**;
-`every_part_one_member_has_a_conformance_case` fails naming it otherwise.
+**Lower ADR 0066's `as ?T`** — `mwl-ir`'s gap 4, the *checked* conversion rows (`Str as Int` and its
+siblings) in a non-throwing form that yields `null` where the throwing one would throw. It is what
+`examples/nullable.mwl` stops on, so it is the whole of Stage 2's remaining distance, and the
+representation it lands in already exists: `mwl_ir::Ty::Tagged`, with `Tag`/`IsNull` to build and test the
+answer. [ADR 0066](../adr/0066-nullable-conversion-operator.md) owns the semantics.
 
 ## Backlog
 
+- **`Core\Arr::diff`/`intersect`** — the last two set members; they need a `Core\SetOn { Values, Keys,
+  Both }` enum in `registry::ENUMS` and an `{on?, by?, comparator?}` bag, both shapes the registry can
+  already state. `docs/spec/01-core-library.md` § 2 *Combining* has the rules.
 - **A `?T` parameter defaulting to `null` is untried** — `Core\Str::slice`'s `?int $length = null`, the
-  spec's most common optional shape. Every piece is in place; `mwl-stdlib`'s gap 3 says so.
+  spec's most common optional shape. `mwl-stdlib`'s gap 3 says every piece is in place.
 - **A variadic parameter, and `CoreTy::Decimal`** — the two signature shapes still missing, blocking ADR
   0069's combination members and `Arr::sum`/`product`/`average`. `mwl-stdlib`'s gap 3 names both sets.
-- **ADR 0066's `as ?T` operator does not lower** — it needs `mwl-ir`'s gap 4, the *checked* conversion
-  rows, in a non-throwing form. `examples/nullable.mwl` uses `"4x" as ?int`.
 - **`?->` does not lower on either side** — `mwl-ir` gap 6, also in `examples/nullable.mwl`. It is one
   `IsNull` over the receiver plus the branch `lower_coalesce` already builds.
 - **`for`/`switch`/`match`, compound assignment and `decimal`'s IR** — `mwl-ir` gaps 1, 16 and 15, all
@@ -69,8 +68,9 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
 - **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator, so
   write `($a > $b) as string`; `bool as string` is PHP's `""`/`"1"`, not `"false"`/`"true"`; a bare array
-  literal in a `foreach` head types as `mixed`; a `foreach` key binding must be declared `string` even over
-  a list; `Core\Str::length` and `Core\Arr::count` return `uint`; a union interns sorted by type id, so
+  literal in a `foreach` head or a call argument types as `mixed`; a `foreach` key binding must be declared
+  `string` even over a list; `Core\Str::length` and `Core\Arr::count` return `uint`; `Core\Str::join` takes
+  an `array<string>`, so an `array<int>` needs a `map` first; a union interns sorted by type id, so
   `?string` describes as `string|null`; a `catch` binding is function-scoped **until this loop re-scopes
   it** (pre-authorized); `Exception` is spelled `Core\Error` and a typed `catch` on a `Core` class does not
   lower yet.
