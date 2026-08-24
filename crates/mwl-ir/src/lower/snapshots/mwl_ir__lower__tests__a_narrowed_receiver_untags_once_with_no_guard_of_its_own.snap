@@ -1,0 +1,33 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, tagged) -> int {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; tagged
+    ; stmt s0 @9:5-11:6
+    v2 = is.null v1  ; bool
+    v3 = not v2  ; bool
+    branch v3 -> bb2 (e0), bb1 (e1)
+  bb1:
+    ; stmt s3 @12:5-12:14
+    v6 = const.int 0  ; int
+    release v1
+    release v0
+    return v6
+  bb2:
+    ; stmt s1 @9:24-11:6
+    ; stmt s2 @10:7-10:28
+    v4 = untag v1  ; object
+    retain v4
+    v5 = call Foo::greet(this: v4) ! bb3  ; int
+    release v1
+    release v0
+    return v5
+  bb3:
+    release v1
+    release v0
+    propagate "m() at t.mwl:10"
+}

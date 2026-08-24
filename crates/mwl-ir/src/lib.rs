@@ -127,13 +127,19 @@
 //!    ADR 0066's `as ?T` ([`lower::Lowering::convert_or_null`]) is the first
 //!    thing here that *reads* a tag instead — its helper dispatches on the
 //!    operand's, which is what a `mixed` source costs, and is the shape the
-//!    rest of this gap closes in. `?->` reads one too, but only to test it
-//!    ([`lower::Lowering::open_nullsafe`]).
+//!    rest of this gap closes in. `.` and `echo` read one the same way
+//!    ([`ir::Helper::TaggedToString`]). `?->` reads one only to *test* it
+//!    ([`lower::Lowering::open_nullsafe`]), as does `=== null`/`!== null`,
+//!    which is one [`ir::InstKind::IsNull`] rather than a comparison against
+//!    a `null` constant — and a plain `->` on the receiver that test narrowed
+//!    is one unchecked [`ir::InstKind::Untag`]
+//!    ([`lower::Lowering::untag_receiver`]; `mwl_types::locals` owns the
+//!    proof).
 //!    What does not: reading a tagged value *without* a checker-proven
-//!    narrowing — arithmetic on a `mixed`, `.` concatenation, ADR 0035's
-//!    truthy table, an array access through a tagged base. Each panics
-//!    naming itself, and closing them adds [`ir::Helper`] variants dispatching
-//!    on the tag, not a second representation.
+//!    narrowing — arithmetic on a `mixed`, ADR 0035's truthy table, an array
+//!    access through a tagged base. Each panics naming itself, and closing
+//!    them adds [`ir::Helper`] variants dispatching on the tag, not a second
+//!    representation.
 //! 4. **One conversion row is missing, and every ADR 0066 § 3 refusal is.**
 //!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and ADR 0066's

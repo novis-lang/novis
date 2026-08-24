@@ -282,6 +282,63 @@ impl<'a> Lowering<'a> {
             {
                 self.lower_object_comparison(*op, expr, lhs, rhs, env, cur)
             }
+            // `$x === null` / `$x !== null` — a *tag* comparison, not a value
+            // one. Split out ahead of the general arm below for two reasons,
+            // and either alone would be enough: `null` has its own
+            // representation, so the general arm would hand `mwl-codegen` a
+            // `BinOp` over two different ones; and a `Ty::Tagged` operand's
+            // strict identity is `mwl_runtime::value_identical`, never a
+            // machine compare of the register pair. This is also the test
+            // `mwl_types::locals`' narrowing reads, so the two agree on
+            // exactly one spelling.
+            //
+            // Loose `==`/`!=` deliberately stays in the general arm: PHP's
+            // `0 == null` is *true*, so it is a truthy-table question rather
+            // than a tag one (`mwl-ir` gap 1 owns it).
+            ExprKind::Binary {
+                op: op @ (BinaryOp::Identical | BinaryOp::NotIdentical),
+                lhs,
+                rhs,
+            } if matches!(lhs.kind, ExprKind::Null) != matches!(rhs.kind, ExprKind::Null) => {
+                let operand = if matches!(lhs.kind, ExprKind::Null) {
+                    rhs
+                } else {
+                    lhs
+                };
+                let (v, ty) = self.lower_expr(operand, None, env, cur);
+                // A representation that is not `Ty::Tagged` cannot hold
+                // `null` at all, so the answer is a constant — the same
+                // reasoning `Self::open_nullsafe` applies to `?->` on a
+                // receiver that cannot be `null`. The operand is still
+                // lowered (it may have side effects) and released if nothing
+                // else owns it, exactly like the general arm's comparison.
+                if ty != Ty::Tagged {
+                    if ty.is_refcounted() && !self.aliasing_read(operand) {
+                        self.emit_release(*cur, v);
+                    }
+                    let is_null = matches!(ty, Ty::Null);
+                    return self.emit(
+                        *cur,
+                        Ty::Bool,
+                        InstKind::ConstBool(is_null == (*op == BinaryOp::Identical)),
+                    );
+                }
+                let (is_null, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: v });
+                if !self.aliasing_read(operand) {
+                    self.emit_release(*cur, v);
+                }
+                if *op == BinaryOp::Identical {
+                    return (is_null, Ty::Bool);
+                }
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::UnOp {
+                        op: UnOp::Not,
+                        operand: is_null,
+                    },
+                )
+            }
             ExprKind::Binary { op, lhs, rhs } => {
                 let (lv, lty) = self.lower_expr(lhs, expected, env, cur);
                 let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
@@ -1789,8 +1846,12 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty, Option<NullsafeGuard>) {
         let (object_v, object_ty) = self.lower_expr(object, None, env, cur);
-        if !nullsafe || object_ty != Ty::Tagged {
+        if object_ty != Ty::Tagged {
             return (object_v, object_ty, None);
+        }
+        if !nullsafe {
+            let (v, ty) = self.untag_receiver(object_v, object_ty, *cur);
+            return (v, ty, None);
         }
         let is_null = self
             .emit(*cur, Ty::Bool, InstKind::IsNull { operand: object_v })
@@ -1827,6 +1888,32 @@ impl<'a> Lowering<'a> {
             }),
         )
     }
+    /// The receiver a plain `->` reaches a member through, when its slot
+    /// holds a [`Ty::Tagged`] value.
+    ///
+    /// A `?T` local is one slot wide whatever a condition later proves about
+    /// it, so `if ($m !== null) { $m->text(); }` reads a tagged value and
+    /// hands it to a call that wants an object. The [`InstKind::Untag`] here
+    /// is what makes that the object again, and it is **unchecked on
+    /// purpose**: `mwl_types::locals`' narrowing is what proves the tag, the
+    /// same way the `?->` branch above proves it with a test. Reaching here
+    /// with an un-narrowed receiver is impossible — the checker either
+    /// refuses it (`E0459`) or records no resolved target at all, and the
+    /// member arms panic on the missing entry before this is called.
+    ///
+    /// Ownership is unchanged, exactly as in the `?->` arm: the untagged
+    /// value owns the reference the tagged one owned, and the aliasing retain
+    /// each member access already emits applies to it once.
+    pub(super) fn untag_receiver(&mut self, v: ValueId, ty: Ty, cur: BlockId) -> (ValueId, Ty) {
+        if ty != Ty::Tagged {
+            return (v, ty);
+        }
+        (
+            self.emit(cur, Ty::Object, InstKind::Untag { operand: v }).0,
+            Ty::Object,
+        )
+    }
+
     /// Closes the guard [`Self::open_nullsafe`] opened, merging the member's
     /// own value with the `null` the short-circuiting arm answers.
     ///

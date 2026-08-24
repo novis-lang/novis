@@ -1,0 +1,47 @@
+--TEST--
+`!== null` narrows a nullable local so `->` reaches a member of it — ADR 0066, in both branches and after a guard clause
+--FILE--
+<?mwl
+class Finder {
+    static function idOf(string $subject): string {
+        var $m = Core\Regex::match($subject, "id-(\\d+)");
+        if ($m === null) {
+            return "none";
+        }
+        return $m->group(1) ?? "none";
+    }
+}
+
+var $hit = Core\Regex::match("order-4711", "order-(\\d+)");
+if ($hit !== null) {
+    echo "then=" . ($hit->group(1) ?? "?") . "\n";
+} else {
+    echo "then=missing\n";
+}
+
+var $miss = Core\Regex::match("nothing", "order-(\\d+)");
+if ($miss === null) {
+    echo "else=missing\n";
+} else {
+    echo "else=" . ($miss->group(1) ?? "?") . "\n";
+}
+
+var $flip = Core\Regex::match("order-42", "order-(\\d+)");
+if (null !== $flip) {
+    echo "flipped=" . ($flip->group(1) ?? "?") . "\n";
+}
+
+var $negated = Core\Regex::match("order-7", "order-(\\d+)");
+if (!($negated === null)) {
+    echo "negated=" . ($negated->group(1) ?? "?") . "\n";
+}
+
+echo "guarded=" . Finder::idOf("id-99") . "\n";
+echo "guarded=" . Finder::idOf("nope") . "\n";
+--EXPECT--
+then=4711
+else=missing
+flipped=42
+negated=7
+guarded=99
+guarded=none

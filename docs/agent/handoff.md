@@ -2,32 +2,34 @@
 
 ## State
 
-**Every signature shape the spec writes can now be stated.** The last missing one was a **variadic**
-parameter, and it landed end to end this session as `registry::CoreTy::Variadic`:
+**A `!== null` test now narrows a local**, so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's
+flow-sensitive rule, in its `=== null`/`!== null` spelling. That was the last thing `examples/text.mwl`
+needed, so **Stage 3 is four of its seven fixtures** on both legs; `dates.mwl` is the first that still
+fails, wanting spec § 4's time types over `jiff`.
 
-- **One ABI argument, not one per written argument.** `mwl_ir::lower::lower_variadic_tail` collects every
-  argument from that parameter's position into a fresh `array<T>`, so a variadic member is an ordinary
-  `args: [N]` helper. That variant's own doc comment owns the shape, the rejected alternative and the
-  ownership rule; `mwl-ir`'s gap 8 is now only *named*/`...spread` arguments.
-- **`MethodSig::required()` stops one short for a variadic signature**, and `check_args_typed` keeps the
-  lower arity bound while dropping the upper one — `expected at least 1 argument(s)`.
-- **`Core\Str::format` is the first row to declare one.** The whole `printf` grammar is
-  `crates/mwl-stdlib/src/format.rs`, which owns the closed conversion list, what it refuses and why, and
-  the one thing still owed (ADR 0057's compile-time check of a *literal* template).
+- **`mwl_types::locals`' module doc is the home** for what a narrowing is, what invalidates one
+  (every write path calls `LocalScope::overwrite`, and that list is named there) and the two places the
+  walk deliberately refuses to prove anything — a loop body, and any residue that is not a class.
+- **`mwl-ir` turns a narrowed receiver into one unchecked `Untag`** (`Lowering::untag_receiver`), the
+  same instruction `?->` emits in its non-`null` arm and with the same ownership. `=== null`/`!== null`
+  itself is now one `IsNull` rather than a `BinOp` against a `null` constant, which is what it always
+  had to be — `mwl-ir` gap 3 records both.
+- `crates/mwl-types/tests/narrowing.rs` (11 cases) holds the refusals as tightly as the acceptances,
+  because an over-eager narrowing would be a wrong untag rather than a diagnostic.
 
-Verified: `cargo build`/`test`/`clippy`/`fmt` green, 304 conformance + 86 differential cases, and
-`tools/leak-check.sh` clean over a fifty-iteration fixture that passes the same refcounted local twice
-into one variadic call. Every expectation in `format.rs`'s unit tests and in the differential case came
-out of PHP 8.5's own `vsprintf` before it was written down.
+Verified: `cargo build`/`test`/`clippy`/`fmt` green, 390 `.mwlt` cases on Windows and 310 (differential
+skipped, no PHP in WSL) on Linux, and `tools/leak-check.sh` clean over a fifty-iteration fixture calling
+a `Core` instance member, a user method and a property read *and* write through a narrowed receiver.
 
 ## Next
 
-**Narrowing a local through `!== null`.** It is the *only* thing `examples/text.mwl` still needs —
-`if ($found !== null) { $found->group(1); }` is E0459 where `?->` works — so it is what turns the loop's
-Stage 3 from three fixtures to four. `mwl_types::locals` is where a local's type lives, and
-`mwl_types::expr`'s `Binary` arm is where the condition is checked; the shape to build is a per-branch
-narrowing of a `Union` that drops its `null` member inside the `then` block. ADR 0066's own body is the
-rule; `docs/agent/loop-goal.md` § *The gaps that actually sit on the path* names it.
+**Spec § 4's time types over `jiff`** — `Instant`, `DateTime`, `Duration`, `Zone`, which
+`examples/dates.mwl` is the frozen check for. Every shape they need exists: `registry::CoreClass`'s
+`instance` roster and `slots` layout carry a `Core`-owned instance (`Core\Regex\Match` is the worked
+example), and `CoreTy::Instance` names one as a type. ADR 0070's **duration literal** is folded into this
+slice by `docs/agent/loop-goal.md` § *Standing decisions*: `Core\Time\Duration::parse` shares one grammar
+and one implementation with it, so build the literal first and `parse` is the same parser from a second
+entry point.
 
 ## Backlog
 

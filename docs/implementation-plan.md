@@ -48,7 +48,7 @@
 > `instance`, `Order` and `RoundMode`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, and
 > the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 304 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
+> `tests/conformance` × 306 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and
 > `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows SDK
@@ -82,9 +82,11 @@
 > instance** is no longer one:
 > `registry::CoreClass` carries an `instance` roster and a `slots` layout, `CoreTy::Instance` names one as
 > a type, and `crates/mwl-stdlib/src/instance.rs` is the value behind it — so § 4's four time types, § 9's
-> three collections and § 12's `Uri` need only their members. Two language holes now sit on the path:
-> nothing **narrows** a local through `!== null`, so `if ($m !== null) { $m->text(); }` is refused (E0459)
-> where `?->` works, and ADR 0070's duration literal is folded in. Also open: ADR 0047's checker row,
+> three collections and § 12's `Uri` need only their members. **A `!== null` test now narrows a local**,
+> so `if ($m !== null) { $m->text(); }` runs — ADR 0007 § 6's flow-sensitive rule, one of its four
+> spellings, with `mwl_types::locals` the home for what invalidates a narrowing and where the walk
+> refuses to prove one. The M4 hole left on the path is ADR 0070's duration literal. Also open: ADR
+> 0047's checker row,
 > `autoload` (0061), a `decimal` parameter *default* (`mwl_types::defaults`), class-member
 > `private`/`protected`, which nothing enforces, and the reserved `Comparable`/`Stringable` interfaces,
 > which carry no member signatures.
@@ -99,11 +101,9 @@
 > `mwl_types::expr::is_assignable`), object identity (now settled and recorded in
 > `mwl_runtime::identity`), and picking every dependency but the two the user named. Stages 1 and 2 pass
 > whole on both legs, so any failure below Stage 3 is a regression rather than unfinished work. The loop is
-> on **Stage 3**, `Core` Part I across all twelve spec sections: three of its seven fixtures produce their
-> frozen output — `examples/core.mwl`, `report.mwl` and `numbers.mwl` — and `text.mwl` is the first that
-> does not. Its whole `Core\Regex` half now runs, `Match` included, and so do its
-> `wrap`/`reverse`/`indexOf`/`before` and `format` calls; the one thing it still needs is the `!== null`
-> narrowing its `if` writes.
+> on **Stage 3**, `Core` Part I across all twelve spec sections: four of its seven fixtures produce their
+> frozen output on both legs — `examples/core.mwl`, `report.mwl`, `numbers.mwl` and now `text.mwl` — and
+> `dates.mwl` is the first that does not, wanting spec § 4's four time types over `jiff`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

@@ -589,12 +589,14 @@ pub mod code {
     /// receiver is argument slot 0 at the ABI, so the static spelling would
     /// pass the arity check with the receiver written as an ordinary argument.
     pub const E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY: Code = Code::new("E0458");
-    /// A plain `->` on a receiver whose type includes `null` — `?->` is the
-    /// spelling that reaches a member of one. PHP throws for this at run time;
-    /// MWL refuses it while compiling, because `?T` is one union with no class
-    /// to resolve a member against. A `!== null` test does not yet narrow the
-    /// receiver (see `mwl_types::locals`' own gaps), so this fires inside such
-    /// a block too, and will stop when narrowing lands.
+    /// A plain `->` on a receiver whose type includes `null` — `?->`, or a
+    /// `!== null` test around it, is how a member of one is reached. PHP
+    /// throws for this at run time; MWL refuses it while compiling, because
+    /// `?T` is one union with no class to resolve a member against. Inside a
+    /// block a `!== null`/`=== null` test proved the receiver non-`null`
+    /// (`mwl_types::locals`' narrowing) this does not fire at all — until
+    /// something in that block assigns the local again, which takes the
+    /// narrowing back off.
     pub const E_NULLABLE_RECEIVER: Code = Code::new("E0459");
 
     // --- E05xx IR and codegen ----------------------------------------------

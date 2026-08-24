@@ -2525,6 +2525,20 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
+    /// `if ($obj !== null) { $obj->greet(); }` — the receiver's slot is still
+    /// one tagged value, so the plain `->` reads it back with a single
+    /// unchecked `untag` and no test of its own. The `!== null` in the
+    /// condition is the *only* tag test, and it is one `is.null` rather than
+    /// a comparison against a `null` constant. See
+    /// `Lowering::untag_receiver`.
+    #[test]
+    fn a_narrowed_receiver_untags_once_with_no_guard_of_its_own() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): int {\n    if ($obj !== null) {\n      return $obj->greet();\n    }\n    return 0;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
     /// `$this->count` — a property access through the implicit receiver,
     /// resolved to its declaring class via `ExprInfo::Property`.
     #[test]

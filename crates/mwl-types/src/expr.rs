@@ -875,6 +875,7 @@ fn infer(
             }
         }
         ExprKind::PreIncDec { expr: inner, .. } | ExprKind::PostIncDec { expr: inner, .. } => {
+            note_write(inner, scope, env);
             check_expr(inner, None, live, scope, ctx, env)
         }
         ExprKind::Binary { op, lhs, rhs } => {
@@ -1586,6 +1587,7 @@ fn check_compound_assign(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    note_write(target, scope, env);
     let target_ty = check_expr(target, None, live, scope, ctx, env);
     // [`infer`] rather than [`check_expr`]: the target's type is a *hint* for
     // an untyped literal here, not a position the value has to satisfy — the
@@ -1624,7 +1626,10 @@ fn check_assign(
     }
     if let (AssignOp::Assign, ExprKind::Variable(span)) = (op, &target.kind) {
         let name = strip_sigil(span_text(env.src, *span)).to_owned();
-        let declared = scope.declared_ty(&name);
+        // `overwrite`, not `declared_ty`: a write is checked against what the
+        // binding was *declared* as, and drops whatever a `!== null` test
+        // narrowed it to — see `crate::locals`' narrowing docs.
+        let declared = scope.overwrite(&name);
         let value_ty = check_expr(value, declared, live, scope, ctx, env);
         match declared {
             Some(ty) => {
@@ -2103,13 +2108,13 @@ fn strip_nullsafe_receiver(
     // load-bearing one: PHP throws at run time for exactly this, and
     // `mwl-ir` has no lowering for it at all — `class_qname_of` answers
     // nothing for a union, so no target is recorded and lowering panics naming
-    // the span. `?->` is the spelling that works today.
+    // the span.
     //
-    // **This is also what a `!== null` narrowing has to remove.** Nothing
-    // narrows a local's type through a condition yet (`crate::locals`' own
-    // gaps), so `if ($m !== null) { $m->text(); }` — which every PHP program
-    // writes — lands here. When narrowing lands, the receiver inside that
-    // block is no longer nullable and this stops firing on its own.
+    // `if ($m !== null) { $m->text(); }` — which every PHP program writes —
+    // does not land here: `crate::locals`' narrowing gives the receiver the
+    // class type inside that block, so this sees a resolved class rather than
+    // a union. What still lands here is a receiver nothing tested, and one a
+    // write inside the block widened again.
     if env.interner.is_nullable(object_ty) && !matches!(env.interner.get(object_ty), Ty::Null) {
         let described = env.interner.describe(object_ty);
         env.diags.report(
@@ -2118,7 +2123,10 @@ fn strip_nullsafe_receiver(
                 format!("`{described}` may be `null`, so `->` cannot reach a member of it"),
             )
             .with_primary(span, "this receiver is nullable")
-            .with_help("use `?->`, which answers `null` instead of reaching the member"),
+            .with_help(
+                "test it first — inside `if ($x !== null) { … }` the receiver is no longer \
+                 nullable — or use `?->`, which answers `null` instead of reaching the member",
+            ),
         );
     }
     object_ty
@@ -2273,7 +2281,18 @@ pub(crate) fn check_unset_target(
         // nothing because the receiver's type still carried `null`.
         check_property_access(object, property, *nullsafe, true, live, scope, ctx, env);
     } else {
+        note_write(expr, scope, env);
         check_expr(expr, None, live, scope, ctx, env);
+    }
+}
+
+/// Drops whatever a dominating `!== null` test proved about `expr`, when
+/// `expr` is a plain local — the call every write path in this module owes,
+/// listed in `crate::locals`' narrowing docs. A write through a property or
+/// an element cannot change what a *local* holds, so it has nothing to drop.
+fn note_write(expr: &Expr, scope: &LocalScope, env: &Env<'_>) {
+    if let ExprKind::Variable(span) = &expr.kind {
+        scope.overwrite(strip_sigil(span_text(env.src, *span)));
     }
 }
 
@@ -2677,6 +2696,7 @@ fn check_args_typed(
         };
         let actual = check_arg(&arg.value, expected, live, scope, ctx, env);
         if sig.is_by_ref(i) {
+            note_write(&arg.value, scope, env);
             check_by_ref_arg(arg, actual, expected, env);
         }
         arg_types.push(actual);

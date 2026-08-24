@@ -428,6 +428,10 @@ impl<'a> Lowering<'a> {
                 let field_name = name.clone();
                 if let Some(label) = set {
                     let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                    // A narrowed `?T` receiver arrives tagged — see
+                    // `Lowering::untag_receiver`, which the read side reaches
+                    // through `open_nullsafe`.
+                    let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
                     if receiver_ty.is_refcounted() && self.aliasing_read(object) {
                         self.emit_retain(*cur, object_v);
                     }
@@ -447,7 +451,8 @@ impl<'a> Lowering<'a> {
                         env,
                     );
                 } else {
-                    let (object_v, _) = self.lower_expr(object, None, env, cur);
+                    let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+                    let (object_v, _) = self.untag_receiver(object_v, receiver_ty, *cur);
                     let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
                     if field_ty.is_refcounted() && self.aliasing_read(value) {
                         self.emit_retain(*cur, v);
