@@ -2,57 +2,47 @@
 
 ## State
 
-**A new loop goal is set, and its acceptance list fails by design.** The previous loop reached the old
-list; that list was a threshold, not a milestone, and it stopped with `Core` at 39 of ~205 spec member
-rows. The new goal is **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written
-without**: [`loop-goal.md`](loop-goal.md) is the prose and the standing decisions,
-[`loop-goal.toml`](loop-goal.toml) the checks. Read both before starting; every design call this loop
-reaches is already pre-authorized there, so **`BLOCKED` should not be needed**.
+**The keystone is built.** `mixed`, `?T` and every other union now share one representation —
+`mwl_ir::Ty::Tagged`, a 16-byte `mwl_runtime::Value` in a register pair — with `Tag`/`Untag`/`IsNull` to
+widen into it, narrow out of it and test it, and `Lowering::coerce` as the one place the first two are
+emitted. That variant's own doc comment owns the decision and what it spends; `mwl-runtime`'s module doc
+owns the heap half (which is: nothing is allocated). `??` and the literal `null` landed with it, and
+`mwl-ir`'s gap 5 closed behind it, so a short-circuit composes in **any** nested position — `lower_expr`
+and `lower_expr_top` are one function now.
 
-**Stage 1 of the new list is the old list, unchanged, and passes today** — it is a non-regression floor,
-never traded for anything above it. Stages 2 and 3 add seven new fixtures that do not compile yet:
-`nullable.mwl`, `match.mwl`, `text.mwl`, `numbers.mwl`, `dates.mwl`, `json.mwl`, `collect.mwl`. Their
-expected output is frozen; their *source* is a reading of the spec by someone who could not compile it, so
-correcting a signature, an enum namespace or an options bag in one is a bug fix, not a decision.
-
-**Nothing else changed.** No Rust was touched this session — the plan's status block, the two spec folds
-(`Uri::parseQuery`, `levenshtein`) and the goal files are the whole diff.
+Both legs are green, valgrind included: Stage 1 of [`loop-goal.toml`](loop-goal.toml) passes on Windows and
+under WSL, 263 conformance and 82 differential cases pass, and `tools/leak-check.sh` reports zero definite
+losses over two fixtures written for the new refcount edges. Stage 2 now stops on
+`` `Core\Arr` has no member named `first` `` — a missing member, not a missing representation.
 
 ## Next
 
-**The keystone: `?T` and the `mixed` runtime tag, decided as one design.** `mwl-ir`'s gap 3 is the whole
-blocker — no nullable representation, no `null`, and `mixed` erases but does not dispatch. Every
-`?T`-returning member in all twelve spec sections waits on it, and so does ADR 0066's `as ?T`, `??` and
-`?->`. `examples/nullable.mwl` is the gate that says it works end to end. Record the representation and
-what it spends per value in `mwl-ir`'s module doc (IR half) and `mwl-runtime`'s (heap half) — a numbered
-ADR is explicitly *not* wanted for it.
+**Teach `mwl_stdlib::registry`'s `CoreTy` the three shapes a Part I signature needs, then land the members
+that were waiting on them.** A `?T` return has a representation now but no way to be *written down*: that
+enum has no nullable, no variadic parameter and no union return (its own module doc's *Known gap* names the
+first). Each is a variant here plus a lowering arm in `mwl_types::core_lib` — `Nullable` interns as
+`Union([Null, T])`, which is exactly what `mwl_ir::lower_checked_ty` already maps to `Ty::Tagged`.
 
-Then, in the order the fixtures gate them: a **variadic** parameter and a **union return** (`mwl-stdlib`'s
-gap 3 and `CoreTy::Union`'s docs), **compound assignment** (`mwl-ir` gap 16 — a desugar), **`for`/`switch`/
-`match`** (gap 1 — every terminator already exists), **`decimal`'s IR** (gap 15), and **ADR 0070's duration
-literal**, which `Core\Time\Duration::parse` shares an implementation with, so build the literal first.
-
-Only then the breadth: `Core\Str` and `Core\Arr` to their last member, then §§ 3–12. **Every new `Core`
-member owes a `.mwlt` case in the same session** — `every_part_one_member_has_a_conformance_case` fails
-naming it otherwise. Stage 4 also names a test that **does not exist yet**,
-`every_part_one_spec_member_is_registered`: it must read the member rows out of
-[the spec](../spec/01-core-library.md) §§ 1–12 and fail naming every one with no registry entry. That test,
-not a case count, is what "Part I is complete" means.
+With them: `Core\Arr::first`, `last`, `keyOf`, `firstKey`, `lastKey`, `find`, `findKey`, `min`, `max`,
+`sum` and ADR 0069's `overlay`/`underlay`/`appendAll` — the set `examples/nullable.mwl` and
+`examples/collect.mwl` gate. **Every new `Core` member owes a `.mwlt` case in the same session**;
+`every_part_one_member_has_a_conformance_case` fails naming it otherwise.
 
 ## Backlog
 
+- **ADR 0066's `as ?T` operator does not lower** — it needs `mwl-ir`'s gap 4, the *checked* conversion
+  rows, in a non-throwing form. `examples/nullable.mwl` uses `"4x" as ?int`.
+- **`?->` does not lower on either side** — `mwl-ir` gap 6. It is one `IsNull` over the receiver plus the
+  branch `lower_coalesce` already builds.
+- **A ternary whose branches lower to two different representations panics** — `mwl-ir` gap 5, all that is
+  left in that slot. Closing it is an `ExprInfo` entry like `Coalesce`'s, plus `coerce` on each arm.
 - **`private`/`protected` is not enforced at all**, and the reserved `Comparable`/`Stringable` interfaces
-  carry no member signatures — `mwl-types`' own gap list. `Core\Heap`'s ordering needs the first,
-  `Duration`'s `Stringable` the second, so both are likely to stop being backlog mid-loop.
+  carry no member signatures — `mwl-types`' own gap list. `Core\Heap` needs the first, `Duration` the
+  second.
+- **`for`/`switch`/`match`, compound assignment and `decimal`'s IR** — `mwl-ir` gaps 1, 16 and 15, all
+  in scope per [`loop-goal.md`](loop-goal.md). `examples/match.mwl` needs the first two.
 - **An abandoned generator skips the `finally` it is suspended inside** — `mwl-ir` gap 18, the one PHP
   divergence the corpus has found and not closed.
-- **`new` on an `abstract` class is not refused, and `$n->foo()` on a scalar receiver panics `mwl-ir`** —
-  both missing `mwl-types` diagnostics.
-- **`autoload` (ADR 0061) and ADR 0047's checker row** are re-opened M1/M2 slices, off this loop's path
-  unless a fixture needs them — see M1's own section in [the plan](../implementation-plan.md).
-- **`docs/spec/02-php-migration.md` is 31% classified**, one pass per PHP domain remaining
-  (`python tools/check-migration.py`). It becomes a tested claim as §§ 1–12 land.
-- **ADR 0078 is decided but unbuilt** — scheduled into M6/M7/M9, needs nothing before then.
 - **`crates/mwl-ir/src/lib.rs`'s module doc is a slice-by-slice changelog** of the kind AGENTS.md forbids —
   the one doc genuinely owed a trim, but never from inside the loop.
 
@@ -65,9 +55,9 @@ the current rule**; if it disagrees with a cross-link, the body is the bug. **No
 so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflow*: work, verify once, docs
 + handoff, commit, **stop** — no second `cargo` pass after the commit. Tooling notes:
 
-- **The Bash tool eats a backslash inside a heredoc**, and an apostrophe-heavy one can fail to parse at
-  all. Use the Write tool, or `python tools/splice.py <target> <old> <new>` with both blocks written to
-  `.agent-tmp/`. A throwaway `.agent-tmp/*.py` script run with `python` is fine for a bulk edit.
+- **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
+  exact-match splice. Use the Write tool, or `python tools/splice.py <target> <old> <new>` with both blocks
+  written to `.agent-tmp/`. A throwaway `.agent-tmp/*.py` script run with `python` is fine for a bulk edit.
 - **A scratch `.mwl` under `.agent-tmp/` run with `mwl run` is the fastest way to find out whether a shape
   lowers**, and is worth doing before writing a batch of cases around it. Keep a PHP twin beside it.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
@@ -77,9 +67,11 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
 - **`Core\Path` emits a platform separator**, so a fixture or case asserting a built path must normalize it
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
 - **The traps that cost the most time are not gaps**: `as` binds tighter than every binary operator, so
-  write `($a > $b) as string`; a bare array literal in a `foreach` head types as `mixed`; a `foreach` key
-  binding must be declared `string` even over a list; `Core\Str::length` and `Core\Arr::count` return
-  `uint`; a `catch` binding is function-scoped **until this loop re-scopes it** (pre-authorized).
+  write `($a > $b) as string`; `bool as string` is PHP's `""`/`"1"`, not `"false"`/`"true"`; a bare array
+  literal in a `foreach` head types as `mixed`; a `foreach` key binding must be declared `string` even over
+  a list; `Core\Str::length` and `Core\Arr::count` return `uint`; a `catch` binding is function-scoped
+  **until this loop re-scopes it** (pre-authorized); `Exception` is spelled `Core\Error` and a typed
+  `catch` on a `Core` class does not lower yet.
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud

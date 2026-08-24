@@ -7,19 +7,17 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-24. **M3 is done; the first M4 + M4S loop reached its acceptance list, and a second
-> loop is now defined against what that list left open.** That list was a threshold, not a milestone: it
-> stopped with `Core` at 39 of ~205 spec member rows, `Core\Str` and `Core\Arr` the only registered classes,
-> and §§ 3–12 not existing. Current: **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be
-> written without**, decided with the user and written into `docs/agent/loop-goal.md` and its `.toml`. The
-> keystone is one representation: **`?T` has no IR arm**, and neither does `null`, which is what makes every
-> `?T`-returning member across all twelve sections unstatable. Beside it, a variadic parameter and a union
-> return. Three M4 holes are folded in because the corpus cannot route around them — compound assignment,
-> `for`/`switch`/`match`, and `decimal`'s IR — as is ADR 0070's duration literal, which `Duration::parse`
-> shares an implementation with. Dependencies: `regex` + `fancy-regex` and `jiff` are named by the user; the
-> rest the loop picks under ADR 0051 § 4. Two spec questions closed with the user: `Uri::parseQuery` reads
-> PHP's bracket convention in full (which settles `Core\Request::query` at M8), and there is no
-> `Core\Str::editDistance`.
+> **Status:** 2026-08-24. **M3 is done, and the second M4 + M4S loop has its keystone.** The goal is
+> **M4S Part I in full — spec §§ 1–12 — plus the M4 surface it cannot be written without**, in
+> `docs/agent/loop-goal.md` and its `.toml`. The keystone was one representation, and it is built:
+> **`mixed`, `?T` and every other union share `mwl_ir::Ty::Tagged`**, a 16-byte `Value` in a register
+> pair, with `Tag`/`Untag`/`IsNull` to get in, out and test — that variant's own doc comment and
+> `mwl-runtime`'s own are the two homes. `??` and the literal `null` came with it, and `mwl-ir`'s gap 5
+> closed behind it, so a short-circuit composes in any nested position. Still owed before a `?T`-returning
+> `Core` member can be *registered*: a variadic parameter, a union return, and `CoreTy` growing a nullable.
+> Three M4 holes stay folded in — compound assignment, `for`/`switch`/`match`, `decimal`'s IR — as is ADR
+> 0070's duration literal, which `Duration::parse` shares an implementation with. Dependencies: `regex` +
+> `fancy-regex` and `jiff` are named by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup); M1 (front end — lexer with dual mode, inline HTML, heredoc/nowdoc and
 > interpolation, the full parser, and the M1-scoped grammar of ADRs
@@ -36,7 +34,7 @@
 > `conformance`, `defaults`), `mwl-ir`, `mwl-runtime` (+ `object`, `array`, `throwable`, `closure`),
 > `mwl-stdlib` (`Arr` × 20, `Str` × 19, `granularity`, `Order`, and the conformance-coverage gate),
 > `mwl-codegen`, `mwl-cli` (`ast`, `check`,
-> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 260 (in
+> `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`), `tests/conformance` × 263 (in
 > `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and `reject`) and `tests/differential` × 82,
 > `fuzz/`, `tools/`, `benches/abi-probe`.
 >
@@ -47,13 +45,14 @@
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax + default/private-method
 > slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023 § 1, 0035 § 4, 0031 §§ 1-2,
-> 0065, **0029/0030** (the casing checker existed but no pipeline called it) and **0053 and 0009 in
-> full**; instance calls now dispatch on the receiver's runtime class. Each ADR's own *Verification*
-> section says what its slice covers, not this field.
+> 0065, **0029/0030** (the casing checker existed but no pipeline called it), **0053 and 0009 in full**,
+> and **0066's `?T` half** — a nullable binding, parameter, property and return, `null` itself and `??`
+> all run, leaving that ADR's `as ?T` operator owed. Instance calls dispatch on the receiver's runtime
+> class. Each ADR's own *Verification* section says what its slice covers, not this field.
 >
-> **Open now:** **the keystone, and everything waiting behind it.** `?T` and `null` have no IR
-> representation, `mixed` is a shape to erase into rather than dispatch on, a variadic parameter and a union
-> return cannot be stated — and between them those four block a `?T`-returning member in every one of spec
+> **Open now:** **`Core` breadth, and the three signature shapes it still needs.** A `?T`-returning member
+> now has a representation but no way to be *written down*: `mwl_stdlib::registry`'s `CoreTy` has no
+> nullable, no variadic parameter and no union return, which between them block every `?T` row in spec
 > §§ 1–12, ADR 0069's three combination members, `Math::abs` and `Arr::sum`. Behind them, `Core` §§ 3–12
 > have no registry class at all, and `Core\Str`/`Core\Arr` are incomplete. Folded in because the corpus
 > cannot route around them: compound assignment, `for`/`switch`/`match`, `decimal`'s IR, ADR 0070's duration
@@ -65,11 +64,11 @@
 >
 > **Blocking:** nothing external, and nothing waiting on a decision — every design call this loop reaches is
 > pre-authorized in `docs/agent/loop-goal.md` § *Standing decisions*, including the `?T`/`mixed`
-> representation itself, re-scoping a `catch` binding to its own handler block, widening `array<T>` to
-> element-covariant-on-read, defining object identity, and picking every dependency but the two the user
-> named. The previous loop's acceptance list is the new one's Stage 1 and passes today, so any failure below
-> Stage 2 is a regression rather than unfinished work. The seven new fixtures do not compile yet, which is
-> the goal, not a fault.
+> representation (now settled and recorded in `mwl_ir::Ty::Tagged`), re-scoping a `catch` binding to its
+> own handler block, widening `array<T>` to element-covariant-on-read, defining object identity, and
+> picking every dependency but the two the user named. Stage 1 of the acceptance list passes on both legs,
+> so any failure below Stage 2 is a regression rather than unfinished work. Stage 2 now stops on a missing
+> `Core` member rather than on a missing representation.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
