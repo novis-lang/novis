@@ -10,8 +10,9 @@
   paragraph named PHP's execution model as the reason MWL exists; § 2 below replaces that framing, because
   two of its three premises have since been answered inside PHP itself. The plan's *Consequences to accept*
   keeps every entry it had; nothing there was wrong, and § 5 below adds the one it was missing.
-- **Amended by:** none.
-- **Relates to:** 0003, 0004, 0005, 0006, 0024, 0033, 0051, 0052, 0055, 0059, 0081, 0082
+- **Amended by:** 0089 — the fold is applied below and this body states the current rule. § 3's porting-aid
+  bullet gains the two modes and the published share that make its honesty rule enforceable.
+- **Relates to:** 0003, 0004, 0005, 0006, 0024, 0033, 0051, 0052, 0055, 0059, 0081, 0082, 0089
 
 > **In short:** MWL's first serious user is the **multi-tenant or regulated platform** — a team whose
 > process runs code, or holds data, that the team did not write and cannot fully trust: SaaS platforms with
@@ -117,6 +118,10 @@ The syntax stays as every ADR already defines it. What this decides is the *clai
   its documentation must lead with what it cannot do: it cannot turn a facade into a declared method, a
   trait into [0043](0043-interface-default-methods-and-delegation-replace-traits.md) delegation, or an
   active-record model into a definitely-initialized class ([0022](0022-definite-property-initialization.md)).
+  [0089](0089-convert-is-one-rule-table-with-two-modes.md) makes that honesty mechanical rather than
+  editorial: its default mode emits only rewrites a differential case proves identical and comments out the
+  rest, `--mode=runnable` annotates every unproven rewrite at its own site, and `--check` publishes the
+  share — which is the number this bullet asks for, in place of a claim.
 
 ### 4. Why this does not end where Hack ended
 

@@ -1187,8 +1187,11 @@ agreeing byte-for-byte on the same file's formatted output and diagnostics — w
 `mwl dap` directly, since PhpStorm's debugger UI is still not expected to exist yet.
 
 ### M11 — PHP transpiler (~10 weeks)
-`mwl convert`: PHP source → AST → rewrite passes → idiomatic `.mwl` output. **This milestone is now on the
-critical path for adoption rather than a convenience**, because PHP has no syntax for a `foreach` binding's
+`mwl convert`: PHP source → AST → rewrite passes → `.mwl` output, under the contract
+[ADR 0089](adr/0089-convert-is-one-rule-table-with-two-modes.md) fixes — one rule table read through two
+modes, an equivalence claim that a differential case against the PHP oracle discharges, byte-for-byte
+determinism, nothing dropped, and a front end picked by that ADR's § 7 spike before any pass is written.
+**This milestone is now on the critical path for adoption rather than a convenience**, because PHP has no syntax for a `foreach` binding's
 or a destructuring target's type and [ADR 0007](adr/0007-explicit-type-system.md) requires one for both: the
 converter carries the type-inference engine MWL's compiler deliberately does not have for those two
 positions, and writes the annotations into the output for a human to review. A plain local is now
@@ -1198,51 +1201,15 @@ needed. Where the remaining inference cannot decide, it emits `mixed` with a `TO
 rather than guessing — an honest `mixed` runs, and a wrong annotation would not. That inference pass is the
 reason for the two extra weeks over the original estimate.
 
-Mechanical rewrites where possible (`global` → parameter passing, function-scope `static` → a
-`private static` property on the owning class or a parameter where there is no class, `static fn` → the
-keyword dropped ([ADR 0008](adr/0008-static-and-global.md)), `extract()` → explicit assignment,
-`settype()` → a second binding or an `as` conversion, every legacy `(int)`/`(string)`/… cast → the
-equivalent `as` expression ([ADR 0034](adr/0034-legacy-cast-syntax-rejected.md)), flagged separately where
-the source relied on PHP's silent `(int)"abc"` → `0` now that the rewritten `as` throws instead, simple
-`$$var` → match on a map, `exec('php script.php …')` job dispatch →
-`spawn script`, which is a real rewrite rather than a `TODO` because the isolation the original bought is
-what the construct provides, a backed enum's case declarations and `->value` reads → an MWL `enum` and
-an `as` conversion ([ADR 0010](adr/0010-enums-are-a-value-type.md)), and a call or reference to a PHP
-built-in global function or constant (`strlen`, `array_map`, `PHP_EOL`, …) → the matching `Core`
-class-and-member, `Core\Str::length`, `Core\Arr::map`, `Core\Env::EOL`, generated from
-[docs/spec/02-php-migration.md](spec/02-php-migration.md) — which is written and CI-checked long before
-this milestone, so a name PHP has and MWL dropped produces that row's stated reason rather than an
-unresolved call ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)) —
-except the array-combining calls no name table can carry, `array_merge` and `$a + $b`, which are picked by
-the argument's static type and left as a diagnostic where none can be proven
-([ADR 0069](adr/0069-array-combination-is-key-type-independent.md) § 2 owns that table and the report it
-writes),
-`use Path\To\Name as Other;` → the local alias replaced with the real short name or the FQN at every use, a
-stateless PHP trait (methods only) → an `interface` with the same method bodies as defaults plus plain
-`implements` at every use site, and its `insteadof` conflicts → an explicit override calling the winner by
-qualified name ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) §§ 6.1, 6.3,
-superseding ADR 0015's now-withdrawn `TraitA::method as newName;` rewrite)); a
-rewrite that needs a human look because it changes the shape of the surrounding code (a source file's own
-top-level `function`/`const` declarations, with no built-in counterpart, are grouped into one generated
-class named after the file — the same "needs a class to hang it on" shape the function-static rewrite
-already has, per [ADR 0011](adr/0011-functions-and-constants-are-class-members.md); a stateful PHP trait
-(declares a property) → an extracted interface plus a generated tracker class holding the state, with every
-use site rewritten to `implements ... by $field` and a constructor assignment —
-[ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) § 6.2, mechanical but flagged
-for review); annotated `TODO`
-diagnostics where neither applies (`eval` of constructed source, dynamic includes, unsupported `preg`
-constructs, a `bindTo()` whose target closure never names `$this` — the one divergence ADR 0008 introduces,
-and visible here rather than at run time — an enum that implements an interface or declares a method, which
-has no mechanical destination under [ADR 0010](adr/0010-enums-are-a-value-type.md), a PHP trait's `static`
-property or a trait method that calls back into an unrelated method of its host class, neither of which has
-a mechanical destination
-([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md) §§ 6.4-6.5), a class
-declaring
-`__get`/`__set` that needs a human call on whether the original logic was observation (→ `PropertyObserver`)
-or computation (→ a per-property hook), a class declaring `__call`/`__callStatic` with no mechanical
-destination at all ([ADR 0014](adr/0014-property-observer.md)), a `class_alias()` call whose target name is
-computed dynamically or that exists only so two libraries can address one class under different names, with
-no mechanical destination either ([ADR 0015](adr/0015-no-name-aliasing.md)), and C extensions).
+**The catalogue of individual rewrites is not restated here**, because it now has one home:
+[ADR 0089](adr/0089-convert-is-one-rule-table-with-two-modes.md)'s rule table. Every construct MWL removed
+keeps its destination in the ADR that removed it — each of those carries its own *M11* verification entry
+naming what the converter owes — and each becomes one row with a tier: proven identical against the PHP
+oracle, a mechanical destination that may differ, or no mechanical destination at all. The name half of the
+table is generated from [docs/spec/02-php-migration.md](spec/02-php-migration.md), written and CI-checked
+long before this milestone, so a name PHP has and MWL dropped produces that row's stated reason rather than
+an unresolved call ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)).
+
 `--check` mode emits a migration report without writing files. A `.phpt → .mwlt` converter
 reuses the same pipeline to import PHP's test corpus as native MWL tests. A PHP project depending on a C
 extension is reported as needing either a Tier 1 `.mwlx` replacement or a Tier 2 native one — the converter

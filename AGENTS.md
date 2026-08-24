@@ -266,6 +266,9 @@ the mechanism, the exact spellings rejected, and the reasoning.
   ([0048](docs/adr/0048-portable-single-file-executables.md)).
 - **`mwl fmt` has one unconfigurable style, never reflows, and is never wired into `mwl check`**
   ([0039](docs/adr/0039-canonical-code-formatting.md)).
+- **`mwl convert` is one deterministic rule table read through two modes, and an "identical" rewrite is one
+  a differential case against the PHP oracle proves**
+  ([0089](docs/adr/0089-convert-is-one-rule-table-with-two-modes.md)).
 - **`mwl-syntax` exposes a second, lossless, error-recovering parse entry point for editor tooling only**
   ([0040](docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md)); IDE smarts live once, in `mwl-lsp`
   ([0016](docs/adr/0016-ide-integration.md)).
