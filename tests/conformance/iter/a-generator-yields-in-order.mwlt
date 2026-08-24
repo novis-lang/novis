@@ -1,0 +1,48 @@
+--TEST--
+A method that yields is an `Iterator<T>`, and `foreach` sees each value in the order it was yielded
+--FILE--
+<?mwl
+class Sequence {
+    public static function upTo(int $limit): Iterator<int> {
+        var $i = 1;
+        while ($i <= $limit) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function words(): Iterator<string> {
+        yield "one";
+        yield "two";
+        yield "three";
+    }
+}
+
+var $out = "";
+foreach (Sequence::upTo(5) as int $n) {
+    $out = $out . $n . ",";
+}
+echo $out, "\n";
+
+var $sum = 0;
+foreach (Sequence::upTo(4) as int $n) {
+    $sum = $sum + $n;
+}
+echo $sum, "\n";
+
+foreach (Sequence::words() as string $w) {
+    echo $w, "\n";
+}
+
+var $none = 0;
+foreach (Sequence::upTo(0) as int $n) {
+    $none = $none + 1;
+}
+echo "none=", $none, "\n";
+--EXPECT--
+1,2,3,4,5,
+10
+one
+two
+three
+none=0

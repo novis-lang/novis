@@ -1,0 +1,19 @@
+--TEST--
+Core\Str::padStart and ::padEnd reach the asked-for length and never truncate
+--FILE--
+<?mwl
+echo "[", Core\Str::padStart("7", 4, "0"), "]\n";
+echo "[", Core\Str::padEnd("7", 4, "."), "]\n";
+echo "[", Core\Str::padStart("toolong", 3, "0"), "]\n";
+echo "[", Core\Str::padEnd("toolong", 3, "."), "]\n";
+echo "[", Core\Str::padStart("ab", 7, "xy"), "]\n";
+echo "[", Core\Str::padEnd("ab", 7, "xy"), "]\n";
+echo "[", Core\Str::padStart("", 3, "-"), "]\n";
+--EXPECT--
+[0007]
+[7...]
+[toolong]
+[toolong]
+[xyxyxab]
+[abxyxyx]
+[---]

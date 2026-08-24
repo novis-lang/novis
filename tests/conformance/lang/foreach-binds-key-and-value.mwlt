@@ -1,0 +1,31 @@
+--TEST--
+`foreach` binds the value alone or the key and the value, and the loop leaves the array untouched
+--FILE--
+<?mwl
+array<int> $ages = ["ann" => 31, "bob" => 24, "cy" => 45];
+
+var $names = "";
+foreach ($ages as string $name => int $age) {
+    $names = $names . $name . "(" . $age . ")";
+}
+echo $names, "\n";
+
+var $total = 0;
+foreach ($ages as int $age) {
+    $total = $total + $age;
+}
+echo $total, "\n";
+
+array<string> $list = ["zero", "one", "two"];
+foreach ($list as string $index => string $word) {
+    echo $index, "=", $word, "\n";
+}
+
+echo Core\Arr::count($ages), ",", Core\Arr::count($list), "\n";
+--EXPECT--
+ann(31)bob(24)cy(45)
+100
+0=zero
+1=one
+2=two
+3,3

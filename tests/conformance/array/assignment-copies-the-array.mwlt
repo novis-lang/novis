@@ -1,0 +1,33 @@
+--TEST--
+Assigning an array copies it, so writing through one name never shows up under the other
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+
+    public static function grow(array<int> $a): string {
+        $a["added"] = 9;
+        return Render::of($a);
+    }
+}
+
+array<int> $left = ["a" => 1, "b" => 2];
+var $right = $left;
+
+$right["a"] = 99;
+echo Render::of($left), "\n";
+echo Render::of($right), "\n";
+
+echo Render::grow($left), "\n";
+echo Render::of($left), "\n";
+--EXPECT--
+a=1;b=2;
+a=99;b=2;
+a=1;b=2;added=9;
+a=1;b=2;

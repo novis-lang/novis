@@ -1,0 +1,25 @@
+--TEST--
+Core\Arr::range walks up or down between its bounds, and its `step` option sets the stride
+--FILE--
+<?mwl
+class Show {
+    public static function of(array<int> $a): string {
+        return Core\Str::join(Core\Arr::map($a, fn(int $n) => $n as string), ",");
+    }
+}
+
+echo Show::of(Core\Arr::range(1, 5)), "\n";
+echo Show::of(Core\Arr::range(5, 1)), "\n";
+echo Show::of(Core\Arr::range(3, 3)), "\n";
+echo Show::of(Core\Arr::range(1, 9, {step: 2})), "\n";
+echo Show::of(Core\Arr::range(0, 10, {step: 5})), "\n";
+echo Show::of(Core\Arr::range(-3, 2)), "\n";
+echo Core\Arr::count(Core\Arr::range(1, 100)), "\n";
+--EXPECT--
+1,2,3,4,5
+5,4,3,2,1
+3
+1,3,5,7,9
+0,5,10
+-3,-2,-1,0,1,2
+100

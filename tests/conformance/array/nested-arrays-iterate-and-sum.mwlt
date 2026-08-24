@@ -1,0 +1,26 @@
+--TEST--
+An `array<array<int>>` iterates one level at a time, and an inner write leaves the outer copy alone
+--FILE--
+<?mwl
+array<array<int>> $grid = [[1, 2, 3], [4, 5], [6]];
+
+var $total = 0;
+foreach ($grid as array<int> $row) {
+    foreach ($row as int $cell) {
+        $total = $total + $cell;
+    }
+}
+echo "total=", $total, "\n";
+
+var $rows = 0;
+foreach ($grid as string $index => array<int> $row) {
+    echo $index, ":", Core\Arr::count($row), "\n";
+    $rows = $rows + 1;
+}
+echo "rows=", $rows, "\n";
+--EXPECT--
+total=21
+0:3
+1:2
+2:1
+rows=3

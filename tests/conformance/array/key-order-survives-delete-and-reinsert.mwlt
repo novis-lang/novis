@@ -1,0 +1,33 @@
+--TEST--
+An array keeps insertion order across insert, delete and re-insert — a re-inserted key goes to the end
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $scores = ["alpha" => 1, "beta" => 2, "gamma" => 3];
+echo Render::of($scores), "\n";
+
+unset($scores["beta"]);
+echo Render::of($scores), "\n";
+
+$scores["beta"] = 20;
+echo Render::of($scores), "\n";
+
+$scores["alpha"] = 100;
+echo Render::of($scores), "\n";
+
+echo Core\Arr::count($scores), "\n";
+--EXPECT--
+alpha=1;beta=2;gamma=3;
+alpha=1;gamma=3;
+alpha=1;gamma=3;beta=20;
+alpha=100;gamma=3;beta=20;
+3

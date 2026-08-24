@@ -1,0 +1,23 @@
+--TEST--
+A double-quoted string honours its escapes; a single-quoted one keeps `$` and `\t` literal
+--FILE--
+<?mwl
+string $who = "world";
+
+echo "tab[\t]end\n";
+echo "quote[\"]end\n";
+echo "backslash[\\]end\n";
+echo "dollar[\$who]end\n";
+echo 'single[$who]end', "\n";
+echo 'single[\t]end', "\n";
+echo "interpolated[$who]end\n";
+echo "braced[{$who}]end\n";
+--EXPECT--
+tab[	]end
+quote["]end
+backslash[\]end
+dollar[$who]end
+single[$who]end
+single[\t]end
+interpolated[world]end
+braced[world]end

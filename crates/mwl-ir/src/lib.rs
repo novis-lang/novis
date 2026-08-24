@@ -130,7 +130,9 @@
 //!    hook, and no PHP-compatible rule for that exists yet. Neither
 //!    [`ir::InstKind::ArrayGet`] nor [`ir::InstKind::ArraySet`] models an
 //!    absent key at runtime — deferred wholesale, like every other checked
-//!    throw.
+//!    throw. A **static** property is narrower still: it reads, but
+//!    [`lower::Lowering`]'s assignment arm has no target for one, so
+//!    `C::$p = v` panics.
 //! 7. **No general virtual dispatch.** [`ir::InstKind::Call`]'s target is the
 //!    statically resolved declaring class, so an overridden method reached
 //!    through a base-typed local still calls the base's. The two shapes with
@@ -157,10 +159,11 @@
 //!     [`lower::lower_checked_ty`] handles the plain `string`/`bytes` only;
 //!     ADR 0024/0033's qualifiers are compile-time-only and need no runtime
 //!     representation, but the erasure has to be written.
-//! 12. **`.` does not cover a `Stringable` operand.** Desugaring would have to
-//!     synthesize a resolved call to `toString()`, but a bare `.` operand is
-//!     not a call expression, so no `ExprInfo::Call` is recorded for it. Either
-//!     the checker records that resolution too, or this crate re-resolves the
+//! 12. **Neither `.` nor `as string` covers a `Stringable` operand.**
+//!     Desugaring would have to synthesize a resolved call to `toString()`,
+//!     but neither a bare `.` operand nor an `as` subject is a call
+//!     expression, so no `ExprInfo::Call` is recorded for it. Either the
+//!     checker records that resolution too, or this crate re-resolves the
 //!     method itself — a second `mwl-types` dependency so far avoided.
 //! 13. **Inline HTML at file scope is not lowered.** The lowering is the same
 //!     [`ir::Helper::EchoStr`] call `echo` emits over the raw span; it is out

@@ -1,0 +1,31 @@
+--TEST--
+`<`, `>` and their siblings over two objects go through `Comparable::compareTo` — ADR 0013
+--FILE--
+<?mwl
+class Weight implements Comparable {
+    public int $grams;
+
+    public function constructor(int $grams) {
+        $this->grams = $grams;
+    }
+
+    public function compareTo(self $other): int {
+        return $this->grams - $other->grams;
+    }
+}
+
+var $light = new Weight(10);
+var $heavy = new Weight(90);
+var $same = new Weight(10);
+
+echo ($heavy > $light) as string, "|\n";
+echo ($light > $heavy) as string, "|\n";
+echo ($light < $heavy) as string, "|\n";
+echo ($light >= $same) as string, "|\n";
+echo ($light <= $same) as string, "|\n";
+--EXPECT--
+1|
+|
+1|
+1|
+1|

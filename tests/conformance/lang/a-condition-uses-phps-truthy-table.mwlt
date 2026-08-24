@@ -1,0 +1,28 @@
+--TEST--
+A condition resolves PHP's full truthy table without an `as` — ADR 0035
+--FILE--
+<?mwl
+if ("0") { echo "\"0\" truthy\n"; } else { echo "\"0\" falsy\n"; }
+if ("") { echo "\"\" truthy\n"; } else { echo "\"\" falsy\n"; }
+if ("0.0") { echo "\"0.0\" truthy\n"; } else { echo "\"0.0\" falsy\n"; }
+if ("a") { echo "\"a\" truthy\n"; } else { echo "\"a\" falsy\n"; }
+if (0) { echo "0 truthy\n"; } else { echo "0 falsy\n"; }
+if (1) { echo "1 truthy\n"; } else { echo "1 falsy\n"; }
+if (-1) { echo "-1 truthy\n"; } else { echo "-1 falsy\n"; }
+if (0.0) { echo "0.0 truthy\n"; } else { echo "0.0 falsy\n"; }
+
+array<int> $empty = [];
+array<int> $full = [1];
+if ($empty) { echo "[] truthy\n"; } else { echo "[] falsy\n"; }
+if ($full) { echo "[1] truthy\n"; } else { echo "[1] falsy\n"; }
+--EXPECT--
+"0" falsy
+"" falsy
+"0.0" truthy
+"a" truthy
+0 falsy
+1 truthy
+-1 truthy
+0.0 falsy
+[] falsy
+[1] truthy

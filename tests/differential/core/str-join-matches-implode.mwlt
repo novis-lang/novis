@@ -1,0 +1,22 @@
+--TEST--
+Core\Str::join matches PHP's implode, empty array and empty separator included
+--FILE--
+<?mwl
+array<string> $parts = ["alpha", "beta", "gamma"];
+array<string> $empty = [];
+
+echo "[", Core\Str::join($parts, ","), "]\n";
+echo "[", Core\Str::join($parts, " / "), "]\n";
+echo "[", Core\Str::join($parts, ""), "]\n";
+echo "[", Core\Str::join($empty, ","), "]\n";
+echo "[", Core\Str::join(["only"], ","), "]\n";
+--ORACLE--
+<?php
+$parts = ["alpha", "beta", "gamma"];
+$empty = [];
+
+echo "[", implode(",", $parts), "]\n";
+echo "[", implode(" / ", $parts), "]\n";
+echo "[", implode("", $parts), "]\n";
+echo "[", implode(",", $empty), "]\n";
+echo "[", implode(",", ["only"]), "]\n";

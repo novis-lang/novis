@@ -1,0 +1,21 @@
+--TEST--
+Core\Arr::sort orders by its `by` option and returns a new array, leaving its subject alone
+--FILE--
+<?mwl
+array<string> $words = ["pear", "Apple", "fig", "banana"];
+
+var $byLength = Core\Arr::sort($words, {by: fn(string $w) => Core\Str::length($w)});
+echo Core\Str::join($byLength, ","), "\n";
+echo Core\Str::join($words, ","), "\n";
+
+var $descending = Core\Arr::sort($words, {by: fn(string $w) => Core\Str::length($w), order: Core\Order::Desc});
+echo Core\Str::join($descending, ","), "\n";
+
+array<int> $numbers = [5, 3, 9, 1];
+var $sorted = Core\Arr::sort($numbers, {by: fn(int $n) => $n});
+echo Core\Str::join(Core\Arr::map($sorted, fn(int $n) => $n as string), ","), "\n";
+--EXPECT--
+fig,pear,Apple,banana
+pear,Apple,fig,banana
+banana,Apple,pear,fig
+1,3,5,9

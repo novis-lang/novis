@@ -1,0 +1,28 @@
+--TEST--
+`as` over ADR 0007 § 2's scalar rows, every one of them succeeding
+--FILE--
+<?mwl
+echo "42" as int, "\n";
+echo "-7" as int, "\n";
+echo 3.0 as int, "\n";
+
+echo 42 as float, "\n";
+echo "3.5" as float, "\n";
+
+echo 1 as string, "|", (-7) as string, "|", 1.5 as string, "|\n";
+echo true as string, "|", false as string, "|\n";
+
+echo (0 as bool) as string, "|", (5 as bool) as string, "|\n";
+echo ("" as bool) as string, "|", ("x" as bool) as string, "|\n";
+echo (0.0 as bool) as string, "|", (2.5 as bool) as string, "|\n";
+--EXPECT--
+42
+-7
+3
+42
+3.5
+1|-7|1.5|
+1||
+|1|
+|1|
+|1|

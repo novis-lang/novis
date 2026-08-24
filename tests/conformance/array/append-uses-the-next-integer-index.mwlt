@@ -1,0 +1,34 @@
+--TEST--
+`$a[] = $v` appends under the next integer index rendered in decimal — ADR 0007 § 5
+--FILE--
+<?mwl
+class Render {
+    public static function of(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $a = [];
+$a[] = 10;
+$a[] = 20;
+echo Render::of($a), "\n";
+
+array<int> $b = [1, 2];
+$b[] = 3;
+echo Render::of($b), "\n";
+
+array<int> $c = ["x" => 1];
+$c[] = 2;
+$c[] = 3;
+echo Render::of($c), "\n";
+
+echo Core\Arr::isList($a) as string, "|", Core\Arr::isList($c) as string, "|\n";
+--EXPECT--
+0=10;1=20;
+0=1;1=2;2=3;
+x=1;0=2;1=3;
+1||

@@ -1,0 +1,35 @@
+--TEST--
+A throw two calls deep reaches the `catch` at the top, and the frames in between run no further
+--FILE--
+<?mwl
+class Inner {
+    public static function boom(int $n): int {
+        if ($n > 2) {
+            throw new RuntimeError("too big: " . $n);
+        }
+        return $n * 10;
+    }
+}
+
+class Middle {
+    public static function relay(int $n): int {
+        var $doubled = Inner::boom($n) * 2;
+        echo "middle saw ", $doubled, "\n";
+        return $doubled;
+    }
+}
+
+try {
+    echo Middle::relay(1), "\n";
+    echo Middle::relay(5), "\n";
+    echo "not reached\n";
+} catch (Throwable $e) {
+    echo "caught ", $e->message, "\n";
+}
+
+echo "still running\n";
+--EXPECT--
+middle saw 20
+20
+caught too big: 5
+still running

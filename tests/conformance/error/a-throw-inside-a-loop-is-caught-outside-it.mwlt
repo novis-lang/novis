@@ -1,0 +1,33 @@
+--TEST--
+A throw from inside a loop body leaves the loop and lands in the enclosing `catch`
+--FILE--
+<?mwl
+class Sum {
+    public static function upTo(int $limit): int {
+        var $total = 0;
+        var $i = 0;
+        while ($i < 100) {
+            $i = $i + 1;
+            if ($i > $limit) {
+                throw new RuntimeError("stopped at " . $i);
+            }
+            $total = $total + $i;
+        }
+        return $total;
+    }
+}
+
+try {
+    echo Sum::upTo(4), "\n";
+} catch (Throwable $e) {
+    echo "caught ", $e->message, "\n";
+}
+
+try {
+    echo Sum::upTo(0), "\n";
+} catch (Throwable $e) {
+    echo "caught ", $e->message, "\n";
+}
+--EXPECT--
+caught stopped at 5
+caught stopped at 1

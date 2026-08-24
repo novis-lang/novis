@@ -1,0 +1,23 @@
+--TEST--
+`as` throws rather than losing data — a fractional float never becomes an int
+--FILE--
+<?mwl
+class Convert {
+    public static function toInt(float $f): string {
+        try {
+            return ($f as int) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+echo Convert::toInt(3.0), "\n";
+echo Convert::toInt(-8.0), "\n";
+echo Convert::toInt(3.7), "\n";
+echo Convert::toInt(0.5), "\n";
+--EXPECT--
+3
+-8
+threw: cannot convert `float` 3.7 to `int`
+threw: cannot convert `float` 0.5 to `int`

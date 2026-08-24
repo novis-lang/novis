@@ -1,0 +1,28 @@
+--TEST--
+Core\Arr's four predicates answer about a list and a map, and ::values drops the keys
+--FILE--
+<?mwl
+array<string> $map = ["a" => "x", "b" => "y", "c" => "z"];
+array<string> $list = ["x", "y", "z"];
+array<string> $empty = [];
+
+echo Core\Arr::isList($map) as string, "|\n";
+echo Core\Arr::isList($list) as string, "|\n";
+echo Core\Arr::isEmpty($empty) as string, "|\n";
+echo Core\Arr::isEmpty($list) as string, "|\n";
+echo Core\Arr::hasKey($map, "b") as string, "|\n";
+echo Core\Arr::hasKey($map, "q") as string, "|\n";
+
+echo Core\Str::join(Core\Arr::values($map), ","), "\n";
+echo Core\Arr::isList(Core\Arr::values($map)) as string, "|\n";
+echo Core\Arr::count(Core\Arr::values($empty)), "\n";
+--EXPECT--
+|
+1|
+1|
+|
+1|
+|
+x,y,z
+1|
+0

@@ -166,6 +166,10 @@
 //!   [`signatures`]/[`expr`]'s own known-gaps lists.
 //! - A class with no explicit `constructor` is not held to a zero-argument
 //!   arity check on `new` — see [`expr`]'s `New` handling.
+//! - A `foreach` **key** binding declared at anything but `string` is not
+//!   diagnosed here. ADR 0007 § 5 gives an array one stored key type, so
+//!   `foreach ($a as int $k => …)` is always wrong; today it type-checks and
+//!   then trips `mwl_ir`'s assertion instead of getting a diagnostic.
 
 pub mod check;
 pub(crate) mod conformance;

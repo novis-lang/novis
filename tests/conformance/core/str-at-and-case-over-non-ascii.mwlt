@@ -1,0 +1,25 @@
+--TEST--
+Core\Str::at indexes by grapheme cluster, and ::upper/::lower are Unicode-aware — ADR 0009 § 2
+--FILE--
+<?mwl
+string $accented = "héllo";
+echo Core\Str::length($accented), "\n";
+echo Core\Str::at($accented, 0), Core\Str::at($accented, 1), Core\Str::at($accented, 4), "\n";
+
+string $family = "👩‍👩‍👦";
+echo Core\Str::length($family), "\n";
+echo Core\Str::at($family, 0), "\n";
+
+echo Core\Str::upper("straße"), "\n";
+echo Core\Str::lower("ÄÖÜ"), "\n";
+echo Core\Str::upper("mixed ÄÖÜ ß"), "\n";
+echo Core\Str::upperFirst("étoile"), "\n";
+--EXPECT--
+5
+héo
+1
+👩‍👩‍👦
+STRASSE
+äöü
+MIXED ÄÖÜ SS
+Étoile

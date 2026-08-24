@@ -1,0 +1,28 @@
+--TEST--
+An enum case converts to the integer it names, and cases compare by that integer — ADR 0010
+--FILE--
+<?mwl
+enum Rank {
+    Bronze,
+    Silver,
+    Gold,
+}
+
+enum Signal {
+    Stop = 10,
+    Go = 20,
+}
+
+echo Rank::Bronze as int, ",", Rank::Silver as int, ",", Rank::Gold as int, "\n";
+echo Signal::Stop as int, ",", Signal::Go as int, "\n";
+
+Rank $held = Rank::Silver;
+echo $held as int, "\n";
+echo (($held as int) < (Rank::Gold as int)) as string, "\n";
+echo (($held as int) === (Rank::Silver as int)) as string, "\n";
+--EXPECT--
+0,1,2
+10,20
+1
+1
+1

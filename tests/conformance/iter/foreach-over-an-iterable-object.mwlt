@@ -1,0 +1,39 @@
+--TEST--
+`foreach` over an object calls `Iterable::iterate` once and drains the iterator it returns — ADR 0053
+--FILE--
+<?mwl
+class Countdown implements Iterable<int> {
+    private int $from;
+
+    public function constructor(int $from) {
+        $this->from = $from;
+    }
+
+    public function iterate(): Iterator<int> {
+        var $i = $this->from;
+        while ($i > 0) {
+            yield $i;
+            $i = $i - 1;
+        }
+    }
+}
+
+var $out = "";
+foreach (new Countdown(4) as int $n) {
+    $out = $out . $n . " ";
+}
+echo $out, "\n";
+
+var $reused = new Countdown(3);
+var $first = 0;
+foreach ($reused as int $n) {
+    $first = $first + $n;
+}
+var $second = 0;
+foreach ($reused as int $n) {
+    $second = $second + $n;
+}
+echo $first, ",", $second, "\n";
+--EXPECT--
+4 3 2 1
+6,6

@@ -1,0 +1,28 @@
+--TEST--
+`{$obj->prop}` interpolates a property, and a bare `$name` interpolates a local
+--FILE--
+<?mwl
+class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+
+    public function render(): string {
+        return "({$this->x}, {$this->y})";
+    }
+}
+
+var $p = new Point(3, -4);
+string $label = "origin";
+
+echo "point $label is {$p->render()}\n";
+echo "x={$p->x} y={$p->y}\n";
+echo "sum is {$p->x}{$p->y}\n";
+--EXPECT--
+point origin is (3, -4)
+x=3 y=-4
+sum is 3-4

@@ -6,23 +6,23 @@
 acceptance list and the standing decisions already settled with the user; do not re-open any of them. The
 plan's status block says what is on disk and what is open.
 
-**`mwl test` exists, and both suites are green.** `crates/mwl-test` parses `.mwlt` and runs it; `mwl-cli`
-exposes it. The format — every section, `--EXPECTF--`'s escapes, why a case runs in a subprocess as
-`case.mwl`, and why a `--ORACLE--` case skips when PHP is absent — is that crate's own module doc, which
-[`docs/adr/README.md`](../adr/README.md) § *Where to look* now routes to. Stage 4 therefore **fails on
-corpus size alone**: 18 conformance cases against a threshold of 250, 10 differential against 60.
+**`mwl test` exists and both suites are green: 52 conformance cases, 34 differential**, against thresholds
+of 250 and 60, so Stage 4 still **fails on corpus size alone**. The `.mwlt` format — every section,
+`--EXPECTF--`'s escapes, why a case runs in a subprocess as `case.mwl`, and why a `--ORACLE--` case skips
+when PHP is absent — is `crates/mwl-test`'s own module doc, routed from
+[`docs/adr/README.md`](../adr/README.md) § *Where to look*.
 
 **Every fixture is green on both legs**, byte for byte, every one `valgrind --leak-check=full` clean.
 Stages 1–3 are done. **Nothing is blocked.**
 
-**PHP 8.5 is on `PATH` under Windows but not inside the WSL distro**, so the Linux leg skips the eight
-`--ORACLE--` cases and runs the two `--ORACLE-DIVERGES--` ones. That is deliberate, not a hole: the native
-leg's `min_passing = 60` in [`loop-goal.toml`](loop-goal.toml) is what catches an oracle that goes missing
-where it matters. Installing PHP in WSL is the user's call, not a session's.
+**PHP 8.5 is on `PATH` under Windows but not inside the WSL distro**, so the Linux leg skips the
+`--ORACLE--` cases and runs the `--ORACLE-DIVERGES--` ones. That is deliberate: the native leg's
+`min_passing = 60` in [`loop-goal.toml`](loop-goal.toml) is what catches an oracle that goes missing where
+it matters. Installing PHP in WSL is the user's call, not a session's.
 
-**[ADR 0009](../adr/0009-string-and-bytes.md) is Accepted in full**, § 2 included: `string` counts extended
-grapheme clusters. The seam is `mwl_stdlib::granularity`, whose module doc owns the dependency choice and
-the one gap — nothing caches a count yet, which the plan's M4S paragraph carries. The figures live only in
+**[ADR 0009](../adr/0009-string-and-bytes.md) is Accepted in full**, § 2 included. The seam is
+`mwl_stdlib::granularity`, whose module doc owns the dependency choice and the one gap — nothing caches a
+count yet, which the plan's M4S paragraph carries. The figures live only in
 `a_grapheme_index_costs_more_than_a_code_point_index` (`benches/abi-probe/tests/perf_guards.rs`).
 
 **M1 was re-opened for four grammar additions; two are built.** `decimal`
@@ -32,8 +32,8 @@ is `mwl-ir`'s known gap 15. **Literal and enum-case type atoms
 three atoms by name (`E_LITERAL_TYPE_UNCHECKED`). Two grammar slices remain, one per session, in the plan's
 M1 section: `autoload` (0061) and the duration literal (0070).
 
-**The docs track is finished and owes nothing** — all seven `Core` additions are written as ADRs 0071–0077.
-Four cross-cutting rules from that track, because they get reached for from outside their own ADRs:
+**The docs track is finished and owes nothing** — all seven `Core` additions are ADRs 0071–0077. Four
+cross-cutting rules from that track, because they get reached for from outside their own ADRs:
 
 - A **compiler-recognized** attribute is matched **nominally**, against a closed `Core`-owned list of five
   names ([0071](../adr/0071-derived-codecs.md) § 1). ADR 0046 § 4's *structural* retrieval is untouched.
@@ -54,14 +54,22 @@ bracket arrays (marked *Open* in [spec § 12](../spec/01-core-library.md)), and 
 
 ## Next
 
-**Grow `tests/conformance/`.** It is now the only thing between the loop and Stage 4, it needs no new
-machinery, and it splits cleanly across sessions. M4's **Verify** list in
-[the plan](../implementation-plan.md) is the specification for what the corpus must cover; the
-*Verification* section of ADRs 0014, 0023, 0028, 0046 and 0069 each names its own required cases. Write a
-`--ORACLE--` twin whenever the behaviour is one MWL claims is PHP-compatible, and an `--ORACLE-DIVERGES--`
-with its one-line reason whenever it is not. A feature the language does not have yet (`for`, `switch`,
-ternary, generics in `implements`) is not a case to write — it is one of the gaps
-[`loop-goal.md`](loop-goal.md) § *The gaps that actually sit on the path* already lists.
+**Keep growing `tests/conformance/` and `tests/differential/`.** It is the only thing between the loop and
+Stage 4, it needs no new machinery, and it splits cleanly across sessions. M4's **Verify** list in
+[the plan](../implementation-plan.md) is the specification; the *Verification* section of ADRs 0014, 0023,
+0028, 0046 and 0069 each names its own required cases. Write a `--ORACLE--` twin whenever the behaviour is
+one MWL claims is PHP-compatible, and an `--ORACLE-DIVERGES--` with its one-line reason whenever it is not.
+
+**What a case cannot use yet** — each already sits in the named crate's known-gap list, and every one of
+these panics or refuses rather than failing cleanly, so writing around them saves a whole edit cycle:
+`&&`/`||`/ternary anywhere but a declaration initializer, a `return` value, an assignment right-hand side
+or a condition (`mwl-ir` gap 5, so not inside an `echo` argument); `$f(...)` on a closure-typed local (gap
+9); a class constant's *value*, and a write to a static property (gaps 6 and the `mwl-types` list); `as`
+on a `Stringable` (gap 12); `bool as int` and `as ?T` (gaps 4 and 3); `<`/`>` over two strings
+(`mwl-codegen`); `for`/`switch` (gap 1). Two precedence traps that produce a confusing panic rather than a
+parse error: `as` binds tighter than comparison, `instanceof` and unary minus, so write `($a > $b) as
+string` and `(-7) as string`. And a `foreach` key binding must be declared `string` even over a list —
+ADR 0007 § 5 — which is what a list case should assert rather than avoid.
 
 Two smaller slices, either of which fits a session on its own:
 
@@ -76,13 +84,13 @@ Two smaller slices, either of which fits a session on its own:
 
 ## Backlog
 
+- **A `foreach` key binding declared `int` panics in `mwl-ir` instead of getting a diagnostic** —
+  `mwl-types`' own known-gap list; ADR 0007 § 5 makes it always wrong.
 - **ADR 0047's M2 checker row** is unblocked and is what removes `E_LITERAL_TYPE_UNCHECKED`.
 - **A `Core` member cannot return a union or `?T`, and a `?T` parameter cannot be declared** — `mwl-ir`'s
   known gap 3, and what `Core\Str::slice` waits on.
 - **A closure literal written as a call argument leaks its environment object when that call throws** —
   `mwl-ir`'s known gap 2; it needs an owned-temporaries stack threaded through `lower_expr`.
-- **An unregistered *member* on a registered `Core` class types as `mixed`, silently** —
-  `mwl_types::core_lib`'s module doc owns the trust rule.
 - **Integer `+`/`-`/`*` wrap rather than throw, and integer `/` is refused two phases deep** —
   `mwl-codegen`'s known gaps 8 and 5; read `a_typed_arithmetic_loop_contains_no_call` before adding a raise.
 - **`$a + $b` and `$a += $b` over two arrays still have no diagnostic** — ADR 0069 § 2 requires one.
@@ -114,7 +122,8 @@ so never spend an iteration trimming one. Follow `AGENTS.md` § *Session workflo
   valgrind sweep, naming the first failure), or `--list` to see it without running it. It short-circuits on
   the first failure, so it stops at Stage 4's case counts today.
 - **One case, quickly:** `mwl test tests/conformance/core/str-case-members.mwlt`, or
-  `mwl test tests/ --filter str-` over the tree.
+  `mwl test tests/ --filter str-` over the tree. A scratch program under `.agent-tmp/` run with
+  `mwl run` is the fastest way to find out whether a shape lowers before writing a case around it.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
   `python tools/check-links.py` — broken *and* mis-cased relative links, the second kind being the one that
   works on Windows and 404s on Linux.

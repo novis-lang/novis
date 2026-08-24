@@ -1,0 +1,43 @@
+--TEST--
+`new static()` and `static::` resolve to the called class through two levels of inheritance
+--FILE--
+<?mwl
+class Registry {
+    public static function tag(): string {
+        return "base";
+    }
+
+    public static function make(): static {
+        return new static();
+    }
+
+    public function label(): string {
+        return static::tag();
+    }
+}
+
+class MidRegistry extends Registry {
+    public static function tag(): string {
+        return "mid";
+    }
+}
+
+class LeafRegistry extends MidRegistry {
+    public static function tag(): string {
+        return "leaf";
+    }
+}
+
+echo Registry::make()->label(), "\n";
+echo MidRegistry::make()->label(), "\n";
+echo LeafRegistry::make()->label(), "\n";
+
+var $leaf = LeafRegistry::make();
+echo ($leaf instanceof MidRegistry) as string, "\n";
+echo ($leaf instanceof Registry) as string, "\n";
+--EXPECT--
+base
+mid
+leaf
+1
+1

@@ -1,0 +1,25 @@
+--TEST--
+Core\Str::join and ::split are each other's inverse over a separator the text does not contain
+--FILE--
+<?mwl
+string $csv = "alpha,beta,gamma";
+var $parts = Core\Str::split($csv, ",");
+echo Core\Arr::count($parts), "\n";
+echo Core\Str::join($parts, ","), "\n";
+echo Core\Str::join($parts, " / "), "\n";
+
+array<string> $empty = [];
+echo "[", Core\Str::join($empty, ","), "]\n";
+echo "[", Core\Str::join(["only"], ","), "]\n";
+echo "[", Core\Str::join(["a", "b"], ""), "]\n";
+
+var $single = Core\Str::split("nosep", ",");
+echo Core\Arr::count($single), ":", Core\Str::join($single, "|"), "\n";
+--EXPECT--
+3
+alpha,beta,gamma
+alpha / beta / gamma
+[]
+[only]
+[ab]
+1:nosep

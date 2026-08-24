@@ -1,0 +1,37 @@
+--TEST--
+`parent::` reaches the overridden method, and the child's override is what a call site sees
+--FILE--
+<?mwl
+class Shape {
+    protected string $shapeName;
+
+    public function constructor(string $shapeName) {
+        $this->shapeName = $shapeName;
+    }
+
+    public function describe(): string {
+        return "a " . $this->shapeName;
+    }
+}
+
+class Square extends Shape {
+    private int $side;
+
+    public function constructor(int $side) {
+        parent::constructor("square");
+        $this->side = $side;
+    }
+
+    public function describe(): string {
+        return parent::describe() . " of side " . $this->side;
+    }
+}
+
+var $shape = new Shape("blob");
+var $square = new Square(3);
+
+echo $shape->describe(), "\n";
+echo $square->describe(), "\n";
+--EXPECT--
+a blob
+a square of side 3

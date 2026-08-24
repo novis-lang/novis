@@ -43,8 +43,8 @@
 > 0065, and **0053 and 0009 in full**. Each ADR's own *Verification* section says what its slice covers,
 > not this field.
 >
-> **Open now:** **growing the two suites**. `mwl test` runs, and both suites are green — 18 conformance
-> cases and 10 differential, against thresholds of 250 and 60, so Stage 4 now fails on corpus size alone.
+> **Open now:** **growing the two suites**. `mwl test` runs, and both suites are green — 52 conformance
+> cases and 34 differential, against thresholds of 250 and 60, so Stage 4 now fails on corpus size alone.
 > Every case a session writes is one more row of M4's *Verify* list turned into a check. Beside it, the
 > rest of `Core` §§ 1–12 as registry rows: an options bag, a union parameter, a callback-bound result
 > type, a `Core`-owned enum and an absent option all work end to end, and a `?T` parameter is the one
