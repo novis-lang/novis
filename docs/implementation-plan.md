@@ -137,9 +137,9 @@
 > collections each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol through its
 > descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster), and the
 > spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only be reached by
-> emptying it is the PHP behaviour § 9 replaces; § 10 owes the constructor's
-> `{previous: $e}` options shape and
-> `$e->location`; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
+> emptying it is the PHP behaviour § 9 replaces; § 10 owes `ParseError::issues` being *readable*
+> alone — the constructor takes `{previous: $e}` and `$e->location` is pinned as the throw site,
+> both stated by `mwl_types::error_lib`'s own module doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
 > `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
 > `Union`, `Decimal` and `Iterated`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
@@ -149,7 +149,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
 > two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 426 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 428 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against

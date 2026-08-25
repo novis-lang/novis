@@ -2,42 +2,42 @@
 
 ## State
 
-**Spec § 9 is whole: all three collections answer a `foreach`.** A `Core` receiver reaches ADR 0053's
-iteration protocol through its own descriptor's method table — the decision, the snapshot semantics and
-the one convention difference (a member reached by name is handed its receiver's reference rather than
-borrowing it) are `mwl_stdlib::cursor`'s module doc; `mwl_stdlib::instance`'s `DISPATCH_ROSTER` is the one
-place a `Core` class's method table is written, and `registry::ITERABLES` is the checker-side roster
-`core_lib` seeds a `ClassSignature::implements` entry from. A map yields its **keys**, a set its members,
-a heap `pop` order, all non-destructive and re-iterable; `docs/spec/01-core-library.md` § 9 states that,
-and its `Heap` row is amended to declare `Iterable` (PHP's heap iteration empties the heap; this one does
-not, and without it a heap's contents were unreachable except by emptying it).
+**Spec § 10's exception surface is whole except one read.** The constructor takes ADR 0063 R2's options
+bag — `new RuntimeError("…", {previous: $e})` — and the chain is stored, read back and released; the bag
+is optional by construction, so every existing one-argument `new` is unchanged. `mwl_types::error_lib`'s
+module doc is the home for the seeded shape, for why `location` is the *throw* site (and why a rethrow
+moves it), and for the one gap left. The flattening at the call site was already generic over any
+signature carrying a `Ty::Options` parameter; what this needed was `lower_options_arg` widening each
+option into the slot its declared type erases to, since a compiled MWL function's parameter is typed
+where a `Core` helper's is a whole `Value`.
 
-`Core\Cursor` has **no registry row** on purpose — nothing names it in a signature, since `iterate()`'s
-return type is the seeded `Iterator<T>`. `mwl_types::expr::iteration::with_subject_args` is what turns
-the `K`/`T` an `implements` clause names into the receiver's own argument.
+Verify is green (1536 tests, clippy and fmt clean). Conformance is **428**, differential 89. Valgrind is
+clean over the new refcount edge — a chained throw/catch in a 200-iteration loop, plus exceptions built
+with and without the bag and never thrown. `examples/collect.mwl` still exits 1 at `Core\Out::capture`,
+which is the known frontier.
 
-Verify is green (1536 tests). Valgrind is clean over both new edges — a `foreach` over each of the three,
-with `break`, a second pass, a removal inside the body, and a comparator-ordered heap.
-`examples/collect.mwl` still exits 1 at `Core\Out::capture`, which is the known frontier.
+## Next group — a shape receiver's property read, which is one file set
 
-## Next group — § 10's three gaps, which are one file set
+**Shared file set:** `crates/mwl-types/src/expr/members.rs` (the receiver's type, and the
+`ExprInfo::Property` it does *not* record) and `crates/mwl-ir/src/lower/expr.rs`
+(`lower_property_access`, which panics without one). ADR 0036 § 4 is what specifies the receiver;
+ADR 0071 § 5 is what wants it.
 
-**Shared file set:** `crates/mwl-types/src/error_lib.rs` (the seeded shape) and
-`crates/mwl-ir/src/lower/exception.rs` (the synthesized constructors). That module doc's own *known gaps*
-list is the specification for all three, and ADR 0071 § 5 is what item 3 exists for.
-
-- [ ] **1. `{previous: $e}` on the constructor.** The slot exists and always yields `null`
-      (`error_lib.rs:130` interns `Throwable|null`, `error_lib.rs:161` is the one-parameter
-      `constructor(string $message)`); the seeded signature needs the options bag and
-      `exception_constructor` needs the second parameter — `exception.rs:445`, whose slot order and
-      transfer rules are written out at `exception.rs:432`.
-- [ ] **2. `$e->location`.** The property is seeded (`error_lib.rs:136`) and
-      `Lowering::write_throw_location` (`exception.rs:56`) fills it at the `throw`, so what is missing is
-      the *read*: check what a program gets today for `$e->location` and pin it, since the synthesized
-      constructor leaves it empty and a construction-site value is deliberately not what it holds.
-- [ ] **3. `ParseError::issues` becomes readable.** `error_lib.rs:98` types it `array<Core\Issue>` and
-      `mwl_stdlib::issue` builds the entries, but a case cannot read one out (the list is built and
-      counted only). ADR 0071 § 5's one-throw-lists-every-bad-field rule is what needs it.
+- [ ] **1. `$issue->path` lowers.** The checker already *types* a shape field read —
+      `members.rs:361` finds it in `Ty::Shape(fields)` and answers with the field's type — but records no
+      `ExprInfo::Property` for it (`members.rs:435` is the class-receiver arm that does), so
+      `lower_property_access` (`expr.rs:2822`) panics naming the missing entry. A shape value is an
+      anonymous methodless instance whose slot order is the interner's **sorted** field order
+      (`error_lib::issue_shape`), and `mwl_stdlib::issue` is what builds one — `issue.rs:45` is its
+      `SHAPE` label, `issue.rs:49` its `FIELDS` in slot order.
+- [ ] **2. `ParseError::issues` becomes readable, and ADR 0071 § 5 gets its case.** With slice 1 landed,
+      a `.mwlt` case can walk the list a failed decode throws and print every offending field's dotted
+      path — the one-throw-lists-every-bad-field rule that ADR is built around.
+      `tests/conformance/error/a-parse-error-carries-an-issue-list.mwlt` is the case that counts them
+      today and is the one to extend rather than duplicate.
+- [ ] **3. An anonymous shape literal is readable the same way.** ADR 0036 § 4's own receiver, not just
+      the `Core\Issue` one — same two anchors, and worth pinning in `tests/conformance/lang/` so the
+      rule is not recorded only through `Core`.
 
 ## Backlog
 
@@ -51,6 +51,8 @@ list is the specification for all three, and ADR 0071 § 5 is what item 3 exists
 - `compareTo` on a `Core` instance is still invisible to `Core\Heap`'s ordering — the mechanism is now
   there (`instance`'s dispatch roster), so it is a row per class plus the transfer wrapper
   (`mwl_stdlib::heap`'s own known gap).
-- Stage 4's counts are their own work: conformance 426 of 600, differential 89 of 150.
+- `$e->previous->message` needs the value bound and narrowed first; a property access straight off a
+  `Ty::Tagged` receiver is that type's own known gap (`mwl_ir::ty`).
+- Stage 4's counts are their own work: conformance 428 of 600, differential 89 of 150.
 - `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain
   (`python tools/check-migration.py`).
