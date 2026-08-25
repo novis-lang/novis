@@ -17,6 +17,14 @@ is why" — is this file.
 
 ## Tooling
 
+- **`.agent-tmp/` is shared between concurrent writers, so a fixed scratch filename hands you their
+  file.** `git commit -F .agent-tmp/msg.txt` picked up a *stale* message another session had left
+  there and committed this tree's handoff under "the handoff says the benchmark material is
+  committed, because it is" — no error, no warning, and the only notice was `git log -1`. Name a
+  scratch file for the thing it holds (`wrap-msg-handoff.txt`), never `msg.txt`/`patch.txt`, and read
+  `git log --oneline -1` after any `-F` commit. The same applies to a `--patch` file handed to
+  `splice.py`. Better still, let `python tools/session.py --wrap` write the commits: it takes the
+  message inline and never touches a shared path.
 - **`orient.py` prints less than `brief.py` on purpose, and the gap is a bug in the goal, not in the
   tool.** If it did not print a module, an ADR section, a convention shape or a playbook section you turned
   out to need, do not conclude the orientation is broken and re-run `brief.py` for everything — fetch the

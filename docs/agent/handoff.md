@@ -28,10 +28,13 @@ untouched: no `.mwlt` case was added or edited, so `mwl test tests/` is unmoved 
 6 failed (the PHP-on-Windows oracle set). No valgrind run: the new primitives are not reachable from
 compiled code yet, and their refcount protocol is `mwl_array_set`'s unchanged.
 
-**A second writer is editing this tree.** `docs/adr/0051-standard-library-tiers.md`,
-`docs/adr/ground-rules.md` and `docs/implementation-plan.md`'s M10 body arrived modified mid-session
-and are **not** this session's work; the M10 paragraph rode along in the commit that carries the
-plan's status fields, which that message says.
+**A second writer held this tree at the same time, and `git log` reads oddly because of it.** The
+whole `crates/mwl-runtime/src/array.rs` change above is in **`cd6a37c`**, that writer's commit, which
+swept it in flight and says so; `3a96655` carries only the three files around it, so its message
+describes more than it contains. `docs/adr/0051-standard-library-tiers.md` and
+`docs/adr/ground-rules.md` are theirs (`bce6f6f`), and `docs/implementation-plan.md`'s M10 paragraph
+rode along in `fda43eb`. Nothing is lost and the tree is internally consistent; history was not
+rewritten, because the other writer may already be building on it.
 
 ## Next group — routing `$a[$i]` through the new pair
 
