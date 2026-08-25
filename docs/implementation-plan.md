@@ -190,33 +190,38 @@
 > malformed glob. § 5's probe trace is produced and dropped — folding it into the cache key is the
 > ADR 0042 slice's work — and the name harvest is a deliberate over-approximation that does not yet
 > reach an attribute's name (`mwl-hir`'s own module doc owns both gaps). **What that ADR still owes
-> is a conformance case, and the blocker is not the test format**: `.mwlt` now has an auxiliary-file
+> is a conformance case, and nothing structural blocks one now**: `.mwlt` has an auxiliary-file
 > section — a repeatable `--FILE <relative/path>--` writing another file into the case's own working
-> directory, documented in `crates/mwl-test`'s module doc — but `mwl_hir::resolve_program` has no
-> production caller at all. `mwl-cli`'s `front_end` resolves, checks, lays out and lowers exactly
-> one `SourceId`, so a plain `require` of a class is `E0303` from `mwl run` today and the whole
-> require/autoload graph is exercised only by `mwl-hir`'s own unit tests. Half the wiring is now
-> built: `resolve_program` returns `(Module, Vec<Loaded>)`, `mwl_hir::Loaded` being the public `{
-> id, stmts }` pair for one file, handed back in entry-first load order, so the statements it parsed
-> are no longer dropped at the end of the walk. What is left is the caller: `mwl-cli`'s `front_end`
-> still runs `resolve_file` over one `SourceId`, and `check_program`, `build_class_layouts` and
-> `mwl-ir` lowering must each take the set rather than the one. **ADR 0069's refusal is built** —
-> `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` — leaving that ADR's
-> combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** — `mwl_syntax::bidi` is
-> the one predicate, the lexer reports `E0008` per line over comments, string literals and inline
-> HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink halves are M7's and
-> M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier
-> classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it, and
-> neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test that
-> refuses an unclassified member exists; it lands with M4S's remaining sections. **Then `Core`
-> breadth, where Stage 3 stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are written, § 5
-> is six of its eight members, and § 1 is missing its eleven text-shaping rows,
-> `Arr::diff`/`intersect` and ADR 0069's combination members. Every signature shape the spec writes
-> can now be stated: a variadic tail is `registry::CoreTy::Variadic`, a `Core`-owned instance is
-> `CoreClass`'s `instance` roster over `mwl_stdlib::instance`, a class constant may be an instance
-> through `registry::Const::Built`, and a member may be handed the class its call site wrote through
-> `registry::WRITTEN_CLASS_MEMBERS`. § 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that
-> module's gap 1). **ADR 0071 is built end to end for a scalar-fielded class**; its gaps are no
+> directory, documented in `crates/mwl-test`'s module doc — and `mwl-cli`'s `front_end` is
+> multi-file end to end. It calls `mwl_hir::resolve_program`, so the unit of work is the whole
+> require/autoload graph rather than one `SourceId`: `mwl_types::ProgramFile` is the `{ src, stmts
+> }` pair every phase now takes a *slice* of, and `check_program`, `build_signatures`,
+> `build_enum_table`, `build_const_table` and `build_class_layouts` each build one table across the
+> whole set before any body is checked, since a class declared in a required file is named from the
+> file that required it. `Checked` carries the files entry-first, and `mwl_ir::lower::lower_program`
+> lowers every file's declarations while giving a script frame to the entry alone (`lower_file` is
+> now the one-file spelling of it); a `require` in statement position lowers to nothing, because the
+> graph is already resolved by the time lowering starts. So `require './src/Greeter.mwl';
+> App\Greeter::hello(…)` runs from `mwl run`, and so does a class reached only through an `autoload
+> 'App' from './src'` in a bootstrap file. Two things stay out and are `mwl-ir` gap 22: a required
+> file's own top-level statements are not run, and ADR 0021 § 3's value form (`$c = require '…';`)
+> has no lowering arm. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`
+> naming `Core\Arr::underlay` — leaving that ADR's combination *members* to § 1's `Core` breadth
+> below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008`
+> per line over comments, string literals and inline HTML, and seven `.mwlt` cases pin it; its
+> `Core\Html` and `Core\Cli` sink halves are M7's and M8's. **ADR 0088 opens one registry-wide
+> item**: `mwl-stdlib`'s member rows carry no qualifier classification, so `Core\Str::format`'s
+> template is not yet the sink that ADR makes it, and neither the fail-closed default for an
+> unclassified `string`/`bytes` parameter nor the test that refuses an unclassified member exists;
+> it lands with M4S's remaining sections. **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3
+> and 6 are whole, § 2's aggregations are written, § 5 is six of its eight members, and § 1 is
+> missing its eleven text-shaping rows, `Arr::diff`/`intersect` and ADR 0069's combination members.
+> Every signature shape the spec writes can now be stated: a variadic tail is
+> `registry::CoreTy::Variadic`, a `Core`-owned instance is `CoreClass`'s `instance` roster over
+> `mwl_stdlib::instance`, a class constant may be an instance through `registry::Const::Built`, and
+> a member may be handed the class its call site wrote through `registry::WRITTEN_CLASS_MEMBERS`. §
+> 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that module's gap 1). **ADR 0071 is built
+> end to end for a scalar-fielded class**; its gaps are no
 > enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
 > default. **Next on the path is `examples/collect.mwl`**, which needs §§ 7-9 and 11-12 at once:
 > `Core\Path` is the cheapest slice, then `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap`,

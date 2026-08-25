@@ -2,57 +2,52 @@
 
 ## State
 
-**`resolve_program` now hands its files back, so half of the multi-file wiring is built.** It returns
-`(Module, Vec<Loaded>)`; `mwl_hir::Loaded` is the public `{ id: SourceId, stmts: Vec<Stmt> }` pair for one
-file, in **entry-first load order** — the entry file's own statements are in the vector, which is what
-`front_end` needed and could not get before. The order contract and why the walk keeps the statements at all
-live in `crates/mwl-hir/src/requires.rs`'s module doc and on `resolve_program` itself. One new unit test
-pins entry-first + each file exactly once over a diamond; `python tools/verify.py` green, 1392 tests.
+**The front end is multi-file end to end, so ADR 0061 is finally observable from `mwl run`.**
+`mwl-cli`'s `front_end` (`main.rs:222`) calls `mwl_hir::resolve_program`, and `mwl_types::ProgramFile`
+(`mwl-types/src/lib.rs:249`) is the `{ src, stmts }` pair every phase now takes a **slice** of:
+`check_program`, `build_signatures`, `build_enum_table`, `build_const_table` and `build_class_layouts` each
+build one table across the whole set before any body is checked. `mwl_ir::lower::lower_program`
+(`lower/mod.rs:296`) lowers every file's declarations and gives a script frame to `files[0]` alone;
+`lower_file` is now the one-file spelling of it. A `require` in statement position lowers to nothing
+(`lower/stmt.rs:265`), because the graph is resolved before lowering starts.
 
-**The consumer is still unwired, and that is the whole remaining blocker for ADR 0061's conformance cases.**
-`mwl-cli`'s `front_end` (`main.rs:222`) calls `mwl_hir::resolve_file` over exactly one `SourceId`, so
-`require './src/Greeter.mwl'; new App\Greeter()` is still `E0303` from `mwl run`, and the require/autoload
-graph is exercised only by `mwl-hir`'s own unit tests. Nothing in `tests/conformance/` can reach it yet.
+Verified by hand under `.agent-tmp/multifile/`: `require './src/Greeter.mwl'` reaching a static method, and
+a class reached only through `autoload 'App' from './src'` in a `require`d bootstrap file, both run and exit
+0. `python tools/verify.py` green, 1392 tests.
 
-## Next group — make the front end multi-file, then item 8c's cases
+**Two gaps stay open and are recorded as `mwl-ir` gap 22** (`mwl-ir/src/lib.rs`): a required file's *own*
+top-level statements are not run, and ADR 0021 § 3's value form (`$c = require '…';`) has no lowering arm.
+Closing either means one frame per file called from the site, which re-opens ADR 0021's "no isolation"
+question — deliberately not guessed at here.
 
-**Shared file set:** `crates/mwl-cli/src/main.rs`, `crates/mwl-types/src/check.rs`,
-`crates/mwl-ir/src/lower/mod.rs`, then `tests/conformance/lang/`. The rule is
+## Next group — item 8c's conformance cases, then the harvest widening
+
+**Shared file set:** `tests/conformance/lang/`, then `crates/mwl-hir/src/requires.rs`. The rule is
 [`loop-goal.md`](loop-goal.md) § *Stage 0* item 8; the semantics are
-[ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) §§ 1, 2 and 5 and
-[ADR 0021](../adr/0021-single-file-inclusion-construct.md).
+[ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) §§ 1 and 2. The `.mwlt` multi-file
+format, with a working ADR 0061 example, is `crates/mwl-test/src/lib.rs:46` § *More than one file*.
 
-- [ ] **Call `resolve_program` from `mwl-cli`'s `front_end`** (`main.rs:222`), replacing the `resolve_file`
-      on `main.rs:234`. `mwl_types::check_program` (`check.rs`, one `&SourceFile` + one `&[Stmt]`) and
-      `mwl_types::build_class_layouts` (`main.rs:250`) each take one file's pair; both must run over the
-      whole `Vec<Loaded>` with one shared `TypeInterner`/`ExprTypeTable`, and `Checked` (`main.rs:209`) must
-      carry the set. Keep `Checked.id` as the entry point's id — it names the program.
-- [ ] **Decide what a non-entry file's top-level statements lower to.** `mwl_ir::lower::lower_file`
-      (`main.rs:288`) synthesizes one `<script>` frame per file (`SCRIPT`, `main.rs:270`), and N files cannot
-      all be `<script>`. ADR 0021 § *no isolation* says a required file's statements run at the `require`
-      site; the cheap correct answer is that only the entry gets a script frame and every other file
-      contributes its *declarations* only, with a diagnostic or a documented gap for a required file that
-      writes a bare statement. Record whichever is chosen in `mwl-ir`'s module doc.
-- [ ] **Then item 8c's `.mwlt` cases**, `tests/conformance/lang/`: a class reached only through `autoload`
-      runs; an explicit prefix shadows a `discover` glob; a second root is probed only after the first
-      misses; `E0317`'s one-declaration-per-file rule fires with `--EXPECTF-ERROR--`. The format is in
-      `crates/mwl-test/src/lib.rs`'s module doc — its *More than one file* section has a working example.
-- [ ] **Widen the name harvest to attributes** (`requires.rs`, `record_name` / `walk_stmt`) if it is cheap
-      once the cases exist; `mwl-hir`'s module doc records it as a known gap today.
+- [ ] **Item 8c's `.mwlt` cases**, new files under `tests/conformance/lang/` (no registration needed): a
+      class reached only through `autoload` runs; an explicit prefix shadows a `discover` glob; a second
+      root is probed only after the first misses; `E0317`'s one-declaration-per-file rule fires with
+      `--EXPECTF-ERROR--`. Two traps that already cost a session: a promoted constructor parameter is not
+      recorded as a property (`signatures.rs` known gaps), so a fixture class needs an explicit
+      `private int $n;`, and `--EXPECTF-ERROR--` must reproduce the diagnostic's own indentation.
+- [ ] **Add `E0315`/`E0316`/`E0318` cases too** if the first bullet leaves room — duplicate prefix, an
+      `autoload` inside an autoloaded file, a malformed glob. Same file set, same `--EXPECTF-ERROR--` shape;
+      the codes are declared in `mwl-diagnostics/src/lib.rs` and reported from `mwl-hir/src/autoload.rs`.
+- [ ] **Widen the name harvest to attributes** (`requires.rs`, `record_name` / `walk_stmt`) — `mwl-hir`'s
+      module doc records it as a known gap: `#[Route(...)]` naming an autoloadable class does not pull that
+      file in. Cheap once a case exists to pin it.
 
 ## Backlog
 
-- ADR 0061 § 5's probe trace is produced (`autoload::Probe::tried`) and dropped; folding it into the cache
-  key needs ADR 0042's `PathEntry` table — that ADR's own slice.
-- `Core` breadth where Stage 3 stopped: `examples/collect.mwl` needs spec §§ 7-9 and 11-12
+- `mwl-ir` gap 22 — a required file's top-level statements, and `$c = require '…';` (`mwl-ir/src/lib.rs`).
+- ADR 0061 § 5's probe trace is produced and dropped; folding it into the cache key is ADR 0042's slice.
+- `Core` breadth where Stage 3 stopped — `examples/collect.mwl` needs §§ 7-9 and 11-12
   (`docs/implementation-plan.md` § *Open now*).
-- ADR 0088's qualifier classification for every `mwl-stdlib` member row (`docs/implementation-plan.md`).
-- `docs/spec/02-php-migration.md` is 31% classified; one pass per PHP domain remains
+- ADR 0088's registry-wide qualifier classification, landing with M4S (`docs/adr/0088-*`).
+- `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain remaining
   (`python tools/check-migration.py`).
-- `mwl-ir` gap 18: an abandoned generator never runs the `finally` it is suspended inside.
-
-## Orientation gaps
-
-`crates/mwl-cli/src/main.rs` is now in `[context] modules` in `loop-goal.toml`, so `orient.py` prints its
-map line — the gap the previous handoff named is closed. `mwl-ir/src/lower/mod.rs` is already selected, so
-the next group needs no further manifest change.
+- A promoted constructor parameter is not a property in any table — `mwl-types/src/signatures.rs` known
+  gaps, and `mwl-types/src/derive.rs` gap 2 depends on it.
