@@ -107,6 +107,12 @@ is why" — is this file.
   hands it a `&QName` to pattern-match. Destructure it at the call site and pass what the callee actually
   needs (an `&EnumInfo`, or the name already rendered with `to_string`); `mwl_types` re-exports the enum
   and layout tables but not `QName`, and adding the dependency to get one is the wrong direction.
+- **Teaching `mwl-ir` a new receiver or value shape is two edits, and the second one panics somewhere
+  else.** Recording a new `ExprInfo` variant gets the *access* lowering; what still fails is
+  `erase_checked_ty`, which owns the `mwl_types::ty::Ty` → `mwl_ir::Ty` representation map, and whose
+  panic names "a resolved call's parameter or return type" — so the message points at a call boundary,
+  a `var` binding or a `foreach` element rather than at the feature you just built. `Ty::Shape` needed
+  exactly that: `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
   test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe` takes over two minutes.
 

@@ -35,6 +35,11 @@ try {
     echo "not reached\n";
 } catch (ParseError $bad) {
     echo "issues=", Core\Arr::count($bad->issues), "\n";
+    // § 5's whole point is *which* fields, in declaration order — which needs
+    // the issue's own `path`, read off an ADR 0036 § 4 shape receiver.
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  bad=", $issue->path, "\n";
+    }
 }
 
 // A renamed field is read under its wire key and nothing else: `live` is not
@@ -44,6 +49,10 @@ try {
     echo "not reached\n";
 } catch (ParseError $renamed) {
     echo "renamed=", Core\Arr::count($renamed->issues), "\n";
+    // The path is the *wire* key, so the missing field is reported under the
+    // name the document was supposed to carry rather than the property's.
+    var $only = $renamed->issues["0"];
+    echo "renamed-path=", $only->path, "\n";
 }
 
 // A malformed document is one issue with no field to point at, so a caller
@@ -59,5 +68,9 @@ name=ada
 round={"name":"ada","rank":1,"is_live":true}
 blank={"name":"ada","rank":null,"is_live":false}
 issues=3
+  bad=name
+  bad=rank
+  bad=is_live
 renamed=1
+renamed-path=is_live
 malformed=1

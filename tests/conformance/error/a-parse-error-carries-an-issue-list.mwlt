@@ -18,6 +18,15 @@ try {
     echo "not reached\n";
 } catch (ParseError $malformed) {
     echo "malformed=", Core\Arr::count($malformed->issues), "\n";
+    // An issue is an ADR 0036 shape, so its fields are read by name off the
+    // value the list holds (§ 4). `path` is empty for a failure about the
+    // document rather than about a field in it, and that issue's message is
+    // the throw's own — one bad document is one issue, not a second story.
+    var $first = $malformed->issues["0"];
+    echo "path=[", $first->path, "]\n";
+    if ($first->message == $malformed->message) {
+        echo "same message\n";
+    }
 }
 
 // Nesting past `maxDepth` is a ParseError too, and reports the same way.
@@ -44,6 +53,8 @@ try {
 plain=0
 message=hand written
 malformed=1
+path=[]
+same message
 deep=1
 decoded
 io=disk

@@ -86,7 +86,8 @@
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax +
 > default/private-method slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023
-> § 1, 0035 § 4, 0031 §§ 1-2, 0065, **0029/0030** (the casing checker existed but no pipeline called
+> § 1, 0035 § 4, 0031 §§ 1-2, 0065, 0036 § 4's shape-field *read* (its write half and the anonymous
+> literal are `mwl-ir` gap 6), **0029/0030** (the casing checker existed but no pipeline called
 > it), **0053 and 0009 in full**, **0054 §§ 1–4 in full** (`Core\Decimal`'s own roster is M8's, and
 > that ADR's *Verification* says so), and **0066 §§ 1–3 for the checked numeric targets** — a
 > nullable binding, parameter, property and return, `null` itself, `??` and now `as
@@ -137,9 +138,10 @@
 > collections each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol through its
 > descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster), and the
 > spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only be reached by
-> emptying it is the PHP behaviour § 9 replaces; § 10 owes `ParseError::issues` being *readable*
-> alone — the constructor takes `{previous: $e}` and `$e->location` is pinned as the throw site,
-> both stated by `mwl_types::error_lib`'s own module doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
+> emptying it is the PHP behaviour § 9 replaces; § 10 is **whole**, an `issues` entry being readable
+> now that a shape field resolves to a slot index the IR reads by number (`ExprInfo::ShapeProperty`,
+> `InstKind::SlotGet`) — the constructor takes `{previous: $e}` and `$e->location` is pinned as the
+> throw site, both stated by `mwl_types::error_lib`'s own module doc; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
 > `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
 > `Union`, `Decimal` and `Iterated`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
