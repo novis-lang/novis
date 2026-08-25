@@ -61,10 +61,10 @@
 > `granularity`, `ordering`, `cldr`, `instance`, `issue`, `Order`, `RoundMode`, `Unit` and
 > `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
-> `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, and the
-> conformance-coverage gate), `mwl-codegen`, `mwl-cli`
+> `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
+> over `rand`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 363 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 365 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -262,9 +262,14 @@
 > one parse grammar on **every** platform with only the emitted separator following the host (which
 > is what makes a case pinnable on both legs), `join` that only ever appends rather than letting an
 > absolute segment replace the base, and three divergences from `pathinfo`/`dirname` that keep
-> `withExtension` the exact inverse of `extension`. Left on that fixture: `Encoding`/`Hash`/`Uuid`,
-> each needing a dependency picked under ADR 0051 § 4, then `ObjectSet`/`ObjectMap`, which
-> additionally need `new Core\X<T>()` to parse. One PHP divergence stands unfixed — an
+> `withExtension` the exact inverse of `extension`. **Spec § 11's first table is six of its seven
+> members**: `mwl_stdlib::random` registers `int`, `float`, `token`, `pick`, `sample` and `shuffle`
+> over `rand`, picked under ADR 0051 § 4 as a CSPRNG that is also a userspace one — that module's
+> own docs own the pick, what a `ThreadRng` spends per thread, and the three gaps it leaves
+> (`Random::bytes`, which waits on a runtime `bytes` tag; `Core\Random\Seeded`; no reseed on
+> `fork`). Left on that fixture: `Encoding`/`Hash`/`Uuid`, each needing a dependency picked under
+> ADR 0051 § 4, then `ObjectSet`/`ObjectMap`, which additionally need `new Core\X<T>()` to parse.
+> One PHP divergence stands unfixed — an
 > abandoned generator never runs the `finally` it is suspended inside, `mwl-ir`'s gap 18. In docs,
 > `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain remaining, reported by
 > `python tools/check-migration.py`. **Three more ADRs are decided and unbuilt but are not

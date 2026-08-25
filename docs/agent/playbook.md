@@ -61,6 +61,10 @@ is why" — is this file.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
   `python tools/check-links.py` — broken *and* mis-cased relative links.
 - **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file.
+- **Never `plan.py --get "Open now"` just to check an edit landed.** That field is one logical line of
+  about 10,000 tokens, and `--get` unwraps and prints the whole of it — five per cent of a session's
+  ceiling to confirm a sentence you already wrote. `grep -n` the phrase in `docs/implementation-plan.md`
+  instead; the surrounding `> `-prefixed lines are the same fact for a hundredth of the cost.
 - **A plan status field is *one* logical line, and three renderings of it disagree.** `plan.py --get`
   hands back the unwrapped line, `orient.py` re-wraps it again, and on disk it is a `> `-prefixed
   blockquote wrapped at ~100 columns. So an anchor copied out of either *rendering* never matches the
