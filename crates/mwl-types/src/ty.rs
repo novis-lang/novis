@@ -632,8 +632,9 @@ impl TypeInterner {
 
     /// Interns ADR 0063 R2's options bag — see [`Ty::Options`], which owns why
     /// `options` is interned in the order given rather than sorted the way
-    /// [`Self::shape`] sorts, and why nothing outside [`crate::core_lib`]
-    /// calls this.
+    /// [`Self::shape`] sorts. Two callers, and both seed a signature the
+    /// program did not write: [`crate::core_lib`] for a `Core` member's bag,
+    /// and [`crate::error_lib`] for the exception constructor's `{previous}`.
     #[must_use]
     pub fn options(&mut self, options: Vec<(String, TypeId)>) -> TypeId {
         self.intern(Ty::Options(options))

@@ -148,13 +148,29 @@ impl<'a> Lowering<'a> {
                 )
             });
             // A bag omitted whole is every one of its options taking its own
-            // default, in the same declared order a written one flattens in.
+            // default, in the same declared order a written one flattens in —
+            // which is exactly what `lower_options_arg` does with no written
+            // literal, so it is reached rather than repeated here. Going
+            // through it is also what gives an omitted option the same
+            // widening into its declared slot that a written one gets.
             if let mwl_types::ConstArg::Options(options) = default {
-                for (_, value) in options {
-                    let (v, ty) = self.emit_const_arg(value, env, *cur);
-                    self.account_for_arg(v, ty, ownership, false, *cur);
-                    out.values.push(v);
-                }
+                let CheckedTy::Options(declared) = checked_types.get(sig.param_tys[index]) else {
+                    panic!(
+                        "mwl-ir: parameter {index} carries an options-bag default but its \
+                         declared type is not an options bag — mwl_types is trusted to record \
+                         the two together"
+                    );
+                };
+                self.lower_options_arg(
+                    None,
+                    declared,
+                    options,
+                    checked_types,
+                    ownership,
+                    env,
+                    cur,
+                    &mut out,
+                );
                 continue;
             }
             let (v, ty) = self.emit_const_arg(default, env, *cur);
@@ -323,11 +339,19 @@ impl<'a> Lowering<'a> {
             None => Vec::new(),
         };
         for (name, option_ty) in options {
+            // Each flattened option is widened into the slot its *declared*
+            // type erases to, exactly as a positional argument is. A helper's
+            // slot is a whole `Value` and would take either representation
+            // (`ArgSig::helper`), so for a `Core` member this is the identity;
+            // a compiled MWL function's slot is typed, and `Throwable|null`
+            // being `Ty::Tagged` is what makes the exception constructor's
+            // `{previous}` bag reach it at all.
+            let expected = lower_checked_ty(*option_ty, checked_types);
             if let Some((_, value)) = fields.iter().find(|(field, _)| field == name) {
-                let expected = lower_checked_ty(*option_ty, checked_types);
                 let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
                 let aliasing = self.aliasing_read(value);
                 self.account_for_arg(v, ty, ownership, aliasing, *cur);
+                let v = self.coerce(*cur, v, ty, expected);
                 out.values.push(v);
                 continue;
             }
@@ -344,6 +368,7 @@ impl<'a> Lowering<'a> {
                 });
             let (v, ty) = self.emit_const_arg(default, env, *cur);
             self.account_for_arg(v, ty, ownership, false, *cur);
+            let v = self.coerce(*cur, v, ty, expected);
             out.values.push(v);
         }
     }

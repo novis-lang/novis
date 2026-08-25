@@ -29,26 +29,31 @@
 //! them, which is why the root is no longer the only entry with methods; the
 //! bodies are `mwl_ir::lower::exception`'s.
 //!
+//! # `location` is the throw site, not the construction site
+//!
+//! The synthesized constructor leaves it empty and `mwl_ir::lower`'s
+//! `write_throw_location` fills it at the `throw` — the choice that agrees
+//! with the backtrace beside it, since that holds the frames the exception
+//! unwound *out of*. Two consequences, both pinned by
+//! `tests/conformance/error/a-location-is-the-throw-site-and-a-rethrow-moves-it.mwlt`:
+//! an exception constructed and never thrown reads `""`, and rethrowing one
+//! that was already caught *rewrites* its location to the rethrow site rather
+//! than keeping the original. Chaining is what preserves the original — the
+//! cause keeps its own location, and `{previous: $e}` is how it is kept.
+//!
 //! # Known gaps
 //!
-//! * **`previous` can never be set.** Its slot exists (the slot *order* is
-//!   load-bearing — see [`mwl_hir::errors::PROPERTIES`]), and reading it
-//!   yields `null`, but the constructor takes only a message: an optional
-//!   parameter has no model in [`crate::signatures::MethodSig`] at all
-//!   (`params` plus a `variadic` flag, with the arity check demanding an
-//!   exact count), so a second parameter would make every one-argument
-//!   `new LogicError("…")` a diagnostic. Widening the signature model is the
-//!   prerequisite, not a change here.
+//! * **`$e->previous` is set but cannot be *read* through.** The chain is
+//!   built — `new RuntimeError("…", {previous: $e})` stores it, and reading
+//!   the property back yields the `Throwable|null` it was given — but that
+//!   type erases to `mwl_ir::Ty::Tagged`, so reaching `->message` on it needs
+//!   the value bound to a local and narrowed with `!= null` first (ADR 0066).
+//!   A property access straight off `$e->previous` is the tagged-receiver
+//!   case `mwl_ir::Ty::Tagged`'s own known gap names.
 //! * **An `issues` entry cannot be *read* yet.** The list is built, counted
 //!   and iterated like any array, but `$issue->path` is a property access on
 //!   an ADR 0036 § 4 shape receiver, which `mwl-ir` does not lower — its own
 //!   gap, and the reason this crate records no `ExprInfo::Property` for one.
-//! * **`location` is the throw site, not the construction site.** The
-//!   synthesized constructor leaves it empty and `mwl_ir::lower`'s
-//!   `write_throw_location` fills it at the `throw` — which is the choice that
-//!   agrees with the backtrace beside it, since that holds the frames the
-//!   exception unwound *out of*. An exception constructed and never thrown
-//!   therefore reads `""`.
 //!
 //! A user subclass that declares its own constructor and does not chain to
 //! `parent::constructor(…)` is already refused, by the same check every other
@@ -58,6 +63,7 @@ use mwl_hir::QName;
 use mwl_hir::errors::{PROPERTIES, ROOT, TREE};
 use rustc_hash::FxHashMap;
 
+use crate::defaults::ConstArg;
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
@@ -152,8 +158,19 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
         .collect()
 }
 
-/// `constructor(string $message)` — see this module's known gaps for why
-/// `previous` is not a second parameter.
+/// `constructor(string $message, {previous?: Throwable|null})` — spec § 10's
+/// one required message and one options shape, which is
+/// [ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2 applied to a
+/// constructor like any other member.
+///
+/// The bag is optional by construction rather than by a second rule: its
+/// [`ConstArg::Options`] default gives every option its own `null`, so
+/// `new LogicError("…")` supplies one argument and
+/// [`MethodSig::required`](crate::signatures::MethodSig::required) is 1. The
+/// flattening at the call site is generic over any signature carrying a
+/// [`Ty::Options`](crate::ty::Ty::Options) parameter — `mwl_ir::lower::call`'s
+/// `lower_options_arg` — so a seeded constructor reaches it on exactly the
+/// terms a `Core` member does.
 ///
 /// The same signature for every class that declares one: a subclass's
 /// synthesized body differs only in which slots it fills, never in what a
@@ -161,13 +178,23 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
 fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
     let string = interner.string();
     let void = interner.void();
+    let throwable = interner.class(QName::parse(ROOT));
+    let null = interner.null();
+    let previous = interner.make_union([throwable, null]);
+    let options = interner.options(vec![("previous".to_owned(), previous)]);
     [(
         "constructor".to_owned(),
         MethodSig {
-            params: vec![string],
-            by_ref: vec![false],
+            params: vec![string, options],
+            by_ref: vec![false, false],
             variadic: false,
-            defaults: vec![None],
+            defaults: vec![
+                None,
+                Some(ConstArg::Options(vec![(
+                    "previous".to_owned(),
+                    ConstArg::Null,
+                )])),
+            ],
             type_params: Vec::new(),
             return_ty: void,
             is_static: false,
@@ -228,7 +255,26 @@ mod tests {
             .expect("the constructor resolves through the seeded links");
         assert_eq!(owner.to_string(), ROOT);
         assert!(!sig.is_static);
-        assert_eq!(sig.params.len(), 1);
+        // The message, then spec § 10's options bag — which carries its own
+        // default, so a `new IOError("…")` still supplies one argument.
+        assert_eq!(sig.params.len(), 2);
+        let throwable = interner.class(QName::parse(ROOT));
+        let null = interner.null();
+        let previous = interner.make_union([throwable, null]);
+        // Rebuilt rather than compared against a `describe` string: a union
+        // orders its members by type id, so the rendering is not stable.
+        assert_eq!(
+            sig.params[1],
+            interner.options(vec![("previous".to_owned(), previous)])
+        );
+        assert_eq!(sig.required(), 1);
+        assert_eq!(
+            sig.defaults[1],
+            Some(ConstArg::Options(vec![(
+                "previous".to_owned(),
+                ConstArg::Null
+            )]))
+        );
     }
 
     #[test]

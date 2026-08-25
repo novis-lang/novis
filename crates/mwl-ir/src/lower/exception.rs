@@ -390,6 +390,9 @@ pub(super) const THROWABLE_ROOT: &str = "Throwable";
 /// `Throwable::$message`.
 pub(super) const MESSAGE_FIELD: &str = "message";
 
+/// `Throwable::$previous`.
+pub(super) const PREVIOUS_FIELD: &str = "previous";
+
 /// `Throwable::$backtrace`.
 pub(super) const BACKTRACE_FIELD: &str = "backtrace";
 
@@ -416,11 +419,15 @@ pub(super) const ISSUES_FIELD: &str = "issues";
 /// They cannot be written in MWL — `backtrace` is grown by the runtime as a
 /// throw propagates, so a source declaration would need a body with no legal
 /// spelling (`mwl_hir::errors` owns that reasoning). What each does is small
-/// enough to build by hand: store the message, start an empty backtrace, and
-/// put a placeholder in `location` that [`Lowering::write_throw_location`]
-/// overwrites at the `throw`. `previous` is left `null`, which is the only
-/// value it can have until `mwl_types::signatures::MethodSig` can model an
-/// optional parameter (`mwl_types::error_lib`'s own known gaps).
+/// enough to build by hand: store the message and the `previous` the options
+/// bag flattened into parameter 2, start an empty backtrace, and put a
+/// placeholder in `location` that [`Lowering::write_throw_location`]
+/// overwrites at the `throw`.
+///
+/// Parameter 2 is `Ty::Tagged` because spec § 10 types the option
+/// `Throwable|null`, and a bag omitted whole flattens to that option's own
+/// `null` default — so the slot is written on every path and ADR 0022's
+/// definite assignment holds without a branch here.
 ///
 /// `ParseError` gets a second one rather than inheriting the root's, because
 /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5 gives it an
@@ -439,14 +446,17 @@ pub(super) fn synthesized_exception_constructors() -> Vec<Function> {
 /// One such constructor: the root's four slots, then one empty `array` per
 /// name in `extra` — which is every property `class` declares beyond them.
 ///
-/// The receiver and the message are both *transferred* to this frame by the
-/// call convention, so both are released at the exit — the field takes its own
-/// reference to the message first.
+/// The receiver, the message and the `previous` option are all *transferred*
+/// to this frame by the call convention, so all three are released at the exit
+/// — each field takes its own reference first. A tagged `null` retains and
+/// releases as a no-op, which `mwl_runtime::mwl_value_retain` decides at run
+/// time rather than this lowering deciding it here.
 fn exception_constructor(class: &str, extra: &[&str]) -> Function {
     let mut ids = IdGen::default();
     let block = ids.next_block();
     let this = ids.next_value();
     let message = ids.next_value();
+    let previous = ids.next_value();
     let backtrace = ids.next_value();
     let location = ids.next_value();
 
@@ -483,6 +493,9 @@ fn exception_constructor(class: &str, extra: &[&str]) -> Function {
         defines(message, Ty::Str, InstKind::Param(1)),
         plain(InstKind::Retain { operand: message }),
         store(MESSAGE_FIELD, message),
+        defines(previous, Ty::Tagged, InstKind::Param(2)),
+        plain(InstKind::Retain { operand: previous }),
+        store(PREVIOUS_FIELD, previous),
         defines(backtrace, Ty::Array, empty_array()),
         store(BACKTRACE_FIELD, backtrace),
         defines(location, Ty::Str, InstKind::ConstStr(String::new())),
@@ -494,12 +507,13 @@ fn exception_constructor(class: &str, extra: &[&str]) -> Function {
         insts.push(store(field, value));
     }
     insts.push(plain(InstKind::Release { operand: message }));
+    insts.push(plain(InstKind::Release { operand: previous }));
     insts.push(plain(InstKind::Release { operand: this }));
 
     let (stmt_spans, edge_spans) = ids.into_spans();
     Function {
         name: format!("{class}::constructor"),
-        params: vec![Ty::Object, Ty::Str],
+        params: vec![Ty::Object, Ty::Str, Ty::Tagged],
         ret: Ty::Void,
         blocks: vec![BasicBlock {
             id: block,

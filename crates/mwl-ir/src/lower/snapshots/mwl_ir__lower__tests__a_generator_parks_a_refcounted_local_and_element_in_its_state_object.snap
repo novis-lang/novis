@@ -85,36 +85,44 @@ fn <script>() -> tagged {
     return
 }
 
-fn Throwable::constructor(object, string) -> void {
+fn Throwable::constructor(object, string, tagged) -> void {
   bb0:
     safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
     retain v1
     field.set v0, Throwable::message, v1
-    v2 = array.new []  ; array
-    field.set v0, Throwable::backtrace, v2
-    v3 = const.str ""  ; string
-    field.set v0, Throwable::location, v3
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, Throwable::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, Throwable::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, Throwable::location, v4
     release v1
+    release v2
     release v0
     return
 }
 
-fn ParseError::constructor(object, string) -> void {
+fn ParseError::constructor(object, string, tagged) -> void {
   bb0:
     safepoint
     v0 = param 0  ; object
     v1 = param 1  ; string
     retain v1
     field.set v0, ParseError::message, v1
-    v2 = array.new []  ; array
-    field.set v0, ParseError::backtrace, v2
-    v3 = const.str ""  ; string
-    field.set v0, ParseError::location, v3
-    v4 = array.new []  ; array
-    field.set v0, ParseError::issues, v4
+    v2 = param 2  ; tagged
+    retain v2
+    field.set v0, ParseError::previous, v2
+    v3 = array.new []  ; array
+    field.set v0, ParseError::backtrace, v3
+    v4 = const.str ""  ; string
+    field.set v0, ParseError::location, v4
+    v5 = array.new []  ; array
+    field.set v0, ParseError::issues, v5
     release v1
+    release v2
     release v0
     return
 }

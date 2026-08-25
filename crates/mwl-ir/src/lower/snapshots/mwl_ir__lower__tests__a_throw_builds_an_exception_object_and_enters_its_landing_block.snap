@@ -7,12 +7,14 @@ fn <script>() -> tagged {
     safepoint
     ; stmt s0 @2:1-2:30
     v0 = const.str "boom"  ; string
-    v1 = new LogicError via Throwable::constructor(v0) ! bb1  ; object
-    v2 = field.get v1, Throwable::location  ; string
-    release v2
-    v3 = const.str "t.mwl:2"  ; string
-    field.set v1, Throwable::location, v3
-    throw v1 -> bb2
+    v1 = const.null  ; null
+    v2 = tag v1  ; tagged
+    v3 = new LogicError via Throwable::constructor(v0, v2) ! bb1  ; object
+    v4 = field.get v3, Throwable::location  ; string
+    release v4
+    v5 = const.str "t.mwl:2"  ; string
+    field.set v3, Throwable::location, v5
+    throw v3 -> bb2
   bb1:
     propagate "<script>() at t.mwl:2"
   bb2:

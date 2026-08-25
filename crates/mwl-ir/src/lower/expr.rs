@@ -1658,13 +1658,21 @@ impl<'a> Lowering<'a> {
                     Ty::Str,
                     InstKind::ConstStr("no `match` arm matched the subject".to_owned()),
                 );
+                // Argument 2 is the `{previous}` bag, flattened: this throw
+                // chains to nothing, so it is the option's own `null` default,
+                // widened into the `Ty::Tagged` slot spec § 10's
+                // `Throwable|null` erases to. `lower_call_args` does the same
+                // for a written `new`; this site builds the list by hand and
+                // so has to say it.
+                let (absent, _) = self.emit(test_cur, Ty::Null, InstKind::ConstNull);
+                let absent = self.coerce(test_cur, absent, Ty::Null, Ty::Tagged);
                 let (exception, _) = self.emit_fallible(
                     test_cur,
                     Ty::Object,
                     InstKind::New {
                         class: "LogicError".to_owned(),
                         ctor: Some(THROWABLE_CTOR.to_owned()),
-                        args: vec![message],
+                        args: vec![message, absent],
                     },
                     env,
                 );
