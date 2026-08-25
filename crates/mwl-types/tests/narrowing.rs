@@ -99,6 +99,29 @@ fn a_write_inside_a_loop_body_widens_the_local_after_it() {
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
+/// ADR 0090 § 1 left one spelling, and `mwl_types::locals`' `null_test` reads
+/// it: `!= null`/`== null` is the narrowing test, where while both operator
+/// pairs existed it had to be `!==`/`===` to stay clear of PHP's truthy table.
+/// § 2 is what keeps it a question only a *nullable* binding can be asked —
+/// the same test against a non-nullable one no longer compiles at all.
+#[test]
+fn an_equality_null_test_narrows() {
+    let diags =
+        check_with_node("if ($n != null) {\n  echo $n->label();\n} else {\n  echo \"none\";\n}\n");
+    assert!(!diags.has_errors(), "{diags:?}");
+    let refused = check_src(
+        "<?mwl\nclass Node {\n  function label(): string { return \"n\"; }\n}\n\
+         class T {\n  function m(Node $n): void {\n    if ($n != null) {\n      \
+         echo $n->label();\n    }\n  }\n}\n",
+    );
+    assert!(
+        refused
+            .iter()
+            .any(|d| d.code == Some(code::E_DISJOINT_EQUALITY)),
+        "{refused:?}"
+    );
+}
+
 /// Only a `null`-and-one-class union narrows — see [`mwl_types::locals`]'s
 /// `narrow` for why a `?int` narrowed here would trade a clean diagnostic for
 /// an `mwl-ir` panic.

@@ -576,7 +576,7 @@ pub(crate) fn check_stmt(
             suspended.resume(scope);
         }
         StmtKind::Switch { subject, cases } => {
-            check_expr(subject, None, live, scope, ctx, env);
+            let subject_ty = check_expr(subject, None, live, scope, ctx, env);
             // Every case starts fresh from the pre-switch `live` — see the
             // module docs' known gaps on why fallthrough isn't modeled for
             // *within*-case reads. What *is* modeled precisely: a case
@@ -596,7 +596,12 @@ pub(crate) fn check_stmt(
             for (i, case) in cases.iter().enumerate() {
                 let mut case_live = live.clone();
                 if let Some(c) = &case.cond {
-                    check_expr(c, None, &mut case_live, scope, ctx, env);
+                    // ADR 0090 § 6: a `case` label is compared against the
+                    // subject by the one equality rule, so a label whose type
+                    // is disjoint from the subject's is § 2's refusal written
+                    // without the operator.
+                    let label_ty = check_expr(c, None, &mut case_live, scope, ctx, env);
+                    crate::expr::reject_disjoint_equality(subject_ty, label_ty, c.span, env);
                 }
                 check_block(&case.body, &mut case_live, scope, return_ty, ctx, env);
                 let exits = case.body.last();

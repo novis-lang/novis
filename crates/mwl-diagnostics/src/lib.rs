@@ -650,6 +650,11 @@ pub mod code {
     /// the written class's runtime descriptor from native code, which only a
     /// class has.
     pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465");
+    /// An `==`/`!=` — or a `switch` label, or a `match` arm — whose two static
+    /// types are **disjoint**: no single value inhabits both, so the compiler
+    /// already knows the answer. ADR 0090 § 2's table, and § 6 for the two
+    /// comparison forms that are not written with the operator.
+    pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

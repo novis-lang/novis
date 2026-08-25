@@ -1,0 +1,29 @@
+--TEST--
+Two operands whose static types cannot both hold one value are refused before anything runs, ADR 0090 § 2
+--FILE--
+<?mwl
+// One row of that ADR's table per comparison, and every one of them is
+// reported from the same run: the compiler already knows each answer, so
+// none of them is a question the program is allowed to ask.
+enum Status: int { Active = 1, Banned = 2 }
+class A {
+}
+class B {
+}
+string $s = "1";
+int $n = 1;
+bytes $y = $s as bytes;
+Status $e = Status::Active;
+A $a = new A();
+B $b = new B();
+echo $s == $n, "\n";
+echo $s == $y, "\n";
+echo $e == 1, "\n";
+echo $a == $b, "\n";
+echo $a == null, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0466]: `string` and `int` are disjoint; no value is both, so this comparison is always false
+%A
+error: aborting due to 5 errors

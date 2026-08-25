@@ -77,7 +77,7 @@ pub(crate) use self::{
     iteration::{check_foreach_key, check_foreach_value, foreach_source},
     literals::int_literal_digits,
     members::{check_unset_target, is_this_receiver},
-    operators::require_stringable,
+    operators::{reject_disjoint_equality, require_stringable},
 };
 
 /// Checks `expr`, optionally against `expected`, returning the type it was
@@ -284,12 +284,17 @@ pub(super) fn infer(
         ExprKind::Clone(inner) => check_expr(inner, None, live, scope, ctx, env),
         ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
-            check_expr(subject, None, live, scope, ctx, env);
+            let subject_ty = check_expr(subject, None, live, scope, ctx, env);
             let mut arm_types = Vec::with_capacity(arms.len());
             for arm in arms {
                 if let Some(conds) = &arm.conditions {
                     for c in conds {
-                        check_expr(c, None, live, scope, ctx, env);
+                        // ADR 0090 § 6: an arm is compared against the subject
+                        // by the one equality rule, so a disjoint arm is § 2's
+                        // refusal written without the operator. `match (true)`
+                        // is unaffected — every arm there is a `bool` too.
+                        let cond_ty = check_expr(c, None, live, scope, ctx, env);
+                        reject_disjoint_equality(subject_ty, cond_ty, c.span, env);
                     }
                 }
                 arm_types.push(check_expr(&arm.body, None, live, scope, ctx, env));

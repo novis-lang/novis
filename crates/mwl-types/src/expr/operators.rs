@@ -12,6 +12,11 @@
 //! ([`reject_decimal_float_operands`]), and ADR 0010 refuses arithmetic on an
 //! enum and a conversion between two of them.
 //!
+//! One more refusal is about which operands may *meet* rather than about what
+//! they produce: ADR 0090 § 2 refuses `==`/`!=` between two statically
+//! **disjoint** types ([`reject_disjoint_equality`]), and its § 6 points a
+//! `switch` label and a `match` arm at the same check.
+//!
 //! `as` is here too, as the conversion's *operand* rule
 //! ([`reject_enum_to_enum_conversion`]); what a conversion does to a qualifier
 //! is [`super::quals`], and what its target type may be spelled as is
@@ -101,7 +106,11 @@ pub(super) fn binary_result(
             object_comparison_result(op, lhs, rhs, span, env)
                 .unwrap_or_else(|| env.interner.bool_ty())
         }
-        BinaryOp::Eq | BinaryOp::NotEq | BinaryOp::And | BinaryOp::Or => env.interner.bool_ty(),
+        BinaryOp::Eq | BinaryOp::NotEq => {
+            reject_disjoint_equality(lhs, rhs, span, env);
+            env.interner.bool_ty()
+        }
+        BinaryOp::And | BinaryOp::Or => env.interner.bool_ty(),
         // `$a ?? $b` yields `$b` exactly when `$a` is `null`, so `null` is
         // gone from the result unless `$b` can be one — which is what makes
         // `string $s = $maybe ?? "d";` type-check at all. Recorded for
@@ -117,6 +126,168 @@ pub(super) fn binary_result(
         }
         _ => env.interner.mixed(),
     }
+}
+
+/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// § 2: a comparison whose two static types are **disjoint** — no single value
+/// inhabits both — is a compile error, because the compiler already knows the
+/// answer and the author did not mean to write it. Reported for `==`/`!=` from
+/// [`binary_result`] and, per that ADR's § 6, for a `switch` label and a
+/// `match` arm against their subject ([`crate::locals`]'s `Switch` arm and
+/// [`super::infer`]'s `Match`), which are the same comparison written without
+/// the operator.
+///
+/// Only the refusal lives here. What equality *means* at a type that survives
+/// it is § 3, which is `mwl-runtime`'s; the narrowing a null test performs is
+/// [`crate::locals`]'s `narrow`.
+pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) {
+    if !types_are_disjoint(lhs, rhs, env) {
+        return;
+    }
+    let lhs_is_null = matches!(env.interner.get(lhs), Ty::Null);
+    let rhs_is_null = matches!(env.interner.get(rhs), Ty::Null);
+    // The table gives the `null` row its own wording: the author wrote a test
+    // that reads as a question, and what they need told is that the binding
+    // they tested was never declared able to answer it.
+    let (message, help) = if lhs_is_null || rhs_is_null {
+        let held = env.interner.describe(if lhs_is_null { rhs } else { lhs });
+        (
+            format!("`{held}` cannot hold `null`, so this test is always false"),
+            "declare the binding nullable — `?T` — if it is meant to be optional, or drop the test",
+        )
+    } else {
+        let lhs_described = env.interner.describe(lhs);
+        let rhs_described = env.interner.describe(rhs);
+        (
+            format!(
+                "`{lhs_described}` and `{rhs_described}` are disjoint; no value is both, so this \
+                 comparison is always false"
+            ),
+            "convert one side deliberately and then compare — `$s == ($n as string)`",
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(code::E_DISJOINT_EQUALITY, message)
+            .with_primary(span, "compared here")
+            .with_help(help),
+    );
+}
+
+/// Whether no single value inhabits both `lhs` and `rhs` — ADR 0090 § 2's
+/// table, read as a *disjointness* question rather than an equality-of-types
+/// one, which is what keeps every shape ordinary code writes compiling.
+///
+/// Deliberately one-sided: it answers `true` only where disjointness is
+/// provable from the two types alone, and `false` — "these may overlap" — for
+/// everything it does not model. A missed diagnostic costs an author nothing;
+/// a wrong one costs them a program that used to build. `mixed` (§ 5 resolves
+/// it at runtime instead), `iterable`, an intersection, an options bag and a
+/// type variable all take that branch, as does any class name this
+/// compilation did not declare.
+fn types_are_disjoint(lhs: TypeId, rhs: TypeId, env: &Env<'_>) -> bool {
+    if lhs == rhs {
+        return false;
+    }
+    // A union is disjoint from the other side only when *every* member is,
+    // which is the whole of the table's `?T`/union rows: `?T == null` and
+    // `?T == T` both find an overlapping member, while `T == null` has none.
+    if let Ty::Union(members) = env.interner.get(lhs) {
+        return members.iter().all(|m| types_are_disjoint(*m, rhs, env));
+    }
+    if let Ty::Union(members) = env.interner.get(rhs) {
+        return members.iter().all(|m| types_are_disjoint(lhs, *m, env));
+    }
+    let (lhs_ty, rhs_ty) = (env.interner.get(lhs), env.interner.get(rhs));
+    let (Some(lhs_domain), Some(rhs_domain)) = (equality_domain(lhs_ty), equality_domain(rhs_ty))
+    else {
+        return false;
+    };
+    if lhs_domain != rhs_domain {
+        return true;
+    }
+    // One row refines further: two class names share a domain, but no
+    // instance is both unless one of them reaches the other.
+    match (lhs_ty, rhs_ty) {
+        (Ty::Class(lhs_q, _), Ty::Class(rhs_q, _)) => classes_are_unrelated(lhs_q, rhs_q, env),
+        _ => false,
+    }
+}
+
+/// The domains ADR 0090 § 2's table partitions comparable types into: two
+/// values can only ever be equal when their types land in the same one.
+/// `None` means "not modeled", and [`types_are_disjoint`] owns what that
+/// buys.
+#[derive(PartialEq, Eq)]
+enum EqDomain<'a> {
+    Null,
+    Bool,
+    /// `int`, `uint`, `float` and `decimal` are **one** domain — the table's
+    /// numeric row makes them mathematically exact over the full range of
+    /// both, so no pairing among them is ever disjoint.
+    Numeric,
+    Str,
+    Bytes,
+    Array,
+    /// A class, a shape, or `object`.
+    Object,
+    Callable,
+    /// An enum is its own domain, per name — which is what makes both
+    /// `$e == 1` and `$e == $otherEnum` refusals, the first answered by
+    /// ADR 0010 § 3's `as int` and the second by an explicit `match`.
+    Enum(&'a QName),
+}
+
+fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
+    Some(match ty {
+        Ty::Null => EqDomain::Null,
+        Ty::Bool | Ty::True | Ty::False => EqDomain::Bool,
+        Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal => EqDomain::Numeric,
+        // A qualifier is a fact about where a value has been, never about
+        // which values it can hold (ADR 0024 § 2 / ADR 0033 § 2), so all four
+        // spellings of each base are one domain.
+        Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString => {
+            EqDomain::Str
+        }
+        Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => EqDomain::Bytes,
+        Ty::Array(_) => EqDomain::Array,
+        Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
+        Ty::Callable | Ty::CallableTo(_) => EqDomain::Callable,
+        Ty::Enum(qname, _) => EqDomain::Enum(qname),
+        Ty::Mixed
+        | Ty::Iterable
+        | Ty::Void
+        | Ty::Never
+        | Ty::Union(_)
+        | Ty::Intersection(_)
+        | Ty::Options(_)
+        | Ty::TypeVar(_) => return None,
+    })
+}
+
+/// Whether no instance can be both a `lhs_q` and a `rhs_q` — the table's "two
+/// unrelated classes" row, and the one place this check consults the
+/// hierarchy rather than the type alone.
+///
+/// An **interface** on either side is never unrelated: this sees two names,
+/// and some third class the comparison never mentions may implement both. A
+/// name with no `class` declaration in this compilation — every `Core` class
+/// among them — is treated the same way, which is the same scoping
+/// [`object_comparison_result`] and [`require_stringable`] already use.
+fn classes_are_unrelated(lhs_q: &QName, rhs_q: &QName, env: &Env<'_>) -> bool {
+    if lhs_q == rhs_q {
+        return false;
+    }
+    if !is_declared_class(lhs_q, env) || !is_declared_class(rhs_q, env) {
+        return false;
+    }
+    !mwl_hir::implements_interface(lhs_q, rhs_q, env.graph)
+        && !mwl_hir::implements_interface(rhs_q, lhs_q, env.graph)
+}
+
+fn is_declared_class(qname: &QName, env: &Env<'_>) -> bool {
+    env.symbols
+        .get(qname)
+        .is_some_and(|symbol| symbol.kind == mwl_hir::SymbolKind::Class)
 }
 
 /// ADR 0013 §§ 2-4: `< <= > >= <=>` lower to a `compareTo` call when both

@@ -1,0 +1,34 @@
+--TEST--
+Disjointness, not identity of types, is what `==` refuses — every pair that can hold one value still compiles, ADR 0090 §§ 2 and 6
+--FILE--
+<?mwl
+// A literal against its base type, which the table's literal row keeps
+// compiling. The cross-representation numeric rows — `int` against `float`,
+// `uint` against `int` — type-check under the same table, but `mwl-codegen`
+// does not lower a binary operator over two representations yet, so they are
+// pinned in `crates/mwl-types/tests/equality.rs` instead of here.
+int $n = 1;
+echo ($n == 1) as string, "|", ($n == 2) as string, "|\n";
+
+// `?T` against `null`, and against `T` — the null test, which narrows.
+class Node {
+}
+?Node $maybe = null;
+echo ($maybe == null) as string, "|\n";
+$maybe = new Node();
+echo ($maybe != null) as string, "|\n";
+
+// § 6: a `match` arm is compared against the subject by this same rule, so an
+// arm whose type overlaps the subject's is an ordinary comparison.
+string $letter = "B";
+string $rank = match ($letter) {
+    "A" => "first",
+    "B" => "second",
+    default => "other",
+};
+echo $rank, "\n";
+--EXPECT--
+1||
+1|
+1|
+second
