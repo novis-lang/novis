@@ -450,6 +450,14 @@ is why" — is this file.
   `E0406: `$n` is already declared` pointing at the *second* header — while a second `string $n` walk is
   fine, which is why the rule looks like it is not there until the third loop. A case walking two
   differently-typed collections needs two names.
+- **`live_bytes()` cannot see an allocation that is freed again inside the call under test**, so a
+  guard named "…allocates no key" written as a `live_bytes` delta passes whether or not the key was
+  built. `mwl_array_set` renders an `MwlStr`, hands it to the packed arm, which has no use for it,
+  and drops it before returning — live delta zero, exactly like the index-taking pair that never
+  allocated at all. `counting_alloc::allocated_bytes()` is the monotone total that tells the two
+  apart, and any measured claim about a *transient* cost needs it rather than `live_bytes`. The
+  control matters as much as the claim: assert the old spelling **does** allocate in the same test,
+  or a broken counter reads as a passing guard.
 
 ## Splitting a file that got too big
 

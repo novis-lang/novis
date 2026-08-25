@@ -7,14 +7,14 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-26. **M3 is done and Stage 0's catch-up list is one item from finished.**
-> Items 1 to 14, 16 and 17 of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done —
-> 12 landed **twice**, its `$s as ?Uri` parse roster withdrawn by ADR 0066 § 3 in favour of
-> `Core\Uri::tryParse`/`Core\Uuid::tryParse`, so `as` now targets no class at all — and
-> `loop-goal.toml`'s
-> `stage = "0 catch-up"` block still names seven tests that exist in no crate, so
-> `python tools/loop.py --goal-only` short-circuits at Stage 0 rather than running the stages below
-> it. Behind that gate is Stage 3's last fixture, `examples/collect.mwl`, itself past its parser
+> **Status:** 2026-08-26. **M3 is done and Stage 0's catch-up list is finished.** All seventeen
+> items of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done — 12 landed **twice**,
+> its `$s as ?Uri` parse roster withdrawn by ADR 0066 § 3 in favour of
+> `Core\Uri::tryParse`/`Core\Uuid::tryParse`, so `as` now targets no class at all — and every one of
+> the 37 tests `loop-goal.toml`'s
+> `stage = "0 catch-up"` block names now exists and passes, so
+> `python tools/loop.py --goal-only` runs the stages below Stage 0 rather than short-circuiting at
+> it. Next below is Stage 3's last fixture, `examples/collect.mwl`, itself past its parser
 > hole: `new
 > Core\ObjectSet<Tag>()` parses, because `ExprKind::New` carries a `type_args` list read by the same
 > checkpointed trial parse a call site's own `<...>` goes through, and both lists now *bind*:
