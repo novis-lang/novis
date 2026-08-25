@@ -1,0 +1,74 @@
+--TEST--
+Spec § 7: `Core\Bytes`'s three predicates answer the magic-byte questions R6 names, and `fill`/`repeat` build a buffer without one — ADR 0009 § 1, ADR 0063 R4
+--FILE--
+<?mwl
+class Probe {
+    // ADR 0063 R4: a `$byte` that is not one octet throws rather than being
+    // truncated the way PHP's `chr()` wraps it.
+    public static function fill(uint $length, uint $byte): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::fill($length, $byte));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// PNG's signature again — there is no `bytes` literal (00-overview § 5), so a
+// buffer is built through `Core\Encoding`. A predicate answers `[1]` below and
+// its negative answers `[]`, which is what a `bool as string` prints.
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
+bytes $empty = Core\Encoding::fromHex("");
+bytes $crlf = Core\Encoding::fromHex("0d0a");
+
+// `contains` is a `bool` question, not `indexOf(...) != null`: R6 says the
+// three predicates are what magic-byte sniffing needs, and a sniff does not
+// care where the match was.
+echo "[", Core\Bytes::contains($png, $crlf) as string, "]\n";
+echo "[", Core\Bytes::contains($png, Core\Encoding::fromHex("ffff")) as string, "]\n";
+// The empty needle is in every buffer, including the empty one — Rust's answer,
+// PHP 8's, and `Core\Str::contains`'s.
+echo "[", Core\Bytes::contains($png, $empty) as string, "]\n";
+echo "[", Core\Bytes::contains($empty, $crlf) as string, "]\n";
+
+// `startsWith` is the member a format sniff actually writes.
+echo "[", Core\Bytes::startsWith($png, Core\Encoding::fromHex("89504e47")) as string, "]\n";
+echo "[", Core\Bytes::startsWith($png, Core\Encoding::fromHex("504e47")) as string, "]\n";
+echo "[", Core\Bytes::startsWith($png, $empty) as string, "]\n";
+
+echo "[", Core\Bytes::endsWith($png, Core\Encoding::fromHex("1a0a")) as string, "]\n";
+echo "[", Core\Bytes::endsWith($png, Core\Encoding::fromHex("1a0b")) as string, "]\n";
+echo "[", Core\Bytes::endsWith($png, $empty) as string, "]\n";
+
+// `fill` is the one member with no subject: it builds a buffer of `$length`
+// copies of one octet, length first. `crates/mwl-stdlib/src/bytes.rs` owns why
+// that order and why `$byte` is a `uint`.
+echo Core\Encoding::toHex(Core\Bytes::fill(4, 255)), "|\n";
+echo "[", Core\Encoding::toHex(Core\Bytes::fill(16, 0)), "]\n";
+// Zero length is the empty buffer, as `repeat`'s zero count is.
+echo "[", Core\Encoding::toHex(Core\Bytes::fill(0, 65)), "]\n";
+echo Probe::fill(1, 255), "|\n";
+echo Probe::fill(1, 256), "|\n";
+
+echo Core\Encoding::toHex(Core\Bytes::repeat($crlf, 3)), "|\n";
+echo "[", Core\Encoding::toHex(Core\Bytes::repeat($crlf, 0)), "]\n";
+echo "[", Core\Encoding::toHex(Core\Bytes::repeat($empty, 9)), "]\n";
+--EXPECT--
+[1]
+[]
+[1]
+[]
+[1]
+[]
+[1]
+[1]
+[]
+[1]
+ffffffff|
+[00000000000000000000000000000000]
+[]
+ff|
+threw|
+0d0a0d0a0d0a|
+[]
+[]

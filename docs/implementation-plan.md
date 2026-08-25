@@ -123,7 +123,10 @@
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
 > 2, which waited on a written type argument at a call site and no longer does); § 7 owes
-> the whole of `Core\Bytes`, `Core\Encoding` being complete; § 9 owes `Core\Heap` and the `Iterable` its three rows
+> `Core\Bytes::join`, `pack` and `unpack`, its other ten members and the whole of `Core\Encoding` being
+> complete — and `join` is *blocked*, not unreached, because `registry::Const` has no `bytes` variant to
+> state its `= ""` default with, which is the same missing constant as ADR 0009 § 3's `string as bytes`
+> row; § 9 owes `Core\Heap` and the `Iterable` its three rows
 > each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
 > `{previous: $e}` options shape and
 > `$e->location`; § 11 owes `Random::bytes` and `Hash::stream`, its one-shot half being built; § 12 owes
@@ -136,7 +139,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 380 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 382 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > does not exist yet. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no

@@ -1,0 +1,97 @@
+--TEST--
+Spec § 7: `Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — ADR 0009 § 1, ADR 0063 R5/R6/R8
+--FILE--
+<?mwl
+class Probe {
+    // ADR 0063 R4/R5: the declared return type is `uint`, not `?uint`, so an
+    // index that addresses nothing throws rather than answering a sentinel.
+    public static function at(bytes $b, int $i): string {
+        try {
+            return Core\Bytes::at($b, $i) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// There is no `bytes` literal (00-overview § 5), so a buffer is built through
+// `Core\Encoding` — here PNG's eight-byte signature, which is what R6's
+// "magic-byte sniffing" is about and is not valid UTF-8 in the first place.
+bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
+bytes $empty = Core\Encoding::fromHex("");
+
+// ADR 0009 § 1: the unit is the byte, and there is no other one to be
+// ambiguous about — so `length` is the buffer's own size, not a grapheme count.
+echo Core\Bytes::length($png) as string, "|\n";
+echo Core\Bytes::length($empty) as string, "|\n";
+
+// `at` answers a `uint` rather than a one-element buffer, which is the
+// comparison a sniffing caller actually writes: 0x89, 0x50 ("P"), 0x0a.
+echo Core\Bytes::at($png, 0) as string, "|\n";
+echo Core\Bytes::at($png, 1) as string, "|\n";
+// R8's sign rule, applied to a range of one.
+echo Core\Bytes::at($png, -1) as string, "|\n";
+echo Probe::at($png, 8), "|\n";
+echo Probe::at($png, -9), "|\n";
+echo Probe::at($empty, 0), "|\n";
+
+// `slice` takes R8's sign rule on both arguments, counted in bytes: a negative
+// offset counts from the end, a negative length stops short of it, and an
+// omitted length runs to the end (a `?int` rather than a sentinel — R5).
+echo Core\Encoding::toHex(Core\Bytes::slice($png, 1, 3)), "|\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($png, 4)), "|\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($png, -4)), "|\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($png, 1, -1)), "|\n";
+// An offset past the end is the empty buffer rather than a throw, and so is a
+// window that closes before it opens.
+echo "[", Core\Encoding::toHex(Core\Bytes::slice($png, 99)), "]\n";
+echo "[", Core\Encoding::toHex(Core\Bytes::slice($png, 4, -6)), "]\n";
+
+// `indexOf` answers `?uint`: absence is `null`, so PHP's `strpos(...) == false`
+// bug family has no spelling here. There is no `caseInsensitive` option — a
+// `bytes` carries no charset, which is what `crates/mwl-stdlib/src/bytes.rs`
+// records.
+bytes $crlf = Core\Encoding::fromHex("0d0a");
+echo (Core\Bytes::indexOf($png, $crlf) ?? 99) as string, "|\n";
+echo (Core\Bytes::indexOf($png, $crlf, {from: 5}) ?? 99) as string, "|\n";
+echo (Core\Bytes::indexOf($png, $crlf, {from: -5}) ?? 99) as string, "|\n";
+// The empty needle occurs at the start of everything, as it does on `Core\Str`.
+echo (Core\Bytes::indexOf($png, $empty) ?? 99) as string, "|\n";
+echo (Core\Bytes::indexOf($png, Core\Encoding::fromHex("ffff")) ?? 99) as string, "|\n";
+
+// `compare` is the ordering `==` does not answer: negative, zero or positive,
+// lexicographic over the octets.
+echo Core\Bytes::compare($png, Core\Encoding::fromHex("89504e470d0a1a0a")) as string, "|\n";
+echo Core\Bytes::compare($png, Core\Encoding::fromHex("89504e470d0a1a0b")) as string, "|\n";
+echo Core\Bytes::compare(Core\Encoding::fromHex("89504e470d0a1a0b"), $png) as string, "|\n";
+// A prefix sorts before the buffer that extends it.
+echo Core\Bytes::compare(Core\Encoding::fromHex("8950"), $png) as string, "|\n";
+// The octets are **unsigned**, so 0xff is the largest byte rather than -1.
+echo Core\Bytes::compare(Core\Encoding::fromHex("ff"), Core\Encoding::fromHex("7f")) as string, "|\n";
+echo Core\Bytes::compare($empty, $empty) as string, "|\n";
+--EXPECT--
+8|
+0|
+137|
+80|
+10|
+threw|
+threw|
+threw|
+504e47|
+0d0a1a0a|
+0d0a1a0a|
+504e470d0a1a|
+[]
+[]
+4|
+99|
+4|
+0|
+99|
+0|
+-1|
+1|
+-1|
+1|
+0|

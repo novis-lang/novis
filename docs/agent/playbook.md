@@ -186,6 +186,12 @@ is why" — is this file.
   and still fail there, so a conformance case written straight off an ADR's compiling rows can fail at run
   time. Run the rows in a scratch `.agent-tmp/*.mwl` before writing the case; if one does not lower, pin it
   in the crate's own `tests/` and say in the case comment why it is not here.
+- **A case cannot build a `bytes` with `as bytes`** — ADR 0009 § 3's conversion rows are the one shape
+  `mwl-ir` still has no lowering for, and it is a *panic* out of `lower/expr.rs`, not a diagnostic, so the
+  case dies with a Rust backtrace rather than failing readably. Build the buffer with
+  `Core\Encoding::fromHex("…")` instead, which is total and reads as the octets it means; `toHex` back is
+  how the result is asserted, since `echo` has no `bytes` row either. There is no `bytes` literal at all
+  (`00-overview` § 5), so this is the only spelling.
 - **`emit_binop`'s ordering rows are `Int | Uint | Bool` only, so `<`/`<=`/`>`/`>=` over two `string`s
   does not lower** — and the checker does not stop you, because `operators.rs`'s result table models only
   `int`/`uint`/`float` operands and falls back to `mixed` for everything else. A `.mwlt` case that

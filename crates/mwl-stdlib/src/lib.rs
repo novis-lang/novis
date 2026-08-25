@@ -187,6 +187,7 @@
 //!    not do yet.
 
 pub mod arr;
+mod bytes;
 mod cldr;
 mod encoding;
 mod format;
@@ -262,6 +263,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
 fn address_of(symbol: &'static str) -> *const u8 {
     str::address(symbol)
         .or_else(|| arr::address(symbol))
+        .or_else(|| bytes::address(symbol))
         .or_else(|| encoding::address(symbol))
         .or_else(|| hash::address(symbol))
         .or_else(|| json::address(symbol))

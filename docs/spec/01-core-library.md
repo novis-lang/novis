@@ -614,6 +614,11 @@ of R11's four grammars, per `Core\Str::format` above). The three predicates are 
 sniffing needs, and `join` rather than a `concat` of its own keeps R6's pairing with `Core\Str`. There is
 no `bytes` literal — see [00-overview § 5](00-overview.md).
 
+The member *names* pair up; three of the *signatures* deliberately do not, because a byte string carries
+less than a text one. `at` answers a `uint` rather than a one-byte buffer, `indexOf` has no
+`caseInsensitive` option, and `compare` answers an ordering `int`.
+`crates/mwl-stdlib/src/bytes.rs` owns all three and why.
+
 Enums: `Charset` — one case per encoding in the **WHATWG Encoding Standard**, which is what `encoding_rs`
 implements, named in MWL casing: `Utf8`, `Utf16Le`, `Utf16Be`, `Latin1`, `Windows1252`, `Ascii`,
 `ShiftJis`, `EucJp`, `Gbk`, `Big5`, `EucKr`, and the rest of that document's index. The roster is that
