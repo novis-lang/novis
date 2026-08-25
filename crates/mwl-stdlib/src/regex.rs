@@ -60,17 +60,13 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The six matching members still take `string` alone**, where spec § 5
-//!    writes `Pattern|string $pattern`. [`PATTERN`] exists now, so nothing is
-//!    waiting on a representation: the parameter widens to that union, and
-//!    each of the six reads the handle's two slots instead of its own text
-//!    argument. A program written against the narrow spelling keeps compiling
-//!    when it does. Until then a `Pattern` can be built and is checked, and
-//!    the flags it carries reach nothing that matches.
-//!
-//!    **`replaceWith` is not registered**, and waits on the same widening
-//!    plus a callback handed a `Match`, which `mwl_runtime::call_closure` can
-//!    already carry.
+//! 1. **`replaceWith` is not registered** — spec § 5's one remaining row. It
+//!    is `replace` with a callback where the template is, so what it needs
+//!    beside this module's existing pieces is handing that callback a
+//!    [`MATCH`], which `mwl_runtime::call_closure` can already carry, and
+//!    running the limit over a closure rather than a substitution string.
+//!    Every other § 5 row is here, and each of the five that takes a pattern
+//!    takes the `Pattern|string` the spec writes, through [`pattern_of`].
 //! 2. **ADR 0056 § 4's sink is not enforced.** The pattern parameter must
 //!    demand the plain, unqualified `string`, and nothing in
 //!    [`crate::registry`] can state a qualifier at all — `tainted` and
@@ -121,21 +117,25 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "matches",
-            params: &[CoreTy::Str, CoreTy::Str],
+            params: &[CoreTy::Str, CoreTy::Union(PATTERN_OR_STRING)],
             defaults: &[],
             return_ty: CoreTy::Bool,
             symbol: "mwl_core_regex_matches",
         },
         CoreMethod {
             name: "match",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(MATCH_OPTIONS)],
+            params: &[
+                CoreTy::Str,
+                CoreTy::Union(PATTERN_OR_STRING),
+                CoreTy::Options(MATCH_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME)),
             symbol: "mwl_core_regex_match",
         },
         CoreMethod {
             name: "matchAll",
-            params: &[CoreTy::Str, CoreTy::Str],
+            params: &[CoreTy::Str, CoreTy::Union(PATTERN_OR_STRING)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(MATCH_NAME)),
             symbol: "mwl_core_regex_match_all",
@@ -144,7 +144,7 @@ pub const CLASS: CoreClass = CoreClass {
             name: "replace",
             params: &[
                 CoreTy::Str,
-                CoreTy::Str,
+                CoreTy::Union(PATTERN_OR_STRING),
                 CoreTy::Str,
                 CoreTy::Options(REPLACE_OPTIONS),
             ],
@@ -154,7 +154,11 @@ pub const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "split",
-            params: &[CoreTy::Str, CoreTy::Str, CoreTy::Options(SPLIT_OPTIONS)],
+            params: &[
+                CoreTy::Str,
+                CoreTy::Union(PATTERN_OR_STRING),
+                CoreTy::Options(SPLIT_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "mwl_core_regex_split",
@@ -205,6 +209,22 @@ pub const PATTERN: CoreClass = CoreClass {
     slots: &["pattern", "flags"],
     constants: &[],
 };
+
+/// [`PATTERN`]'s `pattern` slot, by index — see [`GROUPS_SLOT`].
+const PATTERN_TEXT_SLOT: usize = 0;
+
+/// [`PATTERN`]'s `flags` slot, by index — see [`GROUPS_SLOT`].
+const PATTERN_FLAGS_SLOT: usize = 1;
+
+/// Spec § 5's `Pattern|string $pattern`, written once because five members
+/// declare it — a compiled handle, or the text of one taken at its defaults.
+///
+/// Both spellings are the same question asked twice, which is why the spec
+/// admits either: `Regex::matches($s, "^\\d+$")` needs no handle at all, and
+/// `Regex::compile` exists for the call that wants flags or wants the
+/// pattern's validity checked at one place. [`pattern_of`] is where the two
+/// meet again.
+const PATTERN_OR_STRING: &[CoreTy] = &[CoreTy::Instance(PATTERN_NAME), CoreTy::Str];
 
 /// `Core\Regex::compile`'s four flags, all defaulting to off.
 ///
@@ -563,6 +583,59 @@ fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, F
     })
 }
 
+/// A `Pattern|string` argument, decoded to what [`compiled`] takes.
+///
+/// The text comes back as a [`Value`] rather than a `&str` because a
+/// [`PATTERN`]'s is one of its slots: the borrow would be of the slot *read*,
+/// which is a local, while the buffer behind it belongs to the receiver and
+/// lives for the length of the call. The caller runs it through [`text`] as it
+/// would any other `string` argument.
+struct Given {
+    /// The pattern as the program wrote it, borrowed for the call.
+    text: Value,
+    /// The flags it carries — [`NO_FLAGS`] for a plain `string`, which is the
+    /// spelling that takes every default.
+    flags: u8,
+}
+
+/// [`Given`] from whichever half of `Pattern|string` the call site wrote.
+///
+/// **No reference is taken on either path**: [`crate::instance::slot`] borrows
+/// exactly as `InstKind::FieldGet` does, and the argument's own reference
+/// belongs to the caller, so nothing here owes a release.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for anything that is neither, which compiled code cannot
+/// produce — `mwl_types` has already checked this parameter against the union.
+fn pattern_of(value: &Value, member: &str) -> Result<Given, Fault> {
+    if value.as_str_bytes().is_some() {
+        return Ok(Given {
+            text: *value,
+            flags: NO_FLAGS,
+        });
+    }
+    let receiver = value.obj_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Regex::{member} expected a `Pattern` or a `string` for the pattern, got tag {}",
+            value.tag_byte()
+        ))
+    })?;
+    let flags = crate::instance::slot(receiver, PATTERN_FLAGS_SLOT)
+        .as_int()
+        .and_then(|held| u8::try_from(held).ok())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Regex::{member} received a `Pattern` whose flags are not ones \
+                 `Core\\Regex::compile` wrote"
+            ))
+        })?;
+    Ok(Given {
+        text: crate::instance::slot(receiver, PATTERN_TEXT_SLOT),
+        flags,
+    })
+}
+
 /// One `int` argument.
 fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
     value.as_int().ok_or_else(|| {
@@ -648,8 +721,9 @@ mwl_runtime::mwl_helper! {
     /// *contains* a match, and `^`/`$` are how a call asks for more.
     fn mwl_core_regex_matches(_ctx, args: [2]) {
         let subject = text(&args[0], "matches", "the subject")?;
-        let pattern = text(&args[1], "matches", "the pattern")?;
-        let found = match &*compiled(pattern, NO_FLAGS, "matches")? {
+        let given = pattern_of(&args[1], "matches")?;
+        let pattern = text(&given.text, "matches", "the pattern")?;
+        let found = match &*compiled(pattern, given.flags, "matches")? {
             Compiled::Linear(re) => re.is_match(subject),
             Compiled::Backtracking(re) => re
                 .is_match(subject)
@@ -780,11 +854,12 @@ mwl_runtime::mwl_helper! {
     /// ([`budget_exhausted`], [`compiled`]).
     fn mwl_core_regex_match(_ctx, args: [3]) {
         let subject = text(&args[0], "match", "the subject")?;
-        let pattern = text(&args[1], "match", "the pattern")?;
+        let given = pattern_of(&args[1], "match")?;
+        let pattern = text(&given.text, "match", "the pattern")?;
         let from = integer(&args[2], "match", "the `from` option")?;
         let start = start_byte(subject, from);
 
-        let compiled = compiled(pattern, NO_FLAGS, "match")?;
+        let compiled = compiled(pattern, given.flags, "match")?;
         let names = names_of(&compiled);
         let found = match &*compiled {
             Compiled::Linear(re) => re
@@ -816,9 +891,10 @@ mwl_runtime::mwl_helper! {
     /// that.
     fn mwl_core_regex_match_all(_ctx, args: [2]) {
         let subject = text(&args[0], "matchAll", "the subject")?;
-        let pattern = text(&args[1], "matchAll", "the pattern")?;
+        let given = pattern_of(&args[1], "matchAll")?;
+        let pattern = text(&given.text, "matchAll", "the pattern")?;
 
-        let compiled = compiled(pattern, NO_FLAGS, "matchAll")?;
+        let compiled = compiled(pattern, given.flags, "matchAll")?;
         let names = names_of(&compiled);
         let mut out = MwlArray::new();
         match &*compiled {
@@ -936,7 +1012,8 @@ mwl_runtime::mwl_helper! {
     /// forces and the one PHP's own `preg_replace` gives it.
     fn mwl_core_regex_replace(_ctx, args: [4]) {
         let subject = text(&args[0], "replace", "the subject")?;
-        let pattern = text(&args[1], "replace", "the pattern")?;
+        let given = pattern_of(&args[1], "replace")?;
+        let pattern = text(&given.text, "replace", "the pattern")?;
         let replacement = text(&args[2], "replace", "the replacement")?;
         let limit = unsigned(&args[3], "replace", "the `limit` option")?;
         if limit == 0 {
@@ -947,7 +1024,7 @@ mwl_runtime::mwl_helper! {
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
         let count = if limit == u64::MAX { 0 } else { count };
 
-        let replaced = match &*compiled(pattern, NO_FLAGS, "replace")? {
+        let replaced = match &*compiled(pattern, given.flags, "replace")? {
             Compiled::Linear(re) => re.replacen(subject, count, replacement).into_owned(),
             Compiled::Backtracking(re) => re
                 .try_replacen(subject, count, replacement)
@@ -1007,11 +1084,12 @@ mwl_runtime::mwl_helper! {
     /// answers.
     fn mwl_core_regex_split(_ctx, args: [4]) {
         let subject = text(&args[0], "split", "the subject")?;
-        let pattern = text(&args[1], "split", "the pattern")?;
+        let given = pattern_of(&args[1], "split")?;
+        let pattern = text(&given.text, "split", "the pattern")?;
         let limit = integer(&args[2], "split", "the `limit` option")?;
         let keep_empty = boolean(&args[3], "split", "the `keepEmpty` option")?;
 
-        let compiled = compiled(pattern, NO_FLAGS, "split")?;
+        let compiled = compiled(pattern, given.flags, "split")?;
         let mut pieces = if limit >= 0 {
             // A limit of `0` means one piece, not none — see the docs above.
             let wanted = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
@@ -1139,8 +1217,8 @@ mod tests {
 
     /// The four flags are part of the key, not of the text: one pattern under
     /// two flag sets is two compiled programs, and each behaves as its flags
-    /// say. Asserted here rather than in a `.mwlt` case because the six
-    /// members that would carry a `Pattern` still take `string` alone — gap 1.
+    /// say — the property `regex-compile-carries-the-four-flags.mwlt` then
+    /// pins through the members, one flag at a time.
     #[test]
     fn the_flags_are_part_of_the_key_and_reach_the_engine() {
         let plain = compiled("^flagged-a+$", NO_FLAGS, "compile").expect("compiles");

@@ -4,24 +4,47 @@ Spec § 5: `Core\Regex::compile` answers a `Pattern`, the handle carrying the fo
 <?mwl
 // A `Pattern` is § 5's option-carrying handle: the modifiers PCRE spelled
 // after a closing delimiter are named options here, and there is no delimiter
-// to escape. Nothing is asked *of* a `Pattern` — it is what the matching
-// members take in place of a `string`.
+// to escape. Nothing is asked *of* a `Pattern` — it is what the five matching
+// members take in place of a `string`, which is the `Pattern|string` their
+// rows write.
 Core\Regex\Pattern $plain = Core\Regex::compile("^a+$");
-echo "plain|\n";
+echo Core\Regex::matches("aaa", $plain) as string, "|\n";
+echo Core\Regex::matches("AAA", $plain) as string, "|\n";
 
-Core\Regex\Pattern $flagged = Core\Regex::compile("^a+$", {
-    caseInsensitive: true,
-    multiline: true,
-    dotAll: true,
-    ungreedy: true,
-});
-echo "flagged|\n";
+// Each flag is the PCRE modifier it is named for, and a `string` pattern is
+// the same pattern at every default.
+Core\Regex\Pattern $folded = Core\Regex::compile("^a+$", {caseInsensitive: true});
+echo Core\Regex::matches("AAA", $folded) as string, "|\n";
+echo Core\Regex::matches("AAA", "^a+$") as string, "|\n";
+
+// `m` — `^` reaches a line start rather than only the subject's.
+Core\Regex\Pattern $perLine = Core\Regex::compile("^b", {multiline: true});
+echo Core\Regex::match("a\nbc", $perLine)?->text() ?? "none", "|\n";
+echo Core\Regex::match("a\nbc", "^b")?->text() ?? "none", "|\n";
+
+// `s` — `.` covers a newline.
+Core\Regex\Pattern $overLines = Core\Regex::compile("a.c", {dotAll: true});
+echo Core\Regex::match("a\nc", $overLines)?->text() ?? "none", "|\n";
+echo Core\Regex::match("a\nc", "a.c")?->text() ?? "none", "|\n";
+
+// `U` — the quantifiers swap greed, so `.+` stops at the first `>`.
+Core\Regex\Pattern $lazy = Core\Regex::compile("<.+>", {ungreedy: true});
+echo Core\Regex::match("<a><b>", $lazy)?->text() ?? "none", "|\n";
+echo Core\Regex::match("<a><b>", "<.+>")?->text() ?? "none", "|\n";
+
+// A handle is a handle at every member, not only at `matches`.
+Core\Regex\Pattern $vowel = Core\Regex::compile("[AEIOU]", {caseInsensitive: true});
+echo Core\Regex::replace("banana", $vowel, "."), "|\n";
+echo Core\Arr::count(Core\Regex::matchAll("banana", $vowel)) as string, "|\n";
+Core\Regex\Pattern $comma = Core\Regex::compile(",\\s*");
+echo Core\Str::join(Core\Regex::split("a, b,c", $comma), "-"), "|\n";
 
 // `compile` reaches both tiers exactly as every other member does: a
 // lookahead is a pattern only the backtracking engine can express (ADR 0056
 // § 2), and it compiles here rather than at the first match against it.
 Core\Regex\Pattern $fancy = Core\Regex::compile("foo(?=bar)");
-echo "fancy|\n";
+echo Core\Regex::matches("foobar", $fancy) as string, "|\n";
+echo Core\Regex::matches("foobaz", $fancy) as string, "|\n";
 
 // A pattern neither engine can compile throws from `compile` itself, not from
 // whichever member later used the handle (ADR 0056 § 5). The message quotes
@@ -35,8 +58,21 @@ try {
     echo Core\Str::contains($e->message, "`(unclosed`") as string, "|\n";
 }
 --EXPECT--
-plain|
-flagged|
-fancy|
+1|
+|
+1|
+|
+b|
+none|
+a
+c|
+none|
+<a>|
+<a><b>|
+b.n.n.|
+3|
+a-b-c|
+1|
+|
 1|
 1|
