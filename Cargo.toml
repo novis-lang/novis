@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "benches/*"]
+# `benches/userland/` holds the MWL and PHP sources of the userland benchmark
+# pair — `.mwl`/`.php` files a harness runs, not a Rust crate — so the
+# `benches/*` glob above would otherwise look for a `Cargo.toml` that will
+# never exist and fail the whole workspace before a single crate is read.
+exclude = ["benches/userland"]
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.
