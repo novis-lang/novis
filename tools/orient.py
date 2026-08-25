@@ -492,17 +492,32 @@ def run_closing() -> None:
 # ------------------------------------------------------------------------------ audit
 
 
+#: Bytes per token for *this* pack, measured rather than assumed: piping it in moved a
+#: session's opening context by 27,895 tokens for 48,886 characters. The 3.6 this used to
+#: divide by is the ratio for ordinary prose and it understated the pack by about half,
+#: which is worth knowing before trimming anything on the strength of these numbers -- the
+#: pack is dense with backticked identifiers, paths, `§`, em dashes and table pipes, none of
+#: which tokenize like prose. Plain English through the same path measured 2.50.
+BYTES_PER_TOKEN = 1.75
+
+
 def audit() -> list[str]:
-    lines = ["", "== WHAT THIS PACK COST", "-- approximate: bytes / 3.6, the usual ratio for prose plus code", ""]
+    lines = [
+        "",
+        "== WHAT THIS PACK COST",
+        f"-- bytes / {BYTES_PER_TOKEN}, calibrated against a real session's opening context, not the",
+        "   prose ratio: this pack tokenizes at about half what plain text does",
+        "",
+    ]
     total = 0
     for title, size in ledger:
         total += size
-        lines.append(f"  {title:<44}{size:>8,} B{size / 3.6:>10,.0f} tok")
-    lines.append(f"  {'TOTAL':<44}{total:>8,} B{total / 3.6:>10,.0f} tok")
+        lines.append(f"  {title:<44}{size:>8,} B{size / BYTES_PER_TOKEN:>10,.0f} tok")
+    lines.append(f"  {'TOTAL':<44}{total:>8,} B{total / BYTES_PER_TOKEN:>10,.0f} tok")
     lines.append("")
-    lines.append("  A session also carries the harness prompt, its tool schemas, CLAUDE.md and")
-    lines.append("  AGENTS.md before this pack -- `python tools/loop-stats.py` measures that floor")
-    lines.append("  from real transcripts rather than estimating it.")
+    lines.append("  The driver pipes this to the session, so it is charged once, at session start,")
+    lines.append("  on top of the harness prompt, the tool schemas, CLAUDE.md and AGENTS.md --")
+    lines.append("  `python tools/loop-stats.py` measures that floor from real transcripts.")
     lines.append("")
     lines.append("  This is a number to look at when you WRITE a goal. It is not a check: nothing")
     lines.append("  here exits non-zero over a size (docs/agent/doc-style.md says why).")
