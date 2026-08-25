@@ -121,10 +121,10 @@
 > **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with `Core\NormalForm`
 > and a named binding to `unicode-normalization`; § 2
 > owes
-> only its structure members — `append`, `prepend`, `slice`, `chunk`, `column`, `flatten`,
+> only nine of its structure members — `column`, `flatten`,
 > `flattenDeep`, `from`, `groupBy`, `mapKeys`, `reduce`, `replaceRange`, `sortByKey` — ADR 0069's
-> four combination members and the `diff`/`intersect` set half being built now, `Core\SetOn` with
-> them; §
+> four combination members, the `diff`/`intersect` set half with `Core\SetOn`, and the four
+> positional rows `slice`, `chunk`, `append` and `prepend` being built; §
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
 > 2, which waited on a written type argument at a call site and no longer does); § 7 is **whole** —
@@ -142,12 +142,12 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 402 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 404 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **21 remaining keys are the machine-readable work list for
+> own module doc states, and that file's **17 remaining keys are the machine-readable work list for
 > §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
