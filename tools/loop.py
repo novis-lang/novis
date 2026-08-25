@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -502,6 +503,47 @@ def ledger(line):
     say(line)
 
 
+def orientation_pack():
+    """`orient.py`'s output, to hand the session inline instead of leaving it to fetch.
+
+    A session used to run the script itself as its first tool call, and that cost far more
+    than the pack: the harness spills a result that large to a file, so the session spent a
+    `cat` and a `Read` getting it back -- three calls, and a measured ~20,500 tokens for a
+    pack that is 12,917 of text, the difference being the spill notice, the truncation retry
+    and the readback's line numbers. Piped in on stdin it is charged once, at its own size.
+
+    Returns "" if the script fails, and the prompt's own fallback then applies: the session
+    runs it the old way rather than starting blind.
+    """
+    try:
+        done = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "orient.py")],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout if done.returncode == 0 else ""
+
+
+def feed(stream, text):
+    """Write `text` to a child's stdin and close it, ignoring a child that exited first.
+
+    From its own thread on purpose: the child streams NDJSON back while this goes in, and a
+    46 KB write into a 64 KB pipe deadlocks against a child that is itself blocked writing
+    stdout nobody is draining.
+    """
+    try:
+        stream.write(text)
+        stream.close()
+    except (OSError, ValueError):
+        pass
+
+
 def run_session(run_id, index, prompt_text, opts, renderer):
     """One `claude -p` session, its NDJSON streamed to the console and to
     .loop/logs/<run>-NNNN.log. The run stamp is in the name because the index restarts at 1
@@ -525,17 +567,21 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         "stream-json",
         "--verbose",
     ]
+    pack = orientation_pack()
     session_id = ""
     with log.open("a", encoding="utf-8", newline="\n") as fh:
         proc = subprocess.Popen(
             cmd,
             cwd=ROOT,
+            stdin=subprocess.PIPE if pack else None,
             stdout=subprocess.PIPE,
             stderr=None,
             encoding="utf-8",
             errors="replace",
             bufsize=1,
         )
+        if pack:
+            threading.Thread(target=feed, args=(proc.stdin, pack), daemon=True).start()
         assert proc.stdout is not None
         for line in proc.stdout:
             fh.write(line)
