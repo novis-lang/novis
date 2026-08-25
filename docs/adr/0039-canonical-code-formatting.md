@@ -4,16 +4,20 @@
 - **Date:** 2026-08-22
 - **Scope:** the formatting *rules* `mwl fmt` (M10) applies — indentation, brace placement, blank lines,
   modifier order, quoting, trailing commas, import ordering, and the reflow model — plus its CLI surface
-  (`mwl fmt`, `mwl fmt --check`, `mwl fmt --diff`). Not `mwl-lsp`'s `textDocument/formatting` wiring or the
-  editor clients, which [ADR 0016](0016-ide-integration.md) already settles; not the parser or checker.
-- **Relates to:** 0007, 0010, 0016, 0024, 0029, 0031, 0033, 0036, 0038
+  (`mwl fmt`, `mwl fmt --check`, `mwl fmt --diff`), what it deliberately does *not* rewrite (§§ 10-11), and
+  how an editor composes it with quick fixes on one keystroke (§ 9). Not `mwl-lsp`'s
+  `textDocument/formatting` wiring or the editor clients, which [ADR 0016](0016-ide-integration.md) already
+  settles; not the quick fixes themselves, which are
+  [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3's; not the parser or checker.
+- **Relates to:** 0007, 0010, 0016, 0024, 0029, 0031, 0033, 0036, 0038, 0040, 0062, 0070, 0071, 0079, 0094
 
 > **In short:** `mwl fmt` rewrites a `.mwl` file into one canonical layout, deterministically — running it
 > twice produces byte-identical output the second time. The style is [PER](https://www.php-fig.org/per/coding-style/)
 > (PHP-FIG's Evolving Recommendation, PSR-12's successor) wherever MWL's grammar matches PHP's, extended
 > with explicit rules for the constructs PER has never seen (`fn` closures, `tainted`/`secret`, `lateinit`,
-> shape types, `match`). Three things make it fully deterministic rather than merely "PER-flavoured": it
-> never reflows an expression to fit a width — an author's own line breaks inside an expression are
+> shape types, `match`). Three things make it deterministic rather than merely "PER-flavoured" — the same
+> bytes in always produce the same bytes out, a weaker and deliberate promise than *source-independent*
+> (§ 8): it never reflows an expression to fit a width — an author's own line breaks inside an expression are
 > preserved, and only what surrounds them is normalized (gofmt's model, not Prettier's); it takes **no
 > configuration at all**, ever — no config file, no style-changing flag, the same "no suppression
 > mechanism" stance ADR 0029 already takes for casing; and it is a separate, opt-in tool, never wired into
@@ -120,6 +124,14 @@ real declaration below, per § 1.
 idempotent across the whole corpus"). `mwl-lsp`'s `textDocument/rangeFormatting` applies the identical rule
 set to a sub-range of a file — a range restriction on where the rules apply, never a second rule set.
 
+**Deterministic here means byte-stable, not source-independent, and the difference is § 2's whole cost.**
+Output is a pure function of the *input bytes* — the same file always formats to the same result, on every
+machine, forever. It is deliberately **not** a function of the parsed program: two files that differ only in
+where their author wrapped a call have the same AST and still format to different bytes, because § 2 keeps
+those line breaks. A formatter whose output depended only on the AST would have to choose every line break
+itself, which is exactly the width-fitting doc printer § 2 declines to build. Nothing in this ADR should be
+read as promising that two semantically identical files converge; what converges is one file, run twice.
+
 ### 9. CLI surface and enforcement posture
 
 - `mwl fmt <path>...` rewrites the named file(s) in place.
@@ -132,6 +144,49 @@ set to a sub-range of a file — a range restriction on where the rules apply, n
   boundary `cargo fmt` keeps from `cargo build`. This is the deliberate counterpart to
   [ADR 0029](0029-identifier-casing-is-checked.md): casing is a hard compile error with no suppression;
   formatting is the opposite end of the same axis, entirely outside the compiler's diagnostic surface.
+- **An editor may run `mwl fmt` and a set of quick fixes together on one keystroke; that composition
+  happens in the client, never inside `mwl fmt`.** VS Code's `editor.formatOnSave` and its separate
+  `editor.codeActionsOnSave` list — where `editors/vscode` registers ours as `source.fixAll.mwl` — and
+  PhpStorm's *Reformat Code* dialog with its own action checkboxes are both already shaped for this, so a
+  developer who has not yet learned a rule gets carried by save. Each fix is a diagnostic-backed LSP code
+  action owned by [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3, applied to a file that
+  may not parse at all — a mis-ordered `tainted secret string`
+  ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)) is a *parse error* whose diagnostic already
+  names the fix, so those actions run against ADR 0040 § 2's resilient tree, not a successful parse. This
+  buys the fast iteration without costing `--check` its meaning: `mwl fmt --check` still fails for exactly
+  one reason, and a CI job reading it never has to tell "laid out differently" from "semantically wrong."
+
+### 10. The one case-normalization `mwl fmt` does, and the criterion behind it
+
+`mwl fmt` normalizes a mis-cased **reserved spelling** to its canonical lower-case form — but only where
+that mis-cased spelling **has no other legal meaning**. Two qualify today, and both already carry the
+diagnostic that names the fix:
+
+- **Duration literal units** ([ADR 0070](0070-duration-literals.md)): `5Min` → `5min`
+  (`mwl_syntax::duration`'s `MisCasedUnit`).
+- **The `<?mwl` open tag** ([ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) § 2):
+  `<?MWL` → `<?mwl` (`E_RESERVED_SPELLING_CASE`).
+
+The criterion is what generalizes, not the list. A keyword never qualifies: ADR 0062 § 2 refuses to
+normalize `IF` or `ECHO` because [ADR 0029](0029-identifier-casing-is-checked.md) § 1 makes both legal
+`PascalCase` class names, so nothing lexical separates a mis-typed keyword from a deliberate class
+reference, and guessing would be the only place in the toolchain that guesses. An identifier never
+qualifies either, for a different reason: fixing its casing is a *rename*, which must reach every use site
+across the workspace, and `mwl fmt` is a single-file walk. That rename is ADR 0040 § 3's workspace-wide
+code action. A duration unit and an open tag can be nothing else, which is why they and only they are here.
+
+### 11. `mwl fmt` never reorders class members
+
+The only reordering in this ADR is § 6's `use` block. Methods, properties, class constants and enum cases
+keep the order their author wrote, and no "group by visibility, constants before properties before methods"
+rule is adopted — **because declaration order is observable in MWL, so reordering would change what a
+program prints and sends.** [ADR 0071](0071-derived-codecs.md) § 2 makes a derived codec's encode order the
+property declaration order, on purpose and for ETags and cached fixtures;
+[ADR 0079](0079-testing-is-a-language-feature.md) § 15 makes the test runner's report order the declaration
+order of the cases. PER has no member-ordering rule to defer to in any case — the convention people
+associate with it is one PHP tool's, not the standard's — so this would be MWL inventing a rule and paying
+for it in wire-format churn. A developer who *wants* the reordering can have it as a deliberate,
+diff-visible code action; it is not something a formatter does on save.
 
 ## Consequences
 
@@ -178,6 +233,28 @@ set to a sub-range of a file — a range restriction on where the rules apply, n
 - **A whitespace-only formatter that leaves quotes and trailing commas exactly as written.** Rejected: two
   semantically identical files would still differ byte-for-byte after formatting, which undercuts the
   entire point of having one canonical formatter.
+- **Canonical class-member ordering**, PHP-CS-Fixer's `ordered_class_elements` or similar. Rejected in
+  § 11, on evidence rather than taste: [ADR 0071](0071-derived-codecs.md) § 2 makes property declaration
+  order the encode order of a derived codec, and [ADR 0079](0079-testing-is-a-language-feature.md) § 15
+  makes it the test report order, so a formatter that reordered members would change a program's output
+  bytes. [ADR 0094](0094-visibility-is-written-at-every-member-declaration.md) § 5 already settled the
+  general form of this — "a formatter that changes meaning is not a formatter" — when it refused to let
+  `mwl fmt` insert a missing `public`, and member reordering breaks it at more sites than that would have.
+  [ADR 0013](0013-comparable-interface.md) takes the same line for `mwl convert`: property declaration
+  order "is not something a converter should silently canonicalize."
+- **Folding the quick fixes into `mwl fmt`** — casing renames, a missing visibility, a legacy cast, a
+  mis-ordered `secret tainted`. Rejected in § 9, and the reason is `--check`: a single command that both
+  lays out and repairs fails for two unrelated reasons, so no CI job can tell "this file is laid out
+  differently" from "this file is wrong." Composing the two on one keystroke is a *client* concern and both
+  target editors already have the mechanism, so nothing is lost by keeping the two contracts apart. A
+  separate `mwl fix` verb was considered for the batch case and also declined: it would be a third rule
+  table beside `mwl fmt`'s and [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s, and no user
+  has asked for one yet.
+- **Normalizing mis-cased keywords** (`IF` → `if`, `ECHO` → `echo`). Rejected by
+  [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) § 2 before this ADR
+  reached it, and § 10 keeps the refusal: ADR 0029 makes those legal class names, so the rewrite is a
+  guess. Normalizing PHP's case-insensitive reserved words is
+  [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s job, where the input is known to be PHP.
 
 ## Revisiting
 
@@ -186,14 +263,36 @@ set to a sub-range of a file — a range restriction on where the rules apply, n
   to build that for v1; it does not close the door on it.
 - Range-formatting edge cases beyond what [ADR 0016](0016-ide-integration.md) already scopes (partial
   statements, mid-expression selections) are LSP wiring, not a rule change here.
+- **Inline HTML is unspecified by this ADR and needs a decision before M10.** MWL lexes inline HTML and
+  the `<?=` echo tag ([ADR 0049](0049-single-open-tag-and-single-exit-keyword.md)), and nothing above says
+  what `mwl fmt` does to a template-heavy `.mwl` file. Leaving the HTML byte-identical and formatting only
+  the code islands is the obvious default, and is probably right — whitespace inside `<pre>` is significant,
+  so this is the one place a formatter could change rendered output — but it is undecided, not decided.
+- **Numeric literal spelling is likewise unspecified**: `0XFF` vs `0xff`, `1E5` vs `1e5`, `.5` vs `0.5`,
+  digit separators. These are genuinely AST-identical, so normalizing them is safe under § 8 and costs
+  nothing; the rule simply has not been written.
+- **`else if` versus `elseif`.** § 1 mandates the one-word spelling, but rewriting the two-word form
+  changes the *tree shape* — a nested `if` inside an `else` branch becomes an `elseif` clause — even though
+  it cannot change behaviour. Whether the two-word form parses at all, and whether § 1 is therefore a
+  layout rule or a (behaviour-preserving) tree rewrite, is worth settling when `mwl-fmt` is written.
 
 ## Verification
 
 (M10, once `mwl-fmt` exists — mirrors the plan's existing M10 verify line, now specified precisely enough
 to test against)
 
+- **Prerequisite, ahead of every line below: `mwl-syntax` must retain comment trivia.** `Lexer::skip_trivia`
+  consumes `//`, `#` and `/* */` today and pushes no token, so a formatter walking the current parse tree
+  would delete every comment in the file — which § 4's "comments are left byte-for-byte untouched" cannot
+  survive. The tree needs comment spans and an attachment rule (which declaration or statement a comment
+  belongs to) before any rule here is implementable.
+  [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md) already books the same requirement for the
+  converter's PHP front end — it picked `php-rs-parser` partly because it returns "comments in source order
+  and doc-blocks attached to the declaration they document" — so this is one capability with two consumers,
+  not two pieces of work.
 - `mwl fmt` run twice on the same file produces byte-identical output the second time, across the whole
-  fixture corpus (idempotence, § 8).
+  fixture corpus (idempotence, § 8), and a file containing a comment in every position the grammar allows
+  one round-trips through it with the comments intact and attached where they started.
 - `mwl fmt --check` exits `0` on an already-formatted file and non-zero (naming the file) on one that
   isn't, in both cases without writing to disk.
 - One fixture per section above: modifier reordering (`static public readonly $x;` → canonical order, § 1);
@@ -205,3 +304,12 @@ to test against)
 - A `tainted`/`secret`-qualified property and a `lateinit` property both format consistently (§ 7) —
   `mwl fmt` never needs to check whether either is used *legally*, only that it is laid out consistently;
   legality stays covered by ADR 0033's and ADR 0038's own checker fixtures.
+- § 10's two normalizations, one fixture each: `5Min` → `5min` and `<?MWL` → `<?mwl`. Alongside each, a
+  negative case proving the criterion holds — a class named `IF`, and a method named `Min`, both formatted
+  with their spelling untouched.
+- § 11's negative case: a class whose members are written constants-last, private-first, in an order no
+  convention would produce, formats with that order unchanged.
+- The § 9 composition, in `editors/vscode` rather than in `mwl-fmt`: with `source.fixAll.mwl` enabled,
+  saving a file containing `tainted secret string` yields both the canonical layout and the corrected
+  qualifier order; with it disabled, saving yields the layout only and the diagnostic stays. No formatting
+  logic is duplicated in the extension either way, per M10's existing verify line.

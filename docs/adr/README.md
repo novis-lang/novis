@@ -123,6 +123,7 @@ so you never have to open this file to route a topic.
 | A wasm32 browser target, running MWL client-side, `Core\Browser` | [0025](0025-wasm-browser-target.md) |
 | The PhpStorm plugin, `mwl-lsp`/`mwl fmt` client wiring, what "IDE integration" covers | [0016](0016-ide-integration.md) |
 | `mwl fmt`'s style — indentation, braces, quoting, trailing commas, why it never reflows | [0039](0039-canonical-code-formatting.md) |
+| What `mwl fmt` refuses to rewrite — renames, missing keywords, member order — and how an editor composes it with quick fixes on save | [0039](0039-canonical-code-formatting.md) §§ 9-11, [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3 |
 | The VS Code extension's feature catalog, why a minimal `mwl-lsp` ships in M4B, `mwl-syntax`'s resilient parse mode | [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) |
 | Writing a test case — the `.mwlt` sections, `--EXPECTF--`'s escapes, `--ORACLE--`/`--ORACLE-DIVERGES--`, how `mwl test` decides pass or fail, importing a `.phpt` | [crates/mwl-test/src/lib.rs](../../crates/mwl-test/src/lib.rs)'s module doc — the one home for the format |
 | Testing a program *written in* MWL — `#[Test]`, `Core\Test`, assertions, doubles, fixtures, parameterized cases, property testing, snapshots, `#[Bench]`, mutation testing, why PHPUnit's mechanism does not port | [0079](0079-testing-is-a-language-feature.md) — distinct from the `.mwlt` row above, which is MWL's own conformance suite |

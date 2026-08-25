@@ -151,9 +151,20 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   ([ADR 0022](0022-definite-property-initialization.md)); `include`/`require_once` offer "replace with
   `require`" ([ADR 0021](0021-single-file-inclusion-construct.md)); a `tainted`/`secret` value reaching a
   refusing sink offers the specific laundering call the diagnostic already names
-  ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)/[0033](0033-secret-qualifier-for-confidential-values.md))
-  — offered as a suggestion the developer applies deliberately, never auto-applied on save, the same as any
+  ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)/[0033](0033-secret-qualifier-for-confidential-values.md)),
+  which includes a mis-ordered `tainted secret string` — the grammar fixes that order, so the diagnostic
+  already names the fix — each offered as a suggestion the developer applies deliberately, the same as any
   other code action.
+
+  **Two things follow from where these sit.** They run against § 2's resilient tree rather than a
+  successful parse: a mis-ordered qualifier, a legacy cast and a `var $x` property are all parse-or-
+  declaration errors, so a fix that fired only on a clean parse would never fire on the file that needs it.
+  And they are **off by default but composable with format-on-save**: the extension registers them under
+  `source.fixAll.mwl`, which VS Code runs through `editor.codeActionsOnSave` independently of
+  `editor.formatOnSave`, so a developer who opts in gets the layout *and* the fixes on one keystroke while
+  `mwl fmt` itself stays layout-only. [ADR 0039](0039-canonical-code-formatting.md) § 9 owns that boundary
+  and why it is worth keeping — `mwl fmt --check` must fail for exactly one reason. PhpStorm's *Reformat
+  Code* dialog, with its own per-action checkboxes, is the same composition through a different client.
 - **Refactorings** as LSP requests: workspace-wide rename, extract-to-method/variable, organize-imports
   restricted to reordering and removing unused `use` statements — never introducing a rename or alias, per
   [ADR 0015](0015-no-name-aliasing.md)'s "nothing gets a second name."

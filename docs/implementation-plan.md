@@ -1205,7 +1205,13 @@ measured.
 ### M10 — Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined)
 `mwl fmt` (canonical, idempotent — the **only** formatting implementation; neither editor client below gets
 its own; its PER-based, unconfigurable, no-reflow style and `--check`/`--diff` surface are
-[ADR 0039](adr/0039-canonical-code-formatting.md)); `mwl-lsp` grows past M4B's minimal slice into full
+[ADR 0039](adr/0039-canonical-code-formatting.md)). **One prerequisite slice lands in `mwl-syntax` before
+any of it:** `Lexer::skip_trivia` discards `//`, `#` and `/* */` without emitting a token, so the parse tree
+carries no comments and a formatter walking it would delete every one — the tree needs comment spans plus an
+attachment rule (which declaration or statement a comment belongs to) for ADR 0039 § 4 to be implementable
+at all. [ADR 0089](adr/0089-convert-is-one-rule-table-with-two-modes.md) requires the same capability of the
+converter's front end, so it is one slice with two consumers and can land any time from M4 onward. Then
+`mwl-lsp` grows past M4B's minimal slice into full
 workspace-wide symbol search, incremental reparse, rename, and code actions; `mwl dap` using safepoints for
 breakpoints plus deopt-to-debug in codegen; a sampling profiler, emitting output in the open speedscope
 format so it opens in existing viewers rather than a bespoke flamegraph renderer
@@ -1247,8 +1253,9 @@ the deep half:
   names the native-plugin path as a later decision, not a silent gap, and [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md)
   does not touch PhpStorm at all.
 
-**Verify:** `mwl fmt` is idempotent across the whole corpus, and neither editor extension contains its own
-formatting logic. The VS Code extension's inspections/refactorings/rename round-trip as LSP code actions
+**Verify:** `mwl fmt` is idempotent across the whole corpus, a file carrying a comment in every position the
+grammar allows one round-trips through it with all of them intact and attached where they started, and
+neither editor extension contains its own formatting logic. The VS Code extension's inspections/refactorings/rename round-trip as LSP code actions
 and requests with no logic duplicated locally; format-on-save matches `mwl fmt --check` byte-for-byte; the
 Test Explorer runs `.mwlt` cases and shows coverage sourced from the Clover/lcov exporters; a captured
 profile opens correctly in a speedscope-compatible viewer; a breakpoint set in VS Code's UI hits in

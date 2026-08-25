@@ -233,6 +233,10 @@ spellings rejected, and the reasoning.
   ([0048](0048-portable-single-file-executables.md)).
 - **`mwl fmt` has one unconfigurable style, never reflows, and is never wired into `mwl check`**
   ([0039](0039-canonical-code-formatting.md)).
+- **`mwl fmt` changes layout only — it never renames, never supplies a missing keyword, and never reorders
+  class members; an editor composes it with quick fixes on save, which is a client concern**
+  ([0039](0039-canonical-code-formatting.md) §§ 9-11,
+  [0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3).
 - **`mwl convert` is one deterministic rule table read through two modes, and an "identical" rewrite is one
   a differential case against the PHP oracle proves**
   ([0089](0089-convert-is-one-rule-table-with-two-modes.md)).
