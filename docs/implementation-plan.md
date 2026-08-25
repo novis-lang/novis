@@ -121,11 +121,10 @@
 > **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with `Core\NormalForm`
 > and a named binding to `unicode-normalization`; § 2
 > owes
-> only three of its structure members — `from`, `reduce`,
-> `sortByKey` — ADR 0069's
-> four combination members, the `diff`/`intersect` set half with `Core\SetOn`, the four
-> positional rows `slice`, `chunk`, `append` and `prepend`, `replaceRange`/`flatten`/`flattenDeep`, and
-> `column`/`mapKeys`/`groupBy` being built; §
+> only `from`, the last of its structure members and the one that waits on an
+> `Iterable`/`Iterator` argument — ADR 0069's four combination members, the `diff`/`intersect` set half
+> with `Core\SetOn`, the positional rows, the callback rows and both sorts are all registered, which the
+> ratchet below is the machine-readable statement of; §
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
 > 2, which waited on a written type argument at a call site and no longer does); § 7 is **whole** —
@@ -143,12 +142,12 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 408 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 410 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **11 remaining keys are the machine-readable work list for
+> own module doc states, and that file's **9 remaining keys are the machine-readable work list for
 > §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
