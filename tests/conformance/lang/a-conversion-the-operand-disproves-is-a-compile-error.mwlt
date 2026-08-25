@@ -1,0 +1,20 @@
+--TEST--
+A checked `as` whose operand already names a value outside the target set does not compile, and the diagnostic generates the accepted set from the type — ADR 0047 §§ 4, 6
+--FILE--
+<?mwl
+// § 4's two checked rows run at run time only where the operand's own type
+// leaves the answer open — a plain `string`, an `enum`, a `mixed`. Where the
+// operand names one value and the target names a closed set without it, the
+// conversion could only ever throw, so § 6 says so here instead.
+enum Mode { Read, Write, Admin }
+"a"|"b" $mode = "z" as "a"|"b";
+Mode::Read|Mode::Write $m = Mode::Admin as Mode::Read|Mode::Write;
+echo $mode, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0469]: `"z"` is not one of `"a"`, `"b"`
+%A
+error[E0470]: `Mode::Admin` is not one of `Mode::Read`, `Mode::Write`
+%A
+error: aborting due to 2 errors

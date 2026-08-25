@@ -671,6 +671,19 @@ pub mod code {
     /// none. A name nothing declares is [`E_UNKNOWN_MEMBER`] instead — that is
     /// a different mistake with a different fix.
     pub const E_LITERAL_TYPE_NOT_CONST: Code = Code::new("E0468");
+    /// `"z" as "a"|"b"` — ADR 0047 § 6: a checked conversion into a closed set
+    /// of literals whose operand already names a value the set does not
+    /// contain, so it would compile and then throw on every execution. The
+    /// accepted set in the message is generated from the target type, never
+    /// written per site. A conversion the operand does not settle — `$s as
+    /// "a"|"b"` over a plain `string` — is § 4's ordinary checked row and
+    /// compiles.
+    pub const E_LITERAL_TYPE_MISMATCH: Code = Code::new("E0469");
+    /// `Mode::Admin as Mode::Read|Mode::Write` — § 3's case-subset half of
+    /// [`E_LITERAL_TYPE_MISMATCH`], on the same terms. Its own code because
+    /// the set it names is a set of *cases* rather than of literal values,
+    /// which is the distinction § 3 exists to keep.
+    pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

@@ -2,10 +2,11 @@
 //! §§ 1-4, at the point each atom becomes a real type and a value of one
 //! becomes writable.
 //!
-//! Two halves are pinned here: *what an atom interns to* (§§ 1-3), and § 4's
+//! Three halves are pinned here: *what an atom interns to* (§§ 1-3), § 4's
 //! free-widening rows plus the placement rule that makes a value of one of
-//! these types writable at all. What is **not** here is § 4's checked `as` and
-//! § 6's two diagnostics, which are their own slice.
+//! these types writable at all, and § 4's checked `as` with § 6's two
+//! diagnostics. What is **not** here is the run-time membership test a
+//! conversion from `mixed` performs, which is `mwl-ir`'s and `mwl-runtime`'s.
 //!
 //! The two facts this file exists to hold are the ones § 3 turns on — an enum
 //! case is **not** an int literal of its backing value, and a class constant
@@ -378,6 +379,101 @@ fn a_folded_class_constant_accepts_the_bare_value_it_names() {
 ",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// § 4's checked `as`, on the rows the operand settles by itself: a literal
+/// the target names is *statically* satisfied — ADR 0054 § 2's placement,
+/// extended to § 1's string atom — while a base-typed operand still converts,
+/// which is the row that has to keep compiling.
+#[test]
+fn a_literal_operand_is_placed_at_its_conversion_target() {
+    let diags = check_in_method(concat!(
+        "    \"a\"|\"b\" $mode = \"a\" as \"a\"|\"b\";\n",
+        "    1|2 $n = 1 as 1|2;\n",
+        "    string $raw = \"z\";\n",
+        "    \"a\"|\"b\" $checked = $raw as \"a\"|\"b\";\n",
+        "    string $wide = \"z\" as string;\n",
+        // ADR 0066's `as ?T` yields `null` rather than throwing, so the target
+        // is not a closed set at all and nothing below is impossible.
+        "    ?\"a\" $maybe = \"z\" as ?\"a\";\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// § 6's first diagnostic: the operand names a value the closed set does not
+/// contain, so the conversion could only ever throw. The accepted set is
+/// generated from the target type — asserted by membership rather than as one
+/// string, since a union orders its members by type id.
+#[test]
+fn a_literal_conversion_the_operand_disproves_is_refused() {
+    for (body, quoted) in [
+        ("    \"a\"|\"b\" $mode = \"z\" as \"a\"|\"b\";\n", "`\"z\"`"),
+        ("    1|2 $n = 3 as 1|2;\n", "`3`"),
+    ] {
+        let diags = check_in_method(body);
+        let reported = diags
+            .iter()
+            .find(|d| d.code == Some(code::E_LITERAL_TYPE_MISMATCH))
+            .unwrap_or_else(|| panic!("{body}: {diags:?}"));
+        assert!(
+            reported
+                .message
+                .starts_with(&format!("{quoted} is not one of ")),
+            "{}",
+            reported.message
+        );
+    }
+
+    let diags = check_in_method("    \"a\"|\"b\" $mode = \"z\" as \"a\"|\"b\";\n");
+    let reported = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_LITERAL_TYPE_MISMATCH))
+        .unwrap_or_else(|| panic!("{diags:?}"));
+    assert!(
+        reported.message.contains("`\"a\"`") && reported.message.contains("`\"b\"`"),
+        "{}",
+        reported.message
+    );
+}
+
+/// § 6's second diagnostic, and why it is a second one: the set it names is a
+/// set of *cases*. The two rows around it stay legal — the case the subset
+/// does name, and the whole enum arriving at run time, which is § 4's checked
+/// row itself.
+#[test]
+fn an_enum_case_conversion_the_operand_disproves_is_refused() {
+    let diags = check_src(concat!(
+        "<?mwl\n",
+        "enum Mode { Read, Write, Admin }\n",
+        "class T {\n",
+        "  function m(Mode $any): void {\n",
+        "    Mode::Read|Mode::Write $named = Mode::Read as Mode::Read|Mode::Write;\n",
+        "    Mode::Read|Mode::Write $run = $any as Mode::Read|Mode::Write;\n",
+        "  }\n",
+        "}\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_src(concat!(
+        "<?mwl\n",
+        "enum Mode { Read, Write, Admin }\n",
+        "class T {\n",
+        "  function m(): void {\n",
+        "    Mode::Read|Mode::Write $m = Mode::Admin as Mode::Read|Mode::Write;\n",
+        "  }\n",
+        "}\n",
+    ));
+    let reported = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_ENUM_CASE_SUBSET_MISMATCH))
+        .unwrap_or_else(|| panic!("{diags:?}"));
+    assert!(
+        reported.message.starts_with("`Mode::Admin` is not one of ")
+            && reported.message.contains("`Mode::Read`")
+            && reported.message.contains("`Mode::Write`"),
+        "{}",
+        reported.message
+    );
 }
 
 /// A literal type is usable at every binding site ADR 0007 § 1 lists, not

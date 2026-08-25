@@ -19,9 +19,11 @@
 //! array operand ([`reject_array_combination`]), naming `Core\Arr::underlay`.
 //!
 //! `as` is here too, as the conversion's *operand* rule
-//! ([`reject_enum_to_enum_conversion`]); what a conversion does to a qualifier
-//! is [`super::quals`], and what its target type may be spelled as is
-//! [`crate::lower`].
+//! ([`reject_enum_to_enum_conversion`], and ADR 0047 § 6's
+//! [`reject_impossible_literal_conversion`] for a conversion whose operand
+//! already names a value the target's closed set does not contain); what a
+//! conversion does to a qualifier is [`super::quals`], and what its target type
+//! may be spelled as is [`crate::lower`].
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
@@ -45,6 +47,14 @@ use super::*;
 /// places the literal at `string` and still converts, so the conformance check
 /// [`check_expr`] would run here would reject every conversion that does any
 /// work.
+///
+/// ADR 0047 § 4 adds the string literal to that same branch, for the same
+/// reason one step further on: `"a" as "a"|"b"` is a conversion the target
+/// *statically satisfies*, and without the placement the operand would be a
+/// plain `string` converting into the set at run time. What the placement
+/// cannot satisfy, [`reject_impossible_literal_conversion`] refuses outright —
+/// § 6's two diagnostics, and the only pair of conversions the operand's own
+/// type can prove nothing will ever come of.
 pub(super) fn infer_conversion(
     expr: &Expr,
     inner: &Expr,
@@ -55,7 +65,10 @@ pub(super) fn infer_conversion(
     env: &mut Env<'_>,
 ) -> TypeId {
     let result = lower_type(ty, ctx, env);
-    let inner_ty = if matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)) {
+    let inner_ty = if matches!(
+        inner.kind,
+        ExprKind::Int(_) | ExprKind::Float(_) | ExprKind::Str(_)
+    ) {
         super::infer(inner, Some(result), live, scope, ctx, env)
     } else {
         check_expr(inner, None, live, scope, ctx, env)
@@ -66,6 +79,7 @@ pub(super) fn infer_conversion(
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
     reject_secret_markup_conversion(inner_ty, result, expr.span, env);
     reject_non_literal_markup_conversion(inner, result, expr.span, env);
+    reject_impossible_literal_conversion(inner, inner_ty, result, expr.span, env);
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
 }
 
@@ -646,6 +660,133 @@ pub(super) fn reject_enum_to_enum_conversion(
         .with_primary(span, "converted here")
         .with_help("write an explicit `match` naming every case instead"),
     );
+}
+
+/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 6: a
+/// checked `as` into a closed set of literals or enum cases, whose operand
+/// names one value and that value is not in the set — `"z" as "a"|"b"`,
+/// `Mode::Admin as Mode::Read|Mode::Write`. Nothing about it is conditional at
+/// run time: it would compile and then throw on every execution, so the
+/// author is told now.
+///
+/// Both halves have to be closed for that to be provable. The **target** is
+/// closed only when every atom is a literal or a case ([`closed_set_atoms`]) —
+/// one wider atom (`string`, or the `null` an `as ?T` adds) is a member the
+/// operand may well reach. The **operand** is closed only when the expression
+/// itself names a single value ([`conversion_operand_singleton`]), since
+/// `$s as "a"|"b"` over a plain `string` is exactly § 4's checked row and has
+/// to compile.
+///
+/// This is deliberately not [`types_are_disjoint`]'s business.
+/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// § 2 puts a literal type in its base type's domain, so `$mode == "z"` stays
+/// an ordinary run-time string comparison; what is refused here is a
+/// *conversion* that can only throw, which is a different question reaching a
+/// different answer.
+fn reject_impossible_literal_conversion(
+    inner: &Expr,
+    inner_ty: TypeId,
+    to: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    let Some(accepted) = closed_set_atoms(to, env.interner) else {
+        return;
+    };
+    let Some(operand) = conversion_operand_singleton(inner, inner_ty, env) else {
+        return;
+    };
+    if accepted.contains(&operand) {
+        return;
+    }
+    // § 6: the accepted set is generated from the type, never written per
+    // site, so every atom is rendered by the interner that holds it.
+    let cases_only = accepted
+        .iter()
+        .all(|id| matches!(env.interner.get(*id), Ty::EnumCase(..)));
+    let listed: Vec<String> = accepted
+        .iter()
+        .map(|id| format!("`{}`", env.interner.describe(*id)))
+        .collect();
+    let code = if cases_only {
+        code::E_ENUM_CASE_SUBSET_MISMATCH
+    } else {
+        code::E_LITERAL_TYPE_MISMATCH
+    };
+    let named = env.interner.describe(operand);
+    env.diags.report(
+        Diagnostic::error(
+            code,
+            format!("`{named}` is not one of {}", listed.join(", ")),
+        )
+        .with_primary(span, "converted here")
+        .with_help(
+            "write one of the accepted values, or widen the target type to include this one",
+        ),
+    );
+}
+
+/// The atoms of a target type that is **entirely** literals and enum cases,
+/// in the order the type itself states them, or `None` for every other
+/// target — which is what keeps
+/// [`reject_impossible_literal_conversion`] to the one row it can prove.
+fn closed_set_atoms(to: TypeId, interner: &TypeInterner) -> Option<Vec<TypeId>> {
+    let atoms: Vec<TypeId> = match interner.get(to) {
+        Ty::Union(members) => members.clone(),
+        _ => vec![to],
+    };
+    atoms
+        .iter()
+        .all(|id| {
+            matches!(
+                interner.get(*id),
+                Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..)
+            )
+        })
+        .then_some(atoms)
+}
+
+/// The one value the conversion's *operand* names, or `None` where it names
+/// more than one.
+///
+/// The first arm is the placement in [`infer_conversion`] answering for
+/// itself: an operand the target accepts has already **taken** one of the
+/// target's own atoms, so it is in hand with nothing to re-derive. Everything
+/// after it is the failing side of that same placement, where the literal has
+/// widened back to its base and the value it named has to be recovered from
+/// the expression — [`literal_self_type`] for § 1's two literals, and the
+/// recorded [`crate::expr_table::ExprInfo::EnumCase`] for § 3's case. That
+/// record rather than the expression's shape, because `Core\X::SOME_CONST` is
+/// the same `ClassConstAccess` node and may be enum-typed without naming a
+/// case at all.
+fn conversion_operand_singleton(
+    inner: &Expr,
+    inner_ty: TypeId,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    if matches!(
+        env.interner.get(inner_ty),
+        Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..)
+    ) {
+        return Some(inner_ty);
+    }
+    if let Some(literal) = literal_self_type(inner, env) {
+        return Some(literal);
+    }
+    let ExprKind::ClassConstAccess { name, .. } = &inner.kind else {
+        return None;
+    };
+    if !matches!(
+        env.exprs.lookup(inner.span),
+        Some(crate::expr_table::ExprInfo::EnumCase { .. })
+    ) {
+        return None;
+    }
+    let Ty::Enum(qname, backing) = env.interner.get(inner_ty).clone() else {
+        return None;
+    };
+    let case = span_text(env.src, *name).to_owned();
+    Some(env.interner.enum_case(qname, backing, case))
 }
 
 pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {

@@ -175,13 +175,20 @@ written per call site:
 
 ```php
 "a"|"b"|"c" $mode = "z" as "a"|"b"|"c";
-// E_LITERAL_TYPE_MISMATCH (code assigned at implementation):
-// "z" is not one of "a", "b", "c"
+// E0469 (E_LITERAL_TYPE_MISMATCH):
+// `"z"` is not one of `"a"`, `"b"`, `"c"`
 
 Mode::Read|Mode::Write $m = Mode::Admin as Mode::Read|Mode::Write;
-// E_ENUM_CASE_SUBSET_MISMATCH (code assigned at implementation):
-// Mode::Admin is not one of Mode::Read, Mode::Write
+// E0470 (E_ENUM_CASE_SUBSET_MISMATCH):
+// `Mode::Admin` is not one of `Mode::Read`, `Mode::Write`
 ```
+
+Both are **compile** errors rather than the run-time throw *4*'s checked rows describe, and only where the
+operand settles the question by itself: the target has to be a closed set of literals or cases — one wider
+atom, including the `null` an `as ?T` ([ADR 0066](0066-nullable-conversion-operator.md)) adds, is a member
+the operand may well reach — and the operand has to name one value, which a plain `string`, an `enum` or a
+`mixed` does not. Everything those two conditions leave out is *4*'s ordinary checked conversion, answered
+at run time.
 
 ### 7. Deliberate scope limits
 

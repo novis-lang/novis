@@ -83,6 +83,32 @@ fn placed_string_literal(span: Span, expected: Option<TypeId>, env: &Env<'_>) ->
     )
 }
 
+/// The singleton type this expression names *on its own* — the placement rule
+/// read backwards, for the one caller that needs the value the author wrote
+/// rather than the type the position gave it.
+///
+/// [`super::operators::infer_conversion`]'s § 6 refusal is that caller: by the
+/// time it runs, a literal the target does not accept has already widened back
+/// to its base, taking the only record of which value it was with it. `None`
+/// for every expression that is not one of § 1's two literals, including a
+/// malformed one — a literal that does not survive its own text has no
+/// singleton to be, exactly as [`infer_str_literal`] and [`infer_int_literal`]
+/// already decide.
+pub(super) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId> {
+    match expr.kind {
+        ExprKind::Str(span) => {
+            let value = crate::string_lit::cook_string_literal(env.src, span);
+            Some(env.interner.string_literal(value))
+        }
+        ExprKind::Int(span) => {
+            let (radix, digits) = int_literal_digits(env.src, span);
+            let magnitude = u64::from_str_radix(&digits, radix).ok()?;
+            Some(env.interner.int_literal(i64::try_from(magnitude).ok()?))
+        }
+        _ => None,
+    }
+}
+
 /// The expectation a `-e` operand inherits, and `None` for every other unary
 /// operator — which is what [`super::infer`]'s arm passed before ADR 0047.
 ///
