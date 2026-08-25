@@ -176,6 +176,18 @@ def parse_spdx(expr: str):
     return tree
 
 
+class Undeclared(Exception):
+    """An SPDX identifier `PREFERENCE` ranks nowhere.
+
+    Raised rather than exited on so an OR can decline one branch and still
+    take another — see `take`. Only `choose` turns it into a message.
+    """
+
+    def __init__(self, ident: str):
+        super().__init__(ident)
+        self.ident = ident
+
+
 def choose(node, where: str) -> list[str]:
     """Reduce an SPDX tree to the licenses MWL actually takes.
 
@@ -183,26 +195,51 @@ def choose(node, where: str) -> list[str]:
     conjunct, because that is what "and" means — `(MIT OR Apache-2.0) AND
     BSD-3-Clause` obliges us to reproduce two notices, not one.
     """
+    try:
+        return take(node)
+    except Undeclared as undeclared:
+        raise SystemExit(
+            f"error: {where} offers {undeclared.ident!r}, which tools/gen-attribution.py has no\n"
+            f"       policy for. Add it to PREFERENCE (and to deny.toml's allow list)\n"
+            f"       once someone has decided MWL may ship under it."
+        ) from None
+
+
+def take(node) -> list[str]:
+    """`choose`'s recursion, raising `Undeclared` instead of exiting."""
     kind = node[0]
     if kind == "id":
         ident = node[1]
         if ident not in PREFERENCE:
-            raise SystemExit(
-                f"error: {where} offers {ident!r}, which tools/gen-attribution.py has no\n"
-                f"       policy for. Add it to PREFERENCE (and to deny.toml's allow list)\n"
-                f"       once someone has decided MWL may ship under it."
-            )
+            raise Undeclared(ident)
         return [ident]
     if kind == "and":
         out: list[str] = []
         for term in node[1]:
-            for ident in choose(term, where):
+            for ident in take(term):
                 if ident not in out:
                     out.append(ident)
         return out
-    # An OR: every branch must be understood before one is picked, so an
-    # unknown license hiding behind an acceptable alternative still fails.
-    options = [choose(term, where) for term in node[1]]
+    # An OR: MWL takes exactly one branch, so a branch it has no policy for is
+    # one it simply declines. `r-efi`, which `getrandom` brings in for the UEFI
+    # target, is offered as `MIT OR Apache-2.0 OR LGPL-2.1-or-later` — MWL
+    # takes MIT, and the LGPL half never enters the tree for anyone to have to
+    # decide about. This is cargo-deny's own reading of an OR, which is what
+    # keeps this file and `deny.toml` agreeing rather than this one being
+    # quietly the stricter of the two.
+    #
+    # An OR with **no** understood branch still fails, and that is where the
+    # "someone decides" gate belongs: there the license genuinely is one MWL
+    # would have to ship under.
+    options: list[list[str]] = []
+    declined: list[Undeclared] = []
+    for term in node[1]:
+        try:
+            options.append(take(term))
+        except Undeclared as undeclared:
+            declined.append(undeclared)
+    if not options:
+        raise declined[0]
     return min(options, key=lambda opt: min(PREFERENCE.index(i) for i in opt))
 
 
