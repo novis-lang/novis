@@ -47,8 +47,8 @@
 //! shared-nothing, so a per-thread cache needs no lock on the hot path and
 //! cannot become cross-request state
 //! ([ADR 0059](../../../../docs/adr/0059-cross-request-state-is-explicit.md)
-//! forbids that) — a compiled pattern is derived from the pattern text alone,
-//! observable only as speed.
+//! forbids that) — a compiled pattern is derived from the pattern text and
+//! its flags alone, observable only as speed.
 //!
 //! **What it spends:** one compiled program per distinct pattern per core,
 //! bounded at [`CACHE_CAPACITY`], which is O(cache) rather than O(requests
@@ -60,18 +60,17 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`compile` and `replaceWith` are not registered.** Both are stated in
-//!    terms of `Pattern`, spec § 5's *option-carrying* handle: unlike
-//!    [`MATCH`], whose whole state is values MWL already holds, a `Pattern` is
-//!    a pattern plus four compilation flags, and the flags have to reach
-//!    [`compiled`]'s cache key before either member means anything.
-//!    `replaceWith` additionally hands its callback a `Match`, which
-//!    `mwl_runtime::call_closure` can already carry.
+//! 1. **The six matching members still take `string` alone**, where spec § 5
+//!    writes `Pattern|string $pattern`. [`PATTERN`] exists now, so nothing is
+//!    waiting on a representation: the parameter widens to that union, and
+//!    each of the six reads the handle's two slots instead of its own text
+//!    argument. A program written against the narrow spelling keeps compiling
+//!    when it does. Until then a `Pattern` can be built and is checked, and
+//!    the flags it carries reach nothing that matches.
 //!
-//!    The consequence for the six members that *are* registered is that their
-//!    `Pattern|string $pattern` parameter is registered as `string` alone. It
-//!    widens to the union the spec writes the moment `Pattern` is expressible;
-//!    a program written against the narrow spelling keeps compiling.
+//!    **`replaceWith` is not registered**, and waits on the same widening
+//!    plus a callback handed a `Match`, which `mwl_runtime::call_closure` can
+//!    already carry.
 //! 2. **ADR 0056 § 4's sink is not enforced.** The pattern parameter must
 //!    demand the plain, unqualified `string`, and nothing in
 //!    [`crate::registry`] can state a qualifier at all — `tainted` and
@@ -92,6 +91,7 @@
 //!    not written because a cluster can in principle span a match boundary, and
 //!    getting that edge right is worth its own slice rather than a line here.
 
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -106,12 +106,19 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
 /// `Core\Regex`'s registry rows, in the spec's own order.
 ///
-/// Six of § 5's eight members; gap 1 above owns which two are missing and what
-/// they wait on. The four members that section states on a `Match` are
+/// Seven of § 5's eight members; gap 1 above owns which one is missing and
+/// what it waits on. The four members that section states on a `Match` are
 /// [`MATCH`]'s own roster, not this one.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Regex",
     methods: &[
+        CoreMethod {
+            name: "compile",
+            params: &[CoreTy::Str, CoreTy::Options(COMPILE_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(PATTERN_NAME),
+            symbol: "mwl_core_regex_compile",
+        },
         CoreMethod {
             name: "matches",
             params: &[CoreTy::Str, CoreTy::Str],
@@ -164,6 +171,87 @@ pub const CLASS: CoreClass = CoreClass {
     slots: &[],
     constants: &[],
 };
+
+/// `Core\Regex\Pattern`'s fully-qualified name, written once — see
+/// [`MATCH_NAME`] for why.
+const PATTERN_NAME: &str = r"Core\Regex\Pattern";
+
+/// Spec § 5's `Core\Regex\Pattern` — a pattern plus the four compilation
+/// flags, which is what PCRE's `/…/imsU` delimiter-and-modifier syntax carried
+/// and MWL has no syntax for.
+///
+/// **Two slots and no member of its own.** A `Pattern` is a *handle*: nothing
+/// asks it a question, and every one of § 5's matching members takes one where
+/// it also takes a plain `string`. So its state is read by `Core\Regex`'s
+/// members rather than by its own, which is the one carve-out in
+/// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse` and
+/// is named there.
+///
+/// The slots are the pattern **as the program wrote it** and the flags as a
+/// bitmask, not a compiled program: [`crate::instance`]'s first decision is
+/// that a `Core` instance holds only values MWL already holds, and the
+/// compiled form lives in this module's per-core cache, which
+/// [`compiled`] reaches with exactly this pair. Keeping the original text
+/// rather than the flag-folded one ([`effective`]) is what lets a throw quote
+/// what the call site wrote.
+///
+/// **What it spends:** one object, two slots and one `string` copy of the
+/// pattern per `compile` call, charged to the request. The compiled program it
+/// stands for is the cache's, shared by every call that names the same pair.
+pub const PATTERN: CoreClass = CoreClass {
+    name: PATTERN_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["pattern", "flags"],
+    constants: &[],
+};
+
+/// `Core\Regex::compile`'s four flags, all defaulting to off.
+///
+/// Named options rather than a modifier string, because `/…/imsU` is a second
+/// grammar inside a string literal that nothing can check: a typo in it is a
+/// silently different pattern, and a `x` PHP accepts and this table does not
+/// would be silently dropped. The four are exactly PCRE's `i`, `m`, `s` and
+/// `U`; `x` (extended) has no option because the whitespace it ignores is not
+/// a thing an MWL pattern carries, and `u` (Unicode) is not optional — both
+/// engines are Unicode-aware always.
+const COMPILE_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "caseInsensitive",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "multiline",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "dotAll",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+    CoreOption {
+        name: "ungreedy",
+        ty: CoreTy::Bool,
+        default: Const::Bool(false),
+    },
+];
+
+/// `{caseInsensitive: true}` — PCRE's `i`.
+const FLAG_CASE_INSENSITIVE: u8 = 1;
+
+/// `{multiline: true}` — PCRE's `m`.
+const FLAG_MULTILINE: u8 = 1 << 1;
+
+/// `{dotAll: true}` — PCRE's `s`.
+const FLAG_DOT_ALL: u8 = 1 << 2;
+
+/// `{ungreedy: true}` — PCRE's `U`.
+const FLAG_UNGREEDY: u8 = 1 << 3;
+
+/// No flag set at all, which is what a plain `string` pattern carries.
+const NO_FLAGS: u8 = 0;
 
 /// `Core\Regex\Match`'s fully-qualified name, written once — [`MATCH`]
 /// declares it and every [`CoreTy::Instance`] naming it resolves against
@@ -293,6 +381,7 @@ const SPLIT_OPTIONS: &[CoreOption] = &[
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "mwl_core_regex_compile" => (mwl_core_regex_compile as *const ()).cast(),
         "mwl_core_regex_matches" => (mwl_core_regex_matches as *const ()).cast(),
         "mwl_core_regex_match" => (mwl_core_regex_match as *const ()).cast(),
         "mwl_core_regex_match_all" => (mwl_core_regex_match_all as *const ()).cast(),
@@ -339,15 +428,55 @@ enum Compiled {
 }
 
 thread_local! {
-    /// This core's compiled patterns, keyed by the pattern text.
+    /// This core's compiled patterns, keyed by the pattern text **and the
+    /// flags it was compiled under** — the same text under two [`PATTERN`]
+    /// flag sets is two programs, and one key would hand the second call the
+    /// first one's answer.
     ///
     /// A `Vec` rather than a map: it is capacity-bounded and scanned
     /// linearly, which for a few hundred short keys beats hashing them, and
     /// it keeps the "clear when full" policy a one-liner.
-    static CACHE: RefCell<Vec<(String, Rc<Compiled>)>> = const { RefCell::new(Vec::new()) };
+    static CACHE: RefCell<Vec<(String, u8, Rc<Compiled>)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// The compiled form of `pattern`, from this core's cache or freshly built.
+/// `pattern` as the engines are given it: the text a program wrote, wrapped in
+/// the one inline flag group its [`PATTERN`] flags amount to, or borrowed
+/// unchanged when it carries none.
+///
+/// **A group rather than a leading `(?ims)` directive**, because a directive
+/// applies only to the end of the enclosing group — so `(?i)a|B` would leave
+/// the second alternative case-sensitive, which is not what `/a|B/i` means.
+/// `(?i:a|B)` has no such edge. It is also the only mechanism both tiers
+/// share: `fancy-regex`'s builder has no `swap_greed` at all, while both
+/// parsers read `U` inline, and one spelling across the two is what keeps a
+/// pattern's meaning from depending on which tier it landed in.
+///
+/// A non-capturing group changes no group number and no anchor, so a `Match`
+/// built from the result reports exactly the groups the program declared.
+fn effective(pattern: &str, flags: u8) -> Cow<'_, str> {
+    if flags == NO_FLAGS {
+        return Cow::Borrowed(pattern);
+    }
+    let mut spelled = String::with_capacity(pattern.len() + 8);
+    spelled.push_str("(?");
+    for (flag, letter) in [
+        (FLAG_CASE_INSENSITIVE, 'i'),
+        (FLAG_MULTILINE, 'm'),
+        (FLAG_DOT_ALL, 's'),
+        (FLAG_UNGREEDY, 'U'),
+    ] {
+        if flags & flag != 0 {
+            spelled.push(letter);
+        }
+    }
+    spelled.push(':');
+    spelled.push_str(pattern);
+    spelled.push(')');
+    Cow::Owned(spelled)
+}
+
+/// The compiled form of `pattern` under `flags`, from this core's cache or
+/// freshly built.
 ///
 /// # Errors
 ///
@@ -357,21 +486,23 @@ thread_local! {
 /// owns the compile-time half. The message carries the backtracking engine's
 /// own complaint, because it is the more permissive of the two: a pattern the
 /// linear engine merely could not *express* has already been handed on by the
-/// time this fails.
-fn compiled(pattern: &str, member: &str) -> Result<Rc<Compiled>, Fault> {
+/// time this fails, and it quotes the text the program wrote rather than
+/// [`effective`]'s flag-wrapped form.
+fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Fault> {
     if let Some(hit) = CACHE.with_borrow(|cache| {
         cache
             .iter()
-            .find(|(key, _)| key == pattern)
-            .map(|(_, compiled)| Rc::clone(compiled))
+            .find(|(key, keyed_flags, _)| key == pattern && *keyed_flags == flags)
+            .map(|(_, _, compiled)| Rc::clone(compiled))
     }) {
         return Ok(hit);
     }
 
-    let built = match regex::Regex::new(pattern) {
+    let spelled = effective(pattern, flags);
+    let built = match regex::Regex::new(&spelled) {
         Ok(linear) => Compiled::Linear(linear),
         Err(_) => Compiled::Backtracking(
-            fancy_regex::RegexBuilder::new(pattern)
+            fancy_regex::RegexBuilder::new(&spelled)
                 .backtrack_limit(BACKTRACK_BUDGET)
                 .build()
                 .map_err(|err| {
@@ -388,7 +519,7 @@ fn compiled(pattern: &str, member: &str) -> Result<Rc<Compiled>, Fault> {
         if cache.len() >= CACHE_CAPACITY {
             cache.clear();
         }
-        cache.push((pattern.to_owned(), Rc::clone(&built)));
+        cache.push((pattern.to_owned(), flags, Rc::clone(&built)));
     });
     Ok(built)
 }
@@ -475,6 +606,41 @@ fn produced(text: &str) -> HelperResult {
 // ============================================================================
 
 mwl_runtime::mwl_helper! {
+    /// `Core\Regex::compile(string $pattern, {caseInsensitive?, multiline?,
+    /// dotAll?, ungreedy?}): Pattern` — replacing PCRE's
+    /// `/…/imsU` delimiter-and-modifier syntax, which MWL has no grammar for.
+    ///
+    /// **Compiles eagerly**, and throws here rather than at the first match if
+    /// neither engine can take the pattern: a `compile` that deferred every
+    /// failure to whichever member later used the handle would report the
+    /// mistake at a line that did not make it. The compiled program goes
+    /// straight into this core's cache under the pair the returned [`PATTERN`]
+    /// carries, so the first match against it is already a hit.
+    fn mwl_core_regex_compile(_ctx, args: [5]) {
+        let pattern = text(&args[0], "compile", "the pattern")?;
+        let mut flags = NO_FLAGS;
+        for (slot, option, flag) in [
+            (1, "the `caseInsensitive` option", FLAG_CASE_INSENSITIVE),
+            (2, "the `multiline` option", FLAG_MULTILINE),
+            (3, "the `dotAll` option", FLAG_DOT_ALL),
+            (4, "the `ungreedy` option", FLAG_UNGREEDY),
+        ] {
+            if boolean(&args[slot], "compile", option)? {
+                flags |= flag;
+            }
+        }
+        compiled(pattern, flags, "compile")?;
+        Ok(crate::instance::build(
+            &PATTERN,
+            [
+                Value::str(MwlStr::new(pattern.as_bytes())),
+                Value::int(i64::from(flags)),
+            ],
+        ))
+    }
+}
+
+mwl_runtime::mwl_helper! {
     /// `Core\Regex::matches(string $subject, string $pattern): bool` —
     /// replacing `preg_match` used as a predicate.
     ///
@@ -483,7 +649,7 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_regex_matches(_ctx, args: [2]) {
         let subject = text(&args[0], "matches", "the subject")?;
         let pattern = text(&args[1], "matches", "the pattern")?;
-        let found = match &*compiled(pattern, "matches")? {
+        let found = match &*compiled(pattern, NO_FLAGS, "matches")? {
             Compiled::Linear(re) => re.is_match(subject),
             Compiled::Backtracking(re) => re
                 .is_match(subject)
@@ -618,7 +784,7 @@ mwl_runtime::mwl_helper! {
         let from = integer(&args[2], "match", "the `from` option")?;
         let start = start_byte(subject, from);
 
-        let compiled = compiled(pattern, "match")?;
+        let compiled = compiled(pattern, NO_FLAGS, "match")?;
         let names = names_of(&compiled);
         let found = match &*compiled {
             Compiled::Linear(re) => re
@@ -652,7 +818,7 @@ mwl_runtime::mwl_helper! {
         let subject = text(&args[0], "matchAll", "the subject")?;
         let pattern = text(&args[1], "matchAll", "the pattern")?;
 
-        let compiled = compiled(pattern, "matchAll")?;
+        let compiled = compiled(pattern, NO_FLAGS, "matchAll")?;
         let names = names_of(&compiled);
         let mut out = MwlArray::new();
         match &*compiled {
@@ -781,7 +947,7 @@ mwl_runtime::mwl_helper! {
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
         let count = if limit == u64::MAX { 0 } else { count };
 
-        let replaced = match &*compiled(pattern, "replace")? {
+        let replaced = match &*compiled(pattern, NO_FLAGS, "replace")? {
             Compiled::Linear(re) => re.replacen(subject, count, replacement).into_owned(),
             Compiled::Backtracking(re) => re
                 .try_replacen(subject, count, replacement)
@@ -845,7 +1011,7 @@ mwl_runtime::mwl_helper! {
         let limit = integer(&args[2], "split", "the `limit` option")?;
         let keep_empty = boolean(&args[3], "split", "the `keepEmpty` option")?;
 
-        let compiled = compiled(pattern, "split")?;
+        let compiled = compiled(pattern, NO_FLAGS, "split")?;
         let mut pieces = if limit >= 0 {
             // A limit of `0` means one piece, not none — see the docs above.
             let wanted = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
@@ -902,7 +1068,7 @@ mod tests {
     /// on.
     #[test]
     fn a_match_carries_every_declared_group_named_and_numbered() {
-        let compiled = compiled(r"(?<word>[a-z]+)(\d+)?", "match").expect("compiles");
+        let compiled = compiled(r"(?<word>[a-z]+)(\d+)?", NO_FLAGS, "match").expect("compiles");
         let names = names_of(&compiled);
         let Compiled::Linear(re) = &*compiled else {
             panic!("a plain pattern lands in the linear tier")
@@ -943,11 +1109,12 @@ mod tests {
     #[test]
     fn a_pattern_lands_in_the_tier_its_features_require() {
         assert!(matches!(
-            *compiled(r"\d+", "matches").expect("a plain pattern compiles"),
+            *compiled(r"\d+", NO_FLAGS, "matches").expect("a plain pattern compiles"),
             Compiled::Linear(_)
         ));
         assert!(matches!(
-            *compiled(r"foo(?=bar)", "matches").expect("a lookahead compiles on the second tier"),
+            *compiled(r"foo(?=bar)", NO_FLAGS, "matches")
+                .expect("a lookahead compiles on the second tier"),
             Compiled::Backtracking(_)
         ));
     }
@@ -956,7 +1123,8 @@ mod tests {
     /// nothing — ADR 0056 § 5's "never silently ignored".
     #[test]
     fn a_pattern_neither_engine_accepts_throws() {
-        let err = compiled("(unclosed", "matches").expect_err("an unclosed group is not a pattern");
+        let err = compiled("(unclosed", NO_FLAGS, "matches")
+            .expect_err("an unclosed group is not a pattern");
         assert!(format!("{err:?}").contains("(unclosed"), "{err:?}");
     }
 
@@ -964,9 +1132,65 @@ mod tests {
     /// once — this module's own docs own what that spends.
     #[test]
     fn one_pattern_is_compiled_once_per_core() {
-        let first = compiled(r"^cached-\w+$", "matches").expect("compiles");
-        let again = compiled(r"^cached-\w+$", "matches").expect("compiles");
+        let first = compiled(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
+        let again = compiled(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
         assert!(Rc::ptr_eq(&first, &again));
+    }
+
+    /// The four flags are part of the key, not of the text: one pattern under
+    /// two flag sets is two compiled programs, and each behaves as its flags
+    /// say. Asserted here rather than in a `.mwlt` case because the six
+    /// members that would carry a `Pattern` still take `string` alone — gap 1.
+    #[test]
+    fn the_flags_are_part_of_the_key_and_reach_the_engine() {
+        let plain = compiled("^flagged-a+$", NO_FLAGS, "compile").expect("compiles");
+        let folded = compiled("^flagged-a+$", FLAG_CASE_INSENSITIVE, "compile").expect("compiles");
+        assert!(!Rc::ptr_eq(&plain, &folded));
+
+        let matched = |held: &Compiled, subject: &str| match held {
+            Compiled::Linear(re) => re.is_match(subject),
+            Compiled::Backtracking(re) => re.is_match(subject).expect("within budget"),
+        };
+        assert!(!matched(&plain, "flagged-AAA"));
+        assert!(matched(&folded, "flagged-AAA"));
+    }
+
+    /// Each flag is the PCRE modifier it is named for, over both tiers: the
+    /// group [`effective`] wraps is the one spelling `regex` and `fancy-regex`
+    /// both read, so a pattern means the same thing whichever tier took it.
+    #[test]
+    fn each_flag_is_the_pcre_modifier_it_replaces() {
+        // `m` — `$` reaches a line ending rather than only the subject's end.
+        assert_eq!(effective("a$", FLAG_MULTILINE), "(?m:a$)");
+        // `s` — `.` covers a newline; `U` — the quantifiers swap greed.
+        assert_eq!(
+            effective("a.+b", FLAG_DOT_ALL | FLAG_UNGREEDY),
+            "(?sU:a.+b)"
+        );
+        // No flag at all borrows the text rather than rewriting it.
+        assert!(matches!(effective("a$", NO_FLAGS), Cow::Borrowed("a$")));
+
+        let run = |pattern: &str, flags: u8, subject: &str| {
+            let held = compiled(pattern, flags, "compile").expect("compiles");
+            match &*held {
+                Compiled::Linear(re) => re.find(subject).map(|found| found.as_str().to_owned()),
+                Compiled::Backtracking(re) => re
+                    .find(subject)
+                    .expect("within budget")
+                    .map(|found| found.as_str().to_owned()),
+            }
+        };
+        assert_eq!(run("^b", FLAG_MULTILINE, "a\nbc"), Some("b".to_owned()));
+        assert_eq!(run("^b", NO_FLAGS, "a\nbc"), None);
+        assert_eq!(run("a.c", FLAG_DOT_ALL, "a\nc"), Some("a\nc".to_owned()));
+        assert_eq!(run("<.+>", FLAG_UNGREEDY, "<a><b>"), Some("<a>".to_owned()));
+        assert_eq!(run("<.+>", NO_FLAGS, "<a><b>"), Some("<a><b>".to_owned()));
+        // A flag group applies to every alternative, which is why it is a
+        // group rather than a leading `(?i)` directive.
+        assert_eq!(
+            run("x|Y", FLAG_CASE_INSENSITIVE, "zy"),
+            Some("y".to_owned())
+        );
     }
 
     /// The cache is bounded: filling it past its capacity clears it rather
@@ -974,7 +1198,7 @@ mod tests {
     #[test]
     fn the_cache_never_grows_past_its_capacity() {
         for nth in 0..=CACHE_CAPACITY {
-            compiled(&format!("bounded-{nth}"), "matches").expect("compiles");
+            compiled(&format!("bounded-{nth}"), NO_FLAGS, "matches").expect("compiles");
         }
         CACHE.with_borrow(|cache| assert!(cache.len() <= CACHE_CAPACITY, "{}", cache.len()));
     }

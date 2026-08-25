@@ -672,6 +672,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::math::CLASS,
     crate::regex::CLASS,
     crate::regex::MATCH,
+    crate::regex::PATTERN,
     crate::json::CLASS,
     crate::encoding::CLASS,
     crate::bytes::CLASS,
@@ -1703,9 +1704,23 @@ mod tests {
     /// Slots nothing can read are dead bytes on every instance, and an instance
     /// member on a class with no slots would be a method with no receiver state
     /// — either is a half-written class rather than a design.
+    ///
+    /// The one exception is a **handle**: a class whose slots another class's
+    /// members read, and which the spec writes no member *on*. Its state is
+    /// reachable, just not through itself, so it is listed here by name rather
+    /// than given a member the spec does not write.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
+        const HANDLES: &[&str] = &[r"Core\Regex\Pattern"];
         for class in CLASSES {
+            if HANDLES.contains(&class.name) {
+                assert!(
+                    !class.slots.is_empty() && class.instance.is_empty(),
+                    "{} is listed as a handle but is not one",
+                    class.name
+                );
+                continue;
+            }
             assert_eq!(
                 class.slots.is_empty(),
                 class.instance.is_empty(),

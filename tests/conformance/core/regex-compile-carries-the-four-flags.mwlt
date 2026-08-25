@@ -1,0 +1,42 @@
+--TEST--
+Spec § 5: `Core\Regex::compile` answers a `Pattern`, the handle carrying the four flags PCRE wrote as `/…/imsU`
+--FILE--
+<?mwl
+// A `Pattern` is § 5's option-carrying handle: the modifiers PCRE spelled
+// after a closing delimiter are named options here, and there is no delimiter
+// to escape. Nothing is asked *of* a `Pattern` — it is what the matching
+// members take in place of a `string`.
+Core\Regex\Pattern $plain = Core\Regex::compile("^a+$");
+echo "plain|\n";
+
+Core\Regex\Pattern $flagged = Core\Regex::compile("^a+$", {
+    caseInsensitive: true,
+    multiline: true,
+    dotAll: true,
+    ungreedy: true,
+});
+echo "flagged|\n";
+
+// `compile` reaches both tiers exactly as every other member does: a
+// lookahead is a pattern only the backtracking engine can express (ADR 0056
+// § 2), and it compiles here rather than at the first match against it.
+Core\Regex\Pattern $fancy = Core\Regex::compile("foo(?=bar)");
+echo "fancy|\n";
+
+// A pattern neither engine can compile throws from `compile` itself, not from
+// whichever member later used the handle (ADR 0056 § 5). The message quotes
+// the pattern as the program wrote it, not the flag-wrapped form the engines
+// are given.
+try {
+    Core\Regex\Pattern $bad = Core\Regex::compile("(unclosed", {caseInsensitive: true});
+    echo "compiled|\n";
+} catch (Throwable $e) {
+    echo Core\Str::contains($e->message, "either engine") as string, "|\n";
+    echo Core\Str::contains($e->message, "`(unclosed`") as string, "|\n";
+}
+--EXPECT--
+plain|
+flagged|
+fancy|
+1|
+1|
