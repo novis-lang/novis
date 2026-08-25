@@ -2,57 +2,55 @@
 
 ## State
 
-**ADR 0007 § 2's conversion table now runs for every scalar source, `mixed` included, so `mwl-ir` gap 20
-is down to its two non-scalar rows.** `$any as int`/`as uint`/`as float` are `Helper::TaggedToInt` and its
-two twins — one helper per *target*, dispatching on the operand's runtime tag, throwing exactly where
-ADR 0066's `Helper::ToIntOrNull` answers `null` over the same row set in `mwl_runtime`
-(`helpers.rs:396`'s `to_int` is that set; `to_decimal`'s two-entry-point arrangement is what it now
-copies). What still panics in `Lowering::convert` is ADR 0009 § 3's `string` ↔ `bytes` pair and
-`array<T> as array<U>`.
+**ADR 0007 § 2's `mixed` conversion rows are built *and* pinned**, so `mwl-ir` gap 20 is down to its two
+non-scalar rows (`string` ↔ `bytes`, `array<T> as array<U>`) and Stage 0 is empty. The two new cases are
+`tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.mwlt` and
+`a-mixed-value-converts-into-an-enum-case.mwlt`; between them they pin both halves of the ordering rule the
+plan's *Open now* records — a `Ty::Tagged` operand into a **literal** set is tested on its own runtime tag
+first, an **enum** target converts to the backing scalar first (`lower/expr.rs:3052` owns why).
 
-**One ordering rule changed with it, and it is the part to know.** A `Ty::Tagged` operand into a
-**literal** set is still tested against its own runtime tag *before* the base conversion, so
-`1 as "1"|"b"` throws rather than being rendered into the set. An **enum** target is now the opposite:
-the operand converts to the enum's backing scalar first and the membership chain compares two integers,
-because ADR 0010 § 5 words that row as "exactly the shape `as uint` already has for untrusted input" and
-its own example converts `Core\Request::query('status')` — a string at run time — into a case whose value
-is an integer. `lower/expr.rs:3052` is the branch; its comment owns why.
+`python tools/verify.py` green, 1393 tests; `mwl test tests/conformance/` is 361 cases, all passing. The
+`.agent-tmp/tagged-*.mwl` scratch programs are deleted — the two cases are those programs.
 
-`python tools/verify.py` green, 1393 tests. Stage 0 is empty, so the group after the one below is the
-first to come from Stage 3 (`examples/collect.mwl`; `Core\Path` is its cheapest slice). **No conformance
-case covers any of the above yet** — that is the group below, and it is why it comes first.
+**The next group is the first Stage 3 work in a while**: `examples/collect.mwl` needs spec §§ 7, 8, 9, 11
+and 12 at once, and `Core\Path` (§ 8) is the cheapest slice because every member is pure string algebra
+that touches no disk and needs no new dependency.
 
-## Next group — conformance cases for the `mixed` → scalar and `mixed` → enum rows
+## Next group — `Core\Path`, spec § 8
 
-**Shared file set:** `tests/conformance/lang/` only. Both cases are new files, picked up with no
-registration. Read the throw messages off `crates/mwl-runtime/src/helpers.rs:432` (`"cannot convert this
-value to \`int\`"`) rather than guessing them, and copy the caught-throw shape from
-`tests/conformance/lang/a-lossy-conversion-throws.mwlt` — `catch` and `$e->message` do not lower at file
-scope (playbook).
+**Shared file set:** `crates/mwl-stdlib/src/path.rs` (new), `crates/mwl-stdlib/src/lib.rs`,
+`crates/mwl-stdlib/src/registry.rs`, `tests/conformance/core/`. The spec table is
+`docs/spec/01-core-library.md:624-649` — nine members plus the `Path::SEPARATOR` constant, and the rule
+that every member accepts `/` and `\` alike on every platform and *emits* `Path::SEPARATOR`.
 
-- [ ] **`a-mixed-value-converts-to-a-scalar-on-request.mwlt`** — ADR 0007 § 6's headline shape without a
-      request: a `mixed` holding `"42"`, `2.5` and `7` into `int`/`float`/`uint`, each throw named, and
-      the `as ?int ?? -1` twin beside it so the pair reads as one operation. `.agent-tmp/tagged-scalar.mwl`
-      is that program already, and it runs; it needs the class-method wrapper and an `--EXPECT--` block.
-- [ ] **`a-mixed-value-converts-into-an-enum-case.mwlt`** — ADR 0010 § 5's row 2 from a `mixed`: a
-      `mixed` holding the *string* `"1"` reaching `Mode::Read` (this is the rule the ordering change above
-      exists for, and the case that pins it), a `mixed` holding `9` throwing
-      ``` `9` is not one of `Mode::Read`, `Mode::Write`, `Mode::Admin` ```, and the same two against
-      ADR 0047 § 3's named subset `Mode::Read|Mode::Write`. Enum syntax is one line —
-      `enum Mode: int { Read = 1, Write = 2 }`. Anchors: `lower/expr.rs:3052`,
-      `tests/conformance/lang/a-conversion-into-a-closed-set-of-enum-cases-is-checked-at-run-time.mwlt`.
-- [ ] **Delete `.agent-tmp/tagged-scalar.mwl` and `.agent-tmp/tagged-enum.mwl`** once both cases exist;
-      they are the same two programs and are untracked scratch.
+- [ ] **`crates/mwl-stdlib/src/path.rs` with the six separator-free members** — `basename`, `dirname`,
+      `extension`, `withExtension`, `split`, `isAbsolute`. Copy the module shape from
+      `crates/mwl-stdlib/src/json.rs`: a `pub const CLASS: CoreClass` at `json.rs:127` with one `Method`
+      row per member naming its `symbol`, then `pub(crate) fn address(symbol: &str)` at `json.rs:193`
+      returning this module's addresses and `None` otherwise. Register it in the same slice or the
+      `symbols()` panic fires: `crate::path::CLASS` into `registry.rs:590`'s `CLASSES`, `pub mod path;`
+      beside `lib.rs:191`'s siblings, and one `.or_else(|| path::address(method.symbol))` at `lib.rs:235`.
+      `Path::SEPARATOR` is a `CoreConst` on the class roster (`registry.rs:491` says why it is not a
+      `CoreTy` variant).
+- [ ] **`join`, `normalize` and `relativeTo`** — the three that need real path algebra. `join`'s tail is
+      `registry::CoreTy::Variadic` (one `array<string>` argument at the callee). `normalize` resolves
+      `.`/`..` **lexically**, never touching the disk, and the spec says out loud it is not a launderer.
+      `relativeTo` returns `?string`.
+- [ ] **Conformance cases under `tests/conformance/core/`** — one per group above. **Never assert a built
+      path literally**: `Core\Path` emits a platform separator, so normalize with
+      `Core\Str::replace($p, Core\Path::SEPARATOR, "/")` or assert something separator-free, or the case
+      passes the Windows leg and fails the WSL one (loop-goal § *Standing decisions*).
+
+`orient.py`'s manifest printed everything this session needed. If the next session works `path.rs`, the
+`[context] modules` list has no `mwl-stdlib` entry — add `mwl-stdlib/src/*` there, and add spec § 8 to
+whatever field carries the spec slices, or it will pay for `docs/spec/01-core-library.md` by hand.
 
 ## Backlog
 
-- `Core\Path`, then `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap` — Stage 3's
-  `examples/collect.mwl`, `docs/agent/loop-goal.md` § *Stage 3*.
+- `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap` (which need `new Core\X<T>()` to parse) — the
+  rest of `examples/collect.mwl`, `docs/agent/loop-goal.md` § *Stage 3*.
 - ADR 0009 § 3's `string` ↔ `bytes` conversion rows — `mwl-ir` gap 20's remainder.
 - `array<T> as array<U>`'s O(n) element walk — ADR 0007 § 2 row 6, `mwl-ir` gap 20.
 - ADR 0007 § 4's promotion table: `$n + $f` and `$n < $f` still fail in codegen — `mwl-ir` gap 19.
 - The opaque `object` top has no representation arm — `mwl-ir` gap 21.
-- `mwl_types` does not yet refuse ADR 0066 § 3's "cannot fail" `as ?T`, so `convert_or_null` panics on it
-  — `mwl-ir` gap 20's neighbour, `lower/expr.rs`'s `convert_or_null` doc comment.
-
-`orient.py` printed everything this group needed; no `[context]` field was missing a selector.
+- `mwl_types` does not yet refuse ADR 0066 § 3's "cannot fail" `as ?T`, so `convert_or_null` panics on it.

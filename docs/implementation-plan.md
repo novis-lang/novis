@@ -63,7 +63,7 @@
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 343 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 361 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -161,7 +161,12 @@
 > target converts the operand to its backing scalar *before* the membership chain, which is what
 > makes ADR 0010 § 5's own `Core\Request::query('status') as Status` example turn a run-time string
 > into a case whose value is an integer. A set of plain literals keeps the opposite order, for the
-> reason `1 as "1"|"b"` needs it. What still panics is ADR 0009 § 3's `string` ↔ `bytes` pair and
+> reason `1 as "1"|"b"` needs it. Both orders are pinned by conformance cases now
+> (`tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.mwlt` and
+> `a-mixed-value-converts-into-an-enum-case.mwlt`): a `mixed` holding `"42"`, `2.5` or `7` into
+> `int`/`uint`/`float` with each failure's throw named beside ADR 0066's `as ?int ?? -1` twin, and a
+> `mixed` holding the string `"1"` reaching `Mode::Read` while `9` throws naming every case. What
+> still panics is ADR 0009 § 3's `string` ↔ `bytes` pair and
 > `array<T> as array<U>` (`mwl-ir` gap 20). **ADR 0094's levels are now
 > enforced for a property** — `E0471` from `mwl_types::expr::members::check_member_visibility`,
 > keyed on the *accessing* class (`Ctx::current_class`) and never on the receiver's type, so
