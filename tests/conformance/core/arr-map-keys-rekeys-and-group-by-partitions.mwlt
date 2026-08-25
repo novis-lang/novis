@@ -1,0 +1,62 @@
+--TEST--
+Core\Arr::mapKeys is the one member that changes a key and Core\Arr::groupBy partitions in first-occurrence order keeping every key, per spec § 2 and ADR 0069 § 3
+--FILE--
+<?mwl
+// Spec § 2: `mapKeys` is `map`'s mirror — that member keeps the key and
+// changes the value, this one keeps the value and changes the key. Every
+// Core\Arr callback receives ($value, $key) and may declare fewer parameters.
+array<string> $names = ["a" => "Ada", "b" => "Bo"];
+var $upper = Core\Arr::mapKeys($names, fn (string $v, string $k): string => Core\Str::upper($k));
+echo Core\Json::encode($upper), "\n";
+
+// The new key is normalized the way every key position in this class is, so a
+// callback answering an `int` names the same entry its decimal spelling would.
+array<string> $words = ["red", "blue", "green"];
+var $byLength = Core\Arr::mapKeys($words, fn (string $w): int => Core\Str::length($w) as int);
+echo Core\Json::encode($byLength), "\n";
+
+// Duplicate new keys collapse, the last entry winning — `MwlArray::set`'s rule
+// and `flip`'s, which is what keeps re-keying usable over data whose new key
+// is not unique.
+array<string> $tied = ["red", "tan", "blue"];
+echo Core\Json::encode(Core\Arr::mapKeys($tied, fn (string $w): int => Core\Str::length($w) as int)), "\n";
+
+// `groupBy` is `countBy` with the entries kept instead of counted: buckets in
+// first-occurrence order, named through the same normalization.
+array<string> $people = ["ada" => "engineer", "bo" => "designer", "cy" => "engineer"];
+var $byRole = Core\Arr::groupBy($people, fn (string $role): string => $role);
+echo Core\Str::join(Core\Arr::keys($byRole), ","), "\n";
+
+// ADR 0069 § 3: a bucket keeps each entry's own key. A partition cannot
+// collide two entries — each lands in exactly one bucket under the key it
+// already had — so there is nothing here for the renumbering `flatten` and
+// `appendAll` do to protect against.
+echo Core\Json::encode($byRole), "\n";
+
+// A caller wanting lists writes `values` over a bucket, which is the member
+// for exactly that and is not recoverable the other way round.
+var $engineers = $byRole["engineer"];
+echo Core\Json::encode(Core\Arr::values($engineers)), "\n";
+
+// A list subject groups by position just as well; the bucket keys are the
+// positions the entries had. `Core\Json::encode` renders the first bucket as
+// an array and the rest as objects because that bucket is the only one whose
+// preserved keys still form a list — `encode`'s own rule, which `filter`'s
+// answer meets in exactly the same way.
+var $byInitial = Core\Arr::groupBy($words, fn (string $w): string => Core\Str::slice($w, 0, 1));
+echo Core\Json::encode($byInitial), "\n";
+
+// ADR 0063 R3: both are pure, and an empty subject groups into nothing.
+array<string> $empty = [];
+echo Core\Json::encode(Core\Arr::groupBy($empty, fn (string $w): string => $w)), "\n";
+echo Core\Json::encode($people), "\n";
+--EXPECT--
+{"A":"Ada","B":"Bo"}
+{"3":"red","4":"blue","5":"green"}
+{"3":"tan","4":"blue"}
+engineer,designer
+{"engineer":{"ada":"engineer","cy":"engineer"},"designer":{"bo":"designer"}}
+["engineer","engineer"]
+{"r":["red"],"b":{"1":"blue"},"g":{"2":"green"}}
+[]
+{"ada":"engineer","bo":"designer","cy":"engineer"}

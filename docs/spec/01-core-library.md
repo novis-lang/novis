@@ -326,8 +326,10 @@ Every callback receives `($value, $key)` and may declare fewer parameters (R9), 
 | `min` | `min(array<T> $a): ?T` | `min` with an array argument | |
 | `max` | `max(array<T> $a): ?T` | `max` with an array argument | |
 
-**`map` and `filter` preserve every key**; `mapKeys` is the only member that changes one, and `values`
-renumbers. PHP's multi-array `array_map($fn, $a, $b)` and its `array_map(null, $a, $b)` zip have no member:
+**`map`, `filter` and `groupBy` preserve every key**; `mapKeys` is the only member that changes one, and
+`values` renumbers. A `groupBy` bucket therefore keeps each entry's own key: a partition cannot collide
+two entries, so there is nothing for the renumbering `flatten` and `appendAll` do to protect against, and
+`Arr::values` over a bucket recovers the list — the other direction is not recoverable. PHP's multi-array `array_map($fn, $a, $b)` and its `array_map(null, $a, $b)` zip have no member:
 they are a `foreach` over `Arr::keys`, and a zip whose element type is `array<T|U>` would defeat the
 element typing that makes the rest of this class checkable.
 

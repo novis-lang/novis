@@ -77,6 +77,20 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_map",
         },
         CoreMethod {
+            name: "mapKeys",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_map_keys",
+        },
+        CoreMethod {
+            name: "groupBy",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
+            symbol: "mwl_core_arr_group_by",
+        },
+        CoreMethod {
             name: "find",
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
@@ -647,6 +661,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_count" => (mwl_core_arr_count as *const ()).cast(),
         "mwl_core_arr_filter" => (mwl_core_arr_filter as *const ()).cast(),
         "mwl_core_arr_map" => (mwl_core_arr_map as *const ()).cast(),
+        "mwl_core_arr_map_keys" => (mwl_core_arr_map_keys as *const ()).cast(),
+        "mwl_core_arr_group_by" => (mwl_core_arr_group_by as *const ()).cast(),
         "mwl_core_arr_is_empty" => (mwl_core_arr_is_empty as *const ()).cast(),
         "mwl_core_arr_has_key" => (mwl_core_arr_has_key as *const ()).cast(),
         "mwl_core_arr_is_list" => (mwl_core_arr_is_list as *const ()).cast(),
@@ -925,6 +941,185 @@ mwl_runtime::mwl_helper! {
             // `MwlStr` both do by releasing.
             let mapped = mapped?;
             out.set(key, mapped);
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::mapKeys(array<T> $a, callable $fn): array<T>` — every entry
+    /// under the key its callback names, replacing the
+    /// `array_combine(array_map(…), …)` dance and the userland `keyBy` idiom.
+    ///
+    /// [`mwl_core_arr_map`]'s mirror: that member replaces the value and keeps
+    /// the key, this one replaces the key and keeps the value, and the spec's
+    /// § 2 prose calls this the only member that changes a key. The callback
+    /// receives `($value, $key)` and may declare fewer parameters, the rule
+    /// [`mwl_core_arr_filter`] documents.
+    ///
+    /// The new key goes through [`key_bytes`], so a callback answering `1` and
+    /// one answering `"1"` name one entry — the normalization every key
+    /// position in this class shares. A callback answering anything else is a
+    /// throw, which is `flip`'s treatment of the same situation.
+    ///
+    /// **Duplicate new keys collapse, the last entry winning.** That is
+    /// `MwlArray::set`'s own rule rather than this member's opinion, and it is
+    /// what `flip` already does; a member that refused instead would make
+    /// `keyBy`-style re-keying unusable over data whose new key is not unique.
+    ///
+    /// The value belongs to the subject array, so the copy stored takes a
+    /// reference of its own — [`mwl_core_arr_filter`]'s obligation, not
+    /// `map`'s, because the callback's own answer is a *key* here and is
+    /// released as soon as its bytes are read.
+    fn mwl_core_arr_map_keys(ctx, args: [2]) {
+        let base = subject(args, "mapKeys")?;
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            let value = base
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            let key = base
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+
+            // One reference for the duration of the call, released right
+            // after — `call_closure` takes its own, and the old key is not
+            // owed to anything else here.
+            let key_arg = Value::str(key);
+            let named = mwl_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns exactly the reference `key_at` just \
+                          handed back"
+            )]
+            unsafe {
+                key_arg.release();
+            }
+            let named = named?;
+            let fresh = key_bytes(&named, "mapKeys");
+            #[expect(
+                unsafe_code,
+                reason = "the new key is a fresh value this frame owns; a \
+                          callback returning a string would otherwise leak one \
+                          reference per entry"
+            )]
+            unsafe {
+                named.release();
+            }
+            // Unwrapped *before* the retain below: a throw there would
+            // otherwise leave one reference owed to a result this frame is
+            // about to drop.
+            let fresh = fresh?;
+            #[expect(
+                unsafe_code,
+                reason = "the value is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            out.set(MwlStr::new(&fresh), value);
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::groupBy(array<T> $a, callable $key): array<array<T>>` — the
+    /// subject partitioned into buckets its callback names, replacing the
+    /// `$out[$fn($v)][] = $v` loop PHP has no function for at all.
+    ///
+    /// [`mwl_core_arr_count_by`] with the entries kept instead of counted, and
+    /// it shares that member's two rules: the callback receives
+    /// `($value, $key)`, and a bucket is named through [`key_bytes`] so `1`
+    /// and `"1"` are one bucket. Buckets come out in **first-occurrence**
+    /// order, which is `countBy`'s order and the only one that does not
+    /// impose a sort nobody asked for.
+    ///
+    /// **A bucket keeps each entry's own key.** Every other member that puts
+    /// entries side by side renumbers — `flatten`, `appendAll`, `values` — but
+    /// each does so because two sources can hold the same key and there is no
+    /// rule that keeps both
+    /// ([ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 3). A partition has no such collision: each entry lands in exactly
+    /// one bucket under the key it already had, so preserving it loses
+    /// nothing and answers "which entries grouped here" as well as "what". A
+    /// caller wanting lists writes `Core\Arr::values` over the buckets, which
+    /// is the member for exactly that and is not recoverable the other way
+    /// round. `map` and `filter` preserve keys for the same reason and the
+    /// spec's § 2 prose says so.
+    ///
+    /// Buckets are built in a `Vec` beside the result rather than mutated
+    /// through it: `MwlArray::set` would hand back a *borrowed* bucket to
+    /// mutate, and every write to it would have to reason about whether the
+    /// result still holds the only reference. The `Vec` costs one pointer and
+    /// one key copy per distinct bucket, for the length of the call, and its
+    /// `Drop` is what frees a partial answer when a callback throws part-way
+    /// through — the reason [`Extracted`] exists one member down.
+    fn mwl_core_arr_group_by(ctx, args: [2]) {
+        let base = subject(args, "groupBy")?;
+        let mut buckets: Vec<(Vec<u8>, MwlArray)> = Vec::new();
+        let mut index_of: std::collections::HashMap<Vec<u8>, usize> =
+            std::collections::HashMap::new();
+        let mut from = 0usize;
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            let value = base
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            let key = base
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+
+            // One reference for the duration of the call, released right
+            // after: `call_closure` takes its own, and `key` itself is still
+            // owed to the bucket below.
+            let key_arg = Value::str(key.clone());
+            let named = mwl_runtime::call_closure(ctx, args[1], &[value, key_arg]);
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns exactly the reference `key.clone()` \
+                          just produced"
+            )]
+            unsafe {
+                key_arg.release();
+            }
+            let named = named?;
+            let bucket = key_bytes(&named, "groupBy");
+            #[expect(
+                unsafe_code,
+                reason = "the bucket name is a fresh value this frame owns; a \
+                          callback returning a string would otherwise leak one \
+                          reference per entry"
+            )]
+            unsafe {
+                named.release();
+            }
+            let bucket = bucket?;
+
+            let next = buckets.len();
+            let position = *index_of.entry(bucket.clone()).or_insert(next);
+            if position == next {
+                buckets.push((bucket, MwlArray::new()));
+            }
+            #[expect(
+                unsafe_code,
+                reason = "the value is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            buckets[position].1.set(key, value);
+        }
+
+        let mut out = MwlArray::new();
+        for (name, bucket) in buckets {
+            out.set(MwlStr::new(&name), Value::array(bucket));
         }
         Ok(Value::array(out))
     }

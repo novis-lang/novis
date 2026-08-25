@@ -13,8 +13,6 @@
 
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 from
-§2 groupBy
-§2 mapKeys
 §2 reduce
 §2 sortByKey
 
