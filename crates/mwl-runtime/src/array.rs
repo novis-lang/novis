@@ -21,7 +21,8 @@
 //! bought with a few instructions of priority 3, which the ordering permits.
 //! The cost, stated as AGENTS.md requires: **three allocations per array**
 //! (the header, the entry vector, the index map) rather than one, and one call
-//! per element access.
+//! per element access. A list-shaped array pays two of the three — see the
+//! packed decision below.
 //!
 //! # Decision: the index map hashes with std's `RandomState`, not a fast hasher
 //!
@@ -144,21 +145,15 @@ pub(crate) struct Entry {
     pub(crate) value: Value,
 }
 
-/// The ordered hash itself: insertion order in [`Table::entries`], key lookup
-/// through [`Table::index`], and PHP's append counter beside them.
-#[derive(Default)]
+/// One array's storage: PHP's append counter, and whichever of the two shapes
+/// the keys used so far allow — see this module's packed decision.
 pub(crate) struct Table {
-    /// Every entry ever inserted and not since removed, in insertion order,
-    /// with a `None` where a removal left a hole — see this module's docs.
-    entries: Vec<Option<Entry>>,
-    /// Key to position in [`Table::entries`]. Holds its own reference to each
-    /// key, which is the same allocation the entry holds: a key is stored
-    /// twice as a pointer, never twice as bytes.
-    index: HashMap<MwlStr, usize>,
-    /// How many of [`Table::entries`] are `Some` — the array's `count()`.
-    live: usize,
     /// PHP's "highest integer key used so far, plus one", which `$a[]` appends
     /// under. Survives removals, exactly as PHP's does.
+    ///
+    /// It is carried by *both* shapes because it is the one thing a packed
+    /// array cannot re-derive from its own length: `[1,2,3]` with its last
+    /// entry unset holds the keys `"0"` and `"1"` and still appends at `3`.
     ///
     /// `None` is PHP's `ZEND_LONG_MIN` marker for "no integer key has ever
     /// been used", which is why `[-5 => 1]` then `$a[] = 2` appends at `-4`
@@ -166,6 +161,49 @@ pub(crate) struct Table {
     /// sets the counter outright, and every later one may only raise it. PHP
     /// 8.3 introduced that marker, and PHP 8.5 is the differential oracle.
     next_index: Option<i64>,
+    /// How the entries themselves are held.
+    shape: Shape,
+}
+
+/// The two representations of one array's entries.
+///
+/// Every operation on a [`Table`] either answers from the packed form directly
+/// or converts to the hash form first, so nothing outside this module can tell
+/// which one it is holding: [ADR 0007 § 5](../../../docs/adr/0007-explicit-type-system.md)
+/// is a statement about keys, not about storage.
+enum Shape {
+    /// The packed form: the keys are exactly `"0"`…`"n−1"` in order, so they
+    /// are not stored at all and there is no index map to hash into.
+    /// [`Table::key_at`] renders one on demand.
+    Packed(Vec<Value>),
+    /// The general form, which every array that is not a list degrades into.
+    Hashed(Hashed),
+}
+
+/// The ordered hash itself: insertion order in [`Hashed::entries`], key lookup
+/// through [`Hashed::index`].
+#[derive(Default)]
+struct Hashed {
+    /// Every entry ever inserted and not since removed, in insertion order,
+    /// with a `None` where a removal left a hole — see this module's docs.
+    entries: Vec<Option<Entry>>,
+    /// Key to position in [`Hashed::entries`]. Holds its own reference to each
+    /// key, which is the same allocation the entry holds: a key is stored
+    /// twice as a pointer, never twice as bytes.
+    index: HashMap<MwlStr, usize>,
+    /// How many of [`Hashed::entries`] are `Some` — the array's `count()`.
+    live: usize,
+}
+
+impl Default for Table {
+    /// A fresh array is packed and empty, which is the shape every list is
+    /// built by appending into.
+    fn default() -> Self {
+        Self {
+            next_index: None,
+            shape: Shape::Packed(Vec::new()),
+        }
+    }
 }
 
 /// The `i64` a canonical decimal key denotes, or `None` if the key is not one.
@@ -192,6 +230,13 @@ fn integer_key(bytes: &[u8]) -> Option<i64> {
     text.parse::<i64>().ok()
 }
 
+/// The position a canonical decimal key names in the packed form, whatever the
+/// array's length — `None` for every key that is not one, a negative one
+/// included.
+fn packed_index(key: &[u8]) -> Option<usize> {
+    usize::try_from(integer_key(key)?).ok()
+}
+
 impl Table {
     /// Records that `key` was used, so a later `$a[]` append does not collide
     /// with it — PHP 8.3's rule, which counts a negative key too.
@@ -205,11 +250,45 @@ impl Table {
         }
     }
 
+    /// How many entries the array holds — the array's `count()`.
+    fn len(&self) -> usize {
+        match &self.shape {
+            Shape::Packed(values) => values.len(),
+            Shape::Hashed(hashed) => hashed.live,
+        }
+    }
+
+    /// Converts the packed form to the hash form and answers the hash, or
+    /// answers the hash the table already held.
+    ///
+    /// This is the **only** place the packed invariant is given up, so every
+    /// operation that cannot hold it — a gap, a non-numeric key, a `"08"`, a
+    /// removal from the middle — is one call to this and then today's code
+    /// path unchanged. Materializing the keys here is what makes it O(n): the
+    /// bet the module docs state is that a list is written as a list.
+    fn hashed_mut(&mut self) -> &mut Hashed {
+        if let Shape::Packed(values) = &mut self.shape {
+            let packed = std::mem::take(values);
+            let mut hashed = Hashed::default();
+            for (index, value) in packed.into_iter().enumerate() {
+                let displaced = hashed.set(MwlStr::new(index.to_string().as_bytes()), value);
+                debug_assert!(displaced.is_none(), "a packed key appears exactly once");
+            }
+            self.shape = Shape::Hashed(hashed);
+        }
+        let Shape::Hashed(hashed) = &mut self.shape else {
+            unreachable!("the packed form was converted just above")
+        };
+        hashed
+    }
+
     /// The value at `key`, borrowed: no reference is added, the same way
     /// `mwl_ir::ir::InstKind::FieldGet` reads a property.
     fn get(&self, key: &[u8]) -> Option<Value> {
-        let slot = *self.index.get(key)?;
-        self.entries[slot].as_ref().map(|entry| entry.value)
+        match &self.shape {
+            Shape::Packed(values) => values.get(packed_index(key)?).copied(),
+            Shape::Hashed(hashed) => hashed.get(key),
+        }
     }
 
     /// Inserts or overwrites, taking over `key`'s and `value`'s references and
@@ -219,6 +298,151 @@ impl Table {
     /// allocation, so `$a["k"] = 1; $a["k"] = 2;` does not move `"k"` to the
     /// end — PHP's own behaviour, and what ADR 0007 § 5's "iteration order is
     /// insertion order, always" means for a repeated write.
+    ///
+    /// The packed form holds for a write at an existing position or at exactly
+    /// the next one; anything else degrades first. The `key` it was handed is
+    /// dropped rather than stored in that case — the packed form has no use for
+    /// it, which is the whole saving.
+    fn set(&mut self, key: MwlStr, value: Value) -> Option<Value> {
+        self.note_key(key.as_bytes());
+        if let Shape::Packed(values) = &mut self.shape {
+            if let Some(slot) = packed_index(key.as_bytes()).filter(|slot| *slot <= values.len()) {
+                if slot == values.len() {
+                    values.push(value);
+                    return None;
+                }
+                return Some(std::mem::replace(&mut values[slot], value));
+            }
+        }
+        self.hashed_mut().set(key, value)
+    }
+
+    /// Appends under the next integer key.
+    ///
+    /// A packed array whose counter is its own length — every list that has
+    /// not had an entry removed — pushes, and that is the path with no key
+    /// rendering, no allocation and no hashing at all.
+    fn append(&mut self, value: Value) {
+        let counter = self.next_index.unwrap_or(0);
+        if let Shape::Packed(values) = &mut self.shape {
+            if usize::try_from(counter).is_ok_and(|next| next == values.len()) {
+                values.push(value);
+                self.next_index = Some(counter.saturating_add(1));
+                return;
+            }
+        }
+        let key = MwlStr::new(counter.to_string().as_bytes());
+        self.note_key(key.as_bytes());
+        let displaced = self.hashed_mut().set(key, value);
+        debug_assert!(
+            displaced.is_none(),
+            "the append counter never names a live key"
+        );
+    }
+
+    /// Removes `key`, handing back the value for the caller to release.
+    ///
+    /// A packed array stays packed when the key removed is the last one, and
+    /// degrades for any other position — a hole is exactly what the invariant
+    /// forbids. The counter is untouched either way, so
+    /// `$a = [1,2,3]; unset($a[2]); $a[] = 9;` appends at `3` in both shapes,
+    /// which is what PHP 8.5 does.
+    fn remove(&mut self, key: &[u8]) -> Option<Value> {
+        if let Shape::Packed(values) = &mut self.shape {
+            match packed_index(key).filter(|slot| *slot < values.len()) {
+                None => return None,
+                Some(slot) if slot + 1 == values.len() => return values.pop(),
+                Some(_) => {}
+            }
+        }
+        self.hashed_mut().remove(key)
+    }
+
+    /// The position of the first live entry at or after `from`, or `None` when
+    /// there is none — one `foreach` step.
+    fn next_slot(&self, from: usize) -> Option<usize> {
+        match &self.shape {
+            Shape::Packed(values) => (from < values.len()).then_some(from),
+            Shape::Hashed(hashed) => hashed.next_slot(from),
+        }
+    }
+
+    /// The key at `slot`, as a fresh reference the caller owns — synthesized
+    /// from the position itself in the packed form, so `foreach ($a as $v)`,
+    /// which never asks, never pays for one.
+    fn key_at(&self, slot: usize) -> Option<MwlStr> {
+        match &self.shape {
+            Shape::Packed(values) => (slot < values.len())
+                .then(|| MwlStr::new(slot.to_string().as_bytes())),
+            Shape::Hashed(hashed) => hashed.at(slot).map(|entry| entry.key.clone()),
+        }
+    }
+
+    /// The value at `slot`, borrowed rather than retained.
+    fn value_at(&self, slot: usize) -> Option<Value> {
+        match &self.shape {
+            Shape::Packed(values) => values.get(slot).copied(),
+            Shape::Hashed(hashed) => hashed.at(slot).map(|entry| entry.value),
+        }
+    }
+
+    /// A separated copy: the same entries in the same shape and the same
+    /// order, each key and value retained.
+    fn separate(&self) -> Self {
+        let shape = match &self.shape {
+            Shape::Packed(values) => {
+                for value in values {
+                    #[expect(
+                        unsafe_code,
+                        reason = "every stored value is well-formed and kept alive by \
+                                  the reference this table already owns, so adding one \
+                                  more is exactly what the copy needs to own"
+                    )]
+                    unsafe {
+                        value.retain();
+                    }
+                }
+                Shape::Packed(values.clone())
+            }
+            Shape::Hashed(hashed) => Shape::Hashed(hashed.separate()),
+        };
+        Self {
+            next_index: self.next_index,
+            shape,
+        }
+    }
+
+    /// Empties the table, handing back every value it held for the caller to
+    /// release — [`dismantle`]'s half of freeing an array. Each key is an
+    /// ordinary string owning no MWL value, so dropping the storage frees the
+    /// keys directly.
+    fn take_values(&mut self) -> Vec<Value> {
+        match &mut self.shape {
+            Shape::Packed(values) => std::mem::take(values),
+            Shape::Hashed(hashed) => {
+                hashed.index.clear();
+                hashed.live = 0;
+                std::mem::take(&mut hashed.entries)
+                    .into_iter()
+                    .flatten()
+                    .map(|entry| entry.value)
+                    .collect()
+            }
+        }
+    }
+}
+
+impl Hashed {
+    /// The value at `key`, borrowed: no reference is added, the same way
+    /// `mwl_ir::ir::InstKind::FieldGet` reads a property.
+    fn get(&self, key: &[u8]) -> Option<Value> {
+        let slot = *self.index.get(key)?;
+        self.entries[slot].as_ref().map(|entry| entry.value)
+    }
+
+    /// Inserts or overwrites, taking over `key`'s and `value`'s references and
+    /// handing back whatever it displaced for the caller to release. The
+    /// append counter is [`Table`]'s, and is already up to date by here.
     fn set(&mut self, key: MwlStr, value: Value) -> Option<Value> {
         if let Some(&slot) = self.index.get(key.as_bytes()) {
             let entry = self.entries[slot]
@@ -226,23 +450,11 @@ impl Table {
                 .expect("an indexed slot is always live");
             return Some(std::mem::replace(&mut entry.value, value));
         }
-        self.note_key(key.as_bytes());
         let slot = self.entries.len();
         self.index.insert(key.clone(), slot);
         self.entries.push(Some(Entry { key, value }));
         self.live += 1;
         None
-    }
-
-    /// Appends under the next integer key, returning the key it used.
-    fn append(&mut self, value: Value) -> MwlStr {
-        let key = MwlStr::new(self.next_index.unwrap_or(0).to_string().as_bytes());
-        let displaced = self.set(key.clone(), value);
-        debug_assert!(
-            displaced.is_none(),
-            "the append counter never names a live key"
-        );
-        key
     }
 
     /// Removes `key`, handing back the value for the caller to release.
@@ -296,7 +508,6 @@ impl Table {
             entries: Vec::with_capacity(self.live),
             index: HashMap::with_capacity(self.live),
             live: self.live,
-            next_index: self.next_index,
         };
         for entry in self.entries.iter().flatten() {
             #[expect(
@@ -343,7 +554,7 @@ impl fmt::Debug for ArrayHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ArrayHeader")
             .field("refcount", &self.refcount.get())
-            .field("count", &self.table.borrow().live)
+            .field("count", &self.table.borrow().len())
             .finish()
     }
 }
@@ -378,7 +589,7 @@ impl MwlArray {
     /// How many entries the array holds — `Core\Arr::count`.
     #[must_use]
     pub fn count(&self) -> usize {
-        self.header().table.borrow().live
+        self.header().table.borrow().len()
     }
 
     /// Whether the array holds no entries — `Helper::ArrayTruthy`'s falsy
@@ -392,6 +603,14 @@ impl MwlArray {
     #[must_use]
     pub fn refcount(&self) -> usize {
         self.header().refcount.get()
+    }
+
+    /// Whether the array is in the packed form — the representation invariant
+    /// this module's own tests assert, and the one thing about the storage
+    /// nothing else is allowed to ask.
+    #[cfg(test)]
+    fn is_packed(&self) -> bool {
+        matches!(self.header().table.borrow().shape, Shape::Packed(_))
     }
 
     /// The value stored at `key`, borrowed rather than retained.
@@ -426,7 +645,7 @@ impl MwlArray {
     /// and separating first if this handle is not the only owner.
     pub fn append(&mut self, value: Value) {
         self.make_unique();
-        drop(self.header().table.borrow_mut().append(value));
+        self.header().table.borrow_mut().append(value);
     }
 
     /// Removes `key` if present, separating first if this handle is not the
@@ -458,21 +677,13 @@ impl MwlArray {
     /// The key at `slot`, as a fresh reference the caller owns.
     #[must_use]
     pub fn key_at(&self, slot: usize) -> Option<MwlStr> {
-        self.header()
-            .table
-            .borrow()
-            .at(slot)
-            .map(|entry| entry.key.clone())
+        self.header().table.borrow().key_at(slot)
     }
 
     /// The value at `slot`, borrowed rather than retained.
     #[must_use]
     pub fn value_at(&self, slot: usize) -> Option<Value> {
-        self.header()
-            .table
-            .borrow()
-            .at(slot)
-            .map(|entry| entry.value)
+        self.header().table.borrow().value_at(slot)
     }
 
     /// Every key in insertion order — `Core\Arr::keys`, and what a test reads
@@ -480,14 +691,13 @@ impl MwlArray {
     #[must_use]
     pub fn keys(&self) -> Vec<Vec<u8>> {
         let table = self.header().table.borrow();
-        let mut keys = Vec::with_capacity(table.live);
+        let mut keys = Vec::with_capacity(table.len());
         let mut slot = 0;
         while let Some(live) = table.next_slot(slot) {
             keys.push(
                 table
-                    .at(live)
+                    .key_at(live)
                     .expect("next_slot only names live entries")
-                    .key
                     .as_bytes()
                     .to_vec(),
             );
@@ -678,19 +888,14 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
                   allocation; it was produced by `Box::leak` in `MwlArray::new`"
     )]
     let boxed = unsafe { Box::from_raw(ptr) };
-    let entries = {
-        let mut table = boxed.table.borrow_mut();
-        table.index.clear();
-        table.live = 0;
-        std::mem::take(&mut table.entries)
-    };
-    for entry in entries.into_iter().flatten() {
+    let values = boxed.table.borrow_mut().take_values();
+    for value in values {
         #[expect(
             unsafe_code,
             reason = "the array owned exactly one reference to each value it \
                       held, and it no longer exists"
         )]
-        if let Some(dying) = unsafe { crate::release::step_field(entry.value) } {
+        if let Some(dying) = unsafe { crate::release::step_field(value) } {
             work.push(dying);
         }
     }
@@ -940,7 +1145,7 @@ pub unsafe extern "C" fn mwl_array_unset(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn mwl_array_count(array: *const ArrayHeader) -> i64 {
     #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
-    let live = unsafe { (*array).table.borrow().live };
+    let live = unsafe { (*array).table.borrow().len() };
     i64::try_from(live).expect("an array cannot hold more than i64::MAX entries")
 }
 
@@ -997,10 +1202,8 @@ pub unsafe extern "C" fn mwl_array_key_at(
         (*array)
             .table
             .borrow()
-            .at(slot)
+            .key_at(slot)
             .expect("a foreach cursor only names live entries")
-            .key
-            .clone()
     };
     key.into_raw()
 }
@@ -1033,9 +1236,8 @@ pub unsafe extern "C" fn mwl_array_value_at(
         let value = (*array)
             .table
             .borrow()
-            .at(slot)
-            .expect("a foreach cursor only names live entries")
-            .value;
+            .value_at(slot)
+            .expect("a foreach cursor only names live entries");
         out.write(value);
     }
 }
@@ -1063,6 +1265,54 @@ mod tests {
         assert_eq!(array.count(), 0);
         assert!(array.is_empty());
         assert_eq!(array.refcount(), 1);
+    }
+
+    #[test]
+    fn a_list_shaped_array_holds_no_index_map() {
+        // The invariant, measured rather than asserted about: a list of `RUN`
+        // values costs the header and one `Vec<Value>`. An index map would add
+        // its own allocation and a key string would add `RUN` more, so the
+        // ceiling below is the whole claim — see this module's packed
+        // decision.
+        const RUN: usize = 32;
+
+        let before = live_bytes();
+        let mut list = MwlArray::new();
+        for value in 0..RUN {
+            list.append(Value::int(i64::try_from(value).expect("a small count")));
+        }
+        let held = live_bytes() - before;
+
+        assert!(list.is_packed(), "an appended-into array is a list");
+        let ceiling = isize::try_from(
+            std::mem::size_of::<ArrayHeader>() + RUN * std::mem::size_of::<Value>(),
+        )
+        .expect("a small size");
+        assert!(
+            held <= ceiling,
+            "a packed array of {RUN} holds {held} bytes, over the {ceiling} \
+             its header and values cost: something is storing keys"
+        );
+
+        // Every key is still `string`-shaped and still there to be asked for,
+        // which is what makes this representation and not semantics.
+        assert_eq!(list.count(), RUN);
+        assert_eq!(
+            keys_of(&list),
+            (0..RUN).map(|n| n.to_string()).collect::<Vec<_>>()
+        );
+        assert_eq!(list.get(b"0").and_then(Value::as_int), Some(0));
+        assert_eq!(list.get(b"31").and_then(Value::as_int), Some(31));
+        assert!(list.has_key(b"31"));
+
+        // And the keys that are not there are the same ones a hash would miss:
+        // one past the end, a negative, and `"08"`, which ADR 0007 § 5 keeps
+        // distinct from `"8"`.
+        assert!(list.get(b"32").is_none());
+        assert!(list.get(b"-1").is_none());
+        assert!(list.get(b"08").is_none());
+        assert!(list.get(b"x").is_none());
+        assert!(!list.has_key(b"32"));
     }
 
     #[test]
