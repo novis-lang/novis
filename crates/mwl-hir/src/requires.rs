@@ -1440,6 +1440,73 @@ require './Lib/Helper.mwl';
         assert!(module.symbols.contains(&QName::parse(r"Framework\Core")));
     }
 
+    /// ADR 0061 § 1's output rather than its effect: the name resolves to a
+    /// *file*, and the [`AutoloadMap`] the fixpoint hands back is what says
+    /// which one. [`a_class_reached_only_through_autoload_is_collected`]
+    /// above asserts the symbol arrived; this asserts where from, and that
+    /// the walk loaded that file rather than only computing its path.
+    #[test]
+    fn an_autoload_declaration_resolves_a_name_to_its_file() {
+        let dir = TempDir::new("autoload-name-to-file");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.mwl",
+            "<?mwl\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Core.mwl",
+            "<?mwl\nnamespace Framework;\nclass Core {}\n",
+        );
+        dir.write(
+            "main.mwl",
+            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+        );
+
+        let mut map = SourceMap::new();
+        let entry_id = map
+            .load(dir.path.join("main.mwl"))
+            .expect("load entry fixture");
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(entry_id), &mut diags);
+        let (module, loaded, autoload) = resolve_program(entry_id, stmts, &mut map, &mut diags);
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let name = QName::parse(r"Framework\Core");
+        let probe = autoload.resolve(&name);
+        let hit = probe.hit.as_ref().unwrap_or_else(|| {
+            panic!(
+                "`Framework\\Core` resolved to no file; probed {:?}",
+                probe.tried
+            )
+        });
+
+        // Compared by shape and not by string: a probe hit is canonicalized,
+        // which on Windows carries a `\\?\` prefix and on macOS resolves the
+        // temp directory's own symlink.
+        assert_eq!(
+            hit.file_name().and_then(|n| n.to_str()),
+            Some("Core.mwl"),
+            "{hit:?}"
+        );
+        assert_eq!(
+            hit.parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str()),
+            Some("src"),
+            "{hit:?}"
+        );
+
+        assert!(
+            loaded.iter().any(|file| map
+                .file(file.id)
+                .path()
+                .and_then(|p| p.file_name())
+                .is_some_and(|found| found == "Core.mwl")),
+            "the file the map named is not one the walk loaded",
+        );
+        assert!(module.symbols.contains(&name));
+    }
+
     /// § 1's Composer rule: roots are probed in declaration order and the
     /// first hit wins, which is what makes an override root work. The probe
     /// trace records the misses that got there — § 5's cache input.
