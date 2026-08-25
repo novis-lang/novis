@@ -392,6 +392,22 @@ pub enum Const {
     /// `$separator = ""` is the row that wanted this variant, and the module
     /// doc there records what it was blocked on.
     Bytes(&'static [u8]),
+    /// The **empty array**, `[]` — the only array a default is ever written
+    /// as.
+    ///
+    /// A variant of its own rather than a general array constant, because the
+    /// spec never writes a populated one: `Core\Arr::replaceRange`'s
+    /// `$replacement = []` is the row that wanted this, and "nothing to
+    /// splice in" is the only array default a member has a use for. A
+    /// populated one would also have to state its keys, which is a second
+    /// literal grammar this table has no reason to grow.
+    ///
+    /// It costs one allocation per *use site*, exactly as [`Self::Str`] does
+    /// and for the same reason — an array is refcounted, so a call that omits
+    /// the argument materializes a fresh empty one rather than sharing a
+    /// static. That is a byte per call the caller was going to spend anyway
+    /// on the `[]` it would otherwise have written.
+    EmptyArray,
     /// A [`CoreTy::Enum`] case, by enum name and case name — the default for
     /// an option whose type is a `Core` enum.
     ///

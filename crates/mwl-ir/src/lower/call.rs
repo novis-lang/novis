@@ -407,6 +407,17 @@ impl<'a> Lowering<'a> {
             mwl_types::ConstArg::Float(v) => (Ty::Float, InstKind::ConstFloat(*v)),
             mwl_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
             mwl_types::ConstArg::Bytes(b) => (Ty::Bytes, InstKind::ConstBytes(b.clone())),
+            // The same instruction a written `[]` lowers to — an empty
+            // `ArrayNew` is already the fixed-shape literal's own zero case
+            // (`InstKind::ArrayNew`'s doc comment), so an omitted `array<T>`
+            // argument and a written one produce the identical value with the
+            // identical single natural owner.
+            mwl_types::ConstArg::EmptyArray => (
+                Ty::Array,
+                InstKind::ArrayNew {
+                    entries: Vec::new(),
+                },
+            ),
             // A bag has no single constant to emit — it is one per option, so
             // its own two call sites expand it before reaching here.
             mwl_types::ConstArg::Options(_) => panic!(

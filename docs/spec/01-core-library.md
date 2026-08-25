@@ -247,8 +247,8 @@ call site to serve a case a program rarely has.
 | `padEnd` | `padEnd(array<T> $a, uint $size, T $value): array<T>` | `array_pad` | |
 | `reverse` | `reverse(array<T> $a, {preserveKeys?: bool}): array<T>` | `array_reverse` | |
 | `flip` | `flip(array<int\|string> $a): array<string>` | `array_flip` | |
-| `flatten` | `flatten(array<T> $a): array<T>` | one level of a hand-written recursive walk | |
-| `flattenDeep` | `flattenDeep(array<T> $a): array<T>` | `iterator_to_array` on a recursive iterator, a hand-written recursive walk | |
+| `flatten` | `flatten(array<array<T>> $a): array<T>` | one level of a hand-written recursive walk | |
+| `flattenDeep` | `flattenDeep(array<mixed> $a): array<mixed>` | `iterator_to_array` on a recursive iterator, a hand-written recursive walk | |
 | `fill` | `fill(uint $count, T $value): array<T>` | `array_fill` | |
 | `fillKeys` | `fillKeys(array<int\|string> $keys, T $value): array<T>` | `array_fill_keys` | |
 | `range` | `range(int $start, int $end, {step?: int}): array<int>` | `range` | neutral |
@@ -261,7 +261,12 @@ the last occurrence winning. `from` drains its argument once and always returns 
 no keys ([ADR 0053](../adr/0053-iteration-and-generators.md) § 5) — and `{limit: n}` stops after `n`
 elements, which is the only guard against materialising an unbounded generator. `flatten` unwraps one
 level and `flattenDeep` recurses, the same pairing as `overlay`/`overlayDeep`; neither takes a depth count,
-because every real call means one of those two. **`{preserveKeys: false}` — the default wherever it appears — discards *every*
+because every real call means one of those two. Their parameter types differ because only one of the two
+has a depth an element type can state: `flatten` unwraps exactly one level, so `array<array<T>>` in and
+`array<T>` out is exact, while `flattenDeep`'s depth is the caller's data — a nested `T` would bind one
+level too shallow over a three-deep argument and the declared answer would then claim a nesting the real
+one does not have. `mixed` on both sides is therefore the *sound* spelling rather than a weak one, and a
+caller that knows the depth is two reaches for `flatten` and keeps its `T`. **`{preserveKeys: false}` — the default wherever it appears — discards *every*
 key and renumbers from `"0"`**; `true` keeps every key. PHP renumbers integer keys and silently keeps string
 ones, which is the key-type-dependent behaviour
 [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 3 removes.

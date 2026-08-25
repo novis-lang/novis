@@ -196,6 +196,7 @@ fn lower_const(value: &Const) -> ConstArg {
         Const::Float(v) => ConstArg::Float(v),
         Const::Str(s) => ConstArg::Str(s.to_owned()),
         Const::Bytes(b) => ConstArg::Bytes(b.to_vec()),
+        Const::EmptyArray => ConstArg::EmptyArray,
         // ADR 0010 § 3: the case *is* its integer constant, so what a call
         // site materializes is that constant — the same value the enum table
         // hands `mwl-ir` for a written `Core\Order::Asc`. Resolved here rather

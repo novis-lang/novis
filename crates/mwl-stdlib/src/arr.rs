@@ -194,6 +194,18 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_slice",
         },
         CoreMethod {
+            name: "replaceRange",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Int,
+                CoreTy::Nullable(&CoreTy::Int),
+                CoreTy::Array(&CoreTy::Var("T")),
+            ],
+            defaults: &[Const::EmptyArray],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_replace_range",
+        },
+        CoreMethod {
             name: "chunk",
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -276,6 +288,20 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
             symbol: "mwl_core_arr_flip",
+        },
+        CoreMethod {
+            name: "flatten",
+            params: &[CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T")))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_flatten",
+        },
+        CoreMethod {
+            name: "flattenDeep",
+            params: &[CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Mixed),
+            symbol: "mwl_core_arr_flatten_deep",
         },
         CoreMethod {
             name: "sort",
@@ -604,6 +630,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_sort" => (mwl_core_arr_sort as *const ()).cast(),
         "mwl_core_arr_range" => (mwl_core_arr_range as *const ()).cast(),
         "mwl_core_arr_slice" => (mwl_core_arr_slice as *const ()).cast(),
+        "mwl_core_arr_replace_range" => (mwl_core_arr_replace_range as *const ()).cast(),
+        "mwl_core_arr_flatten" => (mwl_core_arr_flatten as *const ()).cast(),
+        "mwl_core_arr_flatten_deep" => (mwl_core_arr_flatten_deep as *const ()).cast(),
         "mwl_core_arr_chunk" => (mwl_core_arr_chunk as *const ()).cast(),
         "mwl_core_arr_append" => (mwl_core_arr_append as *const ()).cast(),
         "mwl_core_arr_prepend" => (mwl_core_arr_prepend as *const ()).cast(),
@@ -1263,6 +1292,70 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
+    /// `Core\Arr::replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>`
+    /// — one window's entries substituted, replacing PHP's `array_splice` in
+    /// its returning form (ADR 0063 R3 makes every member pure, so the
+    /// by-reference half is not reproduced).
+    ///
+    /// This is [`mwl_core_arr_slice`]'s window with the entries *replaced*
+    /// rather than returned, and it reads its two positional arguments through
+    /// the same [`window`] — so `replaceRange($a, $o, $n)` removes exactly what
+    /// `slice($a, $o, $n)` answers, for every sign of every argument.
+    /// `crate::str`'s pair of the same two names already holds that property
+    /// one unit down, in characters rather than entries.
+    ///
+    /// **The result renumbers**, subject and replacement alike: a list from
+    /// `"0"`, never a mix of kept and fresh keys. That is `slice`'s own
+    /// default answer and
+    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 3's rule rather than this member's opinion — `array_splice`'s
+    /// "renumber the integers, keep the strings" is exactly the key-type
+    /// dependence that rule refuses. There is no `{preserveKeys?: bool}`
+    /// option, and not only because the spec row declares none: the entries
+    /// either side of the window and the ones spliced into it cannot all keep
+    /// a key without colliding, so the option would have no honest meaning.
+    ///
+    /// An empty window is an **insertion** at that position — how a `$length`
+    /// of `0`, or a negative one reaching back past the offset, reads — and an
+    /// offset at the end appends. An omitted `$replacement` makes the member a
+    /// removal; `registry::Const::EmptyArray` is the constant that call site
+    /// materializes, and its docs own what the omission costs.
+    fn mwl_core_arr_replace_range(_ctx, args: [4]) {
+        let base = subject(args, "replaceRange")?;
+        let replacement = array_at(&args[3], "replaceRange", "the replacement")?;
+        let (start, end) = window(base.count(), &args[1], &args[2], "replaceRange")?;
+
+        // Three walks, one per part, exactly as `crate::str`'s member is three
+        // pushes: the head, the replacement, then the tail. The window itself
+        // is walked only to step over it.
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        let mut position = 0usize;
+        while position < start {
+            let Some(slot) = base.next_slot(from) else {
+                break;
+            };
+            from = slot + 1;
+            carry_entry(&base, slot, &mut out, false);
+            position += 1;
+        }
+        append_values(&replacement, &mut out);
+        while position < end {
+            let Some(slot) = base.next_slot(from) else {
+                break;
+            };
+            from = slot + 1;
+            position += 1;
+        }
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            carry_entry(&base, slot, &mut out, false);
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
     /// `Core\Arr::chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>`
     /// — the entries in runs of `$size`, replacing PHP's `array_chunk`.
     ///
@@ -1645,6 +1738,86 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
+    /// `Core\Arr::flatten(array<array<T>> $a): array<T>` — one level of
+    /// nesting removed, replacing a hand-written walk.
+    ///
+    /// **A list, always**: every inner array's keys are discarded and the
+    /// result renumbers from `"0"`. Two inner arrays can hold the same key,
+    /// so there is no key rule that keeps both, and
+    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 3 refuses the one PHP would reach for — keep the strings, renumber
+    /// the integers. `appendAll` is this member's variadic sibling and answers
+    /// the same shape for the same reason.
+    ///
+    /// The declared parameter is `array<array<T>>` rather than the spec's
+    /// original `array<T>`, and that is the whole of the pair's type story:
+    /// unwrapping *one* level is exactly what a nested element type can state,
+    /// so this member keeps `T` all the way to its answer. It is
+    /// [`mwl_core_arr_flatten_deep`] that cannot, and its own docs say why.
+    fn mwl_core_arr_flatten(_ctx, args: [1]) {
+        let base = subject(args, "flatten")?;
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            let value = base
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            let inner = array_at(&value, "flatten", "every element")?;
+            append_values(&inner, &mut out);
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::flattenDeep(array<mixed> $a): array<mixed>` — every level of
+    /// nesting removed, replacing a hand-written recursive walk and
+    /// `iterator_to_array` over a `RecursiveIteratorIterator`.
+    ///
+    /// A list, for [`mwl_core_arr_flatten`]'s reason. It takes no depth count,
+    /// because every real call means one level or all of them, which is what
+    /// makes this and `flatten` two members rather than one with an argument —
+    /// the same pairing `overlay`/`overlayDeep` already is.
+    ///
+    /// **`mixed` on both sides, and that is the honest type rather than a
+    /// weak one.** An unbounded depth has no element type to state: an
+    /// `array<array<T>>` parameter — [`mwl_core_arr_flatten`]'s, which is
+    /// exact — binds `T` to `array<U>` when the argument is three deep, and
+    /// the return would then claim one more level of nesting than the answer
+    /// has. That is unsound, not merely imprecise, so this member erases
+    /// instead ([ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)
+    /// § 3's one unchecked position). A caller that knows the depth is two
+    /// uses `flatten` and keeps its `T`; the spec's rows say both.
+    ///
+    /// An explicit stack rather than recursion: the nesting depth is the
+    /// caller's data, and a deeply nested argument must not be able to reach
+    /// the host stack's limit. An array cannot contain itself — it is a
+    /// copy-on-write value, so `$a[] = $a` stores a copy — which is what makes
+    /// the walk terminate with no visited set.
+    fn mwl_core_arr_flatten_deep(_ctx, args: [1]) {
+        let base = subject(args, "flattenDeep")?;
+        let mut out = MwlArray::new();
+        let mut stack = vec![(base, 0usize)];
+        while let Some((array, from)) = stack.last_mut() {
+            let Some(slot) = array.next_slot(*from) else {
+                stack.pop();
+                continue;
+            };
+            *from = slot + 1;
+            let value = array
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            match value.array_ptr() {
+                Some(nested) => stack.push((borrowed(nested), 0)),
+                None => append_borrowed(&mut out, value),
+            }
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
     /// `Core\Arr::values(array<T> $a): array<T>` — the values in insertion
     /// order under fresh `0, 1, …` keys, replacing PHP's `array_values`.
     ///
@@ -1836,22 +2009,8 @@ mwl_runtime::mwl_helper! {
     /// **first** occurrence's position — `flip`'s rule, and for the same reason:
     /// re-`set`ting an existing key overwrites in place.
     fn mwl_core_arr_from_keys_and_values(_ctx, args: [2]) {
-        let keys = args[0].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::fromKeysAndValues expected {:?} for the keys, got tag {}",
-                Tag::Array,
-                args[0].tag_byte()
-            ))
-        })?;
-        let values = args[1].array_ptr().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::fromKeysAndValues expected {:?} for the values, got tag {}",
-                Tag::Array,
-                args[1].tag_byte()
-            ))
-        })?;
-        let keys = borrowed(keys);
-        let values = borrowed(values);
+        let keys = array_at(&args[0], "fromKeysAndValues", "the keys")?;
+        let values = array_at(&args[1], "fromKeysAndValues", "the values")?;
         if keys.count() != values.count() {
             return Err(Fault::thrown(format!(
                 "Core\\Arr::fromKeysAndValues(): the two arrays must be the same length, \
@@ -2307,6 +2466,28 @@ fn subject(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<MwlArr
             "Core\\Arr::{member} expected {:?}, got tag {}",
             Tag::Array,
             args[0].tag_byte()
+        ))
+    })?;
+    Ok(borrowed(array))
+}
+
+/// [`subject`] for an `array` parameter that is **not** the first — named by
+/// its position, since the message can no longer say "the subject" and mean
+/// something.
+///
+/// Three members take a second array today (`fromKeysAndValues`'s two,
+/// `replaceRange`'s replacement), which is what makes this one function rather
+/// than the same seven lines each.
+fn array_at(
+    value: &Value,
+    member: &str,
+    position: &str,
+) -> Result<std::mem::ManuallyDrop<MwlArray>, Fault> {
+    let array = value.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?} for {position}, got tag {}",
+            Tag::Array,
+            value.tag_byte()
         ))
     })?;
     Ok(borrowed(array))

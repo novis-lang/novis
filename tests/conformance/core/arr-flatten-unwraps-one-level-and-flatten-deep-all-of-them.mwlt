@@ -1,0 +1,47 @@
+--TEST--
+Core\Arr::flatten unwraps exactly one level and keeps its element type, while ::flattenDeep unwraps every level and erases to mixed, per spec § 2 and ADR 0069 § 3
+--FILE--
+<?mwl
+// Spec § 2: two members rather than one with a depth count, because every
+// real call means one level or all of them.
+array<array<string>> $rows = [["a", "b"], ["c"], []];
+echo Core\Json::encode(Core\Arr::flatten($rows)), "\n";
+echo Core\Json::encode(Core\Arr::flattenDeep($rows)), "\n";
+
+// ADR 0069 § 3: the result is a list, always. Two inner arrays can hold the
+// same key, so there is no rule that keeps both — and "keep the strings,
+// renumber the integers" is the key-type dependence that ADR removes.
+array<array<string>> $keyed = ["x" => ["p" => "a", "q" => "b"], "y" => ["p" => "c"]];
+echo Core\Json::encode(Core\Arr::flatten($keyed)), "\n";
+
+// Three deep is where the pair parts company, and where their declared types
+// do too: `flatten` binds `T` to `array<string>` and answers arrays, so its
+// answer is exact; `flattenDeep` reaches the leaves, which no nested `T` could
+// have named without claiming a level of nesting the answer does not have.
+array<array<array<string>>> $deep = [[["a"], ["b", "c"]], [["d"]]];
+echo Core\Json::encode(Core\Arr::flatten($deep)), "\n";
+echo Core\Json::encode(Core\Arr::flattenDeep($deep)), "\n";
+
+// An already-flat argument is `flattenDeep`'s identity — `array<int>` reaches
+// its `array<mixed>` parameter because an array is covariant on read.
+array<int> $flat = [1, 2, 3];
+echo Core\Json::encode(Core\Arr::flattenDeep($flat)), "\n";
+
+// Nothing in, nothing out; an empty inner array contributes no entry rather
+// than an empty one.
+array<array<string>> $none = [];
+echo Core\Json::encode(Core\Arr::flatten($none)), "\n";
+echo Core\Json::encode(Core\Arr::flattenDeep($none)), "\n";
+
+// ADR 0063 R3: both are pure, so the subject keeps its nesting.
+echo Core\Json::encode($rows), "\n";
+--EXPECT--
+["a","b","c"]
+["a","b","c"]
+["a","b","c"]
+[["a"],["b","c"],["d"]]
+["a","b","c","d"]
+[1,2,3]
+[]
+[]
+[["a","b"],["c"],[]]

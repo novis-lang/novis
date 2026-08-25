@@ -96,6 +96,16 @@ pub enum ConstArg {
     /// [`Self::Str`] because the two materialize under different runtime tags,
     /// which is the whole difference between the types.
     Bytes(Vec<u8>),
+    /// The empty array, `[]`.
+    ///
+    /// Produced only by [`crate::core_lib`], from
+    /// `mwl_stdlib::registry::Const::EmptyArray`, which owns why the *only*
+    /// array constant is the empty one. [`eval_param_default`] does not
+    /// produce it: a written `= []` is still refused, for the reason that
+    /// function's own docs give — the literal is not a scalar, so nothing
+    /// here decodes it — and closing that is a separate question from the
+    /// registry's need for the constant.
+    EmptyArray,
     /// ADR 0063 R2's options bag, wholly omitted at the call site: one entry
     /// per declared option, in the bag's own declared order, each holding that
     /// option's default.

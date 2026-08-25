@@ -1,0 +1,58 @@
+--TEST--
+Core\Arr::replaceRange substitutes exactly the window Core\Arr::slice returns, and renumbers, per spec § 2 and ADR 0069 § 3
+--FILE--
+<?mwl
+// `replaceRange` is `slice`'s window with the entries put back differently,
+// and the two read their offset and length through one routine — so the pair
+// is exact for every sign, which is the property `Core\Str`'s two members of
+// the same names already hold one unit down, in characters.
+array<string> $a = ["a", "b", "c", "d"];
+array<string> $two = ["X", "Y"];
+array<string> $one = ["Z"];
+
+// The plain case: two entries out, two in. PHP's `array_splice` over a list.
+echo Core\Json::encode(Core\Arr::replaceRange($a, 1, 2, $two)), "\n";
+
+// The omitted `$replacement` is `[]`, which makes the member a removal. This
+// is the only array default the registry writes, so this line is also what
+// pins that a call site materializing one works at all.
+echo Core\Json::encode(Core\Arr::replaceRange($a, 1, 2)), "\n";
+
+// The pairing, written out: what `slice` answers is what a removal takes away.
+echo Core\Json::encode(Core\Arr::slice($a, 1, -1)), "\n";
+echo Core\Json::encode(Core\Arr::replaceRange($a, 1, -1)), "\n";
+
+// A negative offset counts back from the last entry; a null length runs to the
+// end.
+echo Core\Json::encode(Core\Arr::replaceRange($a, -1, null, $one)), "\n";
+
+// An empty window is an insertion at that position — a zero length, and a
+// negative one that closes before it opens. An offset at the end appends, and
+// one reaching back past the first entry clamps to it.
+echo Core\Json::encode(Core\Arr::replaceRange($a, 1, 0, $one)), "\n";
+echo Core\Json::encode(Core\Arr::replaceRange($a, 1, -3, $one)), "\n";
+echo Core\Json::encode(Core\Arr::replaceRange($a, 4, 0, $one)), "\n";
+echo Core\Json::encode(Core\Arr::replaceRange($a, -10, 2, $one)), "\n";
+
+// ADR 0069 § 3: the result renumbers, subject and replacement alike, so no key
+// of either survives. PHP's `array_splice` keeps the string keys of the parts
+// it did not touch and renumbers the rest, which is the key-type dependence
+// that rule refuses.
+array<string> $m = ["k" => "a", "j" => "b", "i" => "c"];
+array<string> $keyed = ["p" => "X"];
+echo Core\Json::encode(Core\Arr::replaceRange($m, 1, 1, $keyed)), "\n";
+
+// ADR 0063 R3: every member is pure, so the subject is untouched.
+echo Core\Json::encode($a), "\n";
+--EXPECT--
+["a","X","Y","d"]
+["a","d"]
+["b","c"]
+["a","d"]
+["a","b","c","Z"]
+["a","Z","b","c","d"]
+["a","Z","b","c","d"]
+["a","b","c","d","Z"]
+["Z","c","d"]
+["a","X","c"]
+["a","b","c","d"]
