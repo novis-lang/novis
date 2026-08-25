@@ -170,17 +170,19 @@
 //!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
 //!    element, a `.` operand or an `echo` operand alike.
-//! 6. **Property and array access are compile-time-known-target-only.** A
-//!    receiver that erased to a plain `object`, or a shape asked for a field
-//!    it does not name (ADR 0036 § 4), has no `ExprInfo` entry, so lowering
-//!    panics; the checker defers that runtime check to M4. A shape receiver
-//!    naming one of its own fields does lower — one
-//!    [`ir::InstKind::SlotGet`], which is ADR 0036 § 4's **name-keyed** fetch
-//!    and is therefore right through a widened view too; so does writing one,
-//!    through [`ir::InstKind::SlotSet`], which additionally checks the
+//! 6. **Array access is compile-time-known-target-only; property access is
+//!    not any more.** Every ADR 0036 § 4 receiver lowers: a shape naming one
+//!    of its own fields, a shape asked for a name it does not list, and a
+//!    plain `object`. All three are one [`ir::InstKind::SlotGet`] — § 4's
+//!    **name-keyed** fetch, which is therefore right through a widened view
+//!    too — or one [`ir::InstKind::SlotSet`], which additionally checks the
 //!    incoming value's tag against what the concrete class declares the field
-//!    to hold — `mwl_runtime::object`'s docs § *What a shape write checks*
-//!    state what that granularity misses. An anonymous `{a: 1}` literal
+//!    to hold; `mwl_runtime::object`'s docs § *What a shape write checks*
+//!    state what that granularity misses. The erased two differ only in what
+//!    the checker could record: no slot to hint (so `0`, which the runtime's
+//!    by-name search corrects) and no type (so [`ir::Ty::Tagged`]), which
+//!    makes § 4's missing-name throw reachable rather than theoretical. An
+//!    anonymous `{a: 1}` literal
 //!    constructs, as an instance of the class [`lower::shape_class_label`]
 //!    names. Nullsafe `?->` *reads* — a call and a property alike, over
 //!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe

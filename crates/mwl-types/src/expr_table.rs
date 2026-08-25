@@ -189,10 +189,9 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// A resolved property access (`$obj->prop`) whose receiver statically
-    /// resolved to a known declaring class — a shape receiver records
-    /// [`ExprInfo::ShapeProperty`] instead, and a plain-`object` receiver
-    /// records nothing at all, since ADR 0036 § 4 erases it to `mixed` with
-    /// no declaring class to name (see
+    /// resolved to a known declaring class — a shape receiver and a
+    /// plain-`object` one both record [`ExprInfo::ShapeProperty`] instead,
+    /// since ADR 0036 § 4 gives neither a declaring class to name (see
     /// [`crate::expr::members::check_property_access`]'s own docs for that erasure).
     /// A consumer with no entry for a `PropertyAccess` span must treat it the
     /// same way the checker did: nothing compile-time-known to read.
@@ -256,9 +255,15 @@ pub enum ExprInfo {
     /// agreement), so the index resolved here is the offset the read
     /// actually needs — no layout table is consulted at all.
     ///
-    /// A name the shape does *not* list, and a plain `object` receiver, still
-    /// record nothing: ADR 0036 § 4 erases both to `mixed` with nothing
-    /// compile-time-known to read.
+    /// A name the shape does *not* list, and a plain `object` receiver, are
+    /// § 4's fully **erased** half and record this same variant — the name is
+    /// all an erased access has, and the name is what the fetch is keyed on
+    /// either way. Both carry `slot: 0` and a `ty` of `mixed`: there is no
+    /// static layout to hint from, so the runtime's by-name search answers or
+    /// § 4's catchable missing-name throw fires. A consumer therefore cannot
+    /// read `slot` as a proven offset or `ty` as a proven type — only the
+    /// *shape-listed* case is either, which is why neither is worth
+    /// distinguishing at the consumer.
     ShapeProperty {
         /// The field's own name, `$`-sigil not included. What the runtime
         /// fetch is keyed on: ADR 0036 § 4 makes the read name-keyed, because
@@ -274,8 +279,11 @@ pub enum ExprInfo {
     /// A resolved array-element access (`$arr[$expr]`, read or write) whose
     /// base statically resolved to a known `Ty::Array` element type — never
     /// recorded when the base erased to `mixed` (an untyped/unresolved
-    /// array), mirroring [`ExprInfo::Property`]'s own "nothing compile-time-
-    /// known to read" treatment of a shape/plain-`object` receiver. Recorded
+    /// array), leaving a consumer with nothing compile-time-known to read.
+    /// There is no element-access counterpart to
+    /// [`ExprInfo::ShapeProperty`]'s erased half: a property has a written
+    /// name to key a runtime fetch on and a subscript has only a value.
+    /// Recorded
     /// for a read exactly like a write: `check_assign`'s general (non-plain-
     /// local) arm routes an assignment target back through the same
     /// [`crate::expr::check_expr`]/`ExprKind::Index` path a bare read takes,
@@ -411,6 +419,7 @@ pub struct ExprTypeTable {
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
+    property_types: FxHashMap<String, Vec<(String, TypeId)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
 }
 
@@ -542,6 +551,27 @@ impl ExprTypeTable {
     #[must_use]
     pub fn property_defaults(&self, label: &str) -> &[(String, crate::defaults::ConstArg)] {
         self.property_defaults.get(label).map_or(&[], Vec::as_slice)
+    }
+
+    /// Records the class labelled `label`'s **own** declared property types,
+    /// sorted by name — [`crate::signatures::ClassSignature::properties`],
+    /// copied across at check time for [`Self::record_property_defaults`]'s
+    /// reason, and sorted because the signature's own map has no order a
+    /// build can reproduce.
+    pub(crate) fn record_property_types(&mut self, label: String, types: Vec<(String, TypeId)>) {
+        self.property_types.insert(label, types);
+    }
+
+    /// The class labelled `label`'s own declared property types, by name.
+    ///
+    /// **Own only**, joined against the flattened slot order the same way
+    /// [`Self::property_defaults`] is — see `mwl_ir::lower`'s `field_reprs`,
+    /// which is what ADR 0036 § 4's erased *write* check is built out of: a
+    /// name this list does not carry leaves that slot unchecked rather than
+    /// mistyped.
+    #[must_use]
+    pub fn property_types(&self, label: &str) -> &[(String, TypeId)] {
+        self.property_types.get(label).map_or(&[], Vec::as_slice)
     }
 
     /// Records how the `foreach` whose subject sits at `span` reaches its
@@ -906,26 +936,33 @@ mod tests {
     }
 
     /// A name the shape does not list is erased exactly like a plain `object`
-    /// receiver: ADR 0036 § 4 answers `mixed` and records nothing, since
-    /// whether it is there at all is a runtime question.
+    /// receiver: ADR 0036 § 4 answers `mixed` and hints no slot, since whether
+    /// the field is there at all is a runtime question. The name is still
+    /// recorded — it is what the fetch is keyed on.
     #[test]
-    fn a_property_access_naming_a_field_the_shape_lacks_records_nothing() {
+    fn a_property_access_naming_a_field_the_shape_lacks_records_the_name_alone() {
         let (exprs, span) = check_and_find_expr_span(
             "<?mwl\nclass T {\n  function m({path: string} $i): mixed {\n    return $i->nope;\n  }\n}\n",
         );
-        assert!(exprs.lookup(span).is_none());
+        let Some(ExprInfo::ShapeProperty { name, slot, .. }) = exprs.lookup(span) else {
+            panic!("expected a recorded `ShapeProperty` entry");
+        };
+        assert_eq!((name.as_str(), *slot), ("nope", 0));
     }
 
     /// A plain `object`-typed receiver erases per ADR 0036 § 4 — there is no
-    /// declaring class to record, mirroring
-    /// `crate::expr::members::check_property_access`'s own "nothing diagnosed, nothing
-    /// resolved" treatment of that shape.
+    /// declaring class to record and no layout to hint from, so what is
+    /// recorded is the written name and nothing else, which is exactly what
+    /// the runtime fetch needs.
     #[test]
-    fn a_property_access_through_a_plain_object_receiver_records_nothing() {
+    fn a_property_access_through_a_plain_object_receiver_records_the_name_alone() {
         let (exprs, span) = check_and_find_expr_span(
             "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
         );
-        assert!(exprs.lookup(span).is_none());
+        let Some(ExprInfo::ShapeProperty { name, slot, .. }) = exprs.lookup(span) else {
+            panic!("expected a recorded `ShapeProperty` entry");
+        };
+        assert_eq!((name.as_str(), *slot), ("x", 0));
     }
 
     #[test]

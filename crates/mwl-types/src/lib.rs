@@ -150,10 +150,9 @@
 //!   ([`ty::Ty::Shape`]) is checked structurally by width subtyping plus
 //!   ordinary field assignability (see [`expr::is_assignable`]'s own docs),
 //!   and a property access through a shape-missing field or plain `object`
-//!   is silently erased to `mixed` rather than diagnosed — deferred to ADR
-//!   0014 § 5's runtime-checked fallback, which is M4 work (no IR/codegen
-//!   exists yet to throw from) — see [`expr::members::check_property_access`]'s own
-//!   docs. ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
+//!   is silently erased to `mixed` rather than diagnosed, recording the
+//!   written name for ADR 0014 § 5's runtime-checked fallback, which throws
+//!   for real now — see [`expr::members::check_property_access`]'s own docs. ADR 0010's enum-vs-class atom distinction beyond "resolves to *a*
 //!   symbol" is now done too: `self`/`static`/`$this` inside an enum
 //!   ([`expr::class_of_ctx`], [`lower`]'s `resolve_special`) and a case access
 //!   ([`expr`]'s `ClassConstAccess` arm) all recover [`ty::Ty::Enum`] rather

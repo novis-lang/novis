@@ -122,7 +122,35 @@ pub fn check_program(
         check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
         closure_seq = env.closure_seq;
     }
+    record_property_types(&signatures, exprs);
     enums
+}
+
+/// Copies every class's own declared property types into the expression
+/// table, so `mwl_ir::lower` can join them against the flattened slot order
+/// and hand each class's per-slot types to codegen — ADR 0036 § 4's erased
+/// **write** check, which is the one write site that has no statically known
+/// field type of its own and so must ask the receiver's concrete class at run
+/// time.
+///
+/// Driven off the signature table rather than off the checked files, unlike
+/// [`record_property_defaults`]: the classes with no source declaration —
+/// `mwl_hir::errors`' exception tree, and every installed `Core` class — hold
+/// state an erased write can reach just as well as a user class's, and their
+/// declarations are only ever in here.
+fn record_property_types(signatures: &crate::SignatureTable, exprs: &mut ExprTypeTable) {
+    for (qname, sig) in signatures.iter() {
+        if sig.properties.is_empty() {
+            continue;
+        }
+        let mut types: Vec<(String, crate::ty::TypeId)> = sig
+            .properties
+            .iter()
+            .map(|(name, ty)| (name.clone(), *ty))
+            .collect();
+        types.sort_by(|a, b| a.0.cmp(&b.0));
+        exprs.record_property_types(qname.to_string(), types);
+    }
 }
 
 /// The one synthesized frame a file's top-level statements share

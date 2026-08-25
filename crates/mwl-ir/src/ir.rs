@@ -40,14 +40,21 @@ pub struct Class {
     /// What each field slot's *declared* type lowers to, in [`Self::fields`]'
     /// own order — or **empty**, which means "not known", not "no fields".
     ///
-    /// Populated only for an ADR 0036 shape literal's synthesized class today,
-    /// which is the only receiver [`InstKind::SlotSet`] can reach; a named
-    /// class's slots are written through a fixed offset whose type the write
-    /// site already knows, so nothing has needed to ask. `mwl-codegen` maps
-    /// each entry to the one `mwl_runtime::Tag` it admits — [`Ty::Tagged`] and
-    /// [`Ty::Void`] admit several or none and become "unchecked" — and hands
-    /// the result to `mwl_runtime::ClassTable::set_field_tags`, whose own docs
-    /// state what that check buys and what it misses.
+    /// Populated for every class with a layout, plus an ADR 0036 shape
+    /// literal's synthesized one: [`InstKind::SlotSet`] reaches any class at
+    /// all through § 4's erased receiver, and that write is the one site with
+    /// no statically known field type of its own. A slot whose declared type
+    /// nothing recorded is [`Ty::Tagged`] rather than absent, so the vector
+    /// stays index-aligned with [`Self::fields`] — see `mwl_ir::lower`'s
+    /// `field_reprs`. `mwl-codegen` maps each entry to the one
+    /// `mwl_runtime::Tag` it admits — [`Ty::Tagged`] and [`Ty::Void`] admit
+    /// several or none and become "unchecked" — and hands the result to
+    /// `mwl_runtime::ClassTable::set_field_tags`, whose own docs state what
+    /// that check buys and what it misses.
+    ///
+    /// **Cost:** one `Ty` per field slot per class at compile time, and one
+    /// byte per slot per descriptor at run time — paid once per compiled
+    /// unit, not per request (ADR 0017's cache).
     pub field_reprs: Vec<Ty>,
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
@@ -470,11 +477,11 @@ pub enum InstKind {
     /// actual byte offset is computed here: `class`/`field` are labels for a
     /// future codegen layout pass, the same "resolved identity, not yet a
     /// machine offset" shape `Call`/`New`'s own `target`/`class` labels
-    /// already use. A property access whose receiver erased to a shape or
-    /// plain `object` (ADR 0036 § 4) has no such entry to read at all —
-    /// `crate::lower` panics naming that case rather than lowering it; see
-    /// the crate docs' known gaps for why (the checker itself defers the
-    /// runtime-checked fallback to M4, with no IR/codegen yet to throw from).
+    /// already use. A property access whose receiver erased to a shape or to
+    /// plain `object` (ADR 0036 § 4) never reaches here: it has no declaring
+    /// class to name, so the checker records an
+    /// `mwl_types::expr_table::ExprInfo::ShapeProperty` instead and
+    /// `crate::lower` emits the name-keyed [`InstKind::SlotGet`].
     FieldGet {
         /// The receiver, already lowered.
         object: ValueId,
@@ -541,7 +548,9 @@ pub enum InstKind {
         /// actually keyed on.
         field: String,
         /// The field's position in the *receiver's static* shape, sorted by
-        /// name: a hint, not the answer. See this variant's own docs.
+        /// name: a hint, not the answer, and `0` where the receiver is a
+        /// plain `object` with no static shape to take a position from. See
+        /// this variant's own docs.
         slot: u32,
     },
     /// `$issue->path = "x";` — [`InstKind::SlotGet`]'s write half, and
@@ -578,7 +587,8 @@ pub enum InstKind {
         /// keyed on.
         field: String,
         /// The field's position in the *receiver's static* shape, sorted by
-        /// name: a hint, not the answer. See [`InstKind::SlotGet`].
+        /// name: a hint, not the answer, and `0` for a plain `object`
+        /// receiver. See [`InstKind::SlotGet`].
         slot: u32,
         /// The value to store, already coerced to the field's static
         /// representation. Borrowed; see this variant's own docs.

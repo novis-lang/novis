@@ -1,0 +1,86 @@
+--TEST--
+A property access through a plain `object` receiver is keyed on the written name at run time, reads and writes, and throws on a name the concrete class does not carry — ADR 0036 § 4
+--FILE--
+<?mwl
+// ADR 0036 § 4's fully *erased* half. A receiver typed `object` carries no
+// field list at all, so the access answers `mixed` and nothing about it is
+// known until the concrete class is in hand: the fetch is keyed on the
+// written name, the write is checked against what that class declares the
+// field to hold, and a name it does not carry is a catchable throw rather
+// than a silent null.
+class Erased {
+    public int $count = 0;
+    public string $label = "left";
+
+    public function constructor() { }
+
+    // The receiver's own class is whatever the caller passed — a named class
+    // here, a shape below, and this body cannot tell the two apart.
+    public static function show(object $o): void {
+        echo $o->label, "\n";
+    }
+
+    public static function relabel(object $o): void {
+        $o->label = "right";
+    }
+
+    // The write's value is checked against the *concrete* field's declared
+    // type, which is the one thing an erased write site cannot know for
+    // itself.
+    public static function refuse(object $o): string {
+        try {
+            $o->count = "not a number";
+            return "not refused";
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function missingRead(object $o): string {
+        try {
+            echo $o->nope, "\n";
+            return "not refused";
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+
+    public static function missingWrite(object $o): string {
+        try {
+            $o->nope = 1;
+            return "not refused";
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+}
+
+// A shape value behind an `object` binding: both fields are reachable by
+// name, and neither is at a slot this file could have named.
+var $point = {x: 1, label: "shape"};
+object $erased = $point;
+echo $erased->x, " ", $erased->label, "\n";
+
+// The write lands on the value itself, not on a copy — a shape is an
+// ordinary refcounted instance (ADR 0036 § 2) and `object` erases only the
+// static view of it.
+$erased->label = "wrote";
+echo $point->label, "\n";
+
+var $obj = new Erased();
+Erased::show($obj);
+Erased::relabel($obj);
+echo $obj->label, " ", $obj->count, "\n";
+
+echo Erased::refuse($obj), "\n";
+echo Erased::missingRead($obj), "\n";
+// A shape's synthesized class is named for its field *names*, sorted.
+echo Erased::missingWrite($point), "\n";
+--EXPECT--
+1 shape
+wrote
+left
+right 0
+`Erased` declares field `count` as int, so a string cannot be written to it
+`Erased` has no field `nope`
+`$shape{label,x}` has no field `nope`

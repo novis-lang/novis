@@ -303,6 +303,44 @@ fn property_defaults(
         .collect()
 }
 
+/// What each of `label`'s field slots is declared to hold, in slot order —
+/// [`crate::ir::Class::field_reprs`], and the whole of what ADR 0036 § 4's
+/// erased **write** check has to go on.
+///
+/// The join is [`property_defaults`]'s exactly: own class first, then every
+/// ancestor, so a subclass redeclaring a property wins the slot the two
+/// share. What differs is the fallback. A default a class does not write is
+/// simply absent, but every slot needs a *representation* for the vector to
+/// stay aligned with [`mwl_types::ClassLayout::fields`], so a slot nothing
+/// claims — a class whose signature never reached
+/// [`ExprTypeTable::property_types`], or a type this crate does not represent
+/// — is [`Ty::Tagged`], which `mwl-codegen` maps to "unchecked" rather than
+/// to a tag that would refuse a legal write.
+fn field_reprs(
+    label: &str,
+    layout: &mwl_types::ClassLayout,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+) -> Vec<Ty> {
+    let mut image: Vec<Option<Ty>> = vec![None; layout.fields.len()];
+    let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
+    for owner in chain {
+        for (property, ty) in exprs.property_types(owner) {
+            let Some(slot) = layout.slot_of(property) else {
+                continue;
+            };
+            if image[slot].is_some() {
+                continue;
+            }
+            image[slot] = Some(erase_checked_ty(*ty, checked_types).unwrap_or(Ty::Tagged));
+        }
+    }
+    image
+        .into_iter()
+        .map(|repr| repr.unwrap_or(Ty::Tagged))
+        .collect()
+}
+
 /// Lowers a whole checked **program**: every class method that has a body in
 /// any of `files`, plus the *entry* file's own top-level statements as one
 /// script frame named `script`.
@@ -488,10 +526,10 @@ pub fn lower_program(
         .map(|(label, layout)| crate::ir::Class {
             label: label.to_owned(),
             fields: layout.fields.clone(),
-            // A named class's slots are written through a fixed offset whose
-            // type the write site knows, so nothing asks — `ir::Class` and
-            // this crate's gap 6 own why an erased write is still open.
-            field_reprs: Vec::new(),
+            // ADR 0036 § 4's erased write reaches *any* class, not just a
+            // shape literal's synthesized one, so every layout carries its
+            // slots' representations — see `field_reprs`.
+            field_reprs: field_reprs(label, layout, exprs, checked_types),
             conforms: layout.conforms.clone(),
             methods: layout.methods.clone(),
             // ADR 0071's field list, joined to this class's slot order — the
@@ -2032,7 +2070,11 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         // or it is a bug.
         TypeKind::Atom(TypeAtom::StringLiteral(_)) => Ty::Str,
         TypeKind::Atom(TypeAtom::IntLiteral(_)) => Ty::Int,
-        TypeKind::Atom(TypeAtom::Name(..)) => Ty::Object,
+        // `object` — ADR 0007 § 3's opaque top of every class type, which is
+        // the same pointer a named class is. See `erase_checked_ty`, which is
+        // the arm this annotation actually takes whenever the checker visited
+        // it.
+        TypeKind::Atom(TypeAtom::Name(..) | TypeAtom::Object) => Ty::Object,
         // ADR 0031 § 4's one closure type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
         // synthesizes one class per literal to hold the captured environment
@@ -2168,7 +2210,16 @@ fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
         // erasure drops is the field list, and nothing below this boundary
         // wants it — a field read carries its own slot index, resolved where
         // the type still existed (`InstKind::SlotGet`).
-        CheckedTy::Class(..) | CheckedTy::Callable | CheckedTy::Shape(_) => Ty::Object,
+        //
+        // Plain `object` is the same representation with the field list never
+        // present in the first place — ADR 0007 § 3's opaque top of every
+        // class type. A member access through one is ADR 0036 § 4's fully
+        // erased half: the checker records the field's *name* and nothing
+        // else, and `InstKind::SlotGet`/`SlotSet` find it on the concrete
+        // descriptor or throw.
+        CheckedTy::Class(..) | CheckedTy::Callable | CheckedTy::Shape(_) | CheckedTy::Object => {
+            Ty::Object
+        }
         // ADR 0047 § 5: a literal type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and
@@ -2983,16 +3034,18 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// A property access through a plain-`object` receiver erases per ADR
-    /// 0036 § 4 — `mwl_types` records no `ExprInfo::Property` entry for it,
-    /// so lowering panics naming the case rather than reading a nonexistent
-    /// declaring class.
+    /// A property access through a plain-`object` receiver is ADR 0036 § 4's
+    /// *fully* erased half: there is no declaring class and no layout either,
+    /// so what the checker records is the written name alone and the read
+    /// lowers to the same name-keyed `SlotGet` a shape's does — with a hint
+    /// of slot 0, which the runtime's own by-name search corrects, and a
+    /// result at `Ty::Tagged` because nothing knows what the field holds.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn a_property_access_through_a_plain_object_receiver_is_still_out_of_scope() {
-        lower_first_method(
+    fn a_property_access_through_a_plain_object_receiver_reads_by_name() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(object $o): mixed {\n    return $o->x;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// `var $n = 1;` (ADR 0037) — no declared type at all, so the local's
@@ -3367,16 +3420,17 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// A property write through a plain-`object` receiver erases per ADR
-    /// 0036 § 4 — `mwl_types` records no `ExprInfo::Property` entry for it,
-    /// so lowering panics naming the case, the same way the read side already
-    /// does for the identical receiver shape.
+    /// A property write through a plain-`object` receiver takes the same
+    /// name-keyed `SlotSet` the read side's `SlotGet` mirrors — the whole of
+    /// ADR 0036 § 4's erased write. The value is widened to `Ty::Tagged`
+    /// first: the field's real type is the receiving class's to state, and
+    /// `mwl_runtime::mwl_object_slot_set` is where it is checked.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn writing_through_a_plain_object_receiver_is_still_out_of_scope() {
-        lower_first_method(
+    fn writing_through_a_plain_object_receiver_writes_by_name() {
+        let (f, map, file) = lower_first_method(
             "<?mwl\nclass T {\n  function m(object $o): void {\n    $o->x = 1;\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     /// `"a" . "b"` — two fresh literal operands lower to a single

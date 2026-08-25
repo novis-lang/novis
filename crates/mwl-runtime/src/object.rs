@@ -175,8 +175,12 @@
 //!    back to case 3 for the slots they disagree on;
 //!    `mwl_ir::lower::Lowering::record_shape_class` degrades the tag rather
 //!    than picking whichever literal it saw first.
-//! 5. **A named class's fields** carry no tags at all: nothing yet writes one
-//!    through an erased view, which is `mwl-ir`'s own gap 6.
+//! 5. **A class with no layout of its own** — a closure's environment, a
+//!    generator's state — carries no tags, because nothing declares its slots
+//!    in source for a type to come from. A *named* class does carry them: an
+//!    erased receiver reaches any class at all, so `mwl_ir::lower`'s
+//!    `field_reprs` joins every layout's slots against the declared property
+//!    types the checker recorded.
 //!
 //! # Decision: no cycle collector
 //!
@@ -262,10 +266,12 @@ pub struct ClassDesc {
     defaults: Vec<(usize, FieldDefault)>,
     /// The one [`Tag`] each field slot's *declared* type admits, in slot
     /// order, or `None` for a slot whose declared type admits more than one —
-    /// a union, a `?T`, a `mixed`. **Empty** for a class nothing has told,
-    /// which is every class but an
-    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) shape's;
-    /// an empty list means "unknown", never "no field admits anything".
+    /// a union, a `?T`, a `mixed`. **Empty** for a class nothing has told —
+    /// one the compiler synthesized rather than laid out from a declaration,
+    /// a closure's environment or a generator's state; an empty list means
+    /// "unknown", never "no field admits anything". Every class an
+    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4
+    /// write can name from source carries one entry per slot.
     ///
     /// This is the whole of § 4's *"a write's incoming value is checked
     /// against the field's real, concrete declared type"* — see
@@ -273,7 +279,7 @@ pub struct ClassDesc {
     /// docs § *What a shape write checks* for what a tag does not catch and
     /// why the declared type itself is not here. Filled by
     /// [`ClassTable::set_field_tags`]. **Cost:** one byte-sized `Option<Tag>`
-    /// per field per shape class, once per process, not per instance.
+    /// per field per class, once per process, not per instance.
     field_tags: Vec<Option<Tag>>,
 }
 

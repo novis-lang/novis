@@ -472,8 +472,10 @@ impl Classes {
         // ADR 0036 § 4's write check, at the one granularity the runtime can
         // hold: a representation with no single tag — `Ty::Tagged`, `Ty::Void`
         // — becomes `None`, which `mwl_runtime::mwl_object_slot_set` reads as
-        // "unchecked". `mwl_ir::ir::Class::field_reprs` is empty for every
-        // class no shape write can reach, and this asks nothing of those.
+        // "unchecked". Every class with a layout carries one entry per slot
+        // now, because § 4's erased receiver reaches any class at all; the
+        // guard below is for the synthesized ones that carry none (a
+        // closure's environment, a generator's state).
         if class.field_reprs.len() == class.fields.len() && !class.field_reprs.is_empty() {
             let tags = class
                 .field_reprs

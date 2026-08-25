@@ -19,14 +19,15 @@
 //! access lands there, whatever its receiver's spelling, and a method call
 //! does not yet.
 //!
-//! [`check_property_access`]'s shape/`object` arms are the M2 half of ADR 0036
-//! § 4: a field a shape names types cleanly with no diagnostic either way, and
+//! [`check_property_access`]'s shape/`object` arms are ADR 0036 § 4 whole: a
+//! field a shape names types cleanly with no diagnostic either way, and
 //! records the slot `mwl-ir` reads it at
-//! ([`crate::expr_table::ExprInfo::ShapeProperty`]); a
-//! name it doesn't list, or a plain `object` receiver, is silently `mixed`
-//! rather than `E_UNKNOWN_MEMBER` — deferred to ADR 0014 § 5's runtime-checked
-//! fallback, which needs M4's IR/codegen to actually throw from and so has no
-//! code yet. `unset()` on any *declared* object property is refused outright
+//! ([`crate::expr_table::ExprInfo::ShapeProperty`]); a name it doesn't list,
+//! or a plain `object` receiver, is silently `mixed` rather than
+//! `E_UNKNOWN_MEMBER`, and records the same entry carrying the written name
+//! alone — which is what ADR 0014 § 5's runtime-checked fallback is keyed on,
+//! and it throws now rather than being deferred. `unset()` on any *declared*
+//! object property is refused outright
 //! regardless of nullability (ADR 0028 § 3, [`check_unset_target`]).
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
@@ -356,9 +357,17 @@ pub(super) fn check_property_member(
     // the shape doesn't list, or a plain `object` receiver, is fully erased;
     // whether it exists at runtime isn't a question this compile-time
     // checker can answer either way, so — unlike an ordinary class receiver's
-    // `E_UNKNOWN_MEMBER` below — nothing is diagnosed here. The actual
-    // checked-throw fallback this defers to is M4 work (no IR/codegen exists
-    // yet to throw from); see the crate docs' known gaps.
+    // `E_UNKNOWN_MEMBER` below — nothing is diagnosed here, and the access
+    // answers `mixed`.
+    //
+    // All three record an `ExprInfo::ShapeProperty`, because § 4 keys the
+    // fetch on the **name** in every one of them and the name is the only
+    // thing an erased access has. What differs is what rides along: a field
+    // the receiver's own shape lists contributes its slot as the hint the
+    // runtime tries first and its declared type as the result; an erased one
+    // hints slot 0 and answers `mixed`, leaving `mwl_runtime::ClassDesc::
+    // field_slot`'s by-name search — and § 4's catchable missing-name throw —
+    // as the whole of the resolution.
     match env.interner.get(object_ty).clone() {
         Ty::Shape(fields) => {
             // A field the shape names is proven present, so reading it never
@@ -371,26 +380,33 @@ pub(super) fn check_property_member(
             // receiver's differ — it is not, which is why § 4 keys the fetch
             // on the **name** and this records one; the slot rides along as
             // the hint the runtime tries first (`mwl_ir::InstKind::SlotGet`).
-            return fields
+            let (slot, ty) = fields
                 .iter()
                 .position(|(n, _)| *n == name)
                 .and_then(|slot| Some((u32::try_from(slot).ok()?, fields[slot].1)))
-                .map_or_else(
-                    || env.interner.mixed(),
-                    |(slot, ty)| {
-                        env.exprs.record(
-                            object.span.to(*name_span),
-                            ExprInfo::ShapeProperty {
-                                name: name.clone(),
-                                slot,
-                                ty,
-                            },
-                        );
-                        ty
-                    },
-                );
+                .unwrap_or_else(|| (0, env.interner.mixed()));
+            env.exprs.record(
+                object.span.to(*name_span),
+                ExprInfo::ShapeProperty {
+                    name: name.clone(),
+                    slot,
+                    ty,
+                },
+            );
+            return ty;
         }
-        Ty::Object => return env.interner.mixed(),
+        Ty::Object => {
+            let ty = env.interner.mixed();
+            env.exprs.record(
+                object.span.to(*name_span),
+                ExprInfo::ShapeProperty {
+                    name: name.clone(),
+                    slot: 0,
+                    ty,
+                },
+            );
+            return ty;
+        }
         _ => {}
     }
 

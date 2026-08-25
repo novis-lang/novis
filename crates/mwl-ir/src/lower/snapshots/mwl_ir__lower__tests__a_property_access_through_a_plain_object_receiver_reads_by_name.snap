@@ -1,0 +1,20 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, object) -> tagged {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; object
+    ; stmt s0 @4:5-4:18
+    v2 = slot.get v1, x @0 ! bb1  ; tagged
+    retain v2
+    release v1
+    release v0
+    return v2
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.mwl:4"
+}
