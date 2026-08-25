@@ -63,6 +63,38 @@ pub(crate) fn compare_values(
     )))
 }
 
+/// A comparator's verdict as an [`std::cmp::Ordering`] — negative, zero or
+/// positive, exactly `usort`'s contract.
+///
+/// A `float` verdict is accepted for the same reason `int` is: the contract is
+/// about the *sign*, and a comparator written as a subtraction of two floats
+/// is the shape PHP code already has. A `NaN` has no sign, so it is a throw
+/// rather than a silent `Equal`.
+///
+/// Here rather than on [`crate::arr`] for this module's own reason: a heap
+/// takes a comparator too ([`crate::heap`]), and two domains reading one
+/// verdict differently is exactly what a shared home prevents. `member` is the
+/// fully-qualified member, since the two spell theirs differently.
+pub(crate) fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::Ordering, Fault> {
+    if let Some(int) = verdict.as_int() {
+        return Ok(int.cmp(&0));
+    }
+    if let Some(uint) = verdict.as_uint() {
+        return Ok(uint.cmp(&0));
+    }
+    if let Some(float) = verdict.as_float() {
+        return float.partial_cmp(&0.0).ok_or_else(|| {
+            Fault::thrown(format!(
+                "{member}'s comparator returned NaN, which has no ordering"
+            ))
+        });
+    }
+    Err(Fault::fatal(format!(
+        "{member}'s comparator returned tag {}, not a number",
+        verdict.tag_byte()
+    )))
+}
+
 /// One value's numeric content, or `None` for a value that has none.
 #[derive(Clone, Copy)]
 enum Numeric {

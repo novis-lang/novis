@@ -18,6 +18,17 @@ pub(crate) const NAME: &str = r"Core\ObjectSet";
 /// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
 pub(crate) const NEW_SYMBOL: &str = "mwl_core_object_set_new";
 
+/// `new Core\ObjectSet<T>()` — the constructor [`crate::registry::CONSTRUCTORS`]
+/// registers, which takes nothing: a set's order is its insertion order and
+/// its identity is `mwl_runtime::identity`'s, so there is nothing to give it.
+pub(crate) const NEW: CoreMethod = CoreMethod {
+    name: "constructor",
+    params: &[],
+    defaults: &[],
+    return_ty: CoreTy::Instance(NAME),
+    symbol: NEW_SYMBOL,
+};
+
 /// `Core\ObjectSet<T>` — docs/spec/01-core-library.md § 9's second row.
 ///
 /// Every member is an instance member: a set is reached through a value, and

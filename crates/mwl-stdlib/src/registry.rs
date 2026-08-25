@@ -726,6 +726,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::time::ZONE,
     crate::objmap::CLASS,
     crate::objset::CLASS,
+    crate::heap::CLASS,
     crate::random::CLASS,
     crate::uuid::CLASS,
     crate::hash::CLASS,
@@ -735,7 +736,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::validate::CLASS,
 ];
 
-/// Every `Core` class a program may write `new` on, with the symbol that
+/// Every `Core` class a program may write `new` on, with the constructor that
 /// builds one — `docs/spec/01-core-library.md` § 9's collections and nothing
 /// else.
 ///
@@ -746,19 +747,36 @@ pub const CLASSES: &[CoreClass] = &[
 /// unlike [`GENERIC_CLASSES`], whose arity is a property of the spec's table
 /// rather than of anything on disk — because the helper builds an instance
 /// against that class's declared [`CoreClass::slots`].
-pub const CONSTRUCTORS: &[(&str, &str)] = &[
-    (crate::objmap::NAME, crate::objmap::NEW_SYMBOL),
-    (crate::objset::NAME, crate::objset::NEW_SYMBOL),
+///
+/// The second half is a whole [`CoreMethod`] rather than a bare symbol so that
+/// **a constructor can take arguments**: § 9's `Core\Heap` is ordered by a
+/// comparator given at construction, and one written `params`/`defaults` pair
+/// is what lets `mwl_types::core_lib` seed it as an ordinary `constructor`
+/// signature — the same shape every other `Core` row is checked through,
+/// rather than a second arity rule reachable only from `new`. Its `name` is
+/// `constructor` and its `return_ty` the class itself, so it reads the same
+/// way in a signature table as a user-declared one.
+pub const CONSTRUCTORS: &[(&str, &CoreMethod)] = &[
+    (crate::objmap::NAME, &crate::objmap::NEW),
+    (crate::objset::NAME, &crate::objset::NEW),
+    (crate::heap::NAME, &crate::heap::NEW),
 ];
+
+/// The constructor that builds a `class` instance, or `None` when `new` on it
+/// is not a thing a program may write — which is every other name.
+#[must_use]
+pub fn constructor_of(class: &str) -> Option<&'static CoreMethod> {
+    CONSTRUCTORS
+        .iter()
+        .find(|(name, _)| *name == class)
+        .map(|(_, method)| *method)
+}
 
 /// The symbol that builds a `class` instance, or `None` when `new` on it is
 /// not a thing a program may write — which is every other name.
 #[must_use]
 pub fn constructor_symbol(class: &str) -> Option<&'static str> {
-    CONSTRUCTORS
-        .iter()
-        .find(|(name, _)| *name == class)
-        .map(|(_, symbol)| *symbol)
+    constructor_of(class).map(|method| method.symbol)
 }
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
@@ -940,15 +958,24 @@ mod tests {
     /// no descriptor at all.
     #[test]
     fn every_constructible_class_is_registered_with_slots() {
-        for (name, symbol) in CONSTRUCTORS {
+        for (name, new) in CONSTRUCTORS {
             let found = class(name).unwrap_or_else(|| panic!("`{name}` is not a registered class"));
             assert!(
                 !found.slots.is_empty(),
                 "`{name}` is constructible but declares no slots"
             );
+            let symbol = new.symbol;
             assert!(
-                found.members().all(|member| member.symbol != *symbol),
+                found.members().all(|member| member.symbol != symbol),
                 "`{name}`'s constructor symbol `{symbol}` is also a member's"
+            );
+            // The seeded signature is looked up under this name, and a `new`
+            // is the only thing that reaches it — a row spelled anything else
+            // would be a member no call site can write.
+            assert_eq!(
+                new.name, "constructor",
+                "`{name}`'s constructor row is spelled `{}`",
+                new.name
             );
         }
     }

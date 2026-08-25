@@ -2392,6 +2392,45 @@ impl<'a> Lowering<'a> {
         let ctor_label = ctor
             .as_ref()
             .map(|call| format!("{}::{}", call.class, call.method));
+        // A `Core`-owned class is built by a native helper rather than by an
+        // `InstKind::New`: nothing below this crate holds a descriptor for
+        // one, because a `Core` class is in no program's class list.
+        // `mwl_stdlib::instance`'s module docs own that decision; here it is
+        // the same `InstKind::CoreCall` a static `Core` member lowers to,
+        // with the same **borrowed** arguments — which is why this branch
+        // lowers them itself rather than sharing the transferred ones below.
+        // `mwl_stdlib::registry::CONSTRUCTORS` is what gives it a signature to
+        // check them against: `new Core\Heap<T>($by)` carries one.
+        if let Some(symbol) = mwl_types::core_constructor_symbol(&target_label) {
+            let mark = self.temporaries_mark();
+            let values = match ctor {
+                Some(call) => {
+                    let sig = ArgSig::of_helper(call);
+                    let checked_types = self.checked_types;
+                    self.lower_call_args(
+                        args,
+                        &sig,
+                        checked_types,
+                        ArgOwnership::Borrowed,
+                        env,
+                        cur,
+                    )
+                    .values
+                }
+                None => Vec::new(),
+            };
+            let built = self.emit_fallible(
+                *cur,
+                Ty::Object,
+                InstKind::CoreCall {
+                    symbol,
+                    args: values,
+                },
+                env,
+            );
+            self.release_temporaries_since(mark, *cur);
+            return built;
+        }
         let arg_values = match ctor {
             Some(call) => {
                 let sig = ArgSig::of(call);
@@ -2423,24 +2462,6 @@ impl<'a> Lowering<'a> {
                 Vec::new()
             }
         };
-        // A `Core`-owned class is built by a native helper rather than
-        // by an `InstKind::New`: nothing below this crate holds a
-        // descriptor for one, because a `Core` class is in no program's
-        // class list. `mwl_stdlib::instance`'s module docs own that
-        // decision; here it is the same `InstKind::CoreCall` a static
-        // `Core` member lowers to, with no arguments, since a `Core`
-        // class has no constructor to pass any to.
-        if let Some(symbol) = mwl_types::core_constructor_symbol(&target_label) {
-            return self.emit_fallible(
-                *cur,
-                Ty::Object,
-                InstKind::CoreCall {
-                    symbol,
-                    args: Vec::new(),
-                },
-                env,
-            );
-        }
         // `new static()` — ADR-free by construction: the class comes
         // from this frame's called class rather than from the label
         // `mwl_types` resolved, which is the enclosing class and so

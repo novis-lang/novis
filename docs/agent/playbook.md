@@ -139,6 +139,13 @@ is why" — is this file.
   fair leak check. What is still open is narrower and named in that field's own doc comment (an argument
   being **transferred** when a later one throws) plus the producers that still release inline — a
   normalized subscript key, a `match` subject.
+- **A call result read straight through `->` leaks the object, and it looks exactly like the slice you
+  just wrote.** `$h->peek()->name` loses one object per run; `var $t = $h->peek(); $t->name` is clean.
+  The producer hands back a fresh reference, a *call* on it would consume it (the callee releases its
+  receiver), and a **field read** consumes nothing — so `mwl-ir` never releases the base. It is
+  inherited, not yours: prove that in a minute with a probe naming no `Core` member at all (a user
+  class with a factory method), and bind the result in the `.mwlt` case rather than pinning the leak.
+  The plan's *Open now* holds the shape of the fix.
 
 ## Adding a `Core` member
 

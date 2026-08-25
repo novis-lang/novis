@@ -1,0 +1,70 @@
+--TEST--
+Core\Heap<T> answers smallest-first, ordered by ADR 0013's `Comparable` or by the comparator given at construction — docs/spec/01-core-library.md § 9
+--FILE--
+<?mwl
+// § 9's third row: `push`, `peek`, `pop`, `count`, `isEmpty`, replacing
+// `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap`.
+class Job implements Comparable {
+    public string $name;
+    public int $cost;
+
+    public function constructor(string $name, int $cost) {
+        $this->name = $name;
+        $this->cost = $cost;
+    }
+
+    public function compareTo(Job $other): int {
+        return $this->cost - $other->cost;
+    }
+}
+
+// No comparator, and a scalar: the natural order, ascending.
+var $n = new Core\Heap<int>();
+$n->push(8);
+$n->push(3);
+$n->push(9);
+$n->push(1);
+echo $n->count(), ";", $n->peek(), ";", $n->isEmpty(), "\n";
+while (!$n->isEmpty()) {
+    echo $n->pop(), " ";
+}
+echo "|\n";
+
+// A comparator given at construction reverses it — the max-heap that
+// `SplMaxHeap` was, one closure rather than one subclass.
+var $d = new Core\Heap<int>(fn(int $a, int $b): int => $b - $a);
+$d->push(3);
+$d->push(7);
+$d->push(5);
+echo $d->pop(), ";", $d->pop(), ";", $d->pop(), "\n";
+
+// An object orders by ADR 0013's `compareTo`, reached through its own class.
+var $jobs = new Core\Heap<Job>();
+$jobs->push(new Job("deploy", 5));
+$jobs->push(new Job("lint", 1));
+$jobs->push(new Job("build", 3));
+// Bound rather than `$jobs->peek()->name`: a call result read straight
+// through `->` is never released (`mwl-ir`'s own gap, in the plan's *Open
+// now*), and a conformance case is not the place to pin a leak.
+var $first = $jobs->peek();
+echo $first->name, "\n";
+while (!$jobs->isEmpty()) {
+    var $job = $jobs->pop();
+    echo $job->name, " ";
+}
+echo "|\n";
+
+// `peek` and `pop` throw on an empty heap rather than answering `null`:
+// § 9 gives the class an `isEmpty`, and that is the question.
+try {
+    $n->pop();
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}
+--EXPECT--
+4;1;
+1 3 8 9 |
+7;5;3
+lint
+lint build deploy |
+Core\Heap::pop() on an empty heap; `isEmpty()` is the question that has an answer for one

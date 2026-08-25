@@ -132,8 +132,10 @@
 > the spec writes; § 6 owes `decodeAs<T>` (`json` gap
 > 2, which waited on a written type argument at a call site and no longer does); § 7 is **whole** —
 > `Core\Bytes`'s twelve members and the whole of `Core\Encoding`, `pack`/`unpack` sharing one closed
-> code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 owes `Core\Heap` and the `Iterable` its three rows
-> each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
+> code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 owes only the `Iterable` its three rows
+> each declare, `Core\Heap` having landed with the constructor arguments it needed — a
+> `registry::CONSTRUCTORS` row is a whole `CoreMethod` now, so `new Core\X(...)` is checked and
+> lowered like any other `Core` call; § 10 owes the constructor's
 > `{previous: $e}` options shape and
 > `$e->location`; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
 > `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
@@ -165,7 +167,10 @@
 > fixture; their work is M4, M6, M7, M8 and M10 and lands with those milestones. **Still open beside
 > the library** — a property's **declared default is silently ignored**, so `public int $n = 4;`
 > reads back `0` unless a constructor assigns it, which is a wrong value rather than a missing
-> feature and is the next correctness item; `do`/`while` is the one M4 control-flow statement that does not lower; an
+> feature and is the next correctness item; **a call result read straight through `->` is never
+> released**, so `$m->make()->name` leaks the object every time it runs — `mwl-ir` stages a `Core`
+> call's receiver as an owned temporary and a field read's base not at all, and closing it means the
+> field read retaining its own result first; `do`/`while` is the one M4 control-flow statement that does not lower; an
 > abandoned generator never runs the `finally` it is suspended inside (`mwl-ir` gap 18, a PHP
 > divergence); ADR 0043's `by`-delegation is off path; and `docs/spec/02-php-migration.md` is 31%
 > classified, one pass per PHP domain, reported by `python tools/check-migration.py`.

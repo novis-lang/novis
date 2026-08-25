@@ -2981,31 +2981,11 @@ fn optional_callback(value: &Value, member: &str, option: &str) -> Result<Option
     }
 }
 
-/// A comparator's verdict as an [`std::cmp::Ordering`] — negative, zero or
-/// positive, exactly `usort`'s contract.
-///
-/// A `float` verdict is accepted for the same reason `int` is: the contract is
-/// about the *sign*, and a comparator written as a subtraction of two floats
-/// is the shape PHP code already has. A `NaN` has no sign, so it is a throw
-/// rather than a silent `Equal`.
+/// A comparator's verdict as an [`std::cmp::Ordering`], for a member of this
+/// class — [`crate::ordering::comparator_sign`] qualified with the class name,
+/// which every call site here would otherwise spell out.
 fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::Ordering, Fault> {
-    if let Some(int) = verdict.as_int() {
-        return Ok(int.cmp(&0));
-    }
-    if let Some(uint) = verdict.as_uint() {
-        return Ok(uint.cmp(&0));
-    }
-    if let Some(float) = verdict.as_float() {
-        return float.partial_cmp(&0.0).ok_or_else(|| {
-            Fault::thrown(format!(
-                "Core\\Arr::{member}'s comparator returned NaN, which has no ordering"
-            ))
-        });
-    }
-    Err(Fault::fatal(format!(
-        "Core\\Arr::{member}'s comparator returned tag {}, not a number",
-        verdict.tag_byte()
-    )))
+    crate::ordering::comparator_sign(verdict, &format!("Core\\Arr::{member}"))
 }
 
 /// A stable, bottom-up merge sort over `permutation`, with a comparison that

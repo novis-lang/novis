@@ -39,6 +39,18 @@ pub(crate) const NAME: &str = r"Core\ObjectMap";
 /// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
 pub(crate) const NEW_SYMBOL: &str = "mwl_core_object_map_new";
 
+/// `new Core\ObjectMap<K, V>()` — the constructor
+/// [`crate::registry::CONSTRUCTORS`] registers, which takes nothing: a map's
+/// order is its insertion order and its keying is `mwl_runtime::identity`'s,
+/// so there is nothing to give it.
+pub(crate) const NEW: CoreMethod = CoreMethod {
+    name: "constructor",
+    params: &[],
+    defaults: &[],
+    return_ty: CoreTy::Instance(NAME),
+    symbol: NEW_SYMBOL,
+};
+
 /// `Core\ObjectMap<K, V>` — docs/spec/01-core-library.md § 9's first row.
 ///
 /// **`get` returns `?V`, not a throwing read**: § 9 says so outright, because

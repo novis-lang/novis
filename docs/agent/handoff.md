@@ -2,55 +2,61 @@
 
 ## State
 
-**Spec § 2 is whole.** `Core\Arr::from` landed, and with it the parameter shape everything that reads a
-sequence now declares: `registry::CoreTy::Iterated`, ADR 0053 § 3's three shapes interned as one union
-(`array<T>|Iterable<T>|Iterator<T>`). Its own doc comment in `crates/mwl-stdlib/src/registry.rs` owns both
-decisions — that a plain `array<T>` satisfies it, and that a helper reads it *by tag* rather than from a
-pre-drained array. `crates/mwl-runtime/src/sequence.rs` is the one place such an argument is read: an array
-walked directly, a cursor driven by name through its class descriptor's own method table, the way
-`call_closure` already reaches a closure's `invoke`. Valgrind is clean over the new refcount edges.
+**Spec § 9 owes only its `Iterable` now.** `Core\Heap<T>` landed whole —
+`crates/mwl-stdlib/src/heap.rs` is one `array<T>` slot kept as a binary heap plus a `comparator` slot,
+and its own module doc owns the three decisions: `peek` answers the *smallest* element, `peek`/`pop`
+throw on an empty heap rather than answering `?T`, and the ordering is the constructor's comparator,
+else ADR 0013's `Comparable::compareTo`, else `crate::ordering::compare_values`. `comparator_sign`
+moved to `ordering.rs` (two domains read a verdict now); `arr.rs` keeps a one-line wrapper that
+qualifies the member name.
 
-Two checker holes were closed to make that shape work, both generic rather than special cases:
-`expr::assign`'s union target now recurses per member (so `?Animal` accepts a `Dog`, which it did **not**
-before — that is what `tests/conformance/lang/a-nullable-class-parameter-accepts-a-subclass.mwlt` pins),
-and `generics::bind` gained a union arm plus an `implements`-aware one, so `Iterable<T>` binds `T` from a
-class that fixed it in its `implements` clause. `bind` therefore takes the graph and the signature table now.
+Two capabilities landed under it, both general rather than heap-shaped:
 
-The ratchet (`crates/mwl-stdlib/tests/spec-members-outstanding.txt`) is down to **one key**, `§12
-Out::capture`, which lands with M4S's sink work — so every registerable §§ 1-12 member is registered.
-Conformance is 418 of 600, differential 89 of 150. `§ 9`'s `Core\Heap` and the `Iterable` its three rows
-declare are the only *unwritten* §§ 1-12 members left; § 10 owes the constructor's `{previous: $e}` shape
-and `$e->location`.
+- **A `Core` class's constructor may take arguments.** `registry::CONSTRUCTORS`'s second half is a
+  whole `CoreMethod` named `constructor`, `mwl_types::core_lib::seed` seeds it as an ordinary instance
+  signature, and `mwl-ir`'s `lower_new` lowers a `Core` `new` with **borrowed** arguments like every
+  other `CoreCall`. So `new Core\Heap<int>(3)` is `E0401` from the same machinery every `Core` call
+  uses. `Core\ObjectMap`/`ObjectSet` declare zero-parameter rows and are unchanged.
+- **A compiled instance member is reachable from native code by name** — `mwl_runtime::dispatch`,
+  promoted out of `sequence.rs` (which now uses it) and given an argument list. That is what closes
+  ADR 0013's "reaching an instance method from a helper is not built yet", and `Core\Arr::sort`'s
+  natural order over objects can now use it too — see the backlog.
 
-**A property's declared default is silently ignored** — `public int $n = 4;` reads back `0` unless a
-constructor assigns it. Found while writing the cursor for the `from` case; recorded in the plan's *Open
-now* and in `playbook.md`. It is a wrong value rather than a missing feature, so it outranks breadth under
-AGENTS.md's ordering — take it before the group below if you have the context for `mwl-ir`'s `new`.
+Verify is green (1530 tests). Valgrind is clean over the heap's own refcount edges
+(`.agent-tmp/heap-probe.mwl`, `heap-comparable.mwl`, `heap-empty.mwl`, `heap-peek-bind.mwl`).
 
-## Next group — § 9's collections finish the spec's Part I
+**A call result read straight through `->` is never released** — `$m->make()->name` loses the object
+every run, with no `Core` member involved. Found while valgrinding this slice; recorded in the plan's
+*Open now* and in `playbook.md`. It is a leak rather than a missing feature, so it outranks breadth,
+and it is item 1 below.
 
-**Shared file set:** a new `crates/mwl-stdlib/src/heap.rs`, `crates/mwl-stdlib/src/objset.rs` and
-`objmap.rs`, and `crates/mwl-stdlib/src/registry.rs` (`CLASSES` at `registry.rs:709`, `CONSTRUCTORS` at
-`registry.rs:749`). `objset.rs` is the model for both: `NEW_SYMBOL` at `objset.rs:19`, the `CoreClass` at
-`objset.rs:28` with its `instance:` roster at `:31` and `slots:` at `:96`, and `crate::instance::receiver`
-/`build` at `:127`/`:173`.
+## Next group — the two `mwl-ir` lowering holes that produce wrong runtime behaviour
 
-- [ ] **1. `Core\Heap<T>`** — `docs/spec/01-core-library.md:685` (`push`, `peek`, `pop`, `count`,
-      `isEmpty`), ordering by [ADR 0013](../adr/0013-comparable-interface.md)'s `Comparable` or by a
-      comparator given at construction. A `Core` instance's slots hold only values MWL already holds, so
-      the heap is an `array<T>` in one slot maintained through `identity_store::borrow`/`edit`/`replace`
-      — `Core\Hash\Stream` in `crates/mwl-stdlib/src/hash.rs` is the worked example of a *mutable* one.
-- [ ] **2. The `Iterable` all three of § 9's rows declare** — `docs/spec/01-core-library.md:683-685`. This
-      is the other direction from slice 1 above: a `Core`-owned class *implementing* a compiler-declared
-      interface, so `CoreClass` needs to say what it conforms to and `iterate()` has to answer with a
-      `Core`-owned cursor instance. `mwl_types::iter_lib` is where the interface's members are seeded, and
-      `mwl_types::signatures::resolve_iteration_element` is what a `foreach` asks.
+**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` (`lower_property_access` at `expr.rs:2814`, its
+`InstKind::FieldGet` at `expr.rs:2878`, the `new` arms at `expr.rs:2331`/`2479`), `lower/mod.rs`'s
+owned-temporaries stack, and `crates/mwl-codegen/src/emit.rs:471` (`InstKind::New`).
+
+- [ ] **1. A field read releases its base when the base is a temporary.** The producer hands back a
+      fresh reference and a field read consumes nothing, so `$h->peek()->name` leaks. The Core-call
+      arm at `expr.rs:2500`-ish is the shape to copy (`own_temporary` + `release_temporaries_since`),
+      but the field read must retain its *own* result first — today it borrows out of the object, which
+      is why binding to a local works and reading through does not.
+- [ ] **2. A property's declared default runs.** `public int $n = 4;` reads back `0` unless a
+      constructor assigns it (plan's *Open now*). Decide where it belongs — a synthesized prologue in
+      `mwl-ir` before the constructor body, or the slot fill at `emit.rs:471` — and say so in the
+      crate's module doc.
+- [ ] **3. § 9's `Iterable`**, which all three of its rows declare —
+      `docs/spec/01-core-library.md:683-685`. `mwl_runtime::sequence` already drives a cursor by name;
+      what is missing is a `Core` class *satisfying* `Iterable<T>`, which is
+      `crates/mwl-stdlib/src/instance.rs`'s question (a `Core` descriptor carries no method table).
 
 ## Backlog
 
-- **A property's declared default never runs** — the plan's *Open now*; a correctness item, not breadth.
-- `§12 Out::capture` — the last ratchet key, lands with M4S's sink work (plan's *Open now*).
-- § 10 owes the constructor's `{previous: $e}` options shape and `$e->location` — ADR 0071 § 5 needs them.
-- `Core\Json::decodeAs<T>` — `mwl_stdlib::json`'s gap 2; the call-site type argument it waited on exists.
-- Stage 4's counts are their own work: conformance 418/600, differential 89/150.
-- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir`'s own gaps).
+- `Core\Arr::sort` over objects still throws instead of using `Comparable` — `mwl_runtime::dispatch`
+  exists now, so `arr.rs:2710`'s known gap is a small slice (`ordering.rs` owns the message).
+- A `Core`-owned instance has no compiled method table, so a heap of `Core\Time\Instant` needs an
+  explicit comparator — `heap.rs`'s module doc, *Known gap*.
+- § 10 owes the constructor's `{previous: $e}` options shape and `$e->location` — plan's *Open now*.
+- § 6 owes `decodeAs<T>` (`json` gap 2); § 12 owes `Out::capture`, the one key left on the ratchet.
+- `do`/`while` does not lower; ADR 0043's `by`-delegation is off path — plan's *Open now*.
+- Stage 4's counts are their own work: conformance 419 of 600, differential 89 of 150.

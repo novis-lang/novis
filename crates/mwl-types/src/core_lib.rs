@@ -50,51 +50,71 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         {
             methods.insert(
                 method.name.to_owned(),
-                MethodSig {
-                    params: method
-                        .params
-                        .iter()
-                        .map(|param| lower(param, interner))
-                        .collect(),
-                    // ADR 0063 R7: nothing in `Core` mutates its subject, so
-                    // no `Core` parameter is ever by-reference. Not a gap in
-                    // the registry — a property of the convention.
-                    by_ref: vec![false; method.params.len()],
-                    // The last parameter's own shape says it — a
-                    // `CoreTy::Variadic` there and nowhere else, which that
-                    // variant's docs hold. `MethodSig::params` keeps the
-                    // *element* type in that slot, which is what
-                    // `MethodSig::param_at` hands every argument from that
-                    // position onward.
-                    variadic: method.variadic().is_some(),
-                    defaults: defaults_of(method),
-                    // The registry's own first-appearance order, never
-                    // recomputed here — see `CoreMethod::written`.
-                    type_params: method.written().into_iter().map(str::to_owned).collect(),
-                    return_ty: lower(&method.return_ty, interner),
-                    // A `Core` member is reachable exactly one way (ADR 0063
-                    // R20): a static one through its class name, an instance
-                    // one through a value. The registry states which by which
-                    // roster the row is written in — see
-                    // `mwl_stdlib::registry::CoreClass::instance`.
-                    is_static,
-                    interface_private: false,
-                    // Every registered row is part of `Core`'s surface — the
-                    // registry has no way to write an internal one, so there
-                    // is nothing here for ADR 0094's levels to say.
-                    visibility: mwl_syntax::ast::Visibility::Public,
-                    // Native Rust behind a helper symbol, not a compiled MWL
-                    // function — but it is code, so a call never needs to go
-                    // looking for an override.
-                    has_body: true,
-                },
+                method_sig(method, is_static, interner),
             );
+        }
+        // A `Core` class is constructible only where
+        // `mwl_stdlib::registry::CONSTRUCTORS` says so, and that roster's row
+        // is a `CoreMethod` like any other — so `new Core\Heap<T>($by)` is
+        // arity- and type-checked by exactly the machinery every other `Core`
+        // call goes through, rather than by a second rule reachable only from
+        // `new`. It is an *instance* member, because the receiver a compiled
+        // call would pass is the instance being built; nothing resolves it as
+        // a static one.
+        if let Some(new) = mwl_stdlib::registry::constructor_of(class.name) {
+            methods.insert(new.name.to_owned(), method_sig(new, false, interner));
         }
         // No properties, for either kind: a `Core` instance's slots are
         // `mwl-stdlib`'s layout rather than a surface a program reads, so
         // `$match->groups` is an unknown member and `$match->groups()` is the
         // member. `mwl_stdlib::registry::CoreTy::Instance` owns why.
         table.seed_class(qname, FxHashMap::default(), methods);
+    }
+}
+
+/// One registry row as the checker's own signature.
+fn method_sig(
+    method: &mwl_stdlib::registry::CoreMethod,
+    is_static: bool,
+    interner: &mut TypeInterner,
+) -> MethodSig {
+    MethodSig {
+        params: method
+            .params
+            .iter()
+            .map(|param| lower(param, interner))
+            .collect(),
+        // ADR 0063 R7: nothing in `Core` mutates its subject, so
+        // no `Core` parameter is ever by-reference. Not a gap in
+        // the registry — a property of the convention.
+        by_ref: vec![false; method.params.len()],
+        // The last parameter's own shape says it — a
+        // `CoreTy::Variadic` there and nowhere else, which that
+        // variant's docs hold. `MethodSig::params` keeps the
+        // *element* type in that slot, which is what
+        // `MethodSig::param_at` hands every argument from that
+        // position onward.
+        variadic: method.variadic().is_some(),
+        defaults: defaults_of(method),
+        // The registry's own first-appearance order, never
+        // recomputed here — see `CoreMethod::written`.
+        type_params: method.written().into_iter().map(str::to_owned).collect(),
+        return_ty: lower(&method.return_ty, interner),
+        // A `Core` member is reachable exactly one way (ADR 0063
+        // R20): a static one through its class name, an instance
+        // one through a value. The registry states which by which
+        // roster the row is written in — see
+        // `mwl_stdlib::registry::CoreClass::instance`.
+        is_static,
+        interface_private: false,
+        // Every registered row is part of `Core`'s surface — the
+        // registry has no way to write an internal one, so there
+        // is nothing here for ADR 0094's levels to say.
+        visibility: mwl_syntax::ast::Visibility::Public,
+        // Native Rust behind a helper symbol, not a compiled MWL
+        // function — but it is code, so a call never needs to go
+        // looking for an override.
+        has_body: true,
     }
 }
 

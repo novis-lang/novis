@@ -200,6 +200,7 @@ mod encoding;
 mod format;
 pub mod granularity;
 mod hash;
+mod heap;
 mod identity_store;
 mod instance;
 mod issue;
@@ -258,7 +259,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // [`registry::CONSTRUCTORS`] and `instance`'s module docs — so the two
         // rosters are chained rather than the constructor being folded into
         // one of them.
-        .chain(registry::CONSTRUCTORS.iter().map(|(_, symbol)| *symbol))
+        .chain(registry::CONSTRUCTORS.iter().map(|(_, new)| new.symbol))
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
 }
@@ -275,6 +276,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| csv::address(symbol))
         .or_else(|| encoding::address(symbol))
         .or_else(|| hash::address(symbol))
+        .or_else(|| heap::address(symbol))
         .or_else(|| json::address(symbol))
         .or_else(|| math::address(symbol))
         .or_else(|| objmap::address(symbol))
