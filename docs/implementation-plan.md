@@ -12,22 +12,26 @@
 > last one open was a *name*, `an_autoload_declaration_resolves_a_name_to_its_file`, which the file
 > required and which existed nowhere, so sixteen sessions read the same phantom ledger line while
 > Stages 1-5 went unevaluated. With it written, `python tools/loop.py --goal-only` reaches Stage 3's
-> last fixture and stops at `examples/collect.mwl:13` on `new Core\ObjectSet<Tag>()`, which does not
-> parse — so what is left below Stage 4 is one parser hole, and Stage 4's own counts (conformance
-> 369 of 600, differential 86 of 150) are the wall behind it. **ADR 0087's lexer half is built** —
-> `mwl_syntax::bidi` is the one predicate an unterminated directional control is rejected by,
-> `E0008` at the lexer and, at M7/M8, a substitution at both sinks. **ADR 0090 §§ 1 and 2 are
-> built**: `==`/`!=` are the only equality spellings, `===`/`!==` are `E0232` at the lexer (consumed
-> whole, reported, then lexed as the two-character operator so a file still reports its other
-> problems), `BinaryOp::Identical`/`NotIdentical` are gone from the AST, and two statically disjoint
-> operands are `E0466` — at `==`/`!=`, and at the `switch` label and `match` arm § 6 points at the
-> same rule. **What that ADR still owes** is § 3's string, array and object rows, one runtime helper
-> each (M3/M4). **ADR 0069's `+`/`+=` refusal is built too**, `E0467` naming `Core\Arr::underlay`.
-> **The goal behind the catch-up is unchanged: M4S Part I in full — spec §§ 1-12 — plus the M4
-> surface it cannot be written without.** Every representation that blocked a section is built and
-> recorded in the crate that owns it: `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict
-> identity is `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance
-> is an ordinary MWL object (`mwl_stdlib::instance`), and a variadic tail is one `array<T>` argument
+> last fixture, `examples/collect.mwl`, which is now past its parser hole: `new
+> Core\ObjectSet<Tag>()` parses, because `ExprKind::New` carries a `type_args` list read by the same
+> checkpointed trial parse a call site's own `<...>` goes through. What the fixture reports instead
+> is the work behind it, in order: no target has a type parameter to bind yet (`E0441` at lines 13
+> and 19 — the `Core`-owned generic-class roster and § 9's three collections), then
+> `Core\Encoding`/`Core\Hash` at line 25. Stage 4's own counts (conformance 370 of 600, differential
+> 86 of 150) are the wall after that. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the
+> one predicate an unterminated directional control is rejected by, `E0008` at the lexer and, at
+> M7/M8, a substitution at both sinks. **ADR 0090 §§ 1 and 2 are built**: `==`/`!=` are the only
+> equality spellings, `===`/`!==` are `E0232` at the lexer (consumed whole, reported, then lexed as
+> the two-character operator so a file still reports its other problems),
+> `BinaryOp::Identical`/`NotIdentical` are gone from the AST, and two statically disjoint operands
+> are `E0466` — at `==`/`!=`, and at the `switch` label and `match` arm § 6 points at the same rule.
+> **What that ADR still owes** is § 3's string, array and object rows, one runtime helper each
+> (M3/M4). **ADR 0069's `+`/`+=` refusal is built too**, `E0467` naming `Core\Arr::underlay`. **The
+> goal behind the catch-up is unchanged: M4S Part I in full — spec §§ 1-12 — plus the M4 surface it
+> cannot be written without.** Every representation that blocked a section is built and recorded in
+> the crate that owns it: `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict identity is
+> `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance is an
+> ordinary MWL object (`mwl_stdlib::instance`), and a variadic tail is one `array<T>` argument
 > (`registry::CoreTy::Variadic`) — so **every signature shape the spec writes can now be stated**,
 > and a section that is not built is only unwritten. **Every M4 control-flow statement lowers but
 > `do`/`while`**, and ADR 0070's duration literal lexes, types and runs. Sections whole or nearly:
