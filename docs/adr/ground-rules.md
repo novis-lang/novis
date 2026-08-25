@@ -115,6 +115,9 @@ spellings rejected, and the reasoning.
   ([0029](0029-identifier-casing-is-checked.md)).
 - **No identifier may start with `_`, and the constructor is spelled `constructor`**
   ([0030](0030-no-leading-underscores-constructor-spelling.md)).
+- **Every member declaration writes a visibility and there is no implicit `public`** — a plain constructor
+  parameter is exempt, because visibility is what promotes one to a property
+  ([0094](0094-visibility-is-written-at-every-member-declaration.md)).
 - **Nothing depends on the case something was typed in, or on the filesystem's opinion of it**
   ([0062](0062-case-sensitivity-is-a-compiler-property.md)).
 - **A bidirectional control that opens a scope and never closes it is a compile error in source and is

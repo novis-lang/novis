@@ -101,6 +101,7 @@ so you never have to open this file to route a topic.
 | `stdClass`, an anonymous object literal `{a: 1}`, the `object` type, an inline `{name: T}` shape type | [0036](0036-anonymous-object-shapes.md) |
 | Naming conventions, `PascalCase`/`camelCase`/`SCREAMING_SNAKE_CASE`, acronym spelling, identifier casing | [0029](0029-identifier-casing-is-checked.md) |
 | Leading underscores in identifiers, whether the constructor is `__construct` or `constructor` | [0030](0030-no-leading-underscores-constructor-spelling.md) |
+| Whether a member may omit `public`/`protected`/`private`, what an omission means, `var $x`, a bare `private(set)`, whether a plain constructor parameter needs one | [0094](0094-visibility-is-written-at-every-member-declaration.md) |
 | `$_SERVER`, `$_GET`/`$_POST`, `$_SESSION`, `$_ENV`, `$GLOBALS`, `$argv`, or anything PHP populates ambiently | [0012](0012-no-superglobals.md) |
 | Comparing two objects with `<`/`>`/`<=>`, operator overloading, `Comparable` | [0013](0013-comparable-interface.md) |
 | `==` vs `===`, loose comparison, type juggling, why `"1" == 1` does not compile, what two strings/arrays/objects compare by, `__equals`, comparing a `mixed` | [0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) |
@@ -254,6 +255,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) | `mwl service` registers this binary with the platform's service manager and stores one verbatim argv, and the installer is a sink that fails closed — a closed subcommand allowlist, quoted absolute paths, a per-service virtual account, and on Linux a printed unit rather than a written one | Accepted |
 | [0091](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) | A run mode is two closed values defaulting to production, set in `mwl.toml` or by `--mode` and never by an environment variable, selecting the defaults of four named directives and governing nothing else, readable and flippable per request under a `System`-class ceiling that defaults to the mode the server started in | Accepted |
 | [0092](0092-one-diagnostic-record-three-renderings.md) | Logs, dumps, throwables, test results and compiler diagnostics are one closed record model rendered as plaintext, JSON or HTML by the sink already in force rather than by any call site, with redaction, control-byte and bidi substitution and elision decided once in the model, and a dump reaching a response body only in development mode | Accepted |
+| [0094](0094-visibility-is-written-at-every-member-declaration.md) | Every member declaration writes one of `public`/`protected`/`private` and an omission is a hard error — there is no implicit `public`, the asymmetric form is written as a pair, and a plain constructor parameter is exempt because visibility is what promotes one to a property | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

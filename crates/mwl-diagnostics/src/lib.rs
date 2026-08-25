@@ -159,6 +159,14 @@ pub mod code {
     /// singleton type, and a type has no scope to interpolate a variable
     /// from.
     pub const E_INTERPOLATION_IN_TYPE: Code = Code::new("E0121");
+    /// A member declaration — property, class constant or method, in a
+    /// `class`, `interface` or anonymous-class body — carrying no
+    /// `public`/`protected`/`private`, or PHP 8.4's `(set)` form written
+    /// without its read visibility. There is no implicit `public`; see
+    /// [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md).
+    /// **Not emitted yet** — the number is claimed by that ADR, and the
+    /// check is Stage 0 item 9 of the loop goal.
+    pub const E_MISSING_VISIBILITY: Code = Code::new("E0122");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
