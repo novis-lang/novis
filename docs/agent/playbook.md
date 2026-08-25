@@ -72,6 +72,12 @@ is why" — is this file.
   and copy the `> `-prefixed lines around it. `plan.py --set FIELD --from <file>` rewrites the whole
   field from a file written with the Write tool, which is the other way and the only one for a field-wide
   change.
+- **A `**Bold phrase:**` inside a field body silently becomes an eighth status field.** `plan.py` finds
+  fields with `^> \*\*([^*:]+):\*\*`, and it re-wraps what you `--set`, so a bolded lead that ends in a
+  colon and happens to land at the start of a wrapped line is parsed as a new field name on the next read —
+  which AGENTS.md's fixed field set forbids. Write `**Bold phrase** —` instead; the colon outside the
+  asterisks is invisible to the regex. The symptom is `python tools/plan.py` listing eight fields, and the
+  fix is `git checkout -- docs/implementation-plan.md` followed by the `--set` again.
 - **Making a type `pub` owes it a `#[derive(Debug)]`.** The workspace denies `missing_debug_implementations`,
   so promoting a private struct to the public API compiles and then fails at clippy — step 3 of four, after
   the tests have already run. Add the derive in the same edit as the `pub`, not after `verify.py` says so.
