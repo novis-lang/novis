@@ -107,6 +107,12 @@ is why" — is this file.
 
 ## Writing a test case
 
+- **A row the checker accepts is not a row that runs.** `mwl-codegen` refuses a binary operator over two
+  representations — `int == float`, `uint == int` — with *"does not lower a binary operator over
+  mismatched representations"*, even though ADR 0090 § 2 makes the numeric types one domain and
+  `mwl-types` accepts every pairing among them. A conformance case written straight off an ADR's
+  compiling rows can therefore fail at run time; pin those rows in the crate's own `tests/` until the
+  lowering exists, and say in the case comment why they are not here.
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — CI runs that suite on all three hosted
   runners and none of them has PHP, so an oracle section makes the runner *skip the whole case* there,
   subtracting from the very count Stage 4 measures. Verify against PHP while authoring — `php -r '…'` is

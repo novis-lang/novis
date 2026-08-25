@@ -1,90 +1,65 @@
-# Next session prompt
-
-Where the work stands right now. This file is **state**, overwritten every session and never appended to.
-The traps and recipes that outlive a session are in [playbook.md](playbook.md); the rules that bind every
-agent are in [AGENTS.md](../../AGENTS.md); `python tools/orient.py` is the rest of the orientation.
+# Handoff
 
 ## State
 
-**Stage 0 item 1 is done: `===`/`!==` no longer exist.** The lexer consumes either spelling whole, reports
-**`E0232`** (`E_IDENTITY_OPERATOR_UNSUPPORTED`) naming the two-character replacement, and pushes
-`EqualsEquals`/`BangEquals` so one file still reports every one of its own problems in one run.
-`TokenKind::EqualsEqualsEquals`/`BangEqualsEquals` and `BinaryOp::Identical`/`NotIdentical` are deleted, so
-`mwl_types::locals::null_test` and `mwl-ir`'s `lower_null_identity` both read `Eq`/`NotEq` now — that half
-of Stage 0 item 3 moved here because deleting the variants forced it. 48 files and 93 lines of corpus were
-rewritten; a `--ORACLE--` body is PHP and was left alone.
+**Stage 0 items 1, 2 and 8 are done.** `===`/`!==` no longer exist (`E0232` at the lexer); two statically
+disjoint operands are **`E0466`** from `mwl_types::expr::operators::reject_disjoint_equality`, which
+`==`/`!=`, a `switch` label and a `match` arm all reach — ADR 0090 § 6 makes the last two the same check
+against the subject; and `+`/`+=` with an array operand is **`E0467`** naming `Core\Arr::underlay`
+(ADR 0069 § 2), recovering to the array type so `$a += $b` reports once rather than twice.
 
-**The band choice is a deviation from what loop-goal.md predicted, made deliberately.** That file said
-E00xx because the lexer emits it; the code is E02xx because that band *is* "rejected PHP constructs", every
-sibling ADR (0034/0045/0049/0050) lives there, and `E_RESERVED_SPELLING_CASE` is already a lexer-emitted
-member of it. The band comment in `mwl-diagnostics` now names the two lexical members explicitly.
+The disjointness predicate is **one-sided on purpose** — it refuses only where disjointness is provable
+from the two types alone, so `mixed`, `iterable`, an intersection, a union with any overlapping member and
+any class name this compilation did not declare all pass. `types_are_disjoint`'s own doc comment owns why;
+do not "tighten" it without reading that first.
 
-Four `.mwlt` cases were renamed from `identity-*` to `equality-*`, and
-`tests/conformance/lang/equality-over-strings-and-bools.mwlt` gained ADR 0090 § 3's divergent string row
-(`"1" == "01"` and `"1e3" == "1000"` are both false) — its old `==` vs `===` contrast became a duplicate.
+`python tools/verify.py` is green (1321 tests) and `mwl test tests/` is 421 passed / 0 failed.
 
-`python tools/verify.py` is green (1303 tests), and `mwl test tests/` is 418 passed / 0 failed with the
-PHP oracle available. `examples/errors.mwl`, the one Stage 1 floor fixture the rewrite touched, still
-prints its frozen output exactly.
+**One gap this uncovered:** ADR 0090 § 2 makes `int`/`uint`/`float`/`decimal` **one domain**, so the checker
+now accepts `$n == $f` — but `mwl-codegen` refuses it at
+[emit.rs:861](../../crates/mwl-codegen/src/emit.rs#L861) (*"a binary operator over mismatched
+representations"*). Those rows are pinned in `crates/mwl-types/tests/equality.rs` and deliberately left out
+of the conformance case, which says so in a comment. That is item [2] below.
 
-**Orientation changed, and it is now one call: `python tools/orient.py`.** It slices your whole step 1 out
-of the `[context]` manifest in `loop-goal.toml` — your item in full, the standing decisions, the ADR
-*sections* the goal names, the map lines for its files, the shapes and traps that apply. `brief.py` is
-still the unscoped version; if you need something the pack did not print, fetch that one thing and name the
-missing `[context]` field here. `AGENTS.md` shrank to 9k accordingly: the ground rules are now
-[docs/adr/ground-rules.md](../adr/ground-rules.md), the commands
-[docs/agent/commands.md](commands.md), the doc rules [docs/agent/doc-style.md](doc-style.md).
+**`orient.py` did not print three things I needed.** `[context] modules` in `loop-goal.toml` is missing
+`mwl-types/src/ty.rs` (the `Ty` enum — every rule over types starts there) and the whole of `mwl-hir`
+(`symbol.rs`'s `SymbolKind`, `hierarchy.rs`'s `implements_interface`); `[context] shapes` has no entry for
+a `mwl-types` integration test, whose harness is `crates/mwl-types/tests/common/mod.rs`.
 
-## Next group — the equality pass (Stage 0 items 2, 8, 3)
+## Next group — ADR 0090 § 3 at runtime (Stage 0 item 3, then its lowering)
 
-**Shared file set:** `crates/mwl-types/src/expr/operators.rs` (items 2 and 8 are two arms of it) and
-`crates/mwl-diagnostics/src/lib.rs`. One ADR, one semantic surface, six of `loop-goal.toml`'s named Stage 0
-tests. In this order — item 2's table is what decides which operand pairs can reach item 3's helpers.
+**Shared file set:** `crates/mwl-runtime/src/identity.rs`, `crates/mwl-ir/src/lower/expr.rs` and
+`crates/mwl-codegen/src/emit.rs`. One ADR section, one lowering path, the three `mwl-runtime` tests
+`loop-goal.toml` names. In this order — [1] defines the helpers, [2] is the representation question their
+call sites raise.
 
-**Item 2 is the session. Item 8 is the natural second** if item 2 left you well short of the context
-ceiling, being one arm over in the same file. **Item 3 is almost certainly its own session**: it opens
-`crates/mwl-runtime/` and `crates/mwl-ir/src/lower/`, which is a fresh read, not a shared one.
-
-- [ ] **Item 2 — ADR 0090 § 2: two statically disjoint operands do not compile** (M2). A new E04xx code
-      (`brief.py` prints the next free one) over
-      [that ADR](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 2's table:
-      `string` against `int`, `string` against `bytes`, an enum against its underlying integer, two
-      unrelated classes, and a non-nullable type against `null`. Its § 6 makes a `switch` label and a
-      `match` arm the same check against the subject. The site is
-      [operators.rs:104](../../crates/mwl-types/src/expr/operators.rs#L104) — the `Eq | NotEq` arm, which
-      returns `bool` for every operand pair today. Tests: `a_disjoint_equality_does_not_compile`, plus
-      `an_equality_null_test_narrows` — the behaviour that one pins already exists, only the test is owed.
-- [ ] **Item 8 — ADR 0069: `array + array` does not compile** (M4's *Verify* list). `arithmetic_result`
-      at [operators.rs:191](../../crates/mwl-types/src/expr/operators.rs#L191) falls through to `mixed`
-      with no diagnostic for two array operands, and `$a += $b` with it. Same file as item 2, one arm
-      over. Test: `two_arrays_do_not_combine_with_plus`.
-- [ ] **Item 3 — ADR 0090 § 3's three non-scalar rows** (M3/M4). The narrowing half landed with item 1;
-      what is left is one runtime helper each for strings (text, never numeric), arrays (ordered,
-      element-wise, recursive) and objects —
-      [identity.rs:108](../../crates/mwl-runtime/src/identity.rs#L108) `value_identical` already is the
-      object comparison — with § 5's `mixed` pairing answering `false` and never throwing, plus the IR
-      lowering that reaches them. Tests: `equal_strings_compare_as_text_and_never_as_numbers`,
+- [ ] **Item 3 — ADR 0090 § 3's three non-scalar rows** (M3/M4). A helper each for strings (text, never
+      numeric), arrays (ordered, element-wise, recursive) and objects (identity), plus § 5's `mixed`
+      pairing answering `false` and never throwing. `mwl_runtime::identity::value_identical` at
+      [identity.rs:108](../../crates/mwl-runtime/src/identity.rs#L108) is the comparison already defined
+      and *not yet wired to `==`* — that module doc says so in its first paragraph. The string row may
+      already be done: [emit.rs:869](../../crates/mwl-codegen/src/emit.rs#L869) routes `Ty::Str`/`Ty::Bytes`
+      equality through `mwl_str_eq` rather than an `icmp`. Wiring point is
+      [expr.rs:162](../../crates/mwl-ir/src/lower/expr.rs#L162)'s `Eq | NotEq` dispatch and
+      [expr.rs:1946](../../crates/mwl-ir/src/lower/expr.rs#L1946) `lower_binary`. Tests:
+      `equal_strings_compare_as_text_and_never_as_numbers`,
       `equal_arrays_compare_ordered_and_element_wise`, `equal_objects_compare_by_identity`.
-
-**The next group after this one** is Stage 0 items 4, 5 and 6 — ADR 0047 § 4's literal and enum-case type
-atoms, `private`/`protected` enforcement, and `Comparable`/`Stringable`'s member signatures. All three are
-`mwl-types` name-and-member resolution keyed on the accessing class, so they share their file set the same
-way. Item 7 (`autoload`) is `mwl-syntax` + `mwl-hir` and shares nothing with either — it gets its own.
+- [ ] **Item 3b — cross-representation numeric equality lowers.** `emit_binop` at
+      [emit.rs:850](../../crates/mwl-codegen/src/emit.rs#L850) rejects two representations outright;
+      ADR 0090 § 2's numeric row and § 3's "mathematically equal across the whole domain" both need one
+      side widened first. When it lands, restore the dropped rows to
+      `tests/conformance/lang/equality-across-overlapping-types-still-compiles.mwlt` and delete the comment
+      that explains their absence.
 
 ## Backlog
 
-- **The rest of Stage 0, in [loop-goal.md](loop-goal.md)'s order** — items 4, 5, 6 as one group and
-  item 7 (`autoload`) as its own, both named under *Next group* above.
-- **`Core\Path` — spec § 11** — the cheapest slice inside `examples/collect.mwl` and the first thing after
-  Stage 0: `join` (variadic, which exists), `basename({withoutExtension})`, `extension(): ?string`,
-  `SEPARATOR`, no new dependency. loop-goal.md § *Standing decisions* has the two-legs rule for `SEPARATOR`.
-- **`Core\Encoding`, `Hash`, `Uuid`, `Csv`, `Validate`, `Random`, `Out`, `Uri::parseQuery`** — the rest of
-  that fixture; each needs a dependency picked under [ADR 0051](../adr/0051-standard-library-tiers.md) § 4.
-- **`Core\ObjectSet`/`ObjectMap`** — spec § 8, and the one item needing *language* work first:
-  `new Core\X<T>()` does not parse. `mwl_runtime::identity` is the comparison they need, and is also what
-  ADR 0090 § 3's object row lowers to.
-- **The registry's qualifier classification** — [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-  § 2: a per-parameter field on `mwl-stdlib`'s member rows, the fail-closed default, and the test that
-  refuses an unclassified member. Lands with M4S's remaining sections.
-- **`Core\Time\Date`/`TimeOfDay`/`Month`, `DateTime::date`/`timeOfDay`/`withTime`** — `time.rs`'s gap 1;
-  the machinery exists, so each is a registry row and a body.
+- **ADR 0047 § 4** — the literal and enum-case type atoms are checked, not refused by name
+  (`docs/agent/loop-goal.md` § *Stage 0* item 4; test `a_literal_type_atom_is_checked`).
+- **`private`/`protected` are enforced** — nothing enforces them on a class member (same list, item 5).
+- **`Comparable`/`Stringable` carry their member signatures** — `$s->toString()` is `E0405` today, and
+  `instanceof Stringable` panics `mwl-ir` (same list, item 6).
+- **ADR 0061** — `autoload` grammar plus the name-to-file fixpoint over `mwl_hir::requires` (item 7).
+- **ADR 0069's combination members** — `overlay`/`underlay`/`appendAll`/`overlayDeep` in `Core\Arr`; the
+  *refusal* landed, the members are M4S (that ADR's *Verification*).
+- **`examples/collect.mwl`** is the next Stage 3 fixture, needing spec §§ 7-9 and 11-12 at once
+  (`docs/implementation-plan.md` § *Open now*).

@@ -30,12 +30,11 @@ one is how an item finishes.
    lexer, which consumes the three characters and pushes the two-character token so one file still
    reports every one of its own problems; `TokenKind::EqualsEqualsEquals`/`BangEqualsEquals` and
    `BinaryOp::Identical`/`NotIdentical` are gone, and the whole corpus is rewritten.
-2. **ADR 0090 § 2 — two statically disjoint operands do not compile** (M2). A new E04xx code, over the
-   table in that ADR: `string` against `int`, `string` against `bytes`, an enum against its underlying
-   integer, two unrelated classes, and a non-nullable type against `null`. Its § 6 makes a `switch` label
-   and a `match` arm the same check against the subject. `mwl_types::expr::operators`' equality arm returns
-   `bool` for every operand pair today, and `mwl-types`' own gap list says no such check exists for *any*
-   pair — this is that pass.
+2. ~~**ADR 0090 § 2 — two statically disjoint operands do not compile** (M2).~~ **Done.** `E0466` over
+   the whole of that ADR's table, from `mwl_types::expr::operators`' `reject_disjoint_equality`, which
+   `==`/`!=`, a `switch` label and a `match` arm all reach (§ 6). The predicate is one-sided on purpose —
+   it refuses only where disjointness is provable from the two types alone — and that function's own doc
+   comment owns why.
 3. **ADR 0090 § 3 — the three non-scalar rows** (M3/M4; `mwl-ir`'s gap 19 owns it). The null test moved
    with item 1, because deleting the spelling forced it: `mwl_types::locals::null_test` and
    `lower_null_identity` both read `Eq`/`NotEq` now. What is left is one runtime helper each for strings
@@ -54,8 +53,9 @@ one is how an item finishes.
 7. **ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint). The two file-scope declaration
    forms `docs/spec/00-overview.md` § 2 fixes, then name-to-file resolution as a fixpoint over the
    require-graph worklist `mwl_hir::requires` already walks.
-8. **ADR 0069 — `array + array` does not compile** (M4's *Verify* list). `arithmetic_result` falls through
-   to `mixed` with no diagnostic for two array operands, and `$a += $b` with it.
+8. ~~**ADR 0069 — `array + array` does not compile** (M4's *Verify* list).~~ **Done.** `E0467` from
+   `reject_array_combination`, naming `Core\Arr::underlay`; `+=` reaches it through `binary_result` and
+   reports once, because the recovery type is the array operand rather than `mixed`.
 
 **Already done, and listed so it is not re-opened:** ADR 0087's lexer half is built — `mwl_syntax::bidi` is
 the one predicate, the lexer makes it `E0008` over comments, string literals and inline HTML per line, and
