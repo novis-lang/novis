@@ -1,0 +1,70 @@
+# Every member `docs/spec/01-core-library.md` §§ 1-12 writes as a table row that
+# `mwl_stdlib::registry::CLASSES` does not declare yet. One key per line,
+# `§<section> <the Member cell's own spelling>`.
+#
+# `tests/spec_registry_coverage.rs` owns this file and its own module doc says why
+# it exists rather than the test simply failing. The list **only shrinks**: adding
+# a member and striking its line here are one edit, and the test fails on a stale
+# line as loudly as on an unlisted one. When this file holds no keys, spec §§ 1-12
+# is registered whole.
+#
+# Grouped by section for reading; the test compares sets, so order means nothing
+# to it.
+
+# § 1 `Core\Str` — the text-shaping half
+§1 chunk
+§1 codePoints
+§1 compare
+§1 fold
+§1 fromCodePoint
+§1 fromCodePoints
+§1 graphemes
+§1 lines
+§1 normalize
+§1 replaceAll
+§1 replaceRange
+
+# § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
+§2 append
+§2 appendAll
+§2 chunk
+§2 column
+§2 diff
+§2 flatten
+§2 flattenDeep
+§2 from
+§2 groupBy
+§2 intersect
+§2 mapKeys
+§2 overlay
+§2 overlayDeep
+§2 prepend
+§2 reduce
+§2 replaceRange
+§2 slice
+§2 sortByKey
+§2 underlay
+
+# § 4 `Core\Time` — the `Date`/`TimeOfDay` component views
+§4 date
+§4 timeOfDay
+§4 withTime
+
+# § 5 `Core\Regex` — both need `Pattern`
+§5 compile
+§5 replaceWith
+
+# § 11 `Core\Random`, `Core\Hash`
+§11 Hash::stream
+§11 Random::bytes
+
+# § 12 `Core\Uri`, `Core\Csv`, `Core\Out`
+§12 $uri->resolve
+§12 $uri->with
+§12 Csv::format
+§12 Csv::parse
+§12 Out::capture
+§12 Uri::buildQuery
+§12 Uri::isValid
+§12 Uri::parse
+§12 Uri::parseQuery

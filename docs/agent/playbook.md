@@ -127,6 +127,13 @@ is why" — is this file.
   `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
   [conventions.md](conventions.md) writes all four out; `python tools/brief.py`'s *anchors* block
   resolves each spelling to a file and line.
+- **A spec §§ 1-12 member owes a *fifth* thing: striking its line from
+  `crates/mwl-stdlib/tests/spec-members-outstanding.txt`.** That file is the outstanding-member ratchet
+  `tests/spec_registry_coverage.rs` reads, and the test fails on a **stale** line — one naming a member
+  that is registered now — exactly as loudly as on an unregistered member the file does not list. So the
+  failure you see after landing a member is not a regression; it is the list telling you it did not
+  shrink. Its keys are `§<section> <the spec's own Member-cell spelling>`, which is why `§1 chunk` and
+  `§2 chunk` are two different lines.
 - **A new domain module is `mod`, not `pub mod`, so its `CLASS`/`NAME` are `pub(crate)`.** The
   workspace warns `unreachable_pub`, and half of `mwl-stdlib`'s modules are `pub mod` while the newer
   half is not — copying `uuid.rs`'s `pub const NAME` into a privately-declared module is a warning at
