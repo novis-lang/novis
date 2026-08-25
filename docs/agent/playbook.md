@@ -317,6 +317,11 @@ is why" — is this file.
   is *refused* is everything else: `= null`, an enum case, a `decimal`, a non-empty array literal and
   a `Class::CONST` are all `E0472`, so a case reaching for one gets a diagnostic rather than a wrong
   value. A `static` property is skipped entirely — it occupies no instance slot.
+- **Two `foreach` headers in one file may reuse a binding name only at the same type.** A binding is
+  function-scoped, so `foreach ($names as string $n)` followed later by `foreach ($heap as int $n)` is
+  `E0406: `$n` is already declared` pointing at the *second* header — while a second `string $n` walk is
+  fine, which is why the rule looks like it is not there until the third loop. A case walking two
+  differently-typed collections needs two names.
 
 ## Splitting a file that got too big
 

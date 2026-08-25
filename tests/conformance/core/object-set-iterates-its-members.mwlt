@@ -1,0 +1,32 @@
+--TEST--
+A `foreach` over a `Core\ObjectSet<T>` yields each member once, in insertion order, and a second pass sees them all again — docs/spec/01-core-library.md § 9, ADR 0053 §§ 1, 3
+--FILE--
+<?mwl
+Core\ObjectSet<string> $names = new Core\ObjectSet<string>();
+$names->add("ada");
+$names->add("grace");
+// A set holds each value once, so the walk yields two names, not three.
+$names->add("ada");
+
+foreach ($names as string $name) {
+    echo $name, "\n";
+}
+
+// `Iterable::iterate()` hands a *fresh* cursor, so a set is not single-pass.
+int $count = 0;
+foreach ($names as string $again) {
+    $count = $count + 1;
+}
+echo $count, "\n";
+
+// An empty collection runs the body no times at all.
+Core\ObjectSet<string> $none = new Core\ObjectSet<string>();
+foreach ($none as string $never) {
+    echo "unreachable\n";
+}
+echo "done\n";
+--EXPECT--
+ada
+grace
+2
+done

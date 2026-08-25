@@ -217,6 +217,34 @@ pub(crate) fn replace(receiver: *mut ObjHeader, index: usize) {
     crate::instance::set_slot(receiver, index, Value::array(MwlArray::new()));
 }
 
+/// Every value a store holds, in the store's own order, as a fresh MWL list.
+///
+/// Each entry is retained: the store outlives the call, so the list needs a
+/// reference of its own — the rule [`crate::arr`] applies everywhere it copies
+/// an entry out of a borrowed subject. This is what a `keys()`/`values()` row
+/// answers with and what a `foreach` walks ([`crate::cursor`]), which is why
+/// it lives here rather than on either collection.
+pub(crate) fn listed(store: &MwlArray) -> MwlArray {
+    let mut out = MwlArray::new();
+    let mut from = 0usize;
+    while let Some(slot) = store.next_slot(from) {
+        if let Some(value) = store.value_at(slot) {
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the store, which outlives this \
+                          call, so the copy stored here needs a reference of \
+                          its own"
+            )]
+            unsafe {
+                value.retain();
+            }
+            out.append(value);
+        }
+        from = slot + 1;
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

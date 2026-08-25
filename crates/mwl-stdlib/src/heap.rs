@@ -15,6 +15,11 @@
 //! is one comparator away — `fn ($a, $b) => $b->compareTo($a)` — while the
 //! opposite default would leave a min-heap needing exactly the same wrapper.
 //!
+//! **A `foreach` over a heap yields `pop` order and consumes nothing** — see
+//! [`sorted`], which drains a *copy* of the entries. That is the only order a
+//! heap has anything to say about; the entries array's own order is an
+//! implementation detail of the tree.
+//!
 //! **`peek` and `pop` throw on an empty heap.** § 9's row gives the class an
 //! `isEmpty`, which is the question, and [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
 //! R5 bans the `peekOrNull` twin that a `?T` return would otherwise invite.
@@ -33,10 +38,12 @@
 //! `Core\Arr::sort`'s `{comparator: …}` has over its own natural order.
 //!
 //! **Known gap:** a `Core`-owned instance — a `Core\Time\Instant`, say —
-//! declares `compareTo` in the registry but carries no compiled method table
-//! on its descriptor, so step 2 does not find it and such a heap needs an
-//! explicit comparator. Closing that means giving a `Core` class's descriptor
-//! its members, which is `crate::instance`'s question rather than this one's.
+//! declares `compareTo` in the registry but does not list it on its
+//! descriptor's method table, so step 2 does not find it and such a heap needs
+//! an explicit comparator. The mechanism is no longer missing — that table is
+//! [`crate::instance`]'s dispatch roster, which § 9's own `iterate` is on — so
+//! what is left is a row per `Core` class that declares `compareTo`, plus the
+//! receiver-transfer wrapper such a row owes ([`crate::cursor`]).
 //!
 //! # What it spends, and what a comparator may not do
 //!
@@ -65,6 +72,11 @@ pub(crate) const NAME: &str = r"Core\Heap";
 /// The linker symbol `new Core\Heap<T>(...)` lowers to — see
 /// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
 pub(crate) const NEW_SYMBOL: &str = "mwl_core_heap_new";
+
+/// The symbol behind `Iterable<T>::iterate()`, reached by name through this
+/// class's method table rather than as a registered member — see
+/// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
+pub(crate) const ITERATE_SYMBOL: &str = "mwl_core_heap_iterate";
 
 /// [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s one member,
 /// which a class opts into by implementing the interface. Must agree with
@@ -151,6 +163,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_heap_pop" => (mwl_core_heap_pop as *const ()).cast(),
         "mwl_core_heap_count" => (mwl_core_heap_count as *const ()).cast(),
         "mwl_core_heap_is_empty" => (mwl_core_heap_is_empty as *const ()).cast(),
+        ITERATE_SYMBOL => (mwl_core_heap_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -385,6 +398,111 @@ fn root(receiver: *mut ObjHeader, member: &str) -> Result<Value, Fault> {
     Ok(top)
 }
 
+/// Every element in `pop` order, as a fresh list, without disturbing the heap
+/// — the snapshot [`mwl_core_heap_iterate`] hands its cursor.
+///
+/// A *copy* of the entries is drained rather than the heap itself, because
+/// `foreach` is a read: the copy starts as a valid binary heap (it is the
+/// store's own array, in the store's own order), so draining it is the same
+/// take-the-root-and-sift-down `pop` performs, one position at a time, over a
+/// `Vec` this frame owns. The ordering in force is still the receiver's — see
+/// [`compare`] — so a comparator that re-enters the heap sees the *heap*
+/// unchanged, which is more than a live cursor could have promised.
+///
+/// # Errors
+///
+/// Whatever the ordering in force throws, plus [`store::borrow`]'s. Every
+/// element still held is released on that edge.
+fn sorted(ctx: &mut Ctx, receiver: *mut ObjHeader) -> Result<MwlArray, Fault> {
+    let member = mwl_runtime::sequence::ITERATE;
+    let mut pending = {
+        let entries = store::borrow(receiver, ENTRIES, &CLASS, member)?;
+        let mut pending = Vec::with_capacity(entries.count());
+        for index in 0..entries.count() {
+            let Some(value) = entries.get(&key(index)) else {
+                break;
+            };
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the store, which outlives this \
+                          call, and the copy below is walked across comparisons \
+                          that may re-enter the heap"
+            )]
+            unsafe {
+                value.retain();
+            }
+            pending.push(value);
+        }
+        pending
+    };
+
+    let mut out = MwlArray::new();
+    let drained = drain_into(ctx, receiver, member, &mut pending, &mut out);
+    for held in pending.drain(..) {
+        #[expect(
+            unsafe_code,
+            reason = "a throw out of a comparison leaves this frame owning \
+                      every element it has not handed to `out`"
+        )]
+        unsafe {
+            held.release();
+        }
+    }
+    drained?;
+    Ok(out)
+}
+
+/// Moves every element of `pending` into `out` in `pop` order, leaving
+/// whatever it has not moved in `pending` for its caller to release.
+fn drain_into(
+    ctx: &mut Ctx,
+    receiver: *mut ObjHeader,
+    member: &str,
+    pending: &mut Vec<Value>,
+    out: &mut MwlArray,
+) -> Result<(), Fault> {
+    while let Some(last) = pending.pop() {
+        if pending.is_empty() {
+            out.append(last);
+            break;
+        }
+        let root = std::mem::replace(&mut pending[0], last);
+        out.append(root);
+        sift_down_copy(ctx, receiver, member, pending)?;
+    }
+    Ok(())
+}
+
+/// [`sift_down`]'s shape over a `Vec` this frame owns rather than over the
+/// store — the root moves down until it precedes both its children.
+fn sift_down_copy(
+    ctx: &mut Ctx,
+    receiver: *mut ObjHeader,
+    member: &str,
+    pending: &mut [Value],
+) -> Result<(), Fault> {
+    let mut index = 0usize;
+    loop {
+        let left = index * 2 + 1;
+        if left >= pending.len() {
+            return Ok(());
+        }
+        let right = left + 1;
+        let child = if right < pending.len()
+            && compare(ctx, receiver, pending[right], pending[left], member)? == Ordering::Less
+        {
+            right
+        } else {
+            left
+        };
+        if compare(ctx, receiver, pending[child], pending[index], member)? != Ordering::Less {
+            return Ok(());
+        }
+        pending.swap(index, child);
+        index = child;
+    }
+}
+
 mwl_runtime::mwl_helper! {
     /// `new Core\Heap<T>(?callable $comparator = null)` — a fresh empty heap,
     /// ordered by `$comparator` when one is given.
@@ -511,6 +629,22 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_heap_is_empty(_ctx, args: [1]) {
         let receiver = heap_of(args[0], "isEmpty")?;
         Ok(Value::bool(len(receiver, "isEmpty")? == 0))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Iterable<T>::iterate(): Iterator<T>` — a cursor over every element in
+    /// `pop` order, leaving the heap itself untouched.
+    ///
+    /// Not a registered member: it is reached by name through this class's
+    /// method table, so its receiver is **transferred** rather than borrowed —
+    /// [`crate::cursor`]'s module docs own both halves of that, and why the
+    /// order costs a copy of the entries.
+    fn mwl_core_heap_iterate(ctx, args: [1]) {
+        let cursor = heap_of(args[0], mwl_runtime::sequence::ITERATE)
+            .and_then(|receiver| Ok(crate::cursor::over(sorted(ctx, receiver)?)));
+        crate::cursor::consume(args[0]);
+        cursor
     }
 }
 

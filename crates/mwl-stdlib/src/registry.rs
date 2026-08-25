@@ -884,6 +884,40 @@ pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
     (r"Core\Heap", &["T"]),
 ];
 
+/// Every `Core` class a `foreach` can walk, and the element its
+/// `Iterable<T>` is fixed at — `mwl_types::core_lib` seeds one
+/// `ClassSignature::implements` entry per row.
+///
+/// A roster rather than a field on [`CoreClass`] for the reason
+/// [`GENERIC_CLASSES`] is one: three rows out of forty-odd classes, and a
+/// field would be `&[]` on every other line of a table already long enough to
+/// read badly. The element may be one of that class's own type variables — a
+/// map iterates its keys, so `Core\ObjectMap<K, V>` is `Iterable<K>` — and
+/// `mwl_types::expr::iteration` substitutes the receiver's own arguments in
+/// before a binding is checked against it, exactly as a member's return type
+/// already is.
+///
+/// The *runtime* half is `mwl_stdlib::instance`'s dispatch roster: this table
+/// says the checker will let a `foreach` compile, that one says what the
+/// receiver answers `iterate()` with. A row added here without one there is a
+/// program that type-checks and faults, so the two are kept in step by
+/// `an_iterable_class_answers_the_iteration_protocol`.
+pub const ITERABLES: &[(&str, &CoreTy)] = &[
+    (r"Core\ObjectMap", &CoreTy::Var("K")),
+    (r"Core\ObjectSet", &CoreTy::Var("T")),
+    (r"Core\Heap", &CoreTy::Var("T")),
+];
+
+/// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
+/// not one of [`ITERABLES`].
+#[must_use]
+pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
+    ITERABLES
+        .iter()
+        .find(|(name, _)| *name == class)
+        .map(|(_, elem)| *elem)
+}
+
 /// The type parameters `class` declares, in order — `None` when it is not one
 /// of [`GENERIC_CLASSES`], which is every other name in the program.
 #[must_use]

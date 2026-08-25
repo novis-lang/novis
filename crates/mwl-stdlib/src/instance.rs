@@ -68,9 +68,72 @@
 
 use std::cell::Cell;
 
+use mwl_runtime::sequence;
 use mwl_runtime::{ClassDesc, ClassTable, Fault, MwlObj, ObjHeader, Tag, Value};
 
 use crate::registry::{self, CoreClass};
+
+/// `Core`-owned classes with instances that no program can name, and so with
+/// no [`registry::CLASSES`] row: a runtime artifact rather than surface.
+///
+/// Exactly one so far — the cursor § 9's collections hand a `foreach`, whose
+/// own module docs own why it has no row. They are defined here beside the
+/// registered classes because a descriptor is a descriptor: everything below
+/// [`ClassDesc`] is the same for both.
+const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
+
+/// Every member compiled code reaches on a `Core` instance **by name** — one
+/// row per class, `(member, symbol)`.
+///
+/// [ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md) § 1's
+/// iteration trio and nothing else so far. Those three declarations are
+/// bodiless (`mwl_types::iter_lib`), so a `foreach` names no helper to call and
+/// dispatches on the receiver's runtime class instead — this table is what a
+/// `Core` receiver answers that lookup with, and [`crate::cursor`] owns the
+/// decision and the one convention difference it carries: a member reached
+/// this way is handed its receiver's reference rather than borrowing it.
+///
+/// Deliberately not a flag on [`registry::CoreMethod`]: a row here is *not* a
+/// registered member — nothing resolves `$map->iterate()` in source, no
+/// `.mwlt` case can call one, and `mwl_stdlib::symbols` does not list it. The
+/// registry is the surface a program reaches; this is the protocol the engine
+/// reaches.
+const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
+    (
+        crate::objmap::NAME,
+        &[(sequence::ITERATE, crate::objmap::ITERATE_SYMBOL)],
+    ),
+    (
+        crate::objset::NAME,
+        &[(sequence::ITERATE, crate::objset::ITERATE_SYMBOL)],
+    ),
+    (
+        crate::heap::NAME,
+        &[(sequence::ITERATE, crate::heap::ITERATE_SYMBOL)],
+    ),
+    (
+        crate::cursor::NAME,
+        &[
+            (sequence::ADVANCE, crate::cursor::ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::cursor::CURRENT_SYMBOL),
+        ],
+    ),
+];
+
+/// `class`'s method table, as [`ClassTable::set_methods`] takes it — empty for
+/// every class not on [`DISPATCH_ROSTER`], which is most of them.
+fn dispatch_table(class: &str) -> Vec<(String, *const u8)> {
+    DISPATCH_ROSTER
+        .iter()
+        .find(|(name, _)| *name == class)
+        .map(|(_, members)| {
+            members
+                .iter()
+                .map(|(member, symbol)| ((*member).to_owned(), crate::address_of(symbol)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 thread_local! {
     /// This core's descriptors, built on first use and never dropped — see
@@ -88,13 +151,17 @@ fn descriptors() -> &'static ClassTable {
             return table;
         }
         let mut table = ClassTable::new();
-        for class in registry::CLASSES {
+        for class in registry::CLASSES
+            .iter()
+            .chain(INTERNAL_CLASSES.iter().copied())
+        {
             if class.slots.is_empty() {
                 continue;
             }
             // No parents: a `Core` class is not part of any hierarchy, so
             // `instanceof` on one answers only for itself.
-            table.define(class.name, class.slots.len(), &[]);
+            let id = table.define(class.name, class.slots.len(), &[]);
+            table.set_methods(id, dispatch_table(class.name));
         }
         let table: &'static ClassTable = Box::leak(Box::new(table));
         held.set(Some(table));
@@ -313,6 +380,45 @@ mod tests {
             assert_eq!(desc.name(), class.name);
             assert_eq!(desc.field_count(), class.slots.len());
         }
+    }
+
+    /// The two rosters this module's docs pair up: a class the checker will
+    /// let a `foreach` compile over has to answer the protocol at run time, or
+    /// the program type-checks and faults.
+    #[test]
+    fn every_iterable_class_answers_the_iteration_protocol() {
+        for (class, _) in registry::ITERABLES {
+            assert!(
+                dispatch_table(class)
+                    .iter()
+                    .any(|(member, _)| member == sequence::ITERATE),
+                "{class} is `Iterable` to the checker and answers no `{}` at run time",
+                sequence::ITERATE
+            );
+        }
+        let cursor = dispatch_table(crate::cursor::NAME);
+        for member in [sequence::ADVANCE, sequence::CURRENT] {
+            assert!(
+                cursor.iter().any(|(found, _)| found == member),
+                "the cursor every `iterate()` hands back owes `{member}`"
+            );
+        }
+    }
+
+    /// A dispatch roster row reaches the descriptor, which is what a
+    /// `CallVirtual` reads — the half `dispatch_table` alone does not prove.
+    #[test]
+    fn a_dispatch_row_lands_on_the_descriptor() {
+        let desc = descriptor(&crate::cursor::CLASS);
+        #[expect(
+            unsafe_code,
+            reason = "the leaked table owns the descriptor for the whole \
+                      process, so this borrow is sound for any lifetime"
+        )]
+        let desc = unsafe { &*desc };
+        assert!(desc.method(sequence::ADVANCE).is_some());
+        assert!(desc.method(sequence::CURRENT).is_some());
+        assert!(desc.method("nothing").is_none());
     }
 
     /// A built instance holds exactly what it was given, and one reference —

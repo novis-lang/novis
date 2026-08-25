@@ -18,6 +18,11 @@ pub(crate) const NAME: &str = r"Core\ObjectSet";
 /// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
 pub(crate) const NEW_SYMBOL: &str = "mwl_core_object_set_new";
 
+/// The symbol behind `Iterable<T>::iterate()`, reached by name through this
+/// class's method table rather than as a registered member — see
+/// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
+pub(crate) const ITERATE_SYMBOL: &str = "mwl_core_object_set_iterate";
+
 /// `new Core\ObjectSet<T>()` — the constructor [`crate::registry::CONSTRUCTORS`]
 /// registers, which takes nothing: a set's order is its insertion order and
 /// its identity is `mwl_runtime::identity`'s, so there is nothing to give it.
@@ -33,9 +38,11 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 ///
 /// Every member is an instance member: a set is reached through a value, and
 /// the only static entry point is the constructor, which is not a member at
-/// all ([`crate::registry::CONSTRUCTORS`]). `Iterable` is the section's one
-/// remaining row and is not here yet — `crate`'s own known gap 1 tracks how
-/// much of § 9 is on disk.
+/// all ([`crate::registry::CONSTRUCTORS`]).
+///
+/// **A `foreach` over a set yields its members**, in insertion order — the one
+/// thing a set holds. [`crate::cursor`] owns the mechanism and what the
+/// snapshot spends.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[],
@@ -125,6 +132,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_object_set_intersect" => (mwl_core_object_set_intersect as *const ()).cast(),
         "mwl_core_object_set_diff" => (mwl_core_object_set_diff as *const ()).cast(),
         "mwl_core_object_set_clear" => (mwl_core_object_set_clear as *const ()).cast(),
+        ITERATE_SYMBOL => (mwl_core_object_set_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -344,6 +352,24 @@ mwl_runtime::mwl_helper! {
         Ok(built_from(|out| {
             collect_into(out, &mine, |value| !store::locate(&theirs, value).1);
         }))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Iterable<T>::iterate(): Iterator<T>` — a cursor over a snapshot of the
+    /// set's members.
+    ///
+    /// Not a registered member: it is reached by name through this class's
+    /// method table, so its receiver is **transferred** rather than borrowed —
+    /// [`crate::cursor`]'s module docs own both halves of that.
+    fn mwl_core_object_set_iterate(_ctx, args: [1]) {
+        let cursor = set_of(args[0], mwl_runtime::sequence::ITERATE).and_then(|receiver| {
+            let entries =
+                store::borrow(receiver, ENTRIES, &CLASS, mwl_runtime::sequence::ITERATE)?;
+            Ok(crate::cursor::over(store::listed(&entries)))
+        });
+        crate::cursor::consume(args[0]);
+        cursor
     }
 }
 

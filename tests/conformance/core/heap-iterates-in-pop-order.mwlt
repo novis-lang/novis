@@ -1,0 +1,35 @@
+--TEST--
+A `foreach` over a `Core\Heap<T>` yields `pop` order under the ordering in force and consumes nothing — docs/spec/01-core-library.md § 9, ADR 0053 §§ 1, 3
+--FILE--
+<?mwl
+Core\Heap<int> $ascending = new Core\Heap<int>();
+$ascending->push(5);
+$ascending->push(1);
+$ascending->push(9);
+$ascending->push(3);
+
+// The entries array is a tree, not a sorted list — the walk is `pop` order.
+foreach ($ascending as int $up) {
+    echo "up ", $up, "\n";
+}
+
+// A `foreach` is a read: the heap still holds every element afterwards.
+echo "kept ", $ascending->count(), " ", $ascending->peek(), "\n";
+
+// The comparator given at construction is the order the walk answers in.
+Core\Heap<int> $descending = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
+$descending->push(2);
+$descending->push(8);
+$descending->push(4);
+foreach ($descending as int $down) {
+    echo "down ", $down, "\n";
+}
+--EXPECT--
+up 1
+up 3
+up 5
+up 9
+kept 4 1
+down 8
+down 4
+down 2

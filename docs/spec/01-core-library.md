@@ -686,7 +686,7 @@ because an insertion-ordered `int|string`-keyed hash cannot express them
 |---|---|---|
 | `ObjectMap<K, V>` | `set`, `get`, `has`, `remove`, `count`, `isEmpty`, `keys`, `values`, `clear`; `Iterable` | `SplObjectStorage` used as a map, `spl_object_id` side tables |
 | `ObjectSet<T>` | `add`, `has`, `remove`, `count`, `isEmpty`, `union`, `intersect`, `diff`, `clear`; `Iterable` | `SplObjectStorage` used as a set |
-| `Heap<T>` | `push`, `peek`, `pop`, `count`, `isEmpty` | `SplPriorityQueue`, `SplMinHeap`, `SplMaxHeap` |
+| `Heap<T>` | `push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable` | `SplPriorityQueue`, `SplMinHeap`, `SplMaxHeap` |
 
 **`ObjectMap::get` returns `?V`**, not a throwing read: these types have no subscript
 ([ADR 0053](../adr/0053-iteration-and-generators.md) rejects `ArrayAccess`), so they cannot offer the
@@ -698,6 +698,14 @@ it is on `Core\Arr` rather than `difference`, because one operation gets one nam
 persistent structure would give up the O(log n) that justifies their existence at all; they are objects,
 so [ADR 0007](../adr/0007-explicit-type-system.md)'s reference semantics apply and nothing about R3 is in
 question.
+
+**A `foreach` yields the one thing each collection has to say**: a map's *keys*, as `SplObjectStorage`
+does and because a key hands `get` back its value while a value hands nothing back; a set's members; and a
+heap's elements in `pop` order. All three are non-destructive and re-iterable — PHP's heap iteration
+empties the heap, and this one does not — because the loop walks a snapshot taken when it began, so a
+mutation inside the body cannot disturb the walk it is inside. `Heap` is `Iterable` for that reason
+alone: without it a heap's contents are unreachable except by emptying it, which is exactly the PHP
+behaviour these three replace.
 
 ## 10. `Core\Error` — the exception types
 

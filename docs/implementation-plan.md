@@ -70,12 +70,13 @@
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
 > over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, `Encoding` × 2
-> over nothing at all, `ObjectMap` × 9
-> and `ObjectSet` × 9 over `identity_store`, and the conformance-coverage gate), `mwl-codegen`,
+> over nothing at all, `ObjectMap` × 9,
+> `ObjectSet` × 9 and `Heap` × 5 over `identity_store`, all three iterable through `cursor`, and the
+> conformance-coverage gate), `mwl-codegen`,
 > `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 394 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
-> `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
+> `tests/conformance` × 426 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `reject`) and `tests/differential` × 89, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
 > SDK 10.0.26100 for linking, PHP 8.5.9 as the differential oracle — on the Windows `PATH` and
@@ -132,10 +133,11 @@
 > the spec writes; § 6 owes `decodeAs<T>` (`json` gap
 > 2, which waited on a written type argument at a call site and no longer does); § 7 is **whole** —
 > `Core\Bytes`'s twelve members and the whole of `Core\Encoding`, `pack`/`unpack` sharing one closed
-> code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 owes only the `Iterable` its three rows
-> each declare, `Core\Heap` having landed with the constructor arguments it needed — a
-> `registry::CONSTRUCTORS` row is a whole `CoreMethod` now, so `new Core\X(...)` is checked and
-> lowered like any other `Core` call; § 10 owes the constructor's
+> code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 is **whole**, its three
+> collections each answering a `foreach` — a `Core` receiver reaches ADR 0053's protocol through its
+> descriptor's own method table (`mwl_stdlib::cursor`, `mwl_stdlib::instance`'s dispatch roster), and the
+> spec's `Heap` row is amended to declare `Iterable` because a heap whose contents can only be reached by
+> emptying it is the PHP behaviour § 9 replaces; § 10 owes the constructor's
 > `{previous: $e}` options shape and
 > `$e->location`; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
 > `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
@@ -147,7 +149,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
 > two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 421 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 426 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against

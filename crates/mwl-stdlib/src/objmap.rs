@@ -39,6 +39,11 @@ pub(crate) const NAME: &str = r"Core\ObjectMap";
 /// [`crate::registry::CONSTRUCTORS`], which is the roster `mwl-ir` reads.
 pub(crate) const NEW_SYMBOL: &str = "mwl_core_object_map_new";
 
+/// The symbol behind `Iterable<K>::iterate()`, reached by name through this
+/// class's method table rather than as a registered member — see
+/// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
+pub(crate) const ITERATE_SYMBOL: &str = "mwl_core_object_map_iterate";
+
 /// `new Core\ObjectMap<K, V>()` — the constructor
 /// [`crate::registry::CONSTRUCTORS`] registers, which takes nothing: a map's
 /// order is its insertion order and its keying is `mwl_runtime::identity`'s,
@@ -57,7 +62,13 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// these types have no subscript ([ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md)
 /// rejects `ArrayAccess`) and so cannot offer the `$a[$k]` / `$a[$k] ?? $d`
 /// pair that `array<T>` does, while ADR 0063 R5 bans a `getOrNull` twin.
-/// `Iterable` is the section's one remaining row and is not here yet.
+///
+/// **A `foreach` over a map yields its keys**, which is what
+/// `SplObjectStorage` yields and the only choice that loses nothing: a key
+/// hands `get` back its value, while a value hands nothing back the key it was
+/// stored under — and ADR 0053 § 1 gives a cursor no key binding to carry the
+/// other half in. `values()` is the spelling for the other direction.
+/// [`crate::cursor`] owns the mechanism and what the snapshot spends.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[],
@@ -149,6 +160,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_object_map_keys" => (mwl_core_object_map_keys as *const ()).cast(),
         "mwl_core_object_map_values" => (mwl_core_object_map_values as *const ()).cast(),
         "mwl_core_object_map_clear" => (mwl_core_object_map_clear as *const ()).cast(),
+        ITERATE_SYMBOL => (mwl_core_object_map_iterate as *const ()).cast(),
         _ => return None,
     })
 }
@@ -171,32 +183,6 @@ fn map_of(value: Value, member: &str) -> Result<*mut ObjHeader, Fault> {
 fn at(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<(Vec<u8>, bool), Fault> {
     let keys = store::borrow(receiver, KEYS, &CLASS, member)?;
     Ok(store::locate(&keys, key))
-}
-
-/// Every value a store holds, in the store's own order, as a fresh MWL list.
-///
-/// Each entry is retained: the store outlives the call, so the list needs a
-/// reference of its own — the rule [`crate::arr`] applies everywhere it copies
-/// an entry out of a borrowed subject.
-fn listed(store: &MwlArray) -> MwlArray {
-    let mut out = MwlArray::new();
-    let mut from = 0usize;
-    while let Some(slot) = store.next_slot(from) {
-        if let Some(value) = store.value_at(slot) {
-            #[expect(
-                unsafe_code,
-                reason = "the entry is owned by the store, which outlives this \
-                          call, so the copy stored here needs a reference of \
-                          its own"
-            )]
-            unsafe {
-                value.retain();
-            }
-            out.append(value);
-        }
-        from = slot + 1;
-    }
-    out
 }
 
 mwl_runtime::mwl_helper! {
@@ -349,7 +335,7 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_object_map_keys(_ctx, args: [1]) {
         let receiver = map_of(args[0], "keys")?;
         let keys = store::borrow(receiver, KEYS, &CLASS, "keys")?;
-        Ok(Value::array(listed(&keys)))
+        Ok(Value::array(store::listed(&keys)))
     }
 }
 
@@ -359,7 +345,24 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_object_map_values(_ctx, args: [1]) {
         let receiver = map_of(args[0], "values")?;
         let values = store::borrow(receiver, VALUES, &CLASS, "values")?;
-        Ok(Value::array(listed(&values)))
+        Ok(Value::array(store::listed(&values)))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Iterable<K>::iterate(): Iterator<K>` — a cursor over a snapshot of the
+    /// map's keys.
+    ///
+    /// Not a registered member: it is reached by name through this class's
+    /// method table, so its receiver is **transferred** rather than borrowed —
+    /// [`crate::cursor`]'s module docs own both halves of that.
+    fn mwl_core_object_map_iterate(_ctx, args: [1]) {
+        let cursor = map_of(args[0], mwl_runtime::sequence::ITERATE).and_then(|receiver| {
+            let keys = store::borrow(receiver, KEYS, &CLASS, mwl_runtime::sequence::ITERATE)?;
+            Ok(crate::cursor::over(store::listed(&keys)))
+        });
+        crate::cursor::consume(args[0]);
+        cursor
     }
 }
 

@@ -2,54 +2,55 @@
 
 ## State
 
-**A property's declared default runs.** `public int $n = 4;` reaches the slot of every fresh
-instance, inherited defaults included, and `public string $s = "x";` no longer dereferences a null
-pointer. The expression is evaluated once, at signature collection, into the same `ConstArg` a
-parameter default becomes (`mwl_types::defaults`, whose module doc owns what one may be and why an
-initializer cannot be spliced between `InstKind::New`'s allocation and its constructor call); it
-travels as data — `ClassSignature::property_defaults` → `ExprTypeTable::property_defaults` →
-`ir::Class::defaults` (joined against the flattened slot order in `lower_program`) →
-`ClassTable::set_defaults` → `ClassDesc::defaults`, written by `MwlObj::new`. A bad one is **E0472**.
-`mwl-ir` emits no new instruction, so no `print_function` snapshot moved.
+**Spec § 9 is whole: all three collections answer a `foreach`.** A `Core` receiver reaches ADR 0053's
+iteration protocol through its own descriptor's method table — the decision, the snapshot semantics and
+the one convention difference (a member reached by name is handed its receiver's reference rather than
+borrowing it) are `mwl_stdlib::cursor`'s module doc; `mwl_stdlib::instance`'s `DISPATCH_ROSTER` is the one
+place a `Core` class's method table is written, and `registry::ITERABLES` is the checker-side roster
+`core_lib` seeds a `ClassSignature::implements` entry from. A map yields its **keys**, a set its members,
+a heap `pop` order, all non-destructive and re-iterable; `docs/spec/01-core-library.md` § 9 states that,
+and its `Heap` row is amended to declare `Iterable` (PHP's heap iteration empties the heap; this one does
+not, and without it a heap's contents were unreachable except by emptying it).
 
-**The `->`/`[]`-through-a-call-result leak is closed on both legs.** `lower_index` now mirrors
-`lower_property_access`: it stages a temporary base, retains the element it read, then releases the
-base, and `Lowering::aliasing_read` recurses into an index's own base as well as a property access's.
-Pinned by `an_index_read_off_a_temporary_retains_its_result_and_releases_the_base` and by
-`tests/conformance/lang/an-index-read-through-a-call-result-keeps-its-value.mwlt`.
+`Core\Cursor` has **no registry row** on purpose — nothing names it in a signature, since `iterate()`'s
+return type is the seeded `Iterator<T>`. `mwl_types::expr::iteration::with_subject_args` is what turns
+the `K`/`T` an `implements` clause names into the receiver's own argument.
 
-Verify is green (1532 tests). Valgrind is clean over both new edges — a string/array property
-default through `new`, `clone` and an inherited chain, and `$m->all()["0"]` in a loop.
+Verify is green (1536 tests). Valgrind is clean over both new edges — a `foreach` over each of the three,
+with `break`, a second pass, a removal inside the body, and a comparator-ordered heap.
 `examples/collect.mwl` still exits 1 at `Core\Out::capture`, which is the known frontier.
 
-**Spec § 9 still owes only its `Iterable`.**
+## Next group — § 10's three gaps, which are one file set
 
-## Next group — § 9's `Iterable`, then the two § 10 gaps
+**Shared file set:** `crates/mwl-types/src/error_lib.rs` (the seeded shape) and
+`crates/mwl-ir/src/lower/exception.rs` (the synthesized constructors). That module doc's own *known gaps*
+list is the specification for all three, and ADR 0071 § 5 is what item 3 exists for.
 
-**Shared file set:** `crates/mwl-stdlib/src/{registry.rs,objmap.rs,heap.rs}` and
-`crates/mwl-types/src/{core_lib.rs,iter_lib.rs}` for item 1;
-`crates/mwl-types/src/error_lib.rs` plus `crates/mwl-ir/src/lower/exception.rs` for items 2 and 3.
-
-- [ ] **1. § 9's `Iterable`.** `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` each *declare*
-      `Iterable` and none of them satisfies it, so a `foreach` over one does not compile.
-      `mwl_types::iter_lib` seeds the compiler-owned interfaces and
-      `signatures::resolve_iteration_element` is what a `foreach` asks; ADR 0053 § 2 owns the
-      concrete-type-argument rule. Start by grepping `registry::CLASSES` for the three `Iterable`
-      rows and `iter_lib`'s seeding, and settle whether a `Core` instance answers a `foreach`
-      through the method table or through a native drive — say which in `mwl-stdlib`'s module doc.
-- [ ] **2. § 10's `{previous: $e}` constructor option**, which ADR 0071 § 5's
-      one-throw-lists-every-bad-field rule needs. `mwl_types::error_lib` holds the tree's
-      synthesized signatures; `mwl_ir::lower::exception` holds the synthesized constructors.
-- [ ] **3. § 10's `$e->location`**, the same two files, one slot along.
+- [ ] **1. `{previous: $e}` on the constructor.** The slot exists and always yields `null`
+      (`error_lib.rs:130` interns `Throwable|null`, `error_lib.rs:161` is the one-parameter
+      `constructor(string $message)`); the seeded signature needs the options bag and
+      `exception_constructor` needs the second parameter — `exception.rs:445`, whose slot order and
+      transfer rules are written out at `exception.rs:432`.
+- [ ] **2. `$e->location`.** The property is seeded (`error_lib.rs:136`) and
+      `Lowering::write_throw_location` (`exception.rs:56`) fills it at the `throw`, so what is missing is
+      the *read*: check what a program gets today for `$e->location` and pin it, since the synthesized
+      constructor leaves it empty and a construction-site value is deliberately not what it holds.
+- [ ] **3. `ParseError::issues` becomes readable.** `error_lib.rs:98` types it `array<Core\Issue>` and
+      `mwl_stdlib::issue` builds the entries, but a case cannot read one out (the list is built and
+      counted only). ADR 0071 § 5's one-throw-lists-every-bad-field rule is what needs it.
 
 ## Backlog
 
-- `Core\Json::decodeAs<T>` — `mwl-stdlib`'s `json` gap 2; the written call-site type argument it
-  waited on exists now.
-- `Core\Out::capture` — the last key in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`, and
-  `examples/collect.mwl`'s first failing line. Lands with M4S's sink work (ADR 0092).
-- `do`/`while` does not lower — `mwl-ir`'s own known-gaps list.
-- A `?array<T>` cannot be indexed after a `!= null` guard — `mwl-ir` panics at `lower/expr.rs`;
-  the playbook names the three spellings that do lower.
-- Stage 4's counts: conformance 421 of 600, differential 89 of 150 — `docs/agent/loop-goal.md`.
-- ADR 0088's qualifier classification on `mwl-stdlib`'s member rows — plan § *Open now*.
+- `Core\Out::capture` — § 12's last member, and `examples/collect.mwl`'s first failure
+  (`docs/implementation-plan.md` *Open now*; lands with M4S's sink work).
+- `Core\Json::decodeAs<T>` — § 6's last member (`mwl_stdlib::json` gap 2).
+- A `Core` collection is still not assignable to an `Iterable<T>` **parameter**, so
+  `Core\Arr::from($set)` does not type-check: `expr::assign::class_satisfied` asks
+  `mwl_hir::hierarchy::implements_interface`, which knows only the user `ClassGraph`. The runtime half
+  already works (`mwl_runtime::sequence::drain` drives the same three names).
+- `compareTo` on a `Core` instance is still invisible to `Core\Heap`'s ordering — the mechanism is now
+  there (`instance`'s dispatch roster), so it is a row per class plus the transfer wrapper
+  (`mwl_stdlib::heap`'s own known gap).
+- Stage 4's counts are their own work: conformance 426 of 600, differential 89 of 150.
+- `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain
+  (`python tools/check-migration.py`).

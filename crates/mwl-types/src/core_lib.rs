@@ -68,7 +68,15 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         // `mwl-stdlib`'s layout rather than a surface a program reads, so
         // `$match->groups` is an unknown member and `$match->groups()` is the
         // member. `mwl_stdlib::registry::CoreTy::Instance` owns why.
-        table.seed_class(qname, FxHashMap::default(), methods);
+        table.seed_class(qname.clone(), FxHashMap::default(), methods);
+        // The one thing a `Core` class says about a hierarchy, and it says it
+        // to `foreach`: `mwl_stdlib::registry::ITERABLES` is the roster, and a
+        // row's element may be one of the class's own type variables, which
+        // `crate::expr::iteration` substitutes the receiver's arguments into.
+        if let Some(elem) = mwl_stdlib::registry::iterable_element(class.name) {
+            let elem = lower(elem, interner);
+            table.seed_implements(qname, QName::parse(ITERABLE), vec![elem]);
+        }
     }
 }
 
@@ -380,6 +388,46 @@ mod tests {
         assert_eq!(sig.params.len(), 1);
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
         assert_eq!(interner.describe(sig.return_ty), "uint");
+    }
+
+    /// § 9's three collections are the only `Core` classes that say anything
+    /// about a hierarchy, and what they say is exactly what a `foreach` asks.
+    /// A map yields its **keys**, so the element comes back as `K` and stays a
+    /// variable until a receiver fixes it — `crate::expr::iteration` is what
+    /// substitutes the subject's own arguments in.
+    #[test]
+    fn a_collection_implements_iterable_at_its_own_element() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+        let graph = ClassGraph::default();
+
+        let (interface, element) = crate::signatures::resolve_iteration_element(
+            &QName::parse(r"Core\ObjectMap"),
+            &table,
+            &graph,
+        )
+        .expect("a map is iterable");
+        assert_eq!(interface.to_string(), ITERABLE);
+        assert_eq!(element, interner.type_var("K"));
+
+        let (_, element) = crate::signatures::resolve_iteration_element(
+            &QName::parse(r"Core\Heap"),
+            &table,
+            &graph,
+        )
+        .expect("a heap is iterable");
+        assert_eq!(element, interner.type_var("T"));
+
+        assert!(
+            crate::signatures::resolve_iteration_element(
+                &QName::parse(r"Core\Arr"),
+                &table,
+                &graph
+            )
+            .is_none(),
+            "a namespace class is not a `foreach` subject"
+        );
     }
 
     /// [`CoreTy::Iterated`] is exactly ADR 0053 § 3's three shapes, and the

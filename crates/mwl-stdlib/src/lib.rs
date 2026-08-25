@@ -113,11 +113,12 @@
 //!    arithmetic, and its own docs own the one-grammar-on-every-platform rule
 //!    that makes a `Core\Path` case pinnable on both legs, the three rows
 //!    where it diverges from `pathinfo`/`dirname`, and the two path *shapes*
-//!    (UNC, drive-relative) it does not model. Section 9 is two of its three
-//!    classes: [`objmap`] and [`objset`] hold every member of their rows over
-//!    the one store [`identity_store`] owns, and what is left is `Core\Heap`
-//!    and the `Iterable` each of the three also implements — which waits on
-//!    ADR 0053's iteration protocol reaching a `Core`-owned class.
+//!    (UNC, drive-relative) it does not model. Section 9 is **whole**:
+//!    [`objmap`], [`objset`] and [`heap`] hold every member of their rows over
+//!    the one store [`identity_store`] owns, and all three answer a `foreach`
+//!    — ADR 0053's iteration protocol reaches a `Core` receiver through its
+//!    descriptor's own method table, which [`cursor`] decides and
+//!    [`instance`]'s dispatch roster writes.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
@@ -196,6 +197,7 @@ pub mod arr;
 mod bytes;
 mod cldr;
 mod csv;
+mod cursor;
 mod encoding;
 mod format;
 pub mod granularity;
@@ -274,6 +276,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| arr::address(symbol))
         .or_else(|| bytes::address(symbol))
         .or_else(|| csv::address(symbol))
+        .or_else(|| cursor::address(symbol))
         .or_else(|| encoding::address(symbol))
         .or_else(|| hash::address(symbol))
         .or_else(|| heap::address(symbol))

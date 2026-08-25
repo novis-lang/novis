@@ -426,6 +426,18 @@ impl SignatureTable {
         entry.properties = properties;
         entry.methods = methods;
     }
+
+    /// Records that a seeded class implements `interface` at `args` — the
+    /// [`ClassSignature::implements`] half of [`seed_class`](Self::seed_class),
+    /// which [`resolve_iteration_element`] and [`resolve_interface_args`] read.
+    ///
+    /// Separate from `seed_class` because only `Core`'s § 9 collections have
+    /// anything to say here (`mwl_stdlib::registry::ITERABLES`), and threading
+    /// an empty vector through every other seeded class would say nothing four
+    /// hundred times.
+    pub(crate) fn seed_implements(&mut self, qname: QName, interface: QName, args: Vec<TypeId>) {
+        self.entry(qname).implements.push((interface, args));
+    }
 }
 
 /// Builds a [`SignatureTable`] for every class/interface/enum declared in
