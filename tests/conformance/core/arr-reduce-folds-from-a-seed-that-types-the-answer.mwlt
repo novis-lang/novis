@@ -1,0 +1,30 @@
+--TEST--
+Core\Arr::reduce folds `($carry, $value, $key)` from a seed whose type is the answer's, and returns that seed untouched for an empty array (spec § 2 Iteration and aggregation)
+--FILE--
+<?mwl
+// The carry comes first and § 2's `($value, $key)` follows it, so a callback
+// may still declare fewer parameters (R9) — `$count` below takes only the
+// carry.
+array<int> $nums = [1, 2, 3, 4];
+echo Core\Arr::reduce($nums, fn(int $carry, int $v): int => $carry + $v, 0), "\n";
+echo Core\Arr::reduce($nums, fn(int $carry): int => $carry + 1, 0), "\n";
+
+// `U` is bound by `$initial`, not by the callback: the fold's type is the
+// seed's type, so a fold that builds a string starts from `""`.
+array<string> $words = ["a" => "one", "b" => "two"];
+string $joined = Core\Arr::reduce(
+    $words,
+    fn(string $carry, string $v, string $k): string => $carry . $k . ":" . $v . ";",
+    ""
+);
+echo $joined, "\n";
+
+// An empty array is the seed, unchanged and with no call made — the identity
+// every fold needs, which is why this member has no empty case to throw on.
+array<int> $none = [];
+echo Core\Arr::reduce($none, fn(int $carry, int $v): int => $carry + $v, 7), "\n";
+--EXPECT--
+10
+4
+a:one;b:two;
+7

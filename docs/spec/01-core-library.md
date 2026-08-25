@@ -307,7 +307,11 @@ data-shape change, not a merge.
 ### Iteration and aggregation
 
 Every callback receives `($value, $key)` and may declare fewer parameters (R9), which is what removes
-`ARRAY_FILTER_USE_KEY`, `ARRAY_FILTER_USE_BOTH` and the need for `…WithKey` twins.
+`ARRAY_FILTER_USE_KEY`, `ARRAY_FILTER_USE_BOTH` and the need for `…WithKey` twins. `reduce` prefixes that
+pair with the accumulator — `($carry, $value, $key)` — since a fold has nowhere else to put it.
+
+`reduce`'s `U` is bound by `$initial`, so the fold's type is the seed's: a fold building a string starts
+from `""`, and an empty array is that seed returned unchanged with no call made.
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|

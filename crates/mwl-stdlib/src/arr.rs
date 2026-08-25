@@ -91,6 +91,17 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_group_by",
         },
         CoreMethod {
+            name: "reduce",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Callable,
+                CoreTy::Var("U"),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Var("U"),
+            symbol: "mwl_core_arr_reduce",
+        },
+        CoreMethod {
             name: "find",
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Callable],
             defaults: &[],
@@ -694,6 +705,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_map" => (mwl_core_arr_map as *const ()).cast(),
         "mwl_core_arr_map_keys" => (mwl_core_arr_map_keys as *const ()).cast(),
         "mwl_core_arr_group_by" => (mwl_core_arr_group_by as *const ()).cast(),
+        "mwl_core_arr_reduce" => (mwl_core_arr_reduce as *const ()).cast(),
         "mwl_core_arr_is_empty" => (mwl_core_arr_is_empty as *const ()).cast(),
         "mwl_core_arr_has_key" => (mwl_core_arr_has_key as *const ()).cast(),
         "mwl_core_arr_is_list" => (mwl_core_arr_is_list as *const ()).cast(),
@@ -2458,9 +2470,103 @@ mwl_runtime::mwl_helper! {
     }
 }
 
-/// What a `{by: ...}` option extracted, owned by the frame that extracted it —
-/// [`mwl_core_arr_sort`]'s sort keys and [`mwl_core_arr_unique`]'s identity
-/// keys, which are the same obligation under two names.
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::reduce(array<T> $a, callable $fn, U $initial): U` — the
+    /// spec's § 2 *Iteration and aggregation* fold, replacing `array_reduce`.
+    ///
+    /// # The callback takes the carry first
+    ///
+    /// `($carry, $value, $key)`, and may declare fewer parameters (R9). That
+    /// extends § 2's "every callback receives `($value, $key)`" with a leading
+    /// carry rather than departing from it: the pair is still there, in the
+    /// same order, and a fold has nowhere else to put the accumulator that
+    /// every language — `array_reduce` included — writes first.
+    ///
+    /// # `U` is bound by `$initial`, not by the callback
+    ///
+    /// [`CoreTy::Var`] infers a variable by unifying the declared
+    /// parameters against the call's arguments, and `$initial` is a real value
+    /// at a real argument position, so it answers `U` on its own. That is why
+    /// the row is `callable` rather than
+    /// [`CoreTy::CallableTo`]: `map` needs the callback as a binding
+    /// site because nothing else in that signature knows what it produces,
+    /// while here a second site for one variable would leave "first binding
+    /// wins" to settle by accident which of the two is the answer.
+    ///
+    /// The consequence a caller sees is that the fold's type is the type of
+    /// the seed. `reduce($ints, $fn, 0)` is an `int` whatever the callback
+    /// returns, and a fold that means to build a string starts from `""`.
+    ///
+    /// # An empty array is `$initial`
+    ///
+    /// Returned unchanged, with no call made — the identity every fold needs,
+    /// and the reason this member has no "empty" case to throw on the way
+    /// [`mwl_core_arr_sum`] must reason about one.
+    fn mwl_core_arr_reduce(ctx, args: [3]) {
+        let base = subject(args, "reduce")?;
+
+        // The carry is the one value this frame owns across the whole walk.
+        // `$initial` belongs to the caller, so it takes a reference of its own
+        // here and the guard below owns exactly one from then on: each round
+        // swaps in the callback's fresh answer and releases what it replaced.
+        #[expect(
+            unsafe_code,
+            reason = "`$initial` belongs to the caller, and what this frame \
+                      hands back is a reference of its own"
+        )]
+        unsafe {
+            args[2].retain();
+        }
+        let mut carry = Extracted(vec![args[2]]);
+
+        let mut from = 0usize;
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            let value = base
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            let key = base
+                .key_at(slot)
+                .expect("next_slot only names live entries");
+
+            // One reference for the duration of the call, released right
+            // after — `call_closure` takes its own.
+            let key_arg = Value::str(key);
+            let next = mwl_runtime::call_closure(ctx, args[1], &[carry.0[0], value, key_arg]);
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns exactly the reference `key_at` just \
+                          handed back"
+            )]
+            unsafe {
+                key_arg.release();
+            }
+            // Unwrapped after the key is released and while the guard still
+            // holds the current carry, so a throwing callback frees both.
+            let next = next?;
+            let previous = std::mem::replace(&mut carry.0[0], next);
+            #[expect(
+                unsafe_code,
+                reason = "the reference this frame owned until the line above"
+            )]
+            unsafe {
+                previous.release();
+            }
+        }
+
+        // Taken *out* of the guard, so its `Drop` frees nothing: the reference
+        // it was holding is the one the caller receives.
+        Ok(carry
+            .0
+            .pop()
+            .expect("the carry is pushed once and only replaced in place"))
+    }
+}
+
+/// What a callback produced, owned by the frame that called it —
+/// [`mwl_core_arr_sort`]'s sort keys, [`mwl_core_arr_unique`]'s identity keys
+/// and [`mwl_core_arr_reduce`]'s carry, which are one obligation under three
+/// names.
 ///
 /// `mwl_runtime::call_closure` hands back one fresh reference per call, so the
 /// extracted values are this frame's to free — unlike the entries themselves,
