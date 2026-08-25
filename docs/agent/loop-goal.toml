@@ -42,6 +42,11 @@ modules = [
   "crates/mwl-stdlib/src/lib.rs",
   "crates/mwl-stdlib/src/encoding.rs",
   "crates/mwl-stdlib/src/math.rs",
+  # `Core\Str` is what `Core\Bytes` mirrors member for member (spec § 7, R6), and `Core\Hash` is the
+  # only worked example of a `Core`-owned enum -- the `CoreEnum` roster, the Rust mirror its members
+  # dispatch on, and the test pinning the two together. A slice adding either pays to rediscover them.
+  "crates/mwl-stdlib/src/str.rs",
+  "crates/mwl-stdlib/src/hash.rs",
   "crates/mwl-types/src/core_lib.rs",
   "crates/mwl-types/src/ty.rs",
   "crates/mwl-runtime/src/value.rs",

@@ -2,65 +2,62 @@
 
 ## State
 
-**`Core\Encoding`'s base64 and base32 members are built — spec § 7's codec half is done except the
-`Charset` trio.** `crates/mwl-stdlib/src/encoding.rs` now registers `toBase64`/`fromBase64`,
-`toBase64Url`/`fromBase64Url` and `toBase32`/`fromBase32` beside the hex pair. That module's own doc
-owns every rule they differ on — which alphabet, which padding, and the one place a decoder is lenient
-(base32 folds case and optional padding, because it is a single pair with nothing to disambiguate
-against, and neither variance can change the octets). It also owns the two dependency picks under ADR
-0051 § 4: `base64` (already in the lock file under `wasmtime-internal-cache`, so it adds no crate) and
-`data-encoding` (new, MIT, no dependencies of its own — picked because it states padding, trailing
-bits and symbol translation as separate checked rules rather than one alphabet constant).
+**Spec § 7's `Core\Encoding` is whole.** `crates/mwl-stdlib/src/encoding.rs` now registers
+`encodeText`/`decodeText`/`isValidText` over `Core\Charset` beside the hex, base64 and base32 pairs.
+That module's own doc owns the two design calls a reader will otherwise read as bugs: **`Ascii` and
+`Latin1` are cases of their own** rather than the standard's aliases of `windows-1252`, and
+**`replacement` is absent**. `docs/spec/01-core-library.md` § 7's `Charset` paragraph is amended to
+match. Five cases (`Utf8`, `Utf16Le`, `Utf16Be`, `Ascii`, `Latin1`) convert in that module; the other
+36 delegate to `encoding_rs`, whose `[workspace.dependencies]` comment states the ADR 0051 § 4 answer.
 `cargo deny check` is green and `THIRD-PARTY-LICENSES.txt` is regenerated.
 
-**`examples/collect.mwl:26` now reports `Core\Encoding::encodeText`, not `toBase64`.** That single
-member is all the gate fixture still needs from § 7, and it is the next group's first slice.
-Conformance is **379** of 600; differential is 86 of 150 and has not moved.
+**`examples/collect.mwl`'s frontier has moved off § 7** — it now reports `Core\Uri::parseQuery` at
+`collect.mwl:36`, then `Core\Csv::parse`, `Core\Validate::isEmail` and `Core\Out::capture`. Those are
+§ 12, not the next group: `Core\Bytes` is the rest of § 7 and is the cheaper file set.
+Conformance is **380** of 600; differential is 86 of 150 and has not moved.
 
-**`D:` filled to 24 KB free mid-session and the first `verify.py` failed as a wall of `LNK1108`.**
-`cargo clean` freed 34 GB; the rebuild is under four minutes. This is the playbook trap — check
-`Get-PSDrive D` before reading a linker error as a code failure.
+**One session, one slice.** Slice 2 needs `crates/mwl-stdlib/src/str.rs` loaded to mirror, which is a
+fresh ~400-line read on top of this session's; the ceiling rule said stop.
 
-## Next group — § 7's last trio, then `Core\Bytes`
+**`orient.py`'s `[context] modules` is missing `hash.rs`.** `Core\Digest` is the only worked example
+of a `Core`-owned enum — the `CoreEnum` roster, the Rust mirror it dispatches on, and the test that
+pins the two together — so any slice adding an enum pays to rediscover it. Add the selector.
 
-**Shared file set:** `crates/mwl-stdlib/src/encoding.rs` (`:120` `CLASS` rows, `:187` `address`,
-`:215` `bytes_of`, `:225` `text_of`, `:259` `shown`, `:275`/`:301` the two `why_not_*` message
-renderers to copy, `:495` the unit tests that pin each engine's config),
-`crates/mwl-stdlib/src/registry.rs` (`CLASSES` `:614`, `CONSTRUCTORS` `:647`, `ENUMS` `:694`,
-`CoreEnum` `:665`, `CoreTy::EnumCase` `:240`), `crates/mwl-stdlib/src/lib.rs` (`:191` the `mod` list,
-`:265` the `address` chain), `Cargo.toml`'s `[workspace.dependencies]`, and `tests/conformance/core/`.
-Spec rows: `docs/spec/01-core-library.md` § 7 (`:590`), whose `Charset` paragraph and `Core\Bytes`
-paragraph are at `:617` and `:608`.
+## Next group — `Core\Bytes`, the rest of § 7
 
-- [ ] **`Core\Charset` and the text trio** — `encodeText(string, Charset): bytes`,
-      `decodeText(bytes, Charset): string`, `isValidText(bytes, Charset): bool`, plus the enum
-      (`01-core-library.md:617`). The roster is the **WHATWG Encoding Standard's index**, not a
-      curated list, which is why the spec names `encoding_rs` — that crate is already in `Cargo.lock`
-      (`:703`) and in the local registry cache, so it resolves offline. `Charset` is an ordinary
-      `CoreEnum` in `ENUMS`, not a `CoreTy::EnumCase` union: every case is legal in every position
-      here. R4 and ADR 0009 § 3 mean a conversion that cannot be exact **throws** — there is no
-      `//IGNORE` or `//TRANSLIT`, so `decodeText` refuses a malformed sequence rather than emitting
-      U+FFFD, which is *not* `encoding_rs`'s default `decode` and needs `decode_without_bom_handling
-      _and_without_replacement`. This closes `collect.mwl:26`.
-- [ ] **`Core\Bytes`, the `Core\Str` mirror** — `length`, `at`, `slice`, `indexOf`, `compare`,
-      `contains`, `startsWith`, `endsWith`, `join`, `fill`, `repeat` (`01-core-library.md:608`). A new
-      `mod bytes;` — **`mod`, not `pub mod`**, so its `CLASS`/`NAME` are `pub(crate)`. Every offset is
-      a byte offset (ADR 0009 § 1: there is no other unit), which is the whole reason these are not
-      `Core\Str` rows with a wider parameter. `str.rs` is the shape to copy member for member; ADR
-      0063 R6 fixes each spelling.
+**Shared file set:** a new `crates/mwl-stdlib/src/bytes.rs` (a `mod`, not a `pub mod` — see the
+playbook), `crates/mwl-stdlib/src/str.rs` (`:49` `CLASS`, `:53` `length`, `:60` `at`, `:95` `slice`,
+`:102` `indexOf`, `:141` `join`, `:202` `repeat`, `:374` `address` — the mirror to copy member for
+member), `crates/mwl-stdlib/src/registry.rs` (`CLASSES` `:614`), `crates/mwl-stdlib/src/lib.rs`
+(`:191` the `mod` list, `:263` the `address` chain), and `tests/conformance/core/`.
+Spec rows: `docs/spec/01-core-library.md` § 7 (`:590`), whose `Core\Bytes` paragraph is at `:608`.
+
+- [ ] **`Core\Bytes`, the indexing half** — `length`, `at`, `slice`, `indexOf`, `compare`
+      (`01-core-library.md:608`). R6 pairs each with `Core\Str`'s member of the same name, and the
+      difference is the unit: `Core\Str` indexes by grapheme cluster and this indexes by **byte
+      offset**, which ADR 0009 § 1 says is the only unit `bytes` has to be ambiguous about. So the
+      bodies are simpler than `str.rs`'s, not a copy of them — no `unicode-segmentation`, and `at`
+      answers a `uint` rather than a one-character `string`.
+- [ ] **`Core\Bytes`, the predicates and the builders** — `contains`, `startsWith`, `endsWith`,
+      `join(array<bytes> $parts, bytes $separator = "")`, `fill`, `repeat`. The three predicates are
+      what magic-byte sniffing needs; `join` rather than a `concat` of its own is what keeps R6's
+      pairing with `Core\Str`. Same file set, so this is the cheap second slice.
 - [ ] **`Core\Bytes::pack`/`unpack`** — `pack(string $format, mixed ...$values)` and
-      `unpack(bytes, string): array<mixed>`. The format string is an ADR 0057 intrinsic **and** an
-      ADR 0088 sink on both members, which is the part that is not a straight port; take it only after
-      the mirror members land, and check whether ADR 0088's registry-wide qualifier item has to move
-      first.
+      `unpack(bytes $b, string $format): array<mixed>`. The format string is an **ADR 0057 intrinsic**
+      (§ 1's closed list) *and* an ADR 0088 **sink** — one of R11's four grammars, exactly as
+      `Core\Str::format`'s template is. `registry::CoreTy::Variadic` is one ABI argument whatever the
+      call writes, so `pack` is `args: [2]` (playbook: *A registry row's arity and its helper's
+      `args: [N]`*).
 
 ## Backlog
 
-- `Core\Uri::parse`/`isValid` and the `Uri` instance — needs an RFC 3986 dependency picked under ADR
-  0051 § 4 (`docs/implementation-plan.md`, `Open now`).
-- `Core\Csv` — the other § 12 member still owing a dependency pick (same field).
-- `every_part_one_spec_member_is_registered` does not exist; it is the loop's own definition of done
-  (`docs/agent/loop-goal.md` § acceptance).
-- Differential corpus is 86 of 150 and has not moved for several sessions (`Open now`).
-- ADR 0088's registry-wide qualifier classification — no `Core` member row carries one yet.
-- `Core\Hash::stream` and `Core\Random::bytes` — § 11's remaining rows (`hash.rs` gap 1).
+- `mwl-stdlib`'s member rows carry no ADR 0088 qualifier classification, and nothing refuses an
+  unclassified `string`/`bytes` parameter — `docs/implementation-plan.md` § *Open now*.
+- § 12's `Core\Uri::parse` still owes an RFC 3986 dependency, and `Core\Csv` one under ADR 0051 § 4 —
+  both are `examples/collect.mwl`'s remaining reports.
+- `every_part_one_spec_member_is_registered`, the loop's own definition of done, does not exist yet —
+  `docs/agent/loop-goal.md` § *Acceptance*.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s module doc.
+- Differential is 86 of 150 and has not moved in several runs — `docs/implementation-plan.md`.
+- `docs/spec/02-php-migration.md` is 31% classified; `mbstring`'s rows are now answerable, since
+  `Core\Encoding`'s trio is what replaces `mb_convert_encoding` and `mb_check_encoding`.
