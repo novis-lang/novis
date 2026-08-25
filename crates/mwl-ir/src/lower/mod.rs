@@ -3091,20 +3091,36 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `$obj . "x"` where `$obj`'s class implements `Stringable` — accepted
-    /// by `mwl_types::expr::check_expr`'s `require_stringable` (ADR 0028
-    /// § 1), but this crate has no way to synthesize the resolved
-    /// `toString()` call `.` would need to desugar to: a `.` operand isn't
-    /// itself a call expression, so there is no
-    /// `mwl_types::expr_table::ExprInfo::Call` entry recorded for it the way
-    /// an actual `$obj->toString()` call site would have. Lowering panics
-    /// naming the case instead of guessing at a target.
+    /// `$obj . "x"` where `$obj`'s class implements `Stringable` — ADR 0028
+    /// § 1's implicit conversion, desugared to the `toString()`
+    /// `mwl_types::expr::operators::require_stringable` resolved under the
+    /// operand's own span. A `.` operand is not itself a call expression, so
+    /// there is no `ExprInfo::Call` for it the way an actual
+    /// `$obj->toString()` site would have; the checker's own side map
+    /// (`ExprTypeTable::to_string_call`) is what carries the target across.
+    ///
+    /// It dispatches through `InstKind::ClassDescOf`/`CallVirtual` so an
+    /// override wins, carries ADR 0002's error edge because a `toString` body
+    /// may throw, and retains `$n` first — the parameter's slot still owns it,
+    /// and the callee releases every refcounted parameter at its own exit.
     #[test]
-    #[should_panic(expected = "known gaps")]
-    fn concatenating_a_stringable_object_operand_is_still_out_of_scope() {
-        lower_first_method(
-            "<?mwl\nclass Name implements Stringable {\n  function toString(): string { return \"x\"; }\n}\nclass T {\n  function m(Name $n): string {\n    return $n . \"x\";\n  }\n}\n",
+    fn concatenating_a_stringable_object_operand_calls_its_to_string() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Name implements Stringable {\n  public function toString(): string { return \"x\"; }\n}\nclass T {\n  public function m(Name $n): string {\n    return $n . \"x\";\n  }\n}\n",
         );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj as string` — ADR 0007 § 2's explicit spelling of the very same
+    /// conversion, reaching the very same `Self::lower_to_string_call` rather than
+    /// getting a second answer of its own, exactly as `as bool` reuses
+    /// ADR 0035's truthy table.
+    #[test]
+    fn converting_a_stringable_object_to_string_calls_its_to_string() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Name implements Stringable {\n  public function toString(): string { return \"x\"; }\n}\nclass T {\n  public function m(Name $n): string {\n    return $n as string;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
     }
 
     // `bytes` is the mechanical follow-on to `string` the crate docs named:

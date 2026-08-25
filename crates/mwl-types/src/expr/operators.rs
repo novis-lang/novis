@@ -809,5 +809,18 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
             .with_primary(span, "converted to `string` here")
             .with_help("implement `Stringable`'s `toString(): string` on the class"),
         );
+        return;
+    }
+    // ADR 0028 § 1: the conversion *is* a `toString()` call, so `mwl-ir` needs
+    // its resolved target the same way an ordinary `$obj->toString()` does —
+    // and, exactly like `object_comparison_result`'s `compareTo`, there is no
+    // call node in the AST to key it by. The operand's own span is the key,
+    // and it goes in its own map rather than an `ExprInfo`: the operand is an
+    // ordinary expression that has usually already recorded an entry there
+    // (`echo $b->build()` records the call `it` is), and one span holding two
+    // independent facts is what `ExprTypeTable`'s side maps exist for.
+    if let Some((owner, sig)) = resolve_method(&qname, "toString", env.signatures, env.graph) {
+        let call = resolved_call(owner, "toString".to_owned(), &sig, env.signatures);
+        env.exprs.record_to_string(span, call);
     }
 }

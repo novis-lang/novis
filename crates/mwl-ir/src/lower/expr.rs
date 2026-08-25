@@ -359,12 +359,9 @@ impl<'a> Lowering<'a> {
     /// `Stringable`-implementing object on either side of `.` (PHP-style
     /// implicit stringification); this crate can express the scalar half
     /// today — statically, and through [`Helper::TaggedToString`] for a union
-    /// operand whose row only its runtime tag names — but a `Stringable`
-    /// object still has
-    /// no resolved `toString` call to synthesize here (that identity isn't
-    /// recorded anywhere `.` itself can read — a call's own resolved target
-    /// only exists for an actual call *expression*, and a bare `.` operand
-    /// isn't one), so it panics naming the case rather than guessing.
+    /// operand whose row only its runtime tag names — and an object operand
+    /// through the `toString()` that check itself resolved and recorded for
+    /// this very span ([`Self::lower_to_string_call`]).
     ///
     /// Returns the resulting `Ty::Str` value together with whether it
     /// [`is_aliasing_read`] of storage a durable slot still owns. A scalar
@@ -432,12 +429,80 @@ impl<'a> Lowering<'a> {
                 }
                 (sv, false)
             }
+            // ADR 0028 § 1's implicit stringification. The call's own result
+            // is a fresh `string` with one owner, so it is never an aliasing
+            // read — the same answer every scalar row above gives.
+            Ty::Object => match self.lower_to_string_call(expr, v, env, *cur) {
+                Some(s) => (s, false),
+                None => panic!(
+                    "mwl-ir stringifies an object operand through the `toString` \
+                     `mwl_types::expr::operators::require_stringable` resolved for it, and none \
+                     was recorded at this span — a value typed at `Stringable` itself, or a \
+                     `Core`-owned class, are the two shapes still outside it; see the crate \
+                     docs' known gaps"
+                ),
+            },
             other => panic!(
-                "mwl-ir converts a scalar or a `Ty::Tagged` operand to `string` for `.` — got \
-                 {other:?}; a `Stringable`-object operand needs a resolved `toString` call this \
-                 crate can't synthesize yet, see the crate docs' known gaps"
+                "mwl-ir converts a scalar, an object or a `Ty::Tagged` operand to `string` for \
+                 `.` — got {other:?}, which `mwl_types` should already have refused"
             ),
         }
+    }
+
+    /// ADR 0028 § 1's implicit `toString()`, for an operand that lowered to a
+    /// [`Ty::Object`]. `.`, an interpolated piece, `echo`/`print` and
+    /// `as string` all reach it, because
+    /// `mwl_types::expr::operators::require_stringable` is the single check
+    /// all four go through — so it is also the single place that records the
+    /// resolved target, under the operand's own span.
+    ///
+    /// `None` when nothing was recorded there, which the caller turns into a
+    /// panic naming itself: the checker records a target for every object
+    /// operand it accepts, so a missing one is a shape it accepted without
+    /// resolving rather than anything this crate can lower.
+    ///
+    /// The call is ordinary in every respect, exactly as
+    /// [`Self::lower_object_comparison`]'s `compareTo` is: ADR 0002's error
+    /// edge, since a `toString` body may throw like any other, and the same
+    /// ownership convention [`Self::lower_call_args`] applies to a receiver —
+    /// an aliasing operand is retained here because the callee releases every
+    /// refcounted parameter at scope exit, and a fresh one (`echo new Name()`)
+    /// transfers the reference it already has. It dispatches on the
+    /// receiver's runtime class, so a `toString` overridden in a subclass wins
+    /// over the one the static type names.
+    fn lower_to_string_call(
+        &mut self,
+        expr: &Expr,
+        receiver: ValueId,
+        env: &Env,
+        cur: BlockId,
+    ) -> Option<ValueId> {
+        let call = self.exprs.to_string_call(expr.span)?;
+        let fallback = call
+            .has_body
+            .then(|| format!("{}::{}", call.class, call.method));
+        let method = call.method.clone();
+        if self.aliasing_read(expr) {
+            self.emit_retain(cur, receiver);
+        }
+        let (desc, _) = self.emit(
+            cur,
+            Ty::ClassDesc,
+            InstKind::ClassDescOf { object: receiver },
+        );
+        let (s, _) = self.emit_fallible(
+            cur,
+            Ty::Str,
+            InstKind::CallVirtual {
+                lsb: desc,
+                method,
+                fallback,
+                receiver: Some(receiver),
+                args: vec![],
+            },
+            env,
+        );
+        Some(s)
     }
     /// `$a < $b` and its four siblings over two objects — ADR 0013 § 2's
     /// `Comparable::compareTo` call, then the comparison of *its* `int`
@@ -599,6 +664,23 @@ impl<'a> Lowering<'a> {
                         args: vec![v],
                     },
                 )
+            }
+            // ADR 0028 § 1's row: `as string` is the explicit spelling of the
+            // same implicit conversion `.` and `echo` apply, so it goes
+            // through the same resolved `toString()` rather than a second
+            // answer of its own (`Self::lower_to_string_call`). The receiver's own
+            // ownership is settled there too, so nothing is released here.
+            (Ty::Object, Ty::Str) => {
+                let Some(s) = self.lower_to_string_call(operand, v, env, cur) else {
+                    panic!(
+                        "mwl-ir converts an object to `string` through the `toString` \
+                         `mwl_types::expr::operators::require_stringable` resolved for it, and \
+                         none was recorded at this span — a value typed at `Stringable` itself, \
+                         or a `Core`-owned class, are the two shapes still outside it; see the \
+                         crate docs' known gaps"
+                    )
+                };
+                (s, Ty::Str)
             }
             // The same four rows again, from a union operand — one fallible
             // helper picking by runtime tag, shared verbatim with `.` and
@@ -1860,11 +1942,10 @@ impl<'a> Lowering<'a> {
     /// it gets its own arm (and its own `InstKind::Concat`) ahead of
     /// the scalar-operator table below. Each operand goes through
     /// `Self::concat_operand` first, which converts a scalar through
-    /// a new `InstKind::HelperCall` when it isn't already `Ty::Str` —
-    /// a `Stringable`-object operand (also accepted by
-    /// `mwl_types::expr::check_expr`'s own `require_stringable`) still
-    /// panics there, since it needs a resolved `toString` call this
-    /// crate can't synthesize yet. `concat_operand` also reports
+    /// a new `InstKind::HelperCall` when it isn't already `Ty::Str`,
+    /// and a `Stringable`-object operand through the `toString()`
+    /// `mwl_types::expr::operators::require_stringable` resolved for
+    /// it. `concat_operand` also reports
     /// whether the value it hands back aliases storage a durable slot
     /// still owns; an operand that doesn't (a literal, a nested
     /// `Concat`'s own result, or a freshly converted `HelperCall`

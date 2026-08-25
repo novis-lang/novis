@@ -1,5 +1,5 @@
 --TEST--
-`Stringable::toString` is an ordinary interface method — there is no `__toString`, and nothing calls it implicitly — ADR 0028 § 1
+`Stringable::toString` is an ordinary interface method, callable by name like any other — there is no `__toString` — ADR 0028 § 1
 --FILE--
 <?mwl
 class Money implements Stringable {

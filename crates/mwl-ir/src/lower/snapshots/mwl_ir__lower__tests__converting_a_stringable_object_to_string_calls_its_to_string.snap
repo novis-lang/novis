@@ -1,0 +1,21 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object, object) -> string {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    v1 = param 1  ; object
+    ; stmt s0 @7:5-7:25
+    retain v1
+    v2 = class.of v1  ; classdesc
+    v3 = call.virtual v2::toString else Name::toString(this: v1) ! bb1  ; string
+    release v1
+    release v0
+    return v3
+  bb1:
+    release v1
+    release v0
+    propagate "m() at t.mwl:7"
+}

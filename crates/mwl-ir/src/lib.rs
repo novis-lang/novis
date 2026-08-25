@@ -215,16 +215,18 @@
 //!     [`lower::lower_checked_ty`] handles the plain `string`/`bytes` only;
 //!     ADR 0024/0033's qualifiers are compile-time-only and need no runtime
 //!     representation, but the erasure has to be written.
-//! 12. **Neither `.` nor `as string` covers a `Stringable` operand.**
-//!     Desugaring would have to synthesize a resolved call to `toString()`,
-//!     but neither a bare `.` operand nor an `as` subject is a call
-//!     expression, so no `ExprInfo::Call` is recorded for it. Either the
-//!     checker records that resolution too, or this crate re-resolves the
-//!     method itself — a second `mwl-types` dependency so far avoided. A
-//!     *statically* object-typed operand still panics here; one arriving
-//!     inside a [`ty::Ty::Tagged`] value throws instead, because
-//!     [`ir::Helper::TaggedToString`] decides by tag at runtime and has no
-//!     row for it.
+//! 12. **A `Stringable` operand stringifies; a `Core`-owned one does not.**
+//!     `.`, an interpolated piece, `echo`/`print` and `as string` all desugar
+//!     to the `toString()` `mwl_types::expr::operators::require_stringable`
+//!     resolved under the operand's own span
+//!     ([`lower::Lowering::lower_to_string_call`]) — the checker records it
+//!     because none of those four sites is a call expression, so no
+//!     `ExprInfo::Call` exists to read, and it reaches an operand typed at the
+//!     interface itself as readily as a concrete implementor. What is left is
+//!     a `Core`-owned class, which that check exempts and so records nothing
+//!     for; it panics here. One arriving inside a [`ty::Ty::Tagged`] value
+//!     throws instead, because [`ir::Helper::TaggedToString`] decides by tag
+//!     at runtime and has no row for it.
 //! 13. **Inline HTML at file scope is not lowered.** The lowering is the same
 //!     [`ir::Helper::EchoStr`] call `echo` emits over the raw span; it is out
 //!     only because `mwl_types` treats `InlineHtml` as a no-op too, so landing

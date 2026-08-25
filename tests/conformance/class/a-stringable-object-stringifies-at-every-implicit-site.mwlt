@@ -1,0 +1,58 @@
+--TEST--
+Interpolation, `.`, `echo` and `as string` each call the operand's `toString()`, dispatching on its runtime class — ADR 0028 § 1
+--FILE--
+<?mwl
+// ADR 0028 § 1 names exactly four positions that implicitly convert to
+// `string`, and one resolved `toString()` serves all four.
+class Label implements Stringable {
+    private string $text;
+
+    public function constructor(string $text) {
+        $this->text = $text;
+    }
+
+    public function toString(): string {
+        return "[" . $this->text . "]";
+    }
+}
+
+// The call is virtual, so an override wins over the static type — the same
+// dispatch an explicit `$l->toString()` already takes.
+class Loud extends Label {
+    public function toString(): string {
+        return "!!";
+    }
+}
+
+Label $l = new Label("total");
+
+echo $l, "\n";
+echo "a" . $l . "b", "\n";
+echo "in: {$l}", "\n";
+string $s = $l as string;
+echo $s, "\n";
+
+// A fresh operand nothing else owns, at each of the same four sites.
+echo new Label("fresh"), "\n";
+echo "c" . new Label("fresh"), "\n";
+echo (new Label("fresh") as string), "\n";
+
+Label $sub = new Loud("ignored");
+echo $sub, " ", $sub as string, "\n";
+
+// Every element of an `array<Label>` is read through the same conversion.
+array<Label> $all = [new Label("one"), new Loud("two")];
+foreach ($all as Label $one) {
+    echo $one;
+}
+echo "|\n";
+--EXPECT--
+[total]
+a[total]b
+in: [total]
+[total]
+[fresh]
+c[fresh]
+[fresh]
+!! !!
+[one]!!|

@@ -380,6 +380,7 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     foreach: FxHashMap<Span, ForeachDrive>,
     codecs: FxHashMap<String, crate::derive::DerivedCodec>,
+    to_string: FxHashMap<Span, ResolvedCall>,
 }
 
 impl ExprTypeTable {
@@ -510,6 +511,35 @@ impl ExprTypeTable {
     #[must_use]
     pub fn foreach_drive(&self, span: Span) -> Option<ForeachDrive> {
         self.foreach.get(&span).copied()
+    }
+
+    /// Records the resolved `toString()` the operand at `span` is implicitly
+    /// converted through. See [`Self::to_string_call`].
+    pub(crate) fn record_to_string(&mut self, span: Span, call: ResolvedCall) {
+        self.to_string.insert(span, call);
+    }
+
+    /// The `Stringable::toString()` the object-typed operand at `span`
+    /// stringifies through — ADR 0028 § 1's implicit conversion, resolved
+    /// against the operand's own class, or `None` when the operand was not an
+    /// object at all (every scalar row, which needs no call) or was already
+    /// diagnosed as not implementing `Stringable`.
+    ///
+    /// Its own map rather than an [`ExprInfo`] variant, for
+    /// [`Self::foreach_drive`]'s reason: the operand is an ordinary
+    /// expression that usually already records an entry under exactly this
+    /// span — `echo $registry->name()` records an [`ExprInfo::Call`] for the
+    /// call *it* is, and the `toString` it then stringifies through is a
+    /// second, independent fact about the same span.
+    ///
+    /// Recorded rather than left to `mwl-ir` for [`ExprInfo::InstanceOf`]'s
+    /// reason: an implicit conversion site is not a call expression, so the
+    /// consumer has no call node to resolve, and walking
+    /// [`mwl_hir::ClassGraph`] for the declaring class is not something that
+    /// crate can do at all.
+    #[must_use]
+    pub fn to_string_call(&self, span: Span) -> Option<&ResolvedCall> {
+        self.to_string.get(&span)
     }
 
     /// Records the [`TypeId`] a *declared* type annotation at `span` resolved
