@@ -47,8 +47,9 @@ representation with a degrade path, ~300–500 lines across `array.rs` and the A
       `an_integer_subscript_allocates_no_key`, `a_non_sequential_key_degrades_the_packed_array`,
       `both_representations_answer_every_primitive_alike`, `-p mwl-runtime`. Anchor:
       `crates/mwl-runtime/src/array.rs:362` (`MwlArray`). `benches/userland/` and `tools/bench.py`
-      are still untracked and are this item's `php_ratio` material — commit them with it, and note
-      that `Cargo.toml`'s `exclude` line is what keeps that directory from breaking the workspace.
+      are this item's `php_ratio` material and are **committed now** — a concurrent session landed
+      them in `996d28a` — so what is left is measuring against them. `Cargo.toml`'s `exclude` line
+      is what keeps that directory from breaking the workspace; leave it.
 
 ## Backlog
 
