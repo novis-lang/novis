@@ -91,6 +91,46 @@ a check being skipped: the inputs are bit-identical. Only green is cached, the e
 hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
 run; a wider one does satisfy a narrower.
 
+## Disk
+
+```sh
+python tools/disk.py                  # what is on disk, what is reclaimable, what is free
+python tools/disk.py --clean          # reclaim it
+python tools/disk.py --clean -n       # say what --clean would delete; delete nothing
+```
+
+**`--clean` is fired by a person, never automatically**, because it costs a rebuild and only a person
+knows whether now is the time to pay one. Nothing about it touches the session path: a session runs no
+extra call, and `tools/loop.py` calls only the two cheap prunes (`.loop/logs`, `.agent-tmp`) once per
+*run*, plus one free-space check that refuses to start a run below 10 GB. That refusal is the point — a
+run that fills the disk dies inside a session with the tree half-edited, which is how 2026-08-25 went.
+
+What fills the disk is **build generations**. A crate's artifacts are named `<name>-<metadata-hash>`, and
+that hash covers the dependency graph — so every `Cargo.toml` or `Cargo.lock` edit mints a fresh set for
+every crate downstream and orphans the previous one, forever: cargo has no garbage collector on stable.
+Editing *source* costs nothing, because a source-only rebuild reuses every hash. A milestone that adds a
+dependency most sessions therefore adds a whole generation most sessions. One generation of this
+workspace was ~6 GB when this was found, and nine of them were on disk at once.
+
+`--clean` does not ask how *old* an artifact is, the way `cargo-sweep` does — cargo never rewrites an
+artifact it considers fresh, so a superseded generation and a live one carry the same date, and 20 GB of
+`target/` measured as "0 bytes older than 14 days". It asks cargo instead: one warm
+`cargo build --all-targets --message-format=json` names every file the current graph uses, and everything
+else beside it in `deps/` is an orphan. Nothing it does can produce a wrong build — cargo re-checks every
+fingerprint against what is really on disk, so a mistake costs a rebuild and nothing else.
+
+`[profile.dev.package."*"] debug = 0` in `Cargo.toml` is the other half, and it is why a generation now
+holds 1.7 GB of debug info rather than 3.9 GB: on windows-msvc the linker copies the debug info of every
+linked object into each binary's PDB, so cranelift and wasmtime were being written into all ~60 test
+binaries at once. MWL's own crates keep full debug info; only the dependency wall lost it, and a session's
+own `verify.py` got *faster* (51s → 43s) because there is less to link and to load.
+
+Three things live outside this repository and `disk.py` reports them without ever deleting them — another
+tool's state is not a repo script's to remove. The WSL leg's `/tmp/mwl-linux` is a second full target
+directory; deleting it frees ext4 space but **not** Windows space, because the vhdx never shrinks on its
+own (`wsl --shutdown`, then compact it, if C: is what is short). `~/.claude/projects/` keeps one JSONL per
+session forever. `~/.cargo/registry/src` is re-extracted on demand and safe to delete.
+
 ## Fuzzing and callgrind on Windows: use WSL
 
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`

@@ -28,7 +28,7 @@ Those three route to everything else. The four files behind them, none of which 
 - **[docs/adr/ground-rules.md](docs/adr/ground-rules.md)** — one sentence per settled decision, with its
   ADR. The index of what has already been decided; the linked ADR's body is the rule.
 - **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `verify.py`, `splice.py`,
-  `plan.py`, WSL, valgrind, and the two shell rules below in full.
+  `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.mwlt`

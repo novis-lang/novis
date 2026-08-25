@@ -264,3 +264,11 @@ getter, and a typed `catch` on a `Core`-owned class does not lower yet — a `ca
 PHP's rule exactly, so `Core\Str::upper` in a namespaced file is `X\Core\Str` and takes `E0303` plus a
 knock-on `E0403` on the method's declared return; write `\Core\Str`, which does resolve, and reach a
 sibling in the same namespace unqualified.
+- **Adding a dependency costs a whole `target/` generation, and cargo never collects the old one.** A
+  crate's artifacts are named `<name>-<metadata-hash>` and that hash covers the dependency graph, so a
+  `Cargo.toml` or `Cargo.lock` edit orphans the previous set for every crate downstream — permanently, on
+  stable. Editing *source* is free: a source-only rebuild reuses every hash and adds nothing. On a
+  milestone that adds a crate most sessions, that is a generation most sessions, and it is how this tree
+  reached 20 GB and zero free disk on 2026-08-25. You do not need to do anything about it in a session —
+  the driver refuses to *start* a run under 10 GB free and says what to run — but if you are the one who
+  hits it, `python tools/disk.py --clean` is the answer, not `cargo clean`.
