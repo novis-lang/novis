@@ -757,7 +757,9 @@ have no equivalent, because seeding the global generator is exactly what that se
 | `Hash::of` | `of(bytes\|string $data, Digest $digest): bytes` | `hash`, `md5`, `sha1`, `crc32`, `openssl_digest` | neutral |
 | `Hash::hmac` | `hmac(bytes\|string $data, secret bytes $key, StrongDigest $digest): bytes` | `hash_hmac` | neutral |
 | `Hash::equals` | `equals(bytes $a, bytes $b): bool` | `hash_equals` — constant-time | neutral |
-| `Hash::stream` | `stream(Digest $digest): Hash\Stream` | `hash_init`/`hash_update`/`hash_final`, `HashContext` | |
+| `Hash::stream` | `stream(Digest $digest): Hash\Stream` | `hash_init`, `HashContext` | |
+| `$stream->update` | `$stream->update(bytes\|string $data): void` | `hash_update` | |
+| `$stream->finish` | `$stream->finish(): bytes` | `hash_final` | |
 
 A `Core\Uuid` is an opaque 128-bit **value**, not a string that has been checked once: `toString` renders
 RFC 9562's canonical lower-case `8-4-4-4-12` form and is the only way text comes back out, which is what
@@ -770,6 +772,11 @@ identifier, since a `v7` handed to a stranger tells them when the row was create
 needs them. `StrongDigest` is the closed subset ([ADR 0047](../adr/0047-literal-and-enum-case-types.md))
 that the HMAC and signature members declare, so `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming
 the reason. Password hashing takes no algorithm argument at all and is in § 16.
+
+A `Hash\Stream` is **consumed by its own `finish`**: the digest is final, so a second `finish`, or any
+`update` after one, throws rather than continuing from where the first left off. PHP's `HashContext` says
+the same thing by making `hash_final` invalidate the context, and a program that wants two digests of one
+input opens two streams.
 
 ## 12. `Core\Uri`, `Core\Validate`, `Core\Csv`, `Core\Out`
 

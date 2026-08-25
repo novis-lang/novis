@@ -14,8 +14,5 @@
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 from
 
-# § 11 `Core\Random`, `Core\Hash`
-§11 Hash::stream
-
 # § 12 `Core\Uri`, `Core\Out`
 §12 Out::capture

@@ -689,6 +689,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::random::CLASS,
     crate::uuid::CLASS,
     crate::hash::CLASS,
+    crate::hash::STREAM,
     crate::uri::CLASS,
     crate::csv::CLASS,
     crate::validate::CLASS,

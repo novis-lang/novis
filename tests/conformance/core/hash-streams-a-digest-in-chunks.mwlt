@@ -1,0 +1,53 @@
+--TEST--
+`Core\Hash::stream` accumulates a digest across `update` calls and is consumed by `finish` — spec § 11, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+// § 11: the incremental form answers exactly what the one-shot member would
+// over the concatenation of everything fed to it, which is the property that
+// makes it substitutable for `Core\Hash::of`.
+var $stream = Core\Hash::stream(Core\Digest::Sha256);
+$stream->update("a");
+$stream->update("bc");
+bytes $streamed = $stream->finish();
+echo Core\Encoding::toHex($streamed), "\n";
+echo Core\Hash::equals($streamed, Core\Hash::of("abc", Core\Digest::Sha256)) ? "same" : "differ", "\n";
+
+// ADR 0009 § 3: `string as bytes` is total, so a chunk arrives under either
+// tag and the stream reads the same octets — the `bytes|string` parameter
+// `Core\Hash::of` already declares, applied one call at a time.
+var $mixed = Core\Hash::stream(Core\Digest::Sha256);
+$mixed->update(Core\Encoding::fromHex("61"));
+$mixed->update("bc");
+echo Core\Encoding::toHex($mixed->finish()), "\n";
+
+// § 11 keeps the three broken algorithms for interop, and the stream takes the
+// whole of `Core\Digest` for the same reason — a checksum over a file being
+// copied is the case that wants it.
+var $sum = Core\Hash::stream(Core\Digest::Crc32);
+$sum->update("abc");
+echo Core\Encoding::toHex($sum->finish()), "\n";
+
+// A stream with nothing fed to it is the digest of the empty input, not an
+// error: `hash_init` followed by `hash_final` says the same in PHP.
+var $empty = Core\Hash::stream(Core\Digest::Md5);
+echo Core\Encoding::toHex($empty->finish()), "\n";
+
+// The digest is final, so the stream is consumed by its own `finish`.
+try {
+    echo Core\Encoding::toHex($empty->finish()), "\n";
+} catch (Throwable $e) {
+    echo "threw: ", $e->message, "\n";
+}
+try {
+    $empty->update("more");
+} catch (Throwable $e) {
+    echo "threw: ", $e->message, "\n";
+}
+--EXPECT--
+ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+same
+ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+352441c2
+d41d8cd98f00b204e9800998ecf8427e
+threw: Core\Hash\Stream::finish(): this stream is finished — a digest is final, so open a new stream with Core\Hash::stream rather than reusing this one
+threw: Core\Hash\Stream::update(): this stream is finished — a digest is final, so open a new stream with Core\Hash::stream rather than reusing this one

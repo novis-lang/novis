@@ -9,14 +9,37 @@
 //! Collapsing them costs a program one argument and buys it the property that
 //! *changing algorithm is an edit to a value, not to a call*.
 //!
-//! # What is registered here so far
+//! # `Hash\Stream` accumulates, and what that spends
 //!
-//! `of`, `hmac` and `equals`, over the whole of [`DIGEST`]. § 11's table also
-//! writes `Hash::stream(Digest): Hash\Stream`, the incremental form for data
-//! that does not fit in memory; it is unwritten, because a `Hash\Stream` is a
-//! *mutable* `Core` instance — the first one — and that is a slot-mutation
-//! question this module should not answer as a side effect of its one-shot
-//! members. `docs/agent/handoff.md` names what lands next.
+//! § 11's fourth row is the incremental form — `hash_init`/`hash_update`/
+//! `hash_final`, and PHP's `HashContext` — and [`STREAM`] is it, with the
+//! surface a program writes settled here and the *internals* deliberately not.
+//!
+//! **It holds the chunks, not a compression state.** A `Core` instance's slots
+//! hold values MWL already holds ([`crate::instance`]), so the running state of
+//! a `sha2::Sha256` cannot live in one: it is a native object with no MWL
+//! spelling, and an instance has no destructor to free it with — the same wall
+//! [`crate::identity_store`] met and answered the same way. So `update` retains
+//! its argument into an array slot and `finish` hashes the concatenation in one
+//! pass. `digest 0.10` cannot serialize a hasher's state into a slot either
+//! (`crypto_common::SerializableState` is a later major version), which is
+//! the one thing that would make a fixed-size slot possible.
+//!
+//! **What it spends is a reference to each chunk, held until `finish`** — no
+//! copy, since a retained `MwlStr` is the caller's own buffer, but a program
+//! that streams a file to keep its memory flat does not get that here: the
+//! footprint is the total fed, charged to the request, and released at `finish`
+//! or when the stream itself is. That is AGENTS.md's priority 5 spent to buy
+//! priority 4, and it is *observably* `hash_init`/`update`/`final` either way —
+//! which is what keeps the choice cheap to reverse. When a runtime tag owns a
+//! native object with a release hook, this class's three slots become that
+//! object and no written program changes.
+//!
+//! **`finish` closes the stream**, and `update` after it throws rather than
+//! restarting. Nothing in the accumulating implementation needs that rule — the
+//! chunks are still there — and it is written anyway, because a real context is
+//! consumed by its own finalization and a program allowed to depend on the
+//! looser behaviour would be the thing that made the swap above expensive.
 //!
 //! # The result is `bytes`, never hex
 //!
@@ -83,7 +106,7 @@
 //! `bytes` allocation of the digest's own width (4 to 64 octets), charged to
 //! the request that asked for it. Nothing is held between calls.
 
-use mwl_runtime::{Fault, MwlStr, Value};
+use mwl_runtime::{Fault, MwlArray, MwlStr, ObjHeader, Value};
 use sha2::Digest as _;
 use subtle::ConstantTimeEq as _;
 
@@ -188,11 +211,61 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Bool,
             symbol: "mwl_core_hash_equals",
         },
+        CoreMethod {
+            name: "stream",
+            params: &[CoreTy::Enum(DIGEST_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(STREAM_NAME),
+            symbol: "mwl_core_hash_stream",
+        },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
 };
+
+/// [`STREAM`]'s name, written once — see [`NAME`].
+pub(crate) const STREAM_NAME: &str = r"Core\Hash\Stream";
+
+/// Spec § 11's `Core\Hash\Stream` — the incremental digest, and the one
+/// *mutable* `Core` instance outside § 9's collections.
+///
+/// Three slots and two members. `digest` is the [`DIGEST`] case the stream was
+/// opened with, as the integer the enum already is; `chunks` is every buffer
+/// `update` has been handed, in order; `open` is `false` once `finish` has
+/// answered. This module's own docs say why the state is the chunks rather
+/// than a compression context, and what that spends.
+pub(crate) const STREAM: CoreClass = CoreClass {
+    name: STREAM_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "update",
+            params: &[CoreTy::Union(DATA)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "mwl_core_hash_stream_update",
+        },
+        CoreMethod {
+            name: "finish",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "mwl_core_hash_stream_finish",
+        },
+    ],
+    slots: &["digest", "chunks", "open"],
+    constants: &[],
+};
+
+/// [`STREAM`]'s `digest` slot, by index.
+const DIGEST_SLOT: usize = 0;
+
+/// [`STREAM`]'s `chunks` slot, by index.
+const CHUNKS_SLOT: usize = 1;
+
+/// [`STREAM`]'s `open` slot, by index.
+const OPEN_SLOT: usize = 2;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
@@ -201,6 +274,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_hash_of" => (mwl_core_hash_of as *const ()).cast(),
         "mwl_core_hash_hmac" => (mwl_core_hash_hmac as *const ()).cast(),
         "mwl_core_hash_equals" => (mwl_core_hash_equals as *const ()).cast(),
+        "mwl_core_hash_stream" => (mwl_core_hash_stream as *const ()).cast(),
+        "mwl_core_hash_stream_update" => (mwl_core_hash_stream_update as *const ()).cast(),
+        "mwl_core_hash_stream_finish" => (mwl_core_hash_stream_finish as *const ()).cast(),
         _ => return None,
     })
 }
@@ -233,6 +309,24 @@ enum DigestKind {
     Sha512,
 }
 
+/// The [`DIGEST`] case an integer names, or `None` for anything that is no
+/// case.
+///
+/// Separate from [`digest_kind`] because a stream reads its algorithm back out
+/// of a *slot* rather than out of an argument, and the ordinals are the same
+/// ordinals: [`STREAM`] stores what its opening argument decoded from.
+fn kind_of(ordinal: Option<i64>) -> Option<DigestKind> {
+    Some(match ordinal? {
+        0 => DigestKind::Crc32,
+        1 => DigestKind::Md5,
+        2 => DigestKind::Sha1,
+        3 => DigestKind::Sha256,
+        4 => DigestKind::Sha384,
+        5 => DigestKind::Sha512,
+        _ => return None,
+    })
+}
+
 /// The `Core\Digest` case in slot `index`, or the `FATAL` a value that is no
 /// case is.
 ///
@@ -243,14 +337,9 @@ enum DigestKind {
 /// a runtime-contract violation rather than something a program can cause —
 /// the same treatment [`crate::math`] gives its `RoundMode` option.
 fn digest_kind(args: &[Value], index: usize, member: &str) -> Result<DigestKind, Fault> {
-    match args[index].as_int() {
-        Some(0) => Ok(DigestKind::Crc32),
-        Some(1) => Ok(DigestKind::Md5),
-        Some(2) => Ok(DigestKind::Sha1),
-        Some(3) => Ok(DigestKind::Sha256),
-        Some(4) => Ok(DigestKind::Sha384),
-        Some(5) => Ok(DigestKind::Sha512),
-        _ => Err(Fault::fatal(format!(
+    match kind_of(args[index].as_int()) {
+        Some(kind) => Ok(kind),
+        None => Err(Fault::fatal(format!(
             "Core\\Hash::{member} expected a `Core\\Digest` case, got tag {} value {:?}",
             args[index].tag_byte(),
             args[index].as_int()
@@ -413,6 +502,132 @@ mwl_runtime::mwl_helper! {
         let left = bytes_of(args, 0, "equals")?;
         let right = bytes_of(args, 1, "equals")?;
         Ok(Value::bool(bool::from(left.ct_eq(right))))
+    }
+}
+
+// ============================================================================
+// `Core\Hash\Stream` — the incremental form
+// ============================================================================
+
+/// The receiver of one of [`STREAM`]'s instance members, with the stream's
+/// algorithm read back out of it.
+///
+/// The two are decoded together because neither member has anything to do
+/// without both, and because reading the `digest` slot is where a receiver
+/// that is not one of this class's shows up.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is no object or whose `digest` slot
+/// holds no [`DIGEST`] ordinal — compiled code can produce neither — and a
+/// [`Fault::thrown`] for a stream [`mwl_core_hash_stream_finish`] has already
+/// closed, which is the one of the three a program causes.
+fn open_stream(value: Value, member: &str) -> Result<(*mut ObjHeader, DigestKind), Fault> {
+    let receiver = crate::instance::receiver(value, &STREAM, member)?;
+    let kind = kind_of(crate::instance::slot(receiver, DIGEST_SLOT).as_int()).ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Hash\\Stream::{member} received a stream whose `digest` slot is not one \
+             `Core\\Hash::stream` wrote"
+        ))
+    })?;
+    if crate::instance::slot(receiver, OPEN_SLOT).as_bool() != Some(true) {
+        return Err(Fault::thrown(format!(
+            "Core\\Hash\\Stream::{member}(): this stream is finished — a digest is final, so open \
+             a new stream with Core\\Hash::stream rather than reusing this one"
+        )));
+    }
+    Ok((receiver, kind))
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Hash::stream(Digest $digest): Hash\Stream` — replacing
+    /// `hash_init`, and the whole of `HashContext`.
+    ///
+    /// Takes the same `Core\Digest` [`mwl_core_hash_of`] does, including the
+    /// three broken ones: an incremental checksum over a file being copied is
+    /// exactly the interop case § 11 keeps `Crc32`, `Md5` and `Sha1` for.
+    fn mwl_core_hash_stream(_ctx, args: [1]) {
+        // The ordinal rather than the decoded kind, since a slot holds values
+        // MWL holds — but decoded first, so a bad one is refused here rather
+        // than at whichever `update` happens to read it back.
+        let _kind = digest_kind(args, 0, "stream")?;
+        Ok(crate::instance::build(
+            &STREAM,
+            [
+                args[0],
+                Value::array(MwlArray::new()),
+                Value::bool(true),
+            ],
+        ))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$stream->update(bytes|string $data): void` — replacing `hash_update`.
+    ///
+    /// **Retains its argument rather than copying it.** The buffer is
+    /// immutable-until-copied, so holding a reference to the caller's own is
+    /// both the cheap reading and the correct one; this module's docs own what
+    /// holding every chunk until `finish` spends and why the alternative is not
+    /// available.
+    fn mwl_core_hash_stream_update(_ctx, args: [2]) {
+        let (receiver, _) = open_stream(args[0], "update")?;
+        // Refused before the retain, so a `mixed` that reached here leaves the
+        // stream exactly as it found it.
+        let _ = data_of(args, 1, "update")?;
+        #[expect(
+            unsafe_code,
+            reason = "the chunk array takes over a reference of its own, and \
+                      the argument's belongs to the caller"
+        )]
+        unsafe {
+            args[1].retain();
+        }
+        crate::identity_store::edit(receiver, CHUNKS_SLOT, &STREAM, "update", |chunks| {
+            chunks.append(args[1]);
+        })?;
+        Ok(Value::null())
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$stream->finish(): bytes` — replacing `hash_final`, and answering the
+    /// same octets [`mwl_core_hash_of`] would over the concatenation.
+    ///
+    /// **Closes the stream and releases its chunks.** A second `finish`, and
+    /// any `update` after this one, throws — the rule this module's docs
+    /// explain is written for the implementation this class will have rather
+    /// than for the one it has.
+    fn mwl_core_hash_stream_finish(_ctx, args: [1]) {
+        let (receiver, kind) = open_stream(args[0], "finish")?;
+
+        let mut data: Vec<u8> = Vec::new();
+        {
+            let chunks = crate::identity_store::borrow(receiver, CHUNKS_SLOT, &STREAM, "finish")?;
+            let mut from = 0_usize;
+            while let Some(slot) = chunks.next_slot(from) {
+                let held = chunks
+                    .value_at(slot)
+                    .expect("next_slot only names live entries");
+                let octets = held
+                    .as_bytes()
+                    .or_else(|| held.as_str_bytes())
+                    .ok_or_else(|| {
+                        Fault::fatal(format!(
+                            "Core\\Hash\\Stream::finish found tag {} among its chunks, which \
+                             only `update` writes",
+                            held.tag_byte()
+                        ))
+                    })?;
+                data.extend_from_slice(octets);
+                from = slot + 1;
+            }
+        }
+
+        let out = digest_of(kind, &data);
+        crate::instance::set_slot(receiver, OPEN_SLOT, Value::bool(false));
+        crate::identity_store::replace(receiver, CHUNKS_SLOT);
+        Ok(Value::bytes(MwlStr::new(&out)))
     }
 }
 
