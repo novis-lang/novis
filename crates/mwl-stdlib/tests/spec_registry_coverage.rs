@@ -46,7 +46,8 @@
 //! `toEpochMicros`, `Duration::hours`, `Core\Time\Date::at`. Widening the
 //! parser to reach them would mean reading English, not a table.
 //!
-//! A member resolves against **every class the section's own heading names**,
+//! A member **that writes no class of its own** resolves against every class
+//! the section's own heading names,
 //! plus every registered class inside one of their namespaces — so § 5's
 //! `Match` rows are answered by `Core\Regex\Match` without the parser having
 //! to read the sentence that introduces it, and § 4's `plus` is answered by
@@ -54,6 +55,11 @@
 //! is looser than a checker would be, and for the same reason
 //! `conformance_coverage.rs` accepts any receiver's `->text(`: the alternative
 //! is a second checker rather than a coverage gate.
+//!
+//! A row that *does* write its own class — `Uri::parse`, `Csv::parse` — is
+//! resolved against that class alone. § 12 is where the difference shows: its
+//! heading names four classes, two of them write a `parse`, and the loose
+//! reading would let either one strike the other's line. See [`scoped`].
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -108,6 +114,43 @@ fn classes_in(heading: &str) -> Vec<&'static registry::CoreClass> {
                 .any(|name| class.name == *name || class.name.starts_with(&format!(r"{name}\")))
         })
         .collect()
+}
+
+/// The class a Member cell's span qualifies its member with — `Uri` in
+/// `Uri::parse` — or `None` for a bare name or a receiver form, neither of
+/// which says which class it belongs to.
+fn qualifier(span: &str) -> Option<&str> {
+    if span.contains("->") {
+        return None;
+    }
+    let (class, _) = span.rsplit_once("::")?;
+    (!class.is_empty()).then_some(class)
+}
+
+/// `candidates`, narrowed to the one class a span names for itself.
+///
+/// § 12's heading names four classes and two of them write a `parse` row, so
+/// the section-wide reading alone would let `Core\Csv::parse` answer on
+/// `Core\Uri::parse`'s behalf and strike a member nobody has written. A span
+/// that writes its own qualifier is therefore resolved against that class and
+/// no other. A qualifier naming a class this section has not registered at all
+/// falls back to the whole list, which is what keeps the deliberate looseness
+/// this file's own docs describe for every row that writes a bare name.
+fn scoped<'a>(candidates: &[&'a registry::CoreClass], span: &str) -> Vec<&'a registry::CoreClass> {
+    let Some(class) = qualifier(span) else {
+        return candidates.to_vec();
+    };
+    let suffix = format!(r"\{class}");
+    let narrowed: Vec<&'a registry::CoreClass> = candidates
+        .iter()
+        .copied()
+        .filter(|found| found.name == class || found.name.ends_with(&suffix))
+        .collect();
+    if narrowed.is_empty() {
+        candidates.to_vec()
+    } else {
+        narrowed
+    }
 }
 
 /// Whether any of `candidates` declares `name`, as a static member, an
@@ -178,7 +221,7 @@ fn every_part_one_spec_member_is_registered() {
                 continue;
             };
             seen += 1;
-            if !registered(&candidates, name) {
+            if !registered(&scoped(&candidates, span), name) {
                 outstanding.insert(format!("§{number} {span}"));
             }
         }
