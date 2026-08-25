@@ -19,7 +19,7 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 
 | You are | Run |
 |---|---|
-| A session of the unattended loop | `python tools/orient.py` — everything below, already narrowed to the current goal's `[context]` manifest and its current item. Nothing else. |
+| A session of the unattended loop | Nothing — the driver ran `python tools/orient.py` and piped the pack in ahead of your prompt: everything below, narrowed to the current goal's `[context]` manifest and its current item. Run it yourself only if it is genuinely absent. |
 | Working interactively, on anything | `python tools/brief.py` — the plan's status, one line per milestone and per module, the definitions most often grepped for, the guard tests, what is on disk |
 | Looking for the file that owns a topic | `python tools/brief.py --where <keyword>` — the routing table in [docs/adr/README.md](docs/adr/README.md) § *Where to look*, filtered |
 
@@ -82,16 +82,17 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
 
 Every session runs the same five steps, in this order, and **stops**:
 
-1. **Orient in one call** — `python tools/orient.py` in the loop, `python tools/brief.py` interactively.
+1. **Orient in one call** — already done for you in the loop (the driver pipes the pack in with the
+   prompt), `python tools/brief.py` interactively.
    That is the map, where the work stands, the traps that apply to these files, the shapes you are about to
    write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
    something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
 2. **Do the work — as much of the group as fits under the context ceiling.** The handoff names a group of
-   related slices and the file set they share. **Take the first. Then take a second whenever it touches
-   files already loaded *and the first ran to plan* — two is the expected session. If the first went long,
-   stop at one. Never take a third.** Context is the binding budget here, not the clock: an agent degrades
-   well before its window is full, so the ceiling is a fixed **200k**, and a leaner orientation pack plus a
-   delegated search is what put the second slice inside it.
+   related slices and the file set they share. **Take the first. Then take a second only if it touches
+   files already loaded *and* you are under 120k with the first committed. Never take a third.** Context is
+   the binding budget here, not the clock: an agent degrades well before its window is full, so the ceiling
+   is a fixed **200k**, and the 120k gate is what keeps a second slice inside it — measured, because the
+   first two-slice session run without a number ended at 235k.
 3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever the
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.

@@ -9,26 +9,27 @@ survives.
 Run these in order, then **stop**. This is `AGENTS.md` § *Session workflow*, with the loop's own step 6
 added; that file is authoritative for steps 1–5.
 
-1. **Orient in one call:**
+1. **Your orientation is already in this message — do not fetch it.** The driver ran
+   `python tools/orient.py` and piped its output in ahead of this prompt: where the work stands, your item
+   in full, the goal's standing decisions, the rules and ADR sections it lives inside, the map lines for
+   its files, the shapes you are about to write, and the traps that apply to them. **Running the script
+   yourself costs three calls and about 20k of context for a pack you already hold** — the harness spills a
+   result that size to a file, and reading it back is the expensive half. If it is genuinely not there, run
+   `python tools/orient.py` once and say so in the handoff, because that is a driver bug.
 
-       python tools/orient.py
-
-   That is the whole of your orientation: where the work stands, your item in full, the goal's standing
-   decisions, the rules and ADR sections it lives inside, the map lines for its files, the shapes you are
-   about to write, and the traps that apply to them. It is **narrowed on purpose** — the goal's `[context]`
-   manifest in `docs/agent/loop-goal.toml` selects it, and everything it leaves out is context you are not
-   charged for. `python tools/brief.py` is the unscoped version; reach for it only when you genuinely need
-   something outside the goal, and say so in the handoff so the manifest gains the selector.
+   The pack is **narrowed on purpose** — the goal's `[context]` manifest in `docs/agent/loop-goal.toml`
+   selects it, and everything it leaves out is context you are not charged for. `python tools/brief.py` is
+   the unscoped version; reach for it only when you genuinely need something outside the goal, and say so
+   in the handoff so the manifest gains the selector.
 2. **Do the work — as much of the group as fits under the context ceiling.** `orient.py` prints your item
-   in full and the rest of the group one line each. **Take the first. Then take a second whenever it
-   touches files you have already loaded — that is now the expected session, not the exceptional one.
-   Never take a third.** The orientation pack was cut by about 6k and a read-heavy search can be
-   delegated, which together put a two-slice session inside the ceiling: `loop-stats.py` measured two at
-   200,806 against a 200,000 ceiling, and the pack cut takes that to about 194,600. **The exception is the
-   tail, and it is the one that matters:** four of the last thirty-three sessions ended over the ceiling
-   doing a *single* slice, because the first one turned into a rabbit hole. So the test is not only which
-   files the second slice touches but whether the first ran to plan — if it did not, stop at one and say so
-   in the handoff. Anything you do not reach stays ticked-off-able for the next session.
+   in full and the rest of the group one line each. **Take the first. Then take a second only if both are
+   true: it touches files you have already loaded, and you are under 120k of context with the first one
+   committed. Never take a third.** The context test is the one that matters and it is a *measurement*, not
+   a judgement — the first session run under a two-slice rule with no number on it took § 9's two
+   collections and ended at 235,448 against a 200,000 ceiling. 120k leaves the ~45k a second slice has
+   historically cost plus the ~33k tail of verification, docs, handoff and commits. If you are past it,
+   stop at one and say in the handoff where you stopped; what you do not reach stays ticked-off-able for
+   the next session, and the ceiling is a quality number, not a capacity one.
 3. **Verify once, at the end of the group:** `python tools/verify.py`, plus a `valgrind` run for any new
    refcount edge (`docs/agent/commands.md`). **This is the only place verification happens**, and the whole
    group shares one run — it is the same build either way.
