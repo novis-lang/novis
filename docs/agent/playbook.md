@@ -55,6 +55,11 @@ is why" — is this file.
   trailing newline included — the Write tool ends a file with one, so strip it when splicing
   mid-paragraph, and use `--dry-run` if you are unsure the anchor is still current. A Rust string holding
   a `Core\Name` label needs `r"..."`, or the backslash is an unknown escape.
+- **A file edited by a script comes back into your context whole.** The harness notices the on-disk
+  change it did not make and re-prints the file as a "changed on disk" reminder — an 900-line module is
+  about 10k of context, twice the cost of the edit itself, and the Edit tool never triggers it. So the
+  heredoc/`splice.py` route is for an edit Edit genuinely cannot express (a non-unique anchor, a
+  whole-field rewrite), not a shortcut for one it can.
 - **`cargo test` does not always relink `target/debug/mwl.exe`** — `cargo build -p mwl-cli` before running
   a fixture or a `.mwlt` case by hand, or a stale binary reports a member you just registered as `mixed`.
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and WSL's
