@@ -802,6 +802,7 @@ input opens two streams.
 | `$uri->path` / `$uri->query` / `$uri->fragment` / `$uri->toString` | `$uri->path(): string`, `$uri->query(): ?string`, `$uri->fragment(): ?string`, `$uri->toString(): string` | `parse_url`'s array keys, and reassembly by hand | neutral |
 | `$uri->with` | `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` | manual reassembly | |
 | `$uri->resolve` | `$uri->resolve(string $reference): Uri` | nothing | |
+| `$uri->compareTo` | `$uri->compareTo(Uri $other): int` | nothing — PHP compares `parse_url` arrays by hand | |
 
 `Uri::parse` is an ADR 0057 intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
@@ -813,6 +814,18 @@ was written, still percent-encoded and still in its own case, and dot segments a
 `$uri->resolve`, where RFC 3986 § 5.2.4 asks for it. The WHATWG URL Standard is the other specification a
 `Uri` could have read, and it is the wrong one here: it rewrites its input on the way through, so a program
 comparing `$uri->host()` against an allowlist would be comparing against text no client sent.
+
+**Asking whether two references are the same URI is `$a->compareTo($b) == 0`**, and `Uri` implements
+`Comparable` ([ADR 0013](../adr/0013-comparable-interface.md)) to say so. That is where the normalizing
+`parse` refuses to do happens, and it is the whole of RFC 3986 § 6.2.2 and no more: the scheme and host
+fold to lower case, every `%XX` escape's digits fold to upper case, an escape spelling an *unreserved*
+character becomes that character, and dot segments are removed from an **absolute** path. It stops short
+of § 6.2.3's scheme-based normalization, so `http://h:80/` and `http://h/` are two URIs — knowing that
+`80` is `http`'s default is knowledge about a scheme, and a member carrying a table of them would answer
+differently as the table grew. `==` on two `Uri`s is still object identity, which
+[ADR 0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 4 fixes for every
+class; `compareTo` is that ADR's own named answer for content equality, and it gives an order as well —
+component-lexicographic, absent before present.
 
 **Asking whether text is a URI is `$s as ?Uri`**, `Core\Uri` being on
 [ADR 0066](../adr/0066-nullable-conversion-operator.md) § 3's parse roster — `parse` with `null` where it

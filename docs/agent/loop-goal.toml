@@ -238,9 +238,12 @@ tests = [
   # Item 12 -- with the conversion above, `Core\Uri::isValid` is the second spelling R17 forbids.
   # It is not written yet, which is the whole reason this is item 12 and not M8 work.
   "core_uri_declares_no_is_valid_member",
-  # Item 13 -- `==` normalizes per RFC 3986 § 6.2.2 and then compares components. `parse` still
-  # reports verbatim: that is `uri.rs`'s own rule and this does not change it, because the
-  # normalization happens at the comparison, not at the parse.
+  # Item 13 -- `$uri->compareTo($other)` normalizes per RFC 3986 § 6.2.2 and then compares
+  # components. NOT `==`, which ADR 0090 § 4 fixes as object identity for every class and which
+  # names `compareTo(...) == 0` as the spelling for content equality; this comment used to say
+  # `==` and was wrong about which operator carries the rule. `parse` still reports verbatim:
+  # that is `uri.rs`'s own rule and this does not change it, because the normalization happens
+  # at the comparison, not at the parse.
   "two_uris_compare_by_normalized_components",
   "a_parsed_uri_round_trips_through_its_own_text",
 ]

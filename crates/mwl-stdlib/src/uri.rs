@@ -68,6 +68,53 @@
 //! `parse_url` read differently (CVE-2024-5458), so the surviving spelling is
 //! the one that cannot drift from `parse` because it *is* `parse`.
 //!
+//! # Comparison normalizes; `parse` still reports
+//!
+//! Those two rules look like they disagree and do not, because they happen at
+//! different moments. `parse` hands back every component exactly as it was
+//! written — that is what makes an allowlist check honest, since the program
+//! compares against text a client actually sent. But `http://Example.COM/a%7Eb`
+//! and `http://example.com/a~b` are one URI by RFC 3986 § 6.2.2, and a program
+//! asking whether two references name the same resource is asking a question
+//! about *equivalence*, not about spelling.
+//!
+//! So the normalization lives on `$uri->compareTo($other)` and nowhere else.
+//! It is the whole of § 6.2.2 and no more:
+//!
+//! - **§ 6.2.2.1, case.** The scheme and the host fold to lower case; every
+//!   other component keeps its own. Every `%XX` escape's hex digits fold to
+//!   upper case, everywhere.
+//! - **§ 6.2.2.2, percent-encoding.** An escape that spells an *unreserved*
+//!   character (§ 2.3: `A-Z a-z 0-9 - . _ ~`) becomes that character. An
+//!   escape that spells anything else is left escaped, which is what keeps
+//!   `/a%2Fb` from ever comparing equal to `/a/b`.
+//! - **§ 6.2.2.3, dot segments.** [`remove_dot_segments`] runs over an
+//!   **absolute** path only. § 6.2.2.3's own wording is about dot segments
+//!   "in non-relative paths"; a relative reference's `..` is meaningful until
+//!   something resolves it, so folding it here would make `../a` and `a` one
+//!   URI when they are two.
+//!
+//! It stops short of § 6.2.3's *scheme-based* normalization, deliberately:
+//! `http://h:80/` and `http://h/` stay two URIs here. Knowing that `80` is
+//! `http`'s default port is knowledge about a scheme, and a comparison that
+//! carried a table of them would answer differently as the table grew — while
+//! a caller who wants that reading can write it in one `with` call.
+//!
+//! **`==` is still identity.** [ADR 0090](../../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+//! § 4 makes `$a == $b` on two objects ask whether they are the same object
+//! and closes the door on a per-class equality hook, so `compareTo` is the
+//! named spelling that ADR itself points at for content equality — the same
+//! answer [`crate::time`] gives for an `Instant`. Two references are the same
+//! URI when `$a->compareTo($b) == 0`.
+//!
+//! The order the member defines is component-lexicographic in the class's own
+//! slot order (scheme, userInfo, host, port, path, query, fragment), with an
+//! absent component sorting before a present one — `null` host before `""`
+//! host, which is the one distinction `parse_url`'s array could not hold. RFC
+//! 3986 defines no ordering at all, so any total order agreeing with its
+//! equivalence would do; this one sorts a list of URIs into the groups a
+//! reader expects.
+//!
 //! # The bracket convention, read and written
 //!
 //! `a[]=1&a[]=2` builds a list, `a[b]=c` builds a map, and the two nest to any
@@ -440,6 +487,13 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(NAME),
             symbol: "mwl_core_uri_resolve",
         },
+        CoreMethod {
+            name: "compareTo",
+            params: &[CoreTy::Instance(NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "mwl_core_uri_compare_to",
+        },
     ],
     slots: &[
         "text", "scheme", "userInfo", "host", "port", "path", "query", "fragment",
@@ -482,6 +536,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_uri_to_string" => (mwl_core_uri_to_string as *const ()).cast(),
         "mwl_core_uri_with" => (mwl_core_uri_with as *const ()).cast(),
         "mwl_core_uri_resolve" => (mwl_core_uri_resolve as *const ()).cast(),
+        "mwl_core_uri_compare_to" => (mwl_core_uri_compare_to as *const ()).cast(),
         "mwl_core_uri_encode_component" => (mwl_core_uri_encode_component as *const ()).cast(),
         "mwl_core_uri_decode_component" => (mwl_core_uri_decode_component as *const ()).cast(),
         "mwl_core_uri_encode_form_value" => (mwl_core_uri_encode_form_value as *const ()).cast(),
@@ -918,6 +973,181 @@ fn unmoved(composed: &Composed<'_>, reference: &UriRef<&str>) -> Result<(), Faul
          delimiter must carry it: a `path` beside a `host` begins with `/`, and a `scheme` is not \
          written into one"
     )))
+}
+
+// ============================================================================
+// Equivalence — RFC 3986 § 6.2.2, run at the comparison and never at the parse
+// ============================================================================
+
+/// Whether `byte` is RFC 3986 § 2.3's *unreserved* — the set § 6.2.2.2
+/// restores from its escaped spelling.
+///
+/// Deliberately not [`Form::unreserved`]: that one answers for an *encoder*
+/// and carries the `~` disagreement between a URI component and a form value,
+/// which is a question about producing text. This one answers § 2.3's set and
+/// nothing else, because § 6.2.2.2 names that set by reference. Collapsing the
+/// two would tie a comparison's meaning to which encoder ran last.
+const fn unreserved(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~')
+}
+
+/// `text` under RFC 3986 § 6.2.2.1 and § 6.2.2.2 — every surviving escape
+/// written `%XX` in upper case, every escape spelling an [`unreserved`]
+/// character replaced by that character, and the ASCII letters folded to lower
+/// case where `fold` says this component is case-insensitive.
+///
+/// `fold` is § 6.2.2.1's first half, applied per component rather than to the
+/// whole reference: the scheme and the host are case-insensitive and nothing
+/// else is, so a path's `A` stays an `A`.
+///
+/// A malformed escape is left as the text [`decode`] would also leave — a
+/// comparison is not the place to start refusing what `parse` admitted, and
+/// two references that both wrote the same stray `%` are still the same
+/// reference.
+fn normalized(text: &str, fold: bool) -> String {
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'%' => match escaped(bytes, at + 1) {
+                Some(byte) if unreserved(byte) => {
+                    out.push(char::from(fold_ascii(byte, fold)));
+                    at += 3;
+                }
+                Some(byte) => {
+                    out.push('%');
+                    out.push(char::from(HEX[usize::from(byte >> 4)]));
+                    out.push(char::from(HEX[usize::from(byte & 0x0f)]));
+                    at += 3;
+                }
+                None => {
+                    out.push('%');
+                    at += 1;
+                }
+            },
+            byte => {
+                out.push(char::from(fold_ascii(byte, fold)));
+                at += 1;
+            }
+        }
+    }
+    out
+}
+
+/// `byte` lower-cased where `fold`, and itself otherwise.
+///
+/// ASCII only, and that is § 6.2.2.1's own scope: a scheme is ASCII by grammar
+/// and a host that is not is punycode, which is ASCII too. Folding by Unicode
+/// rules here would make the answer depend on a case table rather than on the
+/// RFC.
+const fn fold_ascii(byte: u8, fold: bool) -> u8 {
+    if fold {
+        byte.to_ascii_lowercase()
+    } else {
+        byte
+    }
+}
+
+/// RFC 3986 § 5.2.4's `remove_dot_segments` over `path`, which is what
+/// § 6.2.2.3 asks a normalizer to apply.
+///
+/// Runs on an **absolute** path only — one beginning with `/`. § 6.2.2.3's own
+/// wording is about dot segments "in non-relative paths", and the restriction
+/// matters: a relative reference's leading `..` is meaningful until something
+/// resolves it, so folding it away here would answer that `../a` and `a` are
+/// one URI when they are two different references to two different resources.
+///
+/// A list of surviving segments rather than the RFC's literal two-buffer
+/// transcription, which rescans its output string to find the last segment
+/// written: the input is a request path, so a quadratic pass over it would be
+/// a cost the caller chooses. The two produce the same answer, including on
+/// the two cases a segment list makes easy to get wrong — an **empty interior
+/// segment is kept** (`/a//b` is not `/a/b`), and a **trailing** `.` or `..`
+/// leaves the path ending in `/`, which is § 5.2.4 steps 2C and 2D appending
+/// an empty segment.
+fn remove_dot_segments(path: &str) -> String {
+    if !path.starts_with('/') {
+        return path.to_owned();
+    }
+    // Non-empty for any absolute path: `"/"` splits to `["", ""]`.
+    let segments: Vec<&str> = path.split('/').skip(1).collect();
+    let last = segments.len() - 1;
+    let mut kept: Vec<&str> = Vec::with_capacity(segments.len());
+    for (index, segment) in segments.iter().enumerate() {
+        match *segment {
+            "." => {
+                if index == last {
+                    kept.push("");
+                }
+            }
+            ".." => {
+                kept.pop();
+                if index == last {
+                    kept.push("");
+                }
+            }
+            other => kept.push(other),
+        }
+    }
+    format!("/{}", kept.join("/"))
+}
+
+/// One `Uri`'s seven components under [`normalized`], in the class's own slot
+/// order — which is also the order [`Ord`] compares them in.
+///
+/// Derived rather than hand-written: a lexicographic walk of the fields in
+/// declaration order is exactly the order the module docs state, and a derive
+/// cannot forget a field the way a hand-written chain of `then_with` can. An
+/// absent component sorts before a present one, which is [`Option`]'s own
+/// derived order and the reading the module docs give.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Equivalent {
+    scheme: Option<String>,
+    user_info: Option<String>,
+    host: Option<String>,
+    port: Option<i64>,
+    path: String,
+    query: Option<String>,
+    fragment: Option<String>,
+}
+
+/// The `Core\Uri` in argument slot `at`, read into its [`Equivalent`] form.
+///
+/// # Errors
+///
+/// [`crate::instance::receiver`]'s where the slot does not hold one, and
+/// [`held`]'s where a component slot holds neither a `string` nor `null`.
+///
+/// Every slot read here is [`crate::instance::slot`]'s **borrow**, so nothing
+/// is retained and nothing needs releasing on either edge — the same treatment
+/// [`mwl_core_uri_resolve`] gives its own receiver.
+fn equivalent(args: &[Value], at: usize, member: &str) -> Result<Equivalent, Fault> {
+    let object = crate::instance::receiver(args[at], &CLASS, member)?;
+    let slots: [Value; 8] = std::array::from_fn(|index| crate::instance::slot(object, index));
+    let component = |index: usize, fold: bool| -> Result<Option<String>, Fault> {
+        Ok(held(&slots, index, member)?.map(|text| normalized(text, fold)))
+    };
+    let port = match slots[PORT_SLOT].tag() {
+        Some(Tag::Null) => None,
+        _ => Some(slots[PORT_SLOT].as_int().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Uri::{member} found tag {} in the `port` slot",
+                slots[PORT_SLOT].tag_byte()
+            ))
+        })?),
+    };
+    let path = component(PATH_SLOT, false)?
+        .ok_or_else(|| Fault::fatal(format!("Core\\Uri::{member} found a null `path` slot")))?;
+    Ok(Equivalent {
+        scheme: component(SCHEME_SLOT, true)?,
+        user_info: component(USER_INFO_SLOT, false)?,
+        host: component(HOST_SLOT, true)?,
+        port,
+        path: remove_dot_segments(&path),
+        query: component(QUERY_SLOT, false)?,
+        fragment: component(FRAGMENT_SLOT, false)?,
+    })
 }
 
 // ============================================================================
@@ -1407,6 +1637,34 @@ mwl_runtime::mwl_helper! {
         built(&UriRef::parse(resolved.as_str()).map_err(|_| {
             Fault::fatal("Core\\Uri::resolve produced text `fluent-uri` will not read back")
         })?, "resolve")
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->compareTo(Uri $other): int` — `Comparable`'s member
+    /// ([ADR 0013](../../../../docs/adr/0013-comparable-interface.md)), over
+    /// the two references' RFC 3986 § 6.2.2 normal forms.
+    ///
+    /// This is the member that answers "are these the same URI", because
+    /// [ADR 0090](../../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 4 keeps `==` on two objects meaning *the same object* and names
+    /// `compareTo($other) == 0` as the spelling for the other question. What
+    /// normalizing does and where it stops is the module docs' own section;
+    /// nothing here rewrites the receiver, so `$uri->toString()` still answers
+    /// with the text that was parsed.
+    ///
+    /// **Cost:** one `String` per non-empty component of each side, freed
+    /// before the member returns. Bounded by the two references' own lengths,
+    /// which is why the normal forms are computed per call rather than cached
+    /// in an eighth slot every `Uri` would pay for and most would never read.
+    fn mwl_core_uri_compare_to(_ctx, args: [2]) {
+        let left = equivalent(args, 0, "compareTo")?;
+        let right = equivalent(args, 1, "compareTo")?;
+        Ok(Value::int(match left.cmp(&right) {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        }))
     }
 }
 
@@ -2034,6 +2292,203 @@ mod tests {
             assert!(
                 message.contains(&format!("`{moved}`")),
                 "{text:?} should name `{moved}`, said {message}"
+            );
+        }
+    }
+
+    /// One reference per row, each written the way a client might: the corpus
+    /// both round-trip halves below run over.
+    const CORPUS: &[&str] = &[
+        "http://example.com/",
+        "https://user:pw@example.com:8443/a/b?c=d#e",
+        "HTTP://Example.COM/a%7Eb",
+        "file:///tmp/x",
+        "mailto:someone@example.com",
+        "urn:isbn:0451450523",
+        "http://[2001:db8::1]:8080/",
+        "http://example.com/a//b/./c/../d/",
+        "//example.com/protocol-relative",
+        "/absolute/path?q",
+        "relative/path",
+        "?query-only",
+        "#fragment-only",
+        "",
+    ];
+
+    /// `Core\Uri::parse($text)`, as the instance value the caller then owns.
+    fn uri_of(text: &str) -> Value {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let argument = Value::str(mwl_runtime::MwlStr::new(text.as_bytes()));
+        let uri = call(super::mwl_core_uri_parse, &mut ctx, &[argument])
+            .expect("every subject here is a URI reference");
+        #[expect(unsafe_code, reason = "this frame owns the argument it built")]
+        unsafe {
+            argument.release();
+        }
+        uri
+    }
+
+    /// `Core\Uri::parse($left)->compareTo(Core\Uri::parse($right))`.
+    fn compared(left: &str, right: &str) -> i64 {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let (left, right) = (uri_of(left), uri_of(right));
+        let answer = call(super::mwl_core_uri_compare_to, &mut ctx, &[left, right])
+            .expect("comparing two `Uri`s never throws")
+            .as_int()
+            .expect("`compareTo` answers an `int`");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns both instances, and `compareTo` borrows \
+                      rather than consumes"
+        )]
+        unsafe {
+            left.release();
+            right.release();
+        }
+        answer
+    }
+
+    /// `Core\Uri::parse($text)->toString()` — the text the instance kept.
+    fn own_text(text: &str) -> String {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let uri = uri_of(text);
+        let answer = call(super::mwl_core_uri_to_string, &mut ctx, &[uri])
+            .expect("`toString` reads a slot and never throws");
+        let out = String::from_utf8(
+            answer
+                .as_str_bytes()
+                .expect("`toString` answers a `string`")
+                .to_vec(),
+        )
+        .expect("ADR 0009 guarantees a `string` is UTF-8");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the instance and the reference `toString` \
+                      handed back"
+        )]
+        unsafe {
+            answer.release();
+            uri.release();
+        }
+        out
+    }
+
+    /// RFC 3986 § 6.2.2's three normalizations, and the three places the
+    /// member deliberately stops short of them — the module docs' *Comparison
+    /// normalizes* section, asserted rather than described.
+    #[test]
+    fn two_uris_compare_by_normalized_components() {
+        // One URI, two spellings, per § 6.2.2.1 (case), § 6.2.2.2
+        // (percent-encoding) and § 6.2.2.3 (dot segments).
+        for (left, right) in [
+            ("HTTP://example.com/a", "http://example.com/a"),
+            ("http://Example.COM/a", "http://example.com/a"),
+            ("http://example.com/a%7Eb", "http://example.com/a~b"),
+            ("http://example.com/a%2fb", "http://example.com/a%2Fb"),
+            ("http://u%73er@example.com/", "http://user@example.com/"),
+            ("http://example.com/x/./y", "http://example.com/x/y"),
+            ("http://example.com/x/../y", "http://example.com/y"),
+            ("http://example.com/x/y/..", "http://example.com/x/"),
+            ("http://example.com/..", "http://example.com/"),
+        ] {
+            assert_eq!(
+                compared(left, right),
+                0,
+                "{left:?} and {right:?} are one URI under RFC 3986 § 6.2.2"
+            );
+        }
+
+        // And the lines it does not cross. Each of these is a *different* URI
+        // here, and the module docs say why for each.
+        for (left, right, because) in [
+            (
+                "http://example.com:80/",
+                "http://example.com/",
+                "a default port is § 6.2.3, which needs a table of schemes",
+            ),
+            (
+                "http://example.com",
+                "http://example.com/",
+                "an empty path is § 6.2.3 for the same reason",
+            ),
+            (
+                "http://example.com/a%2Fb",
+                "http://example.com/a/b",
+                "an escape spelling a reserved octet stays escaped",
+            ),
+            (
+                "http://example.com/A",
+                "http://example.com/a",
+                "only the scheme and the host are case-insensitive",
+            ),
+            (
+                "http://example.com//a",
+                "http://example.com/a",
+                "an empty interior segment is a segment",
+            ),
+            (
+                "../a",
+                "a",
+                "a relative reference's `..` is meaningful until it is resolved",
+            ),
+        ] {
+            assert_ne!(
+                compared(left, right),
+                0,
+                "{left:?} and {right:?} are two URIs — {because}"
+            );
+        }
+
+        // The order is total and component-lexicographic, with an absent
+        // component sorting before a present one.
+        assert_eq!(compared("http://a/", "http://b/"), -1);
+        assert_eq!(compared("http://b/", "http://a/"), 1);
+        assert_eq!(compared("/a", "http:/a"), -1);
+        for subject in CORPUS {
+            assert_eq!(compared(subject, subject), 0, "{subject:?} equals itself");
+        }
+    }
+
+    /// Two round trips, because `parse` promises two different things. Its
+    /// *text* comes back byte for byte, which is the module docs' "reports
+    /// rather than normalizes"; and RFC 3986 § 5.3's recomposition of the
+    /// components it found parses back to an equivalent reference, which is
+    /// what makes the seven readers a faithful decomposition rather than seven
+    /// plausible substrings.
+    #[test]
+    fn a_parsed_uri_round_trips_through_its_own_text() {
+        for subject in CORPUS {
+            assert_eq!(
+                &own_text(subject),
+                subject,
+                "`toString` answers the text that was parsed"
+            );
+            assert_eq!(
+                compared(subject, &own_text(subject)),
+                0,
+                "re-parsing {subject:?}'s own text is the same URI"
+            );
+
+            let reference = super::read(subject, "compareTo").expect("the corpus parses");
+            let authority = reference.authority();
+            let composed = super::Composed {
+                scheme: reference.scheme().map(super::Scheme::as_str),
+                user_info: authority
+                    .and_then(|held| held.userinfo())
+                    .map(super::EStr::as_str),
+                host: authority.as_ref().map(super::Authority::host),
+                port: authority
+                    .and_then(|held| held.port())
+                    .map(super::EStr::as_str),
+                path: reference.path().as_str(),
+                query: reference.query().map(super::EStr::as_str),
+                fragment: reference.fragment().map(super::EStr::as_str),
+            };
+            let recomposed = super::recompose(&composed);
+            assert_eq!(
+                compared(subject, &recomposed),
+                0,
+                "{subject:?} recomposes to {recomposed:?}, which is a different URI"
             );
         }
     }

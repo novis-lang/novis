@@ -16,6 +16,8 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 mwl-diagnostics = { path = "../crates/mwl-diagnostics" }
+mwl-runtime = { path = "../crates/mwl-runtime" }
+mwl-stdlib = { path = "../crates/mwl-stdlib" }
 mwl-syntax = { path = "../crates/mwl-syntax" }
 
 [[bin]]
@@ -28,6 +30,13 @@ bench = false
 [[bin]]
 name = "parse"
 path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "uri"
+path = "fuzz_targets/uri.rs"
 test = false
 doc = false
 bench = false

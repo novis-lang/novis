@@ -1,0 +1,36 @@
+--TEST--
+`$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, ADR 0013, ADR 0090 § 4
+--FILE--
+<?mwl
+// § 6.2.2.1 and § 6.2.2.2: the scheme and the host fold to lower case, and an
+// escape that spells an unreserved character is that character. `parse` still
+// reports what was written, which is what the second line pins.
+var $written = Core\Uri::parse("HTTP://Example.COM/a%7Eb");
+var $plain = Core\Uri::parse("http://example.com/a~b");
+echo $written->compareTo($plain), "\n";
+echo $written->toString(), "\n";
+
+// § 6.2.2.3: dot segments are removed from an absolute path.
+echo Core\Uri::parse("http://h/x/./y/../z")->compareTo(Core\Uri::parse("http://h/x/z")), "\n";
+
+// The three lines § 6.2.2 deliberately does not cross. A default port and an
+// empty path are § 6.2.3, which needs a table of schemes; an escape spelling a
+// reserved octet stays escaped, so `%2F` is never a `/`; and only the scheme
+// and the host are case-insensitive.
+echo Core\Uri::parse("http://h:80/")->compareTo(Core\Uri::parse("http://h/")), "\n";
+echo Core\Uri::parse("http://h/a%2Fb")->compareTo(Core\Uri::parse("http://h/a/b")), "\n";
+echo Core\Uri::parse("http://h/A")->compareTo(Core\Uri::parse("http://h/a")), "\n";
+
+// ADR 0013: the answer is an order, not only an equality — component
+// lexicographic, in the order the readers are declared.
+echo Core\Uri::parse("http://a/")->compareTo(Core\Uri::parse("http://b/")), "\n";
+echo Core\Uri::parse("http://b/")->compareTo(Core\Uri::parse("http://a/")), "\n";
+--EXPECT--
+0
+HTTP://Example.COM/a%7Eb
+0
+1
+-1
+-1
+-1
+1
