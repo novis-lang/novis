@@ -534,7 +534,7 @@ mod tests {
             "{}.{}.{}.te",
             "b".repeat(62),
             "c".repeat(62),
-            "d".repeat(61)
+            "d".repeat(60)
         );
         let whole = format!("{}@{domain}", "a".repeat(64));
         assert_eq!(whole.len(), 254);
