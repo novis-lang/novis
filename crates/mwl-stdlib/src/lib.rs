@@ -192,6 +192,7 @@ pub mod json;
 pub mod math;
 mod ordering;
 pub mod path;
+pub mod random;
 pub mod regex;
 pub mod registry;
 pub mod str;
@@ -238,6 +239,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 .or_else(|| json::address(method.symbol))
                 .or_else(|| math::address(method.symbol))
                 .or_else(|| path::address(method.symbol))
+                .or_else(|| random::address(method.symbol))
                 .or_else(|| regex::address(method.symbol))
                 .or_else(|| time::address(method.symbol))
                 .unwrap_or_else(|| {

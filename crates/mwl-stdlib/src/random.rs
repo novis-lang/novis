@@ -1,0 +1,730 @@
+//! `Core\Random` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! § 11's first table, which is a CSPRNG **always**.
+//!
+//! That section collapses PHP's `rand`, `mt_rand`, `random_int`, `lcg_value`,
+//! `shuffle`, `str_shuffle` and `array_rand` into one class and keeps none of
+//! the insecure generators under any name. So there is no fast-but-predictable
+//! tier here to fall back to and none to add later: every member draws from a
+//! cryptographic generator, and the only escape from that is
+//! `Core\Random\Seeded`, a *different type* whose guarantee is reproducibility
+//! (gap 2 below).
+//!
+//! # The generator, and why `rand`
+//!
+//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4 asks
+//! two questions of a dependency, and this one answers the first: no
+//! attacker-controlled data reaches it at all — a member here takes a count or
+//! a pair of bounds and returns bytes — so it is accepted under ordinary
+//! audit. It is pure Rust with no build script and no C, which is the wider
+//! default it also meets.
+//!
+//! Every member runs on `rand::rng()`, the thread-local `ThreadRng`: ChaCha12,
+//! seeded from the operating system's own generator and reseeded from it every
+//! 64 KiB of output. Two properties are why this rather than reading the OS
+//! generator directly at each call:
+//!
+//! * **It is a userspace generator.** `Core\Random::float()` in a loop is a
+//!   ChaCha block every 64 draws rather than a syscall every one, which is
+//!   AGENTS.md's priority 3 and the reason a *secure* generator can be the
+//!   only generator without a program paying for the choice.
+//! * **Bounded sampling and shuffling are already written and analysed there.**
+//!   Drawing an integer in `[$min, $max]` without bias is the part of this
+//!   class that is easy to get subtly wrong, and `rand`'s `unbiased` feature —
+//!   enabled in the workspace's own dependency line — makes it exact rather
+//!   than merely within 1-in-2^64 of exact. Hand-writing it beside a CSPRNG
+//!   would be the one piece of security-relevant arithmetic in `Core` with no
+//!   second reader.
+//!
+//! `getrandom` alone was the alternative: fewer crates, but a syscall per draw
+//! *and* the rejection-sampling and Fisher-Yates code moved in here, which
+//! trades priority 3 and priority 2 to buy priority 4. ADR 0051 § 4 does not
+//! ask a question that distinguishes them, so AGENTS.md's ordering does.
+//!
+//! # What it spends
+//!
+//! One `ThreadRng` per **thread**: ~136 bytes of ChaCha state plus its 256-byte
+//! output block, allocated on the first draw a thread makes and never freed.
+//! That is O(threads), not O(requests served) — nothing here is retained across
+//! a call, so AGENTS.md's "attributable to a request and O(in-flight)" rule is
+//! satisfied trivially: the generator belongs to the worker, not to the work.
+//!
+//! # Known gaps
+//!
+//! 1. **`Random::bytes` is not registered.** Spec § 11's third row returns
+//!    `bytes`, and `mwl_runtime::Tag` has no `Bytes` variant yet, so no member
+//!    can construct one. [`mwl_core_random_token`] is deliberately hex for
+//!    exactly this reason — it is the row that makes the class useful for
+//!    session identifiers without waiting on ADR 0009's runtime half.
+//! 2. **`Core\Random\Seeded` is not built.** It is a separate object with the
+//!    same members, constructed from an explicit seed; making the distinction a
+//!    type is what stops a test helper being reached for in production, so it
+//!    is a class of its own here too rather than an option on these members.
+//! 3. **`ThreadRng` is not reseeded on `fork`.** Nothing in MWL forks today —
+//!    [ADR 0093](../../../../docs/adr/0093-mwl-service.md)'s `mwl service` is
+//!    unbuilt — but a child process that inherits a parent's ChaCha state would
+//!    reproduce the parent's stream, so whatever lands there owes
+//!    `ThreadRng::reseed` in the child.
+
+use rand::seq::SliceRandom;
+use rand::{Rng, RngExt};
+
+use mwl_runtime::{Fault, MwlArray, MwlStr, Tag, Value};
+
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy};
+
+// ============================================================================
+// Registration — this class's rows, and where its symbols live
+// ============================================================================
+
+/// `Core\Random`'s registry rows, in the spec's own order — six of § 11's
+/// seven members, the absent one being this module's gap 1.
+pub const CLASS: CoreClass = CoreClass {
+    name: r"Core\Random",
+    methods: &[
+        CoreMethod {
+            name: "int",
+            params: &[CoreTy::Int, CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "mwl_core_random_int",
+        },
+        CoreMethod {
+            name: "float",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "mwl_core_random_float",
+        },
+        CoreMethod {
+            name: "token",
+            params: &[CoreTy::Uint],
+            defaults: &[Const::Uint(DEFAULT_TOKEN_BYTES)],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_random_token",
+        },
+        CoreMethod {
+            name: "pick",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            symbol: "mwl_core_random_pick",
+        },
+        CoreMethod {
+            name: "sample",
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_random_sample",
+        },
+        CoreMethod {
+            name: "shuffle",
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_random_shuffle",
+        },
+    ],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Random::token`'s default draw, which spec § 11 writes as
+/// `token(uint $bytes = 32)`.
+///
+/// Stated once and used in the registry row so the signature the compiler
+/// resolves and the number the helper documents cannot drift apart.
+const DEFAULT_TOKEN_BYTES: u64 = 32;
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that
+/// belongs to another domain. See [`crate::symbols`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "mwl_core_random_int" => (mwl_core_random_int as *const ()).cast(),
+        "mwl_core_random_float" => (mwl_core_random_float as *const ()).cast(),
+        "mwl_core_random_token" => (mwl_core_random_token as *const ()).cast(),
+        "mwl_core_random_pick" => (mwl_core_random_pick as *const ()).cast(),
+        "mwl_core_random_sample" => (mwl_core_random_sample as *const ()).cast(),
+        "mwl_core_random_shuffle" => (mwl_core_random_shuffle as *const ()).cast(),
+        _ => return None,
+    })
+}
+
+// ============================================================================
+// Argument decoding — the same shape as `crate::path`'s, naming this class
+// ============================================================================
+
+/// One `int` argument.
+fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
+    value.as_int().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Random::{member} expected {:?} for {position}, got tag {}",
+            Tag::Int,
+            value.tag_byte()
+        ))
+    })
+}
+
+/// One `uint` argument, as a `usize` — saturating, since a count larger than
+/// this process could address is refused by the caller either way.
+fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
+    let raw = value.as_uint().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Random::{member} expected {:?} for {position}, got tag {}",
+            Tag::Uint,
+            value.tag_byte()
+        ))
+    })?;
+    Ok(usize::try_from(raw).unwrap_or(usize::MAX))
+}
+
+/// The subject array of one of the three `array<T>` members, as the borrowed
+/// handle [`crate::arr::borrowed`] owns the rules for — never
+/// `MwlArray::from_raw`, which would release the caller's reference on drop.
+fn subject(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<MwlArray>, Fault> {
+    let array = args[0].array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Random::{member} expected {:?}, got tag {}",
+            Tag::Array,
+            args[0].tag_byte()
+        ))
+    })?;
+    Ok(crate::arr::borrowed(array))
+}
+
+/// Every live slot of a borrowed subject, in insertion order.
+///
+/// The three members below draw over *slots* rather than over values, so a
+/// value is copied out only for the entries that end up in the answer — an
+/// `array<T>` of a million entries picked from once retains one reference, not
+/// a million.
+fn slots(subject: &MwlArray) -> Vec<usize> {
+    let mut out = Vec::new();
+    let mut from = 0_usize;
+    while let Some(slot) = subject.next_slot(from) {
+        out.push(slot);
+        from = slot + 1;
+    }
+    out
+}
+
+/// The value at `slot` as a fresh reference this frame owns — what a returned
+/// value, or one stored into a fresh array, has to be.
+///
+/// `MwlArray::value_at` *borrows* from the subject, which belongs to the
+/// caller, so every answer retains before it leaves. This is `crate::arr`'s
+/// own rule, applied here for the same reason and stated there in full.
+fn owned_value_at(subject: &MwlArray, slot: usize) -> Value {
+    let value = subject
+        .value_at(slot)
+        .expect("next_slot only names live entries");
+    #[expect(
+        unsafe_code,
+        reason = "the entry is owned by the subject array, which outlives this \
+                  call, so the value handed back needs a reference of its own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    value
+}
+
+/// The values at `slots`, in that order, as a fresh `array<T>` under `0, 1, …`
+/// keys.
+///
+/// Both `sample` and `shuffle` answer this way: their whole subject is which
+/// entries and in what order, so the keys of the subject say nothing about the
+/// answer and `MwlArray::append` assigns fresh ones — the same rule
+/// `Core\Arr::values` states.
+fn drawn(subject: &MwlArray, slots: &[usize]) -> Value {
+    let mut out = MwlArray::new();
+    for slot in slots {
+        out.append(owned_value_at(subject, *slot));
+    }
+    Value::array(out)
+}
+
+// ============================================================================
+// The members
+// ============================================================================
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Random::int(int $min, int $max): int` — replacing PHP's `rand`,
+    /// `mt_rand` and `random_int` with the last one's semantics and the last
+    /// one's generator.
+    ///
+    /// **Inclusive at both ends**, so `int(1, 6)` is a die and `int($n, $n)` is
+    /// `$n`. `$min > $max` names an empty range, which has no answer to invent,
+    /// so it throws (ADR 0063 R4) rather than swapping the bounds — a swap
+    /// would turn a computed-bounds bug into a plausible-looking result.
+    fn mwl_core_random_int(_ctx, args: [2]) {
+        let min = integer(&args[0], "int", "the lower bound")?;
+        let max = integer(&args[1], "int", "the upper bound")?;
+
+        if min > max {
+            return Err(Fault::thrown(format!(
+                "Core\\Random::int(): the range is empty — the lower bound {min} is above the \
+                 upper bound {max}, and both ends are inclusive"
+            )));
+        }
+        Ok(Value::int(rand::rng().random_range(min..=max)))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Random::float(): float` — replacing PHP's `lcg_value` and the
+    /// `mt_rand() / mt_getrandmax()` idiom.
+    ///
+    /// Uniform in `[0, 1)`: `0.0` is drawable and `1.0` is not, which is the
+    /// half-open interval every "scale it into my own range" use expects, and
+    /// the one the spec row writes. 53 random bits, the whole significand of an
+    /// `f64`.
+    fn mwl_core_random_float(_ctx, args: [0]) {
+        let _ = args;
+        Ok(Value::float(rand::rng().random::<f64>()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Random::token(uint $bytes = 32): string` — replacing the
+    /// `bin2hex(random_bytes(…))` idiom, which is what PHP code actually
+    /// writes when it wants a session identifier or a reset link.
+    ///
+    /// **Hex, and therefore a `string`.** The spec's `Random::bytes` row is
+    /// this module's gap 1, and this member is deliberately not blocked behind
+    /// it: a token is written into a URL, a cookie or a database column, so the
+    /// hex is what a program wanted in every case anyway. `$bytes` counts the
+    /// *entropy* drawn, never the characters produced — the answer is twice as
+    /// long as the count, and reading it as a length would silently halve the
+    /// strength of every token in a program that guessed wrong.
+    ///
+    /// **Zero bytes throws** (ADR 0063 R4). The empty string is a token that
+    /// compares equal to every other empty token, so answering with it would
+    /// turn an arithmetic slip into an authentication bypass; there is no
+    /// reading of `token(0)` worth being total for.
+    fn mwl_core_random_token(_ctx, args: [1]) {
+        let bytes = count(&args[0], "token", "the byte count")?;
+
+        if bytes == 0 {
+            return Err(Fault::thrown(
+                "Core\\Random::token(): a token of zero bytes is the empty string, which is not a \
+                 token — draw at least one byte",
+            ));
+        }
+        // `vec![0; n]` aborts the process on an allocation this large rather
+        // than failing, so the size is checked first and reported as an
+        // ordinary throw — `Core\Str::repeat` takes the same shape for the same
+        // reason.
+        let digits = bytes
+            .checked_mul(2)
+            .filter(|len| isize::try_from(*len).is_ok())
+            .ok_or_else(|| {
+                Fault::thrown(
+                    "Core\\Random::token(): the requested token is larger than any string this \
+                     process could hold",
+                )
+            })?;
+
+        let mut drawn = vec![0_u8; bytes];
+        rand::rng().fill_bytes(&mut drawn);
+
+        let mut token = String::with_capacity(digits);
+        for byte in drawn {
+            token.push(HEX_DIGITS[usize::from(byte >> 4)]);
+            token.push(HEX_DIGITS[usize::from(byte & 0x0f)]);
+        }
+        Ok(Value::str(MwlStr::new(token.as_bytes())))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Random::pick(array<T> $a): ?T` — one entry's value, uniformly,
+    /// replacing PHP's `array_rand` in its one-element spelling.
+    ///
+    /// **`?T` over an empty array rather than a throw** (ADR 0063 R5).
+    /// `Core\Arr::first`'s own docs own that rule and the one thing it costs:
+    /// over an `array<?T>` the answer cannot tell "the array was empty" from
+    /// "the entry drawn was `null`". R4's throw is for a *failure*, and asking
+    /// a possibly-empty array for an element is not one.
+    ///
+    /// The **value**, never the key — PHP's `array_rand` answers with a key,
+    /// which is the shape that makes `$a[array_rand($a)]` the idiom. ADR 0007
+    /// § 5 stores every key as a string, so answering with one would hand back
+    /// a `string` for an `array<T>` and lose the type the caller had.
+    fn mwl_core_random_pick(_ctx, args: [1]) {
+        let subject = subject(args, "pick")?;
+
+        let slots = slots(&subject);
+        Ok(match slots.len() {
+            0 => Value::null(),
+            len => owned_value_at(&subject, slots[rand::rng().random_range(0..len)]),
+        })
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Random::sample(array<T> $a, uint $count): array<T>` — `$count`
+    /// *distinct* entries, uniformly, replacing PHP's `array_rand` with a
+    /// count.
+    ///
+    /// **The answer is in random order**, not the subject's. PHP's
+    /// `array_rand` preserves the subject's order, which quietly leaks it into
+    /// every sample — a program drawing three winners from a list sorted by
+    /// signup date gets them back in signup order. This member is a draw, so
+    /// its order is drawn too; a caller who wants the subject's order back
+    /// sorts, and one who wants the whole array reordered has `shuffle` beside
+    /// it.
+    ///
+    /// **A count above the array's size throws** (ADR 0063 R4). There are not
+    /// that many distinct entries to draw, so the alternatives are inventing a
+    /// duplicate or silently answering short — a failure either way, and only
+    /// the throw says so.
+    fn mwl_core_random_sample(_ctx, args: [2]) {
+        let subject = subject(args, "sample")?;
+        let count = count(&args[1], "sample", "the sample size")?;
+
+        let mut slots = slots(&subject);
+        if count > slots.len() {
+            let held = slots.len();
+            return Err(Fault::thrown(format!(
+                "Core\\Random::sample(): asked for {count} distinct entries from an array that \
+                 holds {held}"
+            )));
+        }
+        let (sampled, _) = slots.partial_shuffle(&mut rand::rng(), count);
+        Ok(drawn(&subject, sampled))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Random::shuffle(array<T> $a): array<T>` — every entry, in a
+    /// uniformly random order, replacing PHP's `shuffle` and `str_shuffle`.
+    ///
+    /// **A fresh array, not a reordering in place.** PHP's `shuffle` takes its
+    /// subject by reference and answers `bool`; an MWL array is a copy-on-write
+    /// *value*, so there is nothing to mutate and the spec's signature returns
+    /// the new order instead.
+    ///
+    /// **Keys are discarded**, exactly as PHP's own `shuffle` renumbers: a
+    /// shuffle is about position, and a key that survived it would name an
+    /// entry that is no longer where the caller left it.
+    fn mwl_core_random_shuffle(_ctx, args: [1]) {
+        let subject = subject(args, "shuffle")?;
+
+        let mut slots = slots(&subject);
+        slots.shuffle(&mut rand::rng());
+        Ok(drawn(&subject, &slots))
+    }
+}
+
+/// Lower-case hex, which is what `bin2hex` emits and what every consumer of a
+/// token compares against.
+const HEX_DIGITS: [char; 16] = [
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+];
+
+#[cfg(test)]
+mod tests {
+    use mwl_runtime::{Ctx, MwlArray, OutputSink, Value, call};
+
+    /// Runs one member through the ADR 0002 boundary compiled code reaches it
+    /// at.
+    ///
+    /// It releases nothing: a helper *borrows* its arguments, so a test that
+    /// builds a heap one owns it afterwards and says so at its own end — which
+    /// is `crate::arr`'s convention and the only one under which a refcount
+    /// assertion means anything.
+    fn run(
+        member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+        args: &[Value],
+    ) -> Result<Value, i32> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        call(member, &mut ctx, args)
+    }
+
+    /// The produced `string`, as text, releasing the reference this test now
+    /// owns.
+    fn taken(value: Value) -> String {
+        let text = String::from_utf8(
+            value
+                .as_str_bytes()
+                .expect("the member answered with a `string`")
+                .to_vec(),
+        )
+        .expect("ADR 0009 guarantees a `string` is UTF-8");
+        #[expect(
+            unsafe_code,
+            reason = "the helper handed back the one reference it built, so \
+                      this test owns it"
+        )]
+        unsafe {
+            value.release();
+        }
+        text
+    }
+
+    #[test]
+    fn a_drawn_int_is_inside_its_inclusive_bounds() {
+        for _ in 0..256 {
+            let drawn = run(super::mwl_core_random_int, &[Value::int(-3), Value::int(4)])
+                .expect("a non-empty range always has an answer")
+                .as_int()
+                .expect("`int` answers with an `int`");
+            assert!((-3..=4).contains(&drawn), "{drawn} is outside [-3, 4]");
+        }
+    }
+
+    /// The one range whose answer is deterministic, which is what the
+    /// conformance case pins too.
+    #[test]
+    fn a_degenerate_range_is_its_own_bound() {
+        let drawn = run(super::mwl_core_random_int, &[Value::int(5), Value::int(5)])
+            .expect("[5, 5] holds exactly one integer")
+            .as_int();
+        assert_eq!(drawn, Some(5));
+    }
+
+    #[test]
+    fn the_widest_range_still_draws() {
+        run(
+            super::mwl_core_random_int,
+            &[Value::int(i64::MIN), Value::int(i64::MAX)],
+        )
+        .expect("every `int` is in range")
+        .as_int()
+        .expect("`int` answers with an `int`");
+    }
+
+    #[test]
+    fn an_empty_range_throws() {
+        let status = run(super::mwl_core_random_int, &[Value::int(4), Value::int(3)])
+            .expect_err("no integer is both at least 4 and at most 3");
+        assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    #[test]
+    fn a_drawn_float_is_in_the_half_open_unit_interval() {
+        for _ in 0..256 {
+            let drawn = run(super::mwl_core_random_float, &[])
+                .expect("`float` never fails")
+                .as_float()
+                .expect("`float` answers with a `float`");
+            assert!((0.0..1.0).contains(&drawn), "{drawn} is outside [0, 1)");
+        }
+    }
+
+    #[test]
+    fn a_token_is_twice_its_byte_count_in_lower_case_hex() {
+        let token = taken(
+            run(super::mwl_core_random_token, &[Value::uint(8)]).expect("8 bytes is drawable"),
+        );
+        assert_eq!(token.len(), 16);
+        assert!(
+            token
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+            "`{token}` is not lower-case hex"
+        );
+    }
+
+    /// Two draws differing is not a proof of anything on its own, but a member
+    /// that answered with a constant would fail it every time.
+    #[test]
+    fn two_tokens_differ() {
+        let first = taken(
+            run(super::mwl_core_random_token, &[Value::uint(32)]).expect("32 bytes is drawable"),
+        );
+        let second = taken(
+            run(super::mwl_core_random_token, &[Value::uint(32)]).expect("32 bytes is drawable"),
+        );
+        assert_eq!(first.len(), 64);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn a_zero_byte_token_throws() {
+        let status = run(super::mwl_core_random_token, &[Value::uint(0)])
+            .expect_err("the empty string is not a token");
+        assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    #[test]
+    fn an_unrepresentable_token_throws() {
+        let status = run(super::mwl_core_random_token, &[Value::uint(u64::MAX)])
+            .expect_err("no string that long can exist");
+        assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    /// A subject `array<int>` holding `0, 1, …, len - 1` as a list.
+    fn ints(len: i64) -> Value {
+        let mut array = MwlArray::new();
+        for n in 0..len {
+            array.append(Value::int(n));
+        }
+        Value::array(array)
+    }
+
+    /// Every `int` an answered `array<int>` holds, in its own order,
+    /// releasing the reference this test now owns.
+    fn taken_ints(value: Value) -> Vec<i64> {
+        let answer = crate::arr::borrowed(
+            value
+                .array_ptr()
+                .expect("the member answered with an `array`"),
+        );
+        let mut out = Vec::new();
+        let mut from = 0_usize;
+        while let Some(slot) = answer.next_slot(from) {
+            out.push(
+                answer
+                    .value_at(slot)
+                    .expect("next_slot only names live entries")
+                    .as_int()
+                    .expect("the subject held `int`s"),
+            );
+            from = slot + 1;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the helper handed back the one reference it built, so \
+                      this test owns it"
+        )]
+        unsafe {
+            value.release();
+        }
+        out
+    }
+
+    /// Releases a subject this test built, which the helper only borrowed.
+    fn release(subject: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built, and the \
+                      helper borrowed rather than consumed it"
+        )]
+        unsafe {
+            subject.release();
+        }
+    }
+
+    #[test]
+    fn picking_from_an_empty_array_is_null() {
+        let subject = ints(0);
+        let answer =
+            run(super::mwl_core_random_pick, &[subject]).expect("an empty array is `null`");
+        assert_eq!(answer.tag(), Some(mwl_runtime::Tag::Null));
+        release(subject);
+    }
+
+    #[test]
+    fn picking_from_one_element_is_that_element() {
+        let subject = ints(1);
+        let answer = run(super::mwl_core_random_pick, &[subject]).expect("one element is drawable");
+        assert_eq!(answer.as_int(), Some(0));
+        release(subject);
+    }
+
+    #[test]
+    fn every_pick_is_an_element_of_the_subject() {
+        let subject = ints(6);
+        for _ in 0..256 {
+            let drawn = run(super::mwl_core_random_pick, &[subject])
+                .expect("a non-empty array is drawable")
+                .as_int()
+                .expect("the subject held `int`s");
+            assert!((0..6).contains(&drawn), "{drawn} is not an element");
+        }
+        release(subject);
+    }
+
+    #[test]
+    fn a_sample_is_that_many_distinct_entries() {
+        let subject = ints(10);
+        for _ in 0..64 {
+            let mut sample = taken_ints(
+                run(super::mwl_core_random_sample, &[subject, Value::uint(4)])
+                    .expect("4 of 10 is drawable"),
+            );
+            assert_eq!(sample.len(), 4);
+            sample.sort_unstable();
+            sample.dedup();
+            assert_eq!(sample.len(), 4, "a sample repeated an entry");
+        }
+        release(subject);
+    }
+
+    /// A sample the size of its subject is a permutation of it, which is what
+    /// makes `sample` and `shuffle` one algorithm with two stopping points.
+    #[test]
+    fn a_full_sample_is_a_permutation() {
+        let subject = ints(8);
+        let mut sample = taken_ints(
+            run(super::mwl_core_random_sample, &[subject, Value::uint(8)])
+                .expect("8 of 8 is drawable"),
+        );
+        sample.sort_unstable();
+        assert_eq!(sample, (0..8).collect::<Vec<_>>());
+        release(subject);
+    }
+
+    #[test]
+    fn a_sample_larger_than_its_subject_throws() {
+        let subject = ints(3);
+        let status = run(super::mwl_core_random_sample, &[subject, Value::uint(4)])
+            .expect_err("3 entries hold no 4 distinct ones");
+        assert_eq!(status, mwl_runtime::THROWN);
+        release(subject);
+    }
+
+    #[test]
+    fn a_shuffle_keeps_every_element_and_renumbers() {
+        let subject = ints(16);
+        let mut shuffled = taken_ints(
+            run(super::mwl_core_random_shuffle, &[subject]).expect("shuffling never fails"),
+        );
+        assert_eq!(shuffled.len(), 16);
+        shuffled.sort_unstable();
+        assert_eq!(shuffled, (0..16).collect::<Vec<_>>());
+        release(subject);
+    }
+
+    /// The borrowed handle every `array<T>` member reads through must leave
+    /// the caller's reference count exactly as it found it — a release there
+    /// is a double free and a retain there leaks one reference per call.
+    #[test]
+    fn drawing_leaves_the_subjects_refcount_alone() {
+        let mut array = MwlArray::new();
+        array.append(Value::int(1));
+        array.append(Value::int(2));
+        let before = array.refcount();
+        let subject = Value::array(array);
+
+        taken_ints(run(super::mwl_core_random_shuffle, &[subject]).expect("shuffling never fails"));
+        run(super::mwl_core_random_pick, &[subject]).expect("two elements are drawable");
+
+        // The handle takes over the one reference this test owns and drops at
+        // the end of the statement, which is also this test's release.
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and \
+                      each helper borrowed rather than consumed it"
+        )]
+        let after =
+            unsafe { MwlArray::from_raw(subject.array_ptr().expect("an array")) }.refcount();
+        assert_eq!(after, before);
+    }
+
+    #[test]
+    fn a_non_array_subject_is_a_contained_fault() {
+        let status =
+            run(super::mwl_core_random_pick, &[Value::int(7)]).expect_err("an int is not an array");
+        assert_eq!(status, mwl_runtime::FATAL);
+    }
+
+    #[test]
+    fn a_non_int_bound_is_a_contained_fault() {
+        let status = run(super::mwl_core_random_int, &[Value::uint(1), Value::int(6)])
+            .expect_err("a `uint` is not an `int`");
+        assert_eq!(status, mwl_runtime::FATAL);
+    }
+}

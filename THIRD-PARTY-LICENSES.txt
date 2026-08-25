@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     python tools/gen-attribution.py
 
 
-COMPONENTS (105)
+COMPONENTS (112)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, MWL takes the one shown and
@@ -31,11 +31,14 @@ platform MWL builds for, so one may appear that a given build omits.
   bitflags                                1.3.2    MIT                             (MIT/Apache-2.0)
   bitflags                                2.13.1   MIT                             (MIT OR Apache-2.0)
   bumpalo                                 3.20.3   MIT                             (MIT OR Apache-2.0)
+  cfg-if                                  1.0.4    MIT                             (MIT OR Apache-2.0)
+  chacha20                                0.10.1   MIT                             (MIT OR Apache-2.0)
   clap                                    4.6.6    MIT                             (MIT OR Apache-2.0)
   clap_builder                            4.6.6    MIT                             (MIT OR Apache-2.0)
   clap_derive                             4.6.4    MIT                             (MIT OR Apache-2.0)
   clap_lex                                1.1.0    MIT                             (MIT OR Apache-2.0)
   colorchoice                             1.0.5    MIT                             (MIT OR Apache-2.0)
+  cpufeatures                             0.3.0    MIT                             (MIT OR Apache-2.0)
   cranelift                               0.135.0  Apache-2.0 WITH LLVM-exception
   cranelift-assembler-x64                 0.135.0  Apache-2.0 WITH LLVM-exception
   cranelift-assembler-x64-meta            0.135.0  Apache-2.0 WITH LLVM-exception
@@ -60,6 +63,7 @@ platform MWL builds for, so one may appear that a given build omits.
   fancy-regex                             0.19.0   MIT
   fnv                                     1.0.7    MIT                             (Apache-2.0 / MIT)
   foldhash                                0.2.0    Zlib
+  getrandom                               0.4.3    MIT                             (MIT OR Apache-2.0)
   gimli                                   0.33.0   MIT                             (MIT OR Apache-2.0)
   hashbrown                               0.16.1   MIT                             (MIT OR Apache-2.0)
   hashbrown                               0.17.1   MIT                             (MIT OR Apache-2.0)
@@ -84,6 +88,9 @@ platform MWL builds for, so one may appear that a given build omits.
   portable-atomic-util                    0.2.7    MIT                             (Apache-2.0 OR MIT)
   proc-macro2                             1.0.107  MIT                             (MIT OR Apache-2.0)
   quote                                   1.0.47   MIT                             (MIT OR Apache-2.0)
+  r-efi                                   6.0.0    MIT                             (MIT OR Apache-2.0 OR LGPL-2.1-or-later)
+  rand                                    0.10.2   MIT                             (MIT OR Apache-2.0)
+  rand_core                               0.10.1   MIT                             (MIT OR Apache-2.0)
   regalloc2                               0.15.2   Apache-2.0 WITH LLVM-exception
   regex                                   1.13.1   MIT                             (MIT OR Apache-2.0)
   regex-automata                          0.4.18   MIT                             (MIT OR Apache-2.0)
@@ -124,7 +131,7 @@ platform MWL builds for, so one may appear that a given build omits.
   zmij                                    1.0.23   MIT
 
 
-LICENSE TEXTS (28)
+LICENSE TEXTS (34)
 ------------------------------------------------------------------------------
 
 Each text below is reproduced verbatim as its component ships it. Components
@@ -134,7 +141,7 @@ than once.
 
 
 ==============================================================================
-[1/28]  MIT
+[1/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -147,6 +154,7 @@ Applies to:
   jiff-tzdb-platform 0.1.3
   libm 0.2.16
   memchr 2.8.3
+  r-efi 6.0.0
 
 ------------------------------------------------------------------------------
 
@@ -174,7 +182,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[2/28]  MIT
+[2/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -227,7 +235,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[3/28]  MIT
+[3/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -268,7 +276,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[4/28]  MIT
+[4/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -306,7 +314,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[5/28]  MIT
+[5/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -343,7 +351,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[6/28]  MIT
+[6/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -384,7 +392,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[7/28]  MIT
+[7/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -420,7 +428,115 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[8/28]  MIT
+[8/34]  MIT
+==============================================================================
+
+Applies to:
+  cfg-if 1.0.4
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2014 Alex Crichton
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[9/34]  MIT
+==============================================================================
+
+Applies to:
+  chacha20 0.10.1
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2019-2026 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[10/34]  MIT
+==============================================================================
+
+Applies to:
+  cpufeatures 0.3.0
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2020-2025 The RustCrypto Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[11/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -457,7 +573,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[9/28]  MIT
+[12/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -493,7 +609,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[10/28]  MIT
+[13/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -529,7 +645,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[11/28]  MIT
+[14/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -561,7 +677,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[12/28]  MIT
+[15/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -597,7 +713,44 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[13/28]  MIT
+[16/34]  MIT
+==============================================================================
+
+Applies to:
+  getrandom 0.4.3
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2018-2026 The rust-random Project Developers
+Copyright (c) 2014 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[17/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -635,7 +788,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[14/28]  MIT
+[18/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -672,7 +825,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[15/28]  MIT
+[19/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -708,7 +861,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[16/28]  MIT
+[20/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -744,7 +897,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[17/28]  MIT
+[21/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -780,7 +933,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[18/28]  MIT
+[22/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -817,7 +970,80 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[19/28]  MIT
+[23/34]  MIT
+==============================================================================
+
+Applies to:
+  rand 0.10.2
+
+------------------------------------------------------------------------------
+
+Copyright 2018 Developers of the Rand project
+Copyright (c) 2014 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[24/34]  MIT
+==============================================================================
+
+Applies to:
+  rand_core 0.10.1
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2018-2026 The Rand Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[25/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -853,7 +1079,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[20/28]  MIT
+[26/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -889,7 +1115,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[21/28]  MIT
+[27/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -925,7 +1151,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[22/28]  MIT
+[28/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -959,7 +1185,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[23/28]  MIT
+[29/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -989,7 +1215,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[24/28]  MIT
+[30/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -1025,7 +1251,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[25/28]  MIT
+[31/34]  MIT
 ==============================================================================
 
 Applies to:
@@ -1068,7 +1294,7 @@ MIT License
 
 
 ==============================================================================
-[26/28]  Apache-2.0 WITH LLVM-exception
+[32/34]  Apache-2.0 WITH LLVM-exception
 ==============================================================================
 
 Applies to:
@@ -1316,7 +1542,7 @@ Software.
 
 
 ==============================================================================
-[27/28]  Zlib
+[33/34]  Zlib
 ==============================================================================
 
 Applies to:
@@ -1346,7 +1572,7 @@ the following restrictions:
 
 
 ==============================================================================
-[28/28]  Unicode-3.0
+[34/34]  Unicode-3.0
 ==============================================================================
 
 Applies to:

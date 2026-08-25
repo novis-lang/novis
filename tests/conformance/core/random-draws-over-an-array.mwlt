@@ -1,0 +1,59 @@
+--TEST--
+Core\Random::pick, sample and shuffle draw over array<T> — every element survives a shuffle, a sample is distinct, and an oversized one throws — spec § 11, ADR 0063 R4 and R5
+--FILE--
+<?mwl
+// A random answer cannot be asserted, so every line here pins an invariant of
+// the draw rather than the draw itself. `Draw` exists because a `catch` does
+// not lower at file scope.
+class Draw {
+    public static function sampleCount(array<int> $a, uint $count): string {
+        try {
+            return Core\Arr::count(Core\Random::sample($a, $count)) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+array<int> $a = [1, 2, 3, 4, 5];
+
+// `shuffle` reorders and keeps everything: the count, the sum and the number
+// of distinct values are all unchanged, and the keys are fresh `0, 1, …`.
+var $order = Core\Random::shuffle($a);
+echo Core\Arr::count($order), "\n";
+echo Core\Arr::count(Core\Arr::unique($order)), "\n";
+echo Core\Arr::sum($order), "\n";
+echo Core\Arr::isList($order) ? "list" : "not a list", "\n";
+
+// `sample` draws that many *distinct* entries, so `unique` cannot shrink it.
+var $three = Core\Random::sample($a, 3);
+echo Core\Arr::count($three), "\n";
+echo Core\Arr::count(Core\Arr::unique($three)), "\n";
+echo Draw::sampleCount($a, 0), "\n";
+echo Draw::sampleCount($a, 5), "\n";
+
+// `pick` over one element has one answer, and ADR 0063 R5 makes the empty
+// array `null` rather than a throw — asking a possibly-empty array for an
+// element is an absence, not a failure.
+array<int> $one = [7];
+echo Core\Random::pick($one), "\n";
+
+array<int> $empty = [];
+echo (Core\Random::pick($empty) == null) ? "null" : "something", "\n";
+
+// ADR 0063 R4: there is no fifth distinct entry in a four-entry array, so
+// answering short or repeating one would each be a failure reported as a
+// result.
+echo Draw::sampleCount($a, 9), "\n";
+--EXPECT--
+5
+5
+15
+list
+3
+3
+0
+5
+7
+null
+threw: Core\Random::sample(): asked for 9 distinct entries from an array that holds 5

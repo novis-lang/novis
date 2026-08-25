@@ -100,6 +100,22 @@ jiff = "0.2"
 serde = "1"
 serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
 
+# --- randomness (spec § 11: `Core\Random` is a CSPRNG, always) ---
+# That section keeps none of PHP's insecure generators, so there is no tier
+# here that may be fast at the cost of predictable — which makes the choice a
+# generator that is *both*. `rand`'s `ThreadRng` is ChaCha12 seeded from the OS
+# and reseeded every 64 KiB, so a draw is userspace arithmetic rather than a
+# syscall, and its bounded-sampling and shuffling code is the analysed
+# implementation of the one piece of security-relevant arithmetic this class
+# needs. `unbiased` turns the default's documented 1-in-2^64 modulo bias into
+# exactness for the price of a rejection branch taken that often; a CSPRNG
+# member should not carry a stated bias at all. Pure Rust, no C, no build
+# script — ADR 0051 § 4's first question is "no" here, since a member takes a
+# count or a pair of bounds and nothing attacker-shaped reaches it.
+# `crates/mwl-stdlib/src/random.rs` owns why this crate and not `getrandom`
+# alone.
+rand = { version = "0.10", features = ["unbiased"] }
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so
