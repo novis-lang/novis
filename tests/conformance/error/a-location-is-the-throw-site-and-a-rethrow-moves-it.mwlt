@@ -1,0 +1,33 @@
+--TEST--
+`$e->location` is written at the `throw` rather than at the `new`: one never thrown reads empty, and a rethrow moves it to the rethrow site — spec § 10
+--FILE--
+<?mwl
+// The synthesized constructor leaves `location` empty and `mwl_ir::lower`'s
+// `write_throw_location` fills it at the `throw` — the site that agrees with
+// the `backtrace` beside it, which holds the frames the exception unwound out
+// of rather than the ones that built it.
+var $unthrown = new RuntimeError("never thrown");
+echo "unthrown=[", $unthrown->location, "]\n";
+
+class Relay {
+    public static function go(): string {
+        try {
+            throw new IOError("first");
+        } catch (IOError $io) {
+            // Rethrowing the same object rewrites its location: it is the
+            // throw that records one, and this is a second throw.
+            throw $io;
+        }
+    }
+}
+
+try {
+    echo Relay::go(), "\n";
+} catch (Throwable $e) {
+    echo "rethrown=", $e->location, "\n";
+    echo "message=", $e->message, "\n";
+}
+--EXPECT--
+unthrown=[]
+rethrown=case.mwl:16
+message=first
