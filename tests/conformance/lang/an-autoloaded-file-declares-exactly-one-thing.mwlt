@@ -1,0 +1,38 @@
+--TEST--
+a second top-level declaration in an autoloaded file does not compile — ADR 0061 § 2
+--FILE--
+<?mwl
+// Nothing names `App\Stowaway`. If a file reached by a prefix could carry it
+// anyway, whether that class exists in the program would depend on whether
+// something referenced `App\Pair` first — so the rule is checked when the
+// file is loaded, not when the extra name is used.
+require './src/Bootstrap.mwl';
+echo App\Pair::from(), "\n";
+--FILE src/Bootstrap.mwl--
+<?mwl
+autoload 'App' from './';
+--FILE src/Pair.mwl--
+<?mwl
+namespace App;
+
+class Pair
+{
+    public static function from(): string
+    {
+        return "Pair";
+    }
+}
+
+class Stowaway
+{
+    public static function from(): string
+    {
+        return "Stowaway";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0317]: an autoloaded file declares exactly one thing, named `Pair`
+%A
+error: aborting due to 1 error

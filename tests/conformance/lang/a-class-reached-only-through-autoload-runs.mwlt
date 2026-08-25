@@ -1,0 +1,50 @@
+--TEST--
+a class no `require` names is found by its prefix and runs — ADR 0061 § 1
+--FILE--
+<?mwl
+// The entry point hand-writes exactly one path, the bootstrap that declares
+// the map. Nothing anywhere names `src/Greeter.mwl`, so § 1's prefix lookup
+// is the only thing that can reach it: longest matching prefix, remaining
+// segments as directories, the last one plus `.mwl`.
+require './src/Bootstrap.mwl';
+echo App\Greeter::hello("world"), "\n";
+echo (new App\Greeter())->twice(21), "\n";
+// A second segment past the prefix is a directory, not part of the file name.
+echo App\Text\Shout::at("quiet"), "\n";
+--FILE src/Bootstrap.mwl--
+<?mwl
+// Roots are relative to THIS file, never to the entry point, so './' is
+// `src/` and the file that declares the map does not have to know where it
+// was required from.
+autoload 'App' from './';
+--FILE src/Greeter.mwl--
+<?mwl
+namespace App;
+
+class Greeter
+{
+    public static function hello(string $who): string
+    {
+        return "hello, " . $who;
+    }
+
+    public function twice(int $n): int
+    {
+        return $n * 2;
+    }
+}
+--FILE src/Text/Shout.mwl--
+<?mwl
+namespace App\Text;
+
+class Shout
+{
+    public static function at(string $what): string
+    {
+        return $what . "!";
+    }
+}
+--EXPECT--
+hello, world
+42
+quiet!

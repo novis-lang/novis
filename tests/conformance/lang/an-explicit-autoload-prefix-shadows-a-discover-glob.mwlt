@@ -1,0 +1,58 @@
+--TEST--
+an explicit `autoload` prefix beats a `discover` glob that would produce the same one — ADR 0061 § 1
+--FILE--
+<?mwl
+// Both declarations below can produce the prefix `App`. The explicit one wins
+// and the glob skips that name, which is what makes a vendor override work;
+// any *other* duplicate would be `E0315` instead. `Plugin` is untouched by the
+// shadowing, so the glob still supplies every prefix it alone names.
+require './bootstrap.mwl';
+echo App\Greeter::from(), "\n";
+echo Plugin\Tool::from(), "\n";
+--FILE bootstrap.mwl--
+<?mwl
+// './*/src' matches `App/src` and `Plugin/src`, naming each matched segment
+// as its own prefix. `override/` is lower case, so it is not a legal
+// namespace segment and the glob passes over it in silence rather than
+// diagnosing it.
+autoload 'App' from './override';
+autoload discover './*/src';
+--FILE override/Greeter.mwl--
+<?mwl
+namespace App;
+
+class Greeter
+{
+    public static function from(): string
+    {
+        return "the explicit root";
+    }
+}
+--FILE App/src/Greeter.mwl--
+<?mwl
+namespace App;
+
+// Never loaded: the prefix `App` has an explicit home, so the glob does not
+// claim it. This file is a legal autoloaded file all the same, so what keeps
+// it out is the shadowing rule and nothing else.
+class Greeter
+{
+    public static function from(): string
+    {
+        return "the discovered root";
+    }
+}
+--FILE Plugin/src/Tool.mwl--
+<?mwl
+namespace Plugin;
+
+class Tool
+{
+    public static function from(): string
+    {
+        return "the discovered root";
+    }
+}
+--EXPECT--
+the explicit root
+the discovered root

@@ -1,0 +1,52 @@
+--TEST--
+one prefix's roots are probed in declaration order and the first hit wins — ADR 0061 § 1
+--FILE--
+<?mwl
+// `App` has two homes. `App\Greeter` exists under both, so the first root
+// answers and the second is never consulted; `App\Extra` exists only under
+// the second, so the miss under the first is a miss rather than a failure.
+// That pair is the Composer rule, and it is what makes an override directory
+// in front of a vendor tree work.
+require './bootstrap.mwl';
+echo App\Greeter::from(), "\n";
+echo App\Extra::from(), "\n";
+--FILE bootstrap.mwl--
+<?mwl
+autoload 'App' from './override', './vendor';
+--FILE override/Greeter.mwl--
+<?mwl
+namespace App;
+
+class Greeter
+{
+    public static function from(): string
+    {
+        return "the first root";
+    }
+}
+--FILE vendor/Greeter.mwl--
+<?mwl
+namespace App;
+
+// Shadowed by the same name under the first root, so never loaded.
+class Greeter
+{
+    public static function from(): string
+    {
+        return "the second root";
+    }
+}
+--FILE vendor/Extra.mwl--
+<?mwl
+namespace App;
+
+class Extra
+{
+    public static function from(): string
+    {
+        return "the second root";
+    }
+}
+--EXPECT--
+the first root
+the second root
