@@ -17,7 +17,7 @@ stated. **What comes first now is Stage 0 below, not `Core` breadth.**
 
 **Eleven ADRs (0080–0090) landed after the milestones that own their work were reported done.** Two of
 them change a milestone's *built* behaviour rather than adding to a later one, and the debt beside them is
-what M1 and M2 never finished. Until this section is empty, **a session picks its slice from here, in this
+what M1 and M2 never finished. Until this section is empty, **a session takes its group from here, in this
 order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: the
 spelling ADR 0090 deletes had reached 48 files and 93 lines before item 1 rewrote them, and every fixture
 written while an item here is open is written against a rule that is about to change.

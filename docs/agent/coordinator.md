@@ -148,3 +148,15 @@ What is unchanged is everything above: **one working tree and one handoff file.*
 git worktree of its own and a handoff of its own before any of that matters, and neither exists. So the
 splits are necessary and not sufficient — treat this as a smaller remaining problem than it was, not a
 solved one.
+
+**Grouping came first because it measured better than lanes, and it is why a session takes a group.**
+Two thirds of a session's clock was fixed cost — orientation before the first edit, then verify, docs and
+commit after the last one — paid once per session no matter how little work sat between them
+(`session-prompt.md` § *Your clock is your turn count* owns the constants). Three related slices in one
+session therefore finish in **1.74× less wall clock and ~14% fewer tokens** than three sessions do: three
+sessions each re-pay the baseline context and re-walk the same vertical path, and one session pays it
+once. Cheaper *and* faster is unusual, and it holds only while the group is small — the per-turn cost
+grows with context, so past about five slices a session is still faster but no longer cheaper, and it is
+approaching the compaction this whole design exists to avoid. Hence the four-commit cap in step 2.
+Parallel lanes are the *second* lever, worth roughly the same speedup for far more machinery; do them
+after grouping, not instead of it, and measure again first.

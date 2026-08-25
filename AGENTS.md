@@ -439,32 +439,39 @@ prose.
 
 Every session runs the same five steps, in this order, and **stops**:
 
-1. **Orient.** `python tools/brief.py`, this file, then `docs/agent/handoff.md` for what to pick up.
-   [docs/agent/playbook.md](docs/agent/playbook.md) is the trap list — read it before writing a `Core`
-   member, a `.mwlt` case or any MWL source, and add a bullet to it when something new bites you.
-   [docs/agent/conventions.md](docs/agent/conventions.md) holds the shape of everything this repository
-   writes — a commit message, a `.mwlt` case, a `Core` member's four edits, an ADR, a diagnostic. Open it
-   instead of reading an existing example to copy; that lookup has the same answer every session.
-2. **Do the work.** One focused slice. Keep it small enough to finish.
-3. **Verify what you touched** — `python tools/verify.py`, plus whatever the change specifically warrants
-   (a `valgrind` run for a new refcount edge, per *Commands*). **This is the only place verification
-   happens.**
-4. **Write the docs and the handoff.** Update the plan's status block and any doc the change invalidates,
-   then overwrite `docs/agent/handoff.md` with where the work stands now. It is *state* — a fact that will
-   still be true in ten sessions belongs in the playbook, an ADR, or a crate's module doc instead.
-5. **Commit everything.** Then you are done.
+1. **Orient in one call.**
+   `python tools/brief.py && cat docs/agent/handoff.md docs/agent/playbook.md docs/agent/conventions.md`
+   — the map, what to pick up, the trap list and the shape of everything this repository writes, in one
+   turn rather than four. [playbook.md](docs/agent/playbook.md) is the traps; add a bullet to it when
+   something new bites you. [conventions.md](docs/agent/conventions.md) is the shape — a commit message,
+   a `.mwlt` case, a `Core` member's four edits, an ADR, a diagnostic. Read it instead of opening an
+   existing example to copy; that lookup has the same answer every session.
+2. **Do the work — a *group* of related slices, not one.** The handoff names the group and the file set
+   it shares. Keep taking slices from it while the next one touches files already loaded, and stop at
+   **four commits** or at the first slice that would need a fresh orientation — whichever comes first. A
+   slice sharing no files with the group is the next session's, not this one's.
+3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever
+   the change specifically warrants (a `valgrind` run for a new refcount edge, per *Commands*). **This is
+   the only place verification happens**, and a group shares one run: the build is the same build.
+4. **Write the docs and the handoff, once for the whole group.** Update the plan's status block and any
+   doc the change invalidates, then overwrite `docs/agent/handoff.md` with where the work stands now. It
+   is *state* — a fact that will still be true in ten sessions belongs in the playbook, an ADR, or a
+   crate's module doc instead. Naming the **next** group, and the file set it shares, is this step's job:
+   you are the only one holding the context to decide it cheaply.
+5. **Commit — one per slice, all after step 3 is green**, staging each slice's own files so `git log`
+   still reads a slice at a time. Then you are done.
 
 **After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the digest, do
 not re-check a doc against a length. Writing prose cannot break a build, so there is nothing a second test
 run could discover. If step 4 or 5 turned up a real problem, fix it and re-verify *that* — otherwise the
 session is over.
 
-## Keep work small, commit your work
+## Keep each slice small, commit every one of them
 
 Step 5 above, in detail:
 
-- Always commit your work when a step is done. You don't need to review the history first — commit
-  everything that has changed.
+- Always commit your work before you exit, and never leave a slice uncommitted. You don't need to review
+  the history first — stage each slice's own files, and let the last commit sweep whatever is left.
 - The handoff is `docs/agent/handoff.md`: **overwrite it**, never append, so it describes where the work
   stands now rather than the path taken to get here. Its shape is in
   [docs/agent/session-prompt.md](docs/agent/session-prompt.md). Then show the user the same prompt in chat.

@@ -9,19 +9,27 @@ survives.
 Run these in order, then **stop**. This is `AGENTS.md` § *Session workflow*, with the loop's own step 6
 added; that file is authoritative for steps 1–5.
 
-1. **Orient.** `python tools/brief.py`, then `AGENTS.md`, then `docs/agent/handoff.md` for where the work
-   stands, `docs/agent/playbook.md` for the traps, and `docs/agent/conventions.md` for the shape of
-   anything you are about to write. Do the work the handoff names — if it lists several
-   independent items, pick the one that fits a single focused session, the same judgment a human session
-   would make. `docs/agent/loop-goal.md` holds the loop's target; steer toward it and do not invent
-   busywork once it is reached.
-2. **Do the work.** One focused slice.
-3. **Verify what you touched:** `python tools/verify.py`, plus a `valgrind` run for any new refcount edge
-   (`AGENTS.md` § *Commands*). **This is the only place verification happens.**
-4. **Write the docs and the handoff.** The plan's status block, any doc the change invalidates, then
-   overwrite `docs/agent/handoff.md` under the contract below. If the session cost you a *trap* — something
-   that looked like it should work and did not — add one bullet to `docs/agent/playbook.md` instead.
-5. **Commit.** Small focused commits, per `AGENTS.md`.
+1. **Orient in one call**, then read `AGENTS.md`:
+
+       python tools/brief.py && cat docs/agent/handoff.md docs/agent/playbook.md docs/agent/conventions.md
+
+   That is the map, where the work stands, the traps, and the shape of anything you are about to write —
+   one turn, not four. `docs/agent/loop-goal.md` holds the loop's target; steer toward it and do not
+   invent busywork once it is reached.
+2. **Do the work — the whole group the handoff names, not one slice of it.** `## Next group` lists two to
+   four related items and the file set they share. Work them in order. **Stop opening new slices at four
+   commits, or at the first item that would send you re-orienting in files you have not loaded** —
+   whichever comes first. An item that shares no files with the group belongs to the next session; leave
+   it in `## Backlog` and say so.
+3. **Verify once, at the end of the group:** `python tools/verify.py`, plus a `valgrind` run for any new
+   refcount edge (`AGENTS.md` § *Commands*). **This is the only place verification happens**, and the
+   whole group shares one run — it is the same build either way.
+4. **Write the docs and the handoff, once for the whole group.** The plan's status block, any doc the
+   change invalidates, then overwrite `docs/agent/handoff.md` under the contract below. If the session
+   cost you a *trap* — something that looked like it should work and did not — add one bullet to
+   `docs/agent/playbook.md` instead. **Choosing the next group is part of this step**, not the next
+   session's problem: you are holding the context that makes it cheap.
+5. **Commit — one per slice**, staging each slice's own files so `git log` still reads a slice at a time.
 6. **Write one line to `.loop/status.txt`** (overwrite, no newline needed), then exit:
    - `CONTINUE <one-line summary of what you landed>` — normal case.
    - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met.
@@ -39,17 +47,23 @@ commit.
 
 ## Your clock is your turn count
 
-A session's wall time is very nearly **the number of tool calls it makes, times a constant** — the work
-itself is a rounding error beside it, and the loop's measured sessions spent 70–89% of their clock waiting
-on the model rather than on `cargo`. Two thirds of that went to orientation: two fifths of every session's
-tool calls were read-only probes asking where something lives, issued one at a time.
+A session's wall time is very nearly **the number of tool calls it makes, times a constant** — measured at
+8.2 s per call, with 86% of the clock spent waiting on the model rather than on `cargo`. A full measured
+session made 165 calls and split them: **33% orientation before the first edit, 41% actual work, 25%
+verify-plus-docs-plus-commit.** Only two of every five calls produced code; the rest is fixed cost paid
+once per session, which is the whole reason step 2 takes a *group*.
+
+**Nothing caps a session but that instruction.** The same session ran from 41k to 286k of context with no
+compaction and room left over. If you exit with the group unfinished, it is because you chose to.
 
 So:
 
 - **Batch every independent probe into one message.** Several tool calls in a single message run
   concurrently and each keeps its own exit status. Four greps to locate a symbol is one turn, not four.
   Serialize only what genuinely depends on a previous answer. (`AGENTS.md` § *Commands* has the rule and
-  the one thing it does not weaken.)
+  the one thing it does not weaken.) **Measured sessions do this at a rate of zero** — 297 consecutive
+  tool calls, not one of them sharing a message with another. Batching is the single largest saving on
+  this list and it is the one nobody collects.
 - **`python tools/brief.py`'s map already answers "which file is this in".** One line per module and the
   file:line of the definitions sessions grep for most. It also prints the next free diagnostic code and
   ADR number, so neither needs deriving.
@@ -60,7 +74,8 @@ So:
   splicing them. That cycle averaged 11.6 tool calls a session.
 - **Read a file once, not in slices.** A sequence of narrow `sed -n` windows costs a turn each and usually
   more tokens in total than the whole file would have.
-- **Verify with one call**, per step 3.
+- **Verify with one call, once for the whole group**, per step 3. A measured session ran `verify.py` four
+  times for one slice; three of those runs rebuilt the same tree to learn the same thing.
 
 ## Handoff contract for `docs/agent/handoff.md`
 
@@ -79,5 +94,10 @@ This file is read in full by every future session, so it is a **bounded state fi
   is finished. Never spend an iteration trimming it.
 - Required shape, in this order:
   1. `## State` — 3-8 lines: which milestone, what is on disk, what is blocked.
-  2. `## Next` — the single most valuable next slice, with the ADR/plan section that specifies it.
+  2. `## Next group` — **two to four related slices as a checklist**, in the order to do them, each with
+     the ADR/plan section that specifies it, under one line naming **the file set they share**. Related
+     means *same files*, not same topic: that shared set is what makes slices 2 and 3 cost a third of
+     slice 1. A checklist, because a session that lands two of three leaves the rest tickable rather than
+     re-derived — the next session strikes what is done and carries on. Group nothing that would send a
+     session re-orienting; leave that item in `## Backlog` for a group of its own.
   3. `## Backlog` — up to 6 one-line items, each with its owning doc. Trim the ones that went stale.
