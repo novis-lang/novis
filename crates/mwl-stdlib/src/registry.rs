@@ -694,6 +694,7 @@ pub struct CoreEnum {
 pub const ENUMS: &[CoreEnum] = &[
     crate::arr::ORDER,
     crate::math::ROUND_MODE,
+    crate::encoding::CHARSET,
     crate::time::UNIT,
     crate::time::WEEKDAY,
     crate::hash::DIGEST,

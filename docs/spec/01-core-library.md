@@ -621,6 +621,14 @@ standard's, not a list this file curates, so adding an encoding is a dependency 
 decision — and `iconv`'s open-ended `//TRANSLIT` and `//IGNORE` suffixes have no equivalent, since a
 conversion that cannot be exact throws (R4).
 
+Two departures from the index, because a `Charset` argument is an *instruction* where the standard's index
+is a guess about a mislabelled document. `Ascii` and `Latin1` are cases of their own rather than aliases of
+`Windows1252`, which is what the standard resolves those labels to; the three disagree over `0x80`-`0x9f`,
+and `isValidText($b, Charset::Ascii)` — the `mb_check_encoding` call the table above replaces — would
+otherwise be true of every byte string. And `replacement` is absent, since a case that maps every input to
+an error is surface with no meaning behind it. `crates/mwl-stdlib/src/encoding.rs` owns both, and which
+cases it converts itself rather than delegating.
+
 ## 8. `Core\Path`
 
 Pure string algebra over paths. **No member touches the disk**, so none needs a capability and all are

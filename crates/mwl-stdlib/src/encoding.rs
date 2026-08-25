@@ -10,10 +10,61 @@
 //!
 //! # What is registered here so far
 //!
-//! `toHex`/`fromHex`, `toBase64`/`fromBase64`, `toBase64Url`/`fromBase64Url`
-//! and `toBase32`/`fromBase32`. § 7's table also writes the
-//! `encodeText`/`decodeText`/`isValidText` trio over a `Charset`; that is
-//! unwritten, and `docs/agent/handoff.md` names when it lands.
+//! The whole of § 7's `Core\Encoding` table: `toHex`/`fromHex`,
+//! `toBase64`/`fromBase64`, `toBase64Url`/`fromBase64Url`,
+//! `toBase32`/`fromBase32`, and the `encodeText`/`decodeText`/`isValidText`
+//! trio over [`CHARSET`]. § 7's other class, `Core\Bytes`, is elsewhere.
+//!
+//! # `Charset` is the WHATWG index, and MWL keeps three labels apart
+//!
+//! § 7 says the roster is the **WHATWG Encoding Standard's index**, not a list
+//! the spec curates, so adding an encoding is a dependency update rather than
+//! a design decision. [`CHARSET`] is that index, and
+//! `the_delegated_roster_is_the_standards_own` checks each case name against
+//! `encoding_rs`'s own `name()` rather than trusting this file's spelling.
+//!
+//! Two deliberate departures, both forced by what a `Charset` *is* here:
+//!
+//! - **`Ascii` and `Latin1` are their own cases.** The standard folds the
+//!   labels `ascii`, `us-ascii`, `iso-8859-1` and `latin1` into
+//!   `windows-1252`, because it is describing how a browser should read a
+//!   document that *claims* one of them — a guess about mislabelled content.
+//!   A `Charset` argument is not a claim, it is an instruction, and the two
+//!   differ over `0x80`-`0x9f`, where windows-1252 has typographic characters
+//!   and ISO-8859-1 has the C1 controls. Reading `Charset::Latin1` as
+//!   windows-1252 would answer a *different* string, which is the substitution
+//!   [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 3 removes
+//!   from the language. `Ascii` has a second reason: § 7's own table gives
+//!   `isValidText` as the replacement for `mb_check_encoding`, and
+//!   `mb_check_encoding($s, "ASCII")` is the commonest call of it — folded
+//!   into windows-1252 that question answers `true` for every byte string.
+//! - **`replacement` is absent.** That entry of the index exists so a browser
+//!   cannot be tricked into decoding an attack string in a confusable
+//!   encoding: it maps *every* input to a single error. Under R4 a
+//!   `Charset::Replacement` would therefore be a case that throws on
+//!   everything — surface with no meaning behind it, which is the rule
+//!   [`crate::registry::ENUMS`] already states for a case a program can write
+//!   and pass nowhere.
+//!
+//! Five cases are decoded and encoded here rather than by `encoding_rs`:
+//! `Utf8` (`str::from_utf8` and the buffer itself, with no copy on the way
+//! out), `Ascii` and `Latin1` for the reason above, and `Utf16Le`/`Utf16Be`
+//! because the standard makes UTF-16 **decode-only** — `Encoding::encode` on
+//! one silently answers UTF-8, which
+//! `every_delegated_encoding_answers_in_its_own_encoding` is here to catch if
+//! a case is ever moved onto the delegated side.
+//!
+//! # A conversion is exact or it throws
+//!
+//! `decodeText` refuses a malformed sequence rather than emitting U+FFFD, and
+//! `encodeText` refuses a character the charset cannot spell rather than
+//! emitting `&#NNNN;`. That is R4 and ADR 0009 § 3 — there is no `//IGNORE`
+//! and no `//TRANSLIT`, which is the whole reason `iconv`'s suffixes have no
+//! equivalent — and it is *not* `encoding_rs`'s default: its `decode` replaces
+//! and its `encode` reports substitution in a flag most callers drop. The
+//! members below take `decode_to_string_without_replacement` and check that
+//! flag. `isValidText` is the same question asked without the throw, for a
+//! caller who wants to choose.
 //!
 //! # The four base64 members are two alphabets and two padding rules
 //!
@@ -103,9 +154,10 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use data_encoding::{BASE32, BASE32_NOPAD};
+use encoding_rs::{DecoderResult, Encoding};
 use mwl_runtime::{Fault, MwlStr, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy};
+use crate::registry::{CoreClass, CoreEnum, CoreMethod, CoreTy};
 
 // ============================================================================
 // Registration — this class's rows, and where its symbols live
@@ -115,11 +167,177 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy};
 /// and every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Encoding";
 
-/// `Core\Encoding`'s registry rows — § 7's hex pair, its base64 family and its
-/// base32 pair.
+/// `Core\Charset`'s fully-qualified name, written once for [`CHARSET`], for
+/// the registry rows that take one, and for every message quoting it.
+pub(crate) const CHARSET_NAME: &str = r"Core\Charset";
+
+/// Spec § 7's `Charset` — the WHATWG Encoding Standard's index, in that
+/// document's own table order, with the departures the module doc argues.
+///
+/// The integers are each case's own constant, written out rather than
+/// auto-incremented, per [`CoreEnum::cases`]. They are **ABI**: [`SCHEMES`] is
+/// indexed by them, so reordering this list is a behaviour change rather than
+/// a cosmetic one, and `the_case_table_and_the_scheme_table_are_one_roster`
+/// fails if the two ever disagree in length or order.
+pub(crate) const CHARSET: CoreEnum = CoreEnum {
+    name: CHARSET_NAME,
+    cases: &[
+        // The five this module decodes itself — see the module doc.
+        ("Utf8", 0),
+        ("Utf16Le", 1),
+        ("Utf16Be", 2),
+        ("Ascii", 3),
+        ("Latin1", 4),
+        // The index's legacy single-byte table, in its order.
+        ("Ibm866", 5),
+        ("Iso88592", 6),
+        ("Iso88593", 7),
+        ("Iso88594", 8),
+        ("Iso88595", 9),
+        ("Iso88596", 10),
+        ("Iso88597", 11),
+        ("Iso88598", 12),
+        ("Iso88598I", 13),
+        ("Iso885910", 14),
+        ("Iso885913", 15),
+        ("Iso885914", 16),
+        ("Iso885915", 17),
+        ("Iso885916", 18),
+        ("Koi8R", 19),
+        ("Koi8U", 20),
+        ("Macintosh", 21),
+        ("Windows874", 22),
+        ("Windows1250", 23),
+        ("Windows1251", 24),
+        ("Windows1252", 25),
+        ("Windows1253", 26),
+        ("Windows1254", 27),
+        ("Windows1255", 28),
+        ("Windows1256", 29),
+        ("Windows1257", 30),
+        ("Windows1258", 31),
+        ("XMacCyrillic", 32),
+        // The index's legacy multi-byte tables, in their order.
+        ("Gbk", 33),
+        ("Gb18030", 34),
+        ("Big5", 35),
+        ("EucJp", 36),
+        ("Iso2022Jp", 37),
+        ("ShiftJis", 38),
+        ("EucKr", 39),
+        // The index's legacy miscellaneous table, less `replacement`.
+        ("XUserDefined", 40),
+    ],
+};
+
+/// How one [`CHARSET`] case's octets are made.
+///
+/// A Rust mirror of the source-visible enum rather than a reuse of it, for
+/// [`crate::hash`]'s reason: the enum is what the *checker* reads and this is
+/// what the conversion dispatches on. Five variants rather than one wrapping
+/// `encoding_rs` because five cases are not that crate's to answer — the
+/// module doc says which and why.
+#[derive(Clone, Copy, Debug)]
+enum Scheme {
+    /// UTF-8 both ways, which is a validation one way and free the other:
+    /// a `string` is already the octets ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md)
+    /// § 3).
+    Utf8,
+    /// UTF-16 in the stated byte order. Encoding is written here because the
+    /// standard has no UTF-16 encoder at all.
+    Utf16 {
+        /// `Utf16Le` when true, `Utf16Be` when false.
+        little_endian: bool,
+    },
+    /// US-ASCII proper: `0x00`-`0x7f` and nothing above it.
+    Ascii,
+    /// ISO-8859-1 proper: every octet is the code point of the same value,
+    /// C1 controls included.
+    Latin1,
+    /// The standard's own table for this encoding, run without replacement.
+    Whatwg(&'static Encoding),
+}
+
+/// One [`Scheme`] per [`CHARSET`] case, at that case's own integer.
+///
+/// A `static` rather than a `const`, and therefore a second table rather than
+/// a field on [`CoreEnum::cases`]: `encoding_rs`'s handles are `static`s, and
+/// a `const` may not read one. The pairing is checked instead — see
+/// [`CHARSET`].
+static SCHEMES: [Scheme; CHARSET.cases.len()] = [
+    Scheme::Utf8,
+    Scheme::Utf16 {
+        little_endian: true,
+    },
+    Scheme::Utf16 {
+        little_endian: false,
+    },
+    Scheme::Ascii,
+    Scheme::Latin1,
+    Scheme::Whatwg(encoding_rs::IBM866),
+    Scheme::Whatwg(encoding_rs::ISO_8859_2),
+    Scheme::Whatwg(encoding_rs::ISO_8859_3),
+    Scheme::Whatwg(encoding_rs::ISO_8859_4),
+    Scheme::Whatwg(encoding_rs::ISO_8859_5),
+    Scheme::Whatwg(encoding_rs::ISO_8859_6),
+    Scheme::Whatwg(encoding_rs::ISO_8859_7),
+    Scheme::Whatwg(encoding_rs::ISO_8859_8),
+    Scheme::Whatwg(encoding_rs::ISO_8859_8_I),
+    Scheme::Whatwg(encoding_rs::ISO_8859_10),
+    Scheme::Whatwg(encoding_rs::ISO_8859_13),
+    Scheme::Whatwg(encoding_rs::ISO_8859_14),
+    Scheme::Whatwg(encoding_rs::ISO_8859_15),
+    Scheme::Whatwg(encoding_rs::ISO_8859_16),
+    Scheme::Whatwg(encoding_rs::KOI8_R),
+    Scheme::Whatwg(encoding_rs::KOI8_U),
+    Scheme::Whatwg(encoding_rs::MACINTOSH),
+    Scheme::Whatwg(encoding_rs::WINDOWS_874),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1250),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1251),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1252),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1253),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1254),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1255),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1256),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1257),
+    Scheme::Whatwg(encoding_rs::WINDOWS_1258),
+    Scheme::Whatwg(encoding_rs::X_MAC_CYRILLIC),
+    Scheme::Whatwg(encoding_rs::GBK),
+    Scheme::Whatwg(encoding_rs::GB18030),
+    Scheme::Whatwg(encoding_rs::BIG5),
+    Scheme::Whatwg(encoding_rs::EUC_JP),
+    Scheme::Whatwg(encoding_rs::ISO_2022_JP),
+    Scheme::Whatwg(encoding_rs::SHIFT_JIS),
+    Scheme::Whatwg(encoding_rs::EUC_KR),
+    Scheme::Whatwg(encoding_rs::X_USER_DEFINED),
+];
+
+/// `Core\Encoding`'s registry rows — § 7's text trio, its hex pair, its base64
+/// family and its base32 pair.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
+        CoreMethod {
+            name: "encodeText",
+            params: &[CoreTy::Str, CoreTy::Enum(CHARSET_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "mwl_core_encoding_encode_text",
+        },
+        CoreMethod {
+            name: "decodeText",
+            params: &[CoreTy::Bytes, CoreTy::Enum(CHARSET_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_encoding_decode_text",
+        },
+        CoreMethod {
+            name: "isValidText",
+            params: &[CoreTy::Bytes, CoreTy::Enum(CHARSET_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_encoding_is_valid_text",
+        },
         CoreMethod {
             name: "toBase64",
             params: &[CoreTy::Bytes],
@@ -186,6 +404,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "mwl_core_encoding_encode_text" => (mwl_core_encoding_encode_text as *const ()).cast(),
+        "mwl_core_encoding_decode_text" => (mwl_core_encoding_decode_text as *const ()).cast(),
+        "mwl_core_encoding_is_valid_text" => (mwl_core_encoding_is_valid_text as *const ()).cast(),
         "mwl_core_encoding_to_base64" => (mwl_core_encoding_to_base64 as *const ()).cast(),
         "mwl_core_encoding_from_base64" => (mwl_core_encoding_from_base64 as *const ()).cast(),
         "mwl_core_encoding_to_base64_url" => (mwl_core_encoding_to_base64_url as *const ()).cast(),
@@ -233,6 +454,196 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     // for anything compiled code produced.
     std::str::from_utf8(bytes)
         .map_err(|_| Fault::fatal(format!("Core\\Encoding::{member} got invalid UTF-8")))
+}
+
+/// One [`CHARSET`] case, as the two things a conversion needs from it.
+#[derive(Clone, Copy, Debug)]
+struct Charset {
+    /// The case exactly as source writes it (`Utf8`), for a throw message —
+    /// a caller reads `Core\Charset::Utf8`, not an integer.
+    case: &'static str,
+    /// How its octets are made.
+    scheme: Scheme,
+}
+
+/// The `Core\Charset` case in slot 1, or the `FATAL` a value that is no case
+/// is.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for [`bytes_of`]'s reason: the
+/// checker has already placed the argument and compiled code wrote the
+/// integer, so anything else here is a runtime-contract violation rather than
+/// something a program can cause.
+fn charset_of(args: &[Value], member: &str) -> Result<Charset, Fault> {
+    // One index into both tables, which is what makes their agreement worth
+    // pinning: a case's integer *is* its row in `SCHEMES`.
+    args[1]
+        .as_int()
+        .and_then(|value| usize::try_from(value).ok())
+        .and_then(|index| Some((CHARSET.cases.get(index)?, SCHEMES.get(index)?)))
+        .map(|((case, _), scheme)| Charset {
+            case,
+            scheme: *scheme,
+        })
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Encoding::{member} expected a `Core\\Charset` case, got tag {} value {:?}",
+                args[1].tag_byte(),
+                args[1].as_int()
+            ))
+        })
+}
+
+// ============================================================================
+// The conversions
+// ============================================================================
+
+/// `text` as `charset`'s octets, or the offset and the identity of the first
+/// character it cannot spell.
+///
+/// Total for the four Unicode-complete schemes; checked for every other one,
+/// which is R4 rather than `encoding_rs`'s own answer — its `encode` writes an
+/// HTML numeric character reference for an unmappable character and reports
+/// that in a flag, and a `&#8364;` sitting in what a caller believes is
+/// Shift_JIS is exactly the silent substitution ADR 0009 § 3 refuses.
+fn encode_exact(charset: Charset, text: &str) -> Result<Vec<u8>, (usize, char)> {
+    match charset.scheme {
+        Scheme::Utf8 => Ok(text.as_bytes().to_vec()),
+        Scheme::Utf16 { little_endian } => {
+            let mut out = Vec::with_capacity(text.len() * 2);
+            for unit in text.encode_utf16() {
+                let pair = if little_endian {
+                    unit.to_le_bytes()
+                } else {
+                    unit.to_be_bytes()
+                };
+                out.extend_from_slice(&pair);
+            }
+            Ok(out)
+        }
+        Scheme::Ascii => narrow(text, 0x7f),
+        Scheme::Latin1 => narrow(text, 0xff),
+        Scheme::Whatwg(encoding) => {
+            let (octets, _, unmappable) = encoding.encode(text);
+            if unmappable {
+                return Err(first_unmappable(encoding, text));
+            }
+            Ok(octets.into_owned())
+        }
+    }
+}
+
+/// Every character of `text` as the one octet of the same value, or the first
+/// one above `ceiling` — the whole of `Ascii` and `Latin1`, which are each a
+/// prefix of the code space rather than a table.
+fn narrow(text: &str, ceiling: u8) -> Result<Vec<u8>, (usize, char)> {
+    let mut out = Vec::with_capacity(text.len());
+    for (offset, ch) in text.char_indices() {
+        match u8::try_from(u32::from(ch)) {
+            Ok(octet) if octet <= ceiling => out.push(octet),
+            _ => return Err((offset, ch)),
+        }
+    }
+    Ok(out)
+}
+
+/// The first character of `text` that `encoding` has no spelling for.
+///
+/// Only ever reached once `encode` has already said one exists, so the linear
+/// re-scan is on the throwing path alone: the flag `encoding_rs` answers with
+/// says *that* a character was substituted and never *which*, and a message
+/// naming neither the character nor its offset is one the caller has to
+/// bisect by hand.
+fn first_unmappable(encoding: &'static Encoding, text: &str) -> (usize, char) {
+    let mut buffer = [0u8; 4];
+    for (offset, ch) in text.char_indices() {
+        let (_, _, unmappable) = encoding.encode(ch.encode_utf8(&mut buffer));
+        if unmappable {
+            return (offset, ch);
+        }
+    }
+    // Unreachable: `encode` reported a substitution over the whole string, and
+    // mappability is a property of the character rather than of its context.
+    (0, text.chars().next().unwrap_or('\u{0}'))
+}
+
+/// `raw` as text under `charset`, or the byte offset of the first sequence it
+/// cannot read.
+///
+/// Total only for `Latin1`, where every octet is a code point. Everything else
+/// is checked, and `decode_to_string_without_replacement` is what makes that
+/// true of the delegated schemes — `Encoding::decode` would answer U+FFFD and
+/// a flag most callers drop.
+fn decode_exact(charset: Charset, raw: &[u8]) -> Result<String, usize> {
+    match charset.scheme {
+        Scheme::Utf8 => std::str::from_utf8(raw)
+            .map(str::to_owned)
+            .map_err(|invalid| invalid.valid_up_to()),
+        Scheme::Utf16 { little_endian } => decode_utf16(raw, little_endian),
+        Scheme::Ascii => match raw.iter().position(|octet| !octet.is_ascii()) {
+            Some(offset) => Err(offset),
+            None => Ok(raw.iter().map(|&octet| char::from(octet)).collect()),
+        },
+        Scheme::Latin1 => Ok(raw.iter().map(|&octet| char::from(octet)).collect()),
+        Scheme::Whatwg(encoding) => decode_whatwg(encoding, raw),
+    }
+}
+
+/// `raw` as UTF-16 in the stated order, or the offset of the first code unit
+/// pair that is not a character — an unpaired surrogate, or a trailing odd
+/// byte.
+fn decode_utf16(raw: &[u8], little_endian: bool) -> Result<String, usize> {
+    if !raw.len().is_multiple_of(2) {
+        return Err(raw.len() - 1);
+    }
+    let units = raw.chunks_exact(2).map(|pair| {
+        let pair = [pair[0], pair[1]];
+        if little_endian {
+            u16::from_le_bytes(pair)
+        } else {
+            u16::from_be_bytes(pair)
+        }
+    });
+    let mut out = String::with_capacity(raw.len() / 2);
+    // Counted in *units consumed*, not in characters produced: a surrogate
+    // pair is one character and two units, so enumerating the decoder's own
+    // output would report every offset after the first pair too low.
+    let mut consumed = 0usize;
+    for unit in char::decode_utf16(units) {
+        match unit {
+            Ok(ch) => {
+                out.push(ch);
+                consumed += ch.len_utf16();
+            }
+            Err(_) => return Err(consumed * 2),
+        }
+    }
+    Ok(out)
+}
+
+/// `raw` under the standard's own table for `encoding`, or the offset of the
+/// first malformed sequence.
+fn decode_whatwg(encoding: &'static Encoding, raw: &[u8]) -> Result<String, usize> {
+    let mut decoder = encoding.new_decoder_without_bom_handling();
+    // The decoder treats the `String`'s *capacity* as its output limit and
+    // never reallocates, so this is the size that makes `OutputFull`
+    // unreachable. It is `None` only when `raw.len()` is within a factor of
+    // three of `usize::MAX`, which no `MwlStr` can be.
+    let capacity = decoder
+        .max_utf8_buffer_length_without_replacement(raw.len())
+        .unwrap_or(0);
+    let mut out = String::with_capacity(capacity);
+    let (result, read) = decoder.decode_to_string_without_replacement(raw, &mut out, true);
+    match result {
+        DecoderResult::InputEmpty => Ok(out),
+        // `read` counts the bytes consumed up to and past the bad sequence;
+        // subtracting both halves of the report leaves where it started.
+        DecoderResult::Malformed(length, after) => {
+            Err(read.saturating_sub(usize::from(length) + usize::from(after)))
+        }
+        DecoderResult::OutputFull => Err(read),
+    }
 }
 
 /// The nibble `digit` spells, in either case, or `None` for anything else.
@@ -324,6 +735,82 @@ fn why_not_base32(error: &data_encoding::DecodeError) -> String {
 // ============================================================================
 // The members
 // ============================================================================
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Encoding::encodeText(string $s, Charset $charset): bytes` —
+    /// replacing `iconv`, `mb_convert_encoding` and `utf8_encode`, with none
+    /// of the three's substitution modes.
+    ///
+    /// Throws naming the first character the charset cannot spell, rather
+    /// than writing `?`, `&#NNNN;` or a transliteration for it. `iconv`'s
+    /// `//IGNORE` and `//TRANSLIT` have no equivalent here and that is the
+    /// point ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 3):
+    /// a caller who genuinely wants a lossy spelling writes the replacement
+    /// they want, in their own text, where a reader can see it.
+    fn mwl_core_encoding_encode_text(_ctx, args: [2]) {
+        let text = text_of(args, "encodeText")?;
+        let charset = charset_of(args, "encodeText")?;
+        let raw = encode_exact(charset, text).map_err(|(offset, ch)| {
+            Fault::thrown(format!(
+                "Core\\Encoding::encodeText(): `Core\\Charset::{}` has no spelling for {:?} \
+                 (U+{:04X}) at offset {offset} of \"{}\" — it is exact or it throws, and there \
+                 is no transliterating or ignoring mode",
+                charset.case,
+                ch,
+                u32::from(ch),
+                shown(text)
+            ))
+        })?;
+        Ok(Value::bytes(MwlStr::new(&raw)))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Encoding::decodeText(bytes $b, Charset $charset): string` —
+    /// replacing `iconv`, `mb_convert_encoding` and `utf8_decode`.
+    ///
+    /// Throws naming the offset of the first sequence the charset cannot
+    /// read, rather than answering a string with U+FFFD in it. A replacement
+    /// character is not an error a caller can notice later — it compares
+    /// unequal, hashes differently and round-trips to a different value — so
+    /// [`decode_exact`] runs the decoder without replacement.
+    ///
+    /// `Core\Encoding::isValidText` is the same question without the throw,
+    /// for a caller who has somewhere to put a `false`.
+    fn mwl_core_encoding_decode_text(_ctx, args: [2]) {
+        let raw = bytes_of(args, "decodeText")?;
+        let charset = charset_of(args, "decodeText")?;
+        let text = decode_exact(charset, raw).map_err(|offset| {
+            Fault::thrown(format!(
+                "Core\\Encoding::decodeText(): the byte sequence at offset {offset} is not \
+                 `Core\\Charset::{}` — a conversion is exact or it throws, so nothing is \
+                 replaced with U+FFFD or dropped",
+                charset.case
+            ))
+        })?;
+        Ok(Value::str(MwlStr::new(text.as_bytes())))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Encoding::isValidText(bytes $b, Charset $charset): bool` —
+    /// replacing `mb_check_encoding`.
+    ///
+    /// Exactly `decodeText`'s question, answered without the throw: `true`
+    /// when every sequence in `$b` is one the charset reads. `Charset::Latin1`
+    /// answers `true` for every input, because ISO-8859-1 gives all 256 octets
+    /// a meaning — that is a property of the encoding, not a hole here.
+    ///
+    /// The decode is performed and discarded rather than a separate validator
+    /// being written: two implementations of one question is how they come to
+    /// disagree, and the cost is one allocation on a member a caller reaches
+    /// once per input.
+    fn mwl_core_encoding_is_valid_text(_ctx, args: [2]) {
+        let raw = bytes_of(args, "isValidText")?;
+        let charset = charset_of(args, "isValidText")?;
+        Ok(Value::bool(decode_exact(charset, raw).is_ok()))
+    }
+}
 
 mwl_runtime::mwl_helper! {
     /// `Core\Encoding::toBase64(bytes $b): string` — replacing `base64_encode`.
@@ -541,6 +1028,186 @@ mod tests {
 
         // A group cut short.
         assert!(BASE32_NOPAD.decode(b"NV3WYA").is_err());
+    }
+
+    /// The `Core\Charset` case that `name` spells, for a test that wants to
+    /// name one without depending on its integer.
+    fn charset(name: &str) -> Charset {
+        let (index, (case, _)) = CHARSET
+            .cases
+            .iter()
+            .enumerate()
+            .find(|(_, (case, _))| *case == name)
+            .expect("a declared case");
+        Charset {
+            case,
+            scheme: SCHEMES[index],
+        }
+    }
+
+    /// `Core\Charset::Big5` from `Big5`, `Iso88598I` from `ISO-8859-8-I` — the
+    /// mechanical PascalCase of a WHATWG name, which is what "named in MWL
+    /// casing" in spec § 7 means and what `mwl_syntax::casing` would demand of
+    /// the same name written in source.
+    fn pascal(whatwg: &str) -> String {
+        whatwg
+            .split(['-', '_'])
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    Some(first) => {
+                        first.to_ascii_uppercase().to_string()
+                            + &chars.as_str().to_ascii_lowercase()
+                    }
+                    None => String::new(),
+                }
+            })
+            .collect()
+    }
+
+    /// A case's integer indexes [`SCHEMES`], so the two tables are one roster
+    /// written twice — see [`CHARSET`] for why they cannot be one table.
+    #[test]
+    fn the_case_table_and_the_scheme_table_are_one_roster() {
+        assert_eq!(CHARSET.cases.len(), SCHEMES.len());
+        for (index, (case, value)) in CHARSET.cases.iter().enumerate() {
+            assert_eq!(
+                i64::try_from(index).expect("a roster this size"),
+                *value,
+                "`Core\\Charset::{case}` is at row {index} and carries {value}"
+            );
+        }
+        // One past the end, and a negative, are both the FATAL rather than a
+        // panic on the index.
+        assert!(charset_of(&[Value::int(0), Value::int(41)], "test").is_err());
+        assert!(charset_of(&[Value::int(0), Value::int(-1)], "test").is_err());
+        assert_eq!(
+            charset_of(&[Value::int(0), Value::int(0)], "test")
+                .unwrap()
+                .case,
+            "Utf8"
+        );
+    }
+
+    /// Every delegated case is named by `encoding_rs`'s own `name()`, which
+    /// is the standard's label — so the roster is the index rather than this
+    /// file's transcription of it, which is what spec § 7 requires. A case
+    /// added with a mistyped name fails here rather than at a call site.
+    #[test]
+    fn the_delegated_roster_is_the_standards_own() {
+        let mut delegated = 0;
+        for ((case, value), scheme) in CHARSET.cases.iter().zip(SCHEMES.iter()) {
+            if let Scheme::Whatwg(encoding) = scheme {
+                assert_eq!(pascal(encoding.name()), *case, "case {value}");
+                delegated += 1;
+            }
+        }
+        // The index, less `replacement` and less the five the module doc says
+        // are answered here.
+        assert_eq!(delegated, 36);
+    }
+
+    /// The standard makes UTF-16 and `replacement` **decode-only**, and
+    /// `Encoding::encode` quietly answers UTF-8 for them rather than failing.
+    /// Every delegated case must therefore be one whose `output_encoding` is
+    /// itself — moving `Utf16Le` onto the delegated side would otherwise
+    /// compile, pass a decode test, and encode to UTF-8.
+    #[test]
+    fn every_delegated_encoding_answers_in_its_own_encoding() {
+        for ((case, _), scheme) in CHARSET.cases.iter().zip(SCHEMES.iter()) {
+            if let Scheme::Whatwg(encoding) = scheme {
+                assert_eq!(encoding.output_encoding().name(), encoding.name(), "{case}");
+            }
+        }
+    }
+
+    /// The three labels the standard folds into `windows-1252` and MWL does
+    /// not — the module doc's first departure, and the one a reader is most
+    /// likely to think is a bug.
+    #[test]
+    fn ascii_latin1_and_windows_1252_are_three_different_answers() {
+        // `0x80` is U+20AC in windows-1252, U+0080 in ISO-8859-1, and not
+        // ASCII at all.
+        assert_eq!(
+            decode_exact(charset("Windows1252"), &[0x80]).unwrap(),
+            "\u{20ac}"
+        );
+        assert_eq!(decode_exact(charset("Latin1"), &[0x80]).unwrap(), "\u{80}");
+        assert_eq!(decode_exact(charset("Ascii"), &[0x80]), Err(0));
+
+        // And the other way: the euro sign has a windows-1252 spelling and no
+        // ISO-8859-1 one.
+        assert_eq!(
+            encode_exact(charset("Windows1252"), "\u{20ac}").unwrap(),
+            [0x80]
+        );
+        assert_eq!(
+            encode_exact(charset("Latin1"), "\u{20ac}"),
+            Err((0, '\u{20ac}'))
+        );
+        assert_eq!(
+            encode_exact(charset("Ascii"), "e\u{9}\u{7f}").unwrap(),
+            b"e\t\x7f"
+        );
+    }
+
+    /// UTF-16 is encoded here because the standard has no encoder for it, so
+    /// both directions and both orders are pinned rather than inherited.
+    #[test]
+    fn utf16_round_trips_in_both_orders_and_refuses_a_lone_surrogate() {
+        // U+1F600, which is a surrogate pair, after one BMP character.
+        let text = "a\u{1f600}";
+        let little = encode_exact(charset("Utf16Le"), text).unwrap();
+        let big = encode_exact(charset("Utf16Be"), text).unwrap();
+        assert_eq!(little, [0x61, 0x00, 0x3d, 0xd8, 0x00, 0xde]);
+        assert_eq!(big, [0x00, 0x61, 0xd8, 0x3d, 0xde, 0x00]);
+        assert_eq!(decode_exact(charset("Utf16Le"), &little).unwrap(), text);
+        assert_eq!(decode_exact(charset("Utf16Be"), &big).unwrap(), text);
+
+        // A high surrogate with nothing after it, and an odd trailing byte.
+        // The offset counts units *consumed*, so the `a` before it is two.
+        assert_eq!(
+            decode_exact(charset("Utf16Le"), &[0x61, 0x00, 0x3d, 0xd8]),
+            Err(2)
+        );
+        assert_eq!(
+            decode_exact(charset("Utf16Le"), &[0x61, 0x00, 0x00]),
+            Err(2)
+        );
+    }
+
+    /// The delegated half, over one legacy encoding whose tables nothing here
+    /// owns: a round trip, an unmappable character on the way out, and a
+    /// malformed sequence on the way in.
+    #[test]
+    fn a_delegated_charset_converts_both_ways_and_refuses_what_it_cannot_say() {
+        let jis = charset("ShiftJis");
+        let text = "\u{3042}\u{3044}"; // あい
+        let raw = encode_exact(jis, text).unwrap();
+        assert_eq!(raw, [0x82, 0xa0, 0x82, 0xa2]);
+        assert_eq!(decode_exact(jis, &raw).unwrap(), text);
+        assert!(decode_exact(jis, &raw).is_ok());
+
+        // Shift_JIS has no euro sign; the message names the character, so the
+        // offset is the one in the *text*, past the two-byte あ.
+        assert_eq!(encode_exact(jis, "\u{3042}\u{20ac}"), Err((3, '\u{20ac}')));
+
+        // A lead byte with no trail byte after it.
+        assert_eq!(decode_exact(jis, &[0x82, 0xa0, 0x82]), Err(2));
+    }
+
+    /// `isValidText`'s two ends: an encoding that reads every octet, and one
+    /// that does not.
+    #[test]
+    fn validity_is_the_decode_question_without_the_throw() {
+        for octet in 0u8..=0xff {
+            assert!(
+                decode_exact(charset("Latin1"), &[octet]).is_ok(),
+                "{octet:#04x}"
+            );
+        }
+        assert!(decode_exact(charset("Utf8"), &[0xff]).is_err());
+        assert!(decode_exact(charset("Utf8"), "ok".as_bytes()).is_ok());
     }
 
     #[test]
