@@ -20,10 +20,15 @@ added; that file is authoritative for steps 1–5.
    charged for. `python tools/brief.py` is the unscoped version; reach for it only when you genuinely need
    something outside the goal, and say so in the handoff so the manifest gains the selector.
 2. **Do the work — as much of the group as fits under the context ceiling.** `orient.py` prints your item
-   in full and the rest of the group one line each. **Take the first. Take a second only if it touches
-   files you have already loaded and the first left you well short of the ceiling. Never take a third.**
-   Anything you do not reach stays ticked-off-able for the next session; say in the handoff where you
-   stopped.
+   in full and the rest of the group one line each. **Take the first. Then take a second whenever it
+   touches files you have already loaded — that is now the expected session, not the exceptional one.
+   Never take a third.** The orientation pack was cut by about 6k and a read-heavy search can be
+   delegated, which together put a two-slice session inside the ceiling: `loop-stats.py` measured two at
+   200,806 against a 200,000 ceiling, and the pack cut takes that to about 194,600. **The exception is the
+   tail, and it is the one that matters:** four of the last thirty-three sessions ended over the ceiling
+   doing a *single* slice, because the first one turned into a rabbit hole. So the test is not only which
+   files the second slice touches but whether the first ran to plan — if it did not, stop at one and say so
+   in the handoff. Anything you do not reach stays ticked-off-able for the next session.
 3. **Verify once, at the end of the group:** `python tools/verify.py`, plus a `valgrind` run for any new
    refcount edge (`docs/agent/commands.md`). **This is the only place verification happens**, and the whole
    group shares one run — it is the same build either way.
@@ -72,6 +77,14 @@ with the rest is the whole game.
   section's rows, every call site of a helper, which of forty cases already covers a member. Do **not**
   send one to write code, to decide anything, or to read a file you are about to edit: a slice's own files
   belong in your window, and the handoff you write must rest on what you actually read.
+- **A delegated search gets the question and the constraints, not the project.** It starts with its own
+  copy of `AGENTS.md`, so repeating any of that wastes both windows. The whole prompt is: the question,
+  where to look, and *what to hand back* — `file.rs:NN` anchors and one line each, never pasted excerpts,
+  because an excerpt in the answer charges your window for the reading you delegated. Worked shape:
+
+      Search only under crates/mwl-stdlib/src. Find every CoreMethod row whose return type is
+      CoreTy::Instance. Return one line each: `file.rs:NN  Class::member  -> instance name`.
+      No excerpts, no commentary. If you find none, say so.
 - **`python tools/verify.py` once, for the whole group.** A measured session ran it four times for one
   slice; three of those rebuilt the same tree to learn the same thing.
 

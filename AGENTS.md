@@ -87,10 +87,11 @@ Every session runs the same five steps, in this order, and **stops**:
    write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
    something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
 2. **Do the work — as much of the group as fits under the context ceiling.** The handoff names a group of
-   related slices and the file set they share. **Take the first. Take a second only if it touches files
-   already loaded and the first left you well short of the ceiling. Never take a third.** Context is the
-   binding budget here, not the clock: an agent degrades well before its window is full, so the ceiling is
-   a fixed **200k**.
+   related slices and the file set they share. **Take the first. Then take a second whenever it touches
+   files already loaded *and the first ran to plan* — two is the expected session. If the first went long,
+   stop at one. Never take a third.** Context is the binding budget here, not the clock: an agent degrades
+   well before its window is full, so the ceiling is a fixed **200k**, and a leaner orientation pack plus a
+   delegated search is what put the second slice inside it.
 3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever the
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
