@@ -198,6 +198,11 @@ is why" — is this file.
 
 ## Writing a test case
 
+- **`var` and a written type are two different declarations, and `var T $x = …` is neither.**
+  `var $x = …` infers; a declared type is `T $x = …;` with no `var` at all — so
+  `var Core\Regex\Pattern $p = …` is four diagnostics (`E0101` three times and then `E0301` for a name
+  that was never declared), none of which says "drop the `var`". The trap is that the *inferring*
+  spelling is the one every case reaches for, so the typed one looks like it should take a keyword too.
 - **An array literal written *directly* as a `Core` argument infers `array<mixed>` and is refused.**
   `Core\Arr::replaceRange($a, 1, 2, ["X"])` is `E0401: expected array<string>, found array<mixed>` — the
   parameter's type is not pushed into the literal, whether the parameter is `array<T>` or concrete. Declare
