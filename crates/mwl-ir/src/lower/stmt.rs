@@ -270,10 +270,30 @@ impl<'a> Lowering<'a> {
             // `$c = require 'config.mwl';`, § 3's `mixed` — is a separate
             // question and still a gap; see the crate docs.
             ExprKind::Require { .. } => {}
+            // ADR 0036 § 2's parenthesized reading, and every other one.
+            // `mwl_syntax`'s `parse_statement_inner` commits a
+            // statement-initial `{` to a *block*, so a discarded shape
+            // literal has to be written `({a: 1});` — which arrives here
+            // wrapped. Parentheses say nothing about what a statement means,
+            // so this unwraps and dispatches again rather than duplicating
+            // any arm above.
+            ExprKind::Paren(inner) => self.lower_expr_stmt(inner, env, cur),
+            // A value built and immediately discarded. `new` above is the
+            // same shape and the same one line of accounting: the literal is
+            // a fresh producer, so this frame owns the only reference to it
+            // and releases it here. Worth lowering at all only because § 2
+            // names it — the statement is a no-op with an allocation in it,
+            // and the checker has already reported anything wrong inside.
+            ExprKind::ObjectLiteral(_) => {
+                let (v, ty) = self.lower_expr(e, None, env, cur);
+                if ty.is_refcounted() {
+                    self.emit_release(*cur, v);
+                }
+            }
             other => panic!(
-                "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment or a \
-                 bare call/`new` as an expression statement — got {other:?}; see the crate \
-                 docs' known gaps"
+                "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment, a \
+                 bare call/`new`, or a discarded shape literal as an expression statement — \
+                 got {other:?}; see the crate docs' known gaps"
             ),
         }
     }
