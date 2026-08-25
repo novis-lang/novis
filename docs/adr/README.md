@@ -29,7 +29,9 @@ so you never have to open this file to route a topic.
 
 | Doing this | Open this |
 |---|---|
-| Deciding what to build next; scoping a milestone; checking what exists | [docs/implementation-plan.md](../implementation-plan.md) — status block first. The plan of record. |
+| Deciding what to build next; checking what exists | [docs/implementation-plan.md](../implementation-plan.md) — the status block, then the table that routes to the milestones. The plan of record. |
+| Scoping one milestone | `python tools/plan.py --show M8` — that milestone alone, out of [docs/plan/](../plan/). `--show M8:verify` is its acceptance paragraph by itself |
+| What was decided before M0 — the architecture, the value representation, the unsafe policy, the verification strategy | [docs/plan/design.md](../plan/design.md) — the frozen half of the plan |
 | Which file holds a thing; where a symbol is defined; what a module is for | `python tools/brief.py` — one line per module, plus the file:line of the definitions most often searched for |
 | Something that looks like it should work and does not — a `Core` member's four required edits, a `.mwlt` case that skips a leg, an MWL shape that will not compile | [docs/agent/playbook.md](../agent/playbook.md) — the trap list, append-mostly |
 | The *shape* of something you are about to write — a commit message, a `.mwlt` case, a `Core` member, an ADR, a diagnostic code, a splice patch | [docs/agent/conventions.md](../agent/conventions.md) — skeletons plus a worked example CI runs |

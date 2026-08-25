@@ -6,7 +6,7 @@
   the project makes about itself, and the explicit answer to *why this does not end where Hack ended*. Not
   in scope: any language semantics — this ADR changes no rule and adds no surface. It decides what gets
   built next and what the documentation says, which is why it is here rather than in a README.
-- **Amends:** [docs/implementation-plan.md](../implementation-plan.md) § *Overview* — its motivation
+- **Amends:** [docs/plan/design.md](../plan/design.md) § *Context* — its motivation
   paragraph named PHP's execution model as the reason MWL exists; § 2 below replaces that framing, because
   two of its three premises have since been answered inside PHP itself. The plan's *Consequences to accept*
   keeps every entry it had; nothing there was wrong, and § 5 below adds the one it was missing.
@@ -95,7 +95,7 @@ MWL claims exactly three things about itself, and each is a property no incumben
 2. **A request, a scheduled job, a connection and an untrusted script are each an isolate**, in one process,
    sharing only compiled code — with an enforceable memory, CPU and time budget on each.
 3. **Suspension has no colour** — any function may yield, so there is no `async` split through the library
-   ([the plan](../implementation-plan.md) § *Confirmed design decisions*, stackful coroutines).
+   ([the plan's design record](../plan/design.md) § *Confirmed design decisions*, stackful coroutines).
 
 **"Faster than PHP" is retired as a headline claim.** It remains true, it remains measured
 ([0026](0026-performance-measurement-methodology.md)), and it is the right thing to put in a benchmark

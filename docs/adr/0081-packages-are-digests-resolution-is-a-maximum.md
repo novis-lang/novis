@@ -20,7 +20,7 @@
   defined distribution channel, the same one source packages use. [0068](0068-dependency-currency-and-the-version-contract.md)
   — its version contract governed MWL's own Rust dependencies; § 3 below adopts the same absorb-don't-forward
   discipline for MWL packages, which is what makes § 3's major-version rule affordable.
-  [docs/implementation-plan.md](../implementation-plan.md) — the *Tooling* row's "package manager" gains a
+  [docs/plan/design.md](../plan/design.md) — the *Tooling* row's "package manager" gains a
   milestone.
 - **Amended by:** none.
 - **Relates to:** 0003, 0004, 0005, 0019, 0024, 0033, 0042, 0052, 0062, 0079, 0080, 0082

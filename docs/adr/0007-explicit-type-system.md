@@ -177,7 +177,7 @@ runtime-checked arguments, at `mixed`'s cost. Deferred, not rejected; see *Revis
 ### 4. `uint`, and what every arithmetic operator returns
 
 `uint` is an unsigned 64-bit integer, `0 … 2^64−1`. It is a new **tag** in the existing tagged value, whose
-layout is owned by § *Value representation* in [the plan](../implementation-plan.md) — the payload is
+layout is owned by § *Value representation* in [the plan's design record](../plan/design.md) — the payload is
 already a `u64`, so `uint` costs **zero additional bytes per value**. `Core\Reflect::typeOf` reports it as
 its own kind; there is no `is_int`-style predicate to disagree with, because there are no free functions
 ([0011](0011-functions-and-constants-are-class-members.md)).
