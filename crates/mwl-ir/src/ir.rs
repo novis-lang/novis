@@ -1145,6 +1145,23 @@ pub enum Helper {
     /// this one — whether `echo` under `mwl serve` becomes that sink is an
     /// M7 decision this deliberately does not pre-empt.
     EchoStr,
+    /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
+    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 5's `mixed`-or-union case, the one pairing whose § 3 row is a runtime
+    /// tag rather than a static type. **`!=` is this helper under
+    /// [`UnOp::Not`]**, the arrangement [`Self::DecimalEq`] already uses.
+    ///
+    /// Every other row of that table is reached without this helper, because
+    /// the operands' types already named it: a scalar pair is one
+    /// [`BinOp::Eq`] machine comparison, and `mwl-codegen` turns a `string`,
+    /// `array` or `object` pair into a direct two-pointer call or an inline
+    /// pointer compare rather than tagging both sides into stack slots. So
+    /// this is the *only* row that pays ADR 0002's calling convention, and it
+    /// is the row that has nothing cheaper to pay.
+    ///
+    /// It cannot fail — § 5 makes a mismatched pair `false` rather than a
+    /// throw — so unlike a conversion helper it carries no error edge.
+    Identical,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single
@@ -1164,9 +1181,13 @@ pub enum BinOp {
     /// `%`
     Mod,
     /// `==` — ADR 0090 makes this the language's only equality operator, with
-    /// no conversion of either operand. The string, array and object rows of
-    /// that ADR's § 3 table still need a helper each, which is the crate
-    /// docs' gap 19.
+    /// no conversion of either operand. Every operand pair that reaches here
+    /// has one statically known representation, and `mwl-codegen` picks that
+    /// row's comparison from it: a machine compare for a scalar, a call to
+    /// `mwl_runtime::mwl_str_eq` or `mwl_runtime::mwl_array_eq` for a `string`
+    /// or `array` pair, and a pointer compare for two objects. A `mixed` or
+    /// union operand has no static row, so it does not lower to this at all —
+    /// it takes [`Helper::Identical`].
     Eq,
     /// `!=`
     NotEq,

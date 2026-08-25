@@ -5,11 +5,18 @@
 //! `docs/spec/01-core-library.md` § 2 says `contains`, `keyOf`, `unique`,
 //! `diff` and `intersect` "compare by **strict identity**", and a second
 //! answer living in `mwl-stdlib` would be a second set of PHP-divergence
-//! decisions nothing keeps in step. It is *not* wired to the `==` operator
-//! yet: `mwl_ir::BinOp::Eq` still lowers to one machine comparison, which is
-//! correct exactly while every operand is a scalar of a statically known
-//! type. [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-//! § 3's array and object rows are that wiring, and this is what they call.
+//! decisions nothing keeps in step. It is also what `==` means:
+//! [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+//! § 3's table is this module's rows, reached three ways depending on what the
+//! operands' static types already settled. A scalar pair is one machine
+//! comparison and never arrives here. An array pair arrives through
+//! [`mwl_array_eq`], a string pair through [`crate::mwl_str_eq`] and an object
+//! pair through an inline pointer comparison, because in each of those the row
+//! is known before the program runs. Only a `mixed` or union operand — § 5's
+//! case, where the row is a runtime tag — arrives through `mwl_value_identical`
+//! on [`crate::abi`]'s general helper convention, and § 5's "a mismatched
+//! runtime type is `false` rather than a throw" is the fall-through arm of
+//! [`shallow_identical`] rather than a rule stated twice.
 //!
 //! # What identity means, one row per representation
 //!
@@ -113,6 +120,36 @@ pub fn value_identical(left: Value, right: Value) -> bool {
         }
     }
     true
+}
+
+/// Whether two arrays hold the same entries in the same order —
+/// `mwl_ir::ir::BinOp::Eq` over a `Ty::Array` operand pair, and
+/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// § 3's array row.
+///
+/// Compiled code reaches [`value_identical`] through this entry point rather
+/// than through [`crate::abi`]'s helper convention because the operands' static
+/// types already named the row: two raw pointers travel in registers, where the
+/// general convention would tag each into a 16-byte stack slot and then check a
+/// status a total comparison can never raise. [`crate::mwl_str_eq`] is the same
+/// trade for the string row, and the object row needs no call at all — pointer
+/// identity is one machine comparison, which `mwl-codegen` emits inline.
+///
+/// Neither operand is retained or released: the read-only treatment
+/// [`crate::mwl_str_eq`] gives its two, so the [`Value`]s built here are
+/// borrowed views that are deliberately never dropped.
+///
+/// # Safety
+///
+/// `lhs` and `rhs` must each refer to a live MWL array allocation.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes two raw array pointers whose liveness the \
+              signature cannot express"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_array_eq(lhs: *mut ArrayHeader, rhs: *mut ArrayHeader) -> bool {
+    value_identical(Value::from_array_ptr(lhs), Value::from_array_ptr(rhs))
 }
 
 /// One pair's verdict, pushing an array's entries onto `worklist` rather than
@@ -476,5 +513,152 @@ mod tests {
         assert!(identical(first, copy));
         assert!(!identical(first, second));
         release_all(&[first, copy, second]);
+    }
+
+    /// ADR 0090 § 3's string row, at the door compiled code actually uses.
+    /// The three tests above ask [`value_identical`] what a string is; this
+    /// one asks [`crate::mwl_str_eq`], which is what `$s == $t` calls, and
+    /// pins the divergence that row decides: PHP's `==` read two numeric-
+    /// looking strings as numbers, so it answered `true` to every pair here.
+    #[test]
+    fn equal_strings_compare_as_text_and_never_as_numbers() {
+        fn compiled_eq(left: &[u8], right: &[u8]) -> bool {
+            let (left, right) = (
+                Value::str(MwlStr::new(left)),
+                Value::str(MwlStr::new(right)),
+            );
+            #[expect(
+                unsafe_code,
+                reason = "both values own a live allocation for this call"
+            )]
+            let verdict = unsafe {
+                crate::mwl_str_eq(
+                    left.str_ptr().expect("a Tag::Str value"),
+                    right.str_ptr().expect("a Tag::Str value"),
+                )
+            };
+            // The operator's door and the definition must never disagree.
+            assert_eq!(verdict, value_identical(left, right));
+            release_all(&[left, right]);
+            verdict
+        }
+
+        assert!(compiled_eq(b"abc", b"abc"));
+        assert!(!compiled_eq(b"1", b"01"));
+        assert!(!compiled_eq(b"1e3", b"1000"));
+        assert!(!compiled_eq(b"0", b"0.0"));
+        assert!(!compiled_eq(b" 1", b"1"));
+        // No normalization either: "e" plus a combining acute and the
+        // precomposed "é" render alike and are two values.
+        assert!(!compiled_eq("e\u{301}".as_bytes(), "é".as_bytes()));
+    }
+
+    /// ADR 0090 § 3's array row at that same door — [`mwl_array_eq`], which
+    /// is what `$a == $b` calls. Same length, same keys in the same order,
+    /// every value equal by the table, recursively.
+    #[test]
+    fn equal_arrays_compare_ordered_and_element_wise() {
+        fn compiled_eq(left: Value, right: Value) -> bool {
+            #[expect(
+                unsafe_code,
+                reason = "both values own a live allocation for this call"
+            )]
+            let verdict = unsafe {
+                mwl_array_eq(
+                    left.array_ptr().expect("a Tag::Array value"),
+                    right.array_ptr().expect("a Tag::Array value"),
+                )
+            };
+            assert_eq!(verdict, value_identical(left, right));
+            verdict
+        }
+
+        fn list(values: &[i64]) -> Value {
+            let mut array = MwlArray::new();
+            for (index, value) in values.iter().enumerate() {
+                array.set(
+                    MwlStr::new(index.to_string().as_bytes()),
+                    Value::int(*value),
+                );
+            }
+            Value::array(array)
+        }
+
+        let a = list(&[1, 2, 3]);
+        let same = list(&[1, 2, 3]);
+        let reordered = list(&[3, 2, 1]);
+        let shorter = list(&[1, 2]);
+        assert!(compiled_eq(a, same));
+        assert!(!compiled_eq(a, reordered));
+        assert!(!compiled_eq(a, shorter));
+        assert!(compiled_eq(a, a));
+        release_all(&[a, same, reordered, shorter]);
+
+        // Recursively, and by this table rather than by a second one: a
+        // nested list is walked, and its `"1"` entry is a string that never
+        // reads as the integer beside it.
+        let mut outer = MwlArray::new();
+        outer.set(MwlStr::new(b"0"), list(&[1]));
+        let mut textual = MwlArray::new();
+        textual.set(MwlStr::new(b"0"), {
+            let mut inner = MwlArray::new();
+            inner.set(MwlStr::new(b"0"), Value::str(MwlStr::new(b"1")));
+            Value::array(inner)
+        });
+        let outer = Value::array(outer);
+        let textual = Value::array(textual);
+        assert!(!compiled_eq(outer, textual));
+        release_all(&[outer, textual]);
+    }
+
+    /// ADR 0090 § 3's object row: two instances are equal only when they are
+    /// **the same instance**. `mwl-codegen` emits that as one pointer
+    /// comparison for a statically typed pair, so the row has no runtime door
+    /// of its own — what it does have is a reach into the array row, which is
+    /// what bounds that walk, and what this pins.
+    #[test]
+    fn equal_objects_compare_by_identity() {
+        use crate::object::{ClassTable, MwlObj};
+
+        let mut table = ClassTable::new();
+        let point = table.define("Point", 0, &[]);
+        #[expect(unsafe_code, reason = "the table outlives both objects")]
+        let (one, two) = unsafe {
+            (
+                MwlObj::new(table.desc(point)),
+                MwlObj::new(table.desc(point)),
+            )
+        };
+
+        // Two instances of one class, alike in everything a property walk
+        // could look at, are still two values — comparing contents is a
+        // `Comparable::compareTo` call a class opts into (ADR 0013), never
+        // what the operator does.
+        let first = Value::object(one.clone());
+        let copy = Value::object(one.clone());
+        let second = Value::object(two.clone());
+        assert!(identical(first, copy));
+        assert!(!identical(first, second));
+
+        // And an array holding an object inherits that answer, which is what
+        // keeps the array walk from ever descending into one.
+        let holding = |object: Value| {
+            let mut array = MwlArray::new();
+            array.set(MwlStr::new(b"0"), object);
+            Value::array(array)
+        };
+        let holds_first = holding(Value::object(one.clone()));
+        let holds_same = holding(Value::object(one));
+        let holds_second = holding(Value::object(two));
+        #[expect(
+            unsafe_code,
+            reason = "each value owns a live allocation for these calls"
+        )]
+        unsafe {
+            let ptr = |value: Value| value.array_ptr().expect("a Tag::Array value");
+            assert!(mwl_array_eq(ptr(holds_first), ptr(holds_same)));
+            assert!(!mwl_array_eq(ptr(holds_first), ptr(holds_second)));
+        }
+        release_all(&[first, copy, second, holds_first, holds_same, holds_second]);
     }
 }

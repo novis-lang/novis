@@ -1,0 +1,38 @@
+--TEST--
+`==` over an array, an object and a `mixed` — ordered and element-wise, by identity, and a mismatched runtime pairing is `false` — ADR 0090 §§ 3, 5
+--FILE--
+<?mwl
+class Point {
+    public function constructor(public int $x) {}
+}
+
+// § 3's array row: the same length, the same keys in the same order, and
+// every value equal by that table — PHP's `===`, not its `==`.
+array<int> $a = [1, 2, 3];
+array<int> $b = [1, 2, 3];
+array<int> $c = [3, 2, 1];
+echo ($a == $b) as string, "|", ($a == $c) as string, "|", ($a != $c) as string, "|\n";
+
+// …recursively, because an array cannot contain itself.
+array<array<int>> $nested = [[1], [2]];
+array<array<int>> $same = [[1], [2]];
+array<array<int>> $other = [[1], [3]];
+echo ($nested == $same) as string, "|", ($nested == $other) as string, "|\n";
+
+// § 3's object row: identity. Two instances alike in every property are two
+// values; comparing contents is a method a class opts into (ADR 0013).
+Point $p = new Point(1);
+Point $q = new Point(1);
+Point $r = $p;
+echo ($p == $q) as string, "|", ($p == $r) as string, "|", ($p != $q) as string, "|\n";
+
+// § 5: a `mixed` operand resolves on the runtime tags, and a pairing whose
+// tags name different rows answers `false` rather than throwing.
+mixed $text = "1";
+mixed $number = 1;
+echo ($text == $number) as string, "|", ($text == $text) as string, "|\n";
+--EXPECT--
+1||1|
+1||
+|1|1|
+|1|

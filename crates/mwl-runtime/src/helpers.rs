@@ -134,6 +134,21 @@ crate::mwl_helper! {
     }
 }
 
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::Identical` — `==` where at least one operand is a
+    /// `mixed` or a union, which is
+    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 5's case and the only one whose row is a runtime tag rather than a
+    /// static type. The row itself is [`crate::value_identical`], so a tagged
+    /// operand and a statically typed one answer alike; a pair whose tags name
+    /// different rows is `false` there, never a throw, which is why this helper
+    /// is infallible and carries no error edge. `!=` is this helper under an
+    /// `mwl_ir::UnOp::Not`, the arrangement [`mwl_decimal_eq`] already uses.
+    fn mwl_value_identical(_ctx, args: [2]) {
+        Ok(Value::bool(crate::value_identical(args[0], args[1])))
+    }
+}
+
 /// The [`Fault::Thrown`] a checked conversion produces when the value does not
 /// fit — ADR 0007 § 2's "`as` ... either produces a value of the target type or
 /// throws. It never rounds, truncates, or substitutes a default."
@@ -799,6 +814,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_float_truthy", address(mwl_float_truthy)),
         ("mwl_str_truthy", address(mwl_str_truthy)),
         ("mwl_array_truthy", address(mwl_array_truthy)),
+        ("mwl_value_identical", address(mwl_value_identical)),
         ("mwl_int_to_uint", address(mwl_int_to_uint)),
         ("mwl_uint_to_int", address(mwl_uint_to_int)),
         ("mwl_int_to_float", address(mwl_int_to_float)),
@@ -840,6 +856,10 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         (
             "mwl_str_eq",
             (crate::string::mwl_str_eq as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_eq",
+            (crate::identity::mwl_array_eq as *const ()).cast::<u8>(),
         ),
         (
             "mwl_str_retain",

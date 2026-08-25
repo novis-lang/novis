@@ -862,12 +862,19 @@ impl Emitter<'_, '_> {
             ));
         }
 
-        // A `string` comparison is a byte comparison in the runtime, not a
-        // machine instruction: `Ty::Str` is a pointer, so `icmp` would compare
-        // *identity*, which is never what `==` means for a string (ADR 0090
-        // § 3's string row).
-        if matches!(ty, Ty::Str | Ty::Bytes) && matches!(op, BinOp::Eq | BinOp::NotEq) {
-            let callee = self.runtime_ref("mwl_str_eq", RuntimeSig::StrEq)?;
+        // A `string` or `array` comparison is a *content* comparison in the
+        // runtime, not a machine instruction: both representations are a
+        // pointer, so `icmp` would compare identity, which is never what `==`
+        // means for either (ADR 0090 § 3's string and array rows). Each takes
+        // a two-pointer call rather than the tagged helper convention because
+        // the row is already known here — see `mwl_runtime::mwl_array_eq`.
+        if matches!(ty, Ty::Str | Ty::Bytes | Ty::Array) && matches!(op, BinOp::Eq | BinOp::NotEq) {
+            let symbol = if matches!(ty, Ty::Array) {
+                "mwl_array_eq"
+            } else {
+                "mwl_str_eq"
+            };
+            let callee = self.runtime_ref(symbol, RuntimeSig::PtrEq)?;
             let call = self.b.ins().call(callee, &[l, r]);
             let equal = self.b.inst_results(call)[0];
             return Ok((
@@ -879,6 +886,20 @@ impl Emitter<'_, '_> {
                 },
                 cur,
             ));
+        }
+
+        // ADR 0090 § 3's object row is *identity*, so here the pointer
+        // comparison the two rows above refuse is exactly right — and it is
+        // one instruction, which is why an object pair calls nothing at all.
+        // Comparing contents is `Comparable::compareTo`, a method call that
+        // never reaches this instruction (`mwl_ir`'s `lower_object_comparison`).
+        if matches!(ty, Ty::Object) && matches!(op, BinOp::Eq | BinOp::NotEq) {
+            let cc = if matches!(op, BinOp::Eq) {
+                IntCC::Equal
+            } else {
+                IntCC::NotEqual
+            };
+            return Ok((self.b.ins().icmp(cc, l, r), cur));
         }
 
         let signed = matches!(ty, Ty::Int);
@@ -2029,7 +2050,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::ProbeCallExit => &self.sigs.probe_call_exit,
             RuntimeSig::StrNew => &self.sigs.str_new,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
-            RuntimeSig::StrEq => &self.sigs.str_eq,
+            RuntimeSig::PtrEq => &self.sigs.ptr_eq,
             RuntimeSig::Refcount => &self.sigs.refcount,
             RuntimeSig::ValueRefcount => &self.sigs.value_refcount,
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
@@ -2081,7 +2102,7 @@ enum RuntimeSig {
     ProbeCallExit,
     StrNew,
     StrConcat,
-    StrEq,
+    PtrEq,
     Refcount,
     ValueRefcount,
     PtrToPtr,
@@ -2114,6 +2135,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::FloatTruthy => "mwl_float_truthy",
         Helper::StrTruthy => "mwl_str_truthy",
         Helper::EchoStr => "mwl_echo_str",
+        Helper::Identical => "mwl_value_identical",
         Helper::ArrayTruthy => "mwl_array_truthy",
         Helper::IntToUint => "mwl_int_to_uint",
         Helper::UintToInt => "mwl_uint_to_int",

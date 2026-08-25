@@ -114,9 +114,13 @@
 //!   identity *means* — including what it means for an object — is
 //!   [`identity`]'s own docs, which is the home
 //!   `docs/agent/loop-goal.md` names for that decision. It lives here rather
-//!   than in `mwl-stdlib` because `Core\Arr`'s set members, `ObjectSet` and
-//!   `ObjectMap` all ask the same question, and a second answer would be a
-//!   second set of PHP-divergence rules nothing keeps in step.
+//!   than in `mwl-stdlib` because `Core\Arr`'s set members, `ObjectSet`,
+//!   `ObjectMap` **and the `==` operator itself** all ask the same question,
+//!   and a second answer would be a second set of PHP-divergence rules nothing
+//!   keeps in step. Compiled code enters it by whichever door its operands'
+//!   static types justify — [`mwl_array_eq`], [`mwl_str_eq`], an inline
+//!   pointer comparison, or `mwl_value_identical` for a `mixed` operand — and
+//!   [`identity`]'s docs own that choice too.
 //!
 //! ## Known gaps
 //!
@@ -208,7 +212,7 @@ pub use ctx::{
 pub use decimal::Decimal;
 pub use fmt::php_float_to_string;
 pub use helpers::{symbols, value_to_string, value_truthy};
-pub use identity::{value_hash, value_identical};
+pub use identity::{mwl_array_eq, value_hash, value_identical};
 pub use object::{
     CONSTRUCTOR, ClassDesc, ClassId, ClassTable, CodecField, CodecTy, FIELD_STRIDE, FIELDS_OFFSET,
     MwlObj, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, construct, field_offset,

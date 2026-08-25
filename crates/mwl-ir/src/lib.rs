@@ -277,15 +277,19 @@
 //!     in this crate that looks like a destructor
 //!     ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
 //!     says MWL has none), so it is a design call, not a patch.
-//! 19. **ADR 0090's § 3 table is built only for the scalar rows.** The
-//!     spelling half is done — `===`/`!==` no longer lex, and `== null` takes
-//!     [`lower::Lowering::lower_null_identity`]'s tag test — so every operand
-//!     that lowers today is a scalar reaching
-//!     [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], which is that table's answer
-//!     for it. What is open is the string, array and object rows: one runtime
-//!     helper each, text-not-numeric, ordered element-wise, and
-//!     `mwl_runtime::identity` respectively. The disjoint-operand refusal of
-//!     its § 2 is `mwl_types`' half, not this crate's.
+//! 19. **ADR 0090's § 3 table is built, but its § 2 numeric domain is not.**
+//!     Every row of § 3 lowers: `===`/`!==` no longer lex, `== null` takes
+//!     [`lower::Lowering::lower_null_identity`]'s tag test, a scalar pair is
+//!     [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], a `string`, `array` or `object`
+//!     pair is that `BinOp` with the row's own comparison chosen in
+//!     `mwl-codegen`, and a `mixed` or union operand is § 5's
+//!     [`ir::Helper::Identical`] over `mwl_runtime::value_identical`. What is
+//!     open is § 2's numeric row: `int`, `uint`, `float` and `decimal` are one
+//!     domain there and `mwl_types` accepts every pairing among them, but a
+//!     cross-representation pair such as `$n == $f` reaches `mwl-codegen` as
+//!     two representations and is refused — one side has to be widened first,
+//!     and neither this crate nor that one does it yet. The disjoint-operand
+//!     refusal of § 2 is `mwl_types`' half, not this crate's.
 
 pub mod ids;
 pub mod ir;

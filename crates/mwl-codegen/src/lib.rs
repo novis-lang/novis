@@ -525,8 +525,10 @@ struct Signatures {
     str_new: Signature,
     /// `mwl_str_concat(lhs, rhs) -> *mut StrHeader`.
     str_concat: Signature,
-    /// `mwl_str_eq(lhs, rhs) -> bool` — `I8`, like `Sigs::instanceof`.
-    str_eq: Signature,
+    /// `mwl_str_eq(lhs, rhs) -> bool` and `mwl_array_eq(lhs, rhs) -> bool`,
+    /// which share one shape: two raw pointers to an `I8`, like
+    /// `Sigs::instanceof`.
+    ptr_eq: Signature,
     /// `mwl_str_retain(ptr)` / `mwl_str_release(ptr)`, and the two
     /// `mwl_throwable_*` counterparts.
     refcount: Signature,
@@ -814,10 +816,10 @@ impl Signatures {
         str_concat.params.push(AbiParam::new(ptr));
         str_concat.returns.push(AbiParam::new(ptr));
 
-        let mut str_eq = module.make_signature();
-        str_eq.params.push(AbiParam::new(ptr));
-        str_eq.params.push(AbiParam::new(ptr));
-        str_eq.returns.push(AbiParam::new(types::I8));
+        let mut ptr_eq = module.make_signature();
+        ptr_eq.params.push(AbiParam::new(ptr));
+        ptr_eq.params.push(AbiParam::new(ptr));
+        ptr_eq.returns.push(AbiParam::new(types::I8));
 
         let mut refcount = module.make_signature();
         refcount.params.push(AbiParam::new(ptr));
@@ -891,7 +893,7 @@ impl Signatures {
             probe_call_exit,
             str_new,
             str_concat,
-            str_eq,
+            ptr_eq,
             refcount,
             value_refcount,
             ptr_to_ptr,

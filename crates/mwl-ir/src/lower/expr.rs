@@ -1961,6 +1961,42 @@ impl<'a> Lowering<'a> {
         if lty == Ty::Decimal || rty == Ty::Decimal {
             return self.lower_decimal_binary(op, lv, rv, env, cur);
         }
+        // ADR 0090 § 5: a `mixed` or union operand is the one pairing whose
+        // § 3 row is a runtime tag, so it dispatches through
+        // `mwl_runtime::value_identical` rather than through a `BinOp` over a
+        // representation neither side has. Every other row is statically
+        // known and stays in the table below, where `mwl-codegen` turns it
+        // into that row's own comparison.
+        if matches!(op, BinaryOp::Eq | BinaryOp::NotEq) && (lty == Ty::Tagged || rty == Ty::Tagged)
+        {
+            let (equal, _) = self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::HelperCall {
+                    helper: Helper::Identical,
+                    args: vec![lv, rv],
+                },
+            );
+            // Released per operand rather than per pair: the two sides may
+            // hold different representations here, which is the whole reason
+            // this arm exists.
+            for (operand, value, ty) in [(lhs, lv, lty), (rhs, rv, rty)] {
+                if ty.is_refcounted() && !self.aliasing_read(operand) {
+                    self.emit_release(*cur, value);
+                }
+            }
+            if op == BinaryOp::Eq {
+                return (equal, Ty::Bool);
+            }
+            return self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::UnOp {
+                    op: UnOp::Not,
+                    operand: equal,
+                },
+            );
+        }
         let (bop, ty) = match op {
             BinaryOp::Add => (BinOp::Add, lty),
             BinaryOp::Sub => (BinOp::Sub, lty),
