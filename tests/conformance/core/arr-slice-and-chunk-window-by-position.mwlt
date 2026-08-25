@@ -1,0 +1,71 @@
+--TEST--
+Core\Arr::slice and ::chunk window by entry position and discard keys unless asked, spec § 2 and ADR 0069 § 3
+--FILE--
+<?mwl
+array<string> $a = ["a", "b", "c", "d", "e"];
+array<string> $m = ["x" => "one", "y" => "two", "z" => "three"];
+
+// The offset and length are ADR 0063 R8's signs, the same reading
+// Core\Str::slice takes one unit up: a negative offset counts back from the
+// last entry, a negative length stops that many short of the end, and an
+// omitted length runs to the end.
+echo Core\Str::join(Core\Arr::slice($a, 1, 2), ","), "\n";
+echo Core\Str::join(Core\Arr::slice($a, 2), ","), "\n";
+echo Core\Str::join(Core\Arr::slice($a, -2), ","), "\n";
+echo Core\Str::join(Core\Arr::slice($a, 1, -1), ","), "\n";
+echo Core\Str::join(Core\Arr::slice($a, -9, 2), ","), "\n";
+
+// A window that closes before it opens is empty, and so is one that starts
+// past the end — neither is a throw, so a paging loop composes.
+echo Core\Arr::count(Core\Arr::slice($a, 3, -3)), "\n";
+echo Core\Arr::count(Core\Arr::slice($a, 9)), "\n";
+
+// The positions are ordinal, never keys: entry 1 of a map is the second one
+// the walk meets, whatever it is stored under. The result renumbers from "0"
+// by default — PHP's array_slice renumbers the integer keys and silently keeps
+// the string ones, the key-type-dependent rule ADR 0069 § 3 removes — and
+// {preserveKeys: true} keeps every key instead.
+echo Core\Str::join(Core\Arr::slice($m, 1), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::slice($m, 1)), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::slice($m, 1, null, {preserveKeys: true})), ","), "\n";
+
+// chunk runs the same walk in fixed-size steps. The last run is short when the
+// count does not divide, and the outer array is always a list because a run
+// has no key of its own to keep.
+array<array<string>> $runs = Core\Arr::chunk($a, 2);
+echo Core\Arr::count($runs), "\n";
+echo Core\Str::join($runs["0"], ","), "|", Core\Str::join($runs["1"], ","), "|", Core\Str::join($runs["2"], ","), "\n";
+echo Core\Str::join(Core\Arr::keys($runs), ","), "\n";
+
+// The option governs the inner arrays, exactly as it does for slice.
+array<array<string>> $kept = Core\Arr::chunk($m, 2, {preserveKeys: true});
+echo Core\Str::join(Core\Arr::keys($kept["0"]), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::chunk($m, 2)["0"]), ","), "\n";
+
+// A size at or past the count is one run, and an empty subject is no runs at
+// all rather than one empty one. Both are PHP's answers.
+array<string> $empty = [];
+echo Core\Arr::count(Core\Arr::chunk($a, 9)), "\n";
+echo Core\Arr::count(Core\Arr::chunk($empty, 3)), "\n";
+
+// Nothing mutates (ADR 0063 R3).
+echo Core\Str::join(Core\Arr::keys($m), ","), "\n";
+--EXPECT--
+b,c
+c,d,e
+d,e
+b,c,d
+a,b
+0
+0
+two,three
+0,1
+y,z
+3
+a,b|c,d|e
+0,1,2
+x,y
+0,1
+1
+0
+x,y,z

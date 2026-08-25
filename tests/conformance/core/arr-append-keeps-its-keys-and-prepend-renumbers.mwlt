@@ -1,0 +1,65 @@
+--TEST--
+Core\Arr::append keeps the subject's keys and prepend always returns a list, spec § 2 and ADR 0069 § 3
+--FILE--
+<?mwl
+array<string> $list = ["a", "b"];
+array<string> $map = ["x" => "one", "y" => "two"];
+
+// Both take a variadic tail, and both keep the values in written order —
+// prepend ahead of the subject rather than reversed onto its front, which is
+// where PHP's array_unshift is easy to misread.
+echo Core\Str::join(Core\Arr::append($list, "c", "d"), ","), "\n";
+echo Core\Str::join(Core\Arr::prepend($list, "c", "d"), ","), "\n";
+
+// append keeps every key of the subject and puts each added value under the
+// next free integer key — exactly `$a[] = $v`, which is the statement this
+// member exists to be an expression form of.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::append($map, "c")), ","), "\n";
+echo Core\Str::join(Core\Arr::append($map, "c"), ","), "\n";
+
+// "Next free" is one counter's next value, never a question about what type
+// the existing keys are: a subject already holding "0" gets "1", and one whose
+// highest is "5" gets "6".
+array<string> $held = ["0" => "n", "z" => "m"];
+array<string> $high = ["5" => "a"];
+echo Core\Str::join(Core\Arr::keys(Core\Arr::append($held, "c")), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::append($high, "b")), ","), "\n";
+
+// prepend is the side that has to invent a key ahead of an existing one, and
+// there is no non-arbitrary answer — so every key is renumbered from "0", the
+// same uniform rule Core\Arr::padStart takes. PHP's array_unshift renumbers
+// the integer keys and silently keeps the string ones, which is the
+// key-type-dependent behaviour ADR 0069 § 3 removes.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::prepend($map, "c")), ","), "\n";
+echo Core\Str::join(Core\Arr::prepend($map, "c"), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::prepend($high, "b")), ","), "\n";
+
+// An empty tail is the identity for append and Core\Arr::values for prepend —
+// the asymmetry is in the keys and nowhere else.
+echo Core\Str::join(Core\Arr::keys(Core\Arr::append($map)), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::prepend($map)), ","), "\n";
+
+// Nothing mutates (ADR 0063 R3): the subject still carries its own keys.
+echo Core\Str::join(Core\Arr::keys($map), ","), "\n";
+
+// An empty subject is the tail alone, and the two compose.
+array<string> $empty = [];
+echo Core\Str::join(Core\Arr::prepend($empty, "z"), ","), "\n";
+echo Core\Arr::count(Core\Arr::append($empty)), "\n";
+echo Core\Str::join(Core\Arr::append(Core\Arr::prepend($high, "z"), "b"), ","), "\n";
+--EXPECT--
+a,b,c,d
+c,d,a,b
+x,y,0
+one,two,c
+0,z,1
+5,6
+0,1,2
+c,one,two
+0,1
+x,y
+0,1
+x,y
+z
+0
+z,a,b

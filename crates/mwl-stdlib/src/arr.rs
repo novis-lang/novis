@@ -182,6 +182,49 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_last_key",
         },
         CoreMethod {
+            name: "slice",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Int,
+                CoreTy::Nullable(&CoreTy::Int),
+                CoreTy::Options(PRESERVE_KEYS),
+            ],
+            defaults: &[Const::Null],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_slice",
+        },
+        CoreMethod {
+            name: "chunk",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Uint,
+                CoreTy::Options(PRESERVE_KEYS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Var("T"))),
+            symbol: "mwl_core_arr_chunk",
+        },
+        CoreMethod {
+            name: "append",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Variadic(&CoreTy::Var("T")),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_append",
+        },
+        CoreMethod {
+            name: "prepend",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Variadic(&CoreTy::Var("T")),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_prepend",
+        },
+        CoreMethod {
             name: "withoutFirst",
             params: &[CoreTy::Array(&CoreTy::Var("T"))],
             defaults: &[],
@@ -560,6 +603,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_flip" => (mwl_core_arr_flip as *const ()).cast(),
         "mwl_core_arr_sort" => (mwl_core_arr_sort as *const ()).cast(),
         "mwl_core_arr_range" => (mwl_core_arr_range as *const ()).cast(),
+        "mwl_core_arr_slice" => (mwl_core_arr_slice as *const ()).cast(),
+        "mwl_core_arr_chunk" => (mwl_core_arr_chunk as *const ()).cast(),
+        "mwl_core_arr_append" => (mwl_core_arr_append as *const ()).cast(),
+        "mwl_core_arr_prepend" => (mwl_core_arr_prepend as *const ()).cast(),
         "mwl_core_arr_without_first" => (mwl_core_arr_without_first as *const ()).cast(),
         "mwl_core_arr_without_last" => (mwl_core_arr_without_last as *const ()).cast(),
         "mwl_core_arr_from_keys_and_values" => {
@@ -826,6 +873,23 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+/// The `{preserveKeys?: bool}` option's value — [`PRESERVE_KEYS`] read back on
+/// the runtime side.
+///
+/// The bag is flattened into one ordinary argument by
+/// `mwl_ir::lower::lower_call_args`, so the slot is always present and a wrong
+/// tag there means the checker let a call through it should have refused;
+/// that is a contained `FATAL`, exactly as for a mistyped positional.
+fn preserve_keys(value: &Value, member: &str) -> Result<bool, Fault> {
+    value.as_bool().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?} for `preserveKeys`, got tag {}",
+            Tag::Bool,
+            value.tag_byte()
+        ))
+    })
+}
+
 /// One `int` argument's value, as a contained `FATAL` if the tag is wrong —
 /// the same "the checker let a call through it should have refused" failure
 /// [`crate::str::text`] reports for a `string` position.
@@ -897,17 +961,29 @@ pub(crate) fn borrowed(array: *mut mwl_runtime::ArrayHeader) -> std::mem::Manual
 /// memory fails in [`MwlArray`], not by being truncated here.
 fn append_copies(out: &mut MwlArray, value: Value, times: u64) {
     for _ in 0..times {
-        #[expect(
-            unsafe_code,
-            reason = "the value is owned by the caller's argument, which \
-                      outlives this call, so each copy stored here needs a \
-                      reference of its own"
-        )]
-        unsafe {
-            value.retain();
-        }
-        out.append(value);
+        append_borrowed(out, value);
     }
+}
+
+/// Appends one borrowed value to a result being built, under the next
+/// integer key.
+///
+/// The value belongs to an argument of the calling frame, which outlives the
+/// call, so the copy stored takes a reference of its own — [`copy_entry`]'s
+/// rule without the key half. Shared by [`append_copies`], which is this
+/// repeated, and by the two members whose variadic tail is a run of loose
+/// values rather than of arrays.
+fn append_borrowed(out: &mut MwlArray, value: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "the value is owned by the caller's argument, which \
+                  outlives this call, so each copy stored here needs a \
+                  reference of its own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    out.append(value);
 }
 
 /// Appends every value of a borrowed subject to a result being built, under
@@ -1073,6 +1149,234 @@ mwl_runtime::mwl_helper! {
             out.append(Value::str(key));
             from = slot + 1;
         }
+        Ok(Value::array(out))
+    }
+}
+
+/// The entry positions an `int $offset` and a `?int $length` name over an
+/// array of `count` entries, under ADR 0063 R8's sign rule.
+///
+/// Deliberately `crate::str::window`'s rule, one unit up: an array counts in
+/// *entries* where a string counts in characters, and nothing else differs.
+///
+/// * A **negative offset** counts back from the last entry, and one reaching
+///   past the first clamps to it.
+/// * A **negative length** stops that many entries short of the end.
+/// * A **null length** runs to the end. That is the type saying what a
+///   sentinel would otherwise have to (ADR 0063 R5), and [`Const::Null`] is
+///   what a call site materializes for a `slice` that omits it.
+/// * The end never precedes the start, so a window that closes before it
+///   opens is empty rather than reversed.
+///
+/// The positions are *ordinal*, not keys: entry 0 is whichever entry the walk
+/// meets first. An ordered hash has no other reading, and it is what makes
+/// `slice` answer the same entries whatever the keys happen to be — the
+/// key-type independence
+/// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// asks of every § 2 member, here reaching the *positions* rather than the
+/// result's keys.
+fn window(
+    count: usize,
+    offset: &Value,
+    length: &Value,
+    member: &str,
+) -> Result<(usize, usize), Fault> {
+    let offset = integer(offset, member, "the offset")?;
+    let total = i64::try_from(count).unwrap_or(i64::MAX);
+
+    let start = if offset < 0 {
+        usize::try_from(total.saturating_add(offset)).unwrap_or(0)
+    } else {
+        usize::try_from(offset).unwrap_or(usize::MAX)
+    }
+    .min(count);
+
+    let end = match length.tag() {
+        Some(Tag::Null) => count,
+        _ => {
+            let length = integer(length, member, "the length")?;
+            if length < 0 {
+                usize::try_from(total.saturating_add(length)).unwrap_or(0)
+            } else {
+                usize::try_from(length)
+                    .unwrap_or(usize::MAX)
+                    .saturating_add(start)
+            }
+            .min(count)
+        }
+    };
+
+    Ok((start, end.max(start)))
+}
+
+/// Writes the entry at `slot` into `out`, keeping its key or renumbering it —
+/// the one line `slice` and `chunk` differ by, and the only thing their
+/// `{preserveKeys?: bool}` option changes.
+fn carry_entry(subject: &MwlArray, slot: usize, out: &mut MwlArray, preserve: bool) {
+    if preserve {
+        copy_entry(subject, slot, out);
+    } else {
+        let value = subject
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        append_borrowed(out, value);
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::slice(array<T> $a, int $offset, ?int $length = null, {preserveKeys?: bool}): array<T>`
+    /// — the entries in one window, replacing PHP's `array_slice`.
+    ///
+    /// [`window`] owns what each sign means, and [`PRESERVE_KEYS`] owns what
+    /// the option's `false` default does: every key discarded and the result
+    /// renumbered from `"0"`, rather than `array_slice`'s
+    /// renumber-the-integers-keep-the-strings. That is the divergence to know
+    /// about, and it is ADR 0069 § 3's rule rather than this member's opinion.
+    ///
+    /// An `args: [4]` helper for a three-parameter signature: the option bag
+    /// flattens into one ordinary argument, as [`mwl_core_arr_range`]'s docs
+    /// spell out.
+    ///
+    /// The walk stops at the window's end rather than running to the last
+    /// entry — a slice of the first two of ten touches two entries, which is
+    /// what makes this the member a paging loop calls.
+    fn mwl_core_arr_slice(_ctx, args: [4]) {
+        let base = subject(args, "slice")?;
+        let preserve = preserve_keys(&args[3], "slice")?;
+        let (start, end) = window(base.count(), &args[1], &args[2], "slice")?;
+
+        let mut out = MwlArray::new();
+        let mut from = 0usize;
+        let mut position = 0usize;
+        while position < end {
+            let Some(slot) = base.next_slot(from) else {
+                break;
+            };
+            from = slot + 1;
+            if position >= start {
+                carry_entry(&base, slot, &mut out, preserve);
+            }
+            position += 1;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::chunk(array<T> $a, uint $size, {preserveKeys?: bool}): array<array<T>>`
+    /// — the entries in runs of `$size`, replacing PHP's `array_chunk`.
+    ///
+    /// The last run is short when the count does not divide, and an empty
+    /// subject yields no runs at all rather than one empty one. Both are PHP's
+    /// answers.
+    ///
+    /// **A `$size` of zero throws**, for [`mwl_core_arr_range`]'s reason and
+    /// with the class that member's docs say the tree still owes: there is no
+    /// run length that would terminate, so silently answering an empty array
+    /// would turn a caller's arithmetic bug into a loop that does nothing.
+    /// `$size` is a `uint`, so a negative one is a diagnostic rather than a
+    /// throw — PHP's `ValueError` covers both.
+    ///
+    /// [`PRESERVE_KEYS`] governs the *inner* arrays' keys; the outer one is
+    /// always a list, since a run has no key of its own to keep. That is the
+    /// same question [`mwl_core_arr_slice`] answers and it is answered the
+    /// same way, which is why the two share [`carry_entry`].
+    fn mwl_core_arr_chunk(_ctx, args: [3]) {
+        let base = subject(args, "chunk")?;
+        let size = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::chunk expected {:?} for `size`, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        let preserve = preserve_keys(&args[2], "chunk")?;
+        if size == 0 {
+            return Err(Fault::thrown(
+                "Core\\Arr::chunk(): the `size` argument must be greater than 0, got 0",
+            ));
+        }
+
+        let mut out = MwlArray::new();
+        let mut run = MwlArray::new();
+        let mut held = 0u64;
+        let mut from = 0usize;
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            carry_entry(&base, slot, &mut run, preserve);
+            held += 1;
+            if held == size {
+                out.append(Value::array(std::mem::replace(&mut run, MwlArray::new())));
+                held = 0;
+            }
+        }
+        if held > 0 {
+            out.append(Value::array(run));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::append(array<T> $a, T ...$values): array<T>` — the subject
+    /// with every trailing value after its last entry, replacing PHP's
+    /// `array_push` and giving `$a[] = $v` a form that is an expression.
+    ///
+    /// **Every key of the subject is kept**, and each added value lands under
+    /// the next free integer key — which is exactly what `$a[] = $v` does, and
+    /// is the whole reason this member can claim to replace it. That is not a
+    /// key-type-dependent rule of the kind
+    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 3 removes: the key chosen is one counter's next value whatever the
+    /// existing keys look like, so it never has to ask what type they were.
+    /// It is also why this member takes no `preserveKeys` option — appending
+    /// invents no key that could collide with one already there, so there is
+    /// nothing to choose. [`mwl_core_arr_prepend`] is the side where there is.
+    ///
+    /// A call with no trailing values at all is the subject, entry for entry.
+    fn mwl_core_arr_append(_ctx, args: [2]) {
+        let base = subject(args, "append")?;
+        let mut out = MwlArray::new();
+        copy_all(&base, &mut out);
+        for_each_trailing(&args[1], "append", |value| {
+            append_borrowed(&mut out, value);
+            Ok(())
+        })?;
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::prepend(array<T> $a, T ...$values): array<T>` — the trailing
+    /// values in written order, then the subject's, replacing PHP's
+    /// `array_unshift`.
+    ///
+    /// **The result is always a list**, whatever the subject's keys were, for
+    /// [`mwl_core_arr_pad_start`]'s reason and no other: an entry put in
+    /// *front* of an existing one has no non-arbitrary key. `"0"` is the only
+    /// candidate and the subject may already hold it, at which point the
+    /// alternatives are to overwrite an entry the call never mentioned or to
+    /// pick `"1"` and store it ahead of `"0"` — an order that contradicts the
+    /// keys. PHP escapes that by renumbering the integer keys and keeping the
+    /// string ones, which is the key-type-dependent behaviour ADR 0069 § 3
+    /// removes; renumbering *every* key is the same answer applied uniformly,
+    /// and it is what spec § 2 means by `{preserveKeys: false}` wherever the
+    /// option appears. The option is not declared here because, as in the
+    /// padding members, keeping a key is not a choice that can be offered.
+    ///
+    /// So the two members are **not** mirror images, and the asymmetry is
+    /// inherited rather than invented: appending has a free key to use and
+    /// [`mwl_core_arr_append`] therefore keeps the subject's, while prepending
+    /// does not. A call with no trailing values is `Core\Arr::values` of the
+    /// subject.
+    fn mwl_core_arr_prepend(_ctx, args: [2]) {
+        let base = subject(args, "prepend")?;
+        let mut out = MwlArray::new();
+        for_each_trailing(&args[1], "prepend", |value| {
+            append_borrowed(&mut out, value);
+            Ok(())
+        })?;
+        append_values(&base, &mut out);
         Ok(Value::array(out))
     }
 }
@@ -1258,13 +1562,7 @@ mwl_runtime::mwl_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        let preserve_keys = args[1].as_bool().ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\Arr::reverse expected {:?} for `preserveKeys`, got tag {}",
-                Tag::Bool,
-                args[1].tag_byte()
-            ))
-        })?;
+        let preserve_keys = preserve_keys(&args[1], "reverse")?;
         let subject = borrowed(array);
 
         let mut slots: Vec<usize> = Vec::new();
@@ -2396,20 +2694,7 @@ fn for_each_layer(
     member: &str,
     mut each: impl FnMut(&MwlArray) -> Result<(), Fault>,
 ) -> Result<(), Fault> {
-    let layers = tail.array_ptr().ok_or_else(|| {
-        Fault::fatal(format!(
-            "Core\\Arr::{member} expected {:?} for its trailing arguments, got tag {}",
-            Tag::Array,
-            tail.tag_byte()
-        ))
-    })?;
-    let layers = borrowed(layers);
-    let mut from = 0usize;
-    while let Some(slot) = layers.next_slot(from) {
-        let value = layers
-            .value_at(slot)
-            .expect("next_slot only names live entries");
-        from = slot + 1;
+    for_each_trailing(tail, member, |value| {
         let layer = value.array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::{member} expected {:?} for a layer, got tag {}",
@@ -2417,7 +2702,40 @@ fn for_each_layer(
                 value.tag_byte()
             ))
         })?;
-        each(&borrowed(layer))?;
+        each(&borrowed(layer))
+    })
+}
+
+/// Calls `each` with every value of a variadic tail, in the order the call
+/// wrote them.
+///
+/// The tail is **one** `array` argument holding the trailing arguments under
+/// `"0"`, `"1"`, … — [`crate::registry::CoreTy::Variadic`] owns why — so a
+/// member with one is an ordinary two-slot helper and this is the walk it
+/// starts from. The values are *borrowed*: they belong to the tail array,
+/// which the calling frame owns for the length of the call, so anything
+/// stored out of one takes a reference of its own ([`append_borrowed`]).
+/// [`for_each_layer`] is this with each value decoded as an array first.
+fn for_each_trailing(
+    tail: &Value,
+    member: &str,
+    mut each: impl FnMut(Value) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    let values = tail.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?} for its trailing arguments, got tag {}",
+            Tag::Array,
+            tail.tag_byte()
+        ))
+    })?;
+    let values = borrowed(values);
+    let mut from = 0usize;
+    while let Some(slot) = values.next_slot(from) {
+        let value = values
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+        each(value)?;
     }
     Ok(())
 }
@@ -3590,6 +3908,25 @@ mod tests {
             .expect_err("a non-positive step is refused");
             assert_eq!(status, mwl_runtime::THROWN);
         }
+    }
+
+    /// A `chunk` size of zero is `THROWN` rather than an empty answer: no run
+    /// length terminates, so answering `[]` would turn a caller's arithmetic
+    /// bug into a loop that quietly does nothing. PHP raises `ValueError`.
+    ///
+    /// Here rather than in a `.mwlt` case because a conformance case cannot
+    /// catch at file scope, and the value of this row is the *class* of
+    /// failure, not the message.
+    #[test]
+    fn a_chunk_size_of_zero_throws() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(
+            super::mwl_core_arr_chunk,
+            &mut ctx,
+            &[mixed_keys(), Value::uint(0), Value::bool(false)],
+        )
+        .expect_err("a zero run length is refused");
+        assert_eq!(status, mwl_runtime::THROWN);
     }
 
     /// The cursor stops rather than wrapping when the next step would leave
