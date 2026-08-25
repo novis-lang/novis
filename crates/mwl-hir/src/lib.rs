@@ -51,6 +51,7 @@
 //! plain quoted-string literal path.
 
 pub mod aliases;
+pub mod autoload;
 pub mod errors;
 pub mod hierarchy;
 pub mod interfaces;
@@ -61,6 +62,7 @@ pub mod resolve;
 pub mod symbol;
 
 pub use aliases::{AliasResolver, AliasTable};
+pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
     ClassGraph, ClassLinks, HierarchyResolver, implements_interface, resolve_ref,
     seed_exception_tree,

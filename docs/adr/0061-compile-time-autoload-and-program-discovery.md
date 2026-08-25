@@ -91,8 +91,10 @@ $app->run();
   A matched directory whose name is not a legal `PascalCase` namespace segment
   ([ADR 0029](0029-identifier-casing-is-checked.md)) is **skipped, not diagnosed** — a glob over a
   filesystem inevitably sweeps `.git`, `vendor` and friends, and diagnosing them would make the form
-  unusable. `mwl check --autoload-map` prints the resolved map, including what was skipped and what was
-  shadowed.
+  unusable. The *glob* is a different matter: one that is not a single whole-segment `*`, and one whose
+  base directory does not exist, are both `E_AUTOLOAD_GLOB_SHAPE`, because a typo that silently discovers
+  nothing is the worst outcome on offer. `mwl check --autoload-map` prints the resolved map, including what
+  was skipped and what was shadowed.
 - **Lookup:** longest matching prefix wins; within a prefix, roots are probed in declaration order and the
   first hit wins (the Composer rule, which is what makes a vendor override work). Remaining segments are
   directories, the last is the file name plus `.mwl`. The on-disk entry's name is compared **exactly**, so a
@@ -104,7 +106,10 @@ $app->run();
 - **Declarations are honored only in a file reachable through `require` from the entry point.** An
   `autoload` inside an autoloaded file is `E_AUTOLOAD_IN_AUTOLOADED_FILE` — otherwise the map would depend
   on itself. Within that bootstrap chain the effective map is the **union** of every declaration, which with
-  the duplicate rule above makes it order-independent.
+  the duplicate rule above makes it order-independent. Operationally: **the map is fixed the moment it is
+  first consulted**, so the rule reaches the whole autoloaded sub-graph — a declaration in a file that an
+  autoloaded file `require`s is the same self-dependence one segment further out, and takes the same
+  diagnostic.
 - **Path traversal is structurally impossible**, with no sanitizer: a resolved suffix is built only from
   namespace segments, which are `PascalCase` identifiers that may not begin with `_`
   ([ADR 0029](0029-identifier-casing-is-checked.md), [ADR 0030](0030-no-leading-underscores-constructor-spelling.md)),

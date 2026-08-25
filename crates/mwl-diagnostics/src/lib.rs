@@ -342,6 +342,30 @@ pub mod code {
     /// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 1's exact-name rule from `autoload` to `require`.
     pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314");
+    /// Two `autoload` declarations in one program claim the same namespace
+    /// prefix — [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// § 1's "one prefix has one home". An explicit prefix deliberately does
+    /// *not* collide with a `discover` glob that would produce the same one:
+    /// there the glob skips the name, which is what makes a vendor override
+    /// work.
+    pub const E_DUPLICATE_AUTOLOAD_PREFIX: Code = Code::new("E0315");
+    /// An `autoload` declaration in a file that was itself reached through
+    /// the autoload map — ADR 0061 § 1, which honors a declaration only in a
+    /// file reachable by `require` from the entry point, since otherwise the
+    /// map would depend on itself.
+    pub const E_AUTOLOAD_IN_AUTOLOADED_FILE: Code = Code::new("E0316");
+    /// A file reached through an autoload root that does not hold exactly one
+    /// top-level declaration named after it — ADR 0061 § 2. Without the rule,
+    /// whether a name exists in the program depends on what was resolved
+    /// first, which makes the build non-reproducible and the cache unkeyable.
+    pub const E_AUTOLOAD_FILE_SHAPE: Code = Code::new("E0317");
+    /// An `autoload discover` glob that is not one `*` occupying a whole path
+    /// segment, or whose base directory does not exist — ADR 0061 § 1. A
+    /// *matched* directory with an unusable name is skipped in silence (a
+    /// glob over a filesystem always sweeps `.git` and `vendor`); the glob
+    /// itself is diagnosed, since one that silently discovers nothing is the
+    /// worst outcome on offer.
+    pub const E_AUTOLOAD_GLOB_SHAPE: Code = Code::new("E0318");
 
     // --- E04xx types -------------------------------------------------------
     /// A value whose type cannot be what this position requires.

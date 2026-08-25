@@ -26,6 +26,26 @@
 //! (`resolve_imports`, `hierarchy.resolve`, `members.check`, `aliases.resolve`)
 //! run once over the whole graph.
 //!
+//! The same worklist runs
+//! [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! § 1's autoload resolution, as a fixpoint rather than a second pass. Each
+//! file's walk harvests three things, not one: its `require` targets, its
+//! `autoload` declarations, and every name it uses where a class, interface,
+//! enum or `type` alias is meant. When the `require` graph is drained the
+//! declarations become an [`crate::autoload::AutoloadMap`] — that module owns
+//! the map's own rules — and the first harvested name that is still
+//! undeclared and that the map can place is loaded, parsed, checked against
+//! § 2's one-declaration-per-file rule, and pushed back onto the worklist,
+//! where its own requires and names are harvested in turn. The loop ends when
+//! no undeclared name resolves to a file nothing has loaded, so a program
+//! that never writes an `autoload` pays one empty-map check and nothing else.
+//!
+//! **The map is fixed the moment it is first consulted.** Every `autoload`
+//! declaration found after that — in an autoloaded file, or in a file one of
+//! them required — is `code::E_AUTOLOAD_IN_AUTOLOADED_FILE`, because a map
+//! that grows as it is consulted is exactly the self-dependence § 1 forbids,
+//! and it is what would make the answer depend on resolution order.
+//!
 //! A literal path whose spelling differs from the on-disk entry's only in
 //! case is `code::E_REQUIRE_PATH_CASE_MISMATCH` — see [`check_path_case`],
 //! which is what stops a `require` from compiling on Windows/macOS and then
@@ -61,21 +81,34 @@
 //!   `require` path containing one, vanishingly rare in practice. The real
 //!   string-literal cooker belongs to a later milestone once something
 //!   besides this module needs it.
+//! - The name harvest is an over-approximation on purpose, and it is not yet
+//!   the *whole* AST: an attribute's name and a `Name` inside a
+//!   still-unwalked corner reach nobody. A missed name costs a class that
+//!   fails to autoload, so the direction to widen in is always "harvest
+//!   more", never "filter harder".
+//! - ADR 0061 § 5's probe trace is produced ([`crate::autoload::Probe`]) and
+//!   then dropped. Folding it into the artifact cache's key needs
+//!   [ADR 0042](../../../docs/adr/0042-on-disk-artifact-cache-format.md)'s
+//!   `PathEntry` table, which does not exist yet; that is the cache slice's
+//!   work, not this one's.
 
 use std::path::{Path, PathBuf};
 
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
 use mwl_syntax::ast::{
-    Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, Expr, ExprKind, FnBody, MemberName, NamespaceDecl, Stmt, StmtKind,
-    StringPart,
+    Arg, ArrayItem, AutoloadDecl, AutoloadKind, Block, CallArgs, ClassMember, ClassMemberKind,
+    DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, ImplementsClause, MemberName,
+    Name, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind,
+    StringPart, Type, TypeAtom, TypeKind,
 };
 use mwl_syntax::{check_declarations, parse_file};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::aliases::AliasResolver;
+use crate::autoload::{self, AutoloadMap, Site};
 use crate::hierarchy::HierarchyResolver;
 use crate::members::MemberResolver;
+use crate::qname::QName;
 use crate::resolve::{Module, Resolver};
 
 /// One file already pulled into the require graph, kept around (rather than
@@ -117,81 +150,152 @@ pub fn resolve_program(
     let mut work: Vec<(SourceId, Vec<Stmt>, Vec<PathBuf>)> =
         vec![(entry_id, entry_stmts, entry_chain)];
 
-    while let Some((id, stmts, chain)) = work.pop() {
-        {
-            let src = map.file(id);
-            resolver.collect_declarations(&stmts, src, diags);
-            hierarchy.collect_links(&stmts, src);
-            members.collect_members(&stmts, src);
-            aliases.collect_aliases(&stmts, src);
+    // ADR 0061's three accumulators: every `autoload` declaration the
+    // bootstrap chain wrote, every name that might need one, and the names
+    // already probed, so a miss costs one probe rather than one per mention.
+    let mut sites: Vec<Site> = Vec::new();
+    let mut wanted: Vec<(QName, Span)> = Vec::new();
+    let mut probed: FxHashSet<QName> = FxHashSet::default();
+    let mut autoload_map: Option<AutoloadMap> = None;
+
+    loop {
+        while let Some((id, stmts, chain)) = work.pop() {
+            {
+                let src = map.file(id);
+                resolver.collect_declarations(&stmts, src, diags);
+                hierarchy.collect_links(&stmts, src);
+                members.collect_members(&stmts, src);
+                aliases.collect_aliases(&stmts, src);
+            }
+
+            let mut harvest = Harvest::default();
+            find_require_literals(&stmts, map.file(id), &mut harvest);
+            wanted.append(&mut harvest.names);
+            let targets = std::mem::take(&mut harvest.requires);
+            let base_dir = map
+                .file(id)
+                .path()
+                .and_then(|p| p.parent().map(Path::to_path_buf));
+
+            if let Some(base_dir) = base_dir {
+                let file_sites: Vec<Site> = harvest
+                    .autoloads
+                    .into_iter()
+                    .map(|(kind, span)| Site {
+                        base_dir: base_dir.clone(),
+                        kind,
+                        span,
+                    })
+                    .collect();
+                // The map is fixed the moment it is first consulted. A
+                // declaration found after that is one the map's own answer led
+                // to, which is the self-dependence § 1 exists to stop — so the
+                // rule reaches the whole autoloaded sub-graph, not only the
+                // autoloaded file itself.
+                if autoload_map.is_some() {
+                    autoload::reject_declarations(&file_sites, diags);
+                } else {
+                    sites.extend(file_sites);
+                }
+
+                // Canonicalized once per file rather than once per `require`, so
+                // `check_path_case` can line its simulated walk up positionally
+                // against each target's own canonical path. An entry file named
+                // on the command line as `tests/main.mwl` has a relative,
+                // as-typed parent; every other file in the graph was already
+                // loaded by its canonical path.
+                let canonical_base = base_dir.canonicalize().ok();
+                for (literal, span) in targets {
+                    let target = base_dir.join(&literal);
+                    let Ok(canonical) = target.canonicalize() else {
+                        diags.report(
+                            Diagnostic::error(
+                                code::E_REQUIRE_TARGET_NOT_FOUND,
+                                format!("`{}` cannot be loaded", target.display()),
+                            )
+                            .with_primary(span, "no file found at this path"),
+                        );
+                        continue;
+                    };
+                    if let Some(base) = &canonical_base {
+                        check_path_case(base, &literal, &canonical, span, diags);
+                    }
+                    if chain.contains(&canonical) {
+                        let mut names: Vec<String> =
+                            chain.iter().map(|p| p.display().to_string()).collect();
+                        names.push(canonical.display().to_string());
+                        diags.report(
+                            Diagnostic::error(
+                                code::E_CIRCULAR_REQUIRE,
+                                format!("circular require: {}", names.join(" -> ")),
+                            )
+                            .with_primary(span, "part of this cycle"),
+                        );
+                        continue;
+                    }
+                    if done.contains(&canonical) {
+                        continue;
+                    }
+                    done.insert(canonical.clone());
+                    let Ok(new_id) = map.load(&canonical) else {
+                        diags.report(
+                            Diagnostic::error(
+                                code::E_REQUIRE_TARGET_NOT_FOUND,
+                                format!("`{}` cannot be loaded", canonical.display()),
+                            )
+                            .with_primary(span, "not valid UTF-8, or too large to load"),
+                        );
+                        continue;
+                    };
+                    let new_stmts = parse_file(map.file(new_id), diags);
+                    check_declarations(&new_stmts, map.file(new_id), diags);
+                    let mut new_chain = chain.clone();
+                    new_chain.push(canonical);
+                    work.push((new_id, new_stmts, new_chain));
+                }
+            }
+
+            loaded.push(Loaded { id, stmts });
         }
 
-        let mut targets = Vec::new();
-        find_require_literals(&stmts, map.file(id), &mut targets);
-        let base_dir = map
-            .file(id)
-            .path()
-            .and_then(|p| p.parent().map(Path::to_path_buf));
+        // Every file the `require` chain can reach is collected, so the map is
+        // complete and this is the first moment it can be consulted.
+        let built = autoload_map.get_or_insert_with(|| AutoloadMap::build(&sites, diags));
+        if built.is_empty() {
+            break;
+        }
 
-        if let Some(base_dir) = base_dir {
-            // Canonicalized once per file rather than once per `require`, so
-            // `check_path_case` can line its simulated walk up positionally
-            // against each target's own canonical path. An entry file named
-            // on the command line as `tests/main.mwl` has a relative,
-            // as-typed parent; every other file in the graph was already
-            // loaded by its canonical path.
-            let canonical_base = base_dir.canonicalize().ok();
-            for (literal, span) in targets {
-                let target = base_dir.join(&literal);
-                let Ok(canonical) = target.canonicalize() else {
-                    diags.report(
-                        Diagnostic::error(
-                            code::E_REQUIRE_TARGET_NOT_FOUND,
-                            format!("`{}` cannot be loaded", target.display()),
-                        )
-                        .with_primary(span, "no file found at this path"),
-                    );
-                    continue;
-                };
-                if let Some(base) = &canonical_base {
-                    check_path_case(base, &literal, &canonical, span, diags);
-                }
-                if chain.contains(&canonical) {
-                    let mut names: Vec<String> =
-                        chain.iter().map(|p| p.display().to_string()).collect();
-                    names.push(canonical.display().to_string());
-                    diags.report(
-                        Diagnostic::error(
-                            code::E_CIRCULAR_REQUIRE,
-                            format!("circular require: {}", names.join(" -> ")),
-                        )
-                        .with_primary(span, "part of this cycle"),
-                    );
-                    continue;
-                }
-                if done.contains(&canonical) {
-                    continue;
-                }
-                done.insert(canonical.clone());
-                let Ok(new_id) = map.load(&canonical) else {
-                    diags.report(
-                        Diagnostic::error(
-                            code::E_REQUIRE_TARGET_NOT_FOUND,
-                            format!("`{}` cannot be loaded", canonical.display()),
-                        )
-                        .with_primary(span, "not valid UTF-8, or too large to load"),
-                    );
-                    continue;
-                };
-                let new_stmts = parse_file(map.file(new_id), diags);
-                check_declarations(&new_stmts, map.file(new_id), diags);
-                let mut new_chain = chain.clone();
-                new_chain.push(canonical);
-                work.push((new_id, new_stmts, new_chain));
+        let mut next: Option<(QName, Span, PathBuf)> = None;
+        while let Some((name, span)) = wanted.pop() {
+            if resolver.module().symbols.contains(&name) || !probed.insert(name.clone()) {
+                continue;
+            }
+            // ADR 0061 § 5 keys the artifact cache on the whole probe trace,
+            // misses included, so that adding a file which *shadows* one already
+            // resolved invalidates the unit. `Probe::tried` carries it; nothing
+            // records it yet, because ADR 0042's `PathEntry` table is the cache
+            // slice's, not this one's.
+            if let Some(path) = built.resolve(&name).hit {
+                next = Some((name, span, path));
+                break;
             }
         }
-
-        loaded.push(Loaded { id, stmts });
+        let Some((name, span, path)) = next else {
+            break;
+        };
+        if !done.insert(path.clone()) {
+            continue;
+        }
+        // An entry that canonicalized but will not load is not valid UTF-8; the
+        // name then stays undeclared and the checker reports it as any other
+        // unknown class, which is a better place to say so than here.
+        let Ok(new_id) = map.load(&path) else {
+            continue;
+        };
+        let new_stmts = parse_file(map.file(new_id), diags);
+        check_declarations(&new_stmts, map.file(new_id), diags);
+        autoload::check_file_shape(&new_stmts, map.file(new_id), name.short_name(), span, diags);
+        work.push((new_id, new_stmts, vec![path]));
     }
 
     resolver.resolve_imports(diags);
@@ -297,18 +401,124 @@ fn check_path_case(
     }
 }
 
+/// Everything one file's walk yields. The three lists answer the three
+/// questions the graph walk asks of a file: what does it pull in, what does
+/// it say about where *other* names live, and which names does it use that
+/// something will have to declare.
+///
+/// The namespace and imports are carried here rather than threaded as a
+/// parameter because a `namespace`/`use` declaration only ever appears in a
+/// file's own top-level statement sequence: every nested walk below inherits
+/// what the enclosing sequence set and can never change it, so a field the
+/// sequence writes as it goes is the same thing a parameter would be, minus
+/// nine signatures.
+#[derive(Default)]
+struct Harvest {
+    /// Each statically-known `require` target's cooked path text and span.
+    requires: Vec<(String, Span)>,
+    /// Each `autoload` declaration, cooked, still needing the declaring
+    /// file's own directory bound to it — [`autoload::Site`]'s `base_dir`.
+    autoloads: Vec<(autoload::SiteKind, Span)>,
+    /// Every name used where a class, interface, enum or `type` alias is
+    /// meant, already resolved through the namespace and imports in force
+    /// where it was written.
+    ///
+    /// Deliberately an over-approximation: a name nothing declares and no
+    /// autoload prefix matches costs one failed map lookup and no
+    /// diagnostic, while a name this walk *misses* is a program that does
+    /// not compile. `Core`'s own names are dropped, since nothing on disk
+    /// declares them.
+    names: Vec<(QName, Span)>,
+    /// The namespace in force at the statement being walked.
+    namespace: Vec<String>,
+    /// The `use` imports in force at the statement being walked, keyed by
+    /// the short name each binds.
+    imports: FxHashMap<String, QName>,
+}
+
+/// Records one written name against the namespace and imports in force,
+/// exactly as [`crate::hierarchy::resolve_ref`] resolves an
+/// `extends`/`implements` reference — the same answer, reached the same way,
+/// so an autoload lookup can never disagree with the resolver that will
+/// later look the name up in the symbol table.
+fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
+    let Some(text) = src.span_text(name.span) else {
+        return;
+    };
+    let qname = crate::hierarchy::resolve_ref(text, &out.namespace, &out.imports);
+    if qname.is_core() {
+        return;
+    }
+    out.names.push((qname, name.span));
+}
+
+/// Records every name a type expression mentions. A shape type's fields, a
+/// union's members and an `array<T>`'s argument all nest types, and any of
+/// them may be the one class reference that pulls a file in.
+fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
+    match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => walk_type(inner, src, out),
+        TypeKind::Union(members) | TypeKind::Intersection(members) => {
+            for member in members {
+                walk_type(member, src, out);
+            }
+        }
+        TypeKind::Atom(atom) => match atom {
+            TypeAtom::Array(Some(inner)) => walk_type(inner, src, out),
+            TypeAtom::Shape(fields) => {
+                for field in fields {
+                    walk_type(&field.ty, src, out);
+                }
+            }
+            TypeAtom::Member(name, _) => record_name(name, src, out),
+            TypeAtom::Name(name, args) => {
+                record_name(name, src, out);
+                for arg in args {
+                    walk_type(arg, src, out);
+                }
+            }
+            _ => {}
+        },
+        _ => {}
+    }
+}
+
+fn walk_types(types: &[Type], src: &SourceFile, out: &mut Harvest) {
+    for ty in types {
+        walk_type(ty, src, out);
+    }
+}
+
+fn record_names(names: &[Name], src: &SourceFile, out: &mut Harvest) {
+    for name in names {
+        record_name(name, src, out);
+    }
+}
+
+fn record_implements(clauses: &[ImplementsClause], src: &SourceFile, out: &mut Harvest) {
+    for clause in clauses {
+        record_name(&clause.name, src, out);
+        walk_types(&clause.type_args, src, out);
+    }
+}
+
 /// Walks `stmts` looking for every `require` expression whose path is a
 /// plain string literal, appending each one's cooked path text and span to
 /// `out`. A `require` whose path is anything else (a variable, a
 /// concatenation, an interpolated string) is left out entirely — that is
 /// the dynamic-fallback case this module does not touch.
-fn find_require_literals(stmts: &[Stmt], src: &SourceFile, out: &mut Vec<(String, Span)>) {
+///
+/// The same walk harvests ADR 0061's two other inputs — every `autoload`
+/// declaration, and every name that might need one — because they are found
+/// in the same places by the same recursion, and a second walker over the
+/// whole AST would be a second walker to keep in step with the first.
+fn find_require_literals(stmts: &[Stmt], src: &SourceFile, out: &mut Harvest) {
     for stmt in stmts {
         walk_stmt(stmt, src, out);
     }
 }
 
-fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Vec<(String, Span)>) {
+fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
     macro_rules! e {
         ($expr:expr) => {
             walk_expr($expr, src, out)
@@ -352,8 +562,19 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Vec<(String, Span)>) {
             }
             s!(body);
         }
-        StmtKind::Foreach { subject, body, .. } => {
+        StmtKind::Foreach {
+            subject,
+            key,
+            value,
+            body,
+            ..
+        } => {
             e!(subject);
+            for binding in key.iter().chain(std::iter::once(value)) {
+                if let Some(ty) = &binding.ty {
+                    walk_type(ty, src, out);
+                }
+            }
             s!(body);
         }
         StmtKind::Switch { subject, cases } => {
@@ -372,6 +593,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Vec<(String, Span)>) {
         } => {
             find_require_literals(&body.stmts, src, out);
             for catch in catches {
+                walk_type(&catch.ty, src, out);
                 find_require_literals(&catch.body.stmts, src, out);
             }
             if let Some(finally) = finally {
@@ -383,9 +605,14 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Vec<(String, Span)>) {
                 e!(x);
             }
         }
-        StmtKind::LocalDecl {
-            value: Some(value), ..
-        } => e!(value),
+        StmtKind::LocalDecl { ty, value, .. } => {
+            if let Some(ty) = ty {
+                walk_type(ty, src, out);
+            }
+            if let Some(value) = value {
+                e!(value);
+            }
+        }
         StmtKind::Destructure { target, value } => {
             walk_destructure_target(target, src, out);
             e!(value);
@@ -397,9 +624,19 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Vec<(String, Span)>) {
                 }
             }
         }
-        StmtKind::ClassDecl(decl) => walk_class_members(&decl.members, src, out),
-        StmtKind::InterfaceDecl(decl) => walk_class_members(&decl.members, src, out),
+        StmtKind::ClassDecl(decl) => {
+            if let Some(extends) = &decl.extends {
+                record_name(extends, src, out);
+            }
+            record_implements(&decl.implements, src, out);
+            walk_class_members(&decl.members, src, out);
+        }
+        StmtKind::InterfaceDecl(decl) => {
+            record_names(&decl.extends, src, out);
+            walk_class_members(&decl.members, src, out);
+        }
         StmtKind::EnumDecl(decl) => {
+            record_names(&decl.implements, src, out);
             for case in &decl.cases {
                 if let Some(value) = &case.value {
                     e!(value);
@@ -407,30 +644,96 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Vec<(String, Span)>) {
             }
             walk_class_members(&decl.members, src, out);
         }
-        StmtKind::NamespaceDecl(NamespaceDecl {
-            body: Some(block), ..
-        }) => find_require_literals(&block.stmts, src, out),
+        StmtKind::TypeAliasDecl(decl) => walk_type(&decl.ty, src, out),
+        StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
+            let outer_ns = std::mem::take(&mut out.namespace);
+            let outer_imports = std::mem::take(&mut out.imports);
+            out.namespace = name
+                .as_ref()
+                .and_then(|n| src.span_text(n.span))
+                .map(|text| QName::parse(text).segments().to_vec())
+                .unwrap_or_default();
+            // A `namespace Name { ... }` block scopes its own imports and
+            // hands the enclosing sequence back what it had; a bare
+            // `namespace Name;` changes both for the rest of the file, which
+            // is what *not* restoring them does.
+            if let Some(block) = body {
+                find_require_literals(&block.stmts, src, out);
+                out.namespace = outer_ns;
+                out.imports = outer_imports;
+            }
+        }
+        StmtKind::UseDecl(use_decl) => {
+            let Some(text) = src.span_text(use_decl.path.span) else {
+                return;
+            };
+            let target = QName::parse(text);
+            out.imports
+                .insert(target.short_name().to_owned(), target.clone());
+            if !target.is_core() {
+                out.names.push((target, use_decl.path.span));
+            }
+        }
+        StmtKind::AutoloadDecl(decl) => record_autoload(decl, src, out),
         _ => {}
     }
 }
 
-fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Vec<(String, Span)>) {
+/// Cooks one `autoload` declaration's spans into an [`autoload::SiteKind`].
+///
+/// The parser records spans rather than values — `ExprKind::Str`'s own shape
+/// — so this is where a prefix and its roots become strings, through the same
+/// [`cook_quoted`] a `require` path goes through. A literal that will not
+/// cook (a heredoc) is dropped: the parser already reported
+/// `E_AUTOLOAD_PATH_NOT_LITERAL` for every path that is not a plain string.
+fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
+    let cook = |span: Span| src.span_text(span).and_then(cook_quoted);
+    let kind = match &decl.kind {
+        AutoloadKind::Prefix { prefix, roots } => {
+            let Some(prefix) = cook(*prefix) else {
+                return;
+            };
+            let roots: Vec<String> = roots.iter().filter_map(|r| cook(*r)).collect();
+            if roots.is_empty() {
+                return;
+            }
+            autoload::SiteKind::Prefix { prefix, roots }
+        }
+        AutoloadKind::Discover { glob } => {
+            let Some(glob) = cook(*glob) else {
+                return;
+            };
+            autoload::SiteKind::Discover { glob }
+        }
+    };
+    out.autoloads.push((kind, decl.span));
+}
+
+fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Harvest) {
     for member in members {
         match &member.kind {
             ClassMemberKind::Method(m) => {
-                for param in &m.params {
-                    if let Some(default) = &param.default {
-                        walk_expr(default, src, out);
-                    }
+                walk_params(&m.params, src, out);
+                if let Some(ty) = &m.return_type {
+                    walk_type(ty, src, out);
                 }
                 if let Some(body) = &m.body {
                     find_require_literals(&body.stmts, src, out);
                 }
             }
-            ClassMemberKind::Const(c) => walk_expr(&c.value, src, out),
+            ClassMemberKind::Const(c) => {
+                if let Some(ty) = &c.ty {
+                    walk_type(ty, src, out);
+                }
+                walk_expr(&c.value, src, out);
+            }
             ClassMemberKind::Property(p) => {
+                walk_type(&p.ty, src, out);
                 if let Some(default) = &p.default {
                     walk_expr(default, src, out);
+                }
+                for hook in p.hooks.iter().flatten() {
+                    walk_property_hook(hook, src, out);
                 }
             }
             ClassMemberKind::Error => {}
@@ -439,15 +742,33 @@ fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Vec<(
     }
 }
 
-fn walk_block(block: &Block, src: &SourceFile, out: &mut Vec<(String, Span)>) {
+fn walk_block(block: &Block, src: &SourceFile, out: &mut Harvest) {
     find_require_literals(&block.stmts, src, out);
 }
 
-fn walk_destructure_target(
-    target: &DestructureTarget,
-    src: &SourceFile,
-    out: &mut Vec<(String, Span)>,
-) {
+fn walk_params(params: &[Param], src: &SourceFile, out: &mut Harvest) {
+    for param in params {
+        if let Some(ty) = &param.ty {
+            walk_type(ty, src, out);
+        }
+        if let Some(default) = &param.default {
+            walk_expr(default, src, out);
+        }
+    }
+}
+
+fn walk_property_hook(hook: &PropertyHook, src: &SourceFile, out: &mut Harvest) {
+    if let Some(param) = &hook.param {
+        walk_params(std::slice::from_ref(param), src, out);
+    }
+    match &hook.body {
+        Some(PropertyHookBody::Expr(expr)) => walk_expr(expr, src, out),
+        Some(PropertyHookBody::Block(block)) => walk_block(block, src, out),
+        None => {}
+    }
+}
+
+fn walk_destructure_target(target: &DestructureTarget, src: &SourceFile, out: &mut Harvest) {
     for element in &target.elements {
         match element {
             DestructureElement::Leaf { key: Some(key), .. } => walk_expr(key, src, out),
@@ -462,13 +783,13 @@ fn walk_destructure_target(
     }
 }
 
-fn walk_member_name(member: &MemberName, src: &SourceFile, out: &mut Vec<(String, Span)>) {
+fn walk_member_name(member: &MemberName, src: &SourceFile, out: &mut Harvest) {
     if let MemberName::Variable(e) | MemberName::Expr(e) = member {
         walk_expr(e, src, out);
     }
 }
 
-fn walk_args(args: &CallArgs, src: &SourceFile, out: &mut Vec<(String, Span)>) {
+fn walk_args(args: &CallArgs, src: &SourceFile, out: &mut Harvest) {
     let CallArgs::List(list) = args else {
         return;
     };
@@ -482,7 +803,7 @@ fn walk_args(args: &CallArgs, src: &SourceFile, out: &mut Vec<(String, Span)>) {
     reason = "one match arm per AST expression variant, each a couple of lines \
               (mirrors crate::members's own walker)"
 )]
-fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
+fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
     macro_rules! e {
         ($expr:expr) => {
             walk_expr($expr, src, out)
@@ -492,7 +813,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
     match &expr.kind {
         ExprKind::Require { path } => {
             if let Some(literal) = literal_require_path(path, src) {
-                out.push((literal, path.span));
+                out.requires.push((literal, path.span));
             }
             // A dynamic path may still nest its own sub-expressions worth
             // walking for a further, statically-resolvable `require` inside
@@ -539,7 +860,11 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
             }
             e!(else_);
         }
-        ExprKind::Conversion { expr, .. } => e!(expr),
+        ExprKind::Conversion { expr, ty } => {
+            e!(expr);
+            walk_type(ty, src, out);
+        }
+        ExprKind::ConstFetch(name) => record_name(name, src, out),
         ExprKind::InstanceOf { expr, class } => {
             e!(expr);
             e!(class);
@@ -551,21 +876,24 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
         ExprKind::MethodCall {
             object,
             method,
+            type_args,
             args,
             ..
         } => {
             e!(object);
             walk_member_name(method, src, out);
+            walk_types(type_args, src, out);
             walk_args(args, src, out);
         }
         ExprKind::StaticCall {
             class,
             method,
+            type_args,
             args,
-            ..
         } => {
             e!(class);
             walk_member_name(method, src, out);
+            walk_types(type_args, src, out);
             walk_args(args, src, out);
         }
         ExprKind::PropertyAccess {
@@ -583,12 +911,25 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Vec<(String, Span)>) {
                 e!(index);
             }
         }
-        ExprKind::New { args, .. } => walk_args(args, src, out),
-        ExprKind::Fn(fn_expr) => {
-            for param in &fn_expr.params {
-                if let Some(default) = &param.default {
-                    e!(default);
+        ExprKind::New { target, args } => {
+            match target {
+                NewTarget::Name(name) => record_name(name, src, out),
+                NewTarget::Expr(expr) => e!(expr),
+                NewTarget::AnonClass(decl) => {
+                    if let Some(extends) = &decl.extends {
+                        record_name(extends, src, out);
+                    }
+                    record_names(&decl.implements, src, out);
+                    walk_class_members(&decl.members, src, out);
                 }
+                _ => {}
+            }
+            walk_args(args, src, out);
+        }
+        ExprKind::Fn(fn_expr) => {
+            walk_params(&fn_expr.params, src, out);
+            if let Some(ty) = &fn_expr.return_type {
+                walk_type(ty, src, out);
             }
             match &fn_expr.body {
                 FnBody::Block(block) => walk_block(block, src, out),
@@ -939,5 +1280,283 @@ require './Lib/Helper.mwl';
         let stmts = parse_file(map.file(id), &mut diags);
         let _module = resolve_program(id, stmts, &mut map, &mut diags);
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    // --- ADR 0061: the autoload map ----------------------------------------
+
+    /// A [`Site`] over `dir`, with a throwaway span: every assertion below is
+    /// about which file was found, never about where the declaration sat.
+    fn site(dir: &TempDir, id: SourceId, kind: autoload::SiteKind) -> Site {
+        Site {
+            base_dir: dir.path.clone(),
+            kind,
+            span: Span::at(id, 0),
+        }
+    }
+
+    fn prefix(prefix: &str, roots: &[&str]) -> autoload::SiteKind {
+        autoload::SiteKind::Prefix {
+            prefix: prefix.to_owned(),
+            roots: roots.iter().map(|r| (*r).to_owned()).collect(),
+        }
+    }
+
+    fn scratch_id(map: &mut SourceMap) -> SourceId {
+        map.add("autoload.mwl", "")
+    }
+
+    /// ADR 0061 § 1 end to end: a class nothing `require`s, reached only by
+    /// name through a prefix the bootstrap file declared.
+    #[test]
+    fn a_class_reached_only_through_autoload_is_collected() {
+        let dir = TempDir::new("autoload-hit");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.mwl",
+            "<?mwl\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Core.mwl",
+            "<?mwl\nnamespace Framework;\nclass Core {}\n",
+        );
+        dir.write(
+            "main.mwl",
+            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+        );
+
+        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(module.symbols.contains(&QName::parse(r"Framework\Core")));
+    }
+
+    /// § 1's Composer rule: roots are probed in declaration order and the
+    /// first hit wins, which is what makes an override root work. The probe
+    /// trace records the misses that got there — § 5's cache input.
+    #[test]
+    fn roots_are_probed_in_declaration_order_and_the_first_hit_wins() {
+        let dir = TempDir::new("autoload-order");
+        for root in ["override", "vendor"] {
+            fs::create_dir_all(dir.path.join(root)).expect("create root");
+        }
+        dir.write(
+            "override/Thing.mwl",
+            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+        );
+        dir.write(
+            "vendor/Thing.mwl",
+            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+        );
+        dir.write("vendor/Only.mwl", "<?mwl\nnamespace Acme;\nclass Only {}\n");
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(
+            &[site(&dir, id, prefix("Acme", &["./override", "./vendor"]))],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let first = built.resolve(&QName::parse(r"Acme\Thing"));
+        assert_eq!(first.tried.len(), 1, "{first:?}");
+        assert!(
+            first
+                .hit
+                .expect("override hit")
+                .ends_with(Path::new("override").join("Thing.mwl"))
+        );
+
+        let second = built.resolve(&QName::parse(r"Acme\Only"));
+        assert_eq!(second.tried.len(), 2, "the miss is recorded: {second:?}");
+        assert!(second.hit.is_some());
+
+        let absent = built.resolve(&QName::parse(r"Acme\Absent"));
+        assert!(absent.hit.is_none());
+        assert_eq!(absent.tried.len(), 2);
+    }
+
+    /// § 1's "one prefix has one home".
+    #[test]
+    fn two_explicit_declarations_of_one_prefix_are_diagnosed() {
+        let dir = TempDir::new("autoload-dup");
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let _ = AutoloadMap::build(
+            &[
+                site(&dir, id, prefix("Acme", &["./a"])),
+                site(&dir, id, prefix("Acme", &["./b"])),
+            ],
+            &mut diags,
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DUPLICATE_AUTOLOAD_PREFIX)),
+            "{diags:?}"
+        );
+    }
+
+    /// § 1: an explicit prefix beats a `discover` glob that would produce the
+    /// same one — the glob skips the name rather than colliding with it — and
+    /// a matched directory that is not a legal namespace segment is skipped
+    /// in silence.
+    #[test]
+    fn an_explicit_prefix_shadows_a_discover_glob_that_would_repeat_it() {
+        let dir = TempDir::new("autoload-discover");
+        for module in ["Acme", "Other", ".git", "vendor"] {
+            fs::create_dir_all(dir.path.join(module).join("src")).expect("create module");
+        }
+        dir.write(
+            "Acme/src/Thing.mwl",
+            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+        );
+        dir.write(
+            "Other/src/Thing.mwl",
+            "<?mwl\nnamespace Other;\nclass Thing {}\n",
+        );
+        fs::create_dir_all(dir.path.join("override")).expect("create override");
+        dir.write(
+            "override/Thing.mwl",
+            "<?mwl\nnamespace Acme;\nclass Thing {}\n",
+        );
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(
+            &[
+                site(&dir, id, prefix("Acme", &["./override"])),
+                site(
+                    &dir,
+                    id,
+                    autoload::SiteKind::Discover {
+                        glob: "./*/src".to_owned(),
+                    },
+                ),
+            ],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        let acme = built.resolve(&QName::parse(r"Acme\Thing"));
+        assert!(
+            acme.hit
+                .expect("explicit root wins")
+                .ends_with(Path::new("override").join("Thing.mwl"))
+        );
+        assert!(built.resolve(&QName::parse(r"Other\Thing")).hit.is_some());
+    }
+
+    /// § 1's exact-name rule: a case-insensitive filesystem must not accept
+    /// `thing.mwl` for `Thing` and then fail on Linux. Both legs answer
+    /// "miss" — Linux never finds it, Windows finds it and refuses the
+    /// spelling — so this asserts the answer rather than the mechanism.
+    #[test]
+    fn a_mis_cased_entry_is_a_miss_on_every_filesystem() {
+        let dir = TempDir::new("autoload-case");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write("src/thing.mwl", "<?mwl\nnamespace Acme;\nclass thing {}\n");
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(&[site(&dir, id, prefix("Acme", &["./src"]))], &mut diags);
+        assert!(built.resolve(&QName::parse(r"Acme\Thing")).hit.is_none());
+    }
+
+    /// § 1: an `autoload` inside a file the map itself found would let the
+    /// map depend on its own answers.
+    #[test]
+    fn an_autoload_inside_an_autoloaded_file_is_diagnosed() {
+        let dir = TempDir::new("autoload-nested");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.mwl",
+            "<?mwl\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Core.mwl",
+            "<?mwl\nnamespace Framework;\nautoload 'Extra' from './more';\nclass Core {}\n",
+        );
+        dir.write(
+            "main.mwl",
+            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+        );
+
+        let (_module, diags) = resolve_entry(&dir, "main.mwl");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_AUTOLOAD_IN_AUTOLOADED_FILE)),
+            "{diags:?}"
+        );
+    }
+
+    /// § 2: a file reached through an autoload root declares exactly one
+    /// thing, named after it.
+    #[test]
+    fn an_autoloaded_file_declaring_a_second_thing_is_diagnosed() {
+        let dir = TempDir::new("autoload-shape");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.mwl",
+            "<?mwl\nautoload 'Framework' from './src';\n",
+        );
+        dir.write(
+            "src/Core.mwl",
+            "<?mwl\nnamespace Framework;\nclass Core {}\nclass Helper {}\n",
+        );
+        dir.write(
+            "main.mwl",
+            "<?mwl\nrequire './Bootstrap.mwl';\nvar $app = new Framework\\Core();\n",
+        );
+
+        let (_module, diags) = resolve_entry(&dir, "main.mwl");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_AUTOLOAD_FILE_SHAPE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A `discover` glob has to be one `*` occupying a whole segment, and one
+    /// that silently discovers nothing is the outcome worth diagnosing.
+    #[test]
+    fn a_malformed_discovery_glob_is_diagnosed() {
+        let dir = TempDir::new("autoload-glob");
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let _ = AutoloadMap::build(
+            &[site(
+                &dir,
+                id,
+                autoload::SiteKind::Discover {
+                    glob: "./src".to_owned(),
+                },
+            )],
+            &mut diags,
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_AUTOLOAD_GLOB_SHAPE)),
+            "{diags:?}"
+        );
+    }
+
+    /// A program with no `autoload` declaration pays for nothing: the map is
+    /// never built past the empty check, and a name nothing declares is left
+    /// for the checker to report.
+    #[test]
+    fn a_name_with_no_matching_prefix_is_left_alone() {
+        let dir = TempDir::new("autoload-none");
+        dir.write("main.mwl", "<?mwl\nvar $app = new Framework\\Core();\n");
+
+        let (module, diags) = resolve_entry(&dir, "main.mwl");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(!module.symbols.contains(&QName::parse(r"Framework\Core")));
     }
 }
