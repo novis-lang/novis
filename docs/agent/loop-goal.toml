@@ -96,6 +96,12 @@ playbook = ["Tooling", "Running things", "Adding a `Core` member", "Writing a te
 # Fields of the plan's status block worth printing. Default is these two.
 plan = ["Open now", "Blocking"]
 
+# Milestones out of docs/plan/, one file each. `"M4S"` is the whole thing, `"M4S:verify"` its
+# acceptance paragraph alone, `"M4S:lead"` its opening one. Empty on purpose: this goal's items name
+# their own scope, and M4S whole is 6k of context for a session that is checking one member against
+# the spec. Name `"M4S:verify"` here the session the goal starts asking "is this milestone done".
+milestones = []
+
 [valgrind]
 # Every fixture again under `valgrind --leak-check=full`, once the program legs are green. A hand-written
 # refcount protocol is exactly where a leak hides. Cycles are out of scope by decision (loop-goal.md), so

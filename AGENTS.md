@@ -142,3 +142,8 @@ Step 5 above, in detail:
   a field in place each session; never append a paragraph, and never add a field name. Session-by-session
   history lives in `git log`; per-file known-gap detail belongs in that crate's own module doc comment, not
   in the plan.
+- **The plan is that index plus one file per milestone**, under [docs/plan/](docs/plan/), with the frozen
+  half — the pre-M0 decisions, the architecture, the verification strategy — in
+  [docs/plan/design.md](docs/plan/design.md). Never open the directory to find one: `python tools/plan.py
+  --show M8` prints a milestone, `--show M8:verify` its acceptance paragraph, `--amend M8 --from <file>`
+  rewrites one, and `session.py --wrap` takes a `## milestone: M8` section for the same thing.

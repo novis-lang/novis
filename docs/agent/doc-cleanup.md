@@ -1,7 +1,7 @@
 # Documentation cleanup prompt
 
 Reusable prompt for periodically compacting MWL's docs (ADRs, `docs/adr/README.md`,
-`docs/implementation-plan.md`, `docs/spec/`, `AGENTS.md`) as the ADR count grows. Paste this whole
+`docs/implementation-plan.md` and `docs/plan/`, `docs/spec/`, `AGENTS.md`) as the ADR count grows. Paste this whole
 file as the prompt when you want another pass. Update it in place if a future pass finds a rule that
 needs adjusting — don't let it drift out of sync with how cleanup is actually done.
 
@@ -72,7 +72,7 @@ unless they intend to overturn the decision — so trim those sections hard:
 - Never touch diagnostic names/codes or cross-reference links while trimming, and never change what a
   `## Decision` *decides* — only what it *says the current rule is*.
 
-**Scope: everything.** ADRs, `docs/adr/README.md`, `docs/implementation-plan.md`, `docs/spec/`, and
+**Scope: everything.** ADRs, `docs/adr/README.md`, `docs/implementation-plan.md` and `docs/plan/`, `docs/spec/`, and
 `AGENTS.md` are all in scope for this pass — not just the ADRs. Apply the same "one fact, one home, no
 padding" standard everywhere; if a doc restates something the ADR already owns, delete the restatement
 and link instead.
@@ -92,7 +92,7 @@ been implying the whole `bytes` type was undecided — and left § 2 alone until
 3. Execute the trim across every ADR (batch it — e.g. one subagent per handful of files — to keep this
    from consuming the whole context window; review a sample of the diffs afterward for consistency and
    to make sure `## Decision` sections were left untouched).
-4. Re-check `docs/adr/README.md`, `docs/implementation-plan.md`, `docs/spec/`, and `AGENTS.md` for
+4. Re-check `docs/adr/README.md`, `docs/implementation-plan.md` and `docs/plan/`, `docs/spec/`, and `AGENTS.md` for
    anything the trim pass should have caught but is out of ADR scope.
 5. Run `python tools/check-links.py` — this is a docs-only pass, so the main risk is a broken or
    mis-cased cross-link, not a build break, and that is exactly what it reports. There is still no

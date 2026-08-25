@@ -47,6 +47,12 @@ backslashes and apostrophes this repository's Rust and prose are full of. The ex
 hand — locating a field's exact bytes and splicing them was the single most expensive repeated action a
 session performed.
 
+**The plan is an index and one file per milestone**, and `plan.py` is the only thing that needs to know
+which is which: `--show M8` prints one milestone, `--show M8:verify` its acceptance paragraph alone, and
+`--amend M8 --from <file>` rewrites one. `--check` prices the status block against the aim the plan's own
+comment states and reports an index row that has drifted from the file it names. It refuses to *add* a
+field or a milestone — both are decisions, not forms — and it never refuses over a length.
+
 ## One shell call runs one command, and its exit status is the last one's
 
 Do not `;`-chain several probes into a single call. A chain reports only the final command's status, so a

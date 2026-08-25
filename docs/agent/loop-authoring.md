@@ -62,6 +62,7 @@ unscoped one, which is about 30k of context before a session has read a line of 
 | `shapes` | headings of [conventions.md](conventions.md) the goal will write | listing all of them; a goal writing no `Core` member does not need that shape |
 | `playbook` | a heading of [playbook.md](playbook.md), **or one bullet** — `"Tooling > A whole ADR"` | naming the section when the goal needs three of its bullets: sections grow forever, and this one is usually the pack's largest |
 | `plan` | status-block fields worth printing | more than `Open now` and `Blocking`, which is usually the answer |
+| `milestones` | `"M4S"` for a whole milestone out of [docs/plan/](../plan/), `"M4S:lead"` or `"M4S:verify"` for one paragraph | naming the whole milestone when `:verify` was the question — M8 is 11k, its acceptance paragraph is under 1k |
 
 Three rules make it work:
 
