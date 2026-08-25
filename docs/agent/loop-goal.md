@@ -19,7 +19,11 @@ stated. **What comes first now is Stage 0 below, not `Core` breadth.**
 them change a milestone's *built* behaviour rather than adding to a later one, and the debt beside them is
 what M1 and M2 never finished. **ADR 0094 joins the list from the other direction** — a decision taken
 while the loop is running, which reopens M1's declaration grammar rather than adding to a later milestone,
-so it is item 3 here instead of scheduled work somewhere ahead. Until this section is empty, **a session takes its group from here, in this
+so it is item 3 here instead of scheduled work somewhere ahead. **Items 10–15 arrive the same way**, from
+a review of what PHP's last three years of CVEs and performance work say about MWL: each was settled with
+the user, and each is here rather than scheduled to a milestone because the emit site, the ABI or the
+member it changes is being written *right now* — item 15 alone is the difference between `$a[] = $v`
+costing 9.4× what PHP's interpreter charges and roughly an eighth of it. Until this section is empty, **a session takes its group from here, in this
 order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: the
 spelling ADR 0090 deletes had reached 48 files and 93 lines before item 1 rewrote them, and every fixture
 written while an item here is open is written against a rule that is about to change.
@@ -93,6 +97,40 @@ one is how an item finishes.
 9. ~~**ADR 0069 — `array + array` does not compile** (M4's *Verify* list).~~ **Done.** `E0467` from
    `reject_array_combination`, naming `Core\Arr::underlay`; `+=` reaches it through `binary_result` and
    reports once, because the recovery type is the array operand rather than `mixed`.
+
+10. **A release build checks integer overflow.** `overflow-checks = true` is already on
+    `[profile.release]`, with the measured basis and the reasoning in the manifest comment beside it. What
+    is left is the test: read the workspace manifest and fail if the line is absent, the same shape as the
+    notice-policy test. Nothing else — the cast half is already enforced by `[workspace.lints.clippy]`
+    plus `verify.py`'s `-D warnings`.
+11. **`secret == secret` lowers to the constant-time helper**
+    ([ADR 0033 § 5](../adr/0033-secret-qualifier-for-confidential-values.md) owns the rule and its cost).
+    The arm goes in `mwl_ir`'s `lower_binary`, beside the equality work item 4 landed — which is why it is
+    dated now rather than scheduled.
+12. **`$s as ?Uri` and `$s as ?Uuid` compile, and `isValid` is deleted from both**
+    ([ADR 0066 §§ 1, 3](../adr/0066-nullable-conversion-operator.md) owns the roster and why `Duration` is
+    not on it; `uri.rs`'s module doc owns the call-site consequence). `Uri::isValid` is not written yet, so
+    deleting it now costs nothing and costs a member plus its tests once it lands.
+13. **`Core\Uri` compares by normalized components, with two guards.**
+    `crates/mwl-stdlib/src/uri.rs`'s module doc owns the rule, why it does not contradict
+    that module's own "`parse` reports, it does not normalize", and the two guards it requires — a
+    `parse` → serialize → `parse` property and a differential corpus against the PHP 8.5 oracle. Add a
+    `fuzz/fuzz_targets` entry beside `lex.rs` and `parse.rs`.
+14. **A call-stack limit rides the safepoint's emit site**
+    ([ADR 0020 § 1](../adr/0020-error-escalation-ladder.md) owns the mechanism, the 8 MB ceiling, the two
+    tiers and the measured cost). File set: `crates/mwl-runtime/src/ctx.rs` for the `stack_limit` field
+    beside the safepoint word, `crates/mwl-codegen/src/emit.rs`'s `emit_safepoint` for the compare. It is
+    dated now because that emit site exists and lowers to nothing yet (`mwl-ir` gap 14), and the plan
+    states that retrofitting it means rewriting the backend. Expect a one-time step in `abi/frame_depth`,
+    a benchmark that does nothing but call; say so in the commit.
+15. **A list-shaped array is packed** — [`array.rs`](../../crates/mwl-runtime/src/array.rs)'s module doc
+    owns the decision, the PHP comparison that dates it, and what the ABI addition costs if it waits. Two
+    points from that section worth repeating here: [ADR 0007 § 5](../adr/0007-explicit-type-system.md) is
+    **unchanged** — this is representation, not semantics — and `mwl_array_get_index`/`set_index` are a
+    compatible addition only while nothing depends on the current ABI. Give it the first
+    `docs/perf/history.ndjson` entry, with a `php_ratio`, per
+    [ADR 0026](../adr/0026-performance-measurement-methodology.md); that file not existing is why nothing
+    caught this.
 
 **Already done, and listed so it is not re-opened:** ADR 0087's lexer half is built — `mwl_syntax::bidi` is
 the one predicate, the lexer makes it `E0008` over comments, string literals and inline HTML per line, and
@@ -207,6 +245,12 @@ Every one of these was settled with the user before the loop started. Implement 
   acceptance list, put it in `## Backlog` in the handoff and move on.
 - **Doc trimming is not loop work, ever.** Nothing measures doc size (doc-style.md § *Length targets*), and
   [doc-cleanup.md](doc-cleanup.md)'s pass is never run from inside the loop.
+- **Four further decisions from the same review are settled in their own ADRs and are *not* this goal's
+  work** — [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md) (HTTP parsing, cookie names,
+  multipart caps, `Core\IO::within`), [0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
+  (`#[Access]`, CSRF) and [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+  test axes. Their milestones have not started; do not re-open them and do not schedule them here.
+
 
 ## The gaps that actually sit on the path
 

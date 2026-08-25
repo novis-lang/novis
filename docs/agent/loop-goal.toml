@@ -55,6 +55,10 @@ modules = [
   "crates/mwl-runtime/src/release.rs",
   "crates/mwl-codegen/src/ty.rs",
   "crates/mwl-diagnostics/src/lib.rs",
+  # Stage 0 items 10-15 deliberately add NOTHING here either, for the reason the `adrs` block below
+  # gives: a session takes ONE item, and the six items share no files, so the union would print five
+  # unread module maps every session. Measured: +1,715 tokens, most of it the two directory
+  # selectors. Each item names its own file set in `loop-goal.md` instead.
 ]
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence
@@ -68,6 +72,10 @@ adrs = [
   "0009 §3",
   "0051 §4",
   "0007 §3",
+  # Stage 0 items 10-15 deliberately add NOTHING here. Each item names its own ADR section in
+  # `loop-goal.md`, and a session takes ONE item -- so pre-printing all six items' ADRs would print five
+  # unread sections every session. Measured: adding them cost +9,154 tokens of pack for a session that
+  # reads one of them. A selector belongs here when *every* session of this goal needs it.
 ]
 
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
@@ -166,6 +174,94 @@ tests = [
   # however the row is reached, with the hash agreeing with it.
   "the_four_numeric_representations_are_one_domain",
   "an_integral_float_past_two_to_the_53_hashes_with_both_of_its_readings",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0, items 10-15 -- the "now or never" set from the PHP-history review. Every one was settled
+# with the user, is argued in `loop-goal.md` § *Stage 0*, and is here rather than scheduled to a
+# milestone for one reason each: the emit site, the ABI or the member it changes is being written
+# right now, and the same change costs an order of magnitude more once it is. The numbers quoted in
+# that prose were measured on this tree, not estimated.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-runtime (overflow-checks)"
+args = ["test", "-p", "mwl-runtime"]
+tests = [
+  # Item 10 -- a release build checks integer overflow. Measured cost: inside run-to-run noise on
+  # `decimal` arithmetic, array append and string construction alike, so nothing is traded for it.
+  "the_release_profile_checks_integer_overflow",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-ir (secret equality)"
+args = ["test", "-p", "mwl-ir"]
+tests = [
+  # Item 11 -- ADR 0033 x ADR 0090: `==` over two `secret` operands lowers to the constant-time
+  # helper rather than the short-circuiting one, so a hand-written token comparison is not a timing
+  # oracle. The equality lowering landed in item 4; this rides it while it is fresh.
+  "a_secret_equality_lowers_to_the_constant_time_helper",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-types (parse-roster conversion)"
+args = ["test", "-p", "mwl-types"]
+tests = [
+  # Item 12 -- ADR 0066's roster amendment. `$s as ?Uri` and `$s as ?Uuid` compile and yield `null`
+  # on bad input; `$obj as ?SomeClass` stays the compile error § 3 already makes it; no `as T` form
+  # is implied for the roster.
+  "a_parse_roster_type_converts_nullably",
+  "a_class_type_still_refuses_the_nullable_conversion",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-stdlib (uri)"
+args = ["test", "-p", "mwl-stdlib"]
+tests = [
+  # Item 12 -- with the conversion above, `Core\Uri::isValid` is the second spelling R17 forbids.
+  # It is not written yet, which is the whole reason this is item 12 and not M8 work.
+  "core_uri_declares_no_is_valid_member",
+  # Item 13 -- `==` normalizes per RFC 3986 § 6.2.2 and then compares components. `parse` still
+  # reports verbatim: that is `uri.rs`'s own rule and this does not change it, because the
+  # normalization happens at the comparison, not at the parse.
+  "two_uris_compare_by_normalized_components",
+  "a_parsed_uri_round_trips_through_its_own_text",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-codegen (stack limit)"
+args = ["test", "-p", "mwl-codegen"]
+tests = [
+  # Item 14 -- the stack check rides the safepoint's existing emit site, which is why it is now:
+  # the plan states that retrofitting that site means rewriting the backend.
+  "a_function_entry_checks_the_stack_limit",
+  "a_leaf_function_under_the_slack_emits_no_stack_check",
+  "a_runaway_recursion_reports_a_limit_rather_than_faulting",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "0 catch-up"
+name = "mwl-runtime (packed arrays)"
+args = ["test", "-p", "mwl-runtime"]
+tests = [
+  # Item 15 -- a list-shaped array holds no index map and no key strings, an integer subscript
+  # reaches it without allocating one, and the first key that breaks the invariant degrades it to
+  # today's hash form with no observable difference.
+  "a_list_shaped_array_holds_no_index_map",
+  "an_integer_subscript_allocates_no_key",
+  "a_non_sequential_key_degrades_the_packed_array",
+  "both_representations_answer_every_primitive_alike",
 ]
 
 
