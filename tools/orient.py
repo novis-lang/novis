@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import json
 import re
 import subprocess
 import sys
@@ -174,6 +175,64 @@ def slice_section(text: str, wanted: str) -> str | None:
                     break
             return "\n".join(lines[idx:end]).rstrip()
     return None
+
+
+def bullets(text: str, within: str | None = None) -> list[tuple[str, str]]:
+    """Every `- ` bullet in the file, as (its bold lead-in, its whole text).
+
+    A playbook bullet runs from its `- ` to the next `- ` at the same indent, the next heading,
+    or the end. The lead-in is the `**Bolded sentence.**` it opens with, which is what a
+    manifest names it by -- and what makes bullet-level selection possible at all."""
+    body = text if within is None else (slice_section(text, within) or "")
+    found, cur, lead = [], [], None
+    for line in body.split("\n"):
+        if re.match(r"^- ", line):
+            if cur:
+                found.append((lead or cur[0][2:80], "\n".join(cur).rstrip()))
+            cur = [line]
+            m = re.match(r"^- \*\*(.+?)\*\*", line)
+            lead = m.group(1) if m else line[2:80]
+        elif re.match(r"^#{1,6}\s", line):
+            if cur:
+                found.append((lead or cur[0][2:80], "\n".join(cur).rstrip()))
+            cur, lead = [], None
+        elif cur:
+            cur.append(line)
+    if cur:
+        found.append((lead or cur[0][2:80], "\n".join(cur).rstrip()))
+    return found
+
+
+def slice_bullets(text: str, selector: str) -> tuple[list[str], str | None]:
+    """One `[context] playbook` entry -> the bullets it names, and a complaint if it named none.
+
+    Three spellings, tried in this order:
+
+        "Tooling"                    the whole `## Tooling` section, as before
+        "Tooling > A whole ADR"      one bullet out of it, by its bold lead-in
+        "A whole ADR"                that bullet wherever it lives
+
+    The second and third are why this exists. Measured over one run, the four whole sections a
+    goal named were 31 KB -- 35% of the entire pack and its single largest section -- and a
+    session reads perhaps three of their bullets. A section grows every time a trap is written
+    down, which is the point of the file and a leak in the pack; naming bullets makes the
+    manifest's cost track what the goal actually needs instead of what the file has accumulated.
+    """
+    head, _, lead = selector.partition(">")
+    head, lead = head.strip(), lead.strip()
+
+    if not lead:
+        whole = slice_section(text, head)
+        if whole is not None:
+            return [whole], None
+        lead, head = head, ""      # not a heading: read it as a bare bullet name
+
+    key = normalize(lead)
+    hits = [body for name, body in bullets(text, head or None) if key in normalize(name)]
+    if hits:
+        return hits, None
+    where = f" under {head!r}" if head else ""
+    return [], f"names {selector!r} and no bullet{where} leads with it"
 
 
 def slice_head(text: str) -> str:
@@ -462,6 +521,31 @@ def run_named_sections(title: str, source: Path, wanted: list[str], field: str) 
         emit(body)
 
 
+def run_playbook(wanted: list[str]) -> None:
+    """The traps, sliced by section OR by bullet -- see `slice_bullets` for why both."""
+    if not wanted:
+        return
+    text = read(PLAYBOOK)
+    if not text:
+        warn(f"{rel(PLAYBOOK)} is missing")
+        return
+    section("THE TRAPS THAT APPLY HERE", f"{rel(PLAYBOOK)}, filtered to [context] playbook")
+    seen: set[str] = set()
+    for name in wanted:
+        found, complaint = slice_bullets(text, name)
+        if complaint:
+            warn(f"[context] playbook {complaint}")
+            continue
+        for body in found:
+            # A goal that names both a section and one of its bullets gets it once.
+            key = body[:120]
+            if key in seen:
+                continue
+            seen.add(key)
+            emit()
+            emit(body)
+
+
 def run_plan(m: Manifest) -> None:
     text = read(ROOT / "docs" / "implementation-plan.md")
     if not text:
@@ -474,16 +558,27 @@ def run_plan(m: Manifest) -> None:
     for name, body in picked:
         emit(brief.wrap(name, brief.strip_links(body)))
     emit()
-    emit("Edit a field with `python tools/plan.py --set \"<field>\" --from <file>`, never by hand.")
+    emit("These fields are rewritten by `session.py --wrap`, never edited by hand.")
 
 
 def run_closing() -> None:
-    section("WHEN YOU ARE DONE", "AGENTS.md § Session workflow, steps 3-6")
+    section("WHEN YOU ARE DONE", "AGENTS.md § Session workflow, steps 3-5")
     emit("  python tools/verify.py            build + test + clippy + fmt, once, at the end")
-    emit("  python tools/plan.py --set ...    the plan's status block, never edited by hand")
-    emit("  overwrite docs/agent/handoff.md   state only; name the NEXT group and its file set")
-    emit("  git commit                        one per slice, staging that slice's own files")
-    emit("  .loop/status.txt                  one line: CONTINUE / DONE / BLOCKED (loop only)")
+    emit("  python tools/session.py --check   what steps 4-5 still owe, measured off the tree")
+    emit("  <Write one wrap file>             plan fields, playbook bullet, handoff, commits, status")
+    emit("  python tools/session.py --wrap F  applies all of it, or refuses and changes nothing")
+    emit()
+    emit("`session.py --help` is the wrap file's format. That is the whole tail: two calls, not")
+    emit("the thirty-three it measured before the tool existed. Nothing about WHAT you write")
+    emit("changes -- the handoff contract, one commit per slice, and the fixed plan field set")
+    emit("all still hold, and `--wrap` refuses input that breaks them.")
+    emit()
+    emit("WHILE YOU WORK, read in one call, not fifty:")
+    emit("  python tools/peek.py A.rs:120-160 B.rs:@symbol C.md:\"## 4\" \"crates/**/*.rs:re:pat\"")
+    emit("  python tools/peek.py --locate <symbol> ...    file:line anchors, no bodies")
+    emit("Both take as many targets as you have questions. Measured over a full run, sessions")
+    emit("issued 3,647 tool calls and batched exactly none of them, including runs of 57")
+    emit("consecutive greps -- so reach for these instead of a `grep`/`sed` at a time.")
     emit()
     emit("If this pack did not print something you needed, that is a gap in [context] in")
     emit("docs/agent/loop-goal.toml. Say which field was missing it, in the handoff.")
@@ -492,32 +587,59 @@ def run_closing() -> None:
 # ------------------------------------------------------------------------------ audit
 
 
-#: Bytes per token for *this* pack, measured rather than assumed: piping it in moved a
-#: session's opening context by 27,895 tokens for 48,886 characters. The 3.6 this used to
-#: divide by is the ratio for ordinary prose and it understated the pack by about half,
-#: which is worth knowing before trimming anything on the strength of these numbers -- the
-#: pack is dense with backticked identifiers, paths, `§`, em dashes and table pipes, none of
-#: which tokenize like prose. Plain English through the same path measured 2.50.
-BYTES_PER_TOKEN = 1.75
+#: Bytes per token, used only to turn this pack's size into a number a goal author can weigh.
+#: The fallback is an estimate and is labelled as one; the real value is *regressed* by
+#: `python tools/loop-stats.py --calibrate --write`, which fits recorded pack sizes against the
+#: opening context those sessions actually measured, and writes the answer here for this to
+#: read. A guess divided by 1.75 once put this pack at 50k tokens when the transcripts said the
+#: entire session floor -- pack, harness prompt, tool schemas, CLAUDE.md and AGENTS.md together
+#: -- was 57k, which is the kind of error that gets a manifest trimmed for no reason.
+BYTES_PER_TOKEN_FALLBACK = 2.5
+CALIBRATION = ROOT / "tools" / "data" / "calibration.json"
+
+#: Calls in a session, for turning pack bytes into what the pack is *billed*. Every token of the
+#: pack sits in the context of every turn, so the pack is paid once per call, not once.
+CALLS_PER_SESSION = 98
+
+
+def calibration() -> tuple[float, int, str]:
+    """(bytes per token, calls per session, where the number came from)."""
+    try:
+        data = json.loads(CALIBRATION.read_text(encoding="utf-8"))
+        ratio = float(data["bytes_per_token"])
+        n = int(data.get("sessions", 0))
+        return ratio, int(data.get("calls_per_session", CALLS_PER_SESSION)), (
+            f"measured: regressed over {n} session(s), "
+            f"R^2 {data.get('r_squared', 0):.3f}")
+    except (OSError, ValueError, KeyError, TypeError):
+        return BYTES_PER_TOKEN_FALLBACK, CALLS_PER_SESSION, (
+            "ESTIMATED -- run `python tools/loop-stats.py --calibrate --write` "
+            "after a run to measure it")
 
 
 def audit() -> list[str]:
+    ratio, calls, source = calibration()
     lines = [
         "",
         "== WHAT THIS PACK COST",
-        f"-- bytes / {BYTES_PER_TOKEN}, calibrated against a real session's opening context, not the",
-        "   prose ratio: this pack tokenizes at about half what plain text does",
+        f"-- bytes / {ratio:g}  ({source})",
         "",
     ]
     total = 0
     for title, size in ledger:
         total += size
-        lines.append(f"  {title:<44}{size:>8,} B{size / BYTES_PER_TOKEN:>10,.0f} tok")
-    lines.append(f"  {'TOTAL':<44}{total:>8,} B{total / BYTES_PER_TOKEN:>10,.0f} tok")
+        lines.append(f"  {title:<44}{size:>8,} B{size / ratio:>10,.0f} tok")
+    lines.append(f"  {'TOTAL':<44}{total:>8,} B{total / ratio:>10,.0f} tok")
     lines.append("")
-    lines.append("  The driver pipes this to the session, so it is charged once, at session start,")
-    lines.append("  on top of the harness prompt, the tool schemas, CLAUDE.md and AGENTS.md --")
-    lines.append("  `python tools/loop-stats.py` measures that floor from real transcripts.")
+    lines.append("  The driver pipes this to the session, so it enters the context once -- and is")
+    lines.append("  then re-billed on every turn, because a turn re-reads its whole context. At the")
+    lines.append(f"  measured {calls} calls a session that is about "
+                 f"{total / ratio * calls / 1_000_000:,.1f}M billed tokens, so trimming")
+    lines.append(f"  1,000 bytes here is worth about {1000 / ratio * calls:,.0f} of them.")
+    lines.append("")
+    lines.append("  The largest section is usually the traps. A `[context] playbook` entry may name")
+    lines.append("  one BULLET rather than a whole section -- `\"Tooling > A whole ADR\"` -- which is")
+    lines.append("  what keeps this from growing every time a trap is written down.")
     lines.append("")
     lines.append("  This is a number to look at when you WRITE a goal. It is not a check: nothing")
     lines.append("  here exits non-zero over a size (docs/agent/doc-style.md says why).")
@@ -563,7 +685,7 @@ def main() -> int:
     run_named_sections(
         "THE SHAPES YOU ARE ABOUT TO WRITE", CONVENTIONS, m.shapes, "shapes"
     )
-    run_named_sections("THE TRAPS THAT APPLY HERE", PLAYBOOK, m.playbook, "playbook")
+    run_playbook(m.playbook)
     run_plan(m)
     run_numbers()
     run_closing()

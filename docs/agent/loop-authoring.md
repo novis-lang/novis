@@ -40,8 +40,8 @@ same week, opposite instruction. So:
 | Sessions finish **well under** the ceiling | Grouping is back on. Take the cap the projection prints, preferring the knee over the fastest. |
 | Fixed cost is a small share of a session | Grouping has stopped paying whatever the context says. Look at parallel lanes instead (coordinator.md's last section). |
 | Sessions are compacting | The ceiling is far too high — compaction loses the standing instructions the run depends on. Drop it until it stops, and treat every result from that run as suspect. |
-| Calls per message is above 1 | Batching finally happened, so the clock constants shifted but the context ones did not. Re-derive before trusting any earlier ratio; batching buys turns, never tokens. |
-| `ctx_start` has crept up | The fixed cost of *existing* grew — AGENTS.md, the brief, the playbook. Every byte there is charged to every session before it does anything. |
+| Calls per message is above 1 | Batching finally happened, so the clock constants shifted but the context ones did not. Re-derive before trusting any earlier ratio; batching buys turns, never tokens. It has never happened by hand — 0 in 3,647 calls — which is why reading goes through `peek.py` instead. |
+| `ctx_start` has crept up | The fixed cost of *existing* grew — AGENTS.md, the brief, the playbook. Every byte there is charged to every session before it does anything, and then re-billed on every turn of it. Over one run `playbook.md` grew 61% and dragged `ctx_start` up 5.3k with it. `--calibrate` prices a byte here; § 2 says what to do about it. |
 
 Whatever you pick, **say in the commit which cap it is and why.** AGENTS.md § *Session workflow* step 2 is
 the one place it lives.
@@ -60,7 +60,7 @@ unscoped one, which is about 30k of context before a session has read a line of 
 | `rules` | ADR numbers; their one-sentence bullet from [ground-rules.md](../adr/ground-rules.md) | listing every ADR the topic touches rather than the ones that *bind the work* |
 | `adrs` | `"NNNN"` for the *In short* block, `"NNNN §N"` for one section | naming a whole ADR — that is 7k of context where a section is 1k |
 | `shapes` | headings of [conventions.md](conventions.md) the goal will write | listing all of them; a goal writing no `Core` member does not need that shape |
-| `playbook` | headings of [playbook.md](playbook.md) whose traps apply to this file set | the same |
+| `playbook` | a heading of [playbook.md](playbook.md), **or one bullet** — `"Tooling > A whole ADR"` | naming the section when the goal needs three of its bullets: sections grow forever, and this one is usually the pack's largest |
 | `plan` | status-block fields worth printing | more than `Open now` and `Blocking`, which is usually the answer |
 
 Three rules make it work:
@@ -83,6 +83,33 @@ are missing their `file.rs:NN` anchors; a large `orientation` share means the ma
 **Then leave it maintained by the sessions.** A session that needed something the pack did not print says
 so in the handoff, naming the field; the next session that touches the goal adds the selector. A manifest
 nobody may edit becomes a manifest everybody works around.
+
+### What a new goal inherits, and what it owes
+
+Most of the optimisation is **in the tools, and a new goal gets it for free**. Only two things are per-goal,
+and only one of them is work.
+
+| Carries over untouched | Because |
+|---|---|
+| `peek.py`, `session.py`, `verify.py`, `splice.py`, `plan.py`, `disk.py` | They are about how this repository is read and written, not about what any goal is doing. A new goal changes neither. |
+| The five rules and the session workflow in `AGENTS.md` | Same. |
+| The handoff contract, the playbook, `conventions.md` | Same. |
+| The calibration in `tools/data/calibration.json` | Bytes per token is a property of the model and the pack's prose, not of the goal. Re-run `--calibrate --write` when the *model* changes, not when the goal does. |
+
+| Per-goal, and owed before the run | Cost |
+|---|---|
+| The `[context]` manifest | The real work. It names the files, ADR sections, shapes and traps *this* goal's sessions read, and nothing else knows them. |
+| A fresh `python tools/loop-stats.py` | One call. § 1 above: the constants are measurements, and a number you did not just measure is probably stale. |
+
+So the answer to "do we have to re-do this every time" is **no for the tooling and yes for the manifest** —
+and the manifest is not an optimisation you redo, it is the goal's own definition of what its sessions may
+read. Write it once, let the sessions correct it, and the rest applies itself.
+
+**One thing does drift on its own**: the pack's fixed floor. `playbook.md` is append-mostly by decision, so
+every trap a session writes down is charged to every session after it. Over one 39-session run it grew 61%
+and pulled `ctx_start` up by 5.3k tokens — which, re-billed on ~98 turns, is about half a million tokens a
+session. The fix is not to trim the playbook; it is to name **bullets** rather than sections in `[context]
+playbook` when a new goal only needs a few. `python tools/orient.py --audit` prices both.
 
 ## 3. A goal is a stop condition, or it is not a goal
 

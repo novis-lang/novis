@@ -711,6 +711,12 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     pack = orientation_pack()
     session_id = ""
     with log.open("a", encoding="utf-8", newline="\n") as fh:
+        # The pack's size, recorded beside the transcript that paid for it. Two sessions with
+        # different pack sizes are a two-point regression against their measured `ctx_start`,
+        # which is how `loop-stats.py --calibrate` derives bytes-per-token instead of assuming
+        # it. Nothing downstream needs this line; every reader skips a `type` it does not know.
+        fh.write(json.dumps({"type": "loop_pack", "bytes": len(pack.encode("utf-8"))}) + "\n")
+        fh.flush()
         proc = subprocess.Popen(
             cmd,
             cwd=ROOT,

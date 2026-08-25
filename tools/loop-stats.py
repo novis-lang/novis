@@ -127,6 +127,7 @@ def read_session(path):
     """One transcript -> the measurements above, or None if it holds no assistant turn."""
     calls, contexts, per_message, result = [], [], [], None
     names, attribution = {}, {}
+    pack_bytes = 0
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line:
@@ -136,6 +137,9 @@ def read_session(path):
         except json.JSONDecodeError:
             continue  # a truncated final line is normal for a killed run
         kind = event.get("type")
+        if kind == "loop_pack":
+            pack_bytes = event.get("bytes") or 0
+            continue
         if kind == "result":
             result = event
             continue
@@ -206,6 +210,7 @@ def read_session(path):
         "commits": len(commits),
         "ctx_start": contexts[0] if contexts else 0,
         "ctx_end": max(contexts) if contexts else 0,
+        "pack_bytes": pack_bytes,
         "compactions": len(drops),
         "duration_ms": (result or {}).get("duration_ms"),
         "duration_api_ms": (result or {}).get("duration_api_ms"),
@@ -342,6 +347,79 @@ def render_attribution(sessions):
         )
 
 
+CALIBRATION = ROOT / "tools" / "data" / "calibration.json"
+
+
+def calibrate(sessions, write):
+    """Bytes per token for the orientation pack, regressed rather than assumed.
+
+    `loop.py` records each session's pack size beside its transcript, and `ctx_start` is that
+    session's measured opening context. Across sessions the pack is the only part of the floor
+    that moves -- the harness prompt, the tool schemas, CLAUDE.md and AGENTS.md are the same
+    bytes every time -- so the slope of ctx_start against pack bytes IS the ratio, and the
+    intercept is the fixed floor underneath it. Two sessions with different packs is enough;
+    more is better.
+
+    A single guessed constant is what this replaces. `orient.py --audit` divided by 1.75 on the
+    strength of one before-and-after, which put its own pack at 50k tokens when the transcripts
+    said the whole session floor -- pack, prompt, schemas and all -- was 57k.
+    """
+    points = [(s["pack_bytes"], s["ctx_start"]) for s in sessions
+              if s.get("pack_bytes") and s.get("ctx_start")]
+    spread = {p for p, _ in points}
+    if len(spread) < 2:
+        print("== CALIBRATION")
+        print(f"   {len(points)} session(s) recorded a pack size, {len(spread)} distinct.")
+        print("   Two DIFFERENT pack sizes are the minimum for a slope. `loop.py` began")
+        print("   recording them with the `loop_pack` line; a run over these logs will have")
+        print("   them. Until then orient.py uses its default and says so.")
+        return None
+
+    n = len(points)
+    mx = sum(p for p, _ in points) / n
+    my = sum(c for _, c in points) / n
+    sxx = sum((p - mx) ** 2 for p, _ in points)
+    sxy = sum((p - mx) * (c - my) for p, c in points)
+    if sxx == 0:
+        return None
+    slope = sxy / sxx                      # tokens per byte
+    intercept = my - slope * mx            # the floor with no pack at all
+    ratio = 1 / slope if slope > 0 else 0
+
+    resid = sum((c - (intercept + slope * p)) ** 2 for p, c in points)
+    tot = sum((c - my) ** 2 for _, c in points)
+    r2 = 1 - resid / tot if tot else 0
+
+    print("== CALIBRATION  (pack bytes -> opening context, regressed over "
+          f"{n} session(s))")
+    print(f"   bytes per token       {ratio:,.2f}")
+    print(f"   fixed floor           {intercept:,.0f} tokens  "
+          "(harness prompt + tool schemas + CLAUDE.md + AGENTS.md)")
+    print(f"   fit                   R^2 {r2:.3f} over pack sizes "
+          f"{min(spread):,} - {max(spread):,} B")
+    print()
+    print("   Every token of the pack is re-billed on every turn of the session, so at the")
+    print(f"   measured {sum(s['calls'] for s in sessions) / len(sessions):.0f} calls a session, "
+          "1,000 bytes of pack is about")
+    print(f"   {1000 / ratio * sum(s['calls'] for s in sessions) / len(sessions):,.0f} "
+          "billed tokens. That is the number to weigh a `[context]` selector against.")
+
+    if write:
+        CALIBRATION.parent.mkdir(parents=True, exist_ok=True)
+        CALIBRATION.write_text(
+            json.dumps({"bytes_per_token": round(ratio, 3),
+                        "floor_tokens": round(intercept),
+                        "r_squared": round(r2, 4),
+                        "sessions": n}, indent=2) + "\n",
+            encoding="utf-8", newline="\n")
+        print(f"\n   written to {CALIBRATION.relative_to(ROOT).as_posix()} -- "
+              "orient.py --audit reads it from there.")
+    else:
+        print("\n   --write records this in tools/data/calibration.json, which is where")
+        print("   orient.py --audit looks before falling back to its default.")
+    return ratio
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -361,6 +439,16 @@ def main():
         "say the model had, leaving the last turn room to write the handoff.",
     )
     ap.add_argument("--json", action="store_true", help="print one JSON object instead")
+    ap.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="regress pack bytes against opening context for a measured bytes-per-token",
+    )
+    ap.add_argument(
+        "--write",
+        action="store_true",
+        help="with --calibrate, record the result in tools/data/calibration.json",
+    )
     opts = ap.parse_args()
 
     if not LOGDIR.is_dir():
@@ -377,6 +465,10 @@ def main():
 
     if opts.json:
         print(json.dumps({"sessions": sessions, "constants": t}, indent=2))
+        return
+
+    if opts.calibrate:
+        calibrate(sessions, opts.write)
         return
 
     if opts.attribute:

@@ -81,7 +81,16 @@ adrs = [
 # Headings of docs/agent/conventions.md naming shapes this goal will write.
 shapes = ["A diagnostic", "A `.mwlt` test case", "A commit message"]
 
-# Headings of docs/agent/playbook.md whose traps apply to this file set.
+# Traps from docs/agent/playbook.md that apply to this file set. An entry is either a `##` heading
+# (the whole section) or ONE bullet, named by its bold lead-in after a `>`:
+#
+#   "Tooling"                  the whole section -- 11 KB, and growing every time a trap is added
+#   "Tooling > A whole ADR"    just that bullet -- 310 B
+#
+# This is the pack's largest section by a wide margin, and the only one that grows on its own: the
+# playbook is append-mostly by decision, so every trap a session writes down is charged to every
+# session after it. A goal that needs three traps should name three traps. `orient.py --audit`
+# prices whichever you pick.
 playbook = ["Tooling", "Running things", "Adding a `Core` member", "Writing a test case"]
 
 # Fields of the plan's status block worth printing. Default is these two.
