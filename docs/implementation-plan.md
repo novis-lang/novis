@@ -69,10 +69,11 @@
 > `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
-> over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, and the
-> conformance-coverage gate), `mwl-codegen`, `mwl-cli`
+> over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, `ObjectMap` × 9
+> and `ObjectSet` × 9 over `identity_store`, and the conformance-coverage gate), `mwl-codegen`,
+> `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 369 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 372 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -121,8 +122,9 @@
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
 > 2, which waited on a written type argument at a call site and no longer does); § 7 owes all seven
-> rows (`Core\Encoding` and `Core\Bytes`); § 9 owes all three collections (`Core\ObjectMap`,
-> `Core\ObjectSet`, `Core\Heap`); § 10 owes the constructor's `{previous: $e}` options shape and
+> rows (`Core\Encoding` and `Core\Bytes`); § 9 owes `Core\Heap` and the `Iterable` its three rows
+> each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
+> `{previous: $e}` options shape and
 > `$e->location`; § 11 owes `Random::bytes` and `Hash::of`/`hmac`/`equals`; § 12 owes
 > `Uri::parse`/`isValid`, `Csv`, `Validate` and `Out::capture`. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
@@ -165,8 +167,8 @@
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
 > `Core\Path`, § 11's `Core\Uuid` and § 12's `Core\Uri` percent-encoding half are built; `Uri::parse`
 > and its instance still owe the RFC 3986 dependency, `Encoding`/`Hash`/`Csv` each need one picked
-> under ADR 0051 § 4, and `ObjectSet`/`ObjectMap` bind their written type arguments now but own no
-> members yet.
+> under ADR 0051 § 4. § 9's two collections run, so the fixture's first report is now § 7's
+> `Core\Encoding::toHex`/`Core\Hash::of` at `collect.mwl:25`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

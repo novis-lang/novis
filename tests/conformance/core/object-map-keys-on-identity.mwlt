@@ -1,0 +1,49 @@
+--TEST--
+`Core\ObjectMap<K, V>` keys on identity, `get` answers `?V`, and `keys`/`values` pair up positionally — docs/spec/01-core-library.md § 9
+--FILE--
+<?mwl
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+echo $weights->isEmpty() ? "empty" : "filled", " ", $weights->count(), "\n";
+
+$weights->set($red, 3);
+$weights->set($blue, 7);
+// A re-`set` replaces rather than adding a second pair.
+$weights->set($red, 4);
+echo $weights->count(), "\n";
+
+// `get` is `?V`, not a throwing read — § 9 says so, because these types have
+// no subscript to give the `$a[$k] ?? $d` pair.
+echo $weights->get($red) ?? 0, "\n";
+echo $weights->get(new Tag("red")) ?? -1, "\n";
+echo $weights->has($blue) ? "yes" : "no", "\n";
+
+// `keys` and `values` are lists, and position pairs them.
+echo Core\Str::join(Core\Arr::map($weights->keys(), fn(Tag $t): string => $t->name), ","), "\n";
+echo Core\Str::join(Core\Arr::map($weights->values(), fn(int $n): string => $n as string), ","), "\n";
+
+$weights->remove($red);
+echo $weights->count(), " ", $weights->get($blue) ?? -1, "\n";
+
+$weights->clear();
+echo $weights->count(), " ", $weights->isEmpty() ? "empty" : "filled", "\n";
+--EXPECT--
+empty 0
+2
+4
+-1
+yes
+red,blue
+4,7
+1 7
+0 empty

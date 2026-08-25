@@ -120,6 +120,11 @@ is why" — is this file.
   `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
   [conventions.md](conventions.md) writes all four out; `python tools/brief.py`'s *anchors* block
   resolves each spelling to a file and line.
+- **A `Core` symbol that is not a member breaks `every_registered_member_has_an_implementation_address`.**
+  `mwl_stdlib::symbols()` used to be exactly one entry per `CLASSES` member, and that test asserts the
+  count — so a constructor symbol from `registry::CONSTRUCTORS`, or anything else chained in beside the
+  members, has to be added to the sum on the test's right-hand side in the same edit. The failure is a
+  bare `left: 213, right: 211` in `-p mwl-stdlib --lib`, with nothing naming the symbol.
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
   `args: [3]`. A **variadic tail is one argument**, whatever the call writes. **An instance member's

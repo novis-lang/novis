@@ -113,10 +113,11 @@
 //!    arithmetic, and its own docs own the one-grammar-on-every-platform rule
 //!    that makes a `Core\Path` case pinnable on both legs, the three rows
 //!    where it diverges from `pathinfo`/`dirname`, and the two path *shapes*
-//!    (UNC, drive-relative) it does not model. Section 9 is one of its three
-//!    classes: [`objset`] holds every member of its row over the store
-//!    [`identity_store`] owns, and `Core\ObjectMap` and `Core\Heap` are what
-//!    is left.
+//!    (UNC, drive-relative) it does not model. Section 9 is two of its three
+//!    classes: [`objmap`] and [`objset`] hold every member of their rows over
+//!    the one store [`identity_store`] owns, and what is left is `Core\Heap`
+//!    and the `Iterable` each of the three also implements — which waits on
+//!    ADR 0053's iteration protocol reaching a `Core`-owned class.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
@@ -194,6 +195,7 @@ mod instance;
 mod issue;
 pub mod json;
 pub mod math;
+mod objmap;
 mod objset;
 mod ordering;
 pub mod path;
@@ -260,6 +262,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| arr::address(symbol))
         .or_else(|| json::address(symbol))
         .or_else(|| math::address(symbol))
+        .or_else(|| objmap::address(symbol))
         .or_else(|| objset::address(symbol))
         .or_else(|| path::address(symbol))
         .or_else(|| random::address(symbol))

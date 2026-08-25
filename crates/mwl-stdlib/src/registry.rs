@@ -600,6 +600,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::time::DATETIME,
     crate::time::DURATION,
     crate::time::ZONE,
+    crate::objmap::CLASS,
     crate::objset::CLASS,
     crate::random::CLASS,
     crate::uuid::CLASS,
@@ -617,7 +618,10 @@ pub const CLASSES: &[CoreClass] = &[
 /// unlike [`GENERIC_CLASSES`], whose arity is a property of the spec's table
 /// rather than of anything on disk — because the helper builds an instance
 /// against that class's declared [`CoreClass::slots`].
-pub const CONSTRUCTORS: &[(&str, &str)] = &[(crate::objset::NAME, crate::objset::NEW_SYMBOL)];
+pub const CONSTRUCTORS: &[(&str, &str)] = &[
+    (crate::objmap::NAME, crate::objmap::NEW_SYMBOL),
+    (crate::objset::NAME, crate::objset::NEW_SYMBOL),
+];
 
 /// The symbol that builds a `class` instance, or `None` when `new` on it is
 /// not a thing a program may write — which is every other name.

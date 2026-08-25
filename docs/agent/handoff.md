@@ -2,63 +2,61 @@
 
 ## State
 
-**A `new` target's type-argument list now binds.** `mwl_stdlib::registry::GENERIC_CLASSES`
-(`registry.rs:703`) is the roster of `Core`-owned generic classes — `ObjectMap<K, V>`, `ObjectSet<T>`,
-`Heap<T>` — and `check_new_type_args` (`calls.rs:293`) reads it positionally: the declared arity or
-`E0442`, and `E0441` for every target off the roster. An accepted list is interned onto the target
-(`Core\ObjectMap<Tag, int>`, not a bare class), so the receiver-driven substitution in
-`expr/args.rs` has something to zip against once § 9's members exist. An entry need not be registered
-in `CLASSES` yet; that is deliberate and its doc comment says why.
+**Spec § 9's two identity-keyed collections run end to end.** `Core\ObjectSet<T>` (nine rows) and
+`Core\ObjectMap<K, V>` (nine rows) are `crates/mwl-stdlib/src/objset.rs` and `objmap.rs`, both over
+one store module — `identity_store.rs`, whose module doc owns the layout decision (an `MwlArray`
+keyed by `"<hex identity hash>#<ordinal>"`, chain kept dense so a lookup stops at the first gap).
+`Core\Heap` and the `Iterable` all three rows declare are what § 9 still owes.
 
-**`python tools/loop.py --goal-only` still stops at Stage 3's `collect.mwl`, but one section further
-along.** Its first report is now `Core\Encoding::toHex`/`Core\Hash::of` at `collect.mwl:25` — spec § 7
-— because lines 13 and 19 resolve. Conformance is 370 of 600, differential 86 of 150,
+**`new` on a `Core` class now constructs and lowers.** The roster is
+`mwl_stdlib::registry::CONSTRUCTORS` (`registry.rs:621`); `mwl_types::expr::calls` carves it out of
+the "a `Core` class has no constructor" refusal (`calls.rs:258`), and `mwl-ir` lowers `new` on a name
+it holds to an `InstKind::CoreCall` rather than an `InstKind::New` (`lower/expr.rs:2365`).
+`crates/mwl-stdlib/src/instance.rs`'s second `# Decision` section owns why, and its `set_slot` is the
+one thing that mutates a built instance.
+
+**A `Core` generic class is now nameable in type position too**, not only as a `new` target —
+`lower.rs`'s `generic_params` and `expr/args.rs`'s `substitute_receiver_args` each consult
+`registry::class_type_params` beside `mwl_hir::interfaces`. That is what makes
+`Core\ObjectMap<Tag, int> $w` a declarable type and `$w->keys()` an `array<Tag>`.
+
+**`python tools/loop.py --goal-only` still stops at `collect.mwl`, now purely on spec § 7.** Lines
+13–23 resolve and run; the first report is `Core\Encoding::toHex`/`Core\Hash::of` at
+`collect.mwl:25`. Conformance is 372 of 600, differential 86 of 150,
 `every_part_one_spec_member_is_registered` still does not exist.
 
-**Two things stand between § 9 and a running `collect.mwl`, and both are decisions the next session
-makes.** (1) `infer_new` reports "no constructor" for every registered `Core` class
-(`calls.rs:250`, `core_lib::is_registered`) — the § 9 collections are the one carve-out, since the spec
-writes `new Core\ObjectSet<Tag>()`. (2) `mwl-ir` lowers `ExprInfo::New` to a program descriptor
-(`lower/expr.rs:2311`), and a `Core` instance's `ClassDesc` comes from `mwl-stdlib` instead
-(`instance::build`, `uuid.rs:183`). The cheap answer is to lower `new` on a roster class to that
-class's own native constructor helper, so nothing below `mwl-ir` learns that `Core` owns a class —
-which is exactly the promise `crates/mwl-stdlib/src/instance.rs`'s module doc already makes. Today an
-unregistered `Core\ObjectSet` type-checks and would reach codegen with no descriptor at all.
+`Tag::Bytes` still blocks `Random::bytes`, `Core\Encoding`, `Core\Bytes` and `Hash::*`:
+`mwl_ir::Ty::Bytes` and `registry::CoreTy::Bytes` exist, but `mwl_runtime::Tag` has no `Bytes` row,
+so `value.rs:49` spends `Tag::Str` on both. It is pre-authorized (`loop-goal.md` § *Standing
+decisions*), and it is the next real decision on the gate's path.
 
-`Tag::Bytes` still blocks `Random::bytes`, `Core\Encoding`, `Core\Bytes` and `Hash::*`: `mwl_ir::Ty::Bytes`
-and `registry::CoreTy::Bytes` exist, but `mwl_runtime::Tag` has no `Bytes` row, so `value.rs:49` spends
-`Tag::Str` on both. It is pre-authorized (`loop-goal.md` § *Standing decisions*).
+## Next group — spec § 7, the section `collect.mwl` now stops on
 
-## Next group — spec § 9's collections, now that the binding is there
+**Shared file set:** a new `crates/mwl-stdlib/src/encoding.rs` (`uuid.rs:147`'s `instance:`/`slots:`
+block is still the shape to copy, and `objset.rs:105` the shape of an `address` arm),
+`crates/mwl-runtime/src/value.rs:49` and its `Tag` enum, `crates/mwl-stdlib/src/registry.rs`
+(`CLASSES` at `:590`, `CoreTy::Bytes` at `:109`), `crates/mwl-stdlib/src/lib.rs`'s `mod` list and
+`address_of` chain (`:260`), and `tests/conformance/core/`. Spec rows:
+`docs/spec/01-core-library.md` § 7.
 
-**Shared file set:** a new `crates/mwl-stdlib/src/objset.rs` (`uuid.rs:147`'s `instance:`/`slots:` block
-is the whole shape to copy) and its `mod` line in `crates/mwl-stdlib/src/lib.rs`,
-`crates/mwl-stdlib/src/registry.rs` (`CLASSES`, `GENERIC_CLASSES` at `:703`),
-`crates/mwl-stdlib/src/instance.rs` (`build`/`receiver`/`slot`),
-`crates/mwl-types/src/expr/calls.rs:250` (the `new` carve-out),
-`crates/mwl-ir/src/lower/expr.rs:2311` (the `New` arm), `crates/mwl-runtime/src/identity.rs` (the
-identity hash the keying needs), and `tests/conformance/core/`. Spec rows:
-`docs/spec/01-core-library.md:658-673`.
-
-- [ ] **`new Core\ObjectSet<T>()` constructs and lowers**, with `add`, `has`, `count`, `isEmpty` and
-      `clear` — the carve-out at `calls.rs:250`, the lowering decision above, the `slots:` layout
-      (one slot holding the identity-keyed store), and one `.mwlt` case per row. Record the lowering
-      choice in `instance.rs`'s module doc, per the standing decision on design calls.
-- [ ] **`ObjectSet`'s set algebra** — `remove`, `union`, `intersect`, `diff` (`01-core-library.md:660`),
-      same files, plus its own `.mwlt` case. `diff` is spelled as on `Core\Arr`, deliberately.
-- [ ] **`Core\ObjectMap<K, V>`'s ten rows** (`01-core-library.md:659`) over the same store, with
-      `get` returning `?V` — the spec paragraph under the table says why there is no throwing read.
-- [ ] **The positive half of the binding's conformance coverage**, under `tests/conformance/lang/`:
-      the refusals are pinned by `a-core-collection-takes-the-type-arguments-it-declares.mwlt`, and a
-      case that *constructs* each collection cannot run until the slice above lands.
+- [ ] **`mwl_runtime::Tag` gains a `Bytes` row**, so something can construct a fresh `bytes` value —
+      `value.rs:49` currently spends `Tag::Str` on both. Decide the heap shape (a second `MwlStr`
+      without the UTF-8 promise is the cheap answer) and record it in `mwl-runtime`'s module doc, per
+      the standing decision on design calls. Nothing else in § 7 can land first.
+- [ ] **`Core\Encoding`'s hex and base64 rows** — `toHex`/`fromHex`/`toBase64`/`fromBase64`, with the
+      dependency picked under ADR 0051 § 4 and its reasoning in the module's own doc comment. One
+      `.mwlt` case per row.
+- [ ] **`Core\Encoding::encodeText`/`decodeText` and `Core\Charset`**, which `collect.mwl:26` writes.
+- [ ] **`Core\Hash::of`/`hmac`/`equals` and `Core\Digest`** (§ 11's remaining half), which
+      `collect.mwl:25` writes and which needs the same `bytes` row.
 
 ## Backlog
 
-- `Core\Heap<T>` — on `GENERIC_CLASSES` already; needs ADR 0013's `Comparable` or a constructor
-  comparator (`docs/spec/01-core-library.md` § 9).
-- `mwl_runtime::Tag::Bytes` and a `bytes` producer — blocks spec § 7 whole (`mwl-runtime`'s module doc).
-- `Core\Encoding`/`Core\Hash`/`Csv` each need a dependency picked under ADR 0051 § 4.
-- `every_part_one_spec_member_is_registered` — the loop's own definition of done; does not exist
-  (`docs/agent/loop-goal.md` § *Stage 4*).
-- `Uri::parse` and its instance still owe the RFC 3986 dependency pick (`crates/mwl-stdlib/src/uri.rs`).
-- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+- `Core\Heap<T>` and § 9's `Iterable` — `docs/spec/01-core-library.md:660-662`; `Heap` also needs
+  ADR 0013's `Comparable` reachable from a `Core` class.
+- **Constructor property promotion does not create a property**: `public readonly string $name` in a
+  `constructor` parameter compiles, and `$obj->name` is then `E0405`. Owner: `mwl-types`' own gaps.
+- `every_part_one_spec_member_is_registered` — the loop's definition of done, `loop-goal.md` Stage 4.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1.
+- ADR 0088's registry-wide qualifier classification for member rows — `implementation-plan.md`.
+- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
