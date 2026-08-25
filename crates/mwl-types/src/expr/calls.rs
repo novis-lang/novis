@@ -68,7 +68,7 @@ pub(super) fn infer_method_call(
                 report_unknown_member(object.span, &qname, &name, "method", env);
             }
             if let Some((owner, sig)) = &found {
-                check_interface_private_visibility(owner, &name, sig, *name_span, ctx, env);
+                check_method_visibility(owner, &name, sig, *name_span, ctx, env);
             }
             // The *declaring* class, not the receiver's: that is what
             // `ResolvedCall::class` promises, and `mwl-ir` renders the call's
@@ -137,7 +137,7 @@ pub(super) fn infer_static_call(
             let name = span_text(env.src, *name_span).to_owned();
             let found =
                 resolve_method(&qname, &name, env.signatures, env.graph).map(|(owner, sig)| {
-                    check_interface_private_visibility(&owner, &name, &sig, *name_span, ctx, env);
+                    check_method_visibility(&owner, &name, &sig, *name_span, ctx, env);
                     // The declaring class — see [`infer_method_call`] for why
                     // the receiver's own is the wrong label.
                     (owner, name.clone(), sig)
@@ -215,6 +215,14 @@ pub(super) fn infer_new(
     let resolved = target_qname
         .clone()
         .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
+    // ADR 0094's levels reach `new` too, and deliberately: a `private`
+    // constructor is PHP's singleton idiom, so the whole point of writing one
+    // is that `new C()` is refused everywhere except `C`'s own bodies. The
+    // span is the `new` expression rather than a member name, because that is
+    // the only thing written here.
+    if let Some((owner, sig)) = &resolved {
+        check_method_visibility(owner, "constructor", sig, expr.span, ctx, env);
+    }
     let ctor_owner = resolved.as_ref().map(|(owner, _)| owner.clone());
     let sig = resolved.map(|(_, sig)| sig);
     let (arg_types, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);

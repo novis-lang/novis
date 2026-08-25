@@ -22,9 +22,9 @@
 //!   `mwl_hir::members`'s own member table, which has the same gap. Its
 //!   visibility is therefore not enforced either, since [`is_visible_from`]
 //!   is only reached for a property this table found.
-//! - A method carries no visibility at all — [`MethodSig::interface_private`]
-//!   is the one narrow case ADR 0043 § 3 needed. ADR 0094's levels are
-//!   enforced for a property only.
+//!   A method has no such gap: [`MethodSig::visibility`] records ADR 0094's
+//!   level for every one, promoted parameter or not, because the modifier is
+//!   on the method's own declaration.
 //! - A variadic parameter's declared type is matched against every argument
 //!   from its position onward (an element-type check) rather than being
 //!   modeled as its own `array<T>` — see [`crate::expr`]'s docs for where
@@ -102,13 +102,27 @@ pub struct MethodSig {
     pub is_static: bool,
     /// Whether this is a `private` interface method (ADR 0043 § 3) —
     /// declared with the `private` modifier inside an `interface`, not a
-    /// `class`. General class-level method visibility is not modeled at all
-    /// yet (see `mwl_hir::members`'s own known gaps); this field exists only
-    /// so [`crate::expr`] can enforce the one visibility rule ADR 0043 § 3
-    /// actually requires — a private interface method is not part of that
-    /// interface's contract, so it is never reachable outside that
-    /// interface's own method bodies, not even from an implementing class.
+    /// `class`. Kept alongside [`Self::visibility`], which records the same
+    /// keyword, because ADR 0043 § 3 is a *different* rule than ADR 0094's
+    /// level with the same name: a private interface method is not part of
+    /// that interface's contract, so it is never reachable outside that
+    /// interface's own method bodies, not even from an implementing class —
+    /// and its diagnostic says so, which is why
+    /// `crate::expr::members::check_method_visibility` reports it and stops
+    /// rather than reporting both.
     pub interface_private: bool,
+    /// ADR 0094 § 1's level, as this declaration wrote it — `public` where
+    /// nothing did, which is every synthesized and `Core`-installed method
+    /// (only user source can write a keyword at all) and every user
+    /// declaration `mwl_syntax::check_declarations` is already refusing with
+    /// `E_MISSING_VISIBILITY`.
+    ///
+    /// Stored on the signature rather than in a side map the way
+    /// [`ClassSignature::property_visibility`] is, because a method's
+    /// signature is already the thing every call site holds: `resolve_method`
+    /// hands back the declaring [`QName`] with it, and those two together are
+    /// exactly what [`is_visible_from`] asks for.
+    pub visibility: Visibility,
     /// Whether the declaration carries a *body* — false for an `abstract`
     /// method and for an interface method declared without a default (ADR
     /// 0043 § 2).
@@ -679,6 +693,7 @@ fn collect_members(
                 let defaults = collect_defaults(&m.params, &params, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
+                let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
                 let is_static = m.modifiers.contains(&Modifier::Static);
                 let name = span_text(env.src, m.name).to_owned();
                 table.entry(qname.clone()).methods.insert(
@@ -694,6 +709,7 @@ fn collect_members(
                         return_ty,
                         is_static,
                         interface_private,
+                        visibility,
                         has_body: m.body.is_some(),
                     },
                 );

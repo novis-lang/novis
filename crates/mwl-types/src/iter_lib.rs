@@ -98,6 +98,7 @@ fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
         return_ty,
         is_static: false,
         interface_private: false,
+        visibility: mwl_syntax::ast::Visibility::Public,
         has_body: false,
     }
 }

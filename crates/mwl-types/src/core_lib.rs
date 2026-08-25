@@ -78,6 +78,10 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
                     // `mwl_stdlib::registry::CoreClass::instance`.
                     is_static,
                     interface_private: false,
+                    // Every registered row is part of `Core`'s surface — the
+                    // registry has no way to write an internal one, so there
+                    // is nothing here for ADR 0094's levels to say.
+                    visibility: mwl_syntax::ast::Visibility::Public,
                     // Native Rust behind a helper symbol, not a compiled MWL
                     // function — but it is code, so a call never needs to go
                     // looking for an override.

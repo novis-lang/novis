@@ -36,12 +36,15 @@
 //!   here — instantiation resolution is a distinct concern from a
 //!   callable/constant reference and is left for later.
 //! - A member's visibility (`private`/`protected`) is not checked *here* —
-//!   only whether it is declared anywhere in the chain. The property half is
-//!   closed by `mwl-types`' `expr::members::check_member_visibility`, which
-//!   sees the same `$this->name` access this module does and every other
-//!   receiver besides, split across crates the same way the paragraph below
-//!   splits a missing property. A **method**'s visibility is still unchecked
-//!   by either crate.
+//!   only whether it is declared anywhere in the chain. It is closed by
+//!   `mwl-types`' `expr::members::check_member_visibility`, which sees the
+//!   same `$this->name` access this module does and every other receiver
+//!   besides, split across crates the same way the paragraph below splits a
+//!   missing property; a method reaches it through
+//!   `expr::members::check_method_visibility`, which `new Foo(...)` takes too
+//!   so a `private` constructor is the singleton it was written to be. The one
+//!   declaration neither crate reads a level from is a promoted constructor
+//!   parameter, since no table records one as a property.
 //! - A property access on any receiver other than `$this` — a typed local, a
 //!   chained call result, `self::factory()`'s return, an explicit
 //!   `new Foo()` — is never checked *here*, since this module has no static

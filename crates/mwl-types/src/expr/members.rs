@@ -592,6 +592,35 @@ pub(super) fn report_core_instance_member(
     );
 }
 
+/// Both visibility rules a resolved method call answers to, in the order a
+/// reader wants them: ADR 0043 § 3's private-interface-method rule first,
+/// because it is the more specific refusal, and ADR 0094's three levels only
+/// where that one did not already fire.
+///
+/// They overlap exactly: a `private` interface method is `Visibility::Private`
+/// *and* [`MethodSig::interface_private`], and
+/// `signatures::is_visible_from` asks the same question of it that
+/// [`check_interface_private_visibility`] does. Reporting both would name one
+/// mistake twice, and the ADR 0043 wording is the one that explains it — so
+/// that arm returns here rather than falling through.
+///
+/// `name` is written bare; the `()` that marks it as a method in the message
+/// is added here, so no call site has to remember it.
+pub(super) fn check_method_visibility(
+    owner: &QName,
+    name: &str,
+    sig: &MethodSig,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    check_interface_private_visibility(owner, name, sig, span, ctx, env);
+    if sig.interface_private {
+        return;
+    }
+    check_member_visibility(span, owner, &format!("{name}()"), sig.visibility, ctx, env);
+}
+
 /// ADR 0043 § 3: a `private` interface method is an internal helper, never
 /// part of that interface's contract — visible only from inside its own
 /// declaring interface's method bodies (a default or another private

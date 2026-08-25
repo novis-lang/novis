@@ -172,6 +172,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             return_ty: void,
             is_static: false,
             interface_private: false,
+            visibility: mwl_syntax::ast::Visibility::Public,
             // Synthesized by `mwl_ir::lower`, which is still a body.
             has_body: true,
         },
