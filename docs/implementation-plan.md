@@ -122,10 +122,9 @@
 > `Arr::diff`/`intersect` and ADR 0069's combination members (its refusal half is built, `E0467`); §
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
-> 2, which waited on a written type argument at a call site and no longer does); § 7 owes
-> `pack` and `unpack` alone, its other eleven members and the whole of `Core\Encoding` being complete —
-> `join` landed with `registry::Const::Bytes`, and ADR 0009 § 3's two conversion rows lower, so neither
-> is a blocker any more; § 9 owes `Core\Heap` and the `Iterable` its three rows
+> 2, which waited on a written type argument at a call site and no longer does); § 7 is **whole** —
+> `Core\Bytes`'s twelve members and the whole of `Core\Encoding`, `pack`/`unpack` sharing one closed
+> code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 owes `Core\Heap` and the `Iterable` its three rows
 > each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
 > `{previous: $e}` options shape and
 > `$e->location`; § 11 owes `Random::bytes` and `Hash::stream`, its one-shot half being built; § 12 owes
@@ -138,7 +137,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 384 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 386 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > does not exist yet. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no

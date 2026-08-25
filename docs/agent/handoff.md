@@ -2,49 +2,58 @@
 
 ## State
 
-**Spec § 7's `Core\Bytes` is eleven members of twelve** — only `pack`/`unpack` are left, and they are
-unwritten for the ordinary reason rather than blocked. `join` landed with `registry::Const::Bytes`,
-the `bytes` parameter default that was its one blocker; `crates/mwl-stdlib/src/bytes.rs`'s own module
-doc owns why that variant exists and the four signature calls the spec's prose does not state.
+**Spec § 7 is complete.** `Core\Bytes` is all twelve members and `Core\Encoding` was already whole,
+so nothing in that section is owed. `pack`/`unpack` share **one closed code table**, written once and
+read twice; `crates/mwl-stdlib/src/bytes.rs`'s own module doc § *`pack`'s format is a closed grammar*
+owns the table, the four decisions inside it, and the ten PHP codes it refuses with a replacement
+named. Both are valgrind-clean, including the throwing path that releases a half-built array.
 
-**ADR 0009 § 3's conversion pair lowers**, by two different mechanisms on purpose: `string as bytes`
-is an `InstKind::Reinterpret` over the same allocation and emits no call, `bytes as string` is
-`Helper::BytesToString` and throws naming the offset. `mwl-ir`'s crate doc § *conversions* owns that
-split. Both are valgrind-clean, including the throwing path. What still panics in
-`Lowering::convert` is `array<T> as array<U>` and a `Ty::Tagged` operand converted to `bytes`.
+**Two divergences from PHP are deliberate and recorded there, not here** — `unpack` answers a
+*positional* `array<mixed>` rather than PHP's name→value map (so `unpack(pack($f, ...$v), $f)` is
+`$v` exactly, over one grammar), and octets the format does not describe **throw** rather than being
+ignored.
 
-Conformance is **384** of 600 (two new cases); differential is 86 of 150 and has not moved.
+**The one thing that blocks reading a buffer field from MWL**: `mixed as bytes` has no lowering row,
+so `$fields[0] as bytes` **panics** in `Lowering::convert` (`crates/mwl-ir/src/lower/expr.rs:842`
+names it, along with `array<T> as array<U>`). `unpack`'s `a`/`A`/`Z` fields are therefore pinned in
+`mwl-stdlib`'s own unit tests and the conformance case observes only their boundary, as an element
+count. It needs a `Helper::TaggedToBytes` beside `TaggedToInt`/`TaggedToUint`/`TaggedToFloat`.
+
+Conformance is **386** of 600 (two new cases); differential is 86 of 150 and has not moved.
 `examples/collect.mwl`'s frontier is unchanged — `Core\Uri::parseQuery` at `collect.mwl:36`, then
 `Core\Csv::parse`, `Core\Validate::isEmail`, `Core\Out::capture`.
 
-## Next group — § 7's last two members, and the test that says when § 7 is done
+## Next group — the gate's own test, then § 1's splitters
 
-**Shared file set:** `crates/mwl-stdlib/src/bytes.rs` (`:100` `CLASS`'s rows, `:205` `address()`,
-`:587` the last helper — append after it), `crates/mwl-stdlib/src/registry.rs` (`:113` `CoreTy::Mixed`,
-`:285` `CoreTy::Variadic`, `:459` `CoreMethod::variadic`), `crates/mwl-stdlib/tests/`, and
-`tests/conformance/core/`. The spec rows are `docs/spec/01-core-library.md:610-614`.
+The first item's *output* is the list the rest work from, and every item lives inside one crate.
 
-- [ ] **`Core\Bytes::pack(string $format, mixed ...$values): bytes`** (`01-core-library.md` § 7,
-      `:611`). The variadic tail is **one** argument whatever the call writes, so the row is
-      `params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Mixed)]` and the helper is `args: [2]`.
-      § 7's prose at `:612` also makes the format string an ADR 0057 intrinsic and a **sink** — the
-      sink half is ADR 0088's registry-wide item, which does not exist yet, so land the member and
-      say in its doc comment that the classification is owed rather than inventing half of it.
-- [ ] **`Core\Bytes::unpack(bytes $b, string $format): array<mixed>`** (`01-core-library.md` § 7,
-      `:611`). `pack`'s inverse over the same format grammar, so write the grammar once as a private
-      parser both members read; PHP's own `pack` letters are the compatibility target (§ 7 replaces
-      `pack`/`unpack`, R6 keeps the names).
-- [ ] **`every_part_one_spec_member_is_registered`** (`docs/implementation-plan.md`, `Open now`, and
-      `docs/agent/loop-goal.md`'s acceptance list). The loop's own definition of done and it does not
-      exist: read the spec's §§ 1-12 member rows and check each against `registry::CLASSES`, failing
-      with the members that are missing. `crates/mwl-stdlib/tests/conformance_coverage.rs` is the
-      shape to copy — it already walks the registry the other way.
+**Shared file set:** `crates/mwl-stdlib/tests/` (`conformance_coverage.rs:52` is the shape to copy —
+it already walks the registry the other way), `crates/mwl-stdlib/src/registry.rs:625` (`CLASSES`),
+`crates/mwl-stdlib/src/str.rs` (`:49` `CLASS`'s rows, `:374` `address()`, `:1360` the test module —
+append helpers before it), `crates/mwl-stdlib/src/granularity.rs` (`:53` `Unit`, `:114` `pieces`,
+`:200` `byte_of_index`), `tests/conformance/core/`, and `docs/spec/01-core-library.md:101-169`.
+
+- [ ] **`every_part_one_spec_member_is_registered`** (`docs/agent/loop-goal.md`'s acceptance list, and
+      the plan's `Open now`). The loop's own definition of done and it does not exist: parse the
+      `| \`name\` | \`sig\` |` rows out of `docs/spec/01-core-library.md` §§ 1-12, check each against
+      `registry::CLASSES`, and fail naming the members that are missing. § 13 is out of scope
+      (loop-goal § *Standing decisions*), so the walk stops at § 12's last table.
+- [ ] **`Core\Str::chunk` and `Core\Str::lines`** (`01-core-library.md` § 1, `:130`-`:131`). Both split
+      by a unit `crate::granularity` already segments — `chunk` by `DEFAULT`'s grapheme clusters, so
+      it is `pieces` plus a counter, and `lines` splits on `\n` with a trailing `\r` dropped and no
+      `PHP_EOL` anywhere. Neither takes a dependency.
+- [ ] **`Core\Str::graphemes` and `codePoints`, with `fromCodePoint`/`fromCodePoints`** (§ 1, `:132`-
+      `:133`, `:167`-`:168`). The two decoders are `granularity`'s segmentation and `char::len_utf8`
+      read out as `array<string>`/`array<uint>`; the two constructors are their inverse and throw on a
+      scalar that is not a code point (ADR 0063 R4, exactly as `Core\Bytes::fill` refuses a non-octet).
 
 ## Backlog
 
-- `Core\Uri::parseQuery` — PHP's bracket convention in full (`loop-goal.md` § *Standing decisions*).
-- `array<T> as array<U>` — the last `Lowering::convert` panic (`mwl-ir`'s crate doc, known gaps).
-- A `Ty::Tagged` operand `as bytes` — no runtime-tag row (same known-gaps list).
-- `Core\Random::bytes` and `Core\Hash::stream` — § 11's streaming half (`docs/implementation-plan.md`).
-- `do`/`while` — the one M4 control-flow statement that does not lower (`mwl-ir` gap 1's neighbour).
-- ADR 0088's registry-wide qualifier classification — blocks `Core\Str::format` being a sink.
+- `Helper::TaggedToBytes`, closing `mixed as bytes` — `mwl-ir`'s crate doc § *known gaps*.
+- § 1's remaining five: `compare`, `replaceAll`, `replaceRange`, `fold`, `normalize` (the last owes a
+  `NormalForm` enum and a Unicode normalization dependency under ADR 0051 § 4).
+- ADR 0088's registry-wide qualifier classification; both `pack`/`unpack` formats and
+  `Core\Str::format`'s template are sinks with nowhere yet to say so.
+- ADR 0057's compile-time fold of a *literal* format/template, owed by three members now.
+- § 12's `Core\Uri::parseQuery`, which is `examples/collect.mwl`'s first report.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s crate doc.
