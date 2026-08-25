@@ -2,69 +2,59 @@
 
 ## State
 
-**Stage 0 items 1, 2, 3, 4, 5 and 9 are done, and item 6 is half done.** ADR 0094's levels now mean
-something for a **property**: `mwl_types::expr::members::check_member_visibility`
-([members.rs:508](../../crates/mwl-types/src/expr/members.rs#L508)) refuses `E0471` keyed on the
-*accessing* class (`Ctx::current_class`) and never on the receiver's static type, so `$other->n` inside the
-declaring class is legal and the identical line at file scope is not. `private` reaches only the declaring
-class's own bodies — a parent's `private` is refused from a subclass — and `protected` reaches down an
-`extends`/`implements` chain through `mwl_hir::implements_interface`. The rule itself is
-`signatures::is_visible_from`, and the level comes from `ClassSignature::property_visibility`, filled from
-the plain keyword only: `private(set)` is the write half of ADR 0094 § 3's pair and is not modeled.
+**Stage 0 items 1, 2, 3, 4, 5, 6 and 9 are done; 7 and 8 are what is left.** ADR 0094's *access* half is
+now whole. `E0471` comes from `mwl_types::expr::members::check_member_visibility`
+([members.rs:508](../../crates/mwl-types/src/expr/members.rs#L508)), keyed on the accessing class
+(`Ctx::current_class`) and never on the receiver's static type; the rule itself is
+`signatures::is_visible_from`. A property reaches it through `resolve_property_owned` — `$obj->n`,
+`Foo::$n`, and a write through the same `PropertyAccess` span — and a method through
+`expr::members::check_method_visibility`, which folds ADR 0043 § 3's private-interface-method refusal in
+front of it and reports only that one where both would fire. `$obj->m()`, `C::m()` and `new C(...)` all
+take it, so a `private` constructor is PHP's singleton idiom rather than a keyword that means nothing.
+The level lives in `MethodSig::visibility` ([signatures.rs:111](../../crates/mwl-types/src/signatures.rs#L111))
+and `ClassSignature::property_visibility`, both filled from `signatures::declared_visibility`.
 
-The static spelling `Foo::$n` takes the same test (`expr/mod.rs`'s `StaticPropertyAccess` arm now resolves
-through `resolve_property_owned`), and a write needs no separate arm — it reaches the member through the
-same `PropertyAccess` span a read does.
+**One declaration shape is deliberately outside it**, recorded in `mwl-types`' `signatures` known gaps and
+in `mwl_hir::members`': a promoted constructor parameter, which no table records as a property, so nothing
+resolves it to check. `private(set)` is ADR 0094 § 3's write half and is still not modeled.
 
-`python tools/verify.py` is green (1358 tests) and `mwl test tests/` is 426/0; the three `examples/*.mwl`
+`python tools/verify.py` is green (1365 tests) and `mwl test tests/` is 429/0; the three `examples/*.mwl`
 that declare non-public members still run clean, so nothing in the corpus was reaching a member it should
 not have been.
 
-**Two shapes are deliberately outside it**, both recorded in `mwl-types`' `signatures` known gaps: a
-promoted constructor parameter (no table records one as a property, so nothing resolves it to check), and a
-**method**, which carries no visibility in `MethodSig` at all — that is item 6b below.
+## Next group — Stage 0 item 7, `Comparable`/`Stringable` carry their member signatures
 
-## Next group — Stage 0 item 6, the method half and its cases
+**Shared file set:** `crates/mwl-types/src/iter_lib.rs`, `crates/mwl-hir/src/interfaces.rs`,
+`crates/mwl-types/src/lib.rs`'s known gaps and `tests/conformance/lang/`. The rule is
+`docs/agent/loop-goal.md` § *Stage 0* item 7; the acceptance name `loop-goal.toml` already waits on is the
+`mwl-types` test `a_stringable_parameter_can_call_to_string`.
 
-**Shared file set:** `crates/mwl-types/src/signatures.rs`, `crates/mwl-types/src/expr/calls.rs`,
-`crates/mwl-types/tests/visibility.rs` and `tests/conformance/lang/`. The rule is
-`docs/agent/loop-goal.md` § *Stage 0* item 6; `E0471` already exists and is reused, so no new code is
-claimed.
-
-- [ ] **6b — method resolution takes the same test.** Give `MethodSig` a `visibility: Visibility` field
-      next to `interface_private` ([signatures.rs:111](../../crates/mwl-types/src/signatures.rs#L111)),
-      filled in `collect_members`' `ClassMemberKind::Method` arm
-      ([signatures.rs:656](../../crates/mwl-types/src/signatures.rs#L656)) from the same
-      `declared_visibility` helper the property arm uses. Then call `check_member_visibility` at the two
-      sites `check_interface_private_visibility` is already called from —
-      [calls.rs:71](../../crates/mwl-types/src/expr/calls.rs#L71) (`$obj->m()`) and
-      [calls.rs:140](../../crates/mwl-types/src/expr/calls.rs#L140) (`C::m()`) — passing
-      `&format!("{name}()")` as the member label. Watch the constructor:
-      [calls.rs:217](../../crates/mwl-types/src/expr/calls.rs#L217) resolves `constructor` for `new C()`,
-      and a `private` one is PHP's singleton idiom, so it must be refused from outside too rather than
-      skipped. `mwl_hir::members`' gap list ([members.rs:38](../../crates/mwl-hir/src/members.rs#L38)) says
-      the method half is still open — that sentence is what to update when it is.
-- [ ] **6c — `.mwlt` cases under `tests/conformance/lang/`** pinning both refusals with
-      `--EXPECTF-ERROR--` (a `private` property and a `private` method reached from another class) and one
-      running case where a class reaches its own `private` members through a public one. The Rust half is
-      already pinned in `crates/mwl-types/tests/visibility.rs`, so these exist to prove the diagnostic's
-      rendered text, indentation included.
+- [ ] **7a — seed both interfaces' members.** `iter_lib.rs`'s `bodiless`
+      ([iter_lib.rs:91](../../crates/mwl-types/src/iter_lib.rs#L91)) is the shape: one `MethodSig` per
+      declared member, `has_body: false`, seeded into the `SignatureTable` the same way `Iterable`/
+      `Iterator` are. `Stringable` owes `toString(): string`; `Comparable` owes ADR's ordering member —
+      read `crates/mwl-hir/src/interfaces.rs:36` for the roster and settle the name against
+      `mwl_stdlib`'s `Ordering`/`Order` before writing it. Both take a `visibility: Visibility::Public`
+      field now, added this session.
+- [ ] **7b — `instanceof Stringable` must record a resolved class.** `mwl-types`' own known gaps
+      ([lib.rs:205](../../crates/mwl-types/src/lib.rs#L205)) say it records none today and `mwl-ir` then
+      panics; `mwl-ir`'s gap 12 ([lib.rs:218](../../crates/mwl-ir/src/lib.rs#L218)) is the other end, where
+      neither `.` nor `as string` covers a `Stringable` operand
+      ([ir.rs:489](../../crates/mwl-ir/src/ir.rs#L489)). Close the checker end first and re-read the panic.
+- [ ] **7c — the `.mwlt` cases.** A `Stringable` parameter whose `toString()` is called and echoed, and a
+      `Comparable` used where `Core\Heap`'s ordering wants one. `tests/conformance/lang/` is picked up with
+      no registration.
 
 ## Backlog
 
+- Stage 0 item 8: ADR 0061's `autoload` grammar and its name-to-file fixpoint over the require-graph
+  worklist `mwl_hir::requires` already walks — `docs/agent/loop-goal.md` § *Stage 0*.
 - `mwl-ir` gap 20's enum-case membership row, which also closes ADR 0010 § 5's `int`-into-an-enum
   conversion — `crates/mwl-ir/src/lib.rs`'s known gaps.
 - `mixed as int`/`as uint` has no row in `convert` at all, so an `int`-literal set off a `mixed` panics
   before the membership test is reached — same file's gap list.
+- ADR 0094 § 3's `private(set)` write half, and a promoted constructor parameter's level — `mwl-types`'
+  `signatures` known gaps own both.
 - ADR 0088's registry-wide qualifier classification for `mwl-stdlib` member rows — plan, `Open now`.
-- `Comparable`/`Stringable` member signatures (item 7) and ADR 0061's `autoload` (item 8) —
-  `docs/agent/loop-goal.md` § *Stage 0*.
-- `equality_domain` puts a literal type in its base's ADR 0090 domain, so `$mode == "z"` compares two
-  strings; refusing non-overlapping literal *sets* would be a new row in ADR 0090 § 2.
-- `Core` breadth resumes at `examples/collect.mwl` — plan, `Open now`.
-
-Two manifest gaps this session paid, both in `loop-goal.toml`'s `[context]`: `adrs` still names only ADR
-0047's sections, so item 6's own ADR 0094 printed nothing — add `0094` §§ 1-3; and `modules` selects
-`mwl-types/src/expr/*` but not `mwl-types/src/signatures.rs`, which is where every member's declared shape
-actually lives. `[context] modules` also still lacks `mwl-codegen/src/emit.rs` and
-`mwl-runtime/src/helpers.rs`, which a new `Helper` needs.
+- `mwl-ir` gap 19: `$n + $f` and `$n < $f` still fail in codegen over mismatched representations, though
+  `==` no longer does — same file's gap list.

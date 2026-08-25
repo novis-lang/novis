@@ -63,7 +63,7 @@
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 324 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 343 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -151,9 +151,13 @@
 > `E0471` from `mwl_types::expr::members::check_member_visibility`, keyed on the *accessing* class
 > (`Ctx::current_class`) and never on the receiver's type, so `$other->n` inside the declaring class
 > is legal and the same line at file scope is not; it reaches the static `Foo::$n` spelling and a
-> write through the same `PropertyAccess` span, and the two shapes still outside it are a promoted
-> constructor parameter (no table records one) and a **method**, which carries no visibility in
-> `MethodSig` at all. Then, in order: **`private`/`protected` for a method**;
+> write through the same `PropertyAccess` span, and the one shape still outside it is a promoted
+> constructor parameter, which no table records as a property. **A method takes the same test now**
+> — `MethodSig::visibility` carries ADR 0094's level for every declaration, and
+> `mwl_types::expr::members::check_method_visibility` applies it at `$obj->m()`, `C::m()` and `new
+> C(...)` alike, so a `private` constructor is the singleton idiom it was written to be rather than
+> a keyword that means nothing; where ADR 0043 § 3's private-interface-method rule already fired,
+> that more specific diagnostic is the only one reported. Then, in order:
 > **`Comparable`/`Stringable`**, which carry no member signatures, so `$s->toString()` is `E0405`
 > and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its
 > name-to-file fixpoint. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`

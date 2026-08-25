@@ -1,0 +1,19 @@
+--TEST--
+`new` takes the same visibility test a call does, so a `private` constructor is the singleton it was written to be — ADR 0094 § 1
+--FILE--
+<?mwl
+// Nothing names `constructor` at the `new` site, but the constructor is what
+// `new` resolves to — so skipping the test for want of a written member name
+// would make `private` there mean nothing at all.
+class Config {
+    private function constructor() {}
+    public static function load(): Config { return new Config(); }
+}
+Config $c = new Config();
+echo "never reached", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Config::constructor()` is `private`, so only `Config`'s own bodies reach it
+%A
+error: aborting due to 1 error

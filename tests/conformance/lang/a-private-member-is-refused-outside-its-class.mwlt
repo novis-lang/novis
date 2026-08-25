@@ -1,0 +1,28 @@
+--TEST--
+A `private` property and a `private` method are both refused where they are read from another class — ADR 0094 § 1
+--FILE--
+<?mwl
+// The level is a fact about *where the code is written*, so a receiver typed
+// as `Vault` buys nothing: the same two references would be legal inside
+// `Vault`'s own bodies and are refused here, one diagnostic each, from the
+// one run.
+class Vault {
+    private int $balance = 0;
+    private function audit(): int { return $this->balance; }
+    public function total(): int { return $this->balance; }
+}
+class Thief {
+    public function take(Vault $v): int {
+        int $seen = $v->balance;
+        return $seen + $v->audit();
+    }
+}
+echo "never reached", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Vault::$balance` is `private`, so only `Vault`'s own bodies reach it
+%A
+error[E0471]: `Vault::audit()` is `private`, so only `Vault`'s own bodies reach it
+%A
+error: aborting due to 2 errors

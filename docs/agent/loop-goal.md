@@ -60,13 +60,15 @@ one is how an item finishes.
 5. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
    `mwl_types::lower` refuses all three by name; that ADR's *Verification* names the step its own table
    understates.
-6. **`private`/`protected` are enforced** (M2). Nothing enforces them on a class member today — only
-   ADR 0043 § 3's private *interface* method — which `mwl-types`' gap list calls a PHP-observable
-   divergence rather than a design choice. One pass keyed on the accessing class, over property access and
-   method resolution. This is the *access* half: who may touch a member from where. Requiring the keyword
-   to be written at all is item 3 (ADR 0094), a different check in a different crate, and neither item
-   waits on the other — item 3 makes every declaration state a level, this one makes the level mean
-   something.
+6. ~~**`private`/`protected` are enforced** (M2).~~ **Done.** `E0471` from
+   `mwl_types::expr::members::check_member_visibility`, keyed on the accessing class
+   (`Ctx::current_class`) and never on the receiver's static type, so a second instance of the declaring
+   class is as reachable as `$this` and the identical line at file scope is not. A property reaches it
+   through `resolve_property_owned` (`$obj->n`, `Foo::$n`, and a write through the same span), a method
+   through `check_method_visibility`, which `$obj->m()`, `C::m()` and `new C(...)` all take — a `private`
+   constructor is the singleton idiom it was written to be. Where ADR 0043 § 3's private-interface-method
+   rule already fired, only that more specific diagnostic is reported. The one declaration still outside
+   it is a promoted constructor parameter, which no table records as a property.
 7. **`Comparable`/`Stringable` carry their member signatures** (M2). Both are reserved and empty, so
    `$s->toString()` on a `Stringable` is `E0405` and `$x instanceof Stringable` records no resolved class,
    which `mwl-ir` then panics on. `Core\Heap`'s ordering and `Duration`'s `Stringable` both need it.
