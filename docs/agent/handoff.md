@@ -2,69 +2,60 @@
 
 ## State
 
-**Stage 0 items 1, 2, 3 and 9 are done.** ADR 0094 is built: a property, class constant or method with no
-`public`/`protected`/`private` is `E0122`, in a `class`, `interface` or anonymous-class body. The walk that
-reports it is `mwl_syntax::check_declarations` — **renamed from `check_casing`**, because it now answers
-two questions off one visit; `casing.rs`'s module doc owns why they share a walk, and the file keeps its
-name so ADRs 0029/0043/0049 still point at it. A bare `private(set)` names the pair it is missing (§ 3), a
-class-body `var` is redirected in the parser (§ 4, `parse_class_body_var`), a plain constructor parameter
-is exempt (§ 2), and an `enum` body still reports only `E0220` because `check_enum_decl` never walks its
-members.
+**Stage 0 items 1, 2, 3, 9 and the § 3 half of item 4 are done.** ADR 0090 § 3's table now runs whole,
+and each row enters `mwl_runtime::identity` by the cheapest door its operands' static types justify: a
+string pair calls `mwl_str_eq`, an array pair the new `mwl_array_eq`, an object pair an inline `icmp` that
+calls nothing, and a `mixed`/union operand — § 5, the one row whose answer is a runtime tag — the new
+`Helper::Identical` over `mwl_value_identical` on ADR 0002's helper convention. `identity.rs`'s module doc
+owns that four-door choice and why only § 5 pays the convention. § 5's "a mismatched pairing is `false`,
+never a throw" is `shallow_identical`'s fall-through arm rather than a second rule.
 
-**The corpus rewrite was eleven fixtures, not sixty**, all in `casing.rs`'s own tests plus two `.mwlt`
-methods — only `mwl-cli` and `mwl_hir::requires` call that walk, so a `<?mwl` snippet in a `mwl-types` or
-parser test never reaches it. That is now a playbook bullet; do not budget a large rewrite for the next
-rule added there without checking its callers.
+`RuntimeSig::StrEq` is now `RuntimeSig::PtrEq` (`Signatures::ptr_eq`) because `mwl_str_eq` and
+`mwl_array_eq` are one shape. `mwl-ir`'s **gap 19** is rewritten: § 3 is built, § 2's numeric domain is
+what is left.
 
-`python tools/verify.py` is green (1327 tests) and `mwl test tests/` is 422 passed / 0 failed.
+`python tools/verify.py` is green (1330 tests), and `tools/leak-check.sh` under valgrind is clean over two
+scratch fixtures exercising the new release edges. One conformance case was added,
+`tests/conformance/lang/equality-over-arrays-objects-and-mixed.mwlt`.
 
-**Still open from earlier items:** ADR 0090 § 2 makes `int`/`uint`/`float`/`decimal` one domain, so the
-checker accepts `$n == $f` — but `mwl-codegen` refuses it at
+**Still open, and it is the next group:** ADR 0090 § 2 makes `int`/`uint`/`float`/`decimal` one domain, so
+`mwl-types` accepts `$n == $f` — but `mwl-codegen` refuses it at
 [emit.rs:861](../../crates/mwl-codegen/src/emit.rs#L861) (*"a binary operator over mismatched
 representations"*). Those rows are pinned in `crates/mwl-types/tests/equality.rs` and deliberately left out
-of the conformance case, which says so in a comment. It travels with the group below.
+of the conformance case, which says so in a comment.
 
-**`orient.py` did not print three things.** `[context] modules` in `loop-goal.toml` is missing
-`mwl-types/src/ty.rs` (the `Ty` enum) and the whole of `mwl-hir`; `[context] shapes` has no entry for a
-`mwl-types` integration test (harness: `crates/mwl-types/tests/common/mod.rs`). This session also needed
-`crates/mwl-syntax/src/ast.rs` (`Modifier`, `ClassMemberKind`, the three member structs) and
-`crates/mwl-syntax/src/parser/ty.rs` (`token_starts_type`), neither of which `[context] modules` names.
+**`orient.py` did not print `mwl-codegen` at all**, and `[context] modules` in `loop-goal.toml` names only
+`identity.rs`/`value.rs` under `mwl-runtime` and only `lower/*` under `mwl-ir`. This session also needed
+`crates/mwl-codegen/src/emit.rs` and `src/lib.rs`, `crates/mwl-runtime/src/helpers.rs`, `array.rs`,
+`string.rs` and `lib.rs`, and `crates/mwl-ir/src/ir.rs` and `print.rs` — the next group needs the first two
+again, so `[context] modules` wants a `mwl-codegen` pattern above all.
 
-## Next group — ADR 0090 § 3, equality at runtime (Stage 0 item 4)
+## Next group — ADR 0090 § 2 at run time (Stage 0 item 4, the half left)
 
-**Shared file set:** `crates/mwl-runtime/src/identity.rs`, `crates/mwl-ir/src/lower/expr.rs`,
-`crates/mwl-codegen/src/emit.rs`, then the two test files. The helper exists and is unwired; [1] wires it,
-[2] widens the one representation mismatch that blocks the numeric rows, [3] puts the pinned rows back.
+**Shared file set:** `crates/mwl-codegen/src/emit.rs`, `crates/mwl-ir/src/lower/expr.rs`, then the two test
+files. Two slices, not three: [2] cannot be written until [1] lowers.
 
-- [ ] **Item 4a — wire `==`/`!=` to the three non-scalar rows** (ADR 0090 § 3). `value_identical` at
-      [identity.rs:108](../../crates/mwl-runtime/src/identity.rs#L108) is written and reaches nothing.
-      Lowering point is `lower_binary` at [expr.rs:1946](../../crates/mwl-ir/src/lower/expr.rs#L1946),
-      dispatch at [expr.rs:162](../../crates/mwl-ir/src/lower/expr.rs#L162). Strings compare as text and
-      never as numbers, arrays ordered and element-wise and recursive, objects by identity; § 5's `mixed`
-      pairing answers `false` and never throws. Tests named by `loop-goal.toml`'s stage 0 block:
-      `equal_strings_compare_as_text_and_never_as_numbers`, `equal_arrays_compare_ordered_and_element_wise`,
-      `equal_objects_compare_by_identity`, all in `crates/mwl-runtime`.
-- [ ] **Item 4b — one side widened before a cross-representation numeric compare.** `emit_binop` at
-      [emit.rs:850](../../crates/mwl-codegen/src/emit.rs#L850) refuses two representations outright;
-      ADR 0090 § 2's table makes `int`/`uint`/`float`/`decimal` one domain, so the widen belongs here
-      rather than in a checker that already accepts the pairing.
-- [ ] **Item 4c — restore the dropped conformance rows.** The numeric rows removed from
-      `tests/conformance/lang/equality-across-overlapping-types-still-compiles.mwlt` go back once 4b lands;
-      the comment in that case says why they left, and `crates/mwl-types/tests/equality.rs` keeps pinning
-      the static half either way.
+- [ ] **Item 4b — one side widened before a cross-representation numeric compare** (ADR 0090 § 2's numeric
+      row). `emit_binop` at [emit.rs:849](../../crates/mwl-codegen/src/emit.rs#L849) refuses `ty != rty` at
+      [emit.rs:861](../../crates/mwl-codegen/src/emit.rs#L861); the decision to make is *where* the widening
+      goes — a conversion emitted in `lower_binary` at
+      [expr.rs:1946](../../crates/mwl-ir/src/lower/expr.rs#L1946), which keeps codegen's one-representation
+      invariant, or an inline `sextend`/`fcvt` in `emit_binop`, which does not. Prefer the first: the
+      `decimal` and `Tagged` arms directly above it already settle their pairing in lowering, so this is
+      the third instance of a rule, not a new one. `int`/`uint` widen through `i128`-equivalent care the
+      way `mwl_runtime::identity::integer` does — `-1 as int` and `u64::MAX as uint` share a bit pattern
+      and are two values.
+- [ ] **Item 4c — restore the dropped conformance rows.** `the_numeric_types_are_one_domain` at
+      [equality.rs:117](../../crates/mwl-types/tests/equality.rs#L117) pins the rows that only type-check;
+      once [1] lowers them, move them into
+      `tests/conformance/lang/equality-across-overlapping-types-still-compiles.mwlt` and delete the comment
+      at its head that says why they are absent.
 
 ## Backlog
 
-- **ADR 0047 § 4** — the literal and enum-case type atoms are checked, not refused by name (Stage 0
-  item 5; test `a_literal_type_atom_is_checked`).
-- **`private`/`protected` are enforced** — the *access* half of visibility, keyed on the accessing class
-  (item 6). The declaration half landed above; neither waits on the other.
-- **`Comparable`/`Stringable` carry their member signatures** — `$s->toString()` is `E0405` today, and
-  `instanceof Stringable` panics `mwl-ir` (item 7).
-- **ADR 0061** — `autoload` grammar plus the name-to-file fixpoint over `mwl_hir::requires` (item 8).
-- **`E_BAD_MODIFIER` (E0106) is still defined and never emitted** — ADR 0094 answered the *missing*
-  modifier, not the nonsensical one (`abstract` on a property, two visibilities at once); `docs/adr/0039`
-  § 1 owns order, nothing owns combination.
-- **`examples/collect.mwl`** is the next Stage 3 fixture, needing spec §§ 7-9 and 11-12 at once
-  (`docs/implementation-plan.md` § *Open now*); **ADR 0069's combination members** are M4S work in the
-  same stage — the *refusal* landed, the members did not.
+- ADR 0047 § 4's literal and enum-case type atoms are refused by name — Stage 0 item 5, `mwl-types`.
+- `private`/`protected` are enforced nowhere at an access site — Stage 0 item 6, `mwl-types`' gap list.
+- `Comparable`/`Stringable` carry no member signatures, so `instanceof Stringable` panics `mwl-ir` — item 7.
+- ADR 0061's `autoload` grammar and its name-to-file fixpoint — Stage 0 item 8, `mwl-hir`.
+- An abandoned generator never runs the `finally` it is suspended inside — `mwl-ir`'s gap 18.
+- `Core\Path` is the cheapest slice of `examples/collect.mwl` — `docs/implementation-plan.md` § *Open now*.

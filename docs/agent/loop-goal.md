@@ -45,11 +45,13 @@ one is how an item finishes.
    and an `enum` body still reports only `E0220`. The corpus rewrite landed in the same slice; it was far
    smaller than estimated, because a `mwl-types` or parser fixture never reaches that walk. It is the
    *declaration* half of visibility; item 6 is the *access* half, and neither waits on the other.
-4. **ADR 0090 § 3 — the three non-scalar rows** (M3/M4; `mwl-ir`'s gap 19 owns it). The null test moved
-   with item 1, because deleting the spelling forced it: `mwl_types::locals::null_test` and
-   `lower_null_identity` both read `Eq`/`NotEq` now. What is left is one runtime helper each for strings
-   (text, never numeric), arrays (ordered, element-wise, recursive) and objects
-   (`mwl_runtime::identity`), with § 5's `mixed` pairing answering `false` and never throwing.
+4. **ADR 0090 § 3 — the three non-scalar rows are wired** (M3/M4; `mwl-ir`'s gap 19 owns what is left).
+   Every row of that table now runs: a string pair calls `mwl_str_eq`, an array pair the new
+   `mwl_runtime::mwl_array_eq`, an object pair an inline pointer comparison, and a `mixed` or union
+   operand § 5's `Helper::Identical` over `value_identical` — which answers `false` for a mismatched
+   runtime pairing rather than throwing. The null test moved with item 1. What is left is **§ 2's numeric
+   domain at run time**: `mwl-types` accepts `$n == $f`, but `mwl-codegen` refuses two representations, so
+   one side has to be widened before the compare, and the conformance rows dropped for it go back.
 5. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
    `mwl_types::lower` refuses all three by name; that ADR's *Verification* names the step its own table
    understates.
