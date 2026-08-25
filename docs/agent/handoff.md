@@ -2,66 +2,64 @@
 
 ## State
 
-**Spec § 11's first table is six of its seven members**: `crates/mwl-stdlib/src/random.rs` registers
-`Random::int`, `float`, `token`, `pick`, `sample` and `shuffle` over the new `rand` dependency. That
-module's own docs own the pick against ADR 0051 § 4, what a `ThreadRng` spends *per thread*, and the
-three gaps it leaves — so nothing about it is restated here or in the plan.
+**Spec § 11's second table is whole**: `crates/mwl-stdlib/src/uuid.rs` registers `Uuid::v4`, `v7`,
+`parse` and `isValid` plus a `$uuid->toString()` row amended into the spec table, over the new
+`uuid` dependency. That module's own docs own the pick against ADR 0051 § 4, why entropy still comes
+from `rand` and the clock from `jiff`, the two-`uint`-slot layout, the canonical-form-only parse rule
+and the three gaps left — none of it is restated here or in the plan.
 
-`python tools/verify.py` green; `mwl test tests/conformance/` is 365 cases, all passing. The two new
-ones are `tests/conformance/core/random-draws-inside-its-stated-bounds.mwlt` and
-`random-draws-over-an-array.mwlt`. `tools/leak-check.sh` under WSL is clean over the two scratch
-fixtures that exercise `pick`/`sample`/`shuffle`'s new retain edges.
+`python tools/verify.py` green; `mwl test tests/conformance/` is 367 cases, all passing. The two new
+ones are `tests/conformance/core/uuid-draws-a-canonical-v4-and-a-time-ordered-v7.mwlt` and
+`uuid-parses-only-the-canonical-form.mwlt`. `cargo deny check` is green and
+`THIRD-PARTY-LICENSES.txt` is regenerated — it gained thirteen components, twelve of which are
+`uuid`'s `cfg(target_arch = "wasm32")` leg that no MWL build links; `tools/gen-attribution.py` walks
+every platform on purpose and the file's own header says so.
+`tools/leak-check.sh` under WSL is clean over `.agent-tmp/uuid-refcounts.mwl`, which exercises the
+built instance, its slots and the `string` each `toString` hands back.
 
-**`Random::bytes` is the one row left, and it is blocked on the same thing spec § 7 is**:
-`mwl_runtime::Tag` has no `Bytes` variant, so no member can construct a fresh `bytes` value. That
-also blocks `Core\Encoding`, `Core\Bytes` and `Hash::of`/`hmac`/`equals`. The next group routes
-around it again.
+**`Tag::Bytes` is still the one blocker on this fixture**, unchanged: `mwl_runtime::Tag` has no
+`Bytes` variant, so `Random::bytes`, `Core\Encoding`, `Core\Bytes` and `Hash::of`/`hmac`/`equals`
+cannot construct a value. The next group routes around it a third time.
 
-`tools/gen-attribution.py` gained one behaviour change this session, recorded in its own comment: an
-SPDX `OR` now declines a branch `PREFERENCE` does not rank as long as another branch *is* ranked,
-which is cargo-deny's own reading. `rand` pulls `getrandom`, which pulls `r-efi` for the UEFI target,
-offered as `MIT OR Apache-2.0 OR LGPL-2.1-or-later`; MWL takes MIT and the LGPL half never enters the
-tree. An `OR` with no ranked branch still fails, which is where the "someone decides" gate belongs.
+## Next group — `Core\Uri`, spec § 12's first table
 
-## Next group — `Core\Uuid`, spec § 11's second table
+**Shared file set:** `crates/mwl-stdlib/src/uri.rs` (new), `crates/mwl-stdlib/src/lib.rs`
+(`pub mod uuid;` at `lib.rs:200`, the `.or_else` at `lib.rs:246`), `crates/mwl-stdlib/src/registry.rs`
+(`CLASSES` at `registry.rs:604`), and `tests/conformance/core/`. The spec table is
+`docs/spec/01-core-library.md:752-761`, with its prose at `:763`. This is the file set `Core\Uuid`
+just used, and `uuid.rs` is the nearest model for every shape: `CLASS` at `uuid.rs:115` for a class
+that is both static members and a `Core`-owned instance, `built` at `uuid.rs:181`, the receiver read
+at `uuid.rs:248`.
 
-**Shared file set:** `crates/mwl-stdlib/src/uuid.rs` (new), `crates/mwl-stdlib/src/lib.rs`
-(`pub mod random;` at `lib.rs:195`, the `.or_else` at `lib.rs:242`), `crates/mwl-stdlib/src/registry.rs`
-(`CLASSES` at `registry.rs:603`), `crates/mwl-stdlib/Cargo.toml` + the root `[workspace.dependencies]`,
-and `tests/conformance/core/`. The spec table is `docs/spec/01-core-library.md:726-730`. This is the
-same file set the `Core\Random` group just used, plus one shape it did not need: `Uuid` is a
-**`Core`-owned instance**, so copy `crate::time::INSTANT` (`time.rs:684`) rather than
-`crate::path::CLASS` — the roster is `CoreClass::instance` + `slots`, and `mwl_stdlib::instance`'s own
-module doc owns why a `Core` instance is an ordinary MWL object.
-
-- [ ] **`Uuid::v4` and `Uuid::v7`, with the dependency picked and the instance shape stood up.**
-      Both return `Uuid`, so the slot layout and `CoreTy::Instance` registration land here. The pick
-      is against `docs/adr/0051-standard-library-tiers.md` § 4's two questions and owes the same
-      three things `rand` just owed (AGENTS.md): the `[workspace.dependencies]` line saying why that
-      crate, `cargo deny check`, and `python tools/gen-attribution.py`. `v4` is 122 random bits —
-      draw them through `rand`, which is already a dependency — and `v7` is a millisecond timestamp
-      plus randomness, so it is time-ordered for a database key.
-- [ ] **`Uuid::parse` and `Uuid::isValid`**, plus whatever instance member § 11 writes for rendering
-      one back to a string (read the section's prose at `docs/spec/01-core-library.md:726-742`, not
-      just the table). `parse` throws on a malformed input (R4) and `isValid` is its `bool` twin, so
-      the two share one parser reached from two entry points.
-- [ ] **Conformance cases under `tests/conformance/core/`** — one per group above, *in the same slice
-      as the rows*, per `playbook.md` § *Writing a test case*'s first bullet. A generated UUID cannot
-      be asserted, so pin the invariants: the version and variant nibbles, `Uuid::isValid` over a
-      freshly rendered one, `parse` round-tripping a fixed string, and two `v7`s ordering by
-      generation.
+- [ ] **`Uri::encodeComponent`/`decodeComponent`/`encodeFormValue`/`decodeFormValue`, and
+      `isValid`.** No dependency at all — percent-encoding is byte arithmetic, and the four members
+      are two rules (`rawurlencode` vs `urlencode`'s `+`-for-space) written twice. Land these first
+      so the class exists before the parse decision lands on it.
+- [ ] **`Uri::parse` and the `Uri` instance**, plus `$uri->with` and `$uri->resolve`. Spec § 12
+      calls `parse` an ADR 0057 intrinsic. The dependency is yours under ADR 0051 § 4 and the pick
+      has a real fork in it — RFC 3986 or the WHATWG URL algorithm, which disagree about what a URL
+      *is*; whichever you take, say so in that module's docs and note that `Core\Http::allowUrl`
+      (§ 16, ADR 0058) is the SSRF gate and this class never fetches.
+- [ ] **`Uri::parseQuery` and `buildQuery`**, PHP's bracket convention in full — a pre-authorized
+      standing decision in `docs/agent/loop-goal.md`, including that the spec row's return type is
+      amended off `array<string>` to whatever `mixed` lets the checker state, and that saying so
+      here settles what `Core\Request::query` owes at M8. `examples/collect.mwl:37` calls it.
 
 ## Backlog
 
-- `Random::bytes`, `Core\Encoding`, `Core\Bytes`, `Hash::*` — all wait on a `mwl_runtime::Tag::Bytes`
-  variant (`mwl-ir`'s `ty` module doc names the gap).
-- `Core\Random\Seeded` — spec § 11's prose; a separate type, not an option (`random.rs` gap 2).
-- `Core\Uri` and `Core\Csv` — spec § 12, the rest of `examples/collect.mwl`'s roster; `Uri` reuses the
-  instance shape the `Uuid` group stands up.
-- `ObjectSet`/`ObjectMap` — additionally need `new Core\X<T>()` to parse (plan, *Open now*).
-- Stage 0 catch-up items still open: ADR 0088's registry-wide qualifier classification (plan,
-  *Open now*).
-- `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain (`tools/check-migration.py`).
+- `Tag::Bytes` in `mwl-runtime` — the third group in a row has routed around it; it unblocks
+  `Random::bytes`, `Core\Encoding`, `Core\Bytes`, `Hash::*` and ADR 0009 § 3's `as` rows
+  (`crates/mwl-stdlib/src/random.rs` gap 1, `mwl-ir` gap 20).
+- `Core\Csv::parse`/`format` — spec § 12's third table, one dependency pick,
+  `examples/collect.mwl:41`.
+- `Core\ObjectSet`/`ObjectMap` — spec § 7, additionally blocked on `new Core\X<T>()` parsing.
+- `==` over two `Core`-owned instances is object identity, so two equal `Uuid`s are not `==`
+  (`crates/mwl-stdlib/src/uuid.rs` gap 2). A `compareTo` row on `Core\Uuid` would answer it the way
+  `Core\Time\Instant` does; spec § 11 does not write one yet.
+- `Core\Time` still owes `Date`/`TimeOfDay`/`Core\Month` (`crates/mwl-stdlib/src/time.rs` gap 1).
+- `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain
+  (`python tools/check-migration.py`).
 
-`orient.py` printed everything this session needed. One cost worth avoiding is now a playbook bullet:
-`plan.py --get "Open now"` prints ~10,000 tokens.
+`orient.py` printed everything this session needed. One thing it could not: `Core\Str`'s member list
+and `mwl-codegen`'s missing `BinOp` row for `Ty::Str` both had to be grepped while writing a `.mwlt`
+case — a `[context] modules` selector for `mwl-stdlib/src/str.rs` would have covered the first.

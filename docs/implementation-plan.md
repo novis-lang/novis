@@ -267,8 +267,16 @@
 > over `rand`, picked under ADR 0051 § 4 as a CSPRNG that is also a userspace one — that module's
 > own docs own the pick, what a `ThreadRng` spends per thread, and the three gaps it leaves
 > (`Random::bytes`, which waits on a runtime `bytes` tag; `Core\Random\Seeded`; no reseed on
-> `fork`). Left on that fixture: `Encoding`/`Hash`/`Uuid`, each needing a dependency picked under
-> ADR 0051 § 4, then `ObjectSet`/`ObjectMap`, which additionally need `new Core\X<T>()` to parse.
+> `fork`). **Its second table is whole**: `mwl_stdlib::uuid` registers `v4`, `v7`, `parse` and
+> `isValid`, plus the `$uuid->toString()` rendering row that section's table gained to make the type
+> observable, over `uuid` — picked under ADR 0051 § 4 as the crate that already owns RFC 9562's
+> nibble layout *and* the reader attacker-controlled text reaches, and costing this tree no crate at
+> all since `wasmtime` already pulled it. That module's own docs own the pick, why entropy still
+> comes from `rand` and the clock from `jiff` rather than from `uuid`'s own `v4`/`v7` features, why
+> two `uint` slots rather than one `string`, why only the canonical hyphenated spelling parses, and
+> the three gaps it leaves. Left on that fixture: `Encoding`/`Hash`, each needing a dependency
+> picked under ADR 0051 § 4, then `ObjectSet`/`ObjectMap`, which additionally need
+> `new Core\X<T>()` to parse.
 > One PHP divergence stands unfixed — an
 > abandoned generator never runs the `finally` it is suspended inside, `mwl-ir`'s gap 18. In docs,
 > `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain remaining, reported by
@@ -291,8 +299,9 @@
 > its seven fixtures produce their frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`,
 > `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
-> `Core\Path` is built, `Encoding`/`Hash`/`Uuid`/`Csv` each need a dependency picked under ADR 0051
-> § 4, and `ObjectSet`/`ObjectMap` additionally need `new Core\X<T>()` to parse.
+> `Core\Path` and § 11's `Core\Uuid` are built, `Encoding`/`Hash`/`Csv` each need a dependency
+> picked under ADR 0051 § 4, and `ObjectSet`/`ObjectMap` additionally need `new Core\X<T>()` to
+> parse.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

@@ -164,6 +164,13 @@ is why" — is this file.
   and still fail there, so a conformance case written straight off an ADR's compiling rows can fail at run
   time. Run the rows in a scratch `.agent-tmp/*.mwl` before writing the case; if one does not lower, pin it
   in the crate's own `tests/` and say in the case comment why it is not here.
+- **`emit_binop`'s ordering rows are `Int | Uint | Bool` only, so `<`/`<=`/`>`/`>=` over two `string`s
+  does not lower** — and the checker does not stop you, because `operators.rs`'s result table models only
+  `int`/`uint`/`float` operands and falls back to `mixed` for everything else. A `.mwlt` case that
+  compares two strings for order therefore compiles and then fails at run time. Assert a fixed slice with
+  `==`, or a shape with `Core\Regex::matches`, and pin the ordering in the crate's own `#[test]`, which
+  can also sleep. Watch the neighbouring trap too: a `Core` member answering `uint`
+  (`Core\Str::length`) in `$int + …` is `E0407`, not a widening.
 - **`mwl-codegen` has no `BinOp` row for `Ty::Enum` at all**, matched pair or not: `emit_binop`'s
   `integral` set is `Int | Uint | Bool`, so an `Eq` a lowering emits over two enum values fails with
   *"a `Eq` over representation Enum(Int)"*. Compare one representation down — `InstKind::Reinterpret` to
