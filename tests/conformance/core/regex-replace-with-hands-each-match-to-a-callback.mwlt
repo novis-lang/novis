@@ -1,0 +1,43 @@
+--TEST--
+Core\Regex::replaceWith hands every match to a callback and inserts its answer literally, from spec § 5
+--FILE--
+<?mwl
+// § 5's `replaceWith(string $subject, Pattern|string $pattern, callable $fn,
+// {limit?: uint}): string` — PHP's preg_replace_callback, with one `Match`
+// where the positional array was.
+echo Core\Regex::replaceWith("a1b22c", "\\d+", fn(Core\Regex\Match $m) => "<" . $m->text() . ">"), "\n";
+
+// The callback holds every group the pattern declares, by name and by number.
+echo Core\Regex::replaceWith("2026-08-24", "(?<y>\\d{4})-(?<m>\\d{2})-(?<d>\\d{2})",
+    fn(Core\Regex\Match $m) => ($m->group("d") ?? "?") . "/" . ($m->group("m") ?? "?") . "/" . ($m->group(1) ?? "?")), "\n";
+
+// `limit` is `replace`'s option with `replace`'s meaning: it counts
+// replacements, and 0 performs none.
+echo Core\Regex::replaceWith("aaa", "a", fn(Core\Regex\Match $m) => "b"), "\n";
+echo Core\Regex::replaceWith("aaa", "a", fn(Core\Regex\Match $m) => "b", {limit: 2}), "\n";
+echo Core\Regex::replaceWith("aaa", "a", fn(Core\Regex\Match $m) => "b", {limit: 0}), "\n";
+
+// What the callback answers goes in literally — `$1` is two characters here,
+// unlike `replace`'s template, because the callback already held the groups.
+echo Core\Regex::replaceWith("x1y", "\\d", fn(Core\Regex\Match $m) => "$1"), "\n";
+
+// A subject with no match comes back unchanged, and the callback never runs.
+echo Core\Regex::replaceWith("no digits", "\\d", fn(Core\Regex\Match $m) => "!"), "\n";
+
+// A `Pattern` carries its flags in, exactly as § 5's other pattern-taking rows do.
+var $insensitive = Core\Regex::compile("[a-z]+", {caseInsensitive: true});
+echo Core\Regex::replaceWith("Ab CD", $insensitive, fn(Core\Regex\Match $m) => Core\Str::upper($m->text())), "\n";
+
+// A look-behind is ADR 0056 § 2's backtracking tier, and the member reads the
+// same there as it does on the linear one.
+echo Core\Regex::replaceWith("aXbXc", "(?<=a)X", fn(Core\Regex\Match $m) => "-"), "\n";
+--EXPECT--
+a<1>b<22>c
+24/08/2026
+bbb
+bba
+aaa
+x$1y
+no digits
+AB CD
+a-bXc

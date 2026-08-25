@@ -14,9 +14,6 @@
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 from
 
-# § 5 `Core\Regex` — needs the six matching rows widened to `Pattern|string`
-§5 replaceWith
-
 # § 11 `Core\Random`, `Core\Hash`
 §11 Hash::stream
 §11 Random::bytes

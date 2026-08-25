@@ -60,26 +60,19 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`replaceWith` is not registered** — spec § 5's one remaining row. It
-//!    is `replace` with a callback where the template is, so what it needs
-//!    beside this module's existing pieces is handing that callback a
-//!    [`MATCH`], which `mwl_runtime::call_closure` can already carry, and
-//!    running the limit over a closure rather than a substitution string.
-//!    Every other § 5 row is here, and each of the five that takes a pattern
-//!    takes the `Pattern|string` the spec writes, through [`pattern_of`].
-//! 2. **ADR 0056 § 4's sink is not enforced.** The pattern parameter must
+//! 1. **ADR 0056 § 4's sink is not enforced.** The pattern parameter must
 //!    demand the plain, unqualified `string`, and nothing in
 //!    [`crate::registry`] can state a qualifier at all — `tainted` and
 //!    `secret` are grammar and checker rows without a `Core`-facing half yet.
 //!    A registry row that cannot say "plain `string` only" accepts a tainted
 //!    pattern, which is the one place this module is currently *less* safe
 //!    than that ADR requires.
-//! 3. **The step budget is a constant, not a directive.** ADR 0056 § 2 puts
+//! 2. **The step budget is a constant, not a directive.** ADR 0056 § 2 puts
 //!    the default in `mwl.toml` under ADR 0005's ordinary rules, and there is
 //!    no configuration subsystem before M6. [`BACKTRACK_BUDGET`] is that
 //!    default, stated once, and reading it from config is a change to that one
 //!    line.
-//! 4. **`matchAll` converts each match's offset over the subject's prefix**,
+//! 3. **`matchAll` converts each match's offset over the subject's prefix**,
 //!    so reporting positions for *k* matches in an *n*-byte subject is O(n·k)
 //!    rather than O(n) — [`crate::granularity::Unit::index_of_byte`] counts
 //!    from the start each time. The matches arrive in increasing order, so the
@@ -102,8 +95,7 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
 /// `Core\Regex`'s registry rows, in the spec's own order.
 ///
-/// Seven of § 5's eight members; gap 1 above owns which one is missing and
-/// what it waits on. The four members that section states on a `Match` are
+/// All eight of them. The four members that section states on a `Match` are
 /// [`MATCH`]'s own roster, not this one.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Regex",
@@ -151,6 +143,18 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "mwl_core_regex_replace",
+        },
+        CoreMethod {
+            name: "replaceWith",
+            params: &[
+                CoreTy::Str,
+                CoreTy::Union(PATTERN_OR_STRING),
+                CoreTy::Callable,
+                CoreTy::Options(REPLACE_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_regex_replace_with",
         },
         CoreMethod {
             name: "split",
@@ -410,6 +414,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_regex_match_offset" => (mwl_core_regex_match_offset as *const ()).cast(),
         "mwl_core_regex_match_text" => (mwl_core_regex_match_text as *const ()).cast(),
         "mwl_core_regex_replace" => (mwl_core_regex_replace as *const ()).cast(),
+        "mwl_core_regex_replace_with" => (mwl_core_regex_replace_with as *const ()).cast(),
         "mwl_core_regex_split" => (mwl_core_regex_split as *const ()).cast(),
         "mwl_core_regex_quote" => (mwl_core_regex_quote as *const ()).cast(),
         _ => return None,
@@ -887,7 +892,7 @@ mwl_runtime::mwl_helper! {
     /// one line, when a caller wants it.
     ///
     /// **Each match's `offset` is converted from bytes independently**, which
-    /// costs a pass over the subject's prefix per match — gap 4 below owns
+    /// costs a pass over the subject's prefix per match — gap 3 above owns
     /// that.
     fn mwl_core_regex_match_all(_ctx, args: [2]) {
         let subject = text(&args[0], "matchAll", "the subject")?;
@@ -1032,6 +1037,113 @@ mwl_runtime::mwl_helper! {
                 .into_owned(),
         };
         produced(&replaced)
+    }
+}
+
+/// What the callback answers for one match, as text this frame owns.
+///
+/// Exactly two references are created here and both are released here: the
+/// [`MATCH`] this frame builds for the callback, and the `string` the callback
+/// answers with, which `mwl_runtime::call_closure` hands back as one fresh
+/// reference. Each release is written *before* the `?` that could carry the
+/// failure out — a throw from inside the callback and an answer of the wrong
+/// tag are the two edges a plain `?` would otherwise leak past.
+fn replacement_for(
+    ctx: &mut mwl_runtime::Ctx,
+    callback: Value,
+    subject: &str,
+    names: &[Option<&str>],
+    captured: &Captured<'_>,
+) -> Result<String, Fault> {
+    let matched = built_match(subject, names, captured);
+    let answered = mwl_runtime::call_closure(ctx, callback, &[matched]);
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns exactly the reference `built_match` produced, \
+                  and `call_closure` retained its own for the length of the call"
+    )]
+    unsafe {
+        matched.release();
+    }
+    let answered = answered?;
+    let copied = text(&answered, "replaceWith", "the callback's answer").map(str::to_owned);
+    #[expect(
+        unsafe_code,
+        reason = "this frame owns exactly the reference `call_closure` returned"
+    )]
+    unsafe {
+        answered.release();
+    }
+    copied
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Regex::replaceWith(string $subject, Pattern|string $pattern, callable $fn, {limit?: uint}): string`
+    /// — replacing `preg_replace_callback` and `preg_replace_callback_array`.
+    ///
+    /// The callback is handed **one [`MATCH`]**, not PHP's positional array,
+    /// so `$m->group("year")` reads here exactly as it does on the result of
+    /// [`mwl_core_regex_match`] — including the throw for a group the pattern
+    /// never declared. `preg_replace_callback_array`'s several-patterns form
+    /// is a loop over this member rather than a second shape of argument,
+    /// which ADR 0063 R7 is the rule for.
+    ///
+    /// **What the callback answers is inserted literally.** A `$1` in it is
+    /// two characters rather than a group reference, which is the one place
+    /// this member reads differently from [`mwl_core_regex_replace`]'s
+    /// template — the callback already held every group, so a second
+    /// expansion pass over its answer could only corrupt text it chose.
+    ///
+    /// `limit` is `replace`'s option with `replace`'s meaning: it counts
+    /// replacements, `0` performs none, and the callback is never called for a
+    /// match beyond it.
+    ///
+    /// **Every match is found before the first call.** Stepping the engine's
+    /// own iterator and running user code between steps would hold a live
+    /// borrow of an engine across a call that can reach `Core\Regex` again;
+    /// collecting first spends one [`Captured`] per match for the length of
+    /// the call, which is AGENTS.md's ordering buying priority 4 with
+    /// priority 5.
+    fn mwl_core_regex_replace_with(ctx, args: [4]) {
+        let subject = text(&args[0], "replaceWith", "the subject")?;
+        let given = pattern_of(&args[1], "replaceWith")?;
+        let pattern = text(&given.text, "replaceWith", "the pattern")?;
+        let limit = unsigned(&args[3], "replaceWith", "the `limit` option")?;
+        if limit == 0 {
+            return produced(subject);
+        }
+        let count = usize::try_from(limit).unwrap_or(usize::MAX);
+
+        let compiled = compiled(pattern, given.flags, "replaceWith")?;
+        let names = names_of(&compiled);
+        let mut found: Vec<Captured<'_>> = Vec::new();
+        match &*compiled {
+            Compiled::Linear(re) => {
+                for caps in re.captures_iter(subject).take(count) {
+                    found.push(linear_groups(&caps));
+                }
+            }
+            Compiled::Backtracking(re) => {
+                for caps in re.captures_iter(subject).take(count) {
+                    let caps =
+                        caps.map_err(|err| budget_exhausted("replaceWith", pattern, &err))?;
+                    found.push(backtracking_groups(&caps));
+                }
+            }
+        }
+
+        let mut out = String::with_capacity(subject.len());
+        let mut cursor = 0;
+        for captured in &found {
+            let Some((start, whole)) = captured.first().copied().flatten() else {
+                continue;
+            };
+            out.push_str(&subject[cursor..start]);
+            out.push_str(&replacement_for(ctx, args[2], subject, &names, captured)?);
+            cursor = start + whole.len();
+        }
+        out.push_str(&subject[cursor..]);
+        produced(&out)
     }
 }
 
