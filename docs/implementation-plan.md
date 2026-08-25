@@ -189,8 +189,12 @@
 > anywhere in the autoloaded sub-graph, `E0317` is § 2's one-declaration-per-file rule and `E0318` a
 > malformed glob. § 5's probe trace is produced and dropped — folding it into the cache key is the
 > ADR 0042 slice's work — and the name harvest is a deliberate over-approximation that does not yet
-> reach an attribute's name (`mwl-hir`'s own module doc owns both gaps). **What that ADR still owes
-> is a conformance case, and nothing structural blocks one now**: `.mwlt` has an auxiliary-file
+> reach an attribute's name (`mwl-hir`'s own module doc owns both gaps). **That ADR is pinned by
+> seven conformance cases now** (`tests/conformance/lang/`, the six named `*autoload*` plus
+> `a-malformed-discover-glob-is-a-compile-error.mwlt`): a class no `require` names is found by its
+> prefix and runs, an explicit prefix shadows a `discover` glob, a prefix's second root answers only
+> where the first misses, and `E0315`, `E0316`, `E0317` and `E0318` each fire from a
+> `--EXPECTF-ERROR--` case. Two things make that observable at all: `.mwlt` has an auxiliary-file
 > section — a repeatable `--FILE <relative/path>--` writing another file into the case's own working
 > directory, documented in `crates/mwl-test`'s module doc — and `mwl-cli`'s `front_end` is
 > multi-file end to end. It calls `mwl_hir::resolve_program`, so the unit of work is the whole

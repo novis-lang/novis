@@ -129,6 +129,11 @@ is why" — is this file.
   second file contributes is its *declarations*: a bare `echo` at its file scope compiles and prints
   nothing (`mwl-ir` gap 22). So a case pins the second file by *using* what it declares, never by what it
   echoes on its own.
+- **A `--EXPECTF-ERROR--` case must not also *use* what the broken declaration would have provided.**
+  Diagnostics are ordered by phase, not by file, so an `E0303` from the entry point's reference is printed
+  *before* the resolution error the case exists to pin, and the block no longer matches at its first line.
+  A compile-error case's entry file should do the least that reaches the diagnostic — often a bare
+  `require` and nothing else. Between two diagnostics `%A` covers the span, notes included.
 - **A rule added to `mwl_syntax::check_declarations` reaches far less of the corpus than a grep
   suggests.** Only `mwl-cli` and `mwl_hir::requires` call that walk, so every `mwl-types` fixture, every
   parser test and every `mwl-codegen` fixture goes straight past it — ADR 0094's estimated "sixty inline
@@ -204,4 +209,7 @@ diagnostic; a `catch` binding is function-scoped **until this loop re-scopes it*
 two clauses on one `try` need two different variable names; `Exception` is spelled `Core\Error` in the
 spec's own prose but the tree's root is `Throwable`, a caught value's text is `$e->message` and not a
 getter, and a typed `catch` on a `Core`-owned class does not lower yet — a `catch` on a spec § 10 class
-(`ParseError`, `LogicError`, …) now does.
+(`ParseError`, `LogicError`, …) now does. **Inside a `namespace X;` every name resolves relative to it**,
+PHP's rule exactly, so `Core\Str::upper` in a namespaced file is `X\Core\Str` and takes `E0303` plus a
+knock-on `E0403` on the method's declared return; write `\Core\Str`, which does resolve, and reach a
+sibling in the same namespace unqualified.
