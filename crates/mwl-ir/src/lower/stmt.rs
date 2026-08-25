@@ -262,6 +262,14 @@ impl<'a> Lowering<'a> {
                 key: None,
                 value: Some(v),
             } => self.lower_yield(v, env, cur),
+            // ADR 0021's statement form, lowered to nothing. The `require`
+            // graph is walked at compile time (`mwl_hir::resolve_program`),
+            // so by the time this runs the target's declarations are already
+            // in the same `crate::ir::Program` as this file's and there is
+            // nothing left for the site to do. The value form —
+            // `$c = require 'config.mwl';`, § 3's `mixed` — is a separate
+            // question and still a gap; see the crate docs.
+            ExprKind::Require { .. } => {}
             other => panic!(
                 "mwl-ir's control-flow slice only lowers a plain `$x = expr;` reassignment or a \
                  bare call/`new` as an expression statement — got {other:?}; see the crate \

@@ -41,8 +41,10 @@ pub(crate) fn check_src_table(src: &str) -> (Diagnostics, ExprTypeTable) {
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
     check_program(
-        &stmts,
-        map.file(file),
+        &[mwl_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }],
         &module,
         &mut interner,
         &mut exprs,
@@ -71,8 +73,10 @@ pub(crate) fn check_src_declared(src: &str) -> (Diagnostics, DeclaredTypes) {
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
     check_program(
-        &stmts,
-        map.file(file),
+        &[mwl_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }],
         &module,
         &mut interner,
         &mut exprs,
@@ -153,8 +157,10 @@ pub(crate) fn check_src(src: &str) -> Diagnostics {
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();
     check_program(
-        &stmts,
-        map.file(file),
+        &[mwl_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }],
         &module,
         &mut interner,
         &mut exprs,

@@ -252,12 +252,27 @@ struct TryFrame<'a> {
     finally: Option<&'a Block>,
 }
 
-/// Lowers a whole checked file: every class method that has a body, plus the
-/// file's own top-level statements as one script frame named `script`.
+/// Lowers a whole checked **program**: every class method that has a body in
+/// any of `files`, plus the *entry* file's own top-level statements as one
+/// script frame named `script`.
 ///
-/// This is what a caller with a file in hand wants — [`lower_method`] and
+/// This is what a caller with a resolved `require`/`autoload` graph wants —
+/// [`lower_file`] is the one-file spelling, and [`lower_method`] and
 /// [`lower_script`] stay public for the narrower "lower exactly this one
 /// thing" cases the tests use.
+///
+/// **`files[0]` is the entry point, and it is the only file that gets a
+/// script frame.** N files cannot all be `script`, and ADR 0021's "no
+/// isolation" is already honoured by the compile-time walk rather than at run
+/// time: a `require` statement lowers to nothing (`lower_expr_stmt`), because
+/// the target's declarations are in this same program by the time the site is
+/// reached. So a non-entry file contributes its *declarations* only, and a
+/// bare top-level statement written in a `require`d file is silently not run
+/// — the crate's own module doc records it as a known gap, since making it
+/// run means giving each file a frame and calling it from the `require`
+/// site, which is the isolation question ADR 0006 owns.
+/// `mwl_hir::resolve_program`'s entry-first order is what makes indexing
+/// position zero right.
 ///
 /// Each method is named with the `Class::method` label
 /// `mwl_types::expr_table::ExprTypeTable::method_label` recorded for its
@@ -275,13 +290,14 @@ struct TryFrame<'a> {
 ///
 /// # Panics
 ///
-/// The same way [`lower_method`]/[`lower_script`] do — naming the shape this
-/// slice does not lower. See [`lower_method`]'s own note.
+/// If `files` is empty — a program is its entry file plus whatever that
+/// reached, so there is always at least one. Otherwise the same way
+/// [`lower_method`]/[`lower_script`] do, naming the shape this slice does not
+/// lower. See [`lower_method`]'s own note.
 #[must_use]
-pub fn lower_file(
+pub fn lower_program(
     script: &str,
-    stmts: &[Stmt],
-    src: &SourceFile,
+    files: &[mwl_types::ProgramFile<'_>],
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     layouts: &ClassLayoutTable,
@@ -377,15 +393,20 @@ pub fn lower_file(
 
     let mut functions = Vec::new();
     let mut synthesized = Vec::new();
-    walk(
-        stmts,
-        src,
-        exprs,
-        checked_types,
-        &mut functions,
-        &mut synthesized,
-    );
-    let lowered = lower_script(script, stmts, src, exprs, checked_types);
+    for file in files {
+        walk(
+            file.stmts,
+            file.src,
+            exprs,
+            checked_types,
+            &mut functions,
+            &mut synthesized,
+        );
+    }
+    let entry = files
+        .first()
+        .expect("a program has at least its entry file");
+    let lowered = lower_script(script, entry.stmts, entry.src, exprs, checked_types);
     functions.push(lowered.function);
     functions.extend(lowered.closures);
     synthesized.extend(lowered.classes);
@@ -447,6 +468,30 @@ pub fn lower_file(
     classes.sort_by(|a, b| a.label.cmp(&b.label));
 
     crate::ir::Program { functions, classes }
+}
+
+/// [`lower_program`] over a program of exactly one file — the shape a
+/// self-contained script and every fixture in this crate's own tests has.
+///
+/// # Panics
+///
+/// The same way [`lower_program`] does.
+#[must_use]
+pub fn lower_file(
+    script: &str,
+    stmts: &[Stmt],
+    src: &SourceFile,
+    exprs: &ExprTypeTable,
+    checked_types: &TypeInterner,
+    layouts: &ClassLayoutTable,
+) -> crate::ir::Program {
+    lower_program(
+        script,
+        &[mwl_types::ProgramFile { src, stmts }],
+        exprs,
+        checked_types,
+        layouts,
+    )
 }
 
 /// Lowers `m` — which must have a body, and whose body must stay within this
@@ -2001,14 +2046,11 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut checked_types = TypeInterner::new();
         let mut exprs = ExprTypeTable::new();
-        mwl_types::check_program(
-            &stmts,
-            map.file(file),
-            &module,
-            &mut checked_types,
-            &mut exprs,
-            &mut diags,
-        );
+        let files = [mwl_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }];
+        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
         let decl = stmts
@@ -2049,14 +2091,11 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut checked_types = TypeInterner::new();
         let mut exprs = ExprTypeTable::new();
-        mwl_types::check_program(
-            &stmts,
-            map.file(file),
-            &module,
-            &mut checked_types,
-            &mut exprs,
-            &mut diags,
-        );
+        let files = [mwl_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }];
+        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
 
         let f = lower_script("<script>", &stmts, map.file(file), &exprs, &checked_types);
@@ -2077,16 +2116,13 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut checked_types = TypeInterner::new();
         let mut exprs = ExprTypeTable::new();
-        mwl_types::check_program(
-            &stmts,
-            map.file(file),
-            &module,
-            &mut checked_types,
-            &mut exprs,
-            &mut diags,
-        );
+        let files = [mwl_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }];
+        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
-        let layouts = mwl_types::layout::build_class_layouts(&stmts, map.file(file), &module.graph);
+        let layouts = mwl_types::layout::build_class_layouts(&files, &module.graph);
         let p = lower_file(
             "<script>",
             &stmts,
@@ -3763,16 +3799,13 @@ class T {
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut checked_types = TypeInterner::new();
         let mut exprs = ExprTypeTable::new();
-        mwl_types::check_program(
-            &stmts,
-            map.file(file),
-            &module,
-            &mut checked_types,
-            &mut exprs,
-            &mut diags,
-        );
+        let files = [mwl_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }];
+        mwl_types::check_program(&files, &module, &mut checked_types, &mut exprs, &mut diags);
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
-        let layouts = mwl_types::build_class_layouts(&stmts, map.file(file), &module.graph);
+        let layouts = mwl_types::build_class_layouts(&files, &module.graph);
         let program = lower_file(
             "<script>",
             &stmts,

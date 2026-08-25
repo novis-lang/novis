@@ -200,7 +200,7 @@ fn run_ast(path: &std::path::Path) -> ExitCode {
     }
 }
 
-/// A file that has been through the whole front end with no error.
+/// A **program** that has been through the whole front end with no error.
 ///
 /// `run` needs everything `check` produces plus the three tables `mwl-ir`
 /// lowering reads back — the resolved-target table, the type interner that
@@ -208,14 +208,48 @@ fn run_ast(path: &std::path::Path) -> ExitCode {
 /// than written twice.
 struct Checked {
     map: SourceMap,
+    /// The entry point's own file. It names the program (`mwl run <path>`),
+    /// so it stays a single id even though `files` is now a set.
     id: mwl_diagnostics::SourceId,
-    stmts: Vec<mwl_syntax::ast::Stmt>,
+    /// Every file the entry point's `require`/`autoload` graph reached, the
+    /// entry file first — `mwl_hir::resolve_program`'s order contract.
+    files: Vec<mwl_hir::Loaded>,
     interner: mwl_types::TypeInterner,
     exprs: mwl_types::ExprTypeTable,
     layouts: mwl_types::ClassLayoutTable,
 }
 
-/// Parses, resolves and type-checks `path`, rendering every diagnostic.
+impl Checked {
+    /// The program as `mwl-types` and `mwl-ir` both consume it: one entry per
+    /// loaded file, **the entry point first**.
+    ///
+    /// Position zero is where `mwl_ir::lower::lower_program` takes the script
+    /// frame from, which is `mwl_hir::resolve_program`'s documented order
+    /// contract rather than a coincidence — the assert is what keeps this
+    /// file honest if that ever changes.
+    fn program_files(&self) -> Vec<mwl_types::ProgramFile<'_>> {
+        debug_assert_eq!(
+            self.files[0].id, self.id,
+            "resolve_program hands the entry file back first"
+        );
+        self.files
+            .iter()
+            .map(|file| mwl_types::ProgramFile {
+                src: self.map.file(file.id),
+                stmts: &file.stmts,
+            })
+            .collect()
+    }
+}
+
+/// Parses, resolves and type-checks the program `path` is the entry point of,
+/// rendering every diagnostic.
+///
+/// The unit of work here is the whole `require`/`autoload` graph, not one
+/// file: `mwl_hir::resolve_program` walks it into one `Module` plus the
+/// statements of every file it loaded (ADR 0021, ADR 0061), and each table
+/// below is then built across that set — a class declared in a `require`d
+/// file has to be a class the entry file's body can name.
 ///
 /// `Err` is the exit code to return: a read failure, or at least one error
 /// diagnostic. Warnings are rendered and do not stop anything.
@@ -232,27 +266,35 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
     let mut diags = Diagnostics::new();
     let stmts = parse_file(map.file(id), &mut diags);
     check_declarations(&stmts, map.file(id), &mut diags);
-    let module = mwl_hir::resolve_file(&stmts, map.file(id), &mut diags);
+    // Every other file's parse and `check_declarations` happen inside the
+    // walk, as each `require` target is discovered; only the entry point is
+    // this function's to load.
+    let (module, loaded) = mwl_hir::resolve_program(id, stmts, &mut map, &mut diags);
+
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();
-    mwl_types::check_program(
-        &stmts,
-        map.file(id),
-        &module,
-        &mut interner,
-        &mut exprs,
-        &mut diags,
-    );
+    let layouts = {
+        let files: Vec<mwl_types::ProgramFile<'_>> = loaded
+            .iter()
+            .map(|file| mwl_types::ProgramFile {
+                src: map.file(file.id),
+                stmts: &file.stmts,
+            })
+            .collect();
+        mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
 
+        if diags.has_errors() {
+            render_diagnostics(&mut diags, &map);
+            return Err(ExitCode::FAILURE);
+        }
+        mwl_types::build_class_layouts(&files, &module.graph)
+    };
     render_diagnostics(&mut diags, &map);
-    if diags.has_errors() {
-        return Err(ExitCode::FAILURE);
-    }
-    let layouts = mwl_types::build_class_layouts(&stmts, map.file(id), &module.graph);
+
     Ok(Checked {
         map,
         id,
-        stmts,
+        files: loaded,
         interner,
         exprs,
         layouts,
@@ -287,10 +329,9 @@ fn run_run(
     };
     let src = checked.map.file(checked.id);
 
-    let program = mwl_ir::lower::lower_file(
+    let program = mwl_ir::lower::lower_program(
         SCRIPT,
-        &checked.stmts,
-        src,
+        &checked.program_files(),
         &checked.exprs,
         &checked.interner,
         &checked.layouts,

@@ -116,20 +116,23 @@ impl EnumTable {
     }
 }
 
-/// Resolves every `enum` declaration in `stmts`, reporting ADR 0010 § 1/§ 2's
-/// declaration-level errors.
+/// Resolves every `enum` declaration in every file of the program, reporting
+/// ADR 0010 § 1/§ 2's declaration-level errors.
 ///
 /// Runs *before* [`crate::signatures::build_signatures`], because interning an
 /// enum-typed annotation needs the backing type this produces — see
-/// [`crate::ty::Ty::Enum`].
+/// [`crate::ty::Ty::Enum`]. One table spans the whole [`crate::ProgramFile`]
+/// slice: an enum declared in a `require`d file is named from the file that
+/// required it, so a per-file table would answer `None` there.
 pub(crate) fn build_enum_table(
-    stmts: &[Stmt],
-    src: &SourceFile,
+    files: &[crate::ProgramFile<'_>],
     diags: &mut mwl_diagnostics::Diagnostics,
 ) -> EnumTable {
     let mut table = EnumTable::default();
     seed_core(&mut table);
-    collect(stmts, src, &[], &mut table, diags);
+    for file in files {
+        collect(file.stmts, file.src, &[], &mut table, diags);
+    }
     table
 }
 
@@ -391,7 +394,13 @@ mod tests {
         let id = map.add("test.mwl", source);
         let mut diags = Diagnostics::new();
         let stmts = mwl_syntax::parse_file(map.file(id), &mut diags);
-        let table = build_enum_table(&stmts, map.file(id), &mut diags);
+        let table = build_enum_table(
+            &[crate::ProgramFile {
+                src: map.file(id),
+                stmts: &stmts,
+            }],
+            &mut diags,
+        );
         (table, diags)
     }
 

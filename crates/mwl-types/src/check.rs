@@ -49,17 +49,27 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
     QName::parse(span_text(src, name.span)).segments().to_vec()
 }
 
-/// Type-checks every method body reachable from `stmts`, using the already
+/// Type-checks every method body reachable from `files`, using the already
 /// name-resolved `module` for symbol/alias lookups. `interner` accumulates
-/// every type this run interns — pass the same one across every file of a
-/// program sharing `module`, the same way `module` itself is built once and
-/// shared. `exprs` accumulates every call's/`new`'s resolved target this run
-/// records — see [`crate::expr_table`]'s own module docs; a caller with no use
-/// for it yet (today, only `mwl-ir` reads it back) still passes one and may
-/// simply drop it afterward.
+/// every type this run interns; `exprs` accumulates every call's/`new`'s
+/// resolved target this run records — see [`crate::expr_table`]'s own module
+/// docs; a caller with no use for it yet (today, only `mwl-ir` reads it back)
+/// still passes one and may simply drop it afterward.
+///
+/// `files` is the whole `require`/`autoload` graph — `mwl_hir::resolve_program`'s
+/// second return value, in entry-first load order, mapped to
+/// [`crate::ProgramFile`] — and `module` must be the one that walk resolved
+/// over the same set. Every table below is built across all of it before any
+/// body is checked, because a class declared in one file is referenced from
+/// another; only the per-file phases below are actually per file.
+///
+/// **Each file gets its own [`ScriptFrame`].** ADR 0008 § 2 makes a file's
+/// top-level statements a function body, and a file is where that body ends:
+/// `$x` at the top of the entry file and `$x` at the top of a `require`d one
+/// are two locals of two frames, so neither the declare-once rule nor
+/// definite assignment reaches across the boundary.
 pub fn check_program(
-    stmts: &[Stmt],
-    src: &SourceFile,
+    files: &[crate::ProgramFile<'_>],
     module: &Module,
     interner: &mut TypeInterner,
     exprs: &mut ExprTypeTable,
@@ -67,35 +77,43 @@ pub fn check_program(
 ) {
     // ADR 0010 § 2's backing types first: interning an enum-typed annotation
     // needs one, and `build_signatures` interns every declared annotation in
-    // the file. See `crate::enums`.
-    let enums = crate::enums::build_enum_table(stmts, src, diags);
+    // the program. See `crate::enums`.
+    let enums = crate::enums::build_enum_table(files, diags);
     // ADR 0047 § 2's fold, on the same terms and for the same reason as the
     // enum table one line above: `build_signatures` interns every declared
-    // annotation in the file, and one of them may be a `Foo::CONST` type.
-    let consts = crate::consts::build_const_table(stmts, src);
-    let signatures = build_signatures(stmts, module, &enums, &consts, src, interner, diags);
-    let mut env = Env {
-        symbols: &module.symbols,
-        aliases: &module.aliases,
-        graph: &module.graph,
-        signatures: &signatures,
-        enums: &enums,
-        consts: &consts,
-        src,
-        interner,
-        exprs,
-        diags,
-        closure_seq: 0,
-    };
-    let mut frame = ScriptFrame {
-        scope: LocalScope::new(),
-        live: FxHashSet::default(),
-        // ADR 0021 § 3: `require`'s value is what a `return`-ing target file
-        // hands back, typed `mixed` at the boundary — so the synthesized
-        // frame's return type is `mixed`, not `void`.
-        return_ty: env.interner.mixed(),
-    };
-    check_stmts(stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
+    // annotation, and one of them may be a `Foo::CONST` type.
+    let consts = crate::consts::build_const_table(files);
+    let signatures = build_signatures(files, module, &enums, &consts, interner, diags);
+    // Threaded across the files rather than restarted at each: an ADR 0031
+    // closure literal at file scope is labelled `Script$fn<n>`, with no
+    // declaring class to disambiguate it, so a counter that restarted per
+    // file would give two files' first closures the same synthesized class.
+    let mut closure_seq = 0;
+    for file in files {
+        let mut env = Env {
+            symbols: &module.symbols,
+            aliases: &module.aliases,
+            graph: &module.graph,
+            signatures: &signatures,
+            enums: &enums,
+            consts: &consts,
+            src: file.src,
+            interner: &mut *interner,
+            exprs: &mut *exprs,
+            diags: &mut *diags,
+            closure_seq,
+        };
+        let mut frame = ScriptFrame {
+            scope: LocalScope::new(),
+            live: FxHashSet::default(),
+            // ADR 0021 § 3: `require`'s value is what a `return`-ing target
+            // file hands back, typed `mixed` at the boundary — so the
+            // synthesized frame's return type is `mixed`, not `void`.
+            return_ty: env.interner.mixed(),
+        };
+        check_stmts(file.stmts, &[], &FxHashMap::default(), &mut frame, &mut env);
+        closure_seq = env.closure_seq;
+    }
 }
 
 /// The one synthesized frame a file's top-level statements share

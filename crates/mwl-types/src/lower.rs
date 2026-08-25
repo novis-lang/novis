@@ -621,8 +621,12 @@ mod tests {
         };
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();
-        let enums = crate::enums::build_enum_table(&stmts, map.file(file), &mut diags);
-        let consts = crate::consts::build_const_table(&stmts, map.file(file));
+        let files = [crate::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }];
+        let enums = crate::enums::build_enum_table(&files, &mut diags);
+        let consts = crate::consts::build_const_table(&files);
         let mut env = Env {
             symbols: &module.symbols,
             aliases: &module.aliases,

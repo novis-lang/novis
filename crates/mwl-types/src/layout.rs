@@ -137,14 +137,17 @@ impl ClassLayoutTable {
     }
 }
 
-/// Builds the layout of every class and interface declared in `stmts`, plus
-/// the two rosters no source declares — `mwl_hir::errors`' exception tree and
-/// `mwl_hir::interfaces`' global interfaces.
+/// Builds the layout of every class and interface declared in any file of
+/// `files`, plus the two rosters no source declares — `mwl_hir::errors`'
+/// exception tree and `mwl_hir::interfaces`' global interfaces.
 ///
-/// `graph` is the already-resolved hierarchy `mwl_hir::resolve_file` produced
-/// for the same file — the one thing this pass cannot derive from the AST,
-/// since an `extends Foo` reference has to be resolved against the active
-/// namespace and imports.
+/// `graph` is the already-resolved hierarchy `mwl_hir::resolve_file` or
+/// `mwl_hir::resolve_program` produced for the same set of files — the one
+/// thing this pass cannot derive from the AST, since an `extends Foo`
+/// reference has to be resolved against the active namespace and imports.
+/// The set is walked whole before any layout is assembled: a subclass in one
+/// file inherits the slots of a base declared in another, and a per-file
+/// table would place its own properties at slot zero.
 ///
 /// A class whose ancestor chain is broken (an unresolved or cyclic `extends`,
 /// both of which `mwl_hir::hierarchy` has already diagnosed) simply gets a
@@ -154,8 +157,7 @@ impl ClassLayoutTable {
 /// further down the pipeline.
 #[must_use]
 pub fn build_class_layouts(
-    stmts: &[Stmt],
-    src: &SourceFile,
+    files: &[crate::ProgramFile<'_>],
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
     let mut own: FxHashMap<QName, Vec<String>> = FxHashMap::default();
@@ -192,7 +194,9 @@ pub fn build_class_layouts(
         own.insert(QName::parse(name), Vec::new());
         own_methods.insert(QName::parse(name), Vec::new());
     }
-    collect_own(stmts, src, &[], &mut own, &mut own_methods);
+    for file in files {
+        collect_own(file.stmts, file.src, &[], &mut own, &mut own_methods);
+    }
 
     let mut table = ClassLayoutTable::default();
     for qname in own.keys() {
@@ -401,7 +405,13 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
         let module = resolve_file(&stmts, map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
-        build_class_layouts(&stmts, map.file(file), &module.graph)
+        build_class_layouts(
+            &[crate::ProgramFile {
+                src: map.file(file),
+                stmts: &stmts,
+            }],
+            &module.graph,
+        )
     }
 
     #[test]

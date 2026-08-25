@@ -241,6 +241,24 @@ use rustc_hash::FxHashMap;
 
 use crate::signatures::SignatureTable;
 
+/// One file of the program being checked: its source text and the statements
+/// it parsed to.
+///
+/// Every table this crate builds once per program — [`enums::build_enum_table`],
+/// [`consts::build_const_table`], [`signatures::build_signatures`],
+/// [`layout::build_class_layouts`] — and [`check::check_program`] itself take
+/// a *slice* of these rather than one file, because a `require` graph is one
+/// program: a class declared in one file is referenced from another, so the
+/// tables have to be complete before any body is checked. `mwl_hir::Loaded`
+/// is where the CLI's slice comes from, in entry-first load order.
+#[derive(Debug, Clone, Copy)]
+pub struct ProgramFile<'a> {
+    /// The file's source text, for every span this walk resolves.
+    pub src: &'a SourceFile,
+    /// Its whole parsed body — top-level statements and declarations alike.
+    pub stmts: &'a [mwl_syntax::ast::Stmt],
+}
+
 /// The namespace/`use`/enclosing-class scope active at whatever point in the
 /// AST is currently being lowered or checked — mirrors
 /// [`mwl_hir::members`]'s `Ctx`, for the same reason: this changes as the

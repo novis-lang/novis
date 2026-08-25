@@ -101,14 +101,20 @@ impl ConstTable {
 /// `MAX_ARRAY_DEPTH`.
 const MAX_ANCESTOR_DEPTH: u32 = 32;
 
-/// Folds every `class`/`interface` constant in `stmts`.
+/// Folds every `class`/`interface` constant in every file of the program.
 ///
 /// Reports nothing: an ineligible value is a legal declaration, and only a
 /// *use* of it in type position is a mistake — which is where ADR 0047 § 2's
 /// diagnostic belongs, since that is the span the author can act on.
-pub(crate) fn build_const_table(stmts: &[Stmt], src: &SourceFile) -> ConstTable {
+///
+/// One table spans the whole [`crate::ProgramFile`] slice, for the reason
+/// [`crate::enums::build_enum_table`]'s docs give: a constant declared in a
+/// `require`d file is named from the file that required it.
+pub(crate) fn build_const_table(files: &[crate::ProgramFile<'_>]) -> ConstTable {
     let mut table = ConstTable::default();
-    collect(stmts, src, &[], &mut table);
+    for file in files {
+        collect(file.stmts, file.src, &[], &mut table);
+    }
     table
 }
 

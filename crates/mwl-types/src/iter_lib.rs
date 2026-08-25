@@ -167,8 +167,10 @@ mod tests {
         let mut interner = TypeInterner::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();
         crate::check::check_program(
-            &stmts,
-            map.file(file),
+            &[crate::ProgramFile {
+                src: map.file(file),
+                stmts: &stmts,
+            }],
             &module,
             &mut interner,
             &mut exprs,

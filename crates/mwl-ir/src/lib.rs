@@ -334,6 +334,19 @@
 //!     one line. What is unverified is whether anything below this crate reads
 //!     a class *label* off an operand it would now receive without one, which
 //!     is what a session landing it owes a check of.
+//! 22. **A `require`d file's own top-level statements are not run.**
+//!     [`lower::lower_program`] gives a script frame to `files[0]` — the entry
+//!     point — and takes only the *declarations* of every other file, and a
+//!     `require` in statement position lowers to nothing, because the graph is
+//!     already resolved by the time lowering starts. So a required file that
+//!     writes `echo "loaded";` at file scope compiles and stays silent, and
+//!     ADR 0021 § 3's value form (`$c = require 'config.mwl';`) has no arm at
+//!     all — it panics in `lower_expr` like any other unsupported shape. The
+//!     shape that closes both is one frame per file, called from the site, and
+//!     the open question it raises is whether that frame shares the caller's
+//!     locals (ADR 0021's "no isolation") or not — which is why this is
+//!     recorded rather than guessed at. The declaration half, which is what
+//!     ADR 0061's autoload map needs, runs today.
 
 pub mod ids;
 pub mod ir;

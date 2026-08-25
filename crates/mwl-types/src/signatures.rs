@@ -417,8 +417,15 @@ impl SignatureTable {
 }
 
 /// Builds a [`SignatureTable`] for every class/interface/enum declared in
-/// `stmts`, lowering every property/parameter/return type through the
-/// same [`AliasTable`]/[`SymbolTable`] a method body's own types go through.
+/// any file of the program, lowering every property/parameter/return type
+/// through the same [`AliasTable`]/[`SymbolTable`] a method body's own types
+/// go through.
+///
+/// The whole [`crate::ProgramFile`] slice is collected before
+/// [`mark_overridden_methods`] runs, because an override is a fact about the
+/// *program*: a subclass in a `require`d file overriding a method declared in
+/// the entry file is exactly the case a per-file table would answer wrong,
+/// and it decides `Call` against `CallVirtual` in `mwl-ir`.
 ///
 /// This writes into its own `table` return value rather than `env.signatures`
 /// — the [`Env`] this function builds internally points `signatures` at an
@@ -428,11 +435,10 @@ impl SignatureTable {
 /// `SignatureTable` under active construction can't also be borrowed
 /// immutably through the same `Env` at once.
 pub fn build_signatures(
-    stmts: &[Stmt],
+    files: &[crate::ProgramFile<'_>],
     module: &mwl_hir::Module,
     enums: &crate::enums::EnumTable,
     consts: &crate::consts::ConstTable,
-    src: &SourceFile,
     interner: &mut crate::ty::TypeInterner,
     diags: &mut Diagnostics,
 ) -> SignatureTable {
@@ -448,20 +454,22 @@ pub fn build_signatures(
     // ever lowers property/parameter/return *type annotations*, never a call
     // expression, so nothing during this pass ever records into `exprs`.
     let mut placeholder_exprs = crate::expr_table::ExprTypeTable::default();
-    let mut env = Env {
-        symbols,
-        aliases,
-        graph,
-        signatures: &placeholder,
-        enums,
-        consts,
-        src,
-        interner,
-        exprs: &mut placeholder_exprs,
-        diags,
-        closure_seq: 0,
-    };
-    collect_stmts(stmts, &[], &FxHashMap::default(), &mut table, &mut env);
+    for file in files {
+        let mut env = Env {
+            symbols,
+            aliases,
+            graph,
+            signatures: &placeholder,
+            enums,
+            consts,
+            src: file.src,
+            interner: &mut *interner,
+            exprs: &mut placeholder_exprs,
+            diags: &mut *diags,
+            closure_seq: 0,
+        };
+        collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
+    }
     mark_overridden_methods(&mut table, graph);
     table
 }
@@ -1148,17 +1156,13 @@ mod tests {
         let module = resolve_file(&stmts, map.file(file), &mut diags);
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut interner = TypeInterner::new();
-        let enums = crate::enums::build_enum_table(&stmts, map.file(file), &mut diags);
-        let consts = crate::consts::build_const_table(&stmts, map.file(file));
-        let table = build_signatures(
-            &stmts,
-            &module,
-            &enums,
-            &consts,
-            map.file(file),
-            &mut interner,
-            &mut diags,
-        );
+        let files = [crate::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }];
+        let enums = crate::enums::build_enum_table(&files, &mut diags);
+        let consts = crate::consts::build_const_table(&files);
+        let table = build_signatures(&files, &module, &enums, &consts, &mut interner, &mut diags);
         (table, module, interner, diags)
     }
 

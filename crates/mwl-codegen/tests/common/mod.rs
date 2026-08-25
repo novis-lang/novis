@@ -51,14 +51,15 @@ pub(crate) fn lower(source: &str) -> mwl_ir::Program {
     let module = mwl_hir::resolve_file(&stmts, src, &mut diags);
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();
-    mwl_types::check_program(&stmts, src, &module, &mut interner, &mut exprs, &mut diags);
+    let files = [mwl_types::ProgramFile { src, stmts: &stmts }];
+    mwl_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
     assert!(
         !diags.has_errors(),
         "the fixture does not type-check: {:?}",
         diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
     );
 
-    let layouts = mwl_types::build_class_layouts(&stmts, src, &module.graph);
+    let layouts = mwl_types::build_class_layouts(&files, &module.graph);
     mwl_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &layouts)
 }
 
