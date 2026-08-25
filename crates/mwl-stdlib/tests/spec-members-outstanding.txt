@@ -15,8 +15,6 @@
 §1 compare
 §1 fold
 §1 normalize
-§1 replaceAll
-§1 replaceRange
 
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 append

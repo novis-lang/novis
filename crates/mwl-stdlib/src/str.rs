@@ -192,6 +192,29 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_str_replace",
         },
         CoreMethod {
+            name: "replaceAll",
+            params: &[
+                CoreTy::Str,
+                CoreTy::Array(&CoreTy::Str),
+                CoreTy::Options(REPLACE_ALL_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_replace_all",
+        },
+        CoreMethod {
+            name: "replaceRange",
+            params: &[
+                CoreTy::Str,
+                CoreTy::Int,
+                CoreTy::Nullable(&CoreTy::Int),
+                CoreTy::Str,
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_replace_range",
+        },
+        CoreMethod {
             name: "padStart",
             params: &[CoreTy::Str, CoreTy::Uint, CoreTy::Str],
             defaults: &[Const::Str(" ")],
@@ -341,6 +364,18 @@ const REPLACE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Str::replaceAll`'s `{caseInsensitive?: bool}`.
+///
+/// Deliberately **not** [`REPLACE_OPTIONS`]: a `limit` over a whole
+/// substitution table would have to say *which* pair it counts, and the spec's
+/// row at § 1 does not offer one. `replace` keeps its `limit` because there is
+/// exactly one needle to count.
+const REPLACE_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "caseInsensitive",
+    ty: CoreTy::Bool,
+    default: Const::Bool(false),
+}];
+
 /// `Core\Str::indexOf`'s `{from?: int, caseInsensitive?: bool}`.
 ///
 /// `from` is a **position**, so it obeys ADR 0063 R8's sign rule and reads
@@ -438,6 +473,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_from_code_point" => (mwl_core_str_from_code_point as *const ()).cast(),
         "mwl_core_str_from_code_points" => (mwl_core_str_from_code_points as *const ()).cast(),
         "mwl_core_str_replace" => (mwl_core_str_replace as *const ()).cast(),
+        "mwl_core_str_replace_all" => (mwl_core_str_replace_all as *const ()).cast(),
+        "mwl_core_str_replace_range" => (mwl_core_str_replace_range as *const ()).cast(),
         "mwl_core_str_trim" => (mwl_core_str_trim as *const ()).cast(),
         "mwl_core_str_trim_start" => (mwl_core_str_trim_start as *const ()).cast(),
         "mwl_core_str_trim_end" => (mwl_core_str_trim_end as *const ()).cast(),
@@ -1024,50 +1061,222 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
+    /// `Core\Str::replaceAll(string $s, array<string> $pairs, {caseInsensitive?: bool}): string`
+    /// — replacing PHP's `str_replace` with array arguments **and** its
+    /// `strtr`, which are one member here because they are one operation:
+    /// substituting a whole table in a single pass.
+    ///
+    /// `$pairs` is keyed **needle → replacement**, so this is the first
+    /// `Core` member to read an array's keys as well as its values; PHP's
+    /// two-parallel-arrays spelling of `str_replace` has no counterpart,
+    /// because a pair whose halves can be different lengths is a bug the type
+    /// system cannot see.
+    ///
+    /// **`strtr`'s reading, not `str_replace`'s**, and the reason is that only
+    /// one of the two is independent of the order the pairs were written:
+    ///
+    /// * The subject is scanned once, left to right. At each position the
+    ///   **longest** matching needle wins, and the text it produced is never
+    ///   rescanned — so `replaceAll("ab", ["a" => "b", "b" => "a"])` is `"ba"`
+    ///   rather than `"aa"` or `"bb"`.
+    /// * `str_replace`'s array form instead runs each pair over the whole
+    ///   subject in turn, feeding every earlier replacement to every later
+    ///   pair. That makes the answer depend on the literal order of an array
+    ///   whose order is otherwise never observable here, which is exactly the
+    ///   silent-surprise shape ADR 0063 R20 exists to keep out.
+    /// * A tie is therefore impossible without `caseInsensitive`: two distinct
+    ///   needles cannot match the same span exactly. With it they can, and the
+    ///   pair written first wins.
+    ///
+    /// **An empty needle is skipped**, matching [`mwl_core_str_replace`]'s
+    /// answer for the same input rather than inserting its replacement between
+    /// every character. An empty `$pairs` returns the subject unchanged.
+    ///
+    /// Cost: one pass over the subject, times the number of pairs, with no
+    /// index built — the table a `strtr` call carries is a handful of entries
+    /// in every use this library has, and an Aho-Corasick automaton would
+    /// spend more building itself than it saves. Revisit against a measured
+    /// call site, not against this comment.
+    fn mwl_core_str_replace_all(_ctx, args: [3]) {
+        let subject = text(&args[0], "replaceAll", "the subject")?;
+        let pairs = args[1].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Str::replaceAll expected {:?} for the pairs, got tag {}",
+                Tag::Array,
+                args[1].tag_byte()
+            ))
+        })?;
+        let case_insensitive = boolean(&args[2], "replaceAll", "the `caseInsensitive` option")?;
+
+        // Copied out rather than borrowed: a key is handed over as its own
+        // reference, and holding one per entry for the length of the scan
+        // would owe a release on every early return below.
+        let mut table: Vec<(String, String)> = Vec::new();
+        let mut from = 0usize;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array argument owns a reference to a live \
+                          allocation, so it is live for the length of this \
+                          call, and `from` only ever advances past a slot \
+                          this same cursor reported"
+            )]
+            let (slot, key, value) = unsafe {
+                let slot = mwl_runtime::mwl_array_next_slot(pairs, from);
+                let Ok(slot) = usize::try_from(slot) else {
+                    break;
+                };
+                let key = MwlStr::from_raw(mwl_runtime::mwl_array_key_at(pairs, slot));
+                let mut value = Value::null();
+                mwl_runtime::mwl_array_value_at(pairs, slot, &raw mut value);
+                (slot, key, value)
+            };
+            from = slot + 1;
+
+            let needle = std::str::from_utf8(key.as_bytes()).map_err(|_| {
+                Fault::fatal(
+                    "Core\\Str::replaceAll found a key that is not valid UTF-8".to_owned(),
+                )
+            })?;
+            let replacement = text(&value, "replaceAll", "a replacement")?;
+            if !needle.is_empty() {
+                table.push((needle.to_owned(), replacement.to_owned()));
+            }
+        }
+        if table.is_empty() {
+            return produced(subject);
+        }
+
+        let mut out = String::with_capacity(subject.len());
+        let mut at = 0usize;
+        while at < subject.len() {
+            let rest = &subject[at..];
+            let mut best: Option<(usize, &str)> = None;
+            for (needle, replacement) in &table {
+                let matched = if case_insensitive {
+                    match_at(rest, needle)
+                } else {
+                    rest.starts_with(needle.as_str()).then_some(needle.len())
+                };
+                let Some(matched) = matched else { continue };
+                if best.is_none_or(|(longest, _)| matched > longest) {
+                    best = Some((matched, replacement.as_str()));
+                }
+            }
+            if let Some((matched, replacement)) = best {
+                out.push_str(replacement);
+                at += matched;
+            } else {
+                // No pair starts here, so this character is kept as it stands
+                // and the next position is the next character's — never the
+                // next byte's, since a needle can only begin on a boundary.
+                let kept = rest.chars().next().expect("`rest` is non-empty");
+                out.push(kept);
+                at += kept.len_utf8();
+            }
+        }
+        produced(&out)
+    }
+}
+
+/// The byte range an `int $offset` and a `?int $length` name in `subject`,
+/// counted in [`crate::granularity::DEFAULT`] and read under ADR 0063 R8's
+/// sign rule — which is PHP's here as well:
+///
+/// * A **negative offset** counts from the end, and one before the start
+///   clamps to it.
+/// * A **negative length** stops that many characters short of the end.
+/// * A **null length** runs to the end of the subject. That is the type saying
+///   what a sentinel would otherwise have to, ADR 0063 R5 reaching a
+///   *parameter*; `mwl_stdlib::registry::Const::Null` is what a call site
+///   materializes for a `slice` that omits it.
+///
+/// The end never precedes the start: a window that closes before it opens is
+/// empty, which is `""` for [`mwl_core_str_slice`] and a pure insertion for
+/// [`mwl_core_str_replace_range`]. Both members read the rule from here rather
+/// than each stating it, because `substr` and `substr_replace` disagreeing
+/// about a negative length is exactly the PHP surprise this shared reading
+/// removes.
+fn window(
+    subject: &str,
+    offset: &Value,
+    length: &Value,
+    member: &str,
+) -> Result<(usize, usize), Fault> {
+    let offset = integer(offset, member, "the offset")?;
+    let unit = crate::granularity::DEFAULT;
+    let total = unit.length(subject);
+
+    let start = unit.byte_of_signed_index(subject, offset);
+    let end = match length.tag() {
+        Some(Tag::Null) => subject.len(),
+        _ => {
+            let length = integer(length, member, "the length")?;
+            if length < 0 {
+                // Counted from the *end*, not from the start: this is the one
+                // place R8's sign rule means "stop short of" rather than
+                // "begin at".
+                let from_end = i64::try_from(total).unwrap_or(i64::MAX) + length;
+                unit.byte_of_index(subject, usize::try_from(from_end).unwrap_or(0))
+            } else {
+                let from = unit.index_of_byte(subject, start);
+                let to = usize::try_from(length)
+                    .unwrap_or(usize::MAX)
+                    .saturating_add(from);
+                unit.byte_of_index(subject, to)
+            }
+        }
+    };
+    Ok((start, end.max(start)))
+}
+
+mwl_runtime::mwl_helper! {
     /// `Core\Str::slice(string $s, int $offset, ?int $length = null): string`
     /// — replacing PHP's `substr` and `mb_substr`.
     ///
-    /// **The first `Core` member whose default is `null`.** A `?int $length`
-    /// says "to the end of the subject" in the type rather than through a
-    /// sentinel, which is ADR 0063 R5 reaching a *parameter* for the first time;
-    /// `mwl_stdlib::registry::Const::Null` is what the call site materializes
-    /// for a call that omits it.
-    ///
-    /// Both arguments count in [`crate::granularity::DEFAULT`] and both follow
-    /// ADR 0063 R8's sign rule, which is PHP's here as well:
-    ///
-    /// * A **negative offset** counts from the end, and one before the start
-    ///   clamps to it.
-    /// * A **negative length** stops that many characters short of the end; a
-    ///   window that closes before it opens is the empty string.
+    /// **The first `Core` member whose default is `null`.** Both arguments are
+    /// read by [`window`], which owns what each sign means.
     ///
     /// An offset past the end is `""` rather than a throw — PHP 8's answer, and
     /// the one that composes with a loop.
     fn mwl_core_str_slice(_ctx, args: [3]) {
         let subject = text(&args[0], "slice", "the subject")?;
-        let offset = integer(&args[1], "slice", "the offset")?;
-        let unit = crate::granularity::DEFAULT;
-        let total = unit.length(subject);
-
-        let start = unit.byte_of_signed_index(subject, offset);
-        let end = match args[2].tag() {
-            Some(Tag::Null) => subject.len(),
-            _ => {
-                let length = integer(&args[2], "slice", "the length")?;
-                if length < 0 {
-                    // Counted from the *end*, not from the start: this is the
-                    // one place R8's sign rule means "stop short of" rather
-                    // than "begin at".
-                    let from_end = i64::try_from(total).unwrap_or(i64::MAX) + length;
-                    unit.byte_of_index(subject, usize::try_from(from_end).unwrap_or(0))
-                } else {
-                    let from = unit.index_of_byte(subject, start);
-                    let to = usize::try_from(length).unwrap_or(usize::MAX).saturating_add(from);
-                    unit.byte_of_index(subject, to)
-                }
-            }
-        };
+        let (start, end) = window(subject, &args[1], &args[2], "slice")?;
         produced(subject.get(start..end).unwrap_or(""))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::replaceRange(string $s, int $offset, ?int $length, string $replacement): string`
+    /// — replacing PHP's `substr_replace`, minus its by-reference and
+    /// array-of-subjects forms (ADR 0063 R3 makes every member pure, R20
+    /// leaves one spelling per operation).
+    ///
+    /// This is [`mwl_core_str_slice`]'s window with the slice *substituted*
+    /// rather than returned, and it reads its two positional arguments through
+    /// the same [`window`] — so `replaceRange($s, $o, $n, "")` removes exactly
+    /// what `slice($s, $o, $n)` returns, for every sign of every argument.
+    /// PHP's own pair does not quite manage that, since its two functions
+    /// clamp a backwards window differently.
+    ///
+    /// `$length` is **required**, unlike `slice`'s: writing `null` for "to the
+    /// end" is one character, and a default would put an optional parameter
+    /// before a mandatory one.
+    ///
+    /// An empty window is an insertion at that position, which is how a
+    /// `$length` of `0` — or a negative one that reaches back past the offset —
+    /// reads. PHP's answer too.
+    fn mwl_core_str_replace_range(_ctx, args: [4]) {
+        let subject = text(&args[0], "replaceRange", "the subject")?;
+        let replacement = text(&args[3], "replaceRange", "the replacement")?;
+        let (start, end) = window(subject, &args[1], &args[2], "replaceRange")?;
+
+        let mut out =
+            String::with_capacity(subject.len().saturating_sub(end - start) + replacement.len());
+        out.push_str(subject.get(..start).unwrap_or(subject));
+        out.push_str(replacement);
+        out.push_str(subject.get(end..).unwrap_or(""));
+        produced(&out)
     }
 }
 

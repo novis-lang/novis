@@ -1,0 +1,38 @@
+--TEST--
+`Core\Str::replaceAll` substitutes a whole table in one left-to-right pass, longest needle first, so the answer never depends on the order the pairs were written — spec § 1, ADR 0063 R20
+--FILE--
+<?mwl
+// One pass, and a replacement is never rescanned: `strtr`'s reading, which is
+// the half of PHP's two that does not depend on the pairs' order. The next
+// two lines are the same table written both ways round.
+echo Core\Str::replaceAll("ab", ["a" => "b", "b" => "a"]), "\n";
+echo Core\Str::replaceAll("hello", ["hell" => "HELL", "he" => "HE"]), "\n";
+echo Core\Str::replaceAll("hello", ["he" => "HE", "hell" => "HELL"]), "\n";
+echo Core\Str::replaceAll("aaa", ["aa" => "a"]), "\n";
+
+// Nothing that matches, and nothing that could.
+echo Core\Str::replaceAll("banana", ["z" => "-"]), "\n";
+array<string> $none = [];
+echo Core\Str::replaceAll("banana", $none), "\n";
+
+// An empty needle is skipped rather than inserted between every character —
+// the same answer `Core\Str::replace` gives an empty `$search`.
+echo Core\Str::replaceAll("abc", ["" => "x", "b" => "B"]), "\n";
+
+// The one option, and the tie only it can produce: the pair written first wins.
+echo Core\Str::replaceAll("Hello World", ["hello" => "hi"], {caseInsensitive: true}), "\n";
+echo Core\Str::replaceAll("Ab", ["AB" => "1", "ab" => "2"], {caseInsensitive: true}), "\n";
+
+// A needle advances by characters, never by bytes.
+echo Core\Str::replaceAll("naïve café", ["ï" => "i", "é" => "e"]), "\n";
+--EXPECT--
+ba
+HELLo
+HELLo
+aa
+banana
+banana
+aBc
+hi World
+1
+naive cafe

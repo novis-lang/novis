@@ -1,0 +1,36 @@
+--TEST--
+`Core\Str::replaceRange` substitutes exactly the window `Core\Str::slice` returns, for every sign of every argument — spec § 1, ADR 0063 R5/R8
+--FILE--
+<?mwl
+// A window, replaced. The offset and the length are read the same way
+// `Core\Str::slice` reads them, so the last line's two halves rebuild the
+// subject.
+echo Core\Str::replaceRange("Hello", 1, 2, "X"), "\n";
+echo Core\Str::replaceRange("Hello", -2, 1, "X"), "\n";
+
+// A negative length stops that many characters short of the end; a null one
+// runs to the end.
+echo Core\Str::replaceRange("Hello", 1, -1, "X"), "\n";
+echo Core\Str::replaceRange("Hello", 2, null, "X"), "\n";
+
+// An empty window inserts: a zero length, an offset past the end, and a
+// negative length that reaches back past the offset.
+echo Core\Str::replaceRange("Hello", 2, 0, "X"), "\n";
+echo Core\Str::replaceRange("Hello", 9, 3, "X"), "\n";
+echo Core\Str::replaceRange("Hello", 1, -9, "X"), "\n";
+
+// Both arguments count characters, not bytes.
+echo Core\Str::replaceRange("naïve", 2, 1, "i"), "\n";
+
+// An empty replacement removes exactly what `slice` returns.
+echo Core\Str::replaceRange("Hello", 1, 3, ""), ";", Core\Str::slice("Hello", 1, 3), "\n";
+--EXPECT--
+HXlo
+HelXo
+HXo
+HeX
+HeXllo
+HelloX
+HXello
+naive
+Ho;ell
