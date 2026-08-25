@@ -14,11 +14,11 @@
 > Stages 1-5 went unevaluated. With it written, `python tools/loop.py --goal-only` reaches Stage 3's
 > last fixture, `examples/collect.mwl`, which is now past its parser hole: `new
 > Core\ObjectSet<Tag>()` parses, because `ExprKind::New` carries a `type_args` list read by the same
-> checkpointed trial parse a call site's own `<...>` goes through. What the fixture reports instead
-> is the work behind it, in order: no target has a type parameter to bind yet (`E0441` at lines 13
-> and 19 — the `Core`-owned generic-class roster and § 9's three collections), then
-> `Core\Encoding`/`Core\Hash` at line 25. Stage 4's own counts (conformance 370 of 600, differential
-> 86 of 150) are the wall after that. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the
+> checkpointed trial parse a call site's own `<...>` goes through, and both lists now *bind*:
+> `registry::GENERIC_CLASSES` is the roster of `Core`-owned generic classes, so lines 13 and 19
+> resolve and the fixture's first report is `Core\Encoding`/`Core\Hash` at line 25 — spec § 7 is the
+> frontier, with § 9's three collections owning no members yet. Stage 4's own counts (conformance
+> 370 of 600, differential 86 of 150) are the wall after that. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the
 > one predicate an unterminated directional control is rejected by, `E0008` at the lexer and, at
 > M7/M8, a substitution at both sinks. **ADR 0090 §§ 1 and 2 are built**: `==`/`!=` are the only
 > equality spellings, `===`/`!==` are `E0232` at the lexer (consumed whole, reported, then lexed as
@@ -165,7 +165,8 @@
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
 > `Core\Path`, § 11's `Core\Uuid` and § 12's `Core\Uri` percent-encoding half are built; `Uri::parse`
 > and its instance still owe the RFC 3986 dependency, `Encoding`/`Hash`/`Csv` each need one picked
-> under ADR 0051 § 4, and `ObjectSet`/`ObjectMap` additionally need `new Core\X<T>()` to parse.
+> under ADR 0051 § 4, and `ObjectSet`/`ObjectMap` bind their written type arguments now but own no
+> members yet.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
