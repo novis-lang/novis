@@ -50,16 +50,11 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`Random::bytes` is not registered.** Spec § 11's third row returns
-//!    `bytes`, and `mwl_runtime::Tag` has no `Bytes` variant yet, so no member
-//!    can construct one. [`mwl_core_random_token`] is deliberately hex for
-//!    exactly this reason — it is the row that makes the class useful for
-//!    session identifiers without waiting on ADR 0009's runtime half.
-//! 2. **`Core\Random\Seeded` is not built.** It is a separate object with the
+//! 1. **`Core\Random\Seeded` is not built.** It is a separate object with the
 //!    same members, constructed from an explicit seed; making the distinction a
 //!    type is what stops a test helper being reached for in production, so it
 //!    is a class of its own here too rather than an option on these members.
-//! 3. **`ThreadRng` is not reseeded on `fork`.** Nothing in MWL forks today —
+//! 2. **`ThreadRng` is not reseeded on `fork`.** Nothing in MWL forks today —
 //!    [ADR 0093](../../../../docs/adr/0093-mwl-service.md)'s `mwl service` is
 //!    unbuilt — but a child process that inherits a parent's ChaCha state would
 //!    reproduce the parent's stream, so whatever lands there owes
@@ -76,8 +71,8 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreTy};
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// `Core\Random`'s registry rows, in the spec's own order — six of § 11's
-/// seven members, the absent one being this module's gap 1.
+/// `Core\Random`'s registry rows, in the spec's own order — all seven of
+/// § 11's first table.
 pub const CLASS: CoreClass = CoreClass {
     name: r"Core\Random",
     methods: &[
@@ -94,6 +89,13 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Float,
             symbol: "mwl_core_random_float",
+        },
+        CoreMethod {
+            name: "bytes",
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "mwl_core_random_bytes",
         },
         CoreMethod {
             name: "token",
@@ -142,6 +144,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "mwl_core_random_int" => (mwl_core_random_int as *const ()).cast(),
         "mwl_core_random_float" => (mwl_core_random_float as *const ()).cast(),
+        "mwl_core_random_bytes" => (mwl_core_random_bytes as *const ()).cast(),
         "mwl_core_random_token" => (mwl_core_random_token as *const ()).cast(),
         "mwl_core_random_pick" => (mwl_core_random_pick as *const ()).cast(),
         "mwl_core_random_sample" => (mwl_core_random_sample as *const ()).cast(),
@@ -286,14 +289,62 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
+    /// `Core\Random::bytes(uint $count): bytes` — replacing `random_bytes` and
+    /// `openssl_random_pseudo_bytes`, both of which this class's one generator
+    /// already answers with the stronger of their two guarantees.
+    ///
+    /// **A raw buffer, not hex.** This is the row a key, a nonce or an IV comes
+    /// from, where the consumer wants octets and any rendering is that
+    /// consumer's own step — [`mwl_core_random_token`] is the rendered
+    /// spelling, and the two exist side by side rather than one being the
+    /// other's `2 * n` special case. Nothing here can be asserted by value, so
+    /// a case pins `Core\Bytes::length` of the answer and that two draws
+    /// differ; ADR 0009 § 3 is why it renders through `Core\Encoding::toHex`
+    /// to compare them rather than reading the buffer as a `string`.
+    ///
+    /// **Zero bytes throws** (ADR 0063 R4), for `token`'s reason applied one
+    /// level down: an empty buffer used as a key or an IV is a key every other
+    /// empty draw matches, and PHP's own `random_bytes(0)` is a `ValueError`
+    /// rather than `""`.
+    ///
+    /// A count larger than this process can hold is an ordinary throw too, and
+    /// unlike `token` it is decided by `try_reserve` rather than by an
+    /// arithmetic bound: there is no doubling here to overflow, so the only
+    /// question left is whether the allocator has the buffer, and asking it is
+    /// both exact and the difference between a throw and an abort.
+    fn mwl_core_random_bytes(_ctx, args: [1]) {
+        let count = count(&args[0], "bytes", "the byte count")?;
+
+        if count == 0 {
+            return Err(Fault::thrown(
+                "Core\\Random::bytes(): a draw of zero bytes is the empty buffer, which is not a \
+                 secret — draw at least one byte",
+            ));
+        }
+
+        let mut drawn: Vec<u8> = Vec::new();
+        drawn.try_reserve_exact(count).map_err(|_| {
+            Fault::thrown(
+                "Core\\Random::bytes(): the requested draw is larger than any buffer this process \
+                 could hold",
+            )
+        })?;
+        drawn.resize(count, 0);
+        rand::rng().fill_bytes(&mut drawn);
+
+        Ok(Value::bytes(MwlStr::new(&drawn)))
+    }
+}
+
+mwl_runtime::mwl_helper! {
     /// `Core\Random::token(uint $bytes = 32): string` — replacing the
     /// `bin2hex(random_bytes(…))` idiom, which is what PHP code actually
     /// writes when it wants a session identifier or a reset link.
     ///
-    /// **Hex, and therefore a `string`.** The spec's `Random::bytes` row is
-    /// this module's gap 1, and this member is deliberately not blocked behind
-    /// it: a token is written into a URL, a cookie or a database column, so the
-    /// hex is what a program wanted in every case anyway. `$bytes` counts the
+    /// **Hex, and therefore a `string`.** [`mwl_core_random_bytes`] is the same
+    /// draw unrendered, and this row exists beside it because a token is
+    /// written into a URL, a cookie or a database column, so the hex is what a
+    /// program wanted in every case anyway. `$bytes` counts the
     /// *entropy* drawn, never the characters produced — the answer is twice as
     /// long as the count, and reading it as a length would silently halve the
     /// strength of every token in a program that guessed wrong.

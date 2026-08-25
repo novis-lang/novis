@@ -16,7 +16,6 @@
 
 # § 11 `Core\Random`, `Core\Hash`
 §11 Hash::stream
-§11 Random::bytes
 
 # § 12 `Core\Uri`, `Core\Out`
 §12 Out::capture

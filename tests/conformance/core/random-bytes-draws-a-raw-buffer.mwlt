@@ -1,0 +1,36 @@
+--TEST--
+Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — spec § 11, ADR 0009 §§ 1 and 3, ADR 0063 R4
+--FILE--
+<?mwl
+// A random answer cannot be asserted, so every line pins an invariant of the
+// draw rather than the draw itself.
+
+// Spec § 11: `bytes(uint $count): bytes` counts octets, and ADR 0009 § 1 makes
+// that buffer a primitive with its own length member rather than an array.
+var $key = Core\Random::bytes(16);
+echo Core\Bytes::length($key), "\n";
+echo Core\Bytes::length(Core\Random::bytes(1)), "\n";
+
+// ADR 0009 § 3: `bytes as string` is *checked*, and an arbitrary draw is not
+// valid UTF-8, so the only way to compare two buffers is to render them.
+// Two 32-byte draws colliding is a 2^-256 event, not a flake.
+var $a = Core\Encoding::toHex(Core\Random::bytes(32));
+var $b = Core\Encoding::toHex(Core\Random::bytes(32));
+echo ($a == $b) ? "same" : "differ", "\n";
+echo Core\Str::length($a), "\n";
+echo Core\Regex::matches($a, '^[0-9a-f]{64}$') ? "hex" : "not hex", "\n";
+
+// ADR 0063 R4: an empty buffer is a secret every other empty draw matches, so
+// there is no reading of `bytes(0)` worth being total for.
+try {
+    echo Core\Bytes::length(Core\Random::bytes(0)), "\n";
+} catch (Throwable $e) {
+    echo "threw: ", $e->message, "\n";
+}
+--EXPECT--
+16
+1
+differ
+64
+hex
+threw: Core\Random::bytes(): a draw of zero bytes is the empty buffer, which is not a secret — draw at least one byte
