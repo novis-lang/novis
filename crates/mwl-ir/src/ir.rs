@@ -1134,6 +1134,24 @@ pub enum Helper {
     /// resource have no row, and `mwl_runtime::value_to_string` owns what each
     /// throws and why.
     TaggedToString,
+    /// A [`crate::ty::Ty::Tagged`] operand to `int` — ADR 0007 § 2's `→ int`
+    /// rows chosen by the operand's **runtime** tag, which is the only thing
+    /// that names a row when the static type is a `mixed`, a `?T` or any other
+    /// union.
+    ///
+    /// The throwing twin of [`Self::ToIntOrNull`], over the same row set in
+    /// `mwl_runtime` and never a second copy of it: § 2's `as T` throws where
+    /// ADR 0066's `as ?T` answers `null`, so the pair differs only in what it
+    /// does with a miss. Fallible, so it is emitted through
+    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// edge — a tag with no row at all (an array, an object, a `bool`) throws
+    /// here, which is ADR 0007 § 6's answer for `mixed` and a compile error for
+    /// anything the checker can name.
+    TaggedToInt,
+    /// [`Self::TaggedToInt`]'s row set, unsigned.
+    TaggedToUint,
+    /// [`Self::TaggedToInt`]'s row set, landing on `float`.
+    TaggedToFloat,
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `mwl run`, decided in `docs/agent/loop-goal.md`. Defines no

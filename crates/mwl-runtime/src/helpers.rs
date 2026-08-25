@@ -178,9 +178,11 @@ fn does_not_fit(what: &str, target: &str) -> Fault {
 /// ADR 0007 § 2's checked conversion rows, one function each, answering `None`
 /// exactly where the row fails.
 ///
-/// Every row has two entry points and never a third: the throwing helper below
-/// it, which turns a `None` into [`does_not_fit`], and [`to_int`]/[`to_uint`]/
-/// [`to_float`], which turn the same `None` into `null` for
+/// Every row has two entry points and never a third: the statically chosen
+/// helper below it, which turns a `None` into [`does_not_fit`], and the
+/// tag-dispatching [`to_int`]/[`to_uint`]/[`to_float`], which every operand
+/// whose representation is `mwl_ir::ty::Ty::Tagged` reaches instead. Those
+/// three are read twice each — once throwing, once answering `null` for
 /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)'s
 /// `expr as ?T`. That ADR's "one implementation now exists because there is one
 /// operation" is what this split makes true rather than promised — the throwing
@@ -374,71 +376,106 @@ fn str_operand(value: &Value) -> Option<&str> {
     str::from_utf8(value.as_str_bytes()?).ok()
 }
 
-/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 1's
-/// `expr as ?int`: the value `as int` would produce, or `null` where it would
-/// throw.
+/// ADR 0007 § 2's `→ int` rows, chosen by the operand's **runtime** tag —
+/// `None` where the row fails *or* where no row exists at all.
 ///
-/// Dispatches on the operand's **tag**, which is why one function covers every
-/// source. That is not a shortcut: it is what makes § 2's "a `null` operand
-/// yields `null`" and § 3's "from `mixed` every target has a checked path" the
-/// same code as `"42" as ?int`, with no branch in lowering and no second
-/// implementation of any row (see [`row`]). A tag ADR 0007 § 2 defines no row
-/// from — an array, an object, a `bool` — is a conversion that does not exist,
-/// which § 3 makes a compile error for a statically-known operand and `null`
-/// for a `mixed` one; this is the `mixed` answer.
-fn to_int(value: Value) -> Value {
-    let converted = match value.tag() {
+/// Dispatching on the tag is why one function covers every source. That is not
+/// a shortcut: it is what makes ADR 0066 § 2's "a `null` operand yields `null`"
+/// and § 3's "from `mixed` every target has a checked path" the same code as
+/// `"42" as ?int`, with no branch in lowering and no second implementation of
+/// any row (see [`row`]). A tag ADR 0007 § 2 defines no row from — an array, an
+/// object, a `bool` — is a conversion that does not exist, which § 3 makes a
+/// compile error for a statically-known operand and a failure for a `mixed`
+/// one.
+///
+/// Two helpers read it and never a third, the arrangement [`to_decimal`] also
+/// uses: `mwl_tagged_to_int` turns a `None` into [`does_not_fit`] for
+/// `$mixed as int`, and `mwl_to_int_or_null` turns the same `None` into `null`
+/// for ADR 0066's `as ?int`. Neither can drift from the other, because there is
+/// one row set.
+fn to_int(value: Value) -> Option<i64> {
+    match value.tag() {
         Some(Tag::Int) => value.as_int(),
         Some(Tag::Uint) => value.as_uint().and_then(row::uint_to_int),
         Some(Tag::Float) => value.as_float().and_then(row::float_to_int),
         Some(Tag::Str) => str_operand(&value).and_then(row::str_to_int),
         _ => None,
-    };
-    converted.map_or_else(Value::null, Value::int)
+    }
 }
 
-/// [`to_int`]'s row set, unsigned — ADR 0066 § 1's `expr as ?uint`.
-fn to_uint(value: Value) -> Value {
-    let converted = match value.tag() {
+/// [`to_int`]'s row set, unsigned.
+fn to_uint(value: Value) -> Option<u64> {
+    match value.tag() {
         Some(Tag::Uint) => value.as_uint(),
         Some(Tag::Int) => value.as_int().and_then(row::int_to_uint),
         Some(Tag::Float) => value.as_float().and_then(row::float_to_uint),
         Some(Tag::Str) => str_operand(&value).and_then(row::str_to_uint),
         _ => None,
-    };
-    converted.map_or_else(Value::null, Value::uint)
+    }
 }
 
-/// [`to_int`]'s row set, landing on `float` — ADR 0066 § 1's `expr as ?float`.
-fn to_float(value: Value) -> Value {
-    let converted = match value.tag() {
+/// [`to_int`]'s row set, landing on `float`.
+fn to_float(value: Value) -> Option<f64> {
+    match value.tag() {
         Some(Tag::Float) => value.as_float(),
         Some(Tag::Int) => value.as_int().and_then(row::int_to_float),
         Some(Tag::Uint) => value.as_uint().and_then(row::uint_to_float),
         Some(Tag::Str) => str_operand(&value).and_then(row::str_to_float),
         _ => None,
-    };
-    converted.map_or_else(Value::null, Value::float)
+    }
 }
 
 crate::mwl_helper! {
-    /// `mwl_ir::Helper::ToIntOrNull` — see [`to_int`].
+    /// `mwl_ir::Helper::TaggedToInt` — ADR 0007 § 2's checked `as int` over an
+    /// operand whose representation is `mwl_ir::ty::Ty::Tagged`, so [`to_int`]'s
+    /// `None` is the throw rather than a `null`.
+    fn mwl_tagged_to_int(_ctx, args: [1]) {
+        to_int(args[0])
+            .map(Value::int)
+            .ok_or_else(|| does_not_fit("this value", "int"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::TaggedToUint` — [`mwl_tagged_to_int`]'s row set,
+    /// unsigned; see [`to_uint`].
+    fn mwl_tagged_to_uint(_ctx, args: [1]) {
+        to_uint(args[0])
+            .map(Value::uint)
+            .ok_or_else(|| does_not_fit("this value", "uint"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::TaggedToFloat` — [`mwl_tagged_to_int`]'s row set,
+    /// landing on `float`; see [`to_float`].
+    fn mwl_tagged_to_float(_ctx, args: [1]) {
+        to_float(args[0])
+            .map(Value::float)
+            .ok_or_else(|| does_not_fit("this value", "float"))
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::ToIntOrNull` — ADR 0066 § 1's non-throwing form of
+    /// [`mwl_tagged_to_int`], sharing [`to_int`]'s one implementation of every
+    /// row.
     fn mwl_to_int_or_null(_ctx, args: [1]) {
-        Ok(to_int(args[0]))
+        Ok(to_int(args[0]).map_or_else(Value::null, Value::int))
     }
 }
 
 crate::mwl_helper! {
     /// `mwl_ir::Helper::ToUintOrNull` — see [`to_uint`].
     fn mwl_to_uint_or_null(_ctx, args: [1]) {
-        Ok(to_uint(args[0]))
+        Ok(to_uint(args[0]).map_or_else(Value::null, Value::uint))
     }
 }
 
 crate::mwl_helper! {
     /// `mwl_ir::Helper::ToFloatOrNull` — see [`to_float`].
     fn mwl_to_float_or_null(_ctx, args: [1]) {
-        Ok(to_float(args[0]))
+        Ok(to_float(args[0]).map_or_else(Value::null, Value::float))
     }
 }
 
@@ -899,6 +936,9 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_str_to_int", address(mwl_str_to_int)),
         ("mwl_str_to_uint", address(mwl_str_to_uint)),
         ("mwl_str_to_float", address(mwl_str_to_float)),
+        ("mwl_tagged_to_int", address(mwl_tagged_to_int)),
+        ("mwl_tagged_to_uint", address(mwl_tagged_to_uint)),
+        ("mwl_tagged_to_float", address(mwl_tagged_to_float)),
         ("mwl_to_int_or_null", address(mwl_to_int_or_null)),
         ("mwl_to_uint_or_null", address(mwl_to_uint_or_null)),
         ("mwl_to_float_or_null", address(mwl_to_float_or_null)),
