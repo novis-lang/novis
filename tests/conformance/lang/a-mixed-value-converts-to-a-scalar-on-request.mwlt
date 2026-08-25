@@ -1,0 +1,87 @@
+--TEST--
+A `mixed` converts to a scalar only on request, and each row throws where it fails — ADR 0007 §§ 2 and 6, with ADR 0066 § 1's `as ?int` twin beside it
+--FILE--
+<?mwl
+// ADR 0007 § 6: `mixed` is the one unchecked position, so nothing here is known
+// statically. The row ADR 0007 § 2's table defines is picked by the value's own
+// runtime tag — `"42"` takes the `string -> int` row, `2.5` the `float -> int`
+// one — and a tag the table defines no row from is a conversion that failed.
+class Convert {
+    public static function toInt(mixed $m): string {
+        try {
+            return ($m as int) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    public static function toUint(mixed $m): string {
+        try {
+            return ($m as uint) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    public static function toFloat(mixed $m): string {
+        try {
+            return ($m as float) as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    // ADR 0066 § 1: the same row set read a second time, answering `null`
+    // exactly where the three above throw. `as ?int ?? -1` is the pair, and it
+    // reads as one operation — "give me an int, or -1".
+    public static function orDefault(mixed $m): string {
+        return (($m as ?int) ?? -1) as string;
+    }
+}
+
+mixed $str = "42";
+mixed $flt = 2.5;
+mixed $num = 7;
+mixed $neg = -1;
+mixed $abc = "abc";
+mixed $yes = true;
+
+// The whole-string rule and the exact-integer rule, from an untyped operand.
+echo Convert::toInt($str), "\n";
+echo Convert::toUint($str), "\n";
+echo Convert::toFloat($str), "\n";
+
+echo Convert::toInt($num), "\n";
+echo Convert::toUint($num), "\n";
+echo Convert::toFloat($num), "\n";
+
+echo Convert::toFloat($flt), "\n";
+
+// Three failures, one per target: a fractional float is not an int, a negative
+// is not a uint, and `bool` is a tag ADR 0007 § 2 writes no numeric row from.
+echo Convert::toInt($flt), "\n";
+echo Convert::toUint($neg), "\n";
+echo Convert::toFloat($yes), "\n";
+echo Convert::toInt($abc), "\n";
+
+// ADR 0066: `null` where the row above threw, and the value where it did not.
+echo Convert::orDefault($str), "\n";
+echo Convert::orDefault($flt), "\n";
+echo Convert::orDefault($abc), "\n";
+echo Convert::orDefault($yes), "\n";
+--EXPECT--
+42
+42
+42
+7
+7
+7
+2.5
+threw: cannot convert this value to `int`
+threw: cannot convert this value to `uint`
+threw: cannot convert this value to `float`
+threw: cannot convert this value to `int`
+42
+-1
+-1
+-1
