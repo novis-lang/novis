@@ -1,4 +1,5 @@
-//! A test-only global allocator that counts live bytes on the calling thread.
+//! A test-only global allocator that counts live — and, separately, total —
+//! bytes on the calling thread.
 //!
 //! It exists for one guard: `object::tests::an_acyclic_object_graph_releases_
 //! every_allocation`, the leak check `docs/agent/loop-goal.md` Stage 5 names. A
@@ -26,6 +27,7 @@ use std::cell::Cell;
 
 thread_local! {
     static LIVE: Cell<isize> = const { Cell::new(0) };
+    static TOTAL: Cell<usize> = const { Cell::new(0) };
 }
 
 /// How many bytes this thread has allocated and not yet freed.
@@ -33,8 +35,23 @@ pub(crate) fn live_bytes() -> isize {
     LIVE.with(Cell::get)
 }
 
+/// How many bytes this thread has ever allocated, never decreasing.
+///
+/// [`live_bytes`] cannot see an allocation that is freed again before the
+/// call under test returns, and a *transient* allocation is exactly what
+/// `array::tests::an_integer_subscript_allocates_no_key` exists to catch: the
+/// key-taking primitives build an `MwlStr` and drop it inside one call, so
+/// their live delta is zero and their total delta is not.
+pub(crate) fn allocated_bytes() -> usize {
+    TOTAL.with(Cell::get)
+}
+
 fn add(bytes: isize) {
     LIVE.with(|live| live.set(live.get().wrapping_add(bytes)));
+    if bytes > 0 {
+        let grew = usize::try_from(bytes).unwrap_or(0);
+        TOTAL.with(|total| total.set(total.get().wrapping_add(grew)));
+    }
 }
 
 /// [`System`], plus the per-thread byte count above.
@@ -116,5 +133,12 @@ mod tests {
         assert!(live_bytes() >= before + 4096);
         drop(held);
         assert_eq!(live_bytes(), before);
+    }
+
+    #[test]
+    fn the_total_counts_a_block_that_was_already_freed() {
+        let before = allocated_bytes();
+        drop(vec![0_u8; 4096]);
+        assert!(allocated_bytes() >= before + 4096);
     }
 }

@@ -247,8 +247,9 @@ pub use abi::{
 };
 pub use array::{
     ARRAY_REFCOUNT_OFFSET, ArrayHeader, MwlArray, mwl_array_append, mwl_array_count, mwl_array_get,
-    mwl_array_has_key, mwl_array_key_at, mwl_array_new, mwl_array_next_slot, mwl_array_release,
-    mwl_array_retain, mwl_array_set, mwl_array_unset, mwl_array_value_at,
+    mwl_array_get_index, mwl_array_has_key, mwl_array_key_at, mwl_array_new, mwl_array_next_slot,
+    mwl_array_release, mwl_array_retain, mwl_array_set, mwl_array_set_index, mwl_array_unset,
+    mwl_array_value_at,
 };
 pub use closure::{CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, call_closure};
 pub use ctx::{

@@ -1196,8 +1196,16 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::array::mwl_array_has_key as *const ()).cast::<u8>(),
         ),
         (
+            "mwl_array_get_index",
+            (crate::array::mwl_array_get_index as *const ()).cast::<u8>(),
+        ),
+        (
             "mwl_array_set",
             (crate::array::mwl_array_set as *const ()).cast::<u8>(),
+        ),
+        (
+            "mwl_array_set_index",
+            (crate::array::mwl_array_set_index as *const ()).cast::<u8>(),
         ),
         (
             "mwl_array_append",
