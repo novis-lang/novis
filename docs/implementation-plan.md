@@ -128,27 +128,32 @@
 > `Mode::Read`; § 2's fold reads a declared constant's value from the new
 > `mwl_types::consts::ConstTable` and a `Core` one from the registry; § 5's "zero additional runtime
 > representation" is three erasure arms in `mwl_ir::lower::lower_checked_ty`, and `E0457` is
-> retired. What is left, in order: **ADR 0047 § 4**'s assignability and conversion table, which
-> nothing applies yet, so a literal-typed binding still fails to check the way a `true`-typed one
-> always has; **`private`/`protected`**, which nothing enforces; **`Comparable`/`Stringable`**,
-> which carry no member signatures, so `$s->toString()` is `E0405` and `instanceof Stringable`
-> panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its name-to-file fixpoint. **ADR 0069's
-> refusal is built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` —
-> leaving that ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
-> `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008` per line over comments, string
-> literals and inline HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink
-> halves are M7's and M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows
-> carry no qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR
-> makes it, and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
-> the test that refuses an unclassified member exists; it lands with M4S's remaining sections.
-> **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are
-> written, § 5 is six of its eight members, and § 1 is missing its eleven text-shaping rows,
-> `Arr::diff`/`intersect` and ADR 0069's combination members. Every signature shape the spec writes
-> can now be stated: a variadic tail is `registry::CoreTy::Variadic`, a `Core`-owned instance is
-> `CoreClass`'s `instance` roster over `mwl_stdlib::instance`, a class constant may be an instance
-> through `registry::Const::Built`, and a member may be handed the class its call site wrote through
-> `registry::WRITTEN_CLASS_MEMBERS`. § 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that
-> module's gap 1). **ADR 0071 is built end to end for a scalar-fielded class**; its gaps are no
+> retired. **§ 4's assignability half is built too** — `mwl_types::expr::is_assignable` widens a
+> literal type, an enum-case type and either of them over a union to its base by one recursion
+> through `TypeInterner::literal_base`, and a literal expression takes the singleton type from the
+> position it lands in (`expr::literals::placed_literal`, reached for an enum case from
+> `expr::members`), so `"a"|"b" $mode = "a";` checks, `Mode::Read|Mode::Write $m = Mode::Read;`
+> checks, and neither `string → "a"` nor a bare `int → Mode::Read` does. What is left of that ADR is
+> § 4's checked `as` and § 6's two diagnostics. Then, in order: **`private`/`protected`**, which
+> nothing enforces; **`Comparable`/`Stringable`**, which carry no member signatures, so
+> `$s->toString()` is `E0405` and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s
+> `autoload` grammar and its name-to-file fixpoint. **ADR 0069's refusal is built** — `+`/`+=` with
+> an array operand is `E0467` naming `Core\Arr::underlay` — leaving that ADR's combination *members*
+> to § 1's `Core` breadth below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate,
+> the lexer reports `E0008` per line over comments, string literals and inline HTML, and seven
+> `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink halves are M7's and M8's. **ADR 0088
+> opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier classification, so
+> `Core\Str::format`'s template is not yet the sink that ADR makes it, and neither the fail-closed
+> default for an unclassified `string`/`bytes` parameter nor the test that refuses an unclassified
+> member exists; it lands with M4S's remaining sections. **Then `Core` breadth, where Stage 3
+> stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are written, § 5 is six of its eight
+> members, and § 1 is missing its eleven text-shaping rows, `Arr::diff`/`intersect` and ADR 0069's
+> combination members. Every signature shape the spec writes can now be stated: a variadic tail is
+> `registry::CoreTy::Variadic`, a `Core`-owned instance is `CoreClass`'s `instance` roster over
+> `mwl_stdlib::instance`, a class constant may be an instance through `registry::Const::Built`, and
+> a member may be handed the class its call site wrote through `registry::WRITTEN_CLASS_MEMBERS`. §
+> 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that module's gap 1). **ADR 0071 is built
+> end to end for a scalar-fielded class**; its gaps are no
 > enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
 > default. **Next on the path is `examples/collect.mwl`**, which needs §§ 7-9 and 11-12 at once:
 > `Core\Path` is the cheapest slice, then `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap`,

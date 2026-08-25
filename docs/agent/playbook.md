@@ -61,6 +61,9 @@ is why" — is this file.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
   `python tools/check-links.py` — broken *and* mis-cased relative links.
 - **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file.
+- **A plan status field is *one line* on disk, however `orient.py` wrapped it.** `plan.py --get` hands back
+  that single line; an anchor copied out of the orientation's re-wrapped rendering will never match, and
+  `--set` then silently rewrites the field unchanged. Edit what `--get` produced, in place.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
   test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe` takes over two minutes.
 
