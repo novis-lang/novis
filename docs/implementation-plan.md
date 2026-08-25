@@ -136,7 +136,7 @@
 > code table that `crates/mwl-stdlib/src/bytes.rs`'s own module doc states; § 9 owes `Core\Heap` and the `Iterable` its three rows
 > each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
 > `{previous: $e}` options shape and
-> `$e->location`; § 11 owes `Random::bytes` and `Hash::stream`, its one-shot half being built; § 12 owes
+> `$e->location`; § 11 is **whole**, `Random::bytes` and `Hash::stream` having landed; § 12 owes
 > `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
 > `Union` and `Decimal`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
@@ -144,14 +144,14 @@
 > `Bytes` row of its own over the existing `MwlStr` allocation, so a fresh `bytes` value now
 > constructs, refcounts, releases and round-trips through codegen; `mwl-runtime`'s module doc
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
-> `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
-> rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 414 of the 600 that gate requires, differential is
+> `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
+> two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
+> side effect of member slices** — conformance is 416 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **4 remaining keys are the machine-readable work list for
+> own module doc states, and that file's **2 remaining keys are the machine-readable work list for
 > §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test

@@ -155,6 +155,12 @@ is why" — is this file.
   failure you see after landing a member is not a regression; it is the list telling you it did not
   shrink. Its keys are `§<section> <the spec's own Member-cell spelling>`, which is why `§1 chunk` and
   `§2 chunk` are two different lines.
+- **A `Core` instance's slots hold only values MWL already holds, so a member wanting native mutable
+  state has to accumulate instead** — there is no destructor to free a `sha2::Sha256` context with, and
+  `digest 0.10` cannot serialize one into a slot. The COW-correct read/write of a slot that holds an
+  array is `identity_store::borrow`/`edit`/`replace`, which are generic over `(receiver, index, class,
+  member)` despite that module being named for § 9's store; `instance::set_slot` is the raw write and
+  `instance::slot` the borrowed read. `Core\Hash\Stream` is the worked example.
 - **A new domain module is `mod`, not `pub mod`, so its `CLASS`/`NAME` are `pub(crate)`.** The
   workspace warns `unreachable_pub`, and half of `mwl-stdlib`'s modules are `pub mod` while the newer
   half is not — copying `uuid.rs`'s `pub const NAME` into a privately-declared module is a warning at
