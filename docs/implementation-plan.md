@@ -61,9 +61,10 @@
 > `granularity`, `ordering`, `cldr`, `instance`, `issue`, `Order`, `RoundMode`, `Unit` and
 > `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
-> `jiff`, `Json` × 4 over `serde_json`, and the conformance-coverage gate), `mwl-codegen`, `mwl-cli`
+> `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, and the
+> conformance-coverage gate), `mwl-codegen`, `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 361 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 363 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -254,9 +255,16 @@
 > `registry::WRITTEN_CLASS_MEMBERS`. § 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that
 > module's gap 1). **ADR 0071 is built end to end for a scalar-fielded class**; its gaps are no
 > enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
-> default. **Next on the path is `examples/collect.mwl`**, which needs §§ 7-9 and 11-12 at once:
-> `Core\Path` is the cheapest slice, then `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap`,
-> which additionally need `new Core\X<T>()` to parse. One PHP divergence stands unfixed — an
+> default. **Next on the path is `examples/collect.mwl`**, which needs §§ 7-9 and 11-12 at once, and
+> **spec § 8 is now whole**: `mwl_stdlib::path` registers all nine `Core\Path` members plus the
+> `Path::SEPARATOR` constant — the first `Core` constant that is a `string` — over no dependency at
+> all, since a path is `&str` arithmetic. That module's own docs own the three decisions it settled:
+> one parse grammar on **every** platform with only the emitted separator following the host (which
+> is what makes a case pinnable on both legs), `join` that only ever appends rather than letting an
+> absolute segment replace the base, and three divergences from `pathinfo`/`dirname` that keep
+> `withExtension` the exact inverse of `extension`. Left on that fixture: `Encoding`/`Hash`/`Uuid`,
+> each needing a dependency picked under ADR 0051 § 4, then `ObjectSet`/`ObjectMap`, which
+> additionally need `new Core\X<T>()` to parse. One PHP divergence stands unfixed — an
 > abandoned generator never runs the `finally` it is suspended inside, `mwl-ir`'s gap 18. In docs,
 > `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain remaining, reported by
 > `python tools/check-migration.py`. **Three more ADRs are decided and unbuilt but are not
@@ -277,9 +285,9 @@
 > unfinished work. The loop is on **Stage 3**, `Core` Part I across all twelve spec sections: six of
 > its seven fixtures produce their frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`,
 > `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
-> fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one:
-> `Core\Path` needs no new dependency, `Encoding`/`Hash`/`Uuid`/`Csv` each need one picked under ADR
-> 0051 § 4, and `ObjectSet`/`ObjectMap` additionally need `new Core\X<T>()` to parse.
+> fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
+> `Core\Path` is built, `Encoding`/`Hash`/`Uuid`/`Csv` each need a dependency picked under ADR 0051
+> § 4, and `ObjectSet`/`ObjectMap` additionally need `new Core\X<T>()` to parse.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

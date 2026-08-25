@@ -2,55 +2,65 @@
 
 ## State
 
-**ADR 0007 § 2's `mixed` conversion rows are built *and* pinned**, so `mwl-ir` gap 20 is down to its two
-non-scalar rows (`string` ↔ `bytes`, `array<T> as array<U>`) and Stage 0 is empty. The two new cases are
-`tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.mwlt` and
-`a-mixed-value-converts-into-an-enum-case.mwlt`; between them they pin both halves of the ordering rule the
-plan's *Open now* records — a `Ty::Tagged` operand into a **literal** set is tested on its own runtime tag
-first, an **enum** target converts to the backing scalar first (`lower/expr.rs:3052` owns why).
+**Spec § 8 is whole**: `crates/mwl-stdlib/src/path.rs` registers all nine `Core\Path` members plus
+`Path::SEPARATOR` — the first `Core` constant that is a `string` — over no dependency at all. That
+module's own docs own the three decisions it settled and the two path shapes it does not model (UNC,
+drive-relative); the plan's *Open now* names them in one sentence rather than restating them.
 
-`python tools/verify.py` green, 1393 tests; `mwl test tests/conformance/` is 361 cases, all passing. The
-`.agent-tmp/tagged-*.mwl` scratch programs are deleted — the two cases are those programs.
+`python tools/verify.py` green, 1407 tests; `mwl test tests/conformance/` is 363 cases, all passing.
+The two new cases are `tests/conformance/core/path-decomposes-a-path-without-touching-the-disk.mwlt`
+and `path-join-normalize-and-relative-to.mwlt`.
 
-**The next group is the first Stage 3 work in a while**: `examples/collect.mwl` needs spec §§ 7, 8, 9, 11
-and 12 at once, and `Core\Path` (§ 8) is the cheapest slice because every member is pure string algebra
-that touches no disk and needs no new dependency.
+**`bytes` has no runtime representation, and that blocks spec § 7 outright.** `mwl_ir::Ty::Bytes`
+exists and `mwl_types::Ty::Bytes` interns, but `mwl_runtime::Tag` has no `Bytes` variant and
+`mwl_ir::ty`'s own doc says nothing constructs a *fresh* `bytes` value yet. So `Core\Encoding`,
+`Core\Bytes`, `Random::bytes` and `Hash::of` cannot be built before a runtime tag exists — the
+first `Core` member returning `bytes` is what that decision has to be made for. The next group
+routes around it.
 
-## Next group — `Core\Path`, spec § 8
+## Next group — `Core\Random`, spec § 11's first table
 
-**Shared file set:** `crates/mwl-stdlib/src/path.rs` (new), `crates/mwl-stdlib/src/lib.rs`,
-`crates/mwl-stdlib/src/registry.rs`, `tests/conformance/core/`. The spec table is
-`docs/spec/01-core-library.md:624-649` — nine members plus the `Path::SEPARATOR` constant, and the rule
-that every member accepts `/` and `\` alike on every platform and *emits* `Path::SEPARATOR`.
+**Shared file set:** `crates/mwl-stdlib/src/random.rs` (new), `crates/mwl-stdlib/src/lib.rs`
+(`pub mod path;` at `lib.rs:194`, the `.or_else` at `lib.rs:240`), `crates/mwl-stdlib/src/registry.rs`
+(`CLASSES` at `registry.rs:597`), `crates/mwl-stdlib/Cargo.toml` + the root `[workspace.dependencies]`,
+and `tests/conformance/core/`. The spec table is `docs/spec/01-core-library.md:705-720`. Copy the
+module shape from `path.rs` — `pub const CLASS` with one `CoreMethod` row per member, then
+`pub(crate) fn address(symbol: &str)`.
 
-- [ ] **`crates/mwl-stdlib/src/path.rs` with the six separator-free members** — `basename`, `dirname`,
-      `extension`, `withExtension`, `split`, `isAbsolute`. Copy the module shape from
-      `crates/mwl-stdlib/src/json.rs`: a `pub const CLASS: CoreClass` at `json.rs:127` with one `Method`
-      row per member naming its `symbol`, then `pub(crate) fn address(symbol: &str)` at `json.rs:193`
-      returning this module's addresses and `None` otherwise. Register it in the same slice or the
-      `symbols()` panic fires: `crate::path::CLASS` into `registry.rs:590`'s `CLASSES`, `pub mod path;`
-      beside `lib.rs:191`'s siblings, and one `.or_else(|| path::address(method.symbol))` at `lib.rs:235`.
-      `Path::SEPARATOR` is a `CoreConst` on the class roster (`registry.rs:491` says why it is not a
-      `CoreTy` variant).
-- [ ] **`join`, `normalize` and `relativeTo`** — the three that need real path algebra. `join`'s tail is
-      `registry::CoreTy::Variadic` (one `array<string>` argument at the callee). `normalize` resolves
-      `.`/`..` **lexically**, never touching the disk, and the spec says out loud it is not a launderer.
-      `relativeTo` returns `?string`.
-- [ ] **Conformance cases under `tests/conformance/core/`** — one per group above. **Never assert a built
-      path literally**: `Core\Path` emits a platform separator, so normalize with
-      `Core\Str::replace($p, Core\Path::SEPARATOR, "/")` or assert something separator-free, or the case
-      passes the Windows leg and fails the WSL one (loop-goal § *Standing decisions*).
-
-`orient.py`'s manifest printed everything this session needed. If the next session works `path.rs`, the
-`[context] modules` list has no `mwl-stdlib` entry — add `mwl-stdlib/src/*` there, and add spec § 8 to
-whatever field carries the spec slices, or it will pay for `docs/spec/01-core-library.md` by hand.
+- [ ] **`Random::int`, `Random::float` and `Random::token`, with the CSPRNG dependency picked.**
+      Spec § 11's opening line makes this a CSPRNG *always* — there is no insecure tier to add later —
+      so the pick is against `docs/adr/0051-standard-library-tiers.md` § 4's two questions and owes
+      three things (AGENTS.md): the `[workspace.dependencies]` line saying why that crate,
+      `cargo deny check`, and `python tools/gen-attribution.py`. `int($min, $max)` is inclusive at
+      both ends and throws when `$min > $max` (R4); `float()` is uniform in `[0, 1)`; `token` defaults
+      to 32 bytes via `CoreMethod::defaults`, and is hex, so it needs no `bytes` value to exist.
+- [ ] **`Random::pick`, `sample` and `shuffle`** — the three over `array<T>`, which is
+      `CoreTy::Var("T")` in the parameter and in the return (`registry.rs`'s `CoreTy::Var` docs own
+      how it binds). `pick` answers `?T` over an empty array rather than throwing, per R5. Read a
+      borrowed argument array through `crate::arr::borrowed` (`arr.rs:727`) — never
+      `MwlArray::from_raw` directly, which would release the caller's reference on drop.
+- [ ] **Conformance cases under `tests/conformance/core/`** — one per group above. **A random answer
+      cannot be asserted**, so pin the invariants: `Random::int(5, 5)` is `5`, a drawn value compared
+      against its bounds, `Core\Arr::count(Core\Random::shuffle($a))` unchanged, `sample`'s count, and
+      `pick` over a one-element array. Both cases are needed *in the same slice as the rows*, not
+      after — `playbook.md` § *Writing a test case*'s first bullet says why.
 
 ## Backlog
 
-- `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap` (which need `new Core\X<T>()` to parse) — the
-  rest of `examples/collect.mwl`, `docs/agent/loop-goal.md` § *Stage 3*.
-- ADR 0009 § 3's `string` ↔ `bytes` conversion rows — `mwl-ir` gap 20's remainder.
-- `array<T> as array<U>`'s O(n) element walk — ADR 0007 § 2 row 6, `mwl-ir` gap 20.
-- ADR 0007 § 4's promotion table: `$n + $f` and `$n < $f` still fail in codegen — `mwl-ir` gap 19.
-- The opaque `object` top has no representation arm — `mwl-ir` gap 21.
-- `mwl_types` does not yet refuse ADR 0066 § 3's "cannot fail" `as ?T`, so `convert_or_null` panics on it.
+- `bytes` needs a `mwl_runtime::Tag` and a fresh producer before spec § 7 or `Hash::of` — that
+  module's own doc (`mwl-ir/src/ty.rs:140`) states the gap; the decision is `mwl-runtime`'s to record.
+- `Core\Uuid` (§ 11's second table) is a `Core`-owned instance type, so it needs `CoreTy::Instance`
+  and a `slots` roster — `registry.rs`'s `CoreTy::Instance` docs own the shape.
+- §§ 9 and 12 are the rest of `examples/collect.mwl`: `ObjectSet`/`ObjectMap` additionally need
+  `new Core\X<T>()` to parse (`docs/implementation-plan.md` *Blocking*).
+- `Core\Str`'s twelve remaining § 1 rows and `Arr::diff`/`intersect` — `mwl-stdlib`'s own gap 1.
+- ADR 0088 owes the registry a qualifier classification per member — plan *Open now*.
+- An abandoned generator never runs the `finally` it is suspended inside — `mwl-ir` gap 18.
+
+## Gaps in this goal's `[context]` manifest
+
+`orient.py`'s **modules** map printed no `mwl-stdlib` and no `mwl-runtime` line, which is the crate
+every Stage 3 slice is written in; `loop-goal.toml`'s `[context] modules` needs those two patterns.
+Its **shapes** selection printed the `.mwlt` case, the diagnostic and the commit message, but not the
+`Core` member shape, which is what a `Core` slice actually writes. Both cost a session a handful of
+reads it should not have paid for.

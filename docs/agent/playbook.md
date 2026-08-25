@@ -131,6 +131,11 @@ is why" — is this file.
 
 ## Writing a test case
 
+- **Registering a `Core` member and writing its conformance case are one slice, not two.**
+  `mwl-stdlib`'s `tests/conformance_coverage.rs` fails the moment a registry row has no `.mwlt` case
+  calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
+  in between — and `verify.py` reports it as a `-p mwl-stdlib` test failure with nothing about the
+  member in the message. A class constant counts too: `Core\Path::SEPARATOR` needs a case that writes it.
 - **A multi-file `.mwlt` case works now — but only the entry file's statements run.**
   `--FILE <relative/path>--` repeats and writes another file into the case's working directory
   (`crates/mwl-test`'s module doc), and `mwl-cli`'s `front_end` resolves, checks and lowers the whole
