@@ -171,8 +171,9 @@ spellings rejected, and the reasoning.
 
 ## Runtime, tooling and the standard library
 
-- **A stdlib candidate is placed by six ordered tests, and only Tier 0 may claim the `Core` prefix**
-  ([0051](0051-standard-library-tiers.md)).
+- **A stdlib candidate is placed by six ordered tests, and only Tier 0 may claim the `Core` prefix** — and
+  no client holding state across calls may be Tier 1, which closes the door on every broker, directory and
+  session-bearing protocol as an extension ([0051](0051-standard-library-tiers.md)).
 - **Every `Core` member has the same shape: subject first, one trailing options shape, nothing mutates,
   failure throws, absence is `?T`** ([0063](0063-core-api-conventions.md)).
 - **Arrays combine by the member's name, never by a key's type** — `overlay`/`underlay`/`appendAll`, no

@@ -62,7 +62,12 @@
 
 1. **Does it need runtime privilege?** Direct heap access, the request lifecycle, the compiler's own
    tables, or state that outlives a request (a connection pool). If yes it cannot be Tier 1 — a sandbox
-   boundary is exactly what it needs to cross.
+   boundary is exactly what it needs to cross. **This test disqualifies every stateful client**, not only
+   the obvious database ones: a broker consumer, a bound directory session, a cache connection, an FTP or
+   SSH session and a SOAP client with a cached WSDL all hold state across calls, and a guest re-instantiated
+   per request loses it every time. Reaching for a host-owned pool with a handle passed to the guest is
+   writing the client natively with extra steps, so the placement is Native or nothing. § 3's Ext list was
+   wrong on six entries for exactly this reason before it was corrected.
 2. **Is it an injection sink or a launderer?** SQL text, HTML output, headers, filesystem paths, argv, logs
    ([ADR 0024](0024-taint-tracking-for-injection-sinks.md),
    [0033](0033-secret-qualifier-for-confidential-values.md)). A launderer is **always** Core: ADR 0024 § 3
@@ -140,15 +145,34 @@ ECB, no unauthenticated CBC and no cipher-name-as-string; TLS via `rustls`. `Cor
 defaults **on**, while its `net.connect` capability stays deny-by-default: distribution and authority are
 separate decisions, and only the second is security-relevant.
 
-**Ext.** Internationalization — a first-party component carrying its CLDR data in its own wasm data
-section, under its own namespace (§ 5), with a **batch-shaped API**: collation exposes sort-key generation
-and whole-array sort, because sorting 10,000 strings through a per-comparison boundary would be roughly
-130,000 crossings. Locale-independent Unicode algorithms — case mapping, NFC/NFD normalization, grapheme
-segmentation — stay in `Core\Str`. Also Ext: `gd`, `imagick` and `exif` (test 5, the headline case); `bz2`,
-`xsl`, `tidy`, `enchant`, `soap`, `ftp`, `ldap`, `snmp`, `dba`; the alternative serialization formats
-(`yaml`, `msgpack`, `cbor`, `igbinary`, `protobuf`); and the remaining brokers and clients (`amqp`,
-`kafka`, `mongodb`, `memcached`, `ssh2`). Vendor-C database drivers (`oci8`, `odbc`, `pdo_dblib`,
-`pdo_firebird`) are Tier 2 built from source by the operator who needs them, never in a default binary.
+**Native but unscheduled**, placed here so the tier is decided even though no milestone owns it: `ldap`, by
+test 1 — a bound directory session is state across calls — and, if it ever lands, by test 2 as well, since
+LDAP filter injection is a sink and ADR 0024 § 3 puts its escaper in `Core`. A directory client is the one
+low-usage entry with a genuine argument, because Active Directory authentication is near-universal in the
+one segment that has it at all. `mongodb` is recorded the same way and for the same reason — Native if
+ever, never Ext — with no commitment beyond that: its query surface resembles `Core\Db`'s in nothing, so it
+would be a second database API rather than a sixth driver.
+
+**Ext — two first-party components, both scheduled, and a deferred list.** Internationalization
+(`intl`) — a component carrying its CLDR data in its own wasm data section, under its own namespace
+(§ 5), with a **batch-shaped API**: collation exposes sort-key generation and whole-array sort, because
+sorting 10,000 strings through a per-comparison boundary would be roughly 130,000 crossings.
+Locale-independent Unicode algorithms — case mapping, NFC/NFD normalization, grapheme segmentation — stay
+in `Core\Str`. And an **image component** (`gd`), test 5's headline case, which **carries `exif` rather
+than leaving it a separate `.mwlx`**: orientation and the rest of the tag set are read by the decoder
+already holding the file, so a second component would buy a second boundary crossing for one field.
+
+**Deferred indefinitely — Ext when and if demand appears, and not otherwise:** `bz2`, `xsl`, `yaml`, and
+the binary serialization formats `msgpack`, `cbor`, `igbinary`, `protobuf`. Every one is the pure codec
+case — no connection state, no privilege, hostile bytes — so the tier is right and only the schedule is
+open. Nothing in MWL depends on any of them: `Core\Compress` covers the three `Content-Encoding` formats,
+`Core\Json` covers interchange, and `igbinary` in particular exists only to accelerate PHP's `serialize()`,
+which MWL does not have. Vendor-C database drivers (`oci8`, `odbc`, `pdo_dblib`, `pdo_firebird`) stay Tier 2
+built from source by the operator who needs them, never in a default binary and with no first-party work
+planned; `Core\Db`'s driver interface is what keeps that door open.
+
+**Two is the whole first-party Tier 1 roster**, not its first two entries — what carries the tier is the
+third-party channel this section already named, not a queue of our own work behind these.
 
 **Dropped, with a replacement.** The procedural `mysqli`/`pgsql`/`sqlite3` APIs, by test 6 — one database
 API. `filter`: its `filter_input` half dies with [ADR 0012](0012-no-superglobals.md)'s superglobals, and its
@@ -162,6 +186,25 @@ narrow `Core\Signal` for graceful shutdown. `imap`, which PHP itself demoted in 
 [ADR 0048](0048-portable-single-file-executables.md) and closed off in ADR 0052 along with the stream
 wrapper it rides on. `calendar`. `gmp` as such, replaced by `Core\BigInt` over `num-bigint` rather than the
 C, LGPL GMP.
+
+Eleven more are closed here rather than left on a maybe-list, because an entry nobody will build is more
+useful named than pending. By **test 6**, each has a replacement already in the roster: `imagick`, whose
+ImageMagick surface would be imported wholesale for a long tail the first-party image component's
+decode/resize/convert already covers; `memcached`, against `Core\Cache`'s Redis backend, which is a
+superset in practice; `dba`, against the SQLite that § 4 already admits to the default binary, and which
+has eaten every embedded key-value use case dba was built for; `tidy`, against `Core\Html`'s sanitizer —
+and repair is in any case the wrong direction, since [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)
+says ambiguous input is refused rather than fixed up; and `amqp` and `kafka`, against `Core\Queue`
+([ADR 0084](0084-durable-background-jobs.md)), whose transactional enqueue is a **stronger** guarantee than
+either broker offers, not a weaker substitute for one. By **test 1** plus a thin audience: `soap`, whose
+remaining users can compose `Core\Xml` with `Core\Http\Client`, and which PHP's own `ext/soap` has not been
+meaningfully maintained for years; `ftp`, a plaintext protocol in decline that `Core\Storage` and ADR 0058's
+outbound policy replace; and `ssh2`, where the credential handling is a priority-1 surface we decline to
+own and `Core\Process` can invoke a real `ssh` binary under `process.exec`. Outside the audience
+[ADR 0080](0080-the-audience-mwl-is-built-for.md) names at all: `snmp`, a device-monitoring tool whose
+observability need `Core\Metrics` and [ADR 0076](0076-observability-export.md) serve from the other
+direction, and `enchant`, whose dictionaries a third-party `.mwlx` would carry the way the intl component
+carries CLDR.
 
 **Answered by the architecture.** `opcache` ([ADR 0042](0042-on-disk-artifact-cache-format.md),
 [0017](0017-hot-reload-without-restart.md)); `xdebug` ([ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md),
@@ -206,9 +249,13 @@ tier is therefore visible at the use site.
 - **Internationalization stops being coupled to runtime releases.** CLDR ships roughly twice a year, and
   PHP's ICU version is pinned to whatever the distribution built against — a chronic operational complaint.
   A new `.mwlx` replaces it.
-- **Tier 1 gains two flagship first-party users**, image decoding and intl, which is what M9's verification
-  should demonstrate. An image codec makes the security claim legible in a way a compression benchmark
-  does not.
+- **Tier 1's first-party roster is two components — image decoding and intl — and stays two.** That is what
+  M9's verification demonstrates: an image codec makes the security claim legible in a way a compression
+  benchmark does not. It is deliberately not a head start on a longer list. Everything else that was once
+  pencilled in at Tier 1 is now either dropped with a named replacement or explicitly deferred, so the tier
+  earns its keep as [ADR 0081](0081-packages-are-digests-resolution-is-a-maximum.md)'s **third-party
+  channel** rather than as a staging area for first-party work. If that channel is ever judged not worth
+  M9's six weeks, two components is the honest number to judge it against.
 - **A cost this ADR accepts:** the default binary's unsandboxed dependency set is larger than a minimal
   runtime's, because `Core\Db`, `Core\Http\Client`, `Core\Crypto` and the Redis driver are all in it. Each
   is audited under [deny.toml](../../deny.toml), each is removable by a Cargo feature, and each is there

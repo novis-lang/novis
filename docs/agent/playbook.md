@@ -209,6 +209,13 @@ is why" — is this file.
   ADR, because only one of those is a decision. One `peek.py <adr>:"## 4"` before writing the member
   settles it, and the comment is the thing to fix. Implementing what the comment said would have put a
   per-class equality hook in `mwl_runtime::identity` and re-opened an ADR from inside the loop.
+- **`verify.py` can be red on a tree you did not touch, and `fmt` is where it happens.** A docs-only
+  session hit `cargo fmt --check` failing on committed code — a four-line `mwl_array_get_index` signature
+  rustfmt wanted on one line — which means the slice that added it was committed without step 3 ever being
+  green. Do not treat that as "my change broke it" and do not skip the fix: it is one hunk, it goes in its
+  own commit named for what it is, and the session's own slices stay clean. Check the blast radius first
+  with `grep -c "^Diff in" .agent-tmp/verify-fmt.log` — one file means fix it here, a dozen means say so in
+  the handoff instead of reformatting the workspace inside an unrelated slice.
 
 ## Running things
 

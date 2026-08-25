@@ -121,14 +121,17 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 outranks everything below it, and one of its items is still open.**
-> `loop-goal.toml`'s `stage = "0 catch-up"` block names the test that closes each item in
-> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 14, 16 and 17 are done, and
-> item **15** is packed and degrading — three of its four tests exist and pass, and the fourth,
-> `an_integer_subscript_allocates_no_key`, waits on the `mwl_array_get_index`/`set_index` ABI
-> addition — so `tools/loop.py` still short-circuits there and no
-> Stage 3 `Core` slice opens ahead of it. Behind that gate the frontier is `examples/collect.mwl`,
-> and [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
+> **Open now:** **Stage 0 is closed — every one of its seventeen items now passes the test
+> `loop-goal.toml` names for it**, item 15's fourth and last,
+> `an_integer_subscript_allocates_no_key`, having landed with the
+> `mwl_array_get_index`/`mwl_array_set_index` ABI pair it waited on. So `tools/loop.py` no longer
+> short-circuits there and the loop is on **Stage 3**, where the frontier is `examples/collect.mwl`.
+> One half of item 15's *measured* claim is still unbanked and is not a Stage 0 item: `$a[] = $v`
+> and `foreach` reach the packed form from compiled code today, but `$a[$i]` does not, because
+> `mwl_ir::lower::Lowering::lower_array_key` still renders an `int` subscript to a decimal string
+> before `InstKind::ArrayGet`/`ArraySet` reaches codegen — `mwl_runtime::array`'s own module doc
+> states what routing it through the new pair costs and where.
+> [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
 > field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.
 > **Spec §§ 1-12, by section** — § 1 is **whole**, `normalize` having landed with `Core\NormalForm`
@@ -1219,10 +1222,13 @@ Tooling: `mwl ext new --lang rust|c|zig|go`, `mwl ext build` (one portable `.mwl
 (manifest and requested capabilities), `mwl ext test`, `mwl ext verify`.
 
 **Verify:** the two first-party extensions [ADR 0051](adr/0051-standard-library-tiers.md) § 3 places at
-Tier 1, end to end. The **image codec** is the one that makes the security claim legible — decoding an
-attacker-supplied file in a sandbox with a memory cap and an epoch deadline — and it is built from Rust
-*and* from a second language to prove the toolchain claim, running unmodified on all three platforms from
-one binary. The **intl component** proves the two shapes that ADR's Ext placement depends on: CLDR data
+Tier 1, end to end — and two is the whole first-party roster, not the first two of a longer list. The
+**image codec** is the one that makes the security claim legible — decoding an attacker-supplied file in a
+sandbox with a memory cap and an epoch deadline — and it is built from Rust *and* from a second language to
+prove the toolchain claim, running unmodified on all three platforms from one binary. It **carries `exif`**
+rather than leaving it a second component: the decoder already holds the file, so orientation and the rest
+of the tag set cost no extra boundary crossing, and a fixture asserts a malformed IFD is a thrown error
+inside the guest rather than a trap. The **intl component** proves the two shapes that ADR's Ext placement depends on: CLDR data
 carried in the component's own wasm data section, and a batch-shaped API where sorting 10,000 strings costs
 one boundary crossing rather than one per comparison. Adversarial suite: an extension attempting filesystem or network access it was not granted fails;
 a runaway extension is trapped by the request's CPU cap rather than hanging a core; a deliberately
