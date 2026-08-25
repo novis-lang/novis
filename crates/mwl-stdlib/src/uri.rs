@@ -1,11 +1,12 @@
 //! `Core\Uri` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
-//! § 12's first table. This module is that table's **percent-encoding half**
-//! — `encodeComponent`/`decodeComponent` and
+//! § 12's first table, which has two halves. The **percent-encoding half** is
+//! `encodeComponent`/`decodeComponent` and
 //! `encodeFormValue`/`decodeFormValue`, which replace PHP's
-//! `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode` — plus
+//! `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode`, plus
 //! `parseQuery` and `buildQuery`, which are those four applied to a whole
-//! query string. The **grammar** half, `parse` and the `Uri` instance, is
-//! gap 1.
+//! query string. The **grammar half** is `parse`, `isValid` and the `Uri`
+//! instance they answer with — RFC 3986, read by `fluent-uri`, argued four
+//! sections below. `$uri->with` and `$uri->resolve` are gap 1.
 //!
 //! # Two encodings, because PHP has two and the wire has two
 //!
@@ -118,9 +119,60 @@
 //! neither is that crate's default. Binding one would add a dependency to
 //! remove nothing.
 //!
-//! The **grammar** half of § 12's table — `parse`, `isValid`, `$uri->with`,
-//! `$uri->resolve` — is RFC 3986, is therefore a dependency, and lands with
-//! the pick that decides it. See gap 1.
+//! # The grammar half: RFC 3986, and which of the two specifications it is
+//!
+//! The percent-encoding half above is the exception; the grammar half is the
+//! rule. RFC 3986 is a grammar with an external specification, so
+//! [ground-rules.md](../../../../docs/adr/ground-rules.md) decides that `parse`
+//! binds a crate rather than growing a hand-written scanner. What that rule
+//! does *not* decide is **which** specification, because there are two and
+//! they are not a strict and a lax reading of one thing.
+//!
+//! `url` implements the **WHATWG URL Standard** — what a browser does with
+//! text typed into an address bar — and it rewrites its input on the way
+//! through: it lower-cases the host, punycodes a non-ASCII one, drops a port
+//! that matches the scheme's default, removes `.` and `..` from the path, and
+//! turns `\` into `/` for the schemes it calls special. It also has no way to
+//! hold a relative reference at all without a base. `Uri::parse` replaces
+//! `parse_url` and answers "**what are the components of this text**", so
+//! every one of those rewrites would be an answer about a URI the caller never
+//! sent — and a program comparing `$uri->host()` against an allowlist would be
+//! comparing against something a client did not write. `fluent-uri` implements
+//! RFC 3986 itself: a URI *reference*, every component borrowed as written,
+//! normalization only where it is asked for. The workspace manifest's own
+//! comment on the dependency owns the rest of the argument.
+//!
+//! So: **`parse` reports, it does not normalize.** Scheme and host keep their
+//! case, a default port stays written, dot segments stay in the path, and
+//! nothing is percent-decoded — `decodeComponent` is one call away for a
+//! caller that wants text, and dot-segment removal happens in `$uri->resolve`,
+//! which is the one place RFC 3986 § 5.2.4 asks for it.
+//!
+//! # What `parse` takes, what `isValid` asks, and what neither does
+//!
+//! `parse` takes a **URI reference** — RFC 3986 § 4.1's `URI / relative-ref` —
+//! because a request line carries one and `$uri->resolve` is defined over one.
+//! `Uri::parse("/a?b#c")` therefore answers a `Uri` whose `scheme()` is
+//! `null`, and it throws only on text the grammar refuses: a space, a control
+//! byte, a bare `%`, a `<`, and every non-ASCII byte, which is an IRI's
+//! business (RFC 3987) and not this member's.
+//!
+//! `isValid` is therefore **not** "does `parse` throw". It is "**is this an
+//! absolute URI**" — `parse` succeeding *and* a scheme being present — which
+//! is the question `filter_var(…, FILTER_VALIDATE_URL)` is actually asked. The
+//! answer differs from PHP's in both directions and deliberately: PHP accepts
+//! a space in a path and this refuses it, PHP refuses a URI whose host is
+//! empty and this accepts `file:///tmp`. And it **launders nothing** — whether
+//! a URL may be *fetched* is `Core\Http::allowUrl` at § 16
+//! ([ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md)); a
+//! `true` here says only that the text is a URI.
+//!
+//! An **empty authority is not a missing one.** `parse("file:///tmp")` answers
+//! `host()` of `""` and `parse("/tmp")` answers `host()` of `null`, which is
+//! the difference between `//` having been written and not. That distinction
+//! is the one place this shape is richer than `parse_url`'s array, which
+//! cannot express it, and it is what makes `toString` give back the text that
+//! went in.
 //!
 //! # What it spends
 //!
@@ -140,16 +192,27 @@
 //! for the same reason: its argument is often a `parseQuery` answer, whose
 //! depth came off the wire.
 //!
+//! A `Uri` spends one object of eight slots — [`crate::instance`] owns what
+//! that costs — holding the whole text plus one `string` per component that
+//! was written, each a borrowed substring of the text at parse time and each
+//! allocated exactly once. The text is kept **as well as** the components
+//! rather than instead of them, which is
+//! [AGENTS.md](../../../../AGENTS.md)'s memory rule spent on purpose: a `Uri`
+//! holding only its text would re-parse on every accessor call, one holding
+//! only its components would recompose on every `toString`, and this pays
+//! about twice a URI's length, once, to make both O(1) on the request path.
+//! Parsing is a single pass, so a hostile input costs O(n) here as it does
+//! everywhere else in this module.
+//!
 //! # Known gaps
 //!
-//! 1. **`Uri::parse`, `Uri::isValid`, `$uri->with` and `$uri->resolve` are not
-//!    built**, so the spec table's grammar half is missing and this class has
-//!    no instance shape yet. `isValid` is deliberately *not* hand-written
-//!    ahead of `parse`: the two answer one question — "is this text a URI" —
-//!    and a validator written against one reading of RFC 3986 beside a parser
-//!    written against a crate's is the drift [`crate::uuid`] avoids by giving
-//!    both members one `read`. Whichever crate `parse` binds decides `isValid`
-//!    with it.
+//! 1. **`$uri->with` and `$uri->resolve` are not built** — § 12's table's last
+//!    two rows. `with` is recomposition over a written option bag and
+//!    `resolve` is RFC 3986 § 5's reference resolution, which `fluent-uri`
+//!    already carries as `UriRef::resolve_against`. Both answer a fresh `Uri`,
+//!    so both land as "recompose the text, then hand it to [`read`]" — which
+//!    is what makes `with({host: "a b"})` throw rather than build something
+//!    `parse` would have refused.
 //! 2. **A decoder answers `string`, so it throws on bytes that are not valid
 //!    UTF-8** — `decodeComponent("%FF")` throws rather than answering. The
 //!    honest signature is `: bytes`, since percent-decoding is defined over
@@ -166,6 +229,9 @@
 
 use std::mem::ManuallyDrop;
 
+use fluent_uri::component::{Authority, Scheme};
+use fluent_uri::pct_enc::EStr;
+use fluent_uri::{ParseErrorKind, UriRef};
 use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy};
@@ -178,11 +244,31 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy};
 /// every diagnostic naming the class cannot drift apart.
 pub const NAME: &str = r"Core\Uri";
 
-/// `Core\Uri`'s registry rows — spec § 12's first table, percent-encoding
-/// half. The grammar half is gap 1.
+/// `Core\Uri`'s registry rows — the whole of spec § 12's first table except
+/// gap 1's two instance members.
+///
+/// One class with both halves, because the spec writes `parse(string $uri):
+/// Uri`: the static members are namespaced functions and the instance members
+/// read the seven components [`read`] found. [`crate::regex`] splits its
+/// instance out into `Core\Regex\Match` for the opposite reason — a match is
+/// not a regex — and nothing here is a second thing.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
+        CoreMethod {
+            name: "parse",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "mwl_core_uri_parse",
+        },
+        CoreMethod {
+            name: "isValid",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "mwl_core_uri_is_valid",
+        },
         CoreMethod {
             name: "encodeComponent",
             params: &[CoreTy::Str],
@@ -226,15 +312,103 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_uri_build_query",
         },
     ],
-    instance: &[],
-    slots: &[],
+    instance: &[
+        CoreMethod {
+            name: "scheme",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_uri_scheme",
+        },
+        CoreMethod {
+            name: "userInfo",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_uri_user_info",
+        },
+        CoreMethod {
+            name: "host",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_uri_host",
+        },
+        CoreMethod {
+            name: "port",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Int),
+            symbol: "mwl_core_uri_port",
+        },
+        CoreMethod {
+            name: "path",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_uri_path",
+        },
+        CoreMethod {
+            name: "query",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_uri_query",
+        },
+        CoreMethod {
+            name: "fragment",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "mwl_core_uri_fragment",
+        },
+        CoreMethod {
+            name: "toString",
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_uri_to_string",
+        },
+    ],
+    slots: &[
+        "text", "scheme", "userInfo", "host", "port", "path", "query", "fragment",
+    ],
     constants: &[],
 };
+
+/// [`CLASS`]'s slots, by index. `TEXT_SLOT` holds the whole reference and the
+/// seven after it hold the components of it, which is the trade the module
+/// docs' *What it spends* states.
+const TEXT_SLOT: usize = 0;
+/// See [`TEXT_SLOT`].
+const SCHEME_SLOT: usize = 1;
+/// See [`TEXT_SLOT`].
+const USER_INFO_SLOT: usize = 2;
+/// See [`TEXT_SLOT`].
+const HOST_SLOT: usize = 3;
+/// See [`TEXT_SLOT`].
+const PORT_SLOT: usize = 4;
+/// See [`TEXT_SLOT`].
+const PATH_SLOT: usize = 5;
+/// See [`TEXT_SLOT`].
+const QUERY_SLOT: usize = 6;
+/// See [`TEXT_SLOT`].
+const FRAGMENT_SLOT: usize = 7;
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
+        "mwl_core_uri_parse" => (mwl_core_uri_parse as *const ()).cast(),
+        "mwl_core_uri_is_valid" => (mwl_core_uri_is_valid as *const ()).cast(),
+        "mwl_core_uri_scheme" => (mwl_core_uri_scheme as *const ()).cast(),
+        "mwl_core_uri_user_info" => (mwl_core_uri_user_info as *const ()).cast(),
+        "mwl_core_uri_host" => (mwl_core_uri_host as *const ()).cast(),
+        "mwl_core_uri_port" => (mwl_core_uri_port as *const ()).cast(),
+        "mwl_core_uri_path" => (mwl_core_uri_path as *const ()).cast(),
+        "mwl_core_uri_query" => (mwl_core_uri_query as *const ()).cast(),
+        "mwl_core_uri_fragment" => (mwl_core_uri_fragment as *const ()).cast(),
+        "mwl_core_uri_to_string" => (mwl_core_uri_to_string as *const ()).cast(),
         "mwl_core_uri_encode_component" => (mwl_core_uri_encode_component as *const ()).cast(),
         "mwl_core_uri_decode_component" => (mwl_core_uri_decode_component as *const ()).cast(),
         "mwl_core_uri_encode_form_value" => (mwl_core_uri_encode_form_value as *const ()).cast(),
@@ -410,6 +584,119 @@ fn text_from(octets: Vec<u8>, member: &str, subject: &str) -> Result<String, Fau
 /// [`text_from`]'s, which owns why this throws at all.
 fn decoded(octets: Vec<u8>, member: &str) -> HelperResult {
     produced(&text_from(octets, member, "the decoded octets")?)
+}
+
+// ============================================================================
+// The grammar — RFC 3986 through `fluent-uri`, and the instance it fills
+// ============================================================================
+
+/// `text` read as an RFC 3986 URI reference, with nothing normalized.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] naming the member, what the grammar refused and where.
+/// This is the one place in this module that rejects its input rather than
+/// reading it as literally as it can, and the module docs own why: `parse`
+/// answers a *structure*, and text the grammar does not admit has none to
+/// answer with.
+///
+/// The message gives the byte offset and **never quotes the text back**. Text
+/// that failed to parse here is attacker-supplied by definition, and a URI's
+/// userinfo component is where credentials get written, so a message that
+/// echoed it would put them in whatever log the throw reaches.
+fn read<'a>(text: &'a str, member: &str) -> Result<UriRef<&'a str>, Fault> {
+    UriRef::parse(text).map_err(|error| {
+        let refused = match error.kind() {
+            ParseErrorKind::InvalidPctEncodedOctet => "a `%` that does not begin a `%XX` escape",
+            ParseErrorKind::InvalidIpv6Addr => "a bracketed host that is not an IPv6 address",
+            // Every byte outside the grammar arrives here: a space, a control
+            // byte, a `<`, a `"`, and every non-ASCII byte, which is RFC 3987's
+            // business and not this member's.
+            ParseErrorKind::UnexpectedChar => "a byte the URI grammar does not admit",
+        };
+        Fault::thrown(format!(
+            "Core\\Uri::{member}(): this text is not a URI reference (RFC 3986 § 4.1) — {refused} \
+             at byte {}. The text itself is not quoted back, since a URI's userinfo component is \
+             where credentials are written",
+            error.index()
+        ))
+    })
+}
+
+/// `authority`'s port, narrowed to what a port is.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] where the digits do not fit a [`u16`]. RFC 3986
+/// § 3.2.3's *grammar* is `*DIGIT` while its *prose* defines the component as
+/// a TCP port number, so `//h:99999/` is text the grammar admits and a port
+/// nothing can dial. Storing it would answer with a number no caller could
+/// use and truncating it would answer with a different URI's port, so the
+/// member refuses instead — the same line [`crate::validate`] draws, drawn
+/// where the caller can read it.
+///
+/// An **empty** port is `None` rather than an error, which is § 3.2.3's own
+/// instruction to a producer. `toString` still gives the `:` back, because it
+/// answers with the text that was parsed rather than with a recomposition.
+fn port_of(authority: &Authority<'_>, member: &str) -> Result<Option<u16>, Fault> {
+    authority.port_to_u16().map_err(|_| {
+        Fault::thrown(format!(
+            "Core\\Uri::{member}(): the authority's port is not a TCP port number. RFC 3986 \
+             § 3.2.3 admits any run of digits and defines the component as a port, so a value \
+             outside 0-65535 has no `int` this member could answer with"
+        ))
+    })
+}
+
+/// A fresh `Core\Uri` holding `reference`'s text and its seven components.
+///
+/// # Errors
+///
+/// [`port_of`]'s. It runs **before** the first allocation on purpose: a
+/// [`Value`] is not released by falling out of scope, so a refused port
+/// halfway through the slot array would strand every `MwlStr` built before it.
+fn built(reference: &UriRef<&str>, member: &str) -> HelperResult {
+    let authority = reference.authority();
+    let port = match authority {
+        Some(authority) => port_of(&authority, member)?,
+        None => None,
+    };
+    let text = |held: Option<&str>| {
+        held.map_or_else(Value::null, |held| Value::str(MwlStr::new(held.as_bytes())))
+    };
+    Ok(crate::instance::build(
+        &CLASS,
+        [
+            Value::str(MwlStr::new(reference.as_str().as_bytes())),
+            text(reference.scheme().map(Scheme::as_str)),
+            text(authority.and_then(|held| held.userinfo()).map(EStr::as_str)),
+            // Present-but-empty where `//` was written with nothing after it,
+            // which is the distinction `parse_url`'s array cannot hold.
+            text(authority.as_ref().map(Authority::host)),
+            port.map_or_else(Value::null, |port| Value::int(i64::from(port))),
+            Value::str(MwlStr::new(reference.path().as_str().as_bytes())),
+            text(reference.query().map(EStr::as_str)),
+            text(reference.fragment().map(EStr::as_str)),
+        ],
+    ))
+}
+
+/// One of the receiver's slots, handed back with a reference of its own.
+///
+/// Every reader on this class is this call with a different slot: [`read`]
+/// did the work once, and an accessor is a field read.
+fn component(args: &[Value], member: &str, index: usize) -> HelperResult {
+    let receiver = crate::instance::receiver(args[0], &CLASS, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the receiver's slot owns the reference this borrowed read \
+                  returned, so the caller needs one of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
 }
 
 // ============================================================================
@@ -648,6 +935,127 @@ fn build(root: *mut mwl_runtime::ArrayHeader, member: &str) -> Result<String, Fa
 // ============================================================================
 // The members
 // ============================================================================
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Uri::parse(string $uri): Uri` — replacing PHP's `parse_url`.
+    ///
+    /// Takes a URI *reference*, reports rather than normalizes, and throws on
+    /// text RFC 3986 refuses. The module docs own all three, and every
+    /// component comes back exactly as written — still percent-encoded, still
+    /// in the case it arrived in.
+    ///
+    /// Where `parse_url` answers an array with a key missing for every absent
+    /// component, this answers an object whose readers are `?string`, so
+    /// "absent" is a value the type system knows about rather than an index
+    /// that is not there. ADR 0063 R5's reading of `?T` is the same one.
+    fn mwl_core_uri_parse(_ctx, args: [1]) {
+        let text = text_of(args, "parse")?;
+
+        built(&read(text, "parse")?, "parse")
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Uri::isValid(string $uri): bool` — replacing
+    /// `filter_var(…, FILTER_VALIDATE_URL)`.
+    ///
+    /// "Is this an **absolute** URI": [`read`] succeeding *and* a scheme
+    /// being present, which is why `isValid("/a/b")` is `false` while
+    /// `Uri::parse("/a/b")` answers a `Uri`. The module docs own both
+    /// directions this differs from PHP in, and the fact that a `true` here
+    /// launders nothing — `Core\Http::allowUrl` at § 16 is the question about
+    /// *fetching* one.
+    fn mwl_core_uri_is_valid(_ctx, args: [1]) {
+        let text = text_of(args, "isValid")?;
+
+        Ok(Value::bool(
+            UriRef::parse(text).is_ok_and(|reference| reference.has_scheme()),
+        ))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->scheme(): ?string` — `null` for a relative reference, and never
+    /// case-folded: RFC 3986 § 3.1 makes a scheme case-insensitive to
+    /// *compare*, which is a different thing from rewriting what was sent.
+    fn mwl_core_uri_scheme(_ctx, args: [1]) {
+        component(args, "scheme", SCHEME_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->userInfo(): ?string` — the whole `user:password` subcomponent as
+    /// written, or `null` where no `@` was.
+    ///
+    /// One reader rather than `parse_url`'s two keys, because RFC 3986
+    /// § 3.2.1 deprecates the `user:password` form outright and a member that
+    /// split it would be a member that suggested writing one.
+    fn mwl_core_uri_user_info(_ctx, args: [1]) {
+        component(args, "userInfo", USER_INFO_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->host(): ?string` — `null` where no authority was written, `""`
+    /// where an empty one was (`file:///tmp`), and an IPv6 literal still
+    /// inside its brackets, since that is what the host component is.
+    fn mwl_core_uri_host(_ctx, args: [1]) {
+        component(args, "host", HOST_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->port(): ?int` — `null` where none was written *and* where an
+    /// empty one was, which is [`port_of`]'s one departure from giving back
+    /// exactly what came in.
+    fn mwl_core_uri_port(_ctx, args: [1]) {
+        component(args, "port", PORT_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->path(): string` — never `null`, because RFC 3986 § 3.3's path is
+    /// not optional: a URI with nothing between its authority and its query
+    /// has the empty path, and `""` is that path rather than the absence of
+    /// one.
+    fn mwl_core_uri_path(_ctx, args: [1]) {
+        component(args, "path", PATH_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->query(): ?string` — the raw query, with no `?`, still encoded.
+    /// [`mwl_core_uri_parse_query`] is what turns it into an array.
+    ///
+    /// `null` and `""` are different answers here: `?` written with nothing
+    /// after it is an empty query, and no `?` at all is no query.
+    fn mwl_core_uri_query(_ctx, args: [1]) {
+        component(args, "query", QUERY_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->fragment(): ?string` — the raw fragment, with no `#`, still
+    /// encoded. `null` and `""` differ for [`mwl_core_uri_query`]'s reason.
+    fn mwl_core_uri_fragment(_ctx, args: [1]) {
+        component(args, "fragment", FRAGMENT_SLOT)
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$uri->toString(): string` — the reference this `Uri` was parsed from,
+    /// byte for byte.
+    ///
+    /// Not a recomposition of the components: `parse` normalizes nothing, so
+    /// there is nothing a round trip could lose, and holding the text is what
+    /// buys that guarantee for the price the module docs' *What it spends*
+    /// states. Named `toString` for [`crate::uuid`]'s reason — a `Core` class
+    /// records no `toString` target, so `echo $uri` does not reach this and
+    /// the member is what a program writes instead.
+    fn mwl_core_uri_to_string(_ctx, args: [1]) {
+        component(args, "toString", TEXT_SLOT)
+    }
+}
 
 mwl_runtime::mwl_helper! {
     /// `Core\Uri::encodeComponent(string $s): string` — replacing PHP's
@@ -1108,5 +1516,75 @@ mod tests {
                 expected
             );
         }
+    }
+
+    /// The property the module docs promise and the whole reason `url` was not
+    /// the pick: what goes in comes back out. Every row here is text the
+    /// WHATWG URL Standard would have rewritten — a mixed-case scheme and
+    /// host, a port that matches the scheme's default, dot segments, an
+    /// escape that did not need escaping — and none of it moves.
+    ///
+    /// A `.mwlt` case pins the components one at a time; this pins that the
+    /// *text* is untouched, which is the assertion that fails the day someone
+    /// swaps the crate underneath.
+    #[test]
+    fn nothing_is_normalized_on_the_way_through() {
+        for subject in [
+            "HTTP://Example.COM:80/a/../b",
+            "https://example.com/%7Euser/",
+            "http://example.com",
+            "file:///tmp/x",
+            "//host/path",
+            "/relative?a=1#f",
+            "a/b:c",
+            "?just-a-query",
+            "#just-a-fragment",
+            "",
+        ] {
+            let reference = super::read(subject, "parse").expect("a URI reference");
+            assert_eq!(reference.as_str(), subject);
+        }
+    }
+
+    /// RFC 3986's grammar, refused byte by byte — the line this member draws,
+    /// stated where a caller can read it. A space and a `<` are the two PHP's
+    /// `parse_url` waves through, and a non-ASCII byte is RFC 3987's business
+    /// rather than this member's.
+    #[test]
+    fn the_grammar_refuses_what_rfc_3986_refuses() {
+        for subject in [
+            "http://example.com/a b",
+            "http://example.com/a<b",
+            "http://example.com/a\u{7f}b",
+            "http://example.com/a\nb",
+            "http://example.com/%zz",
+            "http://example.com/%4",
+            "http://example.com/ünicode",
+            "http://[::g]/",
+        ] {
+            assert!(
+                super::read(subject, "parse").is_err(),
+                "{subject:?} is not a URI reference"
+            );
+        }
+    }
+
+    /// RFC 3986 § 3.2.3's grammar is `*DIGIT` and its prose is "a TCP port
+    /// number", and [`super::port_of`] is where the two are reconciled: an
+    /// empty port is absent, a `u16` is itself, and anything above one is
+    /// refused rather than truncated.
+    #[test]
+    fn a_port_is_a_tcp_port_or_it_is_refused() {
+        let port = |subject: &str| {
+            let reference = super::read(subject, "parse").expect("a URI reference");
+            let authority = reference.authority().expect("an authority");
+            super::port_of(&authority, "parse")
+        };
+        assert_eq!(port("//h:8443/").expect("in range"), Some(8443));
+        assert_eq!(port("//h:65535/").expect("in range"), Some(65535));
+        assert_eq!(port("//h:/").expect("empty is absent"), None);
+        assert_eq!(port("//h/").expect("absent is absent"), None);
+        assert!(port("//h:65536/").is_err());
+        assert!(port("//h:99999999999999999999/").is_err());
     }
 }

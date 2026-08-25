@@ -65,6 +65,12 @@ BINARY = "mwl"
 # preference for something CI already refuses.
 PREFERENCE = [
     "MIT",
+    # MIT with the attribution clause struck out, which is how `borrow-or-share`
+    # is offered. Ranked next to MIT rather than beside `Unlicense` because the
+    # text is MIT's, so a notice reproducing it costs nothing a reader has not
+    # already read — and it is never a choice anyway: no crate here offers it as
+    # one half of a dual license.
+    "MIT-0",
     "Apache-2.0 WITH LLVM-exception",
     "Apache-2.0",
     "BSD-3-Clause",
@@ -101,6 +107,11 @@ FINGERPRINTS = [
     # BSD-3 before BSD-2: the 3-clause text contains the 2-clause text.
     ("BSD-3-Clause", ("redistribution and use in source and binary forms", "endorse or promote")),
     ("BSD-2-Clause", ("redistribution and use in source and binary forms",)),
+    # MIT-0 before MIT: "MIT No Attribution" is MIT's text with the attribution
+    # clause struck out, so it matches MIT's fingerprint as well and would
+    # otherwise be filed as MIT -- a notice claiming a condition the license
+    # does not actually impose.
+    ("MIT-0", ("mit no attribution",)),
     ("MIT", ("permission is hereby granted, free of charge",)),
 ]
 

@@ -770,12 +770,28 @@ the reason. Password hashing takes no algorithm argument at all and is in § 16.
 | `Uri::encodeFormValue` / `decodeFormValue` | `encodeFormValue(string $s): string` | `urlencode`, `urldecode` (the `+`-for-space variant) | |
 | `Uri::parseQuery` | `parseQuery(string $query): array<mixed>` | `parse_str` — returns, never populates variables | |
 | `Uri::buildQuery` | `buildQuery(array<mixed> $parameters): string` | `http_build_query` | |
+| `$uri->scheme` / `$uri->userInfo` / `$uri->host` / `$uri->port` | `$uri->scheme(): ?string`, `$uri->userInfo(): ?string`, `$uri->host(): ?string`, `$uri->port(): ?int` | `parse_url`'s array keys | neutral |
+| `$uri->path` / `$uri->query` / `$uri->fragment` / `$uri->toString` | `$uri->path(): string`, `$uri->query(): ?string`, `$uri->fragment(): ?string`, `$uri->toString(): string` | `parse_url`'s array keys, and reassembly by hand | neutral |
 | `$uri->with` | `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` | manual reassembly | |
 | `$uri->resolve` | `$uri->resolve(string $reference): Uri` | nothing | |
 
 `Uri::parse` is an ADR 0057 intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
 ([ADR 0058](../adr/0058-outbound-request-policy.md)).
+
+**`parse` reads RFC 3986 and reports rather than normalizes.** It takes a URI *reference*, so
+`Uri::parse("/a?b")` answers a `Uri` whose `scheme()` is `null`; every component comes back exactly as it
+was written, still percent-encoded and still in its own case, and dot segments are removed only by
+`$uri->resolve`, where RFC 3986 § 5.2.4 asks for it. The WHATWG URL Standard is the other specification a
+`Uri` could have read, and it is the wrong one here: it rewrites its input on the way through, so a program
+comparing `$uri->host()` against an allowlist would be comparing against text no client sent. `isValid` is
+therefore not "does `parse` throw" — it is "is this an **absolute** URI", `parse` succeeding *and* a scheme
+being present, which is what `FILTER_VALIDATE_URL` is asked. It launders nothing.
+
+The eight readers are what `parse_url`'s array keys become, with two differences that array cannot express:
+`host()` is `null` where no authority was written and `""` where an empty one was (`file:///tmp`), and
+`userInfo()` is one reader rather than a `user` and a `pass` key, because RFC 3986 § 3.2.1 deprecates the
+`user:password` form and a member that split it would be one that recommended writing it.
 
 **`parseQuery` reads PHP's bracket convention in full**, and `buildQuery` writes it: `a[]=1&a[]=2` builds
 a list under the key `"a"`, `a[b]=c` builds a map, and the two nest to arbitrary depth. It is not a URL-spec

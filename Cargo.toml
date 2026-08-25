@@ -247,6 +247,32 @@ encoding_rs = "0.8"
 # dependency and what each of the three options is set to.
 csv-core = "0.1"
 
+# --- uri (spec § 12's `Core\Uri::parse` and the `Uri` instance) ---
+# RFC 3986 is a grammar with an external specification, so ground-rules.md's
+# "anything with an external specification is a dependency rather than a
+# hand-written parser" settles half the question; what is left is *which*
+# specification, because there are two and they are not a strict and a lax
+# reading of one thing. `url` implements the WHATWG URL Standard -- what a
+# browser does with text typed into an address bar -- and it rewrites its input
+# on the way through: lower-casing the host, punycoding a non-ASCII one,
+# dropping a port that matches the scheme's default, removing dot segments,
+# turning `\` into `/` for the schemes it calls special. It also cannot hold a
+# relative reference without a base. `Uri::parse` replaces `parse_url` and
+# answers "what are the components of this text", so every one of those
+# rewrites would be an answer about a URI the caller never sent, and
+# `$uri->resolve(string $reference)` is defined over exactly the relative
+# references `url` cannot represent. `fluent-uri` implements RFC 3986 itself:
+# it parses a URI *reference*, borrows every component as written, normalizes
+# only when asked, and carries § 5's reference resolution. ADR 0051 § 4's first
+# question is "yes" -- a request line is attacker-controlled -- and the second
+# does not arise, because the crate is pure Rust with no build script: its two
+# dependencies are `borrow-or-share` and `ref-cast`, both of which exist only
+# to hand back a borrowed component without copying it, which is the property
+# that lets a member write one `MwlStr` per component instead of two.
+# `crates/mwl-stdlib/src/uri.rs` owns what the member does and does not do with
+# what this crate answers.
+fluent-uri = "0.4"
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so

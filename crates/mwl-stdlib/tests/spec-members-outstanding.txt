@@ -49,5 +49,3 @@
 §12 $uri->resolve
 §12 $uri->with
 §12 Out::capture
-§12 Uri::isValid
-§12 Uri::parse

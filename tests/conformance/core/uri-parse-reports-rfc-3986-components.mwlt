@@ -1,0 +1,73 @@
+--TEST--
+`Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `isValid` asks the narrower question of whether they add up to an absolute URI — spec § 12
+--FILE--
+<?mwl
+// § 12: every component comes back exactly as written — still
+// percent-encoded, still in the case it arrived in, with the default port
+// still there. `parse` reports; it does not normalize.
+var $u = Core\Uri::parse("https://alice@example.COM:8443/a/b%20c?x=1&y=2#top");
+echo $u->toString(), "\n";
+echo $u->scheme() as string, "\n";
+echo $u->userInfo() as string, "\n";
+echo $u->host() as string, "\n";
+echo $u->port() as int, "\n";
+echo $u->path(), "\n";
+echo $u->query() as string, "\n";
+echo $u->fragment() as string, "\n";
+
+// § 12: `parse` takes a URI *reference*, which is what a request line
+// carries, so a relative one is a `Uri` with three absent components.
+var $r = Core\Uri::parse("/only/a/path");
+echo $r->path(), "\n";
+if ($r->scheme() == null) { echo "no scheme\n"; }
+if ($r->userInfo() == null) { echo "no user info\n"; }
+if ($r->port() == null) { echo "no port\n"; }
+if ($r->fragment() == null) { echo "no fragment\n"; }
+
+// § 12: an empty authority is not a missing one, which is the distinction
+// `parse_url`'s array cannot hold.
+var $f = Core\Uri::parse("file:///tmp/x");
+echo "[", $f->host() as string, "]\n";
+if ($r->host() == null) { echo "no host at all\n"; }
+
+// § 12: `?` written with nothing after it is an empty query; no `?` is no
+// query.
+var $empty = Core\Uri::parse("http://h/p?");
+if ($empty->query() == "") { echo "empty query\n"; }
+var $none = Core\Uri::parse("http://h/p");
+if ($none->query() == null) { echo "no query\n"; }
+
+// § 12: an IPv6 literal is a host with its brackets on, since that is what
+// RFC 3986 § 3.2.2's host component is.
+var $six = Core\Uri::parse("http://[::1]:8080/x");
+echo $six->host() as string, "\n";
+echo $six->port() as int, "\n";
+
+// § 12: `isValid` is "is this an absolute URI" — `parse` succeeding *and* a
+// scheme being present — not "does `parse` throw".
+if (Core\Uri::isValid("https://example.com/a")) { echo "absolute\n"; }
+if (Core\Uri::isValid("/a/b") == false) { echo "a reference is not a URL\n"; }
+if (Core\Uri::isValid("http://example.com/a b") == false) { echo "a space is not a URI byte\n"; }
+--EXPECT--
+https://alice@example.COM:8443/a/b%20c?x=1&y=2#top
+https
+alice
+example.COM
+8443
+/a/b%20c
+x=1&y=2
+top
+/only/a/path
+no scheme
+no user info
+no port
+no fragment
+[]
+no host at all
+empty query
+no query
+[::1]
+8080
+absolute
+a reference is not a URL
+a space is not a URI byte
