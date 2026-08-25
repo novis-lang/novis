@@ -1149,6 +1149,30 @@ impl fmt::Debug for MwlObj {
               obligation to state"
 )]
 unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
+    // A debug-only bound, and deliberately not a release one. `mwl-codegen`
+    // resolves the slot at compile time from the same `ir::Class::fields` list
+    // that built this object's descriptor (`Classes::define`), so the two
+    // cannot disagree about a *count*; what this catches is the narrower case
+    // where a static class label names a layout the receiver does not have —
+    // a subclass whose slots stopped being a prefix of its ancestor's, or a
+    // receiver type the checker got wrong. Measured at ~1.4% of a
+    // field-heavy program to carry into release, which buys too little for
+    // the price when the conformance suite and both fuzz targets run debug.
+    // The erased path does not need this: `mwl_object_slot_get` reads the
+    // slot off the receiver's own descriptor by name.
+    #[cfg(debug_assertions)]
+    {
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees the allocation is live, so its \
+                      descriptor is too"
+        )]
+        let count = unsafe { (*MwlObj::class_of(ptr)).field_count() };
+        assert!(
+            index < count,
+            "field slot {index} is out of range for a class with {count} slots"
+        );
+    }
     #[expect(
         unsafe_code,
         reason = "the caller guarantees the slot is inside the allocation, and \
