@@ -133,22 +133,28 @@
 > through `TypeInterner::literal_base`, and a literal expression takes the singleton type from the
 > position it lands in (`expr::literals::placed_literal`, reached for an enum case from
 > `expr::members`), so `"a"|"b" $mode = "a";` checks, `Mode::Read|Mode::Write $m = Mode::Read;`
-> checks, and neither `string → "a"` nor a bare `int → Mode::Read` does. What is left of that ADR is
-> § 4's checked `as` and § 6's two diagnostics. Then, in order: **`private`/`protected`**, which
-> nothing enforces; **`Comparable`/`Stringable`**, which carry no member signatures, so
-> `$s->toString()` is `E0405` and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s
-> `autoload` grammar and its name-to-file fixpoint. **ADR 0069's refusal is built** — `+`/`+=` with
-> an array operand is `E0467` naming `Core\Arr::underlay` — leaving that ADR's combination *members*
-> to § 1's `Core` breadth below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate,
-> the lexer reports `E0008` per line over comments, string literals and inline HTML, and seven
-> `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink halves are M7's and M8's. **ADR 0088
-> opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier classification, so
-> `Core\Str::format`'s template is not yet the sink that ADR makes it, and neither the fail-closed
-> default for an unclassified `string`/`bytes` parameter nor the test that refuses an unclassified
-> member exists; it lands with M4S's remaining sections. **Then `Core` breadth, where Stage 3
-> stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are written, § 5 is six of its eight
-> members, and § 1 is missing its eleven text-shaping rows, `Arr::diff`/`intersect` and ADR 0069's
-> combination members. Every signature shape the spec writes can now be stated: a variadic tail is
+> checks, and neither `string → "a"` nor a bare `int → Mode::Read` does. **§ 4's checked `as` and §
+> 6's two diagnostics are built** — a string literal operand is placed at its conversion target the
+> way ADR 0054 § 2 already places a numeric one, so `"a" as "a"|"b"` is statically satisfied, and
+> `mwl_types::expr::operators::reject_impossible_literal_conversion` refuses a conversion the
+> operand's own value disproves: `E0469` for a closed set of literals, `E0470` for one of enum
+> cases, each naming the accepted set generated from the target type. What is left of that ADR is
+> the run-time half — a conversion whose operand is only known at run time still lowers no
+> membership test. Then, in order: **`private`/`protected`**, which nothing enforces;
+> **`Comparable`/`Stringable`**, which carry no member signatures, so `$s->toString()` is `E0405`
+> and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its
+> name-to-file fixpoint. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`
+> naming `Core\Arr::underlay` — leaving that ADR's combination *members* to § 1's `Core` breadth
+> below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008`
+> per line over comments, string literals and inline HTML, and seven `.mwlt` cases pin it; its
+> `Core\Html` and `Core\Cli` sink halves are M7's and M8's. **ADR 0088 opens one registry-wide
+> item**: `mwl-stdlib`'s member rows carry no qualifier classification, so `Core\Str::format`'s
+> template is not yet the sink that ADR makes it, and neither the fail-closed default for an
+> unclassified `string`/`bytes` parameter nor the test that refuses an unclassified member exists;
+> it lands with M4S's remaining sections. **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3
+> and 6 are whole, § 2's aggregations are written, § 5 is six of its eight members, and § 1 is
+> missing its eleven text-shaping rows, `Arr::diff`/`intersect` and ADR 0069's combination members.
+> Every signature shape the spec writes can now be stated: a variadic tail is
 > `registry::CoreTy::Variadic`, a `Core`-owned instance is `CoreClass`'s `instance` roster over
 > `mwl_stdlib::instance`, a class constant may be an instance through `registry::Const::Built`, and
 > a member may be handed the class its call site wrote through `registry::WRITTEN_CLASS_MEMBERS`. §
