@@ -761,6 +761,67 @@ crate::mwl_helper! {
     }
 }
 
+/// One operand of a failed
+/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5
+/// membership test, rendered the way § 6's compile-time sibling renders it:
+/// a `string` double-quoted, an integer bare. Only the representations a
+/// closed literal set can name reach this — `mwl-codegen` boxed the operand
+/// from `Ty::Str`, `Ty::Int`, `Ty::Uint` or `Ty::Tagged` — so the last arm is
+/// a value that arrived through `mixed` carrying some other tag entirely,
+/// which is a miss for the same reason a wrong string is.
+fn rendered_operand(value: Value) -> String {
+    match value.tag() {
+        Some(Tag::Str) => str_operand(&value).map_or_else(
+            || "a non-UTF-8 `bytes` value".to_owned(),
+            |text| format!("{text:?}"),
+        ),
+        Some(Tag::Int) => value.as_int().map_or_else(String::new, |n| n.to_string()),
+        Some(Tag::Uint) => value.as_uint().map_or_else(String::new, |n| n.to_string()),
+        Some(Tag::Null) | None => "null".to_owned(),
+        Some(other) => format!("a `{other:?}` value"),
+    }
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::LiteralMismatch` — ADR 0047 § 5's membership test
+    /// having missed every literal its target names, which § 4 makes a throw.
+    ///
+    /// **Never returns `Ok`.** The comparison chain that calls it already
+    /// decided the answer; this exists to carry the message, whose accepted
+    /// half `args[1]` holds already rendered — see that [`Helper`] variant for
+    /// why the set is generated at lowering time rather than encoded and
+    /// decoded here.
+    ///
+    /// **It releases `args[1]`**, which is the one place in this file a helper
+    /// owns an argument rather than borrowing it. That inversion is forced:
+    /// the string is a fresh `InstKind::ConstStr` with exactly one reference,
+    /// and a helper that never returns leaves its caller no reachable point to
+    /// release one at — an instruction emitted after this call lands in the
+    /// block only an `Ok` would reach. `args[0]` keeps the ordinary
+    /// convention: the operand is the conversion's own value and its caller
+    /// owns it.
+    ///
+    /// [`Helper`]: mwl_ir::Helper
+    fn mwl_literal_mismatch(_ctx, args: [2]) {
+        let accepted = args[1]
+            .as_str_bytes()
+            .and_then(|bytes| str::from_utf8(bytes).ok())
+            .ok_or_else(|| wrong_tag("mwl_literal_mismatch", Tag::Str, args[1]))?;
+        let message = format!("`{}` is not one of {accepted}", rendered_operand(args[0]));
+        #[expect(
+            unsafe_code,
+            reason = "the rendered set is a fresh `ConstStr` this call is the \
+                      last reader of, and its one reference is dropped here \
+                      because no reachable instruction follows a helper that \
+                      never returns"
+        )]
+        unsafe {
+            args[1].release();
+        }
+        Err(Fault::thrown(message))
+    }
+}
+
 /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md)'s truthy
 /// table, applied to a value whose type is known only at runtime.
 ///
@@ -859,6 +920,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_decimal_to_float", address(mwl_decimal_to_float)),
         ("mwl_decimal_to_string", address(mwl_decimal_to_string)),
         ("mwl_echo_str", address(mwl_echo_str)),
+        ("mwl_literal_mismatch", address(mwl_literal_mismatch)),
         (
             "mwl_str_new",
             (crate::string::mwl_str_new as *const ()).cast::<u8>(),

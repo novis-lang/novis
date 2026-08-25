@@ -433,6 +433,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::DecimalToString => "decimal_to_string",
         Helper::TaggedToString => "tagged_to_string",
         Helper::EchoStr => "echo_str",
+        Helper::LiteralMismatch => "literal_mismatch",
         Helper::Identical => "identical",
         Helper::NumericEq => "numeric_eq",
     }

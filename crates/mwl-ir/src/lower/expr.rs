@@ -556,6 +556,18 @@ impl<'a> Lowering<'a> {
         cur: BlockId,
     ) -> (ValueId, Ty) {
         if from == to {
+            // Nothing runs, but the *ownership* still has to come out right:
+            // every consumer of a conversion expression reads `is_aliasing_read`
+            // off the `as` node, which reports it as a fresh value the consumer
+            // owns — so a free row that hands back borrowed storage gives the
+            // local, the argument or the returned value a reference nobody
+            // took, and the second release of the pair corrupts the heap. One
+            // retain makes the free row honour the contract every other row
+            // already does. `$s as string` is the shape this was always true
+            // of; ADR 0047 § 5's erasure made `$s as "a"|"b"` a second one.
+            if to.is_refcounted() && self.aliasing_read(operand) {
+                self.emit_retain(cur, v);
+            }
             return (v, to);
         }
         match (from, to) {
@@ -2871,9 +2883,225 @@ impl<'a> Lowering<'a> {
                 let placed =
                     matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)).then_some(to);
                 let (v, from) = self.lower_expr(inner, placed, env, cur);
-                self.convert(v, from, to, inner, env, *cur)
+                let Some(accepted) = self.closed_literal_set(ty, inner) else {
+                    return self.convert(v, from, to, inner, env, *cur);
+                };
+                // ADR 0047 § 5's membership test, on whichever side of
+                // the base conversion still holds the value the author
+                // wrote. A `Ty::Tagged` operand is tested **first**,
+                // against its own runtime tag: converting one to the
+                // base would run `Helper::TaggedToString`, which turns
+                // a `mixed` holding `1` into `"1"` and would let it
+                // satisfy a set naming `"1"` — exactly the coercion
+                // § 4's "throws unless the value equals one of the
+                // named literals" refuses. Every other operand is
+                // converted first instead, so the comparison is over
+                // one representation and stays a `BinOp::Eq` machine
+                // compare rather than `mwl-codegen`'s refusal of a
+                // mismatched pair.
+                if from == Ty::Tagged {
+                    self.lower_literal_membership(v, from, &accepted, ty.span, env, cur);
+                    return self.convert(v, from, to, inner, env, *cur);
+                }
+                let (converted, converted_ty) = self.convert(v, from, to, inner, env, *cur);
+                self.lower_literal_membership(
+                    converted,
+                    converted_ty,
+                    &accepted,
+                    ty.span,
+                    env,
+                    cur,
+                );
+                (converted, converted_ty)
             }
         }
+    }
+
+    /// The closed set of literals an `expr as T` has to test its operand
+    /// against at run time —
+    /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5's
+    /// "the only place either type costs anything at runtime" — or `None`
+    /// where this conversion is one of § 4's ordinary rows.
+    ///
+    /// Read off the **checked** type rather than the annotation, because that
+    /// is where the values still are: § 2's `Foo::TYPE_A` folded to the string
+    /// it names during checking, and nothing in the AST says which string that
+    /// was. It is also the last place they exist at all — `lower_decl_type`
+    /// erases the whole set to the one base its members share.
+    ///
+    /// `None` in three cases, and each is a decision:
+    ///
+    /// * The target is not a closed set. One wider atom — `string`, or the
+    ///   `null` an `as ?T` adds — is a member the operand may reach, so there
+    ///   is nothing to test against. This mirrors `closed_set_atoms` in
+    ///   `mwl_types::expr::operators`, which decides the same question for
+    ///   § 6's compile-time half.
+    /// * The operand already names one value, which the checker has therefore
+    ///   already settled: a singleton operand outside the set is `E0469`/
+    ///   `E0470` and never reaches lowering, so `"a" as "a"|"b"` needs no
+    ///   comparison and an enum case needs none either.
+    /// * There is no recorded checked type for the annotation, which is the
+    ///   shape `lower_decl_type` answers from the AST alone.
+    fn closed_literal_set(&self, ty: &Type, inner: &Expr) -> Option<AcceptedSet> {
+        let types = self.checked_types;
+        let target = self.exprs.declared_ty(ty.span)?;
+        let atoms: Vec<TypeId> = match types.get(target) {
+            CheckedTy::Union(members) => members.clone(),
+            _ => vec![target],
+        };
+        let closed = atoms.iter().all(|id| {
+            matches!(
+                types.get(*id),
+                CheckedTy::StringLiteral(_) | CheckedTy::IntLiteral(_) | CheckedTy::EnumCase(..)
+            )
+        });
+        if !closed || self.operand_names_one_value(inner) {
+            return None;
+        }
+        let members = atoms
+            .iter()
+            .map(|id| match types.get(*id) {
+                CheckedTy::StringLiteral(text) => LiteralAtom::Str(text.clone()),
+                CheckedTy::IntLiteral(value) => LiteralAtom::Int(*value),
+                other => panic!(
+                    "mwl-ir does not lower ADR 0047 § 3's enum-case subset conversion over an \
+                     operand only known at run time — got {other:?}. The test needs each case's \
+                     backing value, which lives in `mwl_types::enums` and is not handed to this \
+                     crate; `ExprInfo::EnumCase` carries one only for a case written as an \
+                     *expression*. See the crate docs' known gaps"
+                ),
+            })
+            .collect();
+        // § 6: the accepted set is generated from the type, never written per
+        // site — the same rendering `reject_impossible_literal_conversion`
+        // produces for the compile-time half, so the two messages read alike.
+        let rendered = atoms
+            .iter()
+            .map(|id| format!("`{}`", types.describe(*id)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(AcceptedSet { members, rendered })
+    }
+
+    /// Whether a conversion's operand names exactly one value, so that
+    /// `mwl_types::expr::operators::reject_impossible_literal_conversion` has
+    /// already decided this conversion's outcome at compile time.
+    ///
+    /// The same three expression shapes that checker's own
+    /// `conversion_operand_singleton` accepts, asked here only as a yes/no:
+    /// what the value *is* does not matter, because a singleton the target
+    /// rejects is `E0469`/`E0470` and never reaches lowering, so one that
+    /// arrives here is in the set by construction.
+    fn operand_names_one_value(&self, inner: &Expr) -> bool {
+        match &inner.kind {
+            ExprKind::Str(_) | ExprKind::Int(_) => true,
+            ExprKind::Paren(nested) => self.operand_names_one_value(nested),
+            ExprKind::ClassConstAccess { .. } => {
+                matches!(
+                    self.exprs.lookup(inner.span),
+                    Some(ExprInfo::EnumCase { .. })
+                )
+            }
+            _ => false,
+        }
+    }
+
+    /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5's
+    /// membership test: a chain of equality comparisons, each branching
+    /// straight to the one block where the conversion succeeded, with the
+    /// throw at the far end where every one of them missed.
+    ///
+    /// A chain and not one runtime call over an encoded set, because the set
+    /// is small, closed and compile-time-known: each arm is a `BinOp::Eq`,
+    /// which `mwl-codegen` turns into a machine comparison for an integer and
+    /// a direct two-pointer `mwl_str_eq` for a string. One helper call over an
+    /// encoded set would instead pay ADR 0002's calling convention *and* parse
+    /// that encoding on every conversion. Only a [`Ty::Tagged`] operand pays a
+    /// call, and it pays exactly the one ADR 0090 § 5 already charges a
+    /// `mixed` `==`: [`Helper::Identical`], which answers `false` for a
+    /// mismatched tag rather than converting either side.
+    ///
+    /// Nothing is merged at the join: the value under test is defined before
+    /// the chain and dominates every block in it, so there is no
+    /// [`InstKind::Phi`] here and no `Env` to reconcile — every block this
+    /// builds is straight-line and assigns nothing.
+    fn lower_literal_membership(
+        &mut self,
+        value: ValueId,
+        value_ty: Ty,
+        accepted: &AcceptedSet,
+        span: Span,
+        env: &Env,
+        cur: &mut BlockId,
+    ) {
+        let hit = self.new_block();
+        for member in &accepted.members {
+            let (kind, ty) = match member {
+                LiteralAtom::Str(text) => (InstKind::ConstStr(text.clone()), Ty::Str),
+                LiteralAtom::Int(number) => (InstKind::ConstInt(*number), Ty::Int),
+            };
+            let (wanted, _) = self.emit(*cur, ty, kind);
+            let (equal, _) = if value_ty == Ty::Tagged {
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::HelperCall {
+                        helper: Helper::Identical,
+                        args: vec![value, wanted],
+                    },
+                )
+            } else {
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::BinOp {
+                        op: BinOp::Eq,
+                        lhs: value,
+                        rhs: wanted,
+                    },
+                )
+            };
+            // The constant is fresh and this comparison is its one and only
+            // use — the same policy `lower_binary` applies to the string
+            // literal in `$key == "bad"`.
+            if ty.is_refcounted() {
+                self.emit_release(*cur, wanted);
+            }
+            let miss = self.new_block();
+            let hit_edge = self.ids.next_edge(span);
+            let miss_edge = self.ids.next_edge(span);
+            self.seal(
+                *cur,
+                Terminator::Branch {
+                    cond: equal,
+                    then_block: hit,
+                    then_edge: hit_edge,
+                    else_block: miss,
+                    else_edge: miss_edge,
+                },
+            );
+            *cur = miss;
+        }
+        let (listed, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(accepted.rendered.clone()));
+        let landing = self.landing_block(env);
+        self.block_insts[cur.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::HelperCall {
+                helper: Helper::LiteralMismatch,
+                args: vec![value, listed],
+            },
+            on_error: Some(landing),
+        });
+        // No release for `listed`: `Helper::LiteralMismatch` owns it, for the
+        // reason that variant states — one emitted here would sit in the
+        // block only an `Ok` return reaches, which this call never makes.
+        //
+        // `Helper::LiteralMismatch` never returns normally, so this jump is
+        // unreachable — written anyway because a block still owes a
+        // terminator, and `hit` is the block control would have reached.
+        self.seal(*cur, Terminator::Jump(hit));
+        *cur = hit;
     }
 }
 
@@ -2884,6 +3112,31 @@ impl<'a> Lowering<'a> {
 /// Absent (`None`) whenever the receiver's representation proved it cannot be
 /// `null`, which is what makes a nullsafe access on a non-nullable receiver
 /// cost exactly nothing.
+/// The closed set of values a checked `as` into an
+/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) literal
+/// type accepts — see [`Lowering::closed_literal_set`], which is the only
+/// thing that builds one, and [`Lowering::lower_literal_membership`], which is
+/// the only thing that consumes it.
+struct AcceptedSet {
+    /// The values themselves, in the order the target type states them.
+    members: Vec<LiteralAtom>,
+    /// Those same values rendered for the throw's message — built here rather
+    /// than at run time because a literal type does not survive erasure, so
+    /// this is the last point at which the set can be named at all.
+    rendered: String,
+}
+
+/// One member of an [`AcceptedSet`], already reduced to the constant that
+/// tests for it.
+///
+/// § 3's enum case is deliberately absent: erasing one needs its backing
+/// value, which this crate is not handed — [`Lowering::closed_literal_set`]
+/// panics naming that gap rather than modelling a case it cannot compare.
+enum LiteralAtom {
+    Str(String),
+    Int(i64),
+}
+
 pub(super) struct NullsafeGuard {
     /// Where control lands when the receiver was `null` and the member never
     /// ran; ends holding the `null` the whole access answers with.

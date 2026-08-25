@@ -1145,6 +1145,32 @@ pub enum Helper {
     /// this one — whether `echo` under `mwl serve` becomes that sink is an
     /// M7 decision this deliberately does not pre-empt.
     EchoStr,
+    /// The throw at the end of
+    /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)
+    /// § 5's membership test: the operand reached none of the literals its
+    /// target names, so the checked `as` § 4 describes fails.
+    ///
+    /// Two arguments — the operand, which the message renders, and a
+    /// [`InstKind::ConstStr`] holding the accepted set **already rendered at
+    /// lowering time**, because that set is a compile-time-known list of
+    /// types and this crate is the last place they exist. § 6 requires the
+    /// message to name the set, and generating it from the type rather than
+    /// per call site is what makes the run-time throw read the same as the
+    /// `E0469` the checker reports when the operand settles the question by
+    /// itself.
+    ///
+    /// Defines no value and **never returns normally**: it is the miss arm of
+    /// a chain of [`BinOp::Eq`] comparisons, so it is pushed with
+    /// `result: None` the way [`Self::EchoStr`] is, and always carries
+    /// ADR 0002's error edge. The membership test itself costs no helper call
+    /// at all — see `crate::lower::Lowering::lower_literal_membership` for why
+    /// a comparison chain and not one call over an encoded set.
+    ///
+    /// It **owns** that second argument, uniquely among helpers: a call that
+    /// never returns leaves no reachable instruction to release the fresh
+    /// [`InstKind::ConstStr`] at, so `mwl_runtime`'s own helper drops it.
+    /// The operand keeps the ordinary convention and is the caller's.
+    LiteralMismatch,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
     /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 5's `mixed`-or-union case, the one pairing whose § 3 row is a runtime
