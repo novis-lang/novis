@@ -1,0 +1,38 @@
+--TEST--
+a mis-cased file on disk is a miss for an autoload probe, not a diagnostic — ADR 0061 § 1
+--FILE--
+<?mwl
+// `App\Mailer` resolves to `src/Mailer.mwl`, and what is on disk is
+// `src/mailer.mwl`. The probe compares the directory entry's name exactly,
+// so this is a miss on Windows and macOS too — a case-insensitive
+// filesystem is not allowed to accept a program Linux refuses.
+//
+// The miss itself is silent: an unmatched name is an ordinary lookup
+// failure, so what is reported is the undeclared class, from the site that
+// named it.
+require './src/Bootstrap.mwl';
+echo App\Mailer::send(), "\n";
+--FILE src/Bootstrap.mwl--
+<?mwl
+autoload 'App' from './';
+--FILE src/mailer.mwl--
+<?mwl
+namespace App;
+
+class Mailer
+{
+    public static function send(): string
+    {
+        return "sent";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `App\Mailer` is not declared
+   --> case.mwl:11:6
+   |
+11 | echo App\Mailer::send(), "\n";
+   |      ^^^^^^^^^^ no matching declaration
+
+error: aborting due to 1 error
