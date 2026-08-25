@@ -1,0 +1,68 @@
+--TEST--
+`Core\Bytes::unpack` reads the same format `pack` writes, positionally, and refuses a buffer the format does not describe — spec § 7
+--FILE--
+<?mwl
+// Spec § 7's `unpack(bytes $b, string $format): array<mixed>`. The answer is a
+// positional list rather than PHP's name→value map, because one shared code
+// table is what makes the round trip below exact — see
+// `crates/mwl-stdlib/src/bytes.rs`.
+//
+// A buffer field (`a`/`A`/`Z`) is read by the same member, but nothing here
+// can *print* one: `mixed as bytes` has no lowering row yet, so those fields
+// are pinned in `mwl-stdlib`'s own unit tests and only their boundary is
+// observed below, as an element count.
+
+// The round trip, field for field, over both signednesses and both widths.
+array<mixed> $fields = Core\Bytes::unpack(Core\Bytes::pack("NnCc", 305419896, 4660, 255, -2), "NnCc");
+echo ($fields[0] as uint) as string, " ", ($fields[1] as uint) as string, " ",
+     ($fields[2] as uint) as string, " ", ($fields[3] as int) as string, "\n";
+
+// The same four octets read by each order, which is what naming the order in
+// the code is for.
+array<mixed> $order = Core\Bytes::unpack(Core\Encoding::fromHex("12341234"), "nv");
+echo ($order[0] as uint) as string, " ", ($order[1] as uint) as string, "\n";
+
+// A float field is IEEE 754 in both widths, and `g` is the narrower one.
+array<mixed> $reals = Core\Bytes::unpack(Core\Bytes::pack("Eg", 0.5, 0.5), "Eg");
+echo ($reals[0] as float) as string, " ", ($reals[1] as float) as string, "\n";
+
+// Two's complement: `pack` accepts the signed value and `unpack` reads the
+// unsigned one back, because these codes name a width and not a sign.
+array<mixed> $wrapped = Core\Bytes::unpack(Core\Bytes::pack("N", -1), "N");
+echo ($wrapped[0] as uint) as string, "\n";
+
+// `*` reads as many fields as the buffer holds.
+array<mixed> $many = Core\Bytes::unpack(Core\Bytes::pack("n*", 1, 2, 3), "n*");
+echo Core\Arr::count($many) as string, " ", ($many[2] as uint) as string, "\n";
+
+class Probe {
+    // How many fields a format reads, or `threw` — every refusal below is a
+    // format and a buffer that do not describe each other.
+    public static function fields(bytes $b, string $format): string {
+        try {
+            return Core\Arr::count(Core\Bytes::unpack($b, $format)) as string;
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+bytes $two = Core\Bytes::pack("nn", 1, 2);
+
+// Octets the format does not describe throw, where PHP ignores them, and a
+// buffer that ends early throws in the other direction.
+echo Probe::fields($two, "nn"), " ", Probe::fields($two, "n"), " ",
+     Probe::fields($two, "nnn"), "\n";
+
+// `x` consumes octets and produces no field at all, and a buffer field
+// consumes the width it declares.
+echo Probe::fields(Core\Bytes::pack("Cx3", 1), "Cx3"), " ",
+     Probe::fields($two, "Z4"), " ", Probe::fields($two, "l"), "\n";
+--EXPECT--
+305419896 4660 255 -2
+4660 13330
+0.5 0.5
+4294967295
+3 3
+2 threw threw
+1 1 threw

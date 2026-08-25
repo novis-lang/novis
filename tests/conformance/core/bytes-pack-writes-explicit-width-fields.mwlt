@@ -1,0 +1,80 @@
+--TEST--
+`Core\Bytes::pack` writes fields of a stated width and order, and refuses every code that would let the machine decide — spec § 7, ADR 0063 R4
+--FILE--
+<?mwl
+// Spec § 7's `pack(string $format, mixed ...$values): bytes`. Every octet
+// below is what PHP's `pack` writes for the same call; the divergences are all
+// refusals, and `crates/mwl-stdlib/src/bytes.rs` owns why each one is refused.
+
+// The integer codes name their width and their byte order outright.
+echo Core\Encoding::toHex(Core\Bytes::pack("NnC", 305419896, 4660, 255)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::pack("VvC", 305419896, 4660, 255)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::pack("JP", 1, 1)), "\n";
+
+// The four float codes are IEEE 754 binary32 and binary64, both orders.
+echo Core\Encoding::toHex(Core\Bytes::pack("GgEe", 1.0, 1.0, 1.0, 1.0)), "\n";
+
+// A buffer field pads to its declared width, and `Z` keeps one octet for its
+// own NUL. A bare code takes the whole argument, where PHP's takes one octet.
+echo Core\Encoding::toHex(Core\Bytes::pack("a4A4Z4", "Hi", "Hi", "Hi")), "\n";
+echo Core\Encoding::toHex(Core\Bytes::pack("aZ", "Hi", "Hi")), "\n";
+
+// A repeater counts *arguments* on a numeric field and `*` takes every one
+// left, while `x` writes NUL octets and consumes no argument at all.
+echo Core\Encoding::toHex(Core\Bytes::pack("n*", 1, 2, 3)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::pack("C2x2", 1, 2)), "\n";
+
+// An integer field spans both of its width's ranges and writes two's
+// complement, so these two calls agree octet for octet.
+echo Core\Encoding::toHex(Core\Bytes::pack("N", -1)), "\n";
+echo Core\Encoding::toHex(Core\Bytes::pack("N", 4294967295)), "\n";
+
+class Probe {
+    // ADR 0063 R4: a value outside the field's range throws rather than being
+    // wrapped to fit, which is what PHP's `pack` does silently.
+    public static function octet(int $value): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::pack("C", $value));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    // A code that reads the machine's own width or byte order describes no
+    // wire format, so it is refused with its replacement named.
+    public static function code(string $format): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::pack($format, 1));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    // An argument wider than its field is not truncated, and the format and
+    // the argument list must line up in both directions.
+    public static function fit(string $format, string $value): string {
+        try {
+            return Core\Encoding::toHex(Core\Bytes::pack($format, $value));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+echo Probe::octet(255), " ", Probe::octet(256), " ", Probe::octet(-129), "\n";
+echo Probe::code("N"), " ", Probe::code("l"), " ", Probe::code("d"), " ", Probe::code("H"), "\n";
+echo Probe::fit("a4", "Hi"), " ", Probe::fit("a1", "Hi"), " ", Probe::fit("a4a4", "Hi"), "\n";
+--EXPECT--
+123456781234ff
+785634123412ff
+00000000000000010100000000000000
+3f8000000000803f3ff0000000000000000000000000f03f
+486900004869202048690000
+4869486900
+000100020003
+01020000
+ffffffff
+ffffffff
+ff threw threw
+00000001 threw threw threw
+48690000 threw threw

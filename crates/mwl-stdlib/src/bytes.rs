@@ -8,9 +8,9 @@
 //! # What is registered here so far
 //!
 //! § 7's indexing half — `length`, `at`, `slice`, `indexOf`, `compare` — its
-//! three predicates, and all three of its builders: `fill`, `repeat` and
-//! `join`. `pack`/`unpack` are the two that are unwritten, for the ordinary
-//! reason.
+//! three predicates, all three of its builders — `fill`, `repeat` and `join` —
+//! and `pack`/`unpack`. **§ 7's `Core\Bytes` is complete**, so what is left of
+//! that section is nothing.
 //!
 //! **`join`'s `$separator = ""` is why [`crate::registry::Const`] has a
 //! `Bytes` variant.** `Const::Str("")` would materialize a `Str`-tagged value
@@ -76,12 +76,73 @@
 //!   rather than truncating, which is R4 — the parameter is `uint` because
 //!   that is what `at` answers, so the two compose.
 //!
+//! # `pack`'s format is a closed grammar, and every code has one meaning
+//!
+//! § 7 says `pack` replaces PHP's, and makes its format string an ADR 0057
+//! intrinsic and a sink — but it does not write the code table, so that is
+//! settled here. PHP's is taken as the starting point and **narrowed to the
+//! codes that name a wire format outright**, because a format string is a
+//! description of octets on a wire or on disk and a code that means "whatever
+//! this machine does" describes nothing:
+//!
+//! | code | field |
+//! |---|---|
+//! | `a` / `A` / `Z` | a buffer, NUL-padded / space-padded / NUL-padded and NUL-terminated |
+//! | `c` / `C` | one octet, read back signed / unsigned |
+//! | `n` / `v` | 16 bits, most / least significant octet first |
+//! | `N` / `V` | 32 bits, most / least significant octet first |
+//! | `J` / `P` | 64 bits, most / least significant octet first |
+//! | `G` / `g` | binary32, most / least significant octet first |
+//! | `E` / `e` | binary64, most / least significant octet first |
+//! | `x` | one NUL octet, consuming no argument |
+//!
+//! A code is optionally followed by a count, or by `*`. On a numeric field
+//! that is **how many arguments it takes** (`*` is every one remaining); on a
+//! buffer field it is **the field's width in octets** (`*` is the argument's
+//! own length). Four decisions inside that:
+//!
+//! - **A bare code takes the whole argument, where PHP's takes one octet.**
+//!   PHP defaults every repeater to 1, so `pack("a", "Hello")` is `"H"` — a
+//!   truncation with no diagnostic, which is precisely the failure mode this
+//!   member is being rewritten to remove.
+//! - **An argument wider than its field throws**, rather than being cut to fit.
+//! - **An integer field accepts the union of its width's signed and unsigned
+//!   ranges** and writes two's complement, so `-1` and `4294967295` both write
+//!   `ffffffff` under `N`. Nothing outside that range wraps — it throws, which
+//!   is ADR 0063 R4, and it is why `c` and `C` write the same octet and differ
+//!   only in what `unpack` will read back.
+//! - **A `mixed` argument is not converted.** An integer field takes an `int`
+//!   or a `uint` and a float field takes a `float`; anything else throws
+//!   naming the tag it got, because `mixed` is ADR 0007 § 3's one unchecked
+//!   position and a silent widening there is the language's own rule broken at
+//!   a library boundary.
+//!
+//! `unpack` reads that same table backwards, one field at a time, and two of
+//! its own decisions follow from sharing it:
+//!
+//! - **It answers a positional `array<mixed>`, where PHP's answers a
+//!   name→value map.** PHP's `unpack` carries a *second* grammar for the
+//!   names, and the property given up — `$fields["length"]` — is bought back
+//!   as `unpack(pack($f, ...$v), $f) == $v`, exactly, with one format string
+//!   meaning one thing in both directions.
+//! - **Octets left over throw.** PHP ignores a tail the format did not
+//!   describe; a binary parser that silently ignores what it was not told
+//!   about is the failure AGENTS.md's priority 1 exists to refuse. A header
+//!   read off a longer buffer is `Core\Bytes::slice` and then `unpack`, or a
+//!   trailing `a*`.
+//!
+//! Ten of PHP's codes are refused, each throwing with the replacement named:
+//! `s`/`S`/`i`/`I`/`l`/`L`/`q`/`Q` and `f`/`d` take the machine's width or
+//! byte order, `h`/`H` are `Core\Encoding::fromHex` spelled twice, and
+//! `X`/`@` move the cursor backwards or to an absolute position, which turns a
+//! format into a small assembler for no reach a forward `x` does not have.
+//!
 //! **What it spends:** nothing per value. A `bytes` is the `MwlStr`
 //! allocation it already was (`mwl-runtime`'s module doc § *`bytes` is a tag,
 //! not a second heap shape*), `slice` allocates its result and the other four
 //! members allocate nothing at all.
 
-use mwl_runtime::{Fault, HelperResult, MwlStr, Tag, Value};
+use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreOption, CoreTy};
 
@@ -181,6 +242,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Bytes,
             symbol: "mwl_core_bytes_join",
         },
+        CoreMethod {
+            name: "pack",
+            params: &[CoreTy::Str, CoreTy::Variadic(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "mwl_core_bytes_pack",
+        },
+        CoreMethod {
+            name: "unpack",
+            params: &[CoreTy::Bytes, CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Mixed),
+            symbol: "mwl_core_bytes_unpack",
+        },
     ],
     instance: &[],
     slots: &[],
@@ -215,6 +290,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_bytes_fill" => (mwl_core_bytes_fill as *const ()).cast(),
         "mwl_core_bytes_repeat" => (mwl_core_bytes_repeat as *const ()).cast(),
         "mwl_core_bytes_join" => (mwl_core_bytes_join as *const ()).cast(),
+        "mwl_core_bytes_pack" => (mwl_core_bytes_pack as *const ()).cast(),
+        "mwl_core_bytes_unpack" => (mwl_core_bytes_unpack as *const ()).cast(),
         _ => return None,
     })
 }
@@ -636,6 +713,601 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+// ============================================================================
+// The format grammar `pack` writes and `unpack` reads
+// ============================================================================
+
+/// A field's repeater — what follows its code in the format string.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Repeat {
+    /// Nothing was written. One value for a numeric field, and the whole of
+    /// the argument for a buffer one — **not** PHP's default of 1, which
+    /// silently truncates `pack("a", "Hello")` to `"H"`.
+    Natural,
+    /// An explicit count: how many values a numeric field takes, and how many
+    /// octets wide a buffer field is.
+    Count(usize),
+    /// `*` — every remaining argument for a numeric field, and the whole of
+    /// the argument for a buffer one.
+    All,
+}
+
+/// The repeater following a code, and the rest of the format after it.
+fn repeater<'a>(after: &'a str, member: &str) -> Result<(Repeat, &'a str), Fault> {
+    if let Some(rest) = after.strip_prefix('*') {
+        return Ok((Repeat::All, rest));
+    }
+    let digits = after.bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 {
+        return Ok((Repeat::Natural, after));
+    }
+    let mut count: usize = 0;
+    for digit in after.bytes().take(digits) {
+        count = count
+            .checked_mul(10)
+            .and_then(|so_far| so_far.checked_add(usize::from(digit - b'0')))
+            .ok_or_else(|| {
+                Fault::thrown(format!(
+                    "Core\\Bytes::{member}: a repeat count larger than any buffer this process \
+                     could hold"
+                ))
+            })?;
+    }
+    Ok((Repeat::Count(count), &after[digits..]))
+}
+
+/// The width in octets and the byte order of each **integer** code, or `None`
+/// for a code that is not one. `true` is most-significant-octet first.
+const fn integral(code: char) -> Option<(usize, bool)> {
+    Some(match code {
+        // One octet has no byte order; the pair differs only in how `unpack`
+        // reads it back, which the module doc records.
+        'c' | 'C' => (1, true),
+        'n' => (2, true),
+        'v' => (2, false),
+        'N' => (4, true),
+        'V' => (4, false),
+        'J' => (8, true),
+        'P' => (8, false),
+        _ => return None,
+    })
+}
+
+/// [`integral`]'s counterpart for the four **float** codes.
+const fn fractional(code: char) -> Option<(usize, bool)> {
+    Some(match code {
+        'G' => (4, true),
+        'g' => (4, false),
+        'E' => (8, true),
+        'e' => (8, false),
+        _ => return None,
+    })
+}
+
+/// The throw for a code this grammar does not have, naming what to write
+/// instead wherever PHP had one — the module doc owns why each is refused.
+fn unknown_code(member: &str, code: char) -> Fault {
+    let instead = match code {
+        's' | 'S' | 'i' | 'I' | 'l' | 'L' | 'q' | 'Q' => Some(
+            "it takes the machine's own width and byte order, which is not a wire format — write \
+             `n`/`v` for 16 bits, `N`/`V` for 32, or `J`/`P` for 64",
+        ),
+        'f' | 'd' => Some(
+            "it takes the machine's own byte order — write `g`/`G` for a 32-bit float or `e`/`E` \
+             for a 64-bit one",
+        ),
+        'h' | 'H' => Some("write `Core\\Encoding::toHex`/`fromHex`, which is the whole of it"),
+        'X' | '@' => Some(
+            "a format runs forwards here — `x` covers NUL padding, and nothing moves the cursor \
+             backwards or to an absolute position",
+        ),
+        _ => None,
+    };
+    Fault::thrown(match instead {
+        Some(reason) => format!("Core\\Bytes::{member}: `{code}` is not a format code — {reason}"),
+        None => format!("Core\\Bytes::{member}: `{code}` is not a format code"),
+    })
+}
+
+/// How a `mixed` argument's runtime type is named in a throw.
+///
+/// A `FATAL` names the [`Tag`] the checker placed; this names the one the
+/// *program* placed, because `mixed` is ADR 0007 § 3's one unchecked position
+/// and a wrong type here is the caller's mistake rather than a miscompile.
+fn described(value: &Value) -> String {
+    value.tag().map_or_else(
+        || format!("tag {}", value.tag_byte()),
+        |tag| format!("{tag:?}"),
+    )
+}
+
+/// The next argument a field consumes, or the throw for a format that asks for
+/// more than the call wrote.
+fn consumed<'a>(arguments: &'a [Value], next: &mut usize, code: char) -> Result<&'a Value, Fault> {
+    let found = arguments.get(*next).ok_or_else(|| {
+        Fault::thrown(format!(
+            "Core\\Bytes::pack: `{code}` wants argument {}, and the call wrote {}",
+            *next + 1,
+            arguments.len()
+        ))
+    })?;
+    *next += 1;
+    Ok(found)
+}
+
+/// `field`'s octets, most significant first, appended in the order `big` names.
+fn emit(out: &mut Vec<u8>, field: &[u8], big: bool) {
+    if big {
+        out.extend_from_slice(field);
+    } else {
+        out.extend(field.iter().rev());
+    }
+}
+
+/// One integer field: `width` octets of two's complement in `big`'s order.
+///
+/// The accepted range is the **union** of the width's signed and unsigned
+/// ranges, so `-1` and `4294967295` both write `ffffffff` under `N` and
+/// neither loses anything; anything outside it throws rather than wrapping,
+/// which is ADR 0063 R4 and the same rule `fill` applies to an octet.
+fn integer_field(
+    out: &mut Vec<u8>,
+    value: i128,
+    width: usize,
+    big: bool,
+    code: char,
+) -> Result<(), Fault> {
+    let bits = width * 8;
+    let modulus: i128 = 1 << bits;
+    let low = -(modulus >> 1);
+    let high = modulus - 1;
+    if value < low || value > high {
+        return Err(Fault::thrown(format!(
+            "Core\\Bytes::pack: {value} does not fit `{code}`'s {bits} bits, which hold {low} to \
+             {high}"
+        )));
+    }
+    // `i128::to_be_bytes` is already the two's complement representation, so
+    // its low `width` octets are the field — and the check above is what makes
+    // dropping the rest lossless.
+    let full = value.to_be_bytes();
+    emit(out, &full[full.len() - width..], big);
+    Ok(())
+}
+
+/// One float field, IEEE 754 binary32 or binary64 in `big`'s order.
+///
+/// A 32-bit field **rounds** to the nearest `f32` rather than throwing on a
+/// value that does not round-trip: unlike an integer field's range, precision
+/// is what a caller chose when they wrote a 4-byte float, and refusing `0.1`
+/// there would leave `g`/`G` unusable. Overflowing to an infinity is a
+/// different thing and does throw — that is a value becoming a different kind
+/// of value, not a narrower one.
+fn float_field(
+    out: &mut Vec<u8>,
+    value: f64,
+    width: usize,
+    big: bool,
+    code: char,
+) -> Result<(), Fault> {
+    if width == 4 {
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "narrowing to the field's own precision is what this member is for, and \
+                      the one case the rounding cannot express is checked on the next line"
+        )]
+        let narrow = value as f32;
+        if value.is_finite() && !narrow.is_finite() {
+            return Err(Fault::thrown(format!(
+                "Core\\Bytes::pack: {value} is outside `{code}`'s 32-bit range, and rounding it \
+                 would answer an infinity"
+            )));
+        }
+        emit(out, &narrow.to_be_bytes(), big);
+    } else {
+        emit(out, &value.to_be_bytes(), big);
+    }
+    Ok(())
+}
+
+/// One buffer field — `a` NUL-padded, `A` space-padded, `Z` NUL-padded with at
+/// least one NUL of its own.
+///
+/// An argument **longer** than the declared width throws rather than being
+/// truncated, which is where this parts company with PHP: a record field too
+/// small for its value is a bug, and silently writing the first half of a name
+/// is the substitution failure ADR 0009 § 3 removes from the language.
+fn buffer_field(out: &mut Vec<u8>, data: &[u8], repeat: Repeat, code: char) -> Result<(), Fault> {
+    let pad = if code == 'A' { b' ' } else { 0 };
+    let needed = data.len() + usize::from(code == 'Z');
+    let width = match repeat {
+        Repeat::Natural | Repeat::All => needed,
+        Repeat::Count(count) => count,
+    };
+    if width < needed {
+        return Err(Fault::thrown(format!(
+            "Core\\Bytes::pack: `{code}` was given a {width}-octet field, and the argument needs \
+             {needed}"
+        )));
+    }
+    let total = affordable(out.len().checked_add(width), "pack")?;
+    out.extend_from_slice(data);
+    out.resize(total, pad);
+    Ok(())
+}
+
+/// The whole of `pack`: walk the format, consuming arguments as fields ask for
+/// them, and refuse a call whose two halves do not line up in either direction.
+fn packed(format: &str, arguments: &[Value]) -> Result<Vec<u8>, Fault> {
+    let mut out: Vec<u8> = Vec::new();
+    let mut next = 0usize;
+    let mut rest = format;
+
+    while let Some(code) = rest.chars().next() {
+        let (repeat, after) = repeater(&rest[code.len_utf8()..], "pack")?;
+        rest = after;
+
+        if code == 'x' {
+            let width = match repeat {
+                Repeat::Natural => 1,
+                Repeat::Count(count) => count,
+                Repeat::All => {
+                    return Err(Fault::thrown(
+                        "Core\\Bytes::pack: `x*` has nothing to repeat — `x` consumes no \
+                         argument, so write the number of NUL bytes"
+                            .to_owned(),
+                    ));
+                }
+            };
+            let total = affordable(out.len().checked_add(width), "pack")?;
+            out.resize(total, 0);
+            continue;
+        }
+
+        if matches!(code, 'a' | 'A' | 'Z') {
+            let value = consumed(arguments, &mut next, code)?;
+            // Either buffer tag: a `string` is the ordinary argument for a
+            // text field, and a `bytes` is what a program that already has
+            // octets holds. Nothing else has octets to write.
+            let data = value.as_bytes().or_else(|| value.as_str_bytes()).ok_or_else(|| {
+                Fault::thrown(format!(
+                    "Core\\Bytes::pack: `{code}` writes a buffer field, and the argument is a {}",
+                    described(value)
+                ))
+            })?;
+            buffer_field(&mut out, data, repeat, code)?;
+            continue;
+        }
+
+        let Some((width, big)) = integral(code).or_else(|| fractional(code)) else {
+            return Err(unknown_code("pack", code));
+        };
+        let times = match repeat {
+            Repeat::Natural => 1,
+            Repeat::Count(count) => count,
+            Repeat::All => arguments.len().saturating_sub(next),
+        };
+        for _ in 0..times {
+            let value = consumed(arguments, &mut next, code)?;
+            affordable(out.len().checked_add(width), "pack")?;
+            if integral(code).is_some() {
+                let number = match value.tag() {
+                    Some(Tag::Int) => value.as_int().map(i128::from),
+                    Some(Tag::Uint) => value.as_uint().map(i128::from),
+                    _ => None,
+                }
+                .ok_or_else(|| {
+                    Fault::thrown(format!(
+                        "Core\\Bytes::pack: `{code}` writes an integer field, and the argument \
+                         is a {}",
+                        described(value)
+                    ))
+                })?;
+                integer_field(&mut out, number, width, big, code)?;
+            } else {
+                let number = match value.tag() {
+                    Some(Tag::Float) => value.as_float(),
+                    _ => None,
+                };
+                let number = number.ok_or_else(|| {
+                    Fault::thrown(format!(
+                        "Core\\Bytes::pack: `{code}` writes a float field, and the argument is a \
+                         {}",
+                        described(value)
+                    ))
+                })?;
+                float_field(&mut out, number, width, big, code)?;
+            }
+        }
+    }
+
+    if next < arguments.len() {
+        return Err(Fault::thrown(format!(
+            "Core\\Bytes::pack: the format writes {next} of the {} arguments the call wrote",
+            arguments.len()
+        )));
+    }
+    Ok(out)
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Bytes::pack(string $format, mixed ...$values): bytes` — replacing
+    /// PHP's `pack`, and the second `Core` member with a variadic parameter
+    /// after `Core\Str::format`.
+    ///
+    /// So the second argument slot is **one** `Tag::Array` holding every
+    /// written value rather than one slot each, built at the call site by
+    /// `mwl_ir::lower::lower_variadic_tail` —
+    /// [`crate::registry::CoreTy::Variadic`] owns why that shape. A call that
+    /// writes no value at all still receives an array here, empty rather than
+    /// absent.
+    ///
+    /// The grammar, the codes it refuses and every throw are this module's
+    /// own docs; [`packed`] is the whole of the member.
+    ///
+    /// **Two classifications are still owed**, both named by spec § 7 and
+    /// neither invented here: the format is an
+    /// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
+    /// intrinsic, so a *literal* format should have its field count checked
+    /// against the argument list at compile time rather than at the call —
+    /// exactly as `Core\Str::format`'s template still owes; and it is a
+    /// **sink**
+    /// ([ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)),
+    /// which is that ADR's registry-wide item — no member row anywhere carries
+    /// a qualifier classification yet, so half of one here would be a lie
+    /// about what is enforced.
+    fn mwl_core_bytes_pack(_ctx, args: [2]) {
+        let format = std::str::from_utf8(
+            args[0].as_str_bytes().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Bytes::pack expected {:?} for the format, got tag {}",
+                    Tag::Str,
+                    args[0].tag_byte()
+                ))
+            })?,
+        )
+        .map_err(|_| {
+            Fault::fatal("Core\\Bytes::pack: the format is not UTF-8".to_owned())
+        })?;
+        let values = args[1].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Bytes::pack expected {:?} for the value list, got tag {}",
+                Tag::Array,
+                args[1].tag_byte()
+            ))
+        })?;
+
+        let mut collected = Vec::new();
+        let mut from = 0usize;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array argument owns a reference to a live \
+                          allocation, so it is live for the length of this \
+                          call, and `from` only ever advances past a slot \
+                          this same cursor reported"
+            )]
+            let (slot, value) = unsafe {
+                let slot = mwl_runtime::mwl_array_next_slot(values, from);
+                let Ok(slot) = usize::try_from(slot) else {
+                    break;
+                };
+                let mut value = Value::null();
+                mwl_runtime::mwl_array_value_at(values, slot, &raw mut value);
+                (slot, value)
+            };
+            from = slot + 1;
+            collected.push(value);
+        }
+
+        produced(&packed(format, &collected)?)
+    }
+}
+
+// ============================================================================
+// `unpack`: the same grammar, read backwards
+// ============================================================================
+
+/// One value [`unpacked`] read, before it becomes a [`Value`].
+///
+/// The intermediate exists so that a format failing part way through a buffer
+/// leaves **nothing to release** — every variant here is plain owned Rust, so
+/// the error path is `?` rather than a hand-written unwind over the references
+/// already built.
+#[derive(Clone, Debug, PartialEq)]
+enum Field {
+    /// `c`, the one code read back signed.
+    Signed(i64),
+    /// Every other integer code — `C`, `n`, `v`, `N`, `V`, `J`, `P`.
+    Unsigned(u64),
+    /// The four float codes.
+    Fractional(f64),
+    /// `a`, `A` or `Z` — octets, and `bytes` rather than `string` because a
+    /// field of a binary record carries no charset (ADR 0009 § 1). Validating
+    /// it as UTF-8 here would make reading a record throw on data that is
+    /// perfectly well-formed for what it is.
+    Buffer(Vec<u8>),
+}
+
+impl Field {
+    /// The value compiled code receives, taking ownership of a buffer field's
+    /// octets.
+    fn into_value(self) -> Value {
+        match self {
+            Self::Signed(number) => Value::int(number),
+            Self::Unsigned(number) => Value::uint(number),
+            Self::Fractional(number) => Value::float(number),
+            Self::Buffer(octets) => Value::bytes(MwlStr::new(&octets)),
+        }
+    }
+}
+
+/// The cursor after a field of `width` octets read at `at`, or the throw for a
+/// buffer that ends before the format does.
+fn advanced(at: usize, width: usize, total: usize, code: char) -> Result<usize, Fault> {
+    at.checked_add(width)
+        .filter(|end| *end <= total)
+        .ok_or_else(|| {
+            Fault::thrown(format!(
+                "Core\\Bytes::unpack: `{code}` reads {width} octets at offset {at}, and the \
+                 buffer holds {total}"
+            ))
+        })
+}
+
+/// One numeric field's octets as the value they spell.
+///
+/// The field is normalized to most-significant-octet-first and right-aligned
+/// in a `u64` first, so every code below reads the same integer rather than
+/// each carrying its own shifting.
+fn read_field(field: &[u8], code: char, big: bool) -> Field {
+    let mut wide = [0u8; 8];
+    let width = field.len().min(wide.len());
+    for (index, octet) in field.iter().take(width).enumerate() {
+        let significance = if big { width - 1 - index } else { index };
+        wide[wide.len() - 1 - significance] = *octet;
+    }
+    match code {
+        // Two's complement, so the sign is restored by *reading* the octet
+        // signed — which is the whole of the difference between `c` and `C`.
+        'c' => Field::Signed(i64::from(i8::from_be_bytes([wide[7]]))),
+        'g' | 'G' => Field::Fractional(f64::from(f32::from_be_bytes([
+            wide[4], wide[5], wide[6], wide[7],
+        ]))),
+        'e' | 'E' => Field::Fractional(f64::from_bits(u64::from_be_bytes(wide))),
+        _ => Field::Unsigned(u64::from_be_bytes(wide)),
+    }
+}
+
+/// A buffer field's octets with whatever its code pads with taken back off.
+fn trimmed(raw: &[u8], code: char) -> &[u8] {
+    match code {
+        // PHP's `A`: the padding this grammar can have written, and nothing
+        // else — a trailing octet that happens to be a space is not
+        // distinguishable from the padding that produced it either way.
+        'A' => {
+            let end = raw
+                .iter()
+                .rposition(|octet| *octet != b' ' && *octet != 0)
+                .map_or(0, |last| last + 1);
+            &raw[..end]
+        }
+        // PHP's `Z`: the field ends at its own terminator, and anything after
+        // it inside the declared width is padding.
+        'Z' => match raw.iter().position(|octet| *octet == 0) {
+            Some(nul) => &raw[..nul],
+            None => raw,
+        },
+        _ => raw,
+    }
+}
+
+/// The whole of `unpack`: walk the same format [`packed`] writes, reading one
+/// field at a time, and refuse a buffer that does not end where the format
+/// does.
+fn unpacked(subject: &[u8], format: &str) -> Result<Vec<Field>, Fault> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    let mut rest = format;
+
+    while let Some(code) = rest.chars().next() {
+        let (repeat, after) = repeater(&rest[code.len_utf8()..], "unpack")?;
+        rest = after;
+        let left = subject.len().saturating_sub(at);
+
+        if code == 'x' {
+            let width = match repeat {
+                Repeat::Natural => 1,
+                Repeat::Count(count) => count,
+                Repeat::All => left,
+            };
+            at = advanced(at, width, subject.len(), code)?;
+            continue;
+        }
+
+        if matches!(code, 'a' | 'A' | 'Z') {
+            // A buffer field with no width is the rest of the buffer, which is
+            // what makes `pack`'s bare `a` its exact inverse.
+            let width = match repeat {
+                Repeat::Natural | Repeat::All => left,
+                Repeat::Count(count) => count,
+            };
+            let end = advanced(at, width, subject.len(), code)?;
+            out.push(Field::Buffer(trimmed(&subject[at..end], code).to_vec()));
+            at = end;
+            continue;
+        }
+
+        let Some((width, big)) = integral(code).or_else(|| fractional(code)) else {
+            return Err(unknown_code("unpack", code));
+        };
+        let times = match repeat {
+            Repeat::Natural => 1,
+            Repeat::Count(count) => count,
+            // Never a division by zero: every code in either table is at least
+            // one octet wide.
+            Repeat::All => left / width,
+        };
+        for _ in 0..times {
+            let end = advanced(at, width, subject.len(), code)?;
+            out.push(read_field(&subject[at..end], code, big));
+            at = end;
+        }
+    }
+
+    if at < subject.len() {
+        return Err(Fault::thrown(format!(
+            "Core\\Bytes::unpack: the format reads {at} of the buffer's {} octets — a header read \
+             off a longer buffer is `Core\\Bytes::slice` and then this",
+            subject.len()
+        )));
+    }
+    Ok(out)
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Bytes::unpack(bytes $b, string $format): array<mixed>` —
+    /// replacing PHP's `unpack`, and [`packed`]'s exact inverse over the same
+    /// code table, which is why that table is written once and read twice.
+    ///
+    /// **The answer is a positional list, where PHP's is a name→value map.**
+    /// PHP's `unpack` carries a *second* grammar for the names —
+    /// `"Nlength/nport"`, with `/` between fields, an unnamed field silently
+    /// called `"1"`, and a repeated name silently overwriting the field before
+    /// it. One grammar shared with `pack` costs a caller `$fields[0]` instead
+    /// of `$fields["length"]` and buys back the property that makes this pair
+    /// worth having: `unpack(pack($f, …$v), $f)` is `$v`, field for field,
+    /// with nothing to check about how the two format strings were spelled.
+    ///
+    /// **Octets left over throw**, rather than being ignored the way PHP
+    /// ignores them: a format is a description of the buffer, and a
+    /// description that stops short of the data is exactly the bug a binary
+    /// parser must not swallow (AGENTS.md's priority 1). A header read off a
+    /// longer buffer is `Core\Bytes::slice` and then this, or a trailing `a*`.
+    ///
+    /// The format is an ADR 0057 intrinsic and a sink for the same reasons
+    /// [`mwl_core_bytes_pack`]'s is, and both classifications are owed there.
+    fn mwl_core_bytes_unpack(_ctx, args: [2]) {
+        let subject = raw(&args[0], "unpack", "the subject")?;
+        let format = std::str::from_utf8(
+            args[1].as_str_bytes().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Bytes::unpack expected {:?} for the format, got tag {}",
+                    Tag::Str,
+                    args[1].tag_byte()
+                ))
+            })?,
+        )
+        .map_err(|_| Fault::fatal("Core\\Bytes::unpack: the format is not UTF-8".to_owned()))?;
+
+        let mut out = MwlArray::new();
+        for field in unpacked(subject, format)? {
+            out.append(field.into_value());
+        }
+        Ok(Value::array(out))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -672,5 +1344,243 @@ mod tests {
         assert_eq!(find(b"abc", b"abcd"), None);
         assert_eq!(find(b"abcabc", b"bc"), Some(1));
         assert_eq!(find(b"\x00\xff\x10", b"\xff\x10"), Some(1));
+    }
+
+    /// One `string` argument, which the caller still owns — [`packed`] borrows
+    /// its octets exactly as the helper convention does.
+    fn text(literal: &str) -> Value {
+        Value::str(MwlStr::new(literal.as_bytes()))
+    }
+
+    /// Gives back every reference [`text`] built.
+    fn release(values: Vec<Value>) {
+        for value in values {
+            #[expect(
+                unsafe_code,
+                reason = "this test owns the one reference it built for each \
+                          value, and `packed` borrowed rather than consumed it"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+    }
+
+    /// What a format writes, as hex — the spelling a `.mwlt` case asserts in,
+    /// since `echo` has no `bytes` row.
+    fn hex(format: &str, arguments: &[Value]) -> String {
+        packed(format, arguments)
+            .expect("the format packs")
+            .iter()
+            .map(|octet| format!("{octet:02x}"))
+            .collect()
+    }
+
+    /// The message a format that cannot pack throws.
+    fn refusal(format: &str, arguments: &[Value]) -> String {
+        match packed(format, arguments) {
+            Ok(octets) => panic!(
+                "the format packed {} octets rather than throwing",
+                octets.len()
+            ),
+            Err(Fault::Thrown(_, message)) => message.into_owned(),
+            Err(_) => panic!("the format failed with something other than a throw"),
+        }
+    }
+
+    /// Every numeric code's width and byte order, checked against what
+    /// `php -r 'echo bin2hex(pack(…));'` answers for the same call.
+    #[test]
+    fn each_numeric_code_writes_its_own_width_and_order() {
+        assert_eq!(hex("C", &[Value::uint(255)]), "ff");
+        assert_eq!(hex("n", &[Value::uint(4660)]), "1234");
+        assert_eq!(hex("v", &[Value::uint(4660)]), "3412");
+        assert_eq!(hex("N", &[Value::uint(305_419_896)]), "12345678");
+        assert_eq!(hex("V", &[Value::uint(305_419_896)]), "78563412");
+        assert_eq!(hex("J", &[Value::uint(1)]), "0000000000000001");
+        assert_eq!(hex("P", &[Value::uint(1)]), "0100000000000000");
+        assert_eq!(hex("G", &[Value::float(1.0)]), "3f800000");
+        assert_eq!(hex("g", &[Value::float(1.0)]), "0000803f");
+        assert_eq!(hex("E", &[Value::float(1.0)]), "3ff0000000000000");
+        assert_eq!(hex("e", &[Value::float(1.0)]), "000000000000f03f");
+    }
+
+    /// A repeater counts *arguments* on a numeric field, `*` takes every one
+    /// left, and `x` writes NUL octets while consuming none — the three rules
+    /// that make a header expressible in one call.
+    #[test]
+    fn a_repeater_counts_arguments_and_x_counts_octets() {
+        let three = [Value::uint(1), Value::uint(2), Value::uint(3)];
+        assert_eq!(hex("n3", &three), "000100020003");
+        assert_eq!(hex("n*", &three), "000100020003");
+        assert_eq!(hex("Cn", &three[..2]), "010002");
+        assert_eq!(hex("x", &[]), "00");
+        assert_eq!(hex("x4", &[]), "00000000");
+        assert_eq!(hex("n0", &[]), "");
+    }
+
+    /// An integer field accepts the union of its width's signed and unsigned
+    /// ranges, writes two's complement, and throws outside it rather than
+    /// wrapping the way PHP does — ADR 0063 R4.
+    #[test]
+    fn an_integer_field_spans_both_ranges_and_refuses_outside_them() {
+        assert_eq!(hex("N", &[Value::int(-1)]), "ffffffff");
+        assert_eq!(hex("N", &[Value::uint(4_294_967_295)]), "ffffffff");
+        assert_eq!(hex("C", &[Value::int(-128)]), "80");
+        assert_eq!(hex("C", &[Value::uint(255)]), "ff");
+        assert!(refusal("C", &[Value::uint(256)]).contains("does not fit"));
+        assert!(refusal("C", &[Value::int(-129)]).contains("does not fit"));
+        assert!(refusal("n", &[Value::int(-32_769)]).contains("does not fit"));
+    }
+
+    /// A buffer field pads to its declared width, `Z` keeps one octet for its
+    /// own NUL, and an argument that does not fit throws instead of being cut.
+    #[test]
+    fn a_buffer_field_pads_and_refuses_to_truncate() {
+        let hi = vec![text("Hi")];
+        assert_eq!(hex("a4", &hi), "48690000");
+        assert_eq!(hex("A4", &hi), "48692020");
+        assert_eq!(hex("Z4", &hi), "48690000");
+        assert_eq!(hex("a", &hi), "4869");
+        assert_eq!(hex("Z", &hi), "486900");
+        assert!(refusal("a1", &hi).contains("needs 2"));
+        assert!(refusal("Z2", &hi).contains("needs 3"));
+        release(hi);
+    }
+
+    /// The format and the argument list must line up in **both** directions,
+    /// and a `mixed` argument of the wrong runtime type is the caller's
+    /// mistake rather than a conversion this member performs.
+    #[test]
+    fn a_call_whose_halves_disagree_throws() {
+        assert!(refusal("N", &[]).contains("wants argument 1"));
+        assert!(refusal("N", &[Value::uint(1), Value::uint(2)]).contains("writes 1 of the 2"));
+        assert!(refusal("N", &[Value::float(1.0)]).contains("integer field"));
+        assert!(refusal("E", &[Value::int(1)]).contains("float field"));
+
+        let hi = vec![text("Hi")];
+        assert!(refusal("N", &hi).contains("integer field"));
+        assert!(refusal("a2", &[Value::uint(1)]).contains("buffer field"));
+        release(hi);
+    }
+
+    /// Every code this grammar refuses names what to write instead, so a
+    /// program ported from PHP is told the answer rather than just told no.
+    #[test]
+    fn a_refused_code_names_its_replacement() {
+        assert!(refusal("l", &[Value::int(1)]).contains("`N`/`V`"));
+        assert!(refusal("d", &[Value::float(1.0)]).contains("`e`/`E`"));
+        assert!(refusal("H", &[Value::int(1)]).contains("Core\\Encoding::toHex"));
+        assert!(refusal("@", &[]).contains("forwards"));
+        assert!(refusal("?", &[]).contains("is not a format code"));
+        assert!(refusal("x*", &[]).contains("nothing to repeat"));
+    }
+
+    /// What a format reads out of a buffer.
+    fn read(format: &str, octets: &[u8]) -> Vec<Field> {
+        unpacked(octets, format).expect("the format unpacks")
+    }
+
+    /// The message a buffer the format does not describe throws.
+    fn read_refusal(format: &str, octets: &[u8]) -> String {
+        match unpacked(octets, format) {
+            Ok(fields) => {
+                panic!(
+                    "the format read {} fields rather than throwing",
+                    fields.len()
+                )
+            }
+            Err(Fault::Thrown(_, message)) => message.into_owned(),
+            Err(_) => panic!("the format failed with something other than a throw"),
+        }
+    }
+
+    /// The property that makes one shared code table worth having: a format
+    /// means the same thing read as it does written.
+    #[test]
+    fn unpack_is_packs_inverse_over_the_same_format() {
+        let format = "NnCcEg";
+        let written = packed(
+            format,
+            &[
+                Value::uint(305_419_896),
+                Value::uint(4660),
+                Value::uint(255),
+                Value::int(-2),
+                Value::float(0.5),
+                Value::float(0.5),
+            ],
+        )
+        .expect("the format packs");
+        assert_eq!(
+            read(format, &written),
+            vec![
+                Field::Unsigned(305_419_896),
+                Field::Unsigned(4660),
+                Field::Unsigned(255),
+                Field::Signed(-2),
+                Field::Fractional(0.5),
+                Field::Fractional(0.5),
+            ]
+        );
+    }
+
+    /// Each order reads the octets back the way it wrote them, and `c` is the
+    /// one code that restores a sign — the whole of its difference from `C`.
+    #[test]
+    fn each_order_reads_back_what_it_wrote() {
+        assert_eq!(read("n", b"\x12\x34"), vec![Field::Unsigned(0x1234)]);
+        assert_eq!(read("v", b"\x12\x34"), vec![Field::Unsigned(0x3412)]);
+        assert_eq!(
+            read("N", b"\x12\x34\x56\x78"),
+            vec![Field::Unsigned(0x1234_5678)]
+        );
+        assert_eq!(
+            read("V", b"\x12\x34\x56\x78"),
+            vec![Field::Unsigned(0x7856_3412)]
+        );
+        assert_eq!(
+            read("J", b"\x00\x00\x00\x00\x00\x00\x00\x01"),
+            vec![Field::Unsigned(1)]
+        );
+        assert_eq!(
+            read("P", b"\x01\x00\x00\x00\x00\x00\x00\x00"),
+            vec![Field::Unsigned(1)]
+        );
+        assert_eq!(
+            read("cC", b"\xff\xff"),
+            vec![Field::Signed(-1), Field::Unsigned(255)]
+        );
+        assert_eq!(read("xC", b"\x00\x07"), vec![Field::Unsigned(7)]);
+    }
+
+    /// A buffer field gives back octets — never a `string`, since a record
+    /// field carries no charset — with its own padding taken off where the
+    /// code says what the padding was.
+    #[test]
+    fn a_buffer_field_answers_octets_without_its_padding() {
+        assert_eq!(
+            read("a4", b"Hi\0\0"),
+            vec![Field::Buffer(b"Hi\0\0".to_vec())]
+        );
+        assert_eq!(read("A4", b"Hi  "), vec![Field::Buffer(b"Hi".to_vec())]);
+        assert_eq!(read("Z4", b"Hi\0\0"), vec![Field::Buffer(b"Hi".to_vec())]);
+        assert_eq!(read("a", b"Hi"), vec![Field::Buffer(b"Hi".to_vec())]);
+        assert_eq!(
+            read("nZ*", b"\x00\x01ok\0"),
+            vec![Field::Unsigned(1), Field::Buffer(b"ok".to_vec())]
+        );
+    }
+
+    /// The format must describe the whole buffer, in both directions — a tail
+    /// PHP would ignore is what a binary parser must not swallow.
+    #[test]
+    fn a_buffer_the_format_does_not_describe_throws() {
+        assert_eq!(read("n*", b"\x00\x01\x00\x02").len(), 2);
+        assert!(read_refusal("n", b"\x00\x01\x00\x02").contains("reads 2 of the buffer's 4"));
+        assert!(read_refusal("n*", b"\x00\x01\x00").contains("reads 2 of the buffer's 3"));
+        assert!(read_refusal("N", b"\x00\x01").contains("buffer holds 2"));
+        assert!(read_refusal("a4", b"Hi").contains("buffer holds 2"));
+        assert!(read_refusal("l", b"").contains("`N`/`V`"));
     }
 }
