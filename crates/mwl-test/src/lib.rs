@@ -61,10 +61,12 @@
 //! machine where the PHP binary cannot be run at all — that is an absent
 //! oracle, not a failing comparison, and reporting sixty identical failures
 //! would bury the one line that says PHP is missing. The count is what
-//! catches it: `docs/agent/loop-goal.toml` requires 60 *passing* differential
-//! cases, so a leg that silently lost its oracle fails there. As of this
-//! writing PHP 8.5 is on `PATH` under Windows but not inside the WSL distro,
-//! so the Linux leg skips the differential suite and covers conformance only.
+//! catches it: `docs/agent/loop-goal.toml` sets a floor on *passing*
+//! differential cases, so a leg that silently lost its oracle fails there.
+//! A development machine carries PHP 8.5 on `PATH` on both sides of a Windows
+//! setup — Windows and the WSL distro, at the same version — so the Linux leg
+//! runs this suite rather than skipping it
+//! ([docs/setup.md](../../../docs/setup.md)).
 //!
 //! ## What is parsed but not yet honoured
 //!

@@ -107,10 +107,12 @@ is why" — is this file.
 
 ## Writing a test case
 
-- **Never put `--ORACLE--` in a `tests/conformance/` case** — the WSL leg has no PHP, so an oracle section
-  makes the runner *skip the whole case* there, subtracting from the very count Stage 4 measures. Verify
-  against PHP while authoring (`php` is on the Windows `PATH`; `php -r '…'` is enough to settle a
-  semantics question), then drop the section or put the case in `tests/differential/`. The `.mwlt` format
+- **Never put `--ORACLE--` in a `tests/conformance/` case** — CI runs that suite on all three hosted
+  runners and none of them has PHP, so an oracle section makes the runner *skip the whole case* there,
+  subtracting from the very count Stage 4 measures. Verify against PHP while authoring — `php -r '…'` is
+  enough to settle a semantics question, and it is on `PATH` under Windows *and* inside the WSL distro
+  ([docs/setup.md](../setup.md)) — then drop the section or put the case in
+  `tests/differential/`, which is where an oracle belongs. The `.mwlt` format
   is `crates/mwl-test`'s module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own
   indentation, which widens with the line number. A trailing space before a `\n` is unreliable in an
   `--EXPECT--` block — echo a sentinel character after it.
