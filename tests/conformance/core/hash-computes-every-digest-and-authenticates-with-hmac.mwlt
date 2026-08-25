@@ -1,0 +1,59 @@
+--TEST--
+`Core\Hash` computes every `Core\Digest`, authenticates with HMAC and compares two digests by content — spec § 11, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+// § 11: the algorithm is an argument, not part of the member's name, so one
+// member stands where PHP has `md5`, `sha1`, `crc32`, `hash` and
+// `openssl_digest`. Each line below is that specification's own "abc" vector.
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha1)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha512)), "\n";
+
+// ADR 0009 § 3: `string as bytes` is total and free, so the same octets hash
+// the same whichever of the two tags the caller is holding them under. That is
+// what the `bytes|string` parameter buys, and the reason there is no
+// text-flavoured twin of this member.
+bytes $raw = Core\Encoding::fromHex("616263");
+bytes $viaBytes = Core\Hash::of($raw, Core\Digest::Sha256);
+bytes $viaText = Core\Hash::of("abc", Core\Digest::Sha256);
+if (Core\Hash::equals($viaBytes, $viaText)) {
+    echo "one digest, either tag\n";
+}
+
+// The result is `bytes` — the 32 octets a SHA-256 is, with no `raw_output`
+// flag and no hex until `Core\Encoding` is asked for one (ADR 0009 § 1). Two
+// hex digits per octet, so 64 is the width of the spelling and 32 is the
+// width of the value. (`Core\Bytes::length` is § 7's, and unwritten.)
+echo Core\Str::length(Core\Encoding::toHex($viaBytes)), "\n";
+
+// RFC 4231's second test case, whose key is short enough to read: HMAC is a
+// separate member rather than an option, because its third parameter is the
+// closed `StrongDigest` subset and `of`'s is the whole enum.
+bytes $key = Core\Encoding::fromHex("4a656665");
+echo Core\Encoding::toHex(
+    Core\Hash::hmac("what do ya want for nothing?", $key, Core\Digest::Sha256)
+), "\n";
+echo Core\Encoding::toHex(
+    Core\Hash::hmac("what do ya want for nothing?", $key, Core\Digest::Sha512)
+), "\n";
+
+// A one-octet difference is still a difference: `equals` is constant-time in
+// where the operands diverge, not in whether they do.
+if (!Core\Hash::equals($viaBytes, Core\Hash::of("abd", Core\Digest::Sha256))) {
+    echo "differ\n";
+}
+--EXPECT--
+352441c2
+900150983cd24fb0d6963f7d28e17f72
+a9993e364706816aba3e25717850c26c9cd0d89d
+ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7
+ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f
+one digest, either tag
+64
+5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843
+164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737
+differ

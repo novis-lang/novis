@@ -191,6 +191,7 @@ mod cldr;
 mod encoding;
 mod format;
 pub mod granularity;
+mod hash;
 mod identity_store;
 mod instance;
 mod issue;
@@ -262,6 +263,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
     str::address(symbol)
         .or_else(|| arr::address(symbol))
         .or_else(|| encoding::address(symbol))
+        .or_else(|| hash::address(symbol))
         .or_else(|| json::address(symbol))
         .or_else(|| math::address(symbol))
         .or_else(|| objmap::address(symbol))

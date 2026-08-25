@@ -58,6 +58,13 @@ is why" — is this file.
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud
   banner when `.loop/running` exists — if it does, stop and tell the user rather than editing alongside it.
+- **A second writer can replace a file you created *this session*, and the only notice is a "changed on
+  disk" line.** A `Core` slice run twice concurrently produced two whole implementations of the same new
+  module and two conformance cases for it; the second Write silently won. Do not revert — the tree is only
+  internally consistent with the newer one — but *re-read the file before every later edit*, delete the
+  duplicate case rather than shipping both (a padded conformance count is worse than a missing one), and
+  say in the commit message that it carries two authors. The `git status --short` you run before staging is
+  where a duplicate shows up, and it is the only place.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
   `python tools/check-links.py` — broken *and* mis-cased relative links.
 - **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file.

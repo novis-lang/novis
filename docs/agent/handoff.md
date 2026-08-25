@@ -2,59 +2,75 @@
 
 ## State
 
-**`bytes` is a live runtime representation now.** `mwl_runtime::Tag::Bytes` (`value.rs:83`) is a tag of
-its own over the *existing* `MwlStr` allocation: one heap shape, two tags. `mwl-runtime`'s module doc
-§ *`bytes` is a tag, not a second heap shape* owns that decision, what it spends, and the two readers
-that state a rule of their own (`value_to_string` refuses a `bytes`; `value_truthy` drops `string`'s
-`"0"` case). `Value::bytes`/`as_bytes`/`buffer_ptr` are `value.rs:235`/`:360`/`:396`;
-`mwl_codegen::ty::tag_of` splits `Ty::Str` from `Ty::Bytes`, and `release`/`retain` keep one arm for the
-pair. Verified end to end: a `bytes` local round-trips through codegen and valgrind reports no leak.
+**`Core\Hash` and `Core\Digest` are built — spec § 11's one-shot half.**
+`crates/mwl-stdlib/src/hash.rs` registers `of(bytes|string, Digest): bytes`,
+`hmac(bytes|string, bytes, StrongDigest): bytes` and `equals(bytes, bytes): bool`. That module's own
+doc owns the dependency picks (RustCrypto `sha2`/`sha1`/`md-5`/`hmac`, plus `crc32fast` and `subtle`,
+under ADR 0051 § 4), why `Crc32` answers four big-endian octets, and why `equals` is constant-time.
+`stream(Digest): Hash\Stream` is unbuilt and is that file's gap 1; the `secret` qualifier on `hmac`'s
+key is gap 2 and belongs to ADR 0088's registry-wide item, not to this class.
 
-**`Core\Encoding` exists, with § 7's hex pair only.** `crates/mwl-stdlib/src/encoding.rs` —
-`toHex(bytes): string` and `fromHex(string): bytes`, no dependency (its module doc says why hex answers
-ADR 0051 § 4 differently from base64/base32). One conformance case,
-`tests/conformance/core/encoding-round-trips-hex-and-refuses-anything-else.mwlt`.
+**`registry::CoreTy::EnumCase` is new, and it is what states a closed subset of an enum.** § 11's
+`StrongDigest` is `CoreTy::Union` over three `CoreTy::EnumCase` rows (`hash.rs`, `STRONG`), not a
+second enum — so one `Core\Digest::Sha256` value satisfies both `of` and `hmac`, and
+`Hash::hmac($m, $k, Digest::Md5)` is `E0401` naming the three cases the position takes. That variant's
+own doc comment in `registry.rs:240` owns the reasoning; `mwl_types::core_lib`'s `lower` interns it
+through `TypeInterner::enum_case`, exactly as a source-written case type. It works because
+`mwl_types::expr::literals::placed_literal` already looks inside a union.
 
-**`python tools/loop.py --goal-only` still stops at `collect.mwl`.** The first report has moved off § 7
-and onto § 11: `Core\Hash::of`/`Core\Digest` at `collect.mwl:25`. Conformance is 375 of 600,
-differential 86 of 150, `every_part_one_spec_member_is_registered` still does not exist.
+**`examples/collect.mwl`'s frontier moved off § 11 and onto § 7.** Its first report is now
+`Core\Encoding::toBase64` at `collect.mwl:26`. Conformance is 377 of 600; differential is 86 of 150 and
+has not moved; `every_part_one_spec_member_is_registered` still does not exist.
 
-**`orient.py` did not print three things this session**, all `[context]` gaps in `loop-goal.toml`:
-`modules` names only `mwl-runtime/src/identity.rs`, so `value.rs`, `release.rs`, `helpers.rs`,
-`string.rs` and `mwl-codegen/src/ty.rs` had to be found by hand; `adrs` is missing
-`0009-string-and-bytes.md` §§ 1 and 3, which is the rule every § 7 slice sits inside.
+**Two loop sessions held this tree at once, and the cause is known.** The previous iteration's driver
+died to the `UnicodeEncodeError` that `tools/loop.py`'s uncommitted fix addresses — but it died
+*without killing its child*, so that orphan was still working § 11 when the restarted driver launched a
+second session onto the same handoff. Both built `Core\Hash` independently and converged; `hash.rs` and
+one conformance case were replaced mid-session, the duplicate refusal case was dropped, and the commit
+below therefore contains both authors' work. The `loop.py` fix stops the crash, **not** the orphan:
+until the driver reaps its child on its own death, a crash still leaves one running. Check for a stray
+session before trusting `git status` to describe your own work.
 
-## Next group — the two `collect.mwl` lines still reporting
+## Next group — the two `collect.mwl` lines still reporting, both § 7
 
 **Shared file set:** `crates/mwl-stdlib/src/encoding.rs` (`:53` `CLASS`, `:78` `address`, `:98`
-`bytes_of`, `:154` the `toHex` helper as the shape to copy), a new `crates/mwl-stdlib/src/hash.rs`,
-`crates/mwl-stdlib/src/registry.rs` (`CLASSES` at `:597`, `ENUMS` at `:669`, `CoreEnum` at `:640`,
-`CoreTy::Bytes` at `:109`), `crates/mwl-stdlib/src/lib.rs` (`mod` list `:191`, `address_of` `:264`),
-`Cargo.toml`'s `[workspace.dependencies]`, and `tests/conformance/core/`. Spec rows:
-`docs/spec/01-core-library.md` § 11 (`:705`) and § 7 (`:590`).
+`bytes_of`, `:108` `text_of`, `:138` `SHOWN_CHARS`/`shown` for a bounded throw message, `:163`
+`toHex` as the shape to copy), `crates/mwl-stdlib/src/registry.rs` (`CLASSES` `:614`, `ENUMS` `:694`,
+`CoreEnum` `:665`, `CoreTy::EnumCase` `:240`), `Cargo.toml`'s `[workspace.dependencies]`, and
+`tests/conformance/core/`. Spec rows: `docs/spec/01-core-library.md` § 7 (`:590`).
 
-- [ ] **`Core\Hash::of`/`hmac`/`equals` and the `Core\Digest` enum** — § 11's remaining half, and what
-      `collect.mwl:25` writes. `of(bytes|string, Digest): bytes`, so it is the first member to *return*
-      a `bytes` from real work. `Digest` is a `registry::ENUMS` row (`:669`); a `CoreTy::Enum` parameter
-      and its Rust-side reader are `math.rs:436` and `math.rs:1231`. `equals` must be constant-time —
-      say so in the module doc. Dependency picked under ADR 0051 § 4 (`sha2`/`hmac` or a suite crate),
-      with the three things a new dependency owes (playbook § *Adding a `Core` member*).
-- [ ] **`Core\Encoding`'s base64 family** — `toBase64`/`fromBase64`/`toBase64Url`/`fromBase64Url`,
-      half of what `collect.mwl:26` writes. Unlike hex this one names a dependency; `encoding.rs`'s
-      module doc already says why and expects the next author to record the pick there.
-- [ ] **`Core\Encoding::encodeText`/`decodeText`/`isValidText` and `Core\Charset`** — the other half of
-      `collect.mwl:26`. § 7 fixes the roster as the WHATWG index, which is `encoding_rs`'s, so the enum
-      is that crate's list rather than one this repo curates.
+- [ ] **`Core\Encoding`'s base64 family** — `toBase64`/`fromBase64` and `toBase64Url`/`fromBase64Url`
+      (spec § 7's table, `01-core-library.md:600`). Four rows, one dependency picked under ADR 0051
+      § 4 — the alphabet/padding/URL-safe detail is exactly what hex's module comment says is *not*
+      hex's answer. Decoding throws rather than substituting (ADR 0009 § 3), and `shown()` bounds what
+      the message quotes.
+- [ ] **`Core\Encoding::toBase32`/`fromBase32`** — the same shape once base64 lands, and the row TOTP
+      needs (ADR 0060). Same file, same dependency question; likely the same crate.
+- [ ] **`Core\Encoding::encodeText`/`decodeText`/`isValidText` and the `Core\Charset` enum** — spec
+      § 7 names the WHATWG Encoding Standard's index as the roster and `encoding_rs` as what
+      implements it, so the enum is a `registry::ENUMS` row whose cases come from that document.
+      `Core\Hash`'s `DIGEST` is the worked example of an enum declared beside the member that takes
+      it; `hash.rs`'s `digest_kind` is the Rust-side reader to copy.
 
 ## Backlog
 
-- `Core\Encoding`'s `toBase32`/`fromBase32` — needed by TOTP, ADR 0060; off `collect.mwl`'s path.
-- `Core\Bytes` × 14 (§ 7's second half, `:606`) — `pack`/`unpack` are ADR 0088 sinks.
-- `Ty::Bytes` has no `truthy_convert` row (`mwl-ir` `lower/expr.rs:894` panics); the *tagged* path is
-  decided and built, so this is wiring, not a decision.
-- `Core\Heap<T>` and § 9's `Iterable` — `docs/spec/01-core-library.md:660-662`; `Heap` also needs
-  ADR 0013's `Comparable` reachable from a `Core` class.
-- **Constructor property promotion does not create a property**: `public readonly string $name` in a
-  `constructor` parameter compiles, and `$obj->name` is then `E0405`. Owner: `mwl-types`' own gaps.
-- `every_part_one_spec_member_is_registered` — the loop's definition of done, `loop-goal.md` Stage 4.
-- `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- `Core\Hash::stream` needs a `Core` instance holding *mutable* state — a `CoreClass::slots` question
+  no other instance has posed (`hash.rs` gap 1).
+- `Core\Random::bytes` is now unblocked — `Tag::Bytes` exists (`mwl-runtime`'s module doc);
+  `random.rs`'s own gap 1 still says it is blocked and is stale.
+- `Core\Bytes` in full — spec § 7's second half, `Core\Str`'s member names over octets.
+- `Core\Uri::parse`/`isValid` still owe an RFC 3986 dependency; `Csv` and `Validate` owe theirs
+  (`docs/implementation-plan.md`, *Open now*).
+- ADR 0088's registry-wide qualifier classification: no `CoreTy` carries `secret`/`tainted` yet, so
+  `hmac`'s key and `Str::format`'s template are both unclassified.
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
+
+## Gaps in `orient.py`'s pack this session
+
+Two `[context]` fields in `docs/agent/loop-goal.toml` were missing a selector:
+
+- `modules` — `crates/mwl-types/src/expr/members.rs` and `expr/literals.rs`. Whether an enum-case
+  *expression* can place against a union of case types is the question every `CoreTy::EnumCase` row
+  depends on, and it is answered only there.
+- `adrs` — `0047-literal-and-enum-case-types.md` § 3. The ground-rules one-liner names the rule but
+  not what the narrowed type is, which is what the registry row has to state.

@@ -132,6 +132,38 @@ rand = { version = "0.10", features = ["unbiased"] }
 # layout.
 uuid = { version = "1", default-features = false, features = ["std"] }
 
+# --- digests and MACs (spec § 11's `Core\Hash` and `Core\Digest`) ---
+# Every one of these is an external specification with published test vectors
+# and a decade of cryptanalysis attached (docs/adr/ground-rules.md
+# § *Implementation invariants*), and `Core\Hash::of` is a member request bodies
+# reach — so ADR 0051 § 4's first question is "yes" here and its second one is
+# what picks the crates. The RustCrypto family is pure Rust with no build
+# script and no C, so § 4's confine-to-wasm branch never opens: it is the
+# ecosystem's audited default, it is verified against each algorithm's own NIST
+# or RFC vectors in its own test suite, and one `digest` trait set drives all
+# four hashes plus the HMAC construction, so `Core\Digest` dispatches over one
+# shape rather than four hand-fitted APIs.
+# `crc32fast` is not from that family and not a hash at all — it is the
+# checksum spec § 11 keeps for interop, and that crate is the one the Rust
+# ecosystem already reads for it (pure Rust, SIMD chosen at run time).
+# `subtle` is what makes `Core\Hash::equals` constant-time: the comparison is
+# three lines, and the reason it is a dependency rather than three lines here
+# is that an optimiser is free to turn the obvious loop back into an early
+# exit, which is the entire bug `hash_equals` exists to avoid. That crate's
+# whole purpose is the optimisation barrier that stops it.
+# The `0.10`/`0.12` line rather than the newer majors on purpose: `sha2`,
+# `crc32fast` and `digest 0.10` are already in this tree's lock file, pulled in
+# by the cranelift/wasmtime side, so pinning to what is there adds four crates
+# instead of eleven and keeps one `digest` trait version rather than two.
+# `crates/mwl-stdlib/src/hash.rs` owns why this set and what `Core\Digest`
+# carries.
+sha2 = "0.10"
+sha1 = "0.10"
+md-5 = "0.10"
+hmac = "0.12"
+crc32fast = "1"
+subtle = "2"
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so

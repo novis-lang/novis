@@ -127,7 +127,7 @@
 > being the one built; § 9 owes `Core\Heap` and the `Iterable` its three rows
 > each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
 > `{previous: $e}` options shape and
-> `$e->location`; § 11 owes `Random::bytes` and `Hash::of`/`hmac`/`equals`; § 12 owes
+> `$e->location`; § 11 owes `Random::bytes` and `Hash::stream`, its one-shot half being built; § 12 owes
 > `Uri::parse`/`isValid`, `Csv`, `Validate` and `Out::capture`. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
 > `Union` and `Decimal`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
@@ -135,9 +135,9 @@
 > `Bytes` row of its own over the existing `MwlStr` allocation, so a fresh `bytes` value now
 > constructs, refcounts, releases and round-trips through codegen; `mwl-runtime`'s module doc
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
-> `Random::bytes`, `Hash::*` and the honest return type of `Uri`'s two decoders are unwritten rather
-> than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 375 of the 600 that gate requires, differential is
+> `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
+> rather than blocked. **Stage 4's counts are their own work rather than a
+> side effect of member slices** — conformance is 377 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > does not exist yet. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
@@ -169,10 +169,10 @@
 > `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
 > `Core\Path`, § 11's `Core\Uuid` and § 12's `Core\Uri` percent-encoding half are built; `Uri::parse`
-> and its instance still owe the RFC 3986 dependency; `Encoding`'s base64/base32 rows, `Hash` and
-> `Csv` each need one picked under ADR 0051 § 4, hex having needed none. § 7's `Encoding::toHex` is
-> built, so the fixture's first report is now § 11's `Core\Hash::of`/`Core\Digest` at
-> `collect.mwl:25`.
+> and its instance still owe the RFC 3986 dependency; `Encoding`'s base64/base32 rows and `Csv` each
+> need one picked under ADR 0051 § 4, hex having needed none and `Hash` having taken the RustCrypto
+> family. § 11's `Core\Hash` and `Core\Digest` are built, so the fixture's first report is now § 7's
+> `Core\Encoding::toBase64` at `collect.mwl:26`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

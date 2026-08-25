@@ -1,0 +1,18 @@
+--TEST--
+`Core\Hash::hmac` takes spec § 11's `StrongDigest`, so a legacy `Core\Digest` case does not compile and the diagnostic names the three that do — spec § 11, ADR 0047 § 3
+--FILE--
+<?mwl
+// `StrongDigest` is not a second enum — it is the closed subset of `Digest`,
+// stated as ADR 0047 § 3's union of enum-case types. So `Digest::Sha256` is
+// one value that both `of` and `hmac` take, and `Digest::Md5` is refused
+// here rather than at run time, with the accepted set generated from the
+// parameter's own type.
+bytes $key = Core\Encoding::fromHex("4a656665");
+bytes $mac = Core\Hash::hmac("message", $key, Core\Digest::Md5);
+echo Core\Encoding::toHex($mac), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512`, found `Core\Digest`
+%A
+error: aborting due to 1 error

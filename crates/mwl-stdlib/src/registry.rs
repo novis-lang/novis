@@ -214,6 +214,30 @@ pub enum CoreTy {
     /// stores one, so the only thing a `uint` backing could buy is a case
     /// past `i64::MAX`.
     Enum(&'static str),
+    /// **One case** of a `Core`-owned enum, named by that enum and the case —
+    /// [ADR 0047](../../../../docs/adr/0047-literal-and-enum-case-types.md)
+    /// § 3's narrowed type, whose only use is inside a [`Self::Union`] that
+    /// spells out a closed subset.
+    ///
+    /// `Core\Hash::hmac`'s third parameter is the reason it exists.
+    /// [`docs/spec/01-core-library.md`](../../../../docs/spec/01-core-library.md)
+    /// § 11 writes that parameter as `StrongDigest`, "the closed subset that
+    /// the HMAC and signature members declare," so that
+    /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
+    /// A *second enum* would not say that: `Core\StrongDigest::Sha256` would
+    /// be a different type from `Core\Digest::Sha256`, and no value could be
+    /// passed to both `of` and `hmac`. A union of case types is the shape ADR
+    /// 0047 already gives that idea, and the checker already places an
+    /// enum-case expression against it — `mwl_types::expr::literals`'
+    /// `placed_literal` looks inside a union, so `Digest::Sha256` narrows to
+    /// its case type and `Digest::Md5` stays the whole enum and fails to
+    /// assign.
+    ///
+    /// Never a whole parameter on its own: a position that admits exactly one
+    /// case admits no choice at all, and would be an argument the caller has
+    /// to write and the member could have assumed.
+    /// `an_enum_case_type_only_appears_inside_a_union` holds that.
+    EnumCase(&'static str, &'static str),
     /// An **instance** of a `Core`-owned class, named by its fully-qualified
     /// name — `Core\Regex\Match` in `match(string $s, string $p): ?Match`.
     ///
@@ -605,6 +629,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::objset::CLASS,
     crate::random::CLASS,
     crate::uuid::CLASS,
+    crate::hash::CLASS,
     crate::uri::CLASS,
 ];
 
@@ -671,6 +696,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::math::ROUND_MODE,
     crate::time::UNIT,
     crate::time::WEEKDAY,
+    crate::hash::DIGEST,
 ];
 
 /// Looks a class up by its fully-qualified name.
@@ -1319,6 +1345,83 @@ mod tests {
                             option.name
                         );
                     }
+                }
+            }
+        }
+    }
+
+    /// Every parameter and return type in the registry, flattened — the walk
+    /// the two [`CoreTy::EnumCase`] checks below share.
+    fn every_type() -> impl Iterator<Item = (String, &'static CoreTy)> {
+        CLASSES.iter().flat_map(|class| {
+            class.members().flat_map(move |method| {
+                let what = format!("{}::{}", class.name, method.name);
+                method
+                    .params
+                    .iter()
+                    .chain(std::iter::once(&method.return_ty))
+                    .map(move |ty| (what.clone(), ty))
+            })
+        })
+    }
+
+    /// A [`CoreTy::EnumCase`] names an enum this crate registers *and* a case
+    /// that enum actually has — [`every_enum_typed_option_names_a_registered_enum`]'s
+    /// reason, one level narrower: a typo in the case would intern a type no
+    /// expression can ever place against, so every call would report.
+    #[test]
+    fn every_enum_case_type_names_a_registered_case() {
+        fn check(ty: &CoreTy, what: &str) {
+            match ty {
+                CoreTy::EnumCase(name, case) => {
+                    let found = core_enum(name)
+                        .unwrap_or_else(|| panic!("{what} names the unregistered enum `{name}`"));
+                    assert!(
+                        found.cases.iter().any(|(candidate, _)| candidate == case),
+                        "{what} names `{name}::{case}`, which is not a case of it"
+                    );
+                }
+                CoreTy::Array(inner) | CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => {
+                    check(inner, what);
+                }
+                CoreTy::Union(members) => {
+                    for member in *members {
+                        check(member, what);
+                    }
+                }
+                CoreTy::Options(options) => {
+                    for option in *options {
+                        check(&option.ty, what);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (what, ty) in every_type() {
+            check(ty, &what);
+        }
+    }
+
+    /// A case type is only ever a member of a union — see [`CoreTy::EnumCase`]
+    /// for why a position admitting exactly one case is not a position at all.
+    #[test]
+    fn an_enum_case_type_only_appears_inside_a_union() {
+        for (what, ty) in every_type() {
+            assert!(
+                !matches!(ty, CoreTy::EnumCase(..)),
+                "{what} takes or answers a bare enum-case type"
+            );
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                for option in method.options().unwrap_or(&[]) {
+                    assert!(
+                        !matches!(option.ty, CoreTy::EnumCase(..)),
+                        "{}::{}'s option `{}` is a bare enum-case type",
+                        class.name,
+                        method.name,
+                        option.name
+                    );
                 }
             }
         }
