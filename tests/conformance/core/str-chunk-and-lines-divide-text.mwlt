@@ -1,0 +1,31 @@
+--TEST--
+`Core\Str::chunk` divides by cluster and `Core\Str::lines` ends on any of the three terminators — spec § 1 *Extraction*, ADR 0009 § 2
+--FILE--
+<?mwl
+// `chunk` replaces `str_split`, `mb_str_split` and `chunk_split`: the last
+// chunk is the only short one, and the count is ADR 0009 § 2's unit rather
+// than bytes, so no chunk lands inside a cluster.
+echo Core\Str::join(Core\Str::chunk("abcdefg", 3), "|"), "\n";
+echo Core\Str::join(Core\Str::chunk("abc", 9), "|"), "\n";
+echo Core\Str::join(Core\Str::chunk("äöü", 2), "|"), "\n";
+// Empty text divides into nothing — unlike `split`, which answers one empty
+// piece because it asks a different question.
+echo "[", Core\Str::join(Core\Str::chunk("", 2), "|"), "]\n";
+
+// `lines` accepts `\n`, `\r\n` and a lone `\r` alike, on every platform, which
+// is why there is no `PHP_EOL` to pass it.
+echo Core\Str::join(Core\Str::lines("a\nb\r\nc\rd"), "|"), "\n";
+// A trailing terminator ends the last line rather than opening an empty one;
+// an interior blank line is still a line.
+echo "[", Core\Str::join(Core\Str::lines("a\n"), "|"), "]\n";
+echo "[", Core\Str::join(Core\Str::lines("a\n\nb"), "|"), "]\n";
+echo "[", Core\Str::join(Core\Str::lines(""), "|"), "]\n";
+--EXPECT--
+abc|def|g
+abc
+äö|ü
+[]
+a|b|c|d
+[a]
+[a||b]
+[]

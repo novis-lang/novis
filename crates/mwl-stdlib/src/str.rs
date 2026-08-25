@@ -152,6 +152,20 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_str_split",
         },
         CoreMethod {
+            name: "chunk",
+            params: &[CoreTy::Str, CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "mwl_core_str_chunk",
+        },
+        CoreMethod {
+            name: "lines",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "mwl_core_str_lines",
+        },
+        CoreMethod {
             name: "replace",
             params: &[
                 CoreTy::Str,
@@ -389,6 +403,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_wrap" => (mwl_core_str_wrap as *const ()).cast(),
         "mwl_core_str_join" => (mwl_core_str_join as *const ()).cast(),
         "mwl_core_str_split" => (mwl_core_str_split as *const ()).cast(),
+        "mwl_core_str_chunk" => (mwl_core_str_chunk as *const ()).cast(),
+        "mwl_core_str_lines" => (mwl_core_str_lines as *const ()).cast(),
         "mwl_core_str_replace" => (mwl_core_str_replace as *const ()).cast(),
         "mwl_core_str_trim" => (mwl_core_str_trim as *const ()).cast(),
         "mwl_core_str_trim_start" => (mwl_core_str_trim_start as *const ()).cast(),
@@ -676,6 +692,116 @@ mwl_runtime::mwl_helper! {
         }
         Ok(Value::array(out))
     }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::chunk(string $s, uint $size): array<string>` — replacing
+    /// PHP's `str_split`, `mb_str_split` and `chunk_split`.
+    ///
+    /// One member for all three because they differ only in what they count
+    /// and what they do with the pieces: `str_split` counts bytes,
+    /// `mb_str_split` counts code points, and `chunk_split` joins the same
+    /// pieces back with a separator, which is `Str::join` on this member's
+    /// answer. The unit here is [`crate::granularity::DEFAULT`] like every
+    /// other length in this class, so the last chunk is the only short one and
+    /// **no chunk ever splits a grapheme cluster** — the failure a byte-counted
+    /// `str_split` produces, and the reason it cannot be used on text at all.
+    ///
+    /// **A size of `0` throws**, as PHP 8's `str_split` does: there is no chunk
+    /// count that answers it, and any other reading — the subject unsplit, an
+    /// empty array — hides a computed size that came out zero by mistake.
+    ///
+    /// An empty subject is **no chunks**, not one empty one. That parts company
+    /// with [`mwl_core_str_split`], which answers `[""]`, and deliberately: a
+    /// separator-split asks "what lies between the separators" and there is one
+    /// such region, while this asks "how does the text divide" and empty text
+    /// divides into nothing. PHP 8.2 made `str_split("")` the same `[]`.
+    fn mwl_core_str_chunk(_ctx, args: [2]) {
+        let subject = text(&args[0], "chunk", "the subject")?;
+        let size = count(&args[1], "chunk", "the chunk size")?;
+        if size == 0 {
+            return Err(Fault::thrown(
+                "Core\\Str::chunk(): the chunk size must be at least 1",
+            ));
+        }
+
+        let mut out = MwlArray::new();
+        let mut start = 0usize;
+        let mut at = 0usize;
+        let mut held = 0usize;
+        for piece in crate::granularity::DEFAULT.pieces(subject) {
+            at += piece.len();
+            held += 1;
+            if held == size {
+                out.append(Value::str(MwlStr::new(&subject.as_bytes()[start..at])));
+                start = at;
+                held = 0;
+            }
+        }
+        if start < subject.len() {
+            out.append(Value::str(MwlStr::new(&subject.as_bytes()[start..])));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::lines(string $s): array<string>` — replacing
+    /// `explode(PHP_EOL, …)` and the splitting half of `file()`.
+    ///
+    /// See [`line_pieces`] for the three terminators it accepts and why the
+    /// platform's own line ending is never consulted.
+    fn mwl_core_str_lines(_ctx, args: [1]) {
+        let subject = text(&args[0], "lines", "the subject")?;
+        let mut out = MwlArray::new();
+        for line in line_pieces(subject) {
+            out.append(Value::str(MwlStr::new(line.as_bytes())));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+/// `subject`'s lines, without their terminators.
+///
+/// **`\n`, `\r\n` and a lone `\r` all end a line**, on every platform, and
+/// nothing here reads the host's own line ending — which is why MWL has no
+/// `PHP_EOL` equivalent to pass in. Text arriving over a request, out of a
+/// file written elsewhere, or off a Windows editor is the ordinary case, and a
+/// member that split on one of the three would answer with a `\r` still glued
+/// to every line of the other two.
+///
+/// **A trailing terminator does not produce a final empty line**, so
+/// `lines("a\n")` is one line rather than two and a file that ends the way a
+/// text file is supposed to end does not need its last element discarded. An
+/// interior empty line is still a line: `lines("a\n\nb")` is three. An empty
+/// subject has no lines at all.
+///
+/// No grapheme cluster is split by any of this: `\r\n` is one cluster under
+/// UAX #29's GB3 and is consumed whole, and a lone `\r` is a cluster of its
+/// own.
+fn line_pieces(subject: &str) -> Vec<&str> {
+    let bytes = subject.as_bytes();
+    let mut out = Vec::new();
+    let (mut start, mut at) = (0usize, 0usize);
+    while at < bytes.len() {
+        match bytes[at] {
+            b'\n' => {
+                out.push(&subject[start..at]);
+                at += 1;
+                start = at;
+            }
+            b'\r' => {
+                out.push(&subject[start..at]);
+                at += usize::from(bytes.get(at + 1) == Some(&b'\n')) + 1;
+                start = at;
+            }
+            _ => at += 1,
+        }
+    }
+    if start < bytes.len() {
+        out.push(&subject[start..]);
+    }
+    out
 }
 
 /// `subject` with every leading and/or trailing character drawn from
@@ -1532,6 +1658,60 @@ mod tests {
         let status = run(super::mwl_core_str_split, &[s("a b"), s(""), Value::int(9)])
             .expect_err("an empty separator is refused");
         assert_eq!(status, mwl_runtime::THROWN);
+    }
+
+    /// The three terminators, the interior empty line that survives and the
+    /// trailing one that does not — [`super::line_pieces`]'s own contract.
+    #[test]
+    fn lines_end_on_any_of_the_three_terminators() {
+        let lines = super::line_pieces;
+        assert_eq!(lines("a\nb"), ["a", "b"]);
+        assert_eq!(lines("a\r\nb"), ["a", "b"]);
+        assert_eq!(lines("a\rb"), ["a", "b"]);
+        assert_eq!(lines("a\r\n\nb\r"), ["a", "", "b"]);
+        // A trailing terminator ends the last line rather than opening one.
+        assert_eq!(lines("a\n"), ["a"]);
+        assert_eq!(lines("\n"), [""]);
+        assert!(lines("").is_empty());
+    }
+
+    /// `chunk` counts in [`crate::granularity::DEFAULT`], so a chunk boundary
+    /// never lands inside a cluster — which is the whole reason `str_split`
+    /// cannot be used on text.
+    #[test]
+    fn chunk_divides_by_cluster_and_never_inside_one() {
+        let chunk = |subject: &str, size: u64| -> Vec<String> {
+            let result = run(super::mwl_core_str_chunk, &[s(subject), Value::uint(size)])
+                .expect("chunk answers an array");
+            #[expect(
+                unsafe_code,
+                reason = "the helper returned one fresh reference, which the \
+                          handle takes over and releases on drop"
+            )]
+            let array =
+                unsafe { MwlArray::from_raw(result.array_ptr().expect("chunk returns an array")) };
+            let mut out = Vec::new();
+            let mut from = 0usize;
+            while let Some(slot) = array.next_slot(from) {
+                let piece = array.value_at(slot).expect("a live slot holds a value");
+                out.push(
+                    String::from_utf8(
+                        piece
+                            .as_str_bytes()
+                            .expect("every chunk is a string")
+                            .to_vec(),
+                    )
+                    .expect("every chunk is UTF-8"),
+                );
+                from = slot + 1;
+            }
+            out
+        };
+        assert_eq!(chunk("abcde", 2), ["ab", "cd", "e"]);
+        assert_eq!(chunk("abc", 9), ["abc"]);
+        assert!(chunk("", 2).is_empty());
+        // Four bytes, one cluster: a byte-counted split would halve it.
+        assert_eq!(chunk("é\u{0301}x", 1), ["é\u{0301}", "x"]);
     }
 
     /// The three trims share one option bag, so they can only differ in which
