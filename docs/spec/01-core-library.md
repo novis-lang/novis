@@ -253,13 +253,17 @@ call site to serve a case a program rarely has.
 | `fillKeys` | `fillKeys(array<int\|string> $keys, T $value): array<T>` | `array_fill_keys` | |
 | `range` | `range(int $start, int $end, {step?: int}): array<int>` | `range` | neutral |
 | `fromKeysAndValues` | `fromKeysAndValues(array<int\|string> $keys, array<T> $values): array<T>` | `array_combine` | |
-| `from` | `from(Iterable<T>\|Iterator<T> $items, {limit?: uint}): array<T>` | `iterator_to_array`, `iterator_count`'s materialising half | |
+| `from` | `from(Iterable<T>\|Iterator<T>\|array<T> $items, {limit?: uint}): array<T>` | `iterator_to_array`, `iterator_count`'s materialising half | |
 | `column` | `column(array<array<T>> $a, int\|string $column, {indexBy?: int\|string}): array<T>` | `array_column` | |
 
 `fromKeysAndValues` throws when the two arrays differ in length (R4). `flip` collapses duplicate values,
-the last occurrence winning. `from` drains its argument once and always returns a list — a generator yields
-no keys ([ADR 0053](../adr/0053-iteration-and-generators.md) § 5) — and `{limit: n}` stops after `n`
-elements, which is the only guard against materialising an unbounded generator. `flatten` unwraps one
+the last occurrence winning. `from` takes all three of the shapes
+[ADR 0053](../adr/0053-iteration-and-generators.md) § 3 lets `foreach` take, an `array<T>` included, so a
+member reading a sequence never refuses what a loop over the same value would accept. It drains its
+argument once and always returns a list — a generator yields no keys (§ 5), and an array's are discarded
+for the same reason `values` discards them, so the result's shape does not depend on which shape went in.
+`{limit: n}` stops the *drive* after `n` elements, which is the only guard against materialising an
+unbounded generator. `flatten` unwraps one
 level and `flattenDeep` recurses, the same pairing as `overlay`/`overlayDeep`; neither takes a depth count,
 because every real call means one of those two. Their parameter types differ because only one of the two
 has a depth an element type can state: `flatten` unwraps exactly one level, so `array<array<T>>` in and

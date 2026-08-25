@@ -228,6 +228,7 @@ pub mod helpers;
 pub mod identity;
 pub mod object;
 pub mod release;
+pub mod sequence;
 mod string;
 pub mod throwable;
 mod value;

@@ -137,6 +137,12 @@
 //!    `Uri` need only their members written, exactly as § 4's `Duration`
 //!    already has.
 //!
+//!    A **sequence** parameter — whatever `foreach` accepts, ADR 0053 § 3's
+//!    three shapes at once — is [`registry::CoreTy::Iterated`], first
+//!    declared by `Core\Arr::from`, and `mwl_runtime::sequence` is the one
+//!    place such an argument is read: an array walked directly, a cursor
+//!    driven by name through its class descriptor's own method table.
+//!
 //!    `decimal` is no longer one of them: [`registry::CoreTy::Decimal`] states
 //!    it and `mwl_runtime::Decimal` is the value behind it, so `Arr::sum`,
 //!    `product` and `average` are written over the

@@ -391,6 +391,16 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_from_keys_and_values",
         },
         CoreMethod {
+            name: "from",
+            params: &[
+                CoreTy::Iterated(&CoreTy::Var("T")),
+                CoreTy::Options(FROM_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_from",
+        },
+        CoreMethod {
             name: "overlay",
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -637,6 +647,16 @@ const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
+/// `Core\Arr::from`'s `{limit?: uint}` — the spec's § 2 prose calls it "the
+/// only guard against materialising an unbounded generator", so an omitted
+/// limit is [`Const::Null`] and means *no* limit rather than zero, and a
+/// written `{limit: 0}` is an empty result the caller asked for.
+const FROM_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "limit",
+    ty: CoreTy::Uint,
+    default: Const::Null,
+}];
+
 /// `Core\Arr::sort`'s
 /// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
 /// — the eleven PHP sort functions plus `array_multisort` in one bag, which is
@@ -729,6 +749,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_from_keys_and_values" => {
             (mwl_core_arr_from_keys_and_values as *const ()).cast()
         }
+        "mwl_core_arr_from" => (mwl_core_arr_from as *const ()).cast(),
         "mwl_core_arr_pad_start" => (mwl_core_arr_pad_start as *const ()).cast(),
         "mwl_core_arr_pad_end" => (mwl_core_arr_pad_end as *const ()).cast(),
         "mwl_core_arr_fill" => (mwl_core_arr_fill as *const ()).cast(),
@@ -2327,6 +2348,47 @@ mwl_runtime::mwl_helper! {
                 }
             };
             cursor = next;
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::from(Iterable<T>|Iterator<T>|array<T> $items, {limit?: uint}):
+    /// array<T>` — a sequence materialised, replacing `iterator_to_array` and
+    /// the materialising half of `iterator_count`.
+    ///
+    /// **Always a list**, whatever it drained: a cursor has no keys at all
+    /// (ADR 0053 § 1 gives `Iterator<T>` exactly `advance` and `current`), so
+    /// answering with the argument's keys where it happens to have some would
+    /// make the result's shape depend on which of the three shapes was passed.
+    /// An array argument's keys are therefore discarded exactly as
+    /// [`mwl_core_arr_values`] discards them, which is also PHP's
+    /// `iterator_to_array($it, false)` and the only reading that composes.
+    ///
+    /// **`{limit: n}` stops after `n` elements** and an omitted limit does not
+    /// stop at all — the spec's § 2 prose calls this the only guard against
+    /// materialising an unbounded generator, so it is the *drive* that stops
+    /// rather than the result being truncated afterwards: a generator asked
+    /// for three elements runs three segments of its body and no more.
+    ///
+    /// The three shapes are decoded by tag and the cursor is driven by name in
+    /// `mwl_runtime::sequence`, whose module doc owns both halves and what
+    /// they cost. Every drained element arrives owned, so each is stored
+    /// without a retain — the same convention [`mwl_core_arr_map`] follows for
+    /// a value its callback produced.
+    fn mwl_core_arr_from(ctx, args: [2]) {
+        // An omitted `{limit}` is `Const::Null`, which is *no* limit; a
+        // written one is a `uint` that cannot exceed what a `Vec` can hold on
+        // any target this runs on.
+        let limit = args[1]
+            .as_uint()
+            .map(|limit| usize::try_from(limit).unwrap_or(usize::MAX));
+        let drained = mwl_runtime::sequence::drain(ctx, args[0], limit, r"Core\Arr::from")?;
+
+        let mut out = MwlArray::new();
+        for value in drained {
+            out.append(value);
         }
         Ok(Value::array(out))
     }
@@ -4912,6 +4974,51 @@ mod tests {
         )
         .expect_err("7 is not a Core\\Order case");
         assert_eq!(status, mwl_runtime::FATAL);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and the \
+                      helper borrowed rather than consumed it"
+        )]
+        unsafe {
+            subject.release();
+        }
+    }
+
+    /// The array half of ADR 0053 § 3's three shapes: the argument's keys
+    /// discarded, its order kept, and `{limit}` honoured. The two object
+    /// shapes need compiled code to drive, so they are pinned by
+    /// `tests/conformance/core/arr-from-drains-a-sequence.mwlt` instead.
+    #[test]
+    fn from_materialises_an_array_as_a_list() {
+        let mut entries = MwlArray::new();
+        entries.set(MwlStr::new(b"named"), Value::str(MwlStr::new(b"a")));
+        entries.append(Value::str(MwlStr::new(b"b")));
+        let subject = Value::array(entries);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::mwl_core_arr_from,
+            &mut ctx,
+            &[subject, Value::null()],
+        )
+        .expect("an array is one of the three shapes");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+            ]
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let limited = call(
+            super::mwl_core_arr_from,
+            &mut ctx,
+            &[subject, Value::uint(1)],
+        )
+        .expect("a limit stops the drain");
+        assert_eq!(entries_of(limited), vec![(b"0".to_vec(), b"a".to_vec())]);
+
         #[expect(
             unsafe_code,
             reason = "this test owns the one reference it built above, and the \

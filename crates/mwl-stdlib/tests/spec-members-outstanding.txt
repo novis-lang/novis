@@ -12,7 +12,6 @@
 # to it.
 
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
-§2 from
 
 # § 12 `Core\Uri`, `Core\Out`
 §12 Out::capture

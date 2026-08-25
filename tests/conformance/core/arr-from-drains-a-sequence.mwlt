@@ -1,0 +1,47 @@
+--TEST--
+`Core\Arr::from` materialises all three of the shapes `foreach` accepts, always as a list, and `{limit}` stops the drive — spec § 2, ADR 0053 §§ 1 and 3
+--FILE--
+<?mwl
+// ADR 0053 § 1: a cursor is `advance()`/`current()` and nothing else, so
+// `Countdown` yields 3, 2, 1 and then says it is exhausted.
+class Countdown implements Iterator<int> {
+    private int $at;
+
+    public function constructor() {
+        $this->at = 4;
+    }
+
+    public function advance(): bool {
+        $this->at = $this->at - 1;
+        return $this->at > 0;
+    }
+
+    public function current(): int {
+        return $this->at;
+    }
+}
+
+// ADR 0053 § 1: an `Iterable<T>` is a thing that can produce a fresh cursor,
+// and `from` calls `iterate()` once exactly as a `foreach` over it would.
+class Numbers implements Iterable<int> {
+    public function iterate(): Iterator<int> {
+        return new Countdown();
+    }
+}
+
+// ADR 0053 § 3's third shape. An array's own keys are discarded: § 2 says the
+// result is always a list, whichever shape went in.
+array<string> $names = ["a", "b"];
+echo Core\Json::encode(Core\Arr::from($names)), "\n";
+
+echo Core\Json::encode(Core\Arr::from(new Countdown())), "\n";
+echo Core\Json::encode(Core\Arr::from(new Numbers())), "\n";
+
+// § 2: `{limit: n}` stops the drive after `n` elements — the only guard
+// against materialising a sequence that never ends.
+echo Core\Json::encode(Core\Arr::from(new Numbers(), {limit: 2})), "\n";
+--EXPECT--
+["a","b"]
+[3,2,1]
+[3,2,1]
+[3,2]
