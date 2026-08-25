@@ -592,17 +592,20 @@ impl<'a> Lowering<'a> {
     ///   conversion to the same representation is the operand itself; an enum
     ///   to its own backing `int`/`uint` is an [`InstKind::Reinterpret`],
     ///   which ADR 0010 § 5 spells out as "total, free ... same
-    ///   representation, reinterpreted."
+    ///   representation, reinterpreted." ADR 0009 § 3's `string as bytes` is
+    ///   the third one, free for the same reason: one `MwlStr` allocation
+    ///   under two tags, minus the UTF-8 promise.
     /// * **Total.** A scalar to `string` reuses the same [`Helper`]
     ///   conversions `.` concatenation already goes through
     ///   ([`Self::concat_operand`]), and any value to `bool` reuses ADR 0035's
     ///   truthy table ([`Self::truthy_convert`]) — `as bool` is the explicit
     ///   spelling of exactly the test a condition applies implicitly, so
     ///   giving it a second table would be two answers to one question.
-    /// * **Checked.** `int` ↔ `uint`, `float` → an integer and `string` → a
-    ///   number each go through a [`Helper`] that either produces the value or
-    ///   throws, emitted through [`Self::emit_fallible`] so it carries
-    ///   ADR 0002's error edge like any other call.
+    /// * **Checked.** `int` ↔ `uint`, `float` → an integer, `string` → a
+    ///   number and ADR 0009 § 3's `bytes as string` each go through a
+    ///   [`Helper`] that either produces the value or throws, emitted through
+    ///   [`Self::emit_fallible`] so it carries ADR 0002's error edge like any
+    ///   other call.
     /// * **Into an enum.** ADR 0010 § 5's other direction is row 1 run
     ///   backwards: the operand is converted to the enum's *backing* scalar
     ///   through whichever row above applies, and a free
@@ -674,6 +677,25 @@ impl<'a> Lowering<'a> {
                 };
                 let (backed, _) = self.convert(v, from, backing, operand, env, cur);
                 self.emit(cur, to, InstKind::Reinterpret { operand: backed })
+            }
+            // ADR 0009 § 3's total row: `string as bytes` is free, because a
+            // `bytes` *is* the `string`'s allocation minus the UTF-8 promise
+            // (`Ty::Bytes`, and `mwl_runtime::Value::bytes`). Valid UTF-8 is
+            // already a valid byte sequence, so there is nothing to check and
+            // nothing to copy — one `Reinterpret`, exactly as ADR 0010 § 5's
+            // enum row above, and the tag only differs where a `Ty::Tagged`
+            // value is built.
+            //
+            // The ownership is the `from == to` branch's, for its reason: a
+            // consumer reads `is_aliasing_read` off the `as` node and owns
+            // what it gets, so borrowed storage handed straight back needs the
+            // one retain that makes this row honour the same contract every
+            // helper row does.
+            (Ty::Str, Ty::Bytes) => {
+                if self.aliasing_read(operand) {
+                    self.emit_retain(cur, v);
+                }
+                self.emit(cur, to, InstKind::Reinterpret { operand: v })
             }
             (_, Ty::Bool) => {
                 let b = self.truthy_convert(v, from, cur);
@@ -792,12 +814,38 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
+            // ADR 0009 § 3's checked row, and the half of that pair that runs
+            // anything: the buffer is validated as well-formed UTF-8 and
+            // becomes the `string` over the same allocation, or it throws.
+            // Never a replacement character and never a truncation, so it is
+            // fallible like every other checked row and carries ADR 0002's
+            // error edge.
+            //
+            // Its own operand is refcounted, so it follows the string rows'
+            // policy exactly: released once the helper has read it unless a
+            // durable slot still owns it.
+            (Ty::Bytes, Ty::Str) => {
+                let out = self.emit_fallible(
+                    cur,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper: Helper::BytesToString,
+                        args: vec![v],
+                    },
+                    env,
+                );
+                if !self.aliasing_read(operand) {
+                    self.emit_release(cur, v);
+                }
+                out
+            }
             _ => panic!(
-                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, both of ADR 0010 § 5's \
-                 enum ones, and a `Ty::Tagged` operand into every target among them — got \
-                 `{from:?} as {to:?}`. ADR 0009 § 3's `string` ↔ `bytes` rows and ADR 0007 § 2's \
-                 `array<T> as array<U>` are the shapes still missing. See the crate docs' known \
-                 gaps"
+                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
+                 `bytes` pair, both of ADR 0010 § 5's enum ones, and a `Ty::Tagged` operand into \
+                 every target among them — got `{from:?} as {to:?}`. ADR 0007 § 2's \
+                 `array<T> as array<U>` is the shape still missing, along with a `Ty::Tagged` \
+                 operand converted to `bytes`, whose runtime-tag row has no helper. See the \
+                 crate docs' known gaps"
             ),
         }
     }

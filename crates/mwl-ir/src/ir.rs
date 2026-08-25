@@ -266,6 +266,18 @@ pub enum InstKind {
     /// which escape sequences are cooked this slice and which are a known
     /// gap.
     ConstStr(String),
+    /// A `bytes` constant's octets — [`InstKind::ConstStr`]'s row under
+    /// [`crate::ty::Ty::Bytes`], and the same one heap allocation with one
+    /// implicit owner, since the two types share a representation and differ
+    /// only in the tag a boxed value carries
+    /// ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 1).
+    ///
+    /// **No expression produces one**: there is no `bytes` literal in the
+    /// language, so this exists for a `Core` signature's optional `bytes`
+    /// parameter, whose default a call site materializes
+    /// (`mwl_types::defaults::ConstArg::Bytes`). `Core\Bytes::join`'s
+    /// `$separator = ""` is the first.
+    ConstBytes(Vec<u8>),
     /// Reads the function's own parameter at this positional index.
     Param(u32),
     /// A binary arithmetic or comparison operator over two already-lowered
@@ -1078,6 +1090,19 @@ pub enum Helper {
     StrToUint,
     /// `$s as float` — the whole string must be an exact numeric literal.
     StrToFloat,
+    /// `$b as string` — [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+    /// § 3's checked row: the buffer is well-formed UTF-8 and becomes the
+    /// `string` over the *same* allocation, or this throws. It never replaces,
+    /// drops or truncates a bad sequence, so it is fallible and carries
+    /// ADR 0002's error edge like every other checked row.
+    ///
+    /// **The pair's other direction is not here, and that is the point.**
+    /// `string as bytes` is total and free — the same `mwl_runtime::MwlStr`
+    /// under a second tag — so `crate::lower::Lowering::convert` lowers it to
+    /// an [`InstKind::Reinterpret`] and emits no call at all. Only the
+    /// checked half needs a helper, because only the checked half runs
+    /// anything.
+    BytesToString,
     /// `$x as ?int` — [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
     /// § 1's non-throwing form of every row above that lands on `int`: the
     /// value `as int` would produce, or `null` where it would throw. Cannot

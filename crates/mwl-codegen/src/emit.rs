@@ -420,6 +420,16 @@ impl Emitter<'_, '_> {
                 self.define(inst, value)?;
                 return Ok(next);
             }
+            // The same emission as `ConstStr`, and deliberately not a second
+            // one: a `bytes` is a `string`'s allocation minus the UTF-8
+            // promise, so the only thing that differs is the `Ty` this
+            // instruction carries — which is what decides the tag a boxed
+            // value gets (`crate::ty::tag_of`).
+            InstKind::ConstBytes(octets) => {
+                let (value, next) = self.emit_const_str(cur, octets)?;
+                self.define(inst, value)?;
+                return Ok(next);
+            }
             InstKind::Param(index) => {
                 let ty = inst
                     .ty
@@ -2148,6 +2158,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::StrToInt => "mwl_str_to_int",
         Helper::StrToUint => "mwl_str_to_uint",
         Helper::StrToFloat => "mwl_str_to_float",
+        Helper::BytesToString => "mwl_bytes_to_string",
         Helper::ToIntOrNull => "mwl_to_int_or_null",
         Helper::ToUintOrNull => "mwl_to_uint_or_null",
         Helper::ToFloatOrNull => "mwl_to_float_or_null",

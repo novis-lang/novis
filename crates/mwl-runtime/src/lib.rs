@@ -94,7 +94,9 @@
 //!
 //! Two readers state a rule of their own rather than copying `string`'s.
 //! [`value_to_string`] **refuses** a `bytes`, because ADR 0009 § 3 makes
-//! `bytes as string` checked and an implicit `.` or `echo` is not that check.
+//! `bytes as string` checked and an implicit `.` or `echo` is not that check;
+//! [`bytes_to_string`] is that check, reached only from the explicit `as` and
+//! retagging the same allocation once the octets validate.
 //! [`value_truthy`] answers *empty is falsy, everything else truthy*, dropping
 //! `string`'s `"0"` case: that case is PHP's numeric-string rule, and a `bytes`
 //! never converts to a number. ADR 0035's table names no `bytes` row at all,

@@ -567,6 +567,59 @@ crate::mwl_helper! {
     }
 }
 
+/// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's
+/// `bytes as string` row: **checked**, and the one direction of that pair that
+/// runs any code at all.
+///
+/// The buffer is validated as well-formed UTF-8 and either produces the
+/// `string` or throws. It is never replaced, dropped or truncated — `iconv`'s
+/// `//IGNORE` and `//TRANSLIT` are exactly the silent substitution that ADR
+/// exists to remove, so the failure names the offset rather than repairing it.
+///
+/// **Validation is the whole cost.** A `string` and a `bytes` are one heap
+/// allocation under two tags ([`Tag::Bytes`]), so a buffer that passes is
+/// handed back as the same pointer with a `Tag::Str` and one **fresh**
+/// reference — the same ownership [`value_to_string`]'s own `Tag::Str` row
+/// gives, so the caller owns the result exactly as it owns a converted one.
+/// Nothing is copied and nothing is allocated; the O(n) walk over the octets
+/// is all this spends.
+///
+/// The other direction never reaches a helper: `string as bytes` is total and
+/// free, so `mwl-ir` lowers it to an `InstKind::Reinterpret` and no call is
+/// emitted.
+pub fn bytes_to_string(value: Value) -> Result<Value, Fault> {
+    let bytes = value
+        .as_bytes()
+        .ok_or_else(|| wrong_tag("mwl_bytes_to_string", Tag::Bytes, value))?;
+    if let Err(invalid) = str::from_utf8(bytes) {
+        return Err(Fault::thrown(format!(
+            "cannot convert `bytes` to `string`: not well-formed UTF-8 at byte {}",
+            invalid.valid_up_to()
+        )));
+    }
+    let ptr = value
+        .buffer_ptr()
+        .ok_or_else(|| wrong_tag("mwl_bytes_to_string", Tag::Bytes, value))?;
+    #[expect(
+        unsafe_code,
+        reason = "a Tag::Bytes value's payload is a live allocation the caller \
+                  owns a reference to, and the result carries a second one the \
+                  caller will release"
+    )]
+    let retagged = unsafe {
+        crate::string::mwl_str_retain(ptr);
+        MwlStr::from_raw(ptr)
+    };
+    Ok(Value::str(retagged))
+}
+
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::BytesToStr` — see [`bytes_to_string`].
+    fn mwl_bytes_to_string(_ctx, args: [1]) {
+        bytes_to_string(args[0])
+    }
+}
+
 /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
 ///
@@ -956,6 +1009,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_to_uint_or_null", address(mwl_to_uint_or_null)),
         ("mwl_to_float_or_null", address(mwl_to_float_or_null)),
         ("mwl_tagged_to_string", address(mwl_tagged_to_string)),
+        ("mwl_bytes_to_string", address(mwl_bytes_to_string)),
         ("mwl_decimal_add", address(mwl_decimal_add)),
         ("mwl_decimal_sub", address(mwl_decimal_sub)),
         ("mwl_decimal_mul", address(mwl_decimal_mul)),

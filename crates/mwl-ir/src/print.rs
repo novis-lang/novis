@@ -131,6 +131,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         ),
         InstKind::ConstNull => "const.null".to_owned(),
         InstKind::ConstStr(s) => format!("const.str {s:?}"),
+        InstKind::ConstBytes(b) => format!("const.bytes {b:?}"),
         InstKind::Param(i) => format!("param {i}"),
         InstKind::BinOp { op, lhs, rhs } => {
             format!("{} v{}, v{}", bin_op_name(*op), lhs.index(), rhs.index())
@@ -423,6 +424,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::StrToInt => "str_to_int",
         Helper::StrToUint => "str_to_uint",
         Helper::StrToFloat => "str_to_float",
+        Helper::BytesToString => "bytes_to_string",
         Helper::ToIntOrNull => "to_int_or_null",
         Helper::ToUintOrNull => "to_uint_or_null",
         Helper::ToFloatOrNull => "to_float_or_null",

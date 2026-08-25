@@ -1,0 +1,39 @@
+--TEST--
+ADR 0009 § 3's conversion pair: `string as bytes` is total, `bytes as string` is checked and throws
+--FILE--
+<?mwl
+class Convert {
+    // § 3's second row: checked. A well-formed buffer becomes the string
+    // over the same allocation; anything else throws, and is never
+    // replaced, dropped or truncated.
+    public static function text(bytes $b): string {
+        try {
+            return $b as string;
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+// § 3's first row: total and free — the same buffer, reinterpreted — so the
+// octets the `string` already held are exactly what `Core\Bytes` reads.
+string $greek = "λx";
+bytes $wide = $greek as bytes;
+echo Core\Encoding::toHex($wide), "\n";
+echo Core\Bytes::length($wide), "\n";
+
+// And back the other way, over that same allocation.
+echo Convert::text($wide), "\n";
+echo Convert::text(Core\Encoding::fromHex("6d776c")), "\n";
+
+// A lone `ff` is not a well-formed sequence at all, and a two-byte lead with
+// no continuation after it fails where the truncation starts.
+echo Convert::text(Core\Encoding::fromHex("ff")), "\n";
+echo Convert::text(Core\Encoding::fromHex("616263c3")), "\n";
+--EXPECT--
+cebb78
+3
+λx
+mwl
+threw: cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 0
+threw: cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 3

@@ -348,9 +348,17 @@
 //!     converts the operand to the enum's backing scalar first, and the
 //!     membership chain is unchanged.
 //!
-//!     What panics is ADR 0009 § 3's `string` ↔ `bytes` pair and
-//!     ADR 0007 § 2's `array<T> as array<U>`, whose O(n) element walk is the
-//!     one row in that table that is not a single helper call.
+//!     ADR 0009 § 3's `string` ↔ `bytes` pair runs too, and it is the one
+//!     conversion whose two directions are lowered by different mechanisms:
+//!     `string as bytes` is total and free, so it is an
+//!     [`ir::InstKind::Reinterpret`] over the same allocation and emits no
+//!     call, while `bytes as string` validates UTF-8 through
+//!     [`ir::Helper::BytesToString`] and throws rather than substituting.
+//!
+//!     What panics is ADR 0007 § 2's `array<T> as array<U>`, whose O(n)
+//!     element walk is the one row in that table that is not a single helper
+//!     call, and a [`ty::Ty::Tagged`] operand converted to `bytes` — the one
+//!     target with no runtime-tag row of its own.
 //!
 //!     A statically settled operand needs no check and already worked, since
 //!     `mwl_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
