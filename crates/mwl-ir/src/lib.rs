@@ -176,10 +176,13 @@
 //!    panics; the checker defers that runtime check to M4. A shape receiver
 //!    naming one of its own fields does lower — one
 //!    [`ir::InstKind::SlotGet`], which is ADR 0036 § 4's **name-keyed** fetch
-//!    and is therefore right through a widened view too — but only as a
-//!    **read**: writing a shape's field still panics. An anonymous `{a: 1}`
-//!    literal constructs, as an instance of the class
-//!    [`lower::shape_class_label`] names. Nullsafe `?->` *reads* — a call and a property alike, over
+//!    and is therefore right through a widened view too; so does writing one,
+//!    through [`ir::InstKind::SlotSet`], which additionally checks the
+//!    incoming value's tag against what the concrete class declares the field
+//!    to hold — `mwl_runtime::object`'s docs § *What a shape write checks*
+//!    state what that granularity misses. An anonymous `{a: 1}` literal
+//!    constructs, as an instance of the class [`lower::shape_class_label`]
+//!    names. Nullsafe `?->` *reads* — a call and a property alike, over
 //!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe
 //!    assignment target (`$a?->b = v`) panics, which PHP refuses outright and
 //!    `mwl_types` does not diagnose yet. An

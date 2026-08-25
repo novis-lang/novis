@@ -216,6 +216,9 @@ pub(super) fn lower_closure(
             fields: std::iter::once(FN_ARITY.to_owned())
                 .chain(captures.iter().map(|(n, _)| n.clone()))
                 .collect(),
+            // A closure's environment is never a `SlotSet` receiver: it has no
+            // shape type and no erased view reaches it. See `ir::Class`.
+            field_reprs: Vec::new(),
             conforms: Vec::new(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone())],
             // A closure is not a declaration and carries no attribute, and

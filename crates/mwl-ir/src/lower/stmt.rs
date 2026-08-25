@@ -413,6 +413,22 @@ impl<'a> Lowering<'a> {
                 // properties are always backed, so there is a slot to write
                 // (`mwl_types::signatures::PropertyHooks` owns that
                 // decision).
+                //
+                // An ADR 0036 § 4 shape target is neither: it has no
+                // declaring class to name and no hook to call, so it takes
+                // the name-keyed write its own read mirrors and leaves before
+                // the class machinery below.
+                if let Some(ExprInfo::ShapeProperty { name, slot, ty }) =
+                    self.exprs.lookup(target.span)
+                {
+                    let field = super::expr::ShapeField {
+                        name: name.clone(),
+                        slot: *slot,
+                        ty: *ty,
+                    };
+                    self.lower_shape_property_assign(object, &field, value, env, cur);
+                    return;
+                }
                 let (class, name, ty, set) = match self.exprs.lookup(target.span) {
                     Some(ExprInfo::Property { class, name, ty }) => (class, name, *ty, None),
                     Some(ExprInfo::HookedProperty {
@@ -425,9 +441,9 @@ impl<'a> Lowering<'a> {
                     _ => panic!(
                         "mwl-ir: a property assignment target at {:?} has no resolved declaring \
                          class recorded in the typed-expression table — either it wasn't checked \
-                         with the same table, or its receiver erased to a plain `object`, or it \
-                         is an ADR 0036 § 4 shape, whose field *read* lowers but whose write does \
-                         not (see the crate docs' known gaps)",
+                         with the same table, or its receiver erased to a plain `object`, which \
+                         ADR 0036 § 4's erased half still does not lower (see the crate docs' \
+                         known gaps)",
                         target.span
                     ),
                 };

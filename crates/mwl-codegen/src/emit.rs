@@ -518,6 +518,14 @@ impl Emitter<'_, '_> {
             } => {
                 return self.emit_slot_get(cur, inst, *object, field, *slot);
             }
+            InstKind::SlotSet {
+                object,
+                field,
+                slot,
+                value,
+            } => {
+                return self.emit_slot_set(inst, *object, field, *slot, *value);
+            }
             InstKind::FieldSet {
                 object,
                 class,
@@ -1505,6 +1513,60 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
+    /// `$issue->path = "x";`: one call to `mwl_runtime::mwl_object_slot_set`,
+    /// [`Self::emit_slot_get`]'s write half and a call for the same reason —
+    /// a shape value has no class label to resolve a layout under, and the
+    /// receiver's static shape may be a widened view of a value that lays its
+    /// slots out differently.
+    ///
+    /// The value is materialized into a caller-owned 16-byte stack slot and
+    /// passed by address, exactly as the read's result travels back: the
+    /// runtime has to see the *tag*, both to check it against what the
+    /// concrete class declares the field to hold and to release what the slot
+    /// held, and neither is a fact the static representation here carries. A
+    /// second slot takes the helper ABI's ignored result.
+    ///
+    /// Defines nothing, and inserts no retain or release: the runtime retains
+    /// what it stores and releases what it displaced — see
+    /// `mwl_ir::ir::InstKind::SlotSet`, which owns why this one field write
+    /// borrows where [`Self::emit_field_set`] transfers.
+    fn emit_slot_set(
+        &mut self,
+        inst: &Inst,
+        object: ValueId,
+        field: &str,
+        slot: u32,
+        value: ValueId,
+    ) -> Result<Block, CodegenError> {
+        let (name, len) = self.emit_bytes(field.as_bytes())?;
+        let hint = self.b.ins().iconst(types::I64, i64::from(slot));
+        let (base, _) = self.value(object)?;
+        let (value, value_ty) = self.value(value)?;
+
+        let in_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let in_p = self.b.ins().stack_addr(types::I64, in_slot, 0);
+        self.store_value(in_p, 0, value, value_ty)?;
+
+        let out_slot = self.b.create_sized_stack_slot(StackSlotData::new(
+            StackSlotKind::ExplicitSlot,
+            VALUE_SIZE.cast_unsigned(),
+            VALUE_ALIGN_SHIFT,
+        ));
+        let out_p = self.b.ins().stack_addr(types::I64, out_slot, 0);
+
+        let callee = self.runtime_ref("mwl_object_slot_set", RuntimeSig::SlotSet)?;
+        let call = self
+            .b
+            .ins()
+            .call(callee, &[self.ctx_p, base, name, len, hint, in_p, out_p]);
+        let status = self.b.inst_results(call)[0];
+        self.emit_status_check(status, inst.on_error)
+    }
+
     /// `$obj->prop = expr;`: one store into the receiver's field slot.
     ///
     /// A plain store, with no release of what the slot held:
@@ -2128,6 +2190,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::InstanceOf => &self.sigs.instanceof,
             RuntimeSig::ClassMethod => &self.sigs.class_method,
             RuntimeSig::SlotGet => &self.sigs.slot_get,
+            RuntimeSig::SlotSet => &self.sigs.slot_set,
             RuntimeSig::ArrayNew => &self.sigs.array_new,
             RuntimeSig::ArrayGet => &self.sigs.array_get,
             RuntimeSig::ArraySet => &self.sigs.array_set,
@@ -2181,6 +2244,7 @@ enum RuntimeSig {
     InstanceOf,
     ClassMethod,
     SlotGet,
+    SlotSet,
     ArrayNew,
     ArrayGet,
     ArraySet,

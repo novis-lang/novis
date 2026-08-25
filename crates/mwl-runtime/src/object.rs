@@ -137,6 +137,47 @@
 //! *first* — needs `mwl_types::ctor_init`'s flow analysis threaded into the
 //! IR, to remove a branch that costs nothing measurable.
 //!
+//! # What a shape write checks
+//!
+//! [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4 requires a
+//! write through an erased or widened view to check the incoming value against
+//! the field's *real, concrete declared type*, because § 3 compares a shape's
+//! field types by ordinary assignability — so `{n: int}` satisfies a
+//! `{n: int|string}` binding, and a shape value is aliased rather than copied.
+//! Without the check, a write through the wider view would leave a `string` in
+//! a slot the narrow view still loads as an `int`.
+//!
+//! What is checked is the **tag**, from [`ClassDesc::field_tags`], and the
+//! declared type itself is deliberately not carried:
+//!
+//! * The class a shape literal constructs is named for its **field names
+//!   alone** (`$shape{x,y}`, `mwl_ir::lower::shape_class_label`), so `{x: 1}`
+//!   and `{x: "s"}` are one class. A declared *type* per slot would have to
+//!   mint a class per name-and-type tuple — a bigger class table, a second
+//!   naming scheme for `mwl_stdlib` to keep in step with, and all of it read
+//!   by one instruction.
+//! * A tag closes the failure that matters most: representation confusion,
+//!   where a slot's payload is loaded as the wrong machine type. That is a
+//!   priority 1 and 2 question ([AGENTS.md](../../../AGENTS.md)); what is left
+//!   below is a priority 2 one with no memory-safety edge to it.
+//!
+//! **What a tag therefore does not catch**, and these are known gaps rather
+//! than decisions:
+//!
+//! 1. **Class identity.** [`Tag::Object`] answers for every class, so a
+//!    `{pet: Animal}` view of a `{pet: Dog}` value accepts an `Animal`.
+//! 2. **An array's element type.** [`Tag::Array`] answers for every
+//!    `array<T>`, so an `array<Animal>` reaches an `array<Dog>` slot.
+//! 3. **A field whose declared type admits several tags** — a union, a `?T`,
+//!    a `mixed` — is unchecked entirely, because there is no one tag to
+//!    compare against and the check must not reject a legal write.
+//! 4. **Two literals that share their field names but not their types** fall
+//!    back to case 3 for the slots they disagree on;
+//!    `mwl_ir::lower::Lowering::record_shape_class` degrades the tag rather
+//!    than picking whichever literal it saw first.
+//! 5. **A named class's fields** carry no tags at all: nothing yet writes one
+//!    through an erased view, which is `mwl-ir`'s own gap 6.
+//!
 //! # Decision: no cycle collector
 //!
 //! Refcounting only, per `docs/agent/loop-goal.md`. A cyclic object graph is
@@ -219,6 +260,21 @@ pub struct ClassDesc {
     /// [`construct`] from native code, or ADR 0071's derived decoder. Compiled
     /// code emits no initializer at all; `mwl_types::defaults` owns why.
     defaults: Vec<(usize, FieldDefault)>,
+    /// The one [`Tag`] each field slot's *declared* type admits, in slot
+    /// order, or `None` for a slot whose declared type admits more than one —
+    /// a union, a `?T`, a `mixed`. **Empty** for a class nothing has told,
+    /// which is every class but an
+    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) shape's;
+    /// an empty list means "unknown", never "no field admits anything".
+    ///
+    /// This is the whole of § 4's *"a write's incoming value is checked
+    /// against the field's real, concrete declared type"* — see
+    /// [`mwl_object_slot_set`], which is its only reader, and this module's
+    /// docs § *What a shape write checks* for what a tag does not catch and
+    /// why the declared type itself is not here. Filled by
+    /// [`ClassTable::set_field_tags`]. **Cost:** one byte-sized `Option<Tag>`
+    /// per field per shape class, once per process, not per instance.
+    field_tags: Vec<Option<Tag>>,
 }
 
 /// One property default's already-evaluated value — the closed set
@@ -365,6 +421,14 @@ impl ClassDesc {
             return Some(hint);
         }
         self.fields.iter().position(|field| field == name)
+    }
+
+    /// The one [`Tag`] slot `index`'s declared type admits, or `None` where
+    /// it admits several or where nothing told this class its field types —
+    /// see [`ClassDesc::field_tags`], which owns both readings of `None`.
+    #[must_use]
+    pub fn field_tag(&self, index: usize) -> Option<Tag> {
+        self.field_tags.get(index).copied().flatten()
     }
 
     /// Whether an instance of this class is also an instance of `other` —
@@ -519,8 +583,36 @@ impl ClassTable {
             codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
+            field_tags: Vec::new(),
         }));
         id
+    }
+
+    /// Fills in `id`'s per-slot declared tags — see [`ClassDesc::field_tags`].
+    ///
+    /// Separate from [`ClassTable::define`] on [`ClassTable::set_defaults`]'
+    /// terms exactly: a slot's *name* is the same fact as its existence, while
+    /// what its declared type admits is a second table's answer that
+    /// `mwl-codegen` maps out of `mwl_ir::Ty` on the way here.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `tags` is not one entry
+    /// per slot — a length disagreement would silently check one field against
+    /// another's type, which is worse than checking nothing.
+    pub fn set_field_tags(&mut self, id: ClassId, tags: Vec<Option<Tag>>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            tags.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared tags",
+            desc.name,
+            desc.fields.len(),
+            tags.len()
+        );
+        desc.field_tags = tags;
     }
 
     /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].
@@ -1608,6 +1700,122 @@ pub unsafe extern "C" fn mwl_object_slot_get(
                       inside the allocation and was initialized by `new`"
         )]
         Ok(unsafe { *field_ptr(ptr, slot) })
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the caller's contract is exactly `run_helper`'s"
+    )]
+    unsafe {
+        crate::run_helper(ctx, std::ptr::null(), 0, out, body)
+    }
+}
+
+/// `$issue->path = "x";` — [`mwl_object_slot_get`]'s write half, and
+/// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's whole
+/// write rule: the slot is found by **name** on the receiver's own descriptor,
+/// the incoming value is checked against what that class declares the field to
+/// hold, and **no field is ever created** — a name the concrete class does not
+/// carry is the same catchable throw a read raises, never a new slot.
+///
+/// **Borrows.** Unlike [`mwl_object_field_set`], which takes over its caller's
+/// reference, this retains what it stores and leaves the caller's own alone:
+/// the write can throw *after* its operands are in hand, and a transferred
+/// reference on that edge has no owner left to release it. `mwl_ir::lower`
+/// stages a freshly-built value as an ordinary temporary instead, which both
+/// exits already sweep — see `mwl_ir::InstKind::SlotSet`.
+///
+/// What the slot held is released, so the caller emits no read-back-and-drop
+/// pair the way an inline `FieldSet` needs one.
+///
+/// `hint` is the slot the static type said the field was at, exactly as in
+/// [`mwl_object_slot_get`]; `out` receives a null and exists only because
+/// [`crate::run_helper`] writes one.
+///
+/// # Errors
+///
+/// A [`Fault::Thrown`] when the concrete class has no such field, and a second
+/// when it has one whose declared type does not admit this value's tag — the
+/// case a *widened* view creates, since ADR 0036 § 3 checks a shape's field
+/// types by ordinary assignability and a shape value is aliased rather than
+/// copied. See [`ClassDesc::field_tags`] for the granularity of that check and
+/// this module's docs for what it does not catch.
+///
+/// # Safety
+///
+/// `ctx` and `out` must satisfy [`crate::run_helper`]'s contract, `ptr` must
+/// refer to a live MWL object allocation, `name`/`len` must describe
+/// initialized bytes that live for the call, and `value` must point at one
+/// initialized [`Value`] its caller still owns.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a raw object pointer, a static byte range \
+              and a value by address, none of which the signature can bound"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwl_object_slot_set(
+    ctx: *mut Ctx,
+    ptr: *mut ObjHeader,
+    name: *const u8,
+    len: usize,
+    hint: usize,
+    value: *const Value,
+    out: *mut Value,
+) -> i32 {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the byte range is initialized and outlives \
+                  this call"
+    )]
+    let name = unsafe { std::slice::from_raw_parts(name, len) };
+    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+        let name = std::str::from_utf8(name)
+            .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
+        if ptr.is_null() {
+            return Err(Fault::fatal(format!(
+                "internal error: `->{name} =` reached a null receiver"
+            )));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees the allocation is live, so its descriptor \
+                      is too"
+        )]
+        let desc = unsafe { &*MwlObj::class_of(ptr) };
+        let Some(slot) = desc.field_slot(name, hint) else {
+            return Err(Fault::thrown(format!(
+                "`{}` has no field `{name}`",
+                desc.name()
+            )));
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the caller guarantees this points at one initialized value"
+        )]
+        let value = unsafe { *value };
+        if let Some(declared) = desc.field_tag(slot) {
+            let actual = value.tag();
+            if actual != Some(declared) {
+                return Err(Fault::thrown(format!(
+                    "`{}` declares field `{name}` as {}, so a {} cannot be written to it",
+                    desc.name(),
+                    declared.describe(),
+                    actual.map_or("malformed value", Tag::describe)
+                )));
+            }
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the slot came out of this object's own descriptor, so it is \
+                      inside the allocation and was initialized by `new`; the \
+                      retain pairs with the reference the slot now owns"
+        )]
+        unsafe {
+            value.retain();
+            let slot = field_ptr(ptr, slot);
+            (*slot).release();
+            slot.write(value);
+        }
+        Ok(Value::null())
     };
     #[expect(
         unsafe_code,

@@ -356,6 +356,8 @@ pub(super) fn lower_generator(
     classes.push(crate::ir::Class {
         label: class.clone(),
         fields: fields.into_iter().map(|(n, _)| n).collect(),
+        // A generator's frame is never a `SlotSet` receiver — see `ir::Class`.
+        field_reprs: Vec::new(),
         // `Iterable`/`Iterator` are compiler-declared and have no layout
         // entry of their own, so `mwl_codegen::Classes::define` drops an
         // unresolvable label here the same way it does for any other —

@@ -1,0 +1,56 @@
+--TEST--
+A shape field write lands on the field it names and is checked against the concrete field's own declared type — ADR 0036 §§ 3-4
+--FILE--
+<?mwl
+// ADR 0036 § 4's write half, mirroring the read: a shape has no declaring
+// class, so the write is keyed on the *name* rather than on a fixed offset.
+class Move {
+    // `{y: int}` lays `y` at slot 0; the `{x: int, y: int}` value lays it at
+    // slot 1, because a shape's slots are its field names sorted.
+    public static function bumpY({y: int} $p): void {
+        $p->y = 9;
+    }
+
+    // The same widening over a refcounted field: `label` is slot 0 in the
+    // view and slot 1 in the value. What the slot held is released by the
+    // write, so nothing leaks and nothing is freed twice.
+    public static function relabel({label: string} $t): void {
+        $t->label = "right";
+    }
+
+    // § 3 compares a shape's field types by ordinary assignability, so
+    // `{n: int}` satisfies `{n: int|string}` — and a shape value is aliased
+    // rather than copied. A write through the wider view is therefore checked
+    // against what the concrete value declares, and throws rather than
+    // leaving a `string` in a slot the narrow view loads as an `int`.
+    public static function widen({n: int|string} $p): string {
+        try {
+            $p->n = "s";
+            return "not refused";
+        } catch (Throwable $e) {
+            return $e->message;
+        }
+    }
+}
+
+// Through the value's own shape: the slot the checker resolved is the one the
+// value uses, and the runtime's hint hits on the first try.
+var $point = {x: 1, y: 2};
+$point->x = 5;
+echo $point->x, " ", $point->y, "\n";
+
+// Through the narrower view: the write reaches `y`, and `x` is untouched —
+// which is exactly what a slot-indexed write would have got wrong.
+Move::bumpY($point);
+echo $point->x, " ", $point->y, "\n";
+
+var $tagged = {alpha: "a", label: "left"};
+Move::relabel($tagged);
+echo $tagged->alpha, " ", $tagged->label, "\n";
+
+echo Move::widen({n: 1}), "\n";
+--EXPECT--
+5 2
+5 9
+a right
+`$shape{n}` declares field `n` as int, so a string cannot be written to it

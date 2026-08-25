@@ -488,6 +488,10 @@ pub fn lower_program(
         .map(|(label, layout)| crate::ir::Class {
             label: label.to_owned(),
             fields: layout.fields.clone(),
+            // A named class's slots are written through a fixed offset whose
+            // type the write site knows, so nothing asks — `ir::Class` and
+            // this crate's gap 6 own why an erased write is still open.
+            field_reprs: Vec::new(),
             conforms: layout.conforms.clone(),
             methods: layout.methods.clone(),
             // ADR 0071's field list, joined to this class's slot order — the
@@ -1246,15 +1250,37 @@ impl<'a> Lowering<'a> {
             shapes: Vec::new(),
         }
     }
-    /// Records the synthesized class a shape literal named, unless this body
-    /// already recorded one under the same label — see [`Self::shapes`].
-    pub(super) fn record_shape_class(&mut self, label: String, fields: Vec<String>) {
-        if self.shapes.iter().any(|class| class.label == label) {
+    /// Records the synthesized class a shape literal named — see
+    /// [`Self::shapes`].
+    ///
+    /// `reprs` is what each field's own initializer lowered to, in the same
+    /// sorted order as `fields`, and it is the whole of what
+    /// `mwl_runtime::mwl_object_slot_set` gets to check a write against.
+    ///
+    /// A label already recorded is **merged**, not skipped: `$shape{x}` is
+    /// named for its field names alone (see [`shape_class_label`]), so
+    /// `{x: 1}` and `{x: "s"}` are one class with two disagreeing slot types.
+    /// A slot the two spell differently degrades to [`Ty::Tagged`], which
+    /// `mwl-codegen` reads as "no fixed tag, do not check" — picking whichever
+    /// literal was seen first would instead reject the other one's own writes.
+    pub(super) fn record_shape_class(
+        &mut self,
+        label: String,
+        fields: Vec<String>,
+        reprs: Vec<Ty>,
+    ) {
+        if let Some(class) = self.shapes.iter_mut().find(|class| class.label == label) {
+            for (have, found) in class.field_reprs.iter_mut().zip(&reprs) {
+                if *have != *found {
+                    *have = Ty::Tagged;
+                }
+            }
             return;
         }
         self.shapes.push(crate::ir::Class {
             label,
             fields,
+            field_reprs: reprs,
             // ADR 0036 § 5: a shape literal's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it

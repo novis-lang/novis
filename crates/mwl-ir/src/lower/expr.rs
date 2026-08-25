@@ -9,17 +9,19 @@
 use super::*;
 
 /// What `mwl_types::expr_table::ExprInfo::ShapeProperty` resolved for one
-/// `$shape->field` read, carried as one argument because the three parts are
-/// only ever used together — see [`Lowering::lower_shape_property_access`].
-struct ShapeField {
+/// `$shape->field` access, read or write, carried as one argument because the
+/// three parts are only ever used together — see
+/// [`Lowering::lower_shape_property_access`] and
+/// [`Lowering::lower_shape_property_assign`].
+pub(super) struct ShapeField {
     /// The field's own name, `$`-sigil not included: what ADR 0036 § 4's
     /// fetch is keyed on.
-    name: String,
+    pub(super) name: String,
     /// Its position in the *receiver's* sorted shape — the runtime's hint,
     /// and not the answer through a widened view.
-    slot: u32,
+    pub(super) slot: u32,
     /// Its declared type, still in `mwl_types`' interner.
-    ty: TypeId,
+    pub(super) ty: TypeId,
 }
 
 impl<'a> Lowering<'a> {
@@ -3020,14 +3022,25 @@ impl<'a> Lowering<'a> {
                 args: Vec::new(),
             },
         );
-        for (field, name) in fields.iter().zip(names) {
+        // What each field's initializer lowered to, keyed by name so the
+        // list handed to `record_shape_class` is in the class's own sorted
+        // slot order rather than the literal's written one. This is the only
+        // record of a shape field's type that survives to run time, and
+        // `InstKind::SlotSet` is its one reader.
+        let mut reprs: FxHashMap<&str, Ty> = FxHashMap::default();
+        for (field, name) in fields.iter().zip(&names) {
             let (v, ty) = self.lower_expr(&field.value, None, env, cur);
             if ty.is_refcounted() && self.aliasing_read(&field.value) {
                 self.emit_retain(*cur, v);
             }
-            self.emit_field_set(*cur, obj, class.clone(), name, v);
+            reprs.insert(name.as_str(), ty);
+            self.emit_field_set(*cur, obj, class.clone(), name.clone(), v);
         }
-        self.record_shape_class(class, sorted);
+        let reprs = sorted
+            .iter()
+            .map(|name| reprs[name.as_str()])
+            .collect::<Vec<_>>();
+        self.record_shape_class(class, sorted, reprs);
         (obj, Ty::Object)
     }
 
@@ -3081,6 +3094,60 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
         self.close_nullsafe(guard, v, ty, cur)
+    }
+
+    /// `$issue->path = "x";` — [`Self::lower_shape_property_access`]'s write
+    /// half (ADR 0036 § 4), and the same three facts about the field: no
+    /// declaring class, no hook, the name plus the receiver's own slot index.
+    ///
+    /// [`InstKind::SlotSet`] owns why this is one fallible call rather than
+    /// the `FieldGet`/`Release`/`FieldSet` sequence a named class's property
+    /// write lowers to. Two consequences show up here:
+    ///
+    /// * **Nothing is read back.** The runtime releases what the slot held,
+    ///   because the field's concrete type — and so whether it is refcounted
+    ///   at all — is not a fact this site has.
+    /// * **The value is borrowed, not transferred.** The runtime retains what
+    ///   it stores, so a value this expression *built* is staged as an
+    ///   ordinary owned temporary and swept on whichever edge is taken. That
+    ///   is the mirror image of the receiver's own accounting, and of the
+    ///   retain-if-aliasing the named-class write in `crate::lower::stmt`
+    ///   does: this instruction can throw after both operands are in hand,
+    ///   and a transferred reference on that edge would have no owner left.
+    pub(super) fn lower_shape_property_assign(
+        &mut self,
+        object: &Expr,
+        field: &ShapeField,
+        value: &Expr,
+        env: &Env,
+        cur: &mut BlockId,
+    ) {
+        let field_ty = lower_checked_ty(field.ty, self.checked_types);
+        let mark = self.temporaries_mark();
+        let (object_v, receiver_ty) = self.lower_expr(object, None, env, cur);
+        // A narrowed `?{...}` receiver arrives tagged, exactly as on the read
+        // side — see `Lowering::untag_receiver`.
+        let (object_v, receiver_ty) = self.untag_receiver(object_v, receiver_ty, *cur);
+        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+            self.own_temporary(object_v);
+        }
+        let (v, vty) = self.lower_expr(value, Some(field_ty), env, cur);
+        let v = self.coerce(*cur, v, vty, field_ty);
+        if field_ty.is_refcounted() && !self.aliasing_read(value) {
+            self.own_temporary(v);
+        }
+        self.emit_fallible(
+            *cur,
+            Ty::Void,
+            InstKind::SlotSet {
+                object: object_v,
+                field: field.name.clone(),
+                slot: field.slot,
+                value: v,
+            },
+            env,
+        );
+        self.release_temporaries_since(mark, *cur);
     }
 
     /// `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own

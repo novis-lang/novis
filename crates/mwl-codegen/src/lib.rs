@@ -469,6 +469,19 @@ impl Classes {
         if !class.defaults.is_empty() {
             self.table.set_defaults(id, class.defaults.clone());
         }
+        // ADR 0036 § 4's write check, at the one granularity the runtime can
+        // hold: a representation with no single tag — `Ty::Tagged`, `Ty::Void`
+        // — becomes `None`, which `mwl_runtime::mwl_object_slot_set` reads as
+        // "unchecked". `mwl_ir::ir::Class::field_reprs` is empty for every
+        // class no shape write can reach, and this asks nothing of those.
+        if class.field_reprs.len() == class.fields.len() && !class.field_reprs.is_empty() {
+            let tags = class
+                .field_reprs
+                .iter()
+                .map(|ty| crate::ty::tag_of(*ty).ok())
+                .collect();
+            self.table.set_field_tags(id, tags);
+        }
         let slots = class
             .fields
             .iter()
@@ -562,6 +575,13 @@ struct Signatures {
     /// a fixed offset resolved here, and the one that can throw; see
     /// `mwl_ir::ir::InstKind::SlotGet`.
     slot_get: Signature,
+    /// `mwl_object_slot_set(ctx, object, name, len, hint, value, out) -> status`
+    /// — ADR 0036 § 4's name-keyed shape *write*. One parameter wider than
+    /// [`Self::slot_get`], because the value travels through a caller-owned
+    /// 16-byte slot the way [`Self::array_get`]'s result does *and* the helper
+    /// ABI still writes an (ignored) result of its own; see
+    /// `mwl_ir::ir::InstKind::SlotSet`.
+    slot_set: Signature,
     /// `mwl_array_new() -> *mut ArrayHeader`.
     array_new: Signature,
     /// `mwl_array_get(array, key, out)` — the read primitive, whose result
@@ -869,6 +889,16 @@ impl Signatures {
         slot_get.params.push(AbiParam::new(ptr)); // out
         slot_get.returns.push(AbiParam::new(types::I32));
 
+        let mut slot_set = module.make_signature();
+        slot_set.params.push(AbiParam::new(ptr)); // ctx
+        slot_set.params.push(AbiParam::new(ptr)); // object
+        slot_set.params.push(AbiParam::new(ptr)); // field name bytes
+        slot_set.params.push(AbiParam::new(ptr)); // field name length
+        slot_set.params.push(AbiParam::new(types::I64)); // slot hint
+        slot_set.params.push(AbiParam::new(ptr)); // value
+        slot_set.params.push(AbiParam::new(ptr)); // out
+        slot_set.returns.push(AbiParam::new(types::I32));
+
         let mut array_new = module.make_signature();
         array_new.returns.push(AbiParam::new(ptr));
 
@@ -917,6 +947,7 @@ impl Signatures {
             instanceof,
             class_method,
             slot_get,
+            slot_set,
             array_new,
             array_get,
             array_set,

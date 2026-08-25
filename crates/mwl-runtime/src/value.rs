@@ -108,6 +108,32 @@ impl Tag {
         })
     }
 
+    /// How a diagnostic spells this tag: the MWL type name a program would
+    /// have written, not the variant's own.
+    ///
+    /// Deliberately coarser than a type: [`Self::Str`] answers `string` for
+    /// every `string` there is, and [`Self::Object`] answers `object` for
+    /// every class — a tag is all a message raised from compiled code has,
+    /// and claiming more than that would be claiming the concrete type is
+    /// known when it is not.
+    #[must_use]
+    pub const fn describe(self) -> &'static str {
+        match self {
+            Self::Null => "null",
+            Self::Bool => "bool",
+            Self::Int => "int",
+            Self::Uint => "uint",
+            Self::Float => "float",
+            Self::Str => "string",
+            Self::Array => "array",
+            Self::Object => "object",
+            Self::Closure => "callable",
+            Self::Resource => "resource",
+            Self::Decimal => "decimal",
+            Self::Bytes => "bytes",
+        }
+    }
+
     /// Whether a payload with this tag owns a reference that must be released.
     #[must_use]
     pub const fn is_refcounted(self) -> bool {

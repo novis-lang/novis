@@ -37,6 +37,18 @@ pub struct Class {
     /// Every field slot in index order: every ancestor's first, then this
     /// class's own in declaration order. `$`-sigil not included.
     pub fields: Vec<String>,
+    /// What each field slot's *declared* type lowers to, in [`Self::fields`]'
+    /// own order — or **empty**, which means "not known", not "no fields".
+    ///
+    /// Populated only for an ADR 0036 shape literal's synthesized class today,
+    /// which is the only receiver [`InstKind::SlotSet`] can reach; a named
+    /// class's slots are written through a fixed offset whose type the write
+    /// site already knows, so nothing has needed to ask. `mwl-codegen` maps
+    /// each entry to the one `mwl_runtime::Tag` it admits — [`Ty::Tagged`] and
+    /// [`Ty::Void`] admit several or none and become "unchecked" — and hands
+    /// the result to `mwl_runtime::ClassTable::set_field_tags`, whose own docs
+    /// state what that check buys and what it misses.
+    pub field_reprs: Vec<Ty>,
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,
@@ -531,6 +543,46 @@ pub enum InstKind {
         /// The field's position in the *receiver's static* shape, sorted by
         /// name: a hint, not the answer. See this variant's own docs.
         slot: u32,
+    },
+    /// `$issue->path = "x";` — [`InstKind::SlotGet`]'s write half, and
+    /// ADR 0036 § 4's other paragraph: one call to
+    /// `mwl_runtime::mwl_object_slot_set`, keyed on the **name** and taking
+    /// [`Self::SlotSet::slot`] as the same hint, for the same reason the read
+    /// does. A write through an erased or widened view **never creates a
+    /// field**; a name the concrete class does not carry is a catchable throw,
+    /// exactly as on the read side.
+    ///
+    /// **Fallible for a second reason the read does not have.** § 4 checks the
+    /// incoming value against the field's *real* declared type, because § 3
+    /// compares a shape's field types by ordinary assignability and a shape
+    /// value is aliased rather than copied — so `{n: int|string}` is a legal
+    /// view of a `{n: int}` value, and a `string` written through it would sit
+    /// in a slot the narrow view loads as an `int`. What the runtime actually
+    /// compares is the tag; `mwl_runtime::object`'s module docs
+    /// § *What a shape write checks* own that granularity and its gaps.
+    ///
+    /// **Borrows [`Self::SlotSet::value`]**, unlike [`InstKind::FieldSet`],
+    /// which transfers: the runtime retains what it stores, so a value this
+    /// expression built is an ordinary owned temporary that both exits sweep
+    /// (`crate::lower::Lowering::owned_temporaries`). Transferring instead
+    /// would strand that reference on the throw edge, which — this being the
+    /// one field write that *can* throw — is not a hypothetical.
+    ///
+    /// What the slot held is released by the runtime, so no `SlotGet`/
+    /// `Release` pair precedes this the way one precedes a `FieldSet`.
+    /// Defines nothing: a [`Ty::Void`] result, like a statement call.
+    SlotSet {
+        /// The receiver, already lowered.
+        object: ValueId,
+        /// The field's own name, `$`-sigil not included — what the write is
+        /// keyed on.
+        field: String,
+        /// The field's position in the *receiver's static* shape, sorted by
+        /// name: a hint, not the answer. See [`InstKind::SlotGet`].
+        slot: u32,
+        /// The value to store, already coerced to the field's static
+        /// representation. Borrowed; see this variant's own docs.
+        value: ValueId,
     },
     /// `$obj instanceof Class` — one linear scan of the receiver's flattened
     /// supertype set, defining a [`Ty::Bool`].
