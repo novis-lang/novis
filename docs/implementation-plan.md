@@ -118,8 +118,8 @@
 > group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
 > field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.
-> **Spec §§ 1-12, by section** — § 1 owes five rows: `compare`, `replaceAll`, `replaceRange`, and the
-> `fold`/`normalize` pair that needs a Unicode-normalization dependency picked; § 2 owes
+> **Spec §§ 1-12, by section** — § 1 owes three rows: `compare`, and the `fold`/`normalize` pair
+> that needs a Unicode-normalization dependency picked; § 2 owes
 > `Arr::diff`/`intersect` and ADR 0069's combination members (its refusal half is built, `E0467`); §
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
@@ -138,12 +138,12 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 389 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 391 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **40 remaining keys are the machine-readable work list for
+> own module doc states, and that file's **38 remaining keys are the machine-readable work list for
 > §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
