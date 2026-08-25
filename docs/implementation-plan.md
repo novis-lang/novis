@@ -130,7 +130,7 @@
 > each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
 > `{previous: $e}` options shape and
 > `$e->location`; § 11 owes `Random::bytes` and `Hash::stream`, its one-shot half being built; § 12 owes
-> `Uri::parse`/`isValid`, `Validate` and `Out::capture`, `Csv` being whole. §§ 3 and 8 are whole, and every
+> `Uri::parse`/`isValid` and `Out::capture`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
 > `Union` and `Decimal`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
 > unwritten. **The runtime hole that sat under four of those is closed** — `mwl_runtime::Tag` has a
@@ -139,7 +139,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 397 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 398 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
@@ -180,8 +180,10 @@
 > pick — `Csv` took `csv-core` for its reader,
 > hex needed none, `Encoding`'s base64 and base32 pairs took `base64` and
 > `data-encoding`, its text trio `encoding_rs`, and `Hash` the RustCrypto family. §§ 7 and 12's
-> `Core\Csv` are now whole, so the fixture's first report has moved past them
-> to `Core\Validate::isEmail` at `collect.mwl:46`.
+> `Core\Csv` are now whole, and so is § 12's `Core\Validate` — all six members, with
+> `isIp`'s `{version?: 4|6}` as the registry's first union-typed option — so the
+> fixture's first report has moved past them to `Core\Out::capture` at
+> `collect.mwl:47`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in
