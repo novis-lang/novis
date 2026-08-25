@@ -1,0 +1,41 @@
+--TEST--
+`Core\Uri::parseQuery` reads PHP's bracket convention in full and answers `array<mixed>` — spec § 12
+--FILE--
+<?mwl
+// docs/spec/01-core-library.md § 12: `a[]=1&a[]=2` builds a list under one
+// key, `a[b]=c` builds a map, and the two nest to any depth. Every value is
+// therefore a `string` *or* a nested array, which is why the row is
+// `array<mixed>`; `Core\Json::encode` is what lets a case see the whole shape
+// at once, since an element is `mixed` and cannot be indexed into.
+echo Core\Json::encode(Core\Uri::parseQuery("a=1&b[]=2&b[]=3&c[k]=v")), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery("a[b][c]=d&a[b][e][]=f")), "\n";
+
+// A repeated name without brackets keeps the last value, and a scalar and a
+// list each replace the other — the three rows of PHP's last-write-wins.
+echo Core\Json::encode(Core\Uri::parseQuery("a=1&a=2")), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery("a=1&a[]=2")), "\n";
+echo Core\Json::encode(Core\Uri::parseQuery("a[]=1&a=2")), "\n";
+
+// `[]` takes the next key after the highest integer one already written, which
+// is the counter `mwl_runtime`'s arrays keep and PHP calls nNextFreeElement.
+echo Core\Json::encode(Core\Uri::parseQuery("a[]=1&a[3]=x&a[]=y")), "\n";
+
+// Both halves of a pair are read with the form decoder: `+` is a space, and
+// brackets a client percent-encoded still name the structure they name.
+echo Core\Json::encode(Core\Uri::parseQuery("a%5Bb%5D=c&d=x+y")), "\n";
+
+// The answer is an ordinary array with ordinary `string` keys, so `Core\Arr`
+// reads it and a top-level scalar converts with `as`.
+var $query = Core\Uri::parseQuery("one=1&two[]=2");
+echo Core\Str::join(Core\Arr::keys($query), ","), "\n";
+echo ($query["one"] as string), "\n";
+--EXPECT--
+{"a":"1","b":["2","3"],"c":{"k":"v"}}
+{"a":{"b":{"c":"d","e":["f"]}}}
+{"a":"2"}
+{"a":["2"]}
+{"a":"2"}
+{"a":{"0":"1","3":"x","4":"y"}}
+{"a":{"b":"c"},"d":"x y"}
+one,two
+1

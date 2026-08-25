@@ -1,8 +1,11 @@
 //! `Core\Uri` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
-//! § 12's first table. This module is that table's **percent-encoding half**:
-//! `encodeComponent`/`decodeComponent` and `encodeFormValue`/`decodeFormValue`,
-//! which replace PHP's `rawurlencode`/`rawurldecode` and
-//! `urlencode`/`urldecode`.
+//! § 12's first table. This module is that table's **percent-encoding half**
+//! — `encodeComponent`/`decodeComponent` and
+//! `encodeFormValue`/`decodeFormValue`, which replace PHP's
+//! `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode` — plus
+//! `parseQuery` and `buildQuery`, which are those four applied to a whole
+//! query string. The **grammar** half, `parse` and the `Uri` instance, is
+//! gap 1.
 //!
 //! # Two encodings, because PHP has two and the wire has two
 //!
@@ -57,6 +60,52 @@
 //! that could never have appeared in a URI; asking whether something is a URI
 //! is `Uri::isValid`, which is not here yet — see gap 1.
 //!
+//! # The bracket convention, read and written
+//!
+//! `a[]=1&a[]=2` builds a list, `a[b]=c` builds a map, and the two nest to any
+//! depth. That is not a URL-specification feature — RFC 3986 says a query is
+//! opaque text — but it is how every PHP form posts, so the spec adopts it in
+//! full, and `Core\Request::query` will answer the same shape from this same
+//! code at M8 rather than deciding the question twice.
+//!
+//! The shape is what makes the return type `array<mixed>`: a value is a
+//! `string` **or** a nested `array<mixed>`, and no more precise element type
+//! exists to write. `Core\Arr::keys` over the answer is still `array<string>`,
+//! because every MWL array key is a `string` already.
+//!
+//! Two things PHP does here are deliberately **not** reproduced, and both are
+//! substitutions rather than structure:
+//!
+//! - **A key is never rewritten.** `parse_str` turns `.` and ` ` into `_` in
+//!   the part of a name before the first bracket, because it was built to
+//!   create *variables* and a PHP variable cannot hold either character. This
+//!   member returns an array, so nothing constrains a key at all, and
+//!   `user.name=x` keeps the key the client actually sent. Rewriting it would
+//!   silently merge two distinct parameters — `a.b` and `a_b` — which is worse
+//!   than the compatibility it buys.
+//! - **A malformed name is one literal key, not a repaired one.** A name is a
+//!   path only when it is a non-empty base followed by complete `[…]` groups
+//!   and nothing else; `a[b=c` and `a[b]c=d` are not, so each whole name
+//!   becomes a single key. PHP instead patches the text — `a[b` becomes the
+//!   key `a_b`, and `a[b]c` quietly drops the `c`. Keeping the name preserves
+//!   what arrived, which is the only honest answer for input no correct client
+//!   produces.
+//!
+//! Everything else matches, including the parts that look like accidents and
+//! are load-bearing for real forms: `a=1&a=2` keeps the last value, `a=1&a[]=2`
+//! replaces the scalar with a list and `a[]=1&a=2` replaces the list with the
+//! scalar, and `a[]=1&a[3]=x&a[]=y` numbers its appends 0, 3, 4 — the last
+//! because [`MwlArray::append`] already keeps PHP's next-free-integer counter.
+//!
+//! `buildQuery` writes the same convention back, matching `http_build_query`
+//! down to its escaping: a nested value goes under its whole path, and the
+//! structural brackets are form-encoded like every other byte, so `b[0]=2`
+//! goes out as `b%5B0%5D=2`. It writes a list's **indexes** rather than empty
+//! brackets, which is what makes `buildQuery(parseQuery($q))` parse back to
+//! the same array — `b[]=` would renumber from zero and lose `a[3]`'s key.
+//! Equal *text* is not on offer and never was: one set of parameters has many
+//! spellings, and this is the one every reader accepts.
+//!
 //! # What is not here: no dependency
 //!
 //! This half binds no outside crate, which is a deliberate exception to
@@ -81,6 +130,16 @@
 //! with no backtracking, so a hostile input costs O(n) and cannot be made to
 //! cost more.
 //!
+//! `parseQuery` spends one array per bracket level the query actually writes,
+//! plus one `string` per name and per value, all reachable from the one array
+//! it answers and freed with it. It is a single pass too: each descent borrows
+//! the child array the parent already owns rather than retaining a second
+//! reference to it, so no subtree is ever copied and depth costs no stack —
+//! see [`branch`] and [`insert`]. `buildQuery` spends the string it answers
+//! plus one [`Level`] per open bracket level, and walks with an explicit stack
+//! for the same reason: its argument is often a `parseQuery` answer, whose
+//! depth came off the wire.
+//!
 //! # Known gaps
 //!
 //! 1. **`Uri::parse`, `Uri::isValid`, `$uri->with` and `$uri->resolve` are not
@@ -97,15 +156,17 @@
 //!    octets and a client can send any of them; the throw is exactly what
 //!    [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 3's checked
 //!    `bytes as string` row would do one line later, so no program is denied
-//!    an answer it could have used. It becomes `: bytes` when
-//!    `mwl_runtime::Tag` gains a `Bytes` variant, which is
-//!    [`crate::random`]'s gap 1. This is the one place this module diverges
-//!    from PHP, whose strings are byte strings.
-//! 3. **`parseQuery` and `buildQuery` are not built**, and they are where the
-//!    spec's bracket convention lives. They are the other consumer of the two
-//!    decoders here, not a second implementation of them.
+//!    an answer it could have used. `parseQuery` throws on the same octets for
+//!    the same reason, for a name as well as for a value. The runtime half of
+//!    this is no longer missing — `mwl_runtime::Tag` has its `Bytes` row now —
+//!    so what remains is a spec question: § 12's table writes `: string` for
+//!    both decoders, and changing it is a spec slice rather than a runtime
+//!    one. This is the one place this module diverges from PHP, whose strings
+//!    are byte strings.
 
-use mwl_runtime::{Fault, HelperResult, MwlStr, Tag, Value};
+use std::mem::ManuallyDrop;
+
+use mwl_runtime::{Fault, HelperResult, MwlArray, MwlStr, Tag, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy};
 
@@ -150,6 +211,20 @@ pub const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "mwl_core_uri_decode_form_value",
         },
+        CoreMethod {
+            name: "parseQuery",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Mixed),
+            symbol: "mwl_core_uri_parse_query",
+        },
+        CoreMethod {
+            name: "buildQuery",
+            params: &[CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_uri_build_query",
+        },
     ],
     instance: &[],
     slots: &[],
@@ -164,6 +239,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_uri_decode_component" => (mwl_core_uri_decode_component as *const ()).cast(),
         "mwl_core_uri_encode_form_value" => (mwl_core_uri_encode_form_value as *const ()).cast(),
         "mwl_core_uri_decode_form_value" => (mwl_core_uri_decode_form_value as *const ()).cast(),
+        "mwl_core_uri_parse_query" => (mwl_core_uri_parse_query as *const ()).cast(),
+        "mwl_core_uri_build_query" => (mwl_core_uri_build_query as *const ()).cast(),
         _ => return None,
     })
 }
@@ -206,9 +283,9 @@ const HEX: [u8; 16] = *b"0123456789ABCDEF";
 /// Capacity is the input's length rather than three times it: the common
 /// subject is mostly unreserved, so reserving for the worst case would triple
 /// the allocation of every call to pay for the rare one that needs it.
-fn encode(text: &str, form: Form) -> String {
+fn encode(text: &[u8], form: Form) -> String {
     let mut out = String::with_capacity(text.len());
-    for &byte in text.as_bytes() {
+    for &byte in text {
         match byte {
             b' ' if form == Form::FormValue => out.push('+'),
             _ if form.unreserved(byte) => out.push(char::from(byte)),
@@ -304,7 +381,8 @@ fn produced(text: &str) -> HelperResult {
     Ok(Value::str(MwlStr::new(text.as_bytes())))
 }
 
-/// `octets` as a `string`, or a throw where they are not UTF-8.
+/// `octets` as text, or a throw where they are not UTF-8. `subject` names
+/// which octets they were, since `parseQuery` decodes two kinds.
 ///
 /// # Errors
 ///
@@ -314,16 +392,257 @@ fn produced(text: &str) -> HelperResult {
 /// early. The offset is a position in text the caller supplied, so it is safe
 /// to name and it is the one fact that makes the throw actionable — the octets
 /// themselves are not quoted, since they are by definition not text.
-fn decoded(octets: Vec<u8>, member: &str) -> HelperResult {
-    let text = String::from_utf8(octets).map_err(|error| {
+fn text_from(octets: Vec<u8>, member: &str, subject: &str) -> Result<String, Fault> {
+    String::from_utf8(octets).map_err(|error| {
         Fault::thrown(format!(
-            "Core\\Uri::{member}(): the decoded octets are not valid UTF-8 — byte {} begins a \
-             sequence a `string` cannot hold. Percent-decoding answers octets, so text carrying \
+            "Core\\Uri::{member}(): {subject} holds a byte a `string` cannot — byte {} begins a \
+             sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying \
              an escape for a non-UTF-8 byte has no `string` to decode to",
             error.utf8_error().valid_up_to()
         ))
+    })
+}
+
+/// `octets` as a `string` value, or a throw where they are not UTF-8.
+///
+/// # Errors
+///
+/// [`text_from`]'s, which owns why this throws at all.
+fn decoded(octets: Vec<u8>, member: &str) -> HelperResult {
+    produced(&text_from(octets, member, "the decoded octets")?)
+}
+
+// ============================================================================
+// The bracket convention — one pass, no recursion
+// ============================================================================
+
+/// One step of a parameter name's bracket path.
+///
+/// The two spellings a name can write between one pair of brackets, and the
+/// only two: `a[k]` names a key and `a[]` asks for the next one.
+enum Index<'a> {
+    /// `a[k]` — the key written between the brackets, never empty, since
+    /// empty brackets are [`Self::Next`].
+    At(&'a [u8]),
+    /// `a[]` — whatever key [`MwlArray::append`] assigns next, which is the
+    /// counter PHP calls `nNextFreeElement` and MWL's arrays already keep.
+    Next,
+}
+
+impl Index<'_> {
+    /// The key this step names, or `None` for `[]`.
+    const fn key(&self) -> Option<&[u8]> {
+        match self {
+            Self::At(key) => Some(key),
+            Self::Next => None,
+        }
+    }
+}
+
+/// `name` split into the key it opens with and the bracket path that follows,
+/// or `None` where `name` is not a bracket path at all.
+///
+/// A path is a **non-empty base followed by zero or more complete `[…]` groups
+/// and nothing else**. Anything short of that — an unclosed `[`, text after
+/// the last `]`, a name that opens with `[` — answers `None`, and the caller
+/// takes the whole name as one literal key. The module docs own why that is
+/// the rule rather than PHP's character substitutions.
+fn path_of(name: &[u8]) -> Option<(&[u8], Vec<Index<'_>>)> {
+    let open = match name.iter().position(|&byte| byte == b'[') {
+        None => return Some((name, Vec::new())),
+        Some(0) => return None,
+        Some(at) => at,
+    };
+    let mut path = Vec::new();
+    let mut rest = &name[open..];
+    while let Some(&byte) = rest.first() {
+        if byte != b'[' {
+            return None;
+        }
+        let close = rest.iter().position(|&byte| byte == b']')?;
+        path.push(if close == 1 {
+            Index::Next
+        } else {
+            Index::At(&rest[1..close])
+        });
+        rest = &rest[close + 1..];
+    }
+    Some((&name[..open], path))
+}
+
+/// The array `key` names inside `parent`, displacing whatever was there when
+/// it is not an array already — which is `a=1&a[]=2` answering `{a: ["2"]}`,
+/// exactly as PHP does. `None` always builds a fresh one and appends it, since
+/// `a[][x]=1&a[][y]=2` is two arrays rather than one.
+///
+/// The handle is **borrowed and never dropped**: `parent` owns the only
+/// reference to the array it hands back, so writing through this handle finds
+/// a refcount of one and mutates in place rather than separating. That is what
+/// makes the whole parse O(input) — retaining a second reference would make
+/// every descent copy the subtree it descends into.
+fn branch(parent: &mut MwlArray, key: Option<&[u8]>) -> ManuallyDrop<MwlArray> {
+    if let Some(key) = key
+        && let Some(existing) = parent.get(key).and_then(Value::array_ptr)
+    {
+        return crate::arr::borrowed(existing);
+    }
+    let fresh = Value::array(MwlArray::new());
+    let address = fresh.array_ptr().expect("just built from an array");
+    match key {
+        Some(key) => parent.set(MwlStr::new(key), fresh),
+        None => parent.append(fresh),
+    }
+    let child = crate::arr::borrowed(address);
+    debug_assert_eq!(
+        child.refcount(),
+        1,
+        "the array just handed to `parent` is owned by it alone"
+    );
+    child
+}
+
+/// Writes `value` at `base` + `path` inside `out`, building the arrays the
+/// path passes through.
+///
+/// Iterative rather than recursive on purpose: the path's depth is the
+/// caller's text, so a recursive descent would let a query string choose this
+/// process's stack depth. The arrays it builds are freed through
+/// `mwl_runtime::release`'s worklist, which is iterative for the same reason,
+/// so nesting is bounded by the input's length and by nothing else — PHP's
+/// `max_input_nesting_level` has no equivalent here because it does not need
+/// one.
+fn insert(out: &mut MwlArray, base: &[u8], path: &[Index<'_>], value: Value) {
+    let Some((last, descents)) = path.split_last() else {
+        out.set(MwlStr::new(base), value);
+        return;
+    };
+    let mut current = branch(out, Some(base));
+    for index in descents {
+        let next = branch(&mut current, index.key());
+        current = next;
+    }
+    match last.key() {
+        Some(key) => current.set(MwlStr::new(key), value),
+        None => current.append(value),
+    }
+}
+
+/// One array [`build`] is walking, and how much of the running name belongs to
+/// the path that reached it.
+///
+/// A stack of these rather than a recursive walk, for [`insert`]'s reason: the
+/// depth is the caller's data, and a `parseQuery` answer is caller's data that
+/// arrived over the wire.
+struct Level {
+    /// The entries, borrowed — `build` only reads, and the argument owns them.
+    array: ManuallyDrop<MwlArray>,
+    /// The next slot to look at, which [`MwlArray::next_slot`] advances.
+    slot: usize,
+    /// How many bytes of the running name are this array's own path. Each of
+    /// its entries writes its own key after exactly that much.
+    prefix: usize,
+}
+
+/// One value's text for the right-hand side of a pair.
+///
+/// ADR 0007 § 2's conversion rows through `mwl_runtime::value_to_string`, with
+/// one deliberate exception: `false` writes `0` rather than the empty string
+/// that `false as string` answers. `http_build_query` makes the same exception,
+/// and it is the right one here — the wire has no booleans, an empty value is
+/// how a form spells *absent*, and every reader of a query string treats `0`
+/// and `1` as the pair. The exception is scoped to this member, so the
+/// language's own conversion is untouched.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] where the value is one `string` has no conversion from
+/// — an object or a closure. `null` never reaches here: [`build`] drops the
+/// pair instead, which is `http_build_query`'s behaviour and the only one that
+/// round-trips, since a query string cannot spell an absent value.
+fn scalar_text(value: Value, member: &str) -> Result<Vec<u8>, Fault> {
+    if let Some(set) = value.as_bool() {
+        return Ok(if set { b"1".to_vec() } else { b"0".to_vec() });
+    }
+    let text = mwl_runtime::value_to_string(value).map_err(|_| {
+        Fault::thrown(format!(
+            "Core\\Uri::{member}(): a parameter's value is neither a scalar nor a nested array, \
+             so there is no text a query string could write it as"
+        ))
     })?;
-    produced(&text)
+    let bytes = text
+        .as_str_bytes()
+        .ok_or_else(|| Fault::fatal("`value_to_string` answered something that is not a string"))?
+        .to_vec();
+    #[expect(
+        unsafe_code,
+        reason = "`value_to_string` hands back exactly one fresh reference, and \
+                  the bytes have been copied out of it"
+    )]
+    unsafe {
+        text.release();
+    }
+    Ok(bytes)
+}
+
+/// `root` written as a query string: depth-first in entry order, every name
+/// and every value form-encoded.
+///
+/// The name a nested value is written under is the whole path — `a[b][c]` —
+/// with its structural brackets encoded like any other byte, which is what
+/// `http_build_query` writes and what [`path_of`] reads back. A list is
+/// therefore written with its indexes (`b[0]=`, not `b[]=`), so the round trip
+/// preserves the keys rather than renumbering them.
+///
+/// # Errors
+///
+/// [`scalar_text`]'s, for a value with no text form.
+fn build(root: *mut mwl_runtime::ArrayHeader, member: &str) -> Result<String, Fault> {
+    let mut out = String::new();
+    let mut name: Vec<u8> = Vec::new();
+    let mut stack = vec![Level {
+        array: crate::arr::borrowed(root),
+        slot: 0,
+        prefix: 0,
+    }];
+    while let Some(level) = stack.last_mut() {
+        let Some(live) = level.array.next_slot(level.slot) else {
+            stack.pop();
+            continue;
+        };
+        level.slot = live + 1;
+        let prefix = level.prefix;
+        let key = level.array.key_at(live).expect("a live slot has a key");
+        let value = level.array.value_at(live).expect("a live slot has a value");
+
+        name.truncate(prefix);
+        if prefix == 0 {
+            name.extend_from_slice(key.as_bytes());
+        } else {
+            name.push(b'[');
+            name.extend_from_slice(key.as_bytes());
+            name.push(b']');
+        }
+
+        if let Some(nested) = value.array_ptr() {
+            stack.push(Level {
+                array: crate::arr::borrowed(nested),
+                slot: 0,
+                prefix: name.len(),
+            });
+            continue;
+        }
+        // A `null` is dropped rather than written empty — see `scalar_text`.
+        if value.tag() == Some(Tag::Null) {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push('&');
+        }
+        out.push_str(&encode(&name, Form::FormValue));
+        out.push('=');
+        out.push_str(&encode(&scalar_text(value, member)?, Form::FormValue));
+    }
+    Ok(out)
 }
 
 // ============================================================================
@@ -347,7 +666,7 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_uri_encode_component(_ctx, args: [1]) {
         let text = text_of(args, "encodeComponent")?;
 
-        produced(&encode(text, Form::Component))
+        produced(&encode(text.as_bytes(), Form::Component))
     }
 }
 
@@ -386,7 +705,7 @@ mwl_runtime::mwl_helper! {
     fn mwl_core_uri_encode_form_value(_ctx, args: [1]) {
         let text = text_of(args, "encodeFormValue")?;
 
-        produced(&encode(text, Form::FormValue))
+        produced(&encode(text.as_bytes(), Form::FormValue))
     }
 }
 
@@ -406,6 +725,91 @@ mwl_runtime::mwl_helper! {
         let text = text_of(args, "decodeFormValue")?;
 
         decoded(decode(text, Form::FormValue), "decodeFormValue")
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Uri::parseQuery(string $query): array<mixed>` — replacing PHP's
+    /// `parse_str`, which it **returns** rather than populating variables
+    /// with.
+    ///
+    /// Pairs are separated by `&`, each pair by its first `=`, and both halves
+    /// are read with [`mwl_core_uri_decode_form_value`]'s decoder — so a `+`
+    /// is a space on both sides of the `=`. A pair with no `=` at all has the
+    /// empty string for its value, and one whose name decodes to nothing is
+    /// dropped, both as PHP does.
+    ///
+    /// Names carry the bracket convention in full: `a[]=1&a[]=2` builds a
+    /// list, `a[b]=c` builds a map, and the two nest to any depth. A repeated
+    /// name without brackets keeps the last value. The module docs own the two
+    /// places this diverges from `parse_str` and why.
+    ///
+    /// # Errors
+    ///
+    /// [`text_from`]'s throw, for a name or a value whose escapes decode to
+    /// octets that are not UTF-8. Every value in the answer is a `string` or a
+    /// nested `array<mixed>`, which is what the spec's `array<mixed>` says and
+    /// why it is not `array<string>`.
+    fn mwl_core_uri_parse_query(_ctx, args: [1]) {
+        let query = text_of(args, "parseQuery")?;
+
+        let mut out = MwlArray::new();
+        for pair in query.split('&') {
+            let (written_name, written_value) = pair.split_once('=').unwrap_or((pair, ""));
+            let name = text_from(
+                decode(written_name, Form::FormValue),
+                "parseQuery",
+                "the decoded name of a query parameter",
+            )?;
+            if name.is_empty() {
+                continue;
+            }
+            let value = text_from(
+                decode(written_value, Form::FormValue),
+                "parseQuery",
+                "the decoded value of a query parameter",
+            )?;
+            let value = Value::str(MwlStr::new(value.as_bytes()));
+            match path_of(name.as_bytes()) {
+                Some((base, path)) => insert(&mut out, base, &path, value),
+                None => out.set(MwlStr::new(name.as_bytes()), value),
+            }
+        }
+
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Uri::buildQuery(array<mixed> $parameters): string` — replacing
+    /// PHP's `http_build_query`.
+    ///
+    /// [`mwl_core_uri_parse_query`]'s inverse over the same bracket
+    /// convention, so `buildQuery(parseQuery($q))` answers a query string that
+    /// parses back to the same array. It is not `$q` byte for byte, and cannot
+    /// be: a query string has more than one spelling for the same parameters,
+    /// and this member writes the one every reader accepts — pairs joined by
+    /// `&`, both halves form-encoded, and a nested value under its whole
+    /// bracket path with the indexes written out.
+    ///
+    /// A `null` value drops its pair entirely, since a query string cannot
+    /// spell an absent value; [`scalar_text`] owns that and the one other
+    /// place this differs from `as string`.
+    ///
+    /// # Errors
+    ///
+    /// [`scalar_text`]'s throw, for a value that is neither a scalar nor a
+    /// nested array.
+    fn mwl_core_uri_build_query(_ctx, args: [1]) {
+        let parameters = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Uri::buildQuery expected {:?}, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+
+        produced(&build(parameters, "buildQuery")?)
     }
 }
 
@@ -485,11 +889,198 @@ mod tests {
     fn the_two_encodings_differ_on_exactly_space_and_tilde() {
         let differing: Vec<u8> = (0..=127_u8)
             .filter(|&byte| {
-                encode(&char::from(byte).to_string(), Form::Component)
-                    != encode(&char::from(byte).to_string(), Form::FormValue)
+                encode(char::from(byte).to_string().as_bytes(), Form::Component)
+                    != encode(char::from(byte).to_string().as_bytes(), Form::FormValue)
             })
             .collect();
         assert_eq!(differing, [b' ', b'~']);
+    }
+
+    /// One entry of a `parseQuery` answer, rendered `key:value` with a nested
+    /// array in braces — enough to compare a whole shape against PHP's own
+    /// output on one line, and nothing a query string can write is ambiguous
+    /// in it that the cases below rely on.
+    fn rendered(value: Value) -> String {
+        let Some(address) = value.array_ptr() else {
+            return String::from_utf8(
+                value
+                    .as_str_bytes()
+                    .expect("a leaf of the answer is a `string`")
+                    .to_vec(),
+            )
+            .expect("ADR 0009 guarantees a `string` is UTF-8");
+        };
+        let array = crate::arr::borrowed(address);
+        let mut out = String::from("{");
+        let mut slot = 0;
+        while let Some(live) = array.next_slot(slot) {
+            if out.len() > 1 {
+                out.push(',');
+            }
+            let key = array.key_at(live).expect("a live slot has a key");
+            out.push_str(&String::from_utf8_lossy(key.as_bytes()));
+            out.push(':');
+            out.push_str(&rendered(
+                array.value_at(live).expect("a live slot has a value"),
+            ));
+            slot = live + 1;
+        }
+        out.push('}');
+        out
+    }
+
+    /// `Core\Uri::parseQuery(query)`, rendered by [`rendered`].
+    fn parsed(query: &str) -> Result<String, i32> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let argument = Value::str(mwl_runtime::MwlStr::new(query.as_bytes()));
+        let answer = call(super::mwl_core_uri_parse_query, &mut ctx, &[argument]);
+        let out = answer.map(|value| {
+            let text = rendered(value);
+            #[expect(unsafe_code, reason = "this frame owns the array the helper built")]
+            unsafe {
+                value.release();
+            }
+            text
+        });
+        #[expect(unsafe_code, reason = "this frame owns the argument it built")]
+        unsafe {
+            argument.release();
+        }
+        out
+    }
+
+    /// The bracket convention, row for row against what PHP 8.5's `parse_str`
+    /// answers for the same query — including the parts that look like
+    /// accidents: last-value-wins, a scalar and a list replacing each other,
+    /// and appends numbered from the highest integer key already used.
+    #[test]
+    fn the_bracket_convention_answers_what_parse_str_answers() {
+        for (query, expected) in [
+            ("", "{}"),
+            ("=v", "{}"),
+            ("&&a=1", "{a:1}"),
+            ("a", "{a:}"),
+            ("a[]", "{a:{0:}}"),
+            ("a=1&b[]=2&b[]=3&c[k]=v", "{a:1,b:{0:2,1:3},c:{k:v}}"),
+            ("a=1&a=2", "{a:2}"),
+            ("a[b][c]=d", "{a:{b:{c:d}}}"),
+            ("a[1]=x&a[0]=y", "{a:{1:x,0:y}}"),
+            ("a[]=1&a[b]=2", "{a:{0:1,b:2}}"),
+            ("a=1&a[]=2", "{a:{0:2}}"),
+            ("a=1&a[b]=2", "{a:{b:2}}"),
+            ("a[]=1&a=2", "{a:2}"),
+            ("a%5Bb%5D=c", "{a:{b:c}}"),
+            ("a[b.c]=1", "{a:{b.c:1}}"),
+            ("a[][]=1&a[][]=2", "{a:{0:{0:1},1:{0:2}}}"),
+            ("a[][x]=1&a[][y]=2", "{a:{0:{x:1},1:{y:2}}}"),
+            ("a[]=1&a[3]=x&a[]=y", "{a:{0:1,3:x,4:y}}"),
+            ("x[0]=a&x[]=b", "{x:{0:a,1:b}}"),
+            ("a[0][x]=1&a[]=2", "{a:{0:{x:1},1:2}}"),
+            ("a[07]=x&a[]=y", "{a:{07:x,0:y}}"),
+        ] {
+            assert_eq!(parsed(query).expect("no throw"), expected, "for {query:?}");
+        }
+    }
+
+    /// Both halves of a pair are read with the form decoder, so a `+` is a
+    /// space on the name's side too — and no character in either is rewritten,
+    /// which is where PHP's variable-registering heritage is left behind. The
+    /// module docs own each of these divergences.
+    #[test]
+    fn a_key_is_never_rewritten_and_a_malformed_name_stays_whole() {
+        for (query, expected) in [
+            ("+a+=+b+", "{ a : b }"),
+            ("a.b=1", "{a.b:1}"),
+            ("a b=1", "{a b:1}"),
+            ("a[ ]=1", "{a:{ :1}}"),
+            ("a[b=c", "{a[b:c}"),
+            ("a[b]c=d", "{a[b]c:d}"),
+            ("[]=1", "{[]:1}"),
+        ] {
+            assert_eq!(parsed(query).expect("no throw"), expected, "for {query:?}");
+        }
+    }
+
+    /// `Core\Uri::buildQuery(Core\Uri::parseQuery(query))` — the round trip
+    /// both members are specified against, run through the same boundary.
+    fn rebuilt(query: &str) -> Result<String, i32> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let argument = Value::str(mwl_runtime::MwlStr::new(query.as_bytes()));
+        let parsed = call(super::mwl_core_uri_parse_query, &mut ctx, &[argument]);
+        #[expect(unsafe_code, reason = "this frame owns the argument it built")]
+        unsafe {
+            argument.release();
+        }
+        let parsed = parsed?;
+        let built = call(super::mwl_core_uri_build_query, &mut ctx, &[parsed]);
+        #[expect(unsafe_code, reason = "this frame owns the array `parseQuery` built")]
+        unsafe {
+            parsed.release();
+        }
+        let value = built?;
+        let text = String::from_utf8(
+            value
+                .as_str_bytes()
+                .expect("`buildQuery` answers a `string`")
+                .to_vec(),
+        )
+        .expect("ADR 0009 guarantees a `string` is UTF-8");
+        #[expect(unsafe_code, reason = "this frame owns the string the helper built")]
+        unsafe {
+            value.release();
+        }
+        Ok(text)
+    }
+
+    /// What PHP's `http_build_query` writes for the array its own `parse_str`
+    /// read from the same query — including the escaped structural brackets
+    /// and the indexes written out where the query wrote `[]`.
+    #[test]
+    fn build_query_writes_what_http_build_query_writes() {
+        for (query, expected) in [
+            ("", ""),
+            ("a=", "a="),
+            ("a b=x y", "a+b=x+y"),
+            (
+                "a=1&b[]=2&b[]=3&c[k]=v",
+                "a=1&b%5B0%5D=2&b%5B1%5D=3&c%5Bk%5D=v",
+            ),
+            (
+                "a[b][c]=d&a[b][e][]=f",
+                "a%5Bb%5D%5Bc%5D=d&a%5Bb%5D%5Be%5D%5B0%5D=f",
+            ),
+            ("a[]=1&a[3]=x&a[]=y", "a%5B0%5D=1&a%5B3%5D=x&a%5B4%5D=y"),
+        ] {
+            assert_eq!(rebuilt(query).expect("no throw"), expected, "for {query:?}");
+        }
+    }
+
+    /// The property the pair actually promises: the *text* a round trip
+    /// answers is not the input's, but it is its own — so the parameters
+    /// survive any number of trips. Writing `[]` instead of the indexes would
+    /// fail here on the third row by renumbering `a[3]`.
+    #[test]
+    fn the_round_trip_reaches_a_fixed_point_in_one_step() {
+        for query in [
+            "a=1&b[]=2&b[]=3&c[k]=v",
+            "a[b][c]=d&a[b][e][]=f",
+            "a[]=1&a[3]=x&a[]=y",
+            "a=1&a[]=2",
+            "a b=x y&c~d=e+f",
+            "a[b=c",
+        ] {
+            let once = rebuilt(query).expect("no throw");
+            assert_eq!(rebuilt(&once).expect("no throw"), once, "for {query:?}");
+        }
+    }
+
+    /// A name's escapes are decoded to octets exactly as a value's are, so
+    /// either side can carry bytes no `string` holds — gap 2, on both.
+    #[test]
+    fn a_non_utf8_escape_in_either_half_of_a_pair_throws() {
+        assert!(parsed("a=%FF").is_err());
+        assert!(parsed("%FF=a").is_err());
+        assert!(parsed("a[%FF]=b").is_err());
     }
 
     /// A decoded octet outside UTF-8 has no `string` to land in, so the member

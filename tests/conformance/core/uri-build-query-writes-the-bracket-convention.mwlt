@@ -1,0 +1,39 @@
+--TEST--
+`Core\Uri::buildQuery` writes what `parseQuery` reads, and the pair round-trips — spec § 12
+--FILE--
+<?mwl
+// docs/spec/01-core-library.md § 12: `buildQuery` is `parseQuery`'s inverse
+// over one bracket convention. A nested value is written under its whole
+// bracket path, with the indexes spelled out and the structural brackets
+// percent-encoded like any other byte — which is what `http_build_query`
+// writes and what `parseQuery` reads back.
+echo Core\Uri::buildQuery(Core\Uri::parseQuery("a=1&b[]=2&b[]=3&c[k]=v")), "\n";
+echo Core\Uri::buildQuery(Core\Uri::parseQuery("a[b][c]=d&a[b][e][]=f")), "\n";
+
+// The round trip is the assertion that matters: not the same text, since a
+// query string has several spellings for one set of parameters, but the same
+// array back.
+echo Core\Json::encode(
+    Core\Uri::parseQuery(Core\Uri::buildQuery(Core\Uri::parseQuery("a=1&b[]=2&c[k]=v")))
+), "\n";
+
+// Both halves are form-encoded: a space is `+`, and `+` and `~` are escaped.
+echo Core\Uri::buildQuery(["a b" => "x y", "c~d" => "e+f"]), "\n";
+
+// Every scalar takes ADR 0007 § 2's text, except that `false` writes `0`
+// rather than the empty string `false as string` answers — the wire has no
+// booleans, and an empty value is how a query string spells *absent*. A `null`
+// drops its pair for the same reason.
+echo Core\Uri::buildQuery(["n" => 7, "f" => 2.5, "t" => true, "no" => false]), "\n";
+echo Core\Uri::buildQuery(["a" => null, "b" => "x"]), "\n";
+
+// An empty array contributes nothing at all, at any depth.
+echo "[", Core\Uri::buildQuery(["a" => []]), "]\n";
+--EXPECT--
+a=1&b%5B0%5D=2&b%5B1%5D=3&c%5Bk%5D=v
+a%5Bb%5D%5Bc%5D=d&a%5Bb%5D%5Be%5D%5B0%5D=f
+{"a":"1","b":["2"],"c":{"k":"v"}}
+a+b=x+y&c%7Ed=e%2Bf
+n=7&f=2.5&t=1&no=0
+b=x
+[]

@@ -51,7 +51,5 @@
 §12 Csv::format
 §12 Csv::parse
 §12 Out::capture
-§12 Uri::buildQuery
 §12 Uri::isValid
 §12 Uri::parse
-§12 Uri::parseQuery
