@@ -59,9 +59,74 @@ def call_text(call):
     return str(inp.get("command") or inp.get("file_path") or json.dumps(inp))
 
 
+# ------------------------------------------------------------------------- attribution
+#
+# Where a session's context actually went, by what put it there. This is the measurement the
+# `[context]` manifest in loop-goal.toml is written against: a goal whose sessions spend a
+# third of their budget reading whole ADRs is a goal whose manifest should be naming ADR
+# *sections*, and the only way to know that is to charge every byte to the call that fetched
+# it. Buckets are matched in order, first hit wins.
+
+BUCKETS = (
+    ("orientation", ("orient.py", "brief.py", "docs/agent/", "loop-goal", "handoff", "playbook",
+                     "conventions", "AGENTS.md", "CLAUDE.md")),
+    ("adr", ("docs/adr/",)),
+    ("plan + spec", ("implementation-plan", "docs/spec/", "plan.py")),
+    ("build + test", ("verify.py", "cargo ", "mwl test", "mwl run", "loop.py")),
+    ("git", ("git ",)),
+    ("discovery", ("grep", "rg ", "find ", " ls ", "glob", "Glob", "Grep")),
+    ("source", ("crates/", "benches/", "tests/", "examples/", "tools/", "fuzz/")),
+)
+
+
+def bucket_of(name, text):
+    if name in MUTATORS:
+        return "writing"
+    for label, needles in BUCKETS:
+        if any(nd in text for nd in needles):
+            return label
+    return "other"
+
+
+def subagent_cost(path):
+    """The sessions this transcript delegated to, out of `.loop/logs/<stem>.subagents/`.
+
+    A subagent's turns never appear in the parent's stream, so without this a delegated read
+    is a session that mysteriously did a great deal with very few calls. `tools/loop.py`
+    copies the harness's own transcripts there; if the directory is absent, nothing was
+    delegated -- or the run predates that capture, which is why the count is reported
+    separately rather than folded into the session's own figures."""
+    directory = path.with_suffix(".subagents")
+    if not directory.is_dir():
+        return []
+    found = []
+    for agent in sorted(directory.glob("*.jsonl")):
+        calls, peak = 0, 0
+        for line in agent.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") != "assistant":
+                continue
+            message = event.get("message", {})
+            calls += sum(1 for c in message.get("content", []) or []
+                         if isinstance(c, dict) and c.get("type") == "tool_use")
+            usage = message.get("usage", {})
+            peak = max(peak, sum(usage.get(k, 0) for k in
+                                 ("input_tokens", "cache_creation_input_tokens",
+                                  "cache_read_input_tokens")))
+        if calls:
+            found.append({"agent": agent.stem, "calls": calls, "peak_ctx": peak})
+    return found
+
+
 def read_session(path):
     """One transcript -> the measurements above, or None if it holds no assistant turn."""
     calls, contexts, per_message, result = [], [], [], None
+    names, attribution = {}, {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line:
@@ -74,6 +139,17 @@ def read_session(path):
         if kind == "result":
             result = event
             continue
+        if kind == "user":
+            # A tool result is the single largest thing that enters a conversation, and it is
+            # charged to the call that asked for it -- which is why the ids are kept above.
+            for block in event.get("message", {}).get("content", []) or []:
+                if not isinstance(block, dict) or block.get("type") != "tool_result":
+                    continue
+                label = names.get(str(block.get("tool_use_id")), "other")
+                body = block.get("content")
+                text = body if isinstance(body, str) else json.dumps(body)
+                attribution[label] = attribution.get(label, 0) + len(text)
+            continue
         if kind != "assistant":
             continue
         message = event.get("message", {})
@@ -82,6 +158,14 @@ def read_session(path):
         if tool_uses:
             per_message.append(len(tool_uses))
             calls.extend((c.get("name"), c.get("input")) for c in tool_uses)
+            for c in tool_uses:
+                label = bucket_of(c.get("name"), call_text((c.get("name"), c.get("input"))))
+                names[str(c.get("id"))] = label
+                # An Edit's *input* is the new code, which is real context the session spent.
+                if c.get("name") in MUTATORS:
+                    attribution[label] = attribution.get(label, 0) + len(
+                        json.dumps(c.get("input") or {})
+                    )
         usage = message.get("usage", {})
         total = sum(
             usage.get(k, 0)
@@ -128,6 +212,8 @@ def read_session(path):
         "cost_usd": (result or {}).get("total_cost_usd"),
         "model_usage": (result or {}).get("modelUsage"),
         "complete": result is not None,
+        "attribution": attribution,
+        "subagents": subagent_cost(path),
     }
 
 
@@ -208,9 +294,66 @@ def project(t, ceiling):
     return rows
 
 
+def render_attribution(sessions):
+    """Where the context went, and therefore what the next goal's manifest should narrow."""
+    print("\n== WHERE THE CONTEXT WENT  (bytes charged to the call that fetched them)")
+    print("-- approximate tokens: bytes / 3.6. Read this as shares, not as absolutes.")
+    print("-- a session's OTHER fixed cost -- the harness prompt, the tool schemas, CLAUDE.md")
+    print("   and AGENTS.md -- never passes through a tool call, so none of it is below.")
+    print("   `ctx_start` in the default report is where that floor shows up.")
+    merged = {}
+    for s in sessions:
+        for label, size in s["attribution"].items():
+            merged[label] = merged.get(label, 0) + size
+    total = sum(merged.values()) or 1
+    print(f"\n{'bucket':<16}{'bytes':>12}{'approx tok':>13}{'share':>8}")
+    for label, size in sorted(merged.items(), key=lambda kv: -kv[1]):
+        print(f"{label:<16}{size:>12,}{size / 3.6:>13,.0f}{size / total:>7.0%}")
+    print(f"{'TOTAL':<16}{total:>12,}{total / 3.6:>13,.0f}{1:>7.0%}")
+
+    orientation = merged.get("orientation", 0) / total
+    adr = merged.get("adr", 0) / total
+    discovery = merged.get("discovery", 0) / total
+    print("\n   What each share argues for, in docs/agent/loop-goal.toml's [context] block:")
+    print(f"   orientation {orientation:>4.0%}  -- if this is large, the pack itself is too wide:")
+    print("                     narrow `modules`, `playbook` and `shapes`, and check")
+    print("                     `python tools/orient.py --audit` for which section carries it.")
+    print(f"   adr         {adr:>4.0%}  -- if this is large, whole ADRs are being read where")
+    print("                     `adrs = [\"NNNN §N\"]` would have sliced one section.")
+    print(f"   discovery   {discovery:>4.0%}  -- if this is large, the handoff's checklist items are")
+    print("                     missing their file:line anchors, so every session re-derives them.")
+
+    delegated = [(s["log"], a) for s in sessions for a in s["subagents"]]
+    if delegated:
+        print("\n== DELEGATED  (subagent transcripts captured beside the session's own)")
+        print(f"\n{'session':<32}{'agent':<26}{'calls':>7}{'peak ctx':>11}")
+        for log, a in delegated:
+            print(f"{log:<32}{a['agent']:<26}{a['calls']:>7}{a['peak_ctx']:>11,}")
+        print(
+            "\n   A subagent pays the same startup floor a session does, so a narrow lookup is\n"
+            "   cheap only in the PARENT's context, never in absolute tokens. Peak context here\n"
+            "   is what that floor actually cost."
+        )
+    else:
+        print(
+            "\n== DELEGATED\n\n   Nothing. Either no session spawned a subagent, or these logs predate\n"
+            "   tools/loop.py capturing them -- the two look identical from here, which is why\n"
+            "   the capture exists."
+        )
+
+
 def main():
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", newline="\n")
+    except AttributeError:
+        pass
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--run", help="limit to one run stamp, e.g. 20260825-015956")
+    ap.add_argument(
+        "--attribute",
+        action="store_true",
+        help="where the context went, by what fetched it, plus any subagent transcripts",
+    )
     ap.add_argument(
         "--context-ceiling",
         type=int,
@@ -234,6 +377,10 @@ def main():
 
     if opts.json:
         print(json.dumps({"sessions": sessions, "constants": t}, indent=2))
+        return
+
+    if opts.attribute:
+        render_attribution(sessions)
         return
 
     print(f"== PER SESSION  ({len(sessions)} transcript(s) in .loop/logs)")

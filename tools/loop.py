@@ -506,7 +506,11 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     """One `claude -p` session, its NDJSON streamed to the console and to
     .loop/logs/<run>-NNNN.log. The run stamp is in the name because the index restarts at 1
     every run: named by index alone, session 3 of today's run appended to session 3 of last
-    week's, and any per-session measurement over the directory silently mixed the two."""
+    week's, and any per-session measurement over the directory silently mixed the two.
+
+    The session id off the `system`/`init` event is kept, not just printed: it is the only
+    handle on the harness's own transcript directory, and therefore on any subagent this
+    session spawned. Without it a delegated read is invisible to every measurement below."""
     log = LOGDIR / f"{run_id}-{index:04d}.log"
     exe = shutil.which("claude") or "claude"
     cmd = [
@@ -521,6 +525,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         "stream-json",
         "--verbose",
     ]
+    session_id = ""
     with log.open("a", encoding="utf-8", newline="\n") as fh:
         proc = subprocess.Popen(
             cmd,
@@ -535,9 +540,54 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         for line in proc.stdout:
             fh.write(line)
             fh.flush()
+            if not session_id and '"session_id"' in line:
+                try:
+                    e = json.loads(line)
+                    if e.get("type") == "system" and e.get("subtype") == "init":
+                        session_id = str(e.get("session_id") or "")
+                except json.JSONDecodeError:
+                    pass
             renderer.event(line)
         proc.wait()
-    return proc.returncode, log
+    return proc.returncode, log, session_id
+
+
+# ------------------------------------------------------------------- subagent transcripts
+#
+# A subagent's turns do NOT appear in the parent's `stream-json`; only the tool call and the
+# report it returned do. The harness does write each one's full transcript, next to the parent
+# session's, so the whole cost of a delegated read is on disk -- it is simply somewhere nothing
+# in this repository was looking. Copying it under .loop/logs/ closes that blind spot, so
+# loop-stats.py can charge a subagent's calls, seconds and context to the session that spawned
+# it rather than reporting a session that mysteriously did a lot with very few calls.
+#
+# The session id is a UUID, so globbing every project directory for it is exact and needs no
+# knowledge of how the harness mangles a working-directory path into a directory name.
+
+
+def claude_home():
+    override = os.environ.get("CLAUDE_CONFIG_DIR")
+    return Path(override) if override else Path.home() / ".claude"
+
+
+def collect_subagents(session_id, run_id, index):
+    """Copy this session's subagent transcripts beside its own log. Returns (files, calls)."""
+    if not session_id:
+        return 0, 0
+    found = sorted(claude_home().glob(f"projects/*/{session_id}/subagents/*.jsonl"))
+    if not found:
+        return 0, 0
+    dest = LOGDIR / f"{run_id}-{index:04d}.subagents"
+    dest.mkdir(parents=True, exist_ok=True)
+    calls = 0
+    for src in found:
+        try:
+            text = src.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        (dest / src.name).write_text(text, encoding="utf-8", newline="\n")
+        calls += text.count('"type":"tool_use"')
+    return len(found), calls
 
 
 # ------------------------------------------------------------------------- run marker
@@ -681,7 +731,7 @@ def drive(opts, goal):
         STATUS.unlink(missing_ok=True)
         say(f"== session {i}/{opts.max_sessions}  {datetime.now():%H:%M:%S}", C.CYAN)
 
-        cli_exit, log = run_session(run_id, i, prompt_text, opts, renderer)
+        cli_exit, log, session_id = run_session(run_id, i, prompt_text, opts, renderer)
         if cli_exit != 0:
             fails += 1
             ledger(
@@ -700,7 +750,9 @@ def drive(opts, goal):
         commits = 0
         if head_after and head_after != head_before:
             commits = int(git("rev-list", "--count", f"{head_before}..{head_after}") or 0)
-        ledger(f"- {i:04d} {commits} commit(s) | {line or '(no status written)'}")
+        agents, agent_calls = collect_subagents(session_id, run_id, i)
+        delegated = f" | {agents} subagent(s), {agent_calls} call(s)" if agents else ""
+        ledger(f"- {i:04d} {commits} commit(s){delegated} | {line or '(no status written)'}")
 
         # The deterministic goal check outranks whatever the session reported.
         fail = goal.check()
