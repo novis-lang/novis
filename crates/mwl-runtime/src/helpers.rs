@@ -149,6 +149,19 @@ crate::mwl_helper! {
     }
 }
 
+crate::mwl_helper! {
+    /// `mwl_ir::Helper::NumericEq` — `==` over two operands whose
+    /// representations differ but whose types are
+    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 2's one numeric domain. The row is [`crate::numeric_identical`],
+    /// which is total, so this carries no error edge; `!=` is this helper
+    /// under an `mwl_ir::UnOp::Not`, the arrangement [`mwl_decimal_eq`]
+    /// already uses.
+    fn mwl_numeric_eq(_ctx, args: [2]) {
+        Ok(Value::bool(crate::numeric_identical(args[0], args[1])))
+    }
+}
+
 /// The [`Fault::Thrown`] a checked conversion produces when the value does not
 /// fit — ADR 0007 § 2's "`as` ... either produces a value of the target type or
 /// throws. It never rounds, truncates, or substitutes a default."
@@ -815,6 +828,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("mwl_str_truthy", address(mwl_str_truthy)),
         ("mwl_array_truthy", address(mwl_array_truthy)),
         ("mwl_value_identical", address(mwl_value_identical)),
+        ("mwl_numeric_eq", address(mwl_numeric_eq)),
         ("mwl_int_to_uint", address(mwl_int_to_uint)),
         ("mwl_uint_to_int", address(mwl_uint_to_int)),
         ("mwl_int_to_float", address(mwl_int_to_float)),

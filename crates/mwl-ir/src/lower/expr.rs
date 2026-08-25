@@ -1997,6 +1997,43 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
+        // ADR 0090 § 2's numeric row: `int`, `uint` and `float` are one
+        // domain, so the checker accepts `$n == $f` where the two operands
+        // have two *representations*. That pairing is settled here, exactly
+        // as the `decimal` and `Tagged` arms above settle theirs, rather than
+        // in `mwl-codegen` — which keeps its "a `BinOp` has one
+        // representation" invariant intact and its `ty != rty` refusal a
+        // genuine internal error. See `Helper::NumericEq` for why the
+        // settlement is a call and not a widening conversion: none of the
+        // three widenings is exact, so emitting one would answer § 3's
+        // "mathematically equal across the whole domain" with a rounding.
+        if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
+            && lty != rty
+            && matches!(lty, Ty::Int | Ty::Uint | Ty::Float)
+            && matches!(rty, Ty::Int | Ty::Uint | Ty::Float)
+        {
+            let (equal, _) = self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::HelperCall {
+                    helper: Helper::NumericEq,
+                    args: vec![lv, rv],
+                },
+            );
+            // Nothing is released: every representation in this arm is a
+            // scalar, so neither operand is `Ty::is_refcounted`.
+            if op == BinaryOp::Eq {
+                return (equal, Ty::Bool);
+            }
+            return self.emit(
+                *cur,
+                Ty::Bool,
+                InstKind::UnOp {
+                    op: UnOp::Not,
+                    operand: equal,
+                },
+            );
+        }
         let (bop, ty) = match op {
             BinaryOp::Add => (BinOp::Add, lty),
             BinaryOp::Sub => (BinOp::Sub, lty),

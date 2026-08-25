@@ -277,19 +277,29 @@
 //!     in this crate that looks like a destructor
 //!     ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
 //!     says MWL has none), so it is a design call, not a patch.
-//! 19. **ADR 0090's § 3 table is built, but its § 2 numeric domain is not.**
-//!     Every row of § 3 lowers: `===`/`!==` no longer lex, `== null` takes
-//!     [`lower::Lowering::lower_null_identity`]'s tag test, a scalar pair is
-//!     [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], a `string`, `array` or `object`
-//!     pair is that `BinOp` with the row's own comparison chosen in
-//!     `mwl-codegen`, and a `mixed` or union operand is § 5's
-//!     [`ir::Helper::Identical`] over `mwl_runtime::value_identical`. What is
-//!     open is § 2's numeric row: `int`, `uint`, `float` and `decimal` are one
-//!     domain there and `mwl_types` accepts every pairing among them, but a
-//!     cross-representation pair such as `$n == $f` reaches `mwl-codegen` as
-//!     two representations and is refused — one side has to be widened first,
-//!     and neither this crate nor that one does it yet. The disjoint-operand
-//!     refusal of § 2 is `mwl_types`' half, not this crate's.
+//! 19. **ADR 0090 is built; what a cross-representation pair still cannot do
+//!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` no
+//!     longer lex, `== null` takes
+//!     [`lower::Lowering::lower_null_identity`]'s tag test, a same-
+//!     representation pair is [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], a
+//!     `string`, `array` or `object` pair is that `BinOp` with the row's own
+//!     comparison chosen in `mwl-codegen`, a `mixed` or union operand is § 5's
+//!     [`ir::Helper::Identical`], and § 2's numeric row — the one pairing
+//!     whose two operands hold two *representations* — is
+//!     [`ir::Helper::NumericEq`], settled in
+//!     [`lower::Lowering::lower_binary`] rather than in `mwl-codegen`, whose
+//!     "a `BinOp` has one representation" invariant therefore still holds.
+//!     The disjoint-operand refusal of § 2 is `mwl_types`' half, not this
+//!     crate's.
+//!
+//!     What is left is the same mismatch under a *different* operator, and it
+//!     belongs to [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+//!     § 4 rather than to 0090: `mwl_types` gives `$n + $f` a result type and
+//!     `$n < $f` a `bool` without either side being converted, so both still
+//!     reach `mwl-codegen` as two representations and are refused there. ADR
+//!     0007 § 4's promotion table is what says which side widens, and unlike
+//!     equality that widening *is* the semantics rather than an approximation
+//!     of it, so it belongs in [`lower::Lowering::convert`]'s existing rows.
 
 pub mod ids;
 pub mod ir;

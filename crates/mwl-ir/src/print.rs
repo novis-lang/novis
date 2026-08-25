@@ -434,5 +434,6 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::TaggedToString => "tagged_to_string",
         Helper::EchoStr => "echo_str",
         Helper::Identical => "identical",
+        Helper::NumericEq => "numeric_eq",
     }
 }

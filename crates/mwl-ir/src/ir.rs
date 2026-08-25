@@ -1162,6 +1162,28 @@ pub enum Helper {
     /// It cannot fail — § 5 makes a mismatched pair `false` rather than a
     /// throw — so unlike a conversion helper it carries no error edge.
     Identical,
+    /// `a == b` over two operands whose *representations* differ but whose
+    /// types are one domain —
+    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 2's numeric row, which makes `int`, `uint` and `float` mutually
+    /// comparable, and § 3's "mathematically equal across the whole domain".
+    /// **`!=` is this helper under [`UnOp::Not`]**, the arrangement
+    /// [`Self::DecimalEq`] already uses.
+    ///
+    /// A call rather than a widening conversion because **no widening between
+    /// these three is exact**, which is the whole reason this row cannot be
+    /// settled the way a same-representation pair is: `int` → `float` loses
+    /// every integer past 2^53, `float` → `int` has no answer for a fractional
+    /// or out-of-range operand, and `int` ↔ `uint` share a bit pattern at `-1`
+    /// and `u64::MAX`. `mwl_runtime::numeric_identical` compares over `i128`
+    /// and over the float's own binary value instead, so `1 == 1.0` is `true`
+    /// and no pair is ever equated by a rounding neither operand asked for.
+    ///
+    /// A `decimal` operand never reaches here — [`Self::DecimalEq`] already
+    /// takes every pairing one side of which is a `decimal`, and a
+    /// [`crate::ty::Ty::Tagged`] one takes [`Self::Identical`]. Like both of
+    /// those it is total, so it carries no error edge.
+    NumericEq,
 }
 
 /// A binary arithmetic or comparison operator, already resolved to a single

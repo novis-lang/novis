@@ -2136,6 +2136,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::StrTruthy => "mwl_str_truthy",
         Helper::EchoStr => "mwl_echo_str",
         Helper::Identical => "mwl_value_identical",
+        Helper::NumericEq => "mwl_numeric_eq",
         Helper::ArrayTruthy => "mwl_array_truthy",
         Helper::IntToUint => "mwl_int_to_uint",
         Helper::UintToInt => "mwl_uint_to_int",

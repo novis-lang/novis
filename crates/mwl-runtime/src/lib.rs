@@ -212,7 +212,7 @@ pub use ctx::{
 pub use decimal::Decimal;
 pub use fmt::php_float_to_string;
 pub use helpers::{symbols, value_to_string, value_truthy};
-pub use identity::{mwl_array_eq, value_hash, value_identical};
+pub use identity::{mwl_array_eq, numeric_identical, value_hash, value_identical};
 pub use object::{
     CONSTRUCTOR, ClassDesc, ClassId, ClassTable, CodecField, CodecTy, FIELD_STRIDE, FIELDS_OFFSET,
     MwlObj, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, construct, field_offset,
