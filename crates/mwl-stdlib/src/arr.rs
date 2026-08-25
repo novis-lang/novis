@@ -339,6 +339,16 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_sort",
         },
         CoreMethod {
+            name: "sortByKey",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Options(SORT_BY_KEY_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "mwl_core_arr_sort_by_key",
+        },
+        CoreMethod {
             name: "fill",
             params: &[CoreTy::Uint, CoreTy::Var("T")],
             defaults: &[],
@@ -575,18 +585,6 @@ const BY_OPTION: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Arr::sort`'s
-/// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
-/// — the eleven PHP sort functions plus `array_multisort` in one bag, which is
-/// what the spec's § 2 *Ordering* note means by "descending is
-/// `{order: Order::Desc}`, key-preservation is an option rather than a letter
-/// in the name."
-///
-/// [`mwl_core_arr_sort`]'s own docs own what each option does and which
-/// combinations are refused. Two things about the *declaration* belong here:
-/// `by` and `comparator` are the first options whose default is
-/// [`Const::Null`] (there is no "no callback" callable), and `order` is the
-/// first use of [`CoreTy::Enum`].
 /// `{on?: SetOn, by?: callable, comparator?: callable}` — the bag the spec's
 /// § 2 set members share, in the order the ABI passes them.
 ///
@@ -628,6 +626,18 @@ const COLUMN_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
+/// `Core\Arr::sort`'s
+/// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
+/// — the eleven PHP sort functions plus `array_multisort` in one bag, which is
+/// what the spec's § 2 *Ordering* note means by "descending is
+/// `{order: Order::Desc}`, key-preservation is an option rather than a letter
+/// in the name."
+///
+/// [`mwl_core_arr_sort`]'s own docs own what each option does and which
+/// combinations are refused. Two things about the *declaration* belong here:
+/// `by` and `comparator` are the first options whose default is
+/// [`Const::Null`] (there is no "no callback" callable), and `order` is the
+/// first use of [`CoreTy::Enum`].
 const SORT_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "by",
@@ -651,6 +661,27 @@ const SORT_OPTIONS: &[CoreOption] = &[
     },
 ];
 
+/// `Core\Arr::sortByKey`'s `{order?: Order, comparator?: callable}` —
+/// [`SORT_OPTIONS`] without the two options a key sort has no use for.
+///
+/// `by` is absent because the thing compared is already the key, and
+/// `preserveKeys` is absent because a sort *by* key that renumbered would
+/// have thrown away what it just sorted on. Both are the spec's own row
+/// (§ 2 *Ordering*), not a narrowing this module chose; [`mwl_core_arr_sort_by_key`]'s
+/// docs own why the row is shaped that way.
+const SORT_BY_KEY_OPTIONS: &[CoreOption] = &[
+    CoreOption {
+        name: "order",
+        ty: CoreTy::Enum(r"Core\Order"),
+        default: Const::EnumCase(r"Core\Order", "Asc"),
+    },
+    CoreOption {
+        name: "comparator",
+        ty: CoreTy::Callable,
+        default: Const::Null,
+    },
+];
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain.
 ///
@@ -671,6 +702,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_reverse" => (mwl_core_arr_reverse as *const ()).cast(),
         "mwl_core_arr_flip" => (mwl_core_arr_flip as *const ()).cast(),
         "mwl_core_arr_sort" => (mwl_core_arr_sort as *const ()).cast(),
+        "mwl_core_arr_sort_by_key" => (mwl_core_arr_sort_by_key as *const ()).cast(),
         "mwl_core_arr_range" => (mwl_core_arr_range as *const ()).cast(),
         "mwl_core_arr_slice" => (mwl_core_arr_slice as *const ()).cast(),
         "mwl_core_arr_replace_range" => (mwl_core_arr_replace_range as *const ()).cast(),
@@ -2600,7 +2632,7 @@ mwl_runtime::mwl_helper! {
                         comparator,
                         &[compared[left], compared[right]],
                     )?;
-                    let sign = comparator_sign(verdict);
+                    let sign = comparator_sign(verdict, "sort");
                     #[expect(
                         unsafe_code,
                         reason = "the verdict is a fresh value this frame \
@@ -2640,6 +2672,131 @@ mwl_runtime::mwl_helper! {
     }
 }
 
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>`
+    /// — the spec's § 2 *Ordering* second member, replacing `ksort`, `krsort`
+    /// and `uksort`.
+    ///
+    /// A second entry point into [`mwl_core_arr_sort`]'s machinery rather than
+    /// a second sort: the same stable [`merge_sort`] over an index
+    /// permutation, with the *keys* compared instead of a `by` closure's
+    /// answers. What differs is only what the comparison reads.
+    ///
+    /// # Why the bag is two options and not four
+    ///
+    /// **There is no `preserveKeys`.** A sort by key that renumbered would
+    /// have discarded the very thing it ordered on, so this member preserves
+    /// keys unconditionally — PHP's `ksort` family has no `k`-less spelling
+    /// either. **There is no `by`**, because the thing compared is already the
+    /// key; a caller wanting to order by something derived from the key writes
+    /// `comparator`, which receives the two keys.
+    ///
+    /// # The natural order is a byte compare
+    ///
+    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 5 makes
+    /// every stored key a `string` — `arr-keys-are-always-strings.mwlt` pins
+    /// it — so there is no mixed-type case for [`compare_values`] to
+    /// arbitrate and the default ordering is `[u8]`'s. That means `"10"`
+    /// sorts before `"9"`, which is `ksort`'s `SORT_STRING` behaviour rather
+    /// than its default `SORT_REGULAR`: comparing two strings numerically is
+    /// the changes-type-by-itself reading [`mwl_core_arr_sort`] rejects for
+    /// values, and a key sort is the same question. A caller wanting numeric
+    /// order over numeric keys writes a `comparator` and says so.
+    ///
+    /// `order` reverses the comparison rather than the result, so equal keys
+    /// keep their insertion order under either — the same rule, and the same
+    /// stability, as the value sort.
+    fn mwl_core_arr_sort_by_key(ctx, args: [3]) {
+        let base = subject(args, "sortByKey")?;
+        let descending = match args[1].as_int() {
+            Some(0) => false,
+            Some(1) => true,
+            _ => {
+                return Err(Fault::fatal(format!(
+                    "Core\\Arr::sortByKey expected a `Core\\Order` case for `order`, got tag {} \
+                     value {}",
+                    args[1].tag_byte(),
+                    args[1].bits()
+                )));
+            }
+        };
+        let comparator = optional_callback(&args[2], "sortByKey", "comparator")?;
+
+        // Every entry, in insertion order. Each key is a reference of this
+        // frame's own, released by its `MwlStr` drop; each value is borrowed
+        // from the subject, which outlives the call.
+        let mut keys: Vec<MwlStr> = Vec::new();
+        let mut values: Vec<Value> = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = base.next_slot(from) {
+            from = slot + 1;
+            keys.push(
+                base.key_at(slot)
+                    .expect("next_slot only names live entries"),
+            );
+            values.push(
+                base.value_at(slot)
+                    .expect("next_slot only names live entries"),
+            );
+        }
+
+        let mut permutation: Vec<usize> = (0..keys.len()).collect();
+        let mut compare = |left: usize, right: usize| -> Result<std::cmp::Ordering, Fault> {
+            let ordering = match comparator {
+                Some(comparator) => {
+                    // One reference each for the duration of the call: the
+                    // keys belong to `keys`, and a comparator called
+                    // `n log n` times would otherwise leak that many.
+                    let left_arg = Value::str(keys[left].clone());
+                    let right_arg = Value::str(keys[right].clone());
+                    let verdict =
+                        mwl_runtime::call_closure(ctx, comparator, &[left_arg, right_arg]);
+                    #[expect(
+                        unsafe_code,
+                        reason = "this frame owns exactly the two references \
+                                  the clones above just produced"
+                    )]
+                    unsafe {
+                        left_arg.release();
+                        right_arg.release();
+                    }
+                    let verdict = verdict?;
+                    let sign = comparator_sign(verdict, "sortByKey");
+                    #[expect(
+                        unsafe_code,
+                        reason = "the verdict is a fresh value this frame \
+                                  owns; a comparator returning a heap value \
+                                  would otherwise leak one reference per \
+                                  comparison"
+                    )]
+                    unsafe {
+                        verdict.release();
+                    }
+                    sign?
+                }
+                None => keys[left].as_bytes().cmp(keys[right].as_bytes()),
+            };
+            Ok(if descending { ordering.reverse() } else { ordering })
+        };
+        merge_sort(&mut permutation, &mut compare)?;
+
+        let mut out = MwlArray::new();
+        for index in permutation {
+            #[expect(
+                unsafe_code,
+                reason = "the entry is owned by the subject array, which \
+                          outlives this call, so the copy stored here needs a \
+                          reference of its own"
+            )]
+            unsafe {
+                values[index].retain();
+            }
+            out.set(keys[index].clone(), values[index]);
+        }
+        Ok(Value::array(out))
+    }
+}
+
 /// One optional callback option: the closure it names, or `None` for the
 /// `Tag::Null` an omitting call site passes.
 ///
@@ -2663,7 +2820,7 @@ fn optional_callback(value: &Value, member: &str, option: &str) -> Result<Option
 /// about the *sign*, and a comparator written as a subtraction of two floats
 /// is the shape PHP code already has. A `NaN` has no sign, so it is a throw
 /// rather than a silent `Equal`.
-fn comparator_sign(verdict: Value) -> Result<std::cmp::Ordering, Fault> {
+fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::Ordering, Fault> {
     if let Some(int) = verdict.as_int() {
         return Ok(int.cmp(&0));
     }
@@ -2672,11 +2829,13 @@ fn comparator_sign(verdict: Value) -> Result<std::cmp::Ordering, Fault> {
     }
     if let Some(float) = verdict.as_float() {
         return float.partial_cmp(&0.0).ok_or_else(|| {
-            Fault::thrown("Core\\Arr::sort's comparator returned NaN, which has no ordering")
+            Fault::thrown(format!(
+                "Core\\Arr::{member}'s comparator returned NaN, which has no ordering"
+            ))
         });
     }
     Err(Fault::fatal(format!(
-        "Core\\Arr::sort's comparator returned tag {}, not a number",
+        "Core\\Arr::{member}'s comparator returned tag {}, not a number",
         verdict.tag_byte()
     )))
 }
@@ -3571,7 +3730,7 @@ fn set_member(
                         continue;
                     }
                     let verdict = mwl_runtime::call_closure(ctx, comparator, &[mine, *compared])?;
-                    let sign = comparator_sign(verdict);
+                    let sign = comparator_sign(verdict, member);
                     #[expect(
                         unsafe_code,
                         reason = "the verdict is a fresh value this frame \

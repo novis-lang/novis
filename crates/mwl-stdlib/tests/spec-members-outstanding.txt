@@ -14,7 +14,6 @@
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 from
 §2 reduce
-§2 sortByKey
 
 # § 4 `Core\Time` — the `Date`/`TimeOfDay` component views
 §4 date

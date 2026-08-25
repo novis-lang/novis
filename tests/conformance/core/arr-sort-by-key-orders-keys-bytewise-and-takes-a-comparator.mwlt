@@ -1,0 +1,44 @@
+--TEST--
+Core\Arr::sortByKey orders by key and preserves every one, comparing bytewise unless a comparator says otherwise (spec § 2 Ordering, ADR 0007 § 5)
+--FILE--
+<?mwl
+class Render {
+    // Every row below is asserted through the keys, because that is what the
+    // member ordered — and preserving them is unconditional here: a sort by
+    // key that renumbered would discard what it just sorted on, which is why
+    // the spec's row has no `preserveKeys`.
+    public static function keys(array<string> $a): string {
+        return Core\Str::join(Core\Arr::keys($a), ",");
+    }
+
+    public static function pairs(array<int> $a): string {
+        var $out = "";
+        foreach ($a as string $k => int $v) {
+            $out = $out . $k . "=" . $v . ";";
+        }
+        return $out;
+    }
+}
+
+array<int> $scores = ["carol" => 3, "alice" => 1, "bob" => 2];
+echo Render::pairs(Core\Arr::sortByKey($scores)), "\n";
+echo Render::pairs(Core\Arr::sortByKey($scores, {order: Core\Order::Desc})), "\n";
+
+// ADR 0007 § 5 makes every stored key a `string`, so the natural order is a
+// byte compare and "10" precedes "9". That is PHP's `ksort($a, SORT_STRING)`,
+// not its default `SORT_REGULAR`, which reads numeric-looking keys as numbers
+// — the changes-type-by-itself behaviour ADR 0007 rejects everywhere else.
+array<string> $rows = ["10" => "ten", "9" => "nine", "100" => "hundred"];
+echo Render::keys(Core\Arr::sortByKey($rows)), "\n";
+
+// A comparator receives the two *keys*, which is why the row has no `by`:
+// the thing compared is already the key. This is `uksort`.
+array<string> $numeric = Core\Arr::sortByKey($rows, {
+    comparator: fn(string $a, string $b): int => ($a as int) - ($b as int)
+});
+echo Render::keys($numeric), "\n";
+--EXPECT--
+alice=1;bob=2;carol=3;
+carol=3;bob=2;alice=1;
+10,100,9
+9,10,100
