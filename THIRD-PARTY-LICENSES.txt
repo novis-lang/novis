@@ -10,7 +10,7 @@ GENERATED FILE — do not edit by hand. Regenerate with:
     python tools/gen-attribution.py
 
 
-COMPONENTS (141)
+COMPONENTS (145)
 ------------------------------------------------------------------------------
 
 Where a component offers a choice of licenses, MWL takes the one shown and
@@ -33,6 +33,7 @@ platform MWL builds for, so one may appear that a given build omits.
   bitflags                                2.13.1   MIT                             (MIT OR Apache-2.0)
   block-buffer                            0.10.4   MIT                             (MIT OR Apache-2.0)
   bumpalo                                 3.20.3   MIT                             (MIT OR Apache-2.0)
+  caseless                                0.2.2    MIT
   cfg-if                                  1.0.4    MIT                             (MIT OR Apache-2.0)
   chacha20                                0.10.1   MIT                             (MIT OR Apache-2.0)
   clap                                    4.6.6    MIT                             (MIT OR Apache-2.0)
@@ -133,8 +134,11 @@ platform MWL builds for, so one may appear that a given build omits.
   terminal_size                           0.4.4    MIT                             (MIT OR Apache-2.0)
   thiserror                               2.0.20   MIT                             (MIT OR Apache-2.0)
   thiserror-impl                          2.0.20   MIT                             (MIT OR Apache-2.0)
+  tinyvec                                 1.12.0   MIT                             (Zlib OR Apache-2.0 OR MIT)
+  tinyvec_macros                          0.1.1    MIT                             (MIT OR Apache-2.0 OR Zlib)
   typenum                                 1.20.1   MIT                             (MIT OR Apache-2.0)
   unicode-ident                           1.0.24   MIT AND Unicode-3.0             ((MIT OR Apache-2.0) AND Unicode-3.0)
+  unicode-normalization                   0.1.25   MIT                             (MIT OR Apache-2.0)
   unicode-segmentation                    1.13.3   MIT                             (MIT OR Apache-2.0)
   utf8parse                               0.2.2    MIT                             (Apache-2.0 OR MIT)
   uuid                                    1.24.1   MIT                             (Apache-2.0 OR MIT)
@@ -160,7 +164,7 @@ platform MWL builds for, so one may appear that a given build omits.
   zmij                                    1.0.23   MIT
 
 
-LICENSE TEXTS (50)
+LICENSE TEXTS (53)
 ------------------------------------------------------------------------------
 
 Each text below is reproduced verbatim as its component ships it. Components
@@ -170,7 +174,7 @@ than once.
 
 
 ==============================================================================
-[1/50]  MIT
+[1/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -211,7 +215,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[2/50]  MIT
+[2/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -267,7 +271,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[3/50]  MIT
+[3/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -308,7 +312,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[4/50]  MIT
+[4/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -346,7 +350,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[5/50]  MIT
+[5/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -378,7 +382,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[6/50]  MIT
+[6/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -415,7 +419,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[7/50]  MIT
+[7/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -456,7 +460,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[8/50]  MIT
+[8/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -492,7 +496,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[9/50]  MIT
+[9/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -528,7 +532,40 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[10/50]  MIT
+[10/53]  MIT
+==============================================================================
+
+Applies to:
+  caseless 0.2.2
+
+------------------------------------------------------------------------------
+
+Copyright (c) 2017 Simon Sapin
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[11/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -569,7 +606,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[11/50]  MIT
+[12/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -605,7 +642,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[12/50]  MIT
+[13/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -642,7 +679,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[13/50]  MIT
+[14/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -674,7 +711,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[14/50]  MIT
+[15/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -710,7 +747,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[15/50]  MIT
+[16/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -743,7 +780,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[16/50]  MIT
+[17/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -780,7 +817,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[17/50]  MIT
+[18/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -817,7 +854,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[18/50]  MIT
+[19/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -853,7 +890,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[19/50]  MIT
+[20/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -889,7 +926,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[20/50]  MIT
+[21/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -925,7 +962,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[21/50]  MIT
+[22/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -957,7 +994,7 @@ THE SOFTWARE.
 
 
 ==============================================================================
-[22/50]  MIT
+[23/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -993,7 +1030,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[23/50]  MIT
+[24/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1032,7 +1069,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[24/50]  MIT
+[25/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1064,7 +1101,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[25/50]  MIT
+[26/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1101,12 +1138,13 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[26/50]  MIT
+[27/53]  MIT
 ==============================================================================
 
 Applies to:
   gimli 0.33.0
   heck 0.5.0
+  unicode-normalization 0.1.25
   unicode-segmentation 1.13.3
 
 ------------------------------------------------------------------------------
@@ -1139,7 +1177,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[27/50]  MIT
+[28/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1176,7 +1214,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[28/50]  MIT
+[29/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1212,7 +1250,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[29/50]  MIT
+[30/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1248,7 +1286,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[30/50]  MIT
+[31/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1284,7 +1322,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[31/50]  MIT
+[32/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1324,7 +1362,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[32/50]  MIT
+[33/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1361,7 +1399,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[33/50]  MIT
+[34/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1398,7 +1436,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[34/50]  MIT
+[35/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1434,7 +1472,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[35/50]  MIT
+[36/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1470,7 +1508,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[36/50]  MIT
+[37/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1506,7 +1544,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[37/50]  MIT
+[38/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1542,7 +1580,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[38/50]  MIT
+[39/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1578,7 +1616,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[39/50]  MIT
+[40/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1612,7 +1650,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[40/50]  MIT
+[41/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1642,7 +1680,55 @@ SOFTWARE.
 
 
 ==============================================================================
-[41/50]  MIT
+[42/53]  MIT
+==============================================================================
+
+Applies to:
+  tinyvec 1.12.0
+
+------------------------------------------------------------------------------
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+==============================================================================
+[43/53]  MIT
+==============================================================================
+
+Applies to:
+  tinyvec_macros 0.1.1
+
+------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2020 Soveu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+==============================================================================
+[44/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1674,7 +1760,7 @@ SOFTWARE.
 
 
 ==============================================================================
-[42/50]  MIT
+[45/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1710,7 +1796,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[43/50]  MIT
+[46/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1747,7 +1833,7 @@ DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[44/50]  MIT
+[47/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1777,7 +1863,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ==============================================================================
-[45/50]  MIT
+[48/53]  MIT
 ==============================================================================
 
 Applies to:
@@ -1820,7 +1906,7 @@ MIT License
 
 
 ==============================================================================
-[46/50]  Apache-2.0 WITH LLVM-exception
+[49/53]  Apache-2.0 WITH LLVM-exception
 ==============================================================================
 
 Applies to:
@@ -2068,7 +2154,7 @@ Software.
 
 
 ==============================================================================
-[47/50]  BSD-3-Clause
+[50/53]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -2105,7 +2191,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[48/50]  BSD-3-Clause
+[51/53]  BSD-3-Clause
 ==============================================================================
 
 Applies to:
@@ -2145,7 +2231,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ==============================================================================
-[49/50]  Zlib
+[52/53]  Zlib
 ==============================================================================
 
 Applies to:
@@ -2175,7 +2261,7 @@ the following restrictions:
 
 
 ==============================================================================
-[50/50]  Unicode-3.0
+[53/53]  Unicode-3.0
 ==============================================================================
 
 Applies to:

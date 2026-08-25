@@ -308,6 +308,13 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_str_lower_first",
         },
         CoreMethod {
+            name: "fold",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_fold",
+        },
+        CoreMethod {
             name: "fromCodePoint",
             params: &[CoreTy::Uint],
             defaults: &[],
@@ -517,6 +524,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_upper" => (mwl_core_str_upper as *const ()).cast(),
         "mwl_core_str_upper_first" => (mwl_core_str_upper_first as *const ()).cast(),
         "mwl_core_str_lower_first" => (mwl_core_str_lower_first as *const ()).cast(),
+        "mwl_core_str_fold" => (mwl_core_str_fold as *const ()).cast(),
         "mwl_core_str_format" => (mwl_core_str_format as *const ()).cast(),
         _ => return None,
     })
@@ -1952,6 +1960,32 @@ mwl_runtime::mwl_helper! {
     /// `Core\Str::lowerFirst(string $s): string` — replacing PHP's `lcfirst`.
     fn mwl_core_str_lower_first(_ctx, args: [1]) {
         produced(&map_first(text(&args[0], "lowerFirst", "the subject")?, false))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::fold(string $s): string` — replacing PHP's
+    /// `mb_convert_case($s, MB_CASE_FOLD)`, and the one member here that
+    /// exists **for comparison rather than for display**.
+    ///
+    /// Folding is Unicode's *default full* case folding (UAX #44's `C` and `F`
+    /// mappings, `caseless`'s table at Unicode 16.0), which is a different
+    /// function from the lower-case mapping [`mwl_core_str_lower`] applies:
+    /// folding turns `ß` into `ss` and `ﬁ` into `fi`, because its whole job is
+    /// to make two strings that differ only by case *equal*, and `lower` has
+    /// to leave a word looking like a word. So the answer is not text to show
+    /// anyone — it is a key.
+    ///
+    /// This is therefore the strict form of `compare`'s
+    /// `{caseInsensitive: true}`, whose per-character simple mapping cannot
+    /// see `ß` and `SS` as the same: `compare(fold($a), fold($b)) == 0` is the
+    /// caseless test that does. Two members rather than a third option,
+    /// because folding is a value a caller can hold on to — a lookup key
+    /// folds once and is compared many times.
+    fn mwl_core_str_fold(_ctx, args: [1]) {
+        produced(&caseless::default_case_fold_str(
+            text(&args[0], "fold", "the subject")?,
+        ))
     }
 }
 

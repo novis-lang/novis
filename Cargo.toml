@@ -61,6 +61,18 @@ blake3 = "1"
 # `crates/mwl-stdlib/src/granularity.rs` owns why this crate and not another.
 unicode-segmentation = "1"
 
+# --- Unicode case folding (`Core\Str::fold`) ---
+# Full case folding is a table, not an algorithm: `str::to_lowercase` answers
+# the lower-case *mapping*, which is a different function — it leaves `ß`
+# alone where folding turns it into `ss`, so a caseless comparison built on it
+# is wrong for exactly the strings people notice. `caseless` is that table and
+# nothing else, from the same `unicode-rs` org as `unicode-segmentation`
+# above, pure Rust with no build script and no C. ICU4X's `icu_casemap` is the
+# maintained alternative and was rejected on size: a data-baking subtree for
+# one member, where this is one crate over `unicode-normalization`, which
+# `Core\Str::normalize` needs next anyway.
+caseless = "0.2"
+
 # --- regular expressions (ADR 0056's two tiers, both named by the user) ---
 # `regex` is the linear-time default: a finite-automata engine that cannot be
 # made to backtrack exponentially, which is the whole point of that ADR.

@@ -1,0 +1,37 @@
+--TEST--
+`Core\Str::fold` answers Unicode's full case folding, which is a comparison key rather than text to show — spec § 1 *Transformation*
+--FILE--
+<?mwl
+// Folding is a different function from the lower-case mapping: its whole job
+// is to make two strings that differ only by case equal, so it expands where
+// `lower` has to leave a word looking like a word.
+echo Core\Str::fold("Straße"), " ", Core\Str::lower("Straße"), "\n";
+echo Core\Str::fold("ﬁle"), "\n";
+echo Core\Str::fold("ÄRGER"), "\n";
+echo Core\Str::fold("ǅungla"), "\n";
+
+// Both spellings of a Greek sigma fold to the same one, which is exactly the
+// property a caseless lookup key needs and a rendering must not have.
+echo Core\Str::fold("ΟΔΥΣΣΕΥΣ"), "\n";
+echo Core\Str::fold("Οδυσσευς"), "\n";
+echo Core\Str::compare(Core\Str::fold("ΟΔΥΣΣΕΥΣ"), Core\Str::fold("Οδυσσευς")), "\n";
+
+// `compare`'s own option is a per-character simple mapping, so it cannot see
+// `ß` and `SS` as the same string. Folding first is the caseless test that
+// does, which is why both members exist.
+echo Core\Str::compare("STRASSE", "straße", {caseInsensitive: true}), "\n";
+echo Core\Str::compare(Core\Str::fold("STRASSE"), Core\Str::fold("straße")), "\n";
+
+// Nothing to fold, and nothing there.
+echo Core\Str::fold("already lower"), "|", Core\Str::fold(""), "|\n";
+--EXPECT--
+strasse straße
+file
+ärger
+ǆungla
+οδυσσευσ
+οδυσσευσ
+0
+-1
+0
+already lower||

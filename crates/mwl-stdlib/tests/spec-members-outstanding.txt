@@ -12,7 +12,6 @@
 # to it.
 
 # § 1 `Core\Str` — the text-shaping half
-§1 fold
 §1 normalize
 
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
