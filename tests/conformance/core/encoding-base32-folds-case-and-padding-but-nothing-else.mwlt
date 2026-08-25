@@ -1,0 +1,48 @@
+--TEST--
+`Core\Encoding`'s base32 pair writes RFC 4648 § 6 unpadded and reads back either case, refusing anything that would change the octets — spec § 7, ADR 0009 § 3
+--FILE--
+<?mwl
+class B32 {
+    public static function decode(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase32($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// "mwl", as an `otpauth:` secret is written: upper case, no padding.
+bytes $raw = Core\Encoding::fromHex("6d776c");
+echo Core\Encoding::toBase32($raw), "\n";
+
+// Zero octets is a spelling, not a failure.
+echo "[", Core\Encoding::toBase32(Core\Encoding::fromHex("")), "]\n";
+
+// Case and padding are two spellings of one value, so all three read back.
+echo B32::decode("NV3WY"), "\n";
+echo B32::decode("nv3wy"), "\n";
+echo B32::decode("NV3WY==="), "\n";
+
+// A symbol outside `A`-`Z`/`2`-`7` — `1` is not in this alphabet at all, and a
+// space grouping a secret for a reader is a byte like any other.
+echo B32::decode("NV3W1"), "\n";
+echo B32::decode("NV3 WY"), "\n";
+
+// Bits no octet reads: `NV3WY` and `NV3WZ` would otherwise be the same value.
+echo B32::decode("NV3WZ"), "\n";
+
+// A group cut short, and padding that is present but not a whole group.
+echo B32::decode("NV3WYA"), "\n";
+echo B32::decode("NV3WY="), "\n";
+--EXPECT--
+NV3WY
+[]
+6d776c
+6d776c
+6d776c
+threw
+threw
+threw
+threw
+threw

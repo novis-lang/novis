@@ -1,0 +1,69 @@
+--TEST--
+`Core\Encoding`'s base64 family writes each variant's own spelling and refuses the other's — spec § 7, ADR 0009 § 3
+--FILE--
+<?mwl
+class B64 {
+    // ADR 0009 § 3: decoding is the checked direction, so a spelling that is
+    // not exactly what the member writes is a throw and never a shorter value.
+    public static function standard(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase64($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+
+    public static function url(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromBase64Url($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// 0xfb 0xff 0xbe is the triple whose two spellings differ in every character:
+// RFC 4648 § 4's alphabet ends `+/`, § 5's ends `-_`.
+bytes $raw = Core\Encoding::fromHex("fbffbe");
+echo Core\Encoding::toBase64($raw), "\n";
+echo Core\Encoding::toBase64Url($raw), "\n";
+
+// Zero octets is a spelling, not a failure.
+echo "[", Core\Encoding::toBase64(Core\Encoding::fromHex("")), "]\n";
+
+// Each half round-trips its own form. The standard one is padded; the URL-safe
+// one is not, which is the `rtrim(strtr(…))` idiom the spec row replaces.
+echo B64::standard("+/++"), "\n";
+echo B64::standard("/w=="), "\n";
+echo B64::url("_w"), "\n";
+echo B64::url("-_--"), "\n";
+
+// Neither decoder takes the other's alphabet.
+echo B64::standard("-_--"), "\n";
+echo B64::url("+/++"), "\n";
+
+// Nor the other's padding rule, in either direction.
+echo B64::standard("/w"), "\n";
+echo B64::url("_w=="), "\n";
+
+// A last symbol carrying bits no octet reads is one of several spellings of
+// the same value, so it is refused rather than decoded (RFC 4648 § 3.5)...
+echo B64::standard("/x=="), "\n";
+
+// ...and whitespace is a character outside the alphabet, not one skipped,
+// which is the whole difference from PHP's default `base64_decode`.
+echo B64::standard("/w== "), "\n";
+--EXPECT--
++/++
+-_--
+[]
+fbffbe
+ff
+ff
+fbffbe
+threw
+threw
+threw
+threw
+threw
+threw

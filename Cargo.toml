@@ -164,6 +164,35 @@ hmac = "0.12"
 crc32fast = "1"
 subtle = "2"
 
+# --- base64 (spec § 7's `Core\Encoding` base64 pair and its URL-safe variant) ---
+# RFC 4648's alphabets, its padding rules and its URL-safe variant are an
+# external specification, and `fromBase64` is a member attacker-controlled text
+# reaches — so ADR 0051 § 4's first question is "yes" and the second one is what
+# picks the crate. `base64` is pure Rust with no build script and no C, it is
+# the crate the ecosystem already reads for this, and it adds nothing to this
+# tree at all: it is already in Cargo.lock under `wasmtime-internal-cache`.
+# What it buys over the twenty lines a sextet table would take is the *decoder*:
+# a canonical-padding mode and a trailing-bits check, both of which are the
+# non-obvious half of RFC 4648 § 3.5 and both of which spec § 7's throw-rather-
+# than-substitute rule needs stated exactly.
+# `crates/mwl-stdlib/src/encoding.rs` owns why this crate and not another, and
+# which engine each of the four members is.
+base64 = "0.22"
+
+# --- base32 (spec § 7's `Core\Encoding` base32 pair, which TOTP needs) ---
+# RFC 4648 § 6, and the same ADR 0051 § 4 answer base64 gets one block up:
+# attacker-controlled text reaches `fromBase32`, so the decoder is not
+# hand-written. `data-encoding` is the pick over a base32-only crate because it
+# is the one that states each rule this module has to decide *separately* —
+# padding, trailing bits, symbol translation — as a checked `Specification`
+# rather than folding them into one alphabet constant, which is what lets
+# `fromBase32` be lenient about case and padding while staying strict about
+# everything that could change the octets. Pure Rust, no build script, no C,
+# no dependencies of its own.
+# `crates/mwl-stdlib/src/encoding.rs` owns what each of those three rules is
+# set to and why.
+data-encoding = "2"
+
 # --- cli / diagnostics rendering ---
 # Diagnostic layout is hand-written in mwl-diagnostics (the output format is
 # part of the language's UI and should not shift with a dependency bump), so
