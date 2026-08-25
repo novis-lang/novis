@@ -10,6 +10,9 @@
   every row it already defines: where a row throws, `as ?T` yields `null` instead. The rows themselves are
   untouched. [0047](0047-literal-and-enum-case-types.md) — its checked conversion into a literal or
   enum-case type gains the same non-throwing form.
+  [0063](0063-core-api-conventions.md) R5 — its ban on `try…` admits one shape, `tryParse`, for a class
+  whose `parse` takes exactly one `string` and can fail; *3* below is why that is not the `from`/`tryFrom`
+  pair R5 exists to prevent.
 - **Amended by:** none.
 - **Relates to:** 0010, 0022, 0024, 0033, 0035, 0063
 
@@ -18,9 +21,10 @@
 > syntax already parses** — `as` takes a type and `?int` is one; ADR 0007 § 2's table simply had no nullable
 > row, so this defines an unspecified corner rather than adding surface. A `null` operand yields `null`.
 > The form is available for exactly the conversions § 2 and ADR 0047 already define, is **refused where the
-> conversion cannot fail**, and remains a compile error where no conversion exists at all. It never
-> launders `tainted` or `secret`. `Core\Validate::isInteger`/`isFloat`/`isBoolean` are removed, being the
-> same predicate spelled twice.
+> conversion cannot fail**, and remains a compile error where no conversion exists at all. **`as` never
+> targets a class**, with no exceptions: text becomes a `Core\Uri` or a `Core\Uuid` through that class's own
+> `tryParse`. It never launders `tainted` or `secret`.
+> `Core\Validate::isInteger`/`isFloat`/`isBoolean` are removed, being the same predicate spelled twice.
 
 ## Context
 
@@ -52,12 +56,9 @@ would throw. Every other property of the conversion — what counts as success, 
 `string → int`, the range checks — is ADR 0007 § 2's, unchanged. This ADR adds no notion of validity of its
 own; it only changes what happens to a failure.
 
-**One family is defined the other way round.** For the closed **parse roster** in *3* — `Core\Uri` and
-`Core\Uuid` — `as ?T` is defined directly as *"that type's `parse`, and `null` where it throws"*, and **no
-`as T` form is implied or added**. The roster's types are classes, so ADR 0007 § 2's conversion table has
-no row for them and adding one would make `$s as Uri` a second spelling of `Core\Uri::parse($s)`, which R17
-forbids. Defining the nullable form directly keeps `parse` as the single implementation and the named
-constructor, and gives the roster the same non-throwing spelling every scalar already has.
+There is **one definition and no family that escapes it**: every `as ?T` is the `as T` of ADR 0007 § 2 or
+ADR 0047, with `null` where it throws. A target those two do not define is not a conversion this operator
+performs, whatever it is — *3*'s table is that sentence enumerated.
 
 ```
 var $id   = Core\Request::query('id') as ?uint;      // ?uint — null if absent, or not a uint
@@ -89,42 +90,69 @@ conflation rather than prevent it, at the cost of a line on the most common shap
 | any row ADR 0007 § 2's conversion table defines | **available**; `null` where the row throws | the row already defines success and failure |
 | into a literal or enum-case type ([ADR 0047](0047-literal-and-enum-case-types.md)) | **available** | that conversion is already checked and throwing; this is its non-throwing twin |
 | from `mixed` | **available** — every target has a checked path from `mixed` | ADR 0007 § 6 |
-| a `string` operand into a **parse-roster** type (`$s as ?Uri`, `$s as ?Uuid`) | **available**; `null` where that type's `parse` throws | *1*'s directly-defined family; the roster is closed and listed under the table |
 | a conversion that **cannot fail** (`decimal as ?string`, `?int as ?int`) | **compile error**, naming `as T` | a `?T` that is never `null` is a lie in the type and forces a pointless check; R17 forbids the second spelling |
 | no conversion exists at all (`array<int> as ?int`) | **compile error**, exactly as today | otherwise `as ?T` becomes a universal escape hatch that erases genuine type errors |
-| a class or interface type (`$obj as ?SomeClass`) | **compile error** | `instanceof` plus ADR 0007 § 6 narrowing already answers class membership; R17 |
+| **any** class or interface type (`$obj as ?SomeClass`, `$s as ?Core\Uri`) | **compile error**, no exceptions | `as` converts between the types ADR 0007 § 2 tabulates, and none of them is a class; text becomes a value through `tryParse` below |
 
 The distinction in the last three rows is the one to keep straight: **a conversion that exists and failed
 is `null`; a conversion that does not exist is a diagnostic.** From `mixed` every conversion exists, so
 `$mixed as ?int` is `null` for a value holding an array — while a statically-known `array<int>` never
 compiles.
 
-**The parse roster is `Core\Uri` and `Core\Uuid`, and nothing else.** A type joins it only by amending this
-list. Membership requires a `parse` that takes **exactly one `string`** and can fail; a parse taking a
-format or an options bag — `Core\Time::parse`, `Core\Csv::parse` — is a member call, not a conversion, and
-stays one. The roster row does **not** reopen the class-type row below it: that row closed *class
-membership*, "is this object already a `SomeClass`?", which `instanceof` answers. Turning text into a value
-is a different question, and `$obj as ?SomeClass` remains the compile error it is.
+**The class row is absolute, and that is a reversal.** This ADR first admitted a closed two-name *parse
+roster* — `$s as ?Core\Uri`, `$s as ?Core\Uuid` — defining those directly as "that type's `parse`, and
+`null` where it throws". It is withdrawn. The roster answered a real question and answered it in the wrong
+place: `as?` means a **downcast** in every language a reader arrives from, so spelling a *parse* that way
+inverted the one intuition the syntax carried, and it did so for exactly two class names a reader had to
+have memorized while every other class stayed a diagnostic. It also bought nothing it was justified by.
+R17 was said to forbid a second spelling of `parse` — but `Core\Uri::parse($s)` and `$s as ?Core\Uri`
+*both existed*, so the roster never removed a spelling; it relocated one from a member name to an
+operator, and to the harder of the two to read.
 
-**`Core\Duration` is deliberately not on the roster**, though its `parse` has the right shape.
-`Duration::parse` **launders** a `tainted` config value ([spec § 4](../spec/01-core-library.md)) and *4*
-below says `as ?T` is never a launderer — so the two are genuinely different operations rather than two
-spellings of one, and R17 has nothing to object to. Both survive.
+### 3a. A failable single-`string` parse gets `tryParse`, and R5 admits it
 
-Each roster type therefore loses its `isValid` member, by *5*'s argument exactly: `Core\Uuid::isValid($s)`
-and `$s as ?Uuid != null` are the same predicate. That deletion is what keeps a value's validity question
-and its parse from ever being answered by two different pieces of code — the shape behind PHP's
-CVE-2024-5458, where `filter_var(FILTER_VALIDATE_URL)` accepted user-info that `parse_url` read
-differently.
+`Core\Uri::tryParse(string $s): ?Uri` and `Core\Uuid::tryParse(string $s): ?Uuid` are the surviving
+non-throwing spelling. They call that class's own `parse` and answer `null` where it throws, so there is
+still exactly one implementation of "is this text a `Uri`" — which was always the point.
+
+This amends [ADR 0063](0063-core-api-conventions.md) R5, whose ban on `try…` is justified there as "R4
+already covers them". For a class target R4 demonstrably did **not** cover it: R4 offers a throwing member
+or a `?T` that means *absence*, and a malformed string is neither an absence nor something a scalar
+operator can reach, which is why the withdrawn roster had to define itself outside R4's frame in the first
+place. So R5 admits **one** shape, under three conditions that keep it from regrowing into PHP's
+`from`/`tryFrom` habit:
+
+1. The class has a `parse` taking **exactly one `string`** that can fail. A parse taking a format or an
+   options bag — `Core\Time::parse`, `Core\Csv::parse` — is a member call in a different shape and gets no
+   `tryParse`.
+2. `tryParse` **is** `parse` plus a caught throw. It is never a second implementation, which is the whole
+   CVE-2024-5458 argument below.
+3. The spelling is `tryParse` and nothing else. `…OrNull`, `…Safe` and `…Ex` stay banned, and so does
+   `try…` on every other verb.
+
+`Core\Duration::parse` meets 1 and still gets no `tryParse`: it **launders** a `tainted` config value
+([spec § 4](../spec/01-core-library.md)), and a non-throwing twin would be a second launderer to audit for
+one saved `catch`. Where laundering is the point, the throw is the right control flow.
+
+### 3b. Both `isValid` members are deleted
+
+`Core\Uuid::isValid($s)` and `Core\Uuid::tryParse($s) != null` are the same predicate, and R17 keeps one.
+That deletion is what stops a value's validity question and its parse being answered by two different
+pieces of code — the shape behind PHP's CVE-2024-5458, where `filter_var(FILTER_VALIDATE_URL)` accepted
+user-info that `parse_url` read differently.
 
 `Core\Uri::isValid` was **one condition narrower** than that and goes all the same. It asked "is this an
 **absolute** URI" — the parse succeeding *and* a scheme being present, which is what `FILTER_VALIDATE_URL`
-is actually asked — so it was not literally a second spelling of `$s as ?Uri != null`. It was still a
-second *member* answering a question about the grammar, and the extra condition survives as one reader
-call on the parsed value: `($s as ?Uri)?->scheme() != null`. That is the whole cost of the deletion, and it
-is the right side of the trade, because a reader on the parsed value cannot disagree with the parse the way
-a separate predicate can. [`docs/spec/01-core-library.md`](../spec/01-core-library.md) § 12 states the
-replacement; the roster itself is `mwl_stdlib::registry::PARSE_ROSTER`.
+is actually asked — so it was not literally a second spelling. It was still a second *member* answering a
+question about the grammar, and the extra condition survives as one reader call on the parsed value:
+
+```
+Core\Uri::tryParse($s)?->scheme() != null
+```
+
+That is the whole cost of the deletion, and it is the right side of the trade, because a reader on the
+parsed value cannot disagree with the parse the way a separate predicate can.
+[`docs/spec/01-core-library.md`](../spec/01-core-library.md) §§ 11 and 12 state both replacements.
 
 ### 4. Qualifiers are untouched
 
@@ -162,8 +190,15 @@ in the language, which is a larger decision than this one and is not taken here.
 - **One parse instead of two** on the request path, where check-then-convert scanned the same bytes twice.
   Priority 3, and it removes a call from the hottest thing a web program does.
 - **Zero memory cost.** `?T` is already representable; nothing gains a byte.
-- **`Core` gets smaller by three members**, and the class of API argument that produces `from`/`tryFrom`
-  pairs is closed for every type at once rather than per type.
+- **`Core` gets smaller by three members** net — five removed (`Validate`'s three, and both `isValid`s),
+  two added (`Uri::tryParse`, `Uuid::tryParse`) — and for every *scalar* target the class of API argument
+  that produces `from`/`tryFrom` pairs is closed at once rather than per type. For a class target it is
+  closed by *3a*'s three conditions instead, which is a rule rather than an operator and therefore has to
+  be applied by whoever reviews the next `Core` class.
+- **The `as` operator has one rule with no exceptions**, which is the language-surface half of priority 4:
+  its targets are ADR 0007 § 2's table and ADR 0047's types, and a class is never one. A reader arriving
+  from Swift or Kotlin, where `as?` is a downcast, is no longer told that MWL spells a *parse* the same way
+  for two class names and refuses it for the rest.
 - **`mwl convert` (M11) must not take the obvious shortcut.** PHP's `(int)$x` now has a tempting mechanical
   target in `$x as ?int ?? 0`, which would quietly restore the silent-zero behaviour ADR 0007 § 7 diverges
   from deliberately — and would not even be faithful, since `(int)"12abc"` is `12` in PHP and `null` here.
@@ -171,9 +206,21 @@ in the language, which is a larger decision than this one and is not taken here.
 
 ## Alternatives rejected
 
-- **A `Core` member — `Str::toIntOrNull`, `Int::tryParse`.** Rejected by [ADR 0063](0063-core-api-conventions.md)
-  R5, which bans those exact name shapes, and by arithmetic: it needs one member per target type, forever,
-  while an operator covers every type including ones added later.
+- **A `Core` member for a *scalar* target — `Str::toIntOrNull`, `Int::tryParse`.** Rejected by
+  [ADR 0063](0063-core-api-conventions.md) R5, which bans those exact name shapes, and by arithmetic: it
+  needs one member per target type, forever, while an operator covers every type including ones added
+  later. *3a*'s `tryParse` is not this alternative readmitted — it exists precisely where no operator
+  reaches, one member per *class* that has a failable single-`string` parse, of which there are two.
+- **Keeping the parse roster** — `$s as ?Core\Uri` beside `Core\Uri::parse($s)`. Withdrawn in *3*, in full
+  there: it inverted what `as?` means in every language that has it, applied to two memorized class names,
+  and did not remove the second spelling it was justified by removing.
+- **Making `parse` itself return `?T`** and deleting the throwing form, which is the other way to give a
+  class one spelling. Rejected on two counts. R4 fixes `?T` to mean *absence is an ordinary outcome*, and
+  malformed input is a failure, so this would split what `?T` means across `Core`. And `ParseError` carries
+  [spec § 10](../spec/01-core-library.md)'s `issues: array<Core\Issue>` — every offending field at once,
+  each located by a dotted path — which a bare `null` discards. That costs little for a `Uri` and
+  everything for `Core\Csv::parse` and [ADR 0071](0071-derived-codecs.md) § 5's decoders, and `parse` has
+  to mean one thing across the library.
 - **Requiring a non-nullable operand.** Keeps "missing" and "invalid" syntactically distinct. Rejected in
   § 2: it does not prevent the conflation, only prices it, and charges a line on the most common shape in
   the language to do so.
@@ -191,7 +238,12 @@ in the language, which is a larger decision than this one and is not taken here.
   `decimal as ?string` and `?int as ?int` rejected naming `as T`; `array<int> as ?int` rejected as having
   no conversion; `$mixed as ?int` accepted; `$s as ?SortMode` accepted for an enum and `$s as ?"a"|"b"` for
   a literal-union type; `tainted string as ?int` typing as `?tainted int`; and a `secret` operand keeping
-  `secret`.
+  `secret`. **§ 3's class row is built**: every class or interface target is `E0473`, `Core\Uri` and
+  `Core\Uuid` included and named in the fixture so the withdrawn roster cannot come back unnoticed —
+  `crates/mwl-types/tests/classes.rs`, `no_class_target_converts`.
+- **M4S:** `Core\Uri::tryParse` and `Core\Uuid::tryParse` are registered members over their class's own
+  `parse`, and neither class declares an `isValid` —
+  `mwl_stdlib::registry`'s `a_parse_is_the_only_definition_of_its_own_validity`.
 - **M3/M4:** a runtime suite asserting `"abc" as ?int`, `"12abc" as ?int` and `"" as ?int` are each `null`
   while `"42" as ?int` is `42` — the whole-string rule of ADR 0007 § 2 reaching the nullable form unchanged
   — and that `19.99 as ?int` is `null` rather than `19`.

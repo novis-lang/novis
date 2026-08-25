@@ -768,6 +768,7 @@ have no equivalent, because seeding the global generator is exactly what that se
 | `Uuid::v4` | `v4(): Uuid` | `uniqid`, `com_create_guid`, userland UUID libraries | neutral |
 | `Uuid::v7` | `v7(): Uuid` | nothing — time-ordered, for database keys | neutral |
 | `Uuid::parse` | `parse(string $s): Uuid` | manual validation | |
+| `Uuid::tryParse` | `tryParse(string $s): ?Uuid` | `uuid_is_valid`, userland `isValid` helpers | |
 | `$uuid->toString` | `$uuid->toString(): string` | `(string)` on a userland UUID object | neutral |
 | `Hash::of` | `of(bytes\|string $data, Digest $digest): bytes` | `hash`, `md5`, `sha1`, `crc32`, `openssl_digest` | neutral |
 | `Hash::hmac` | `hmac(bytes\|string $data, secret bytes $key, StrongDigest $digest): bytes` | `hash_hmac` | neutral |
@@ -779,7 +780,13 @@ have no equivalent, because seeding the global generator is exactly what that se
 A `Core\Uuid` is an opaque 128-bit **value**, not a string that has been checked once: `toString` renders
 RFC 9562's canonical lower-case `8-4-4-4-12` form and is the only way text comes back out, which is what
 lets a route segment ([ADR 0077](../adr/0077-compile-time-routing.md)) and a database column
-([ADR 0067](../adr/0067-core-db.md) § 4) state that they take one. `v7` is time-ordered across
+([ADR 0067](../adr/0067-core-db.md) § 4) state that they take one.
+
+**Asking whether text is a UUID is `Uuid::tryParse($s) != null`** — `parse` with `null` where it throws,
+one of the two `tryParse`s [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits
+([ADR 0066](../adr/0066-nullable-conversion-operator.md) § 3a). `$s as ?Uuid` does **not** compile; `as`
+never targets a class. There is no `Uuid::isValid`, because it was exactly `tryParse` asked a second time
+and R17 keeps one — the same argument, and the same CVE, that § 12 gives for `Uri`. `v7` is time-ordered across
 milliseconds and random inside one — the property that makes it the right primary key and the wrong public
 identifier, since a `v7` handed to a stranger tells them when the row was created.
 
@@ -798,6 +805,7 @@ input opens two streams.
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `Uri::parse` | `parse(string $uri): Uri` | `parse_url` | |
+| `Uri::tryParse` | `tryParse(string $uri): ?Uri` | `filter_var(…, FILTER_VALIDATE_URL)` | |
 | `Uri::encodeComponent` / `decodeComponent` | `encodeComponent(string $s): string` | `rawurlencode`, `rawurldecode` | |
 | `Uri::encodeFormValue` / `decodeFormValue` | `encodeFormValue(string $s): string` | `urlencode`, `urldecode` (the `+`-for-space variant) | |
 | `Uri::parseQuery` | `parseQuery(string $query): array<mixed>` | `parse_str` — returns, never populates variables | |
@@ -831,13 +839,16 @@ differently as the table grew. `==` on two `Uri`s is still object identity, whic
 class; `compareTo` is that ADR's own named answer for content equality, and it gives an order as well —
 component-lexicographic, absent before present.
 
-**Asking whether text is a URI is `$s as ?Uri`**, `Core\Uri` being on
-[ADR 0066](../adr/0066-nullable-conversion-operator.md) § 3's parse roster — `parse` with `null` where it
-throws. There is no `Uri::isValid`, by that ADR's argument and R17's: a validator written as a *separate*
-implementation from the parser is how `filter_var(FILTER_VALIDATE_URL)` came to accept user-info that
-`parse_url` read differently (CVE-2024-5458). The narrower question `FILTER_VALIDATE_URL` is actually asked
-— "is this an **absolute** URI" — is one reader call further on, `($s as ?Uri)?->scheme() != null`, and it
-launders nothing either way: whether a URL may be *fetched* is `Core\Http::allowUrl` at § 16.
+**Asking whether text is a URI is `Uri::tryParse($s) != null`** — `parse` with `null` where it throws, and
+the one spelling [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits `try…` for
+([ADR 0066](../adr/0066-nullable-conversion-operator.md) § 3a). `$s as ?Uri` does **not** compile: `as`
+never targets a class, which is § 3's row without exceptions. There is no `Uri::isValid` either, by R17:
+a validator written as a *separate* implementation from the parser is how
+`filter_var(FILTER_VALIDATE_URL)` came to accept user-info that `parse_url` read differently
+(CVE-2024-5458), and `tryParse` cannot drift from `parse` because it *is* `parse`. The narrower question
+`FILTER_VALIDATE_URL` is actually asked — "is this an **absolute** URI" — is one reader call further on,
+`Uri::tryParse($s)?->scheme() != null`, and it launders nothing either way: whether a URL may be *fetched*
+is `Core\Http::allowUrl` at § 16.
 
 The eight readers are what `parse_url`'s array keys become, with two differences that array cannot express:
 `host()` is `null` where no authority was written and `""` where an empty one was (`file:///tmp`), and
@@ -861,7 +872,7 @@ launders anything.**
 `(subject, …): bool`, all neutral. Replaces `filter_var`'s validate half and its 20 `FILTER_*` constants.
 
 Three members that were here are gone as duplicates, each with a one-line rewrite: `isUrl` is
-`($s as ?Uri)?->scheme() != null`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
+`Uri::tryParse($s)?->scheme() != null`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
 PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{version: 4}`/`{version: 6}`,
 a closed literal set ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) rather than two more names.
 
