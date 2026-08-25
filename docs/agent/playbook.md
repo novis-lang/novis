@@ -225,6 +225,13 @@ is why" — is this file.
   is `crates/mwl-test`'s module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own
   indentation, which widens with the line number. A trailing space before a `\n` is unreliable in an
   `--EXPECT--` block — echo a sentinel character after it.
+- **The `php` on Windows `PATH` has no `mbstring`**, so every `mb_*` oracle a `Core\Str` slice reaches
+  for — `mb_convert_case`, `mb_strtolower`, `mb_str_split` — dies with *"Call to undefined function"*
+  rather than answering. The byte-wise half (`strcmp`, `strnatcmp`, `substr_count`, `str_replace`) is
+  all there, so a member replacing both spellings can still be checked on its ASCII rows. For the
+  Unicode rows, cite the UCD table the member implements (folding is UAX #44's `C`+`F` mappings) and
+  say so in the case's comment; do not silently assert whatever the implementation printed. WSL's
+  `php` may have the extension — worth one `php -m | grep mbstring` before writing the rows off.
 - **A `mwl-types` test that asserts an interned type's `describe` string is fragile.** A union orders its
   members by type id, so registering a member anywhere can flip `T|null` to `null|T`. Compare against
   `interner.make_union([...])` instead.

@@ -2,59 +2,60 @@
 
 ## State
 
-**Spec § 1 is two rows shorter, and the two of them are one window.**
-`Core\Str::replaceAll` and `Core\Str::replaceRange` are registered, implemented and pinned by a
-conformance case each. `replaceAll` takes `strtr`'s reading — one left-to-right pass, longest needle
-first, replacements never rescanned — because that is the half of PHP's two whose answer does not
-depend on the order the pairs were written; its doc comment at `str.rs` owns the reasoning.
-`replaceRange` and `slice` now read `$offset`/`?$length` through one shared `window()` helper
-(`crates/mwl-stdlib/src/str.rs:1200`), so `replaceRange($s, $o, $n, "")` removes exactly what
-`slice($s, $o, $n)` returns for every sign of every argument — PHP's own pair does not manage that.
-Every row of both cases was checked against `php -r` while authoring.
+**Spec § 1 is one row from whole.** `Core\Str::compare` and `Core\Str::fold` are registered,
+implemented and pinned by a conformance case each. `compare` answers `-1`/`0`/`1` — never a byte
+difference — and folds four PHP functions into one member with two options; `{natural: true}` is a
+*port* of `strnatcmp` rather than a fresh reading of "sort digit runs as numbers", quirks included,
+and `natural_order`'s doc comment at `crates/mwl-stdlib/src/str.rs:1576` owns all three of them.
+`fold` is Unicode's full case folding — a comparison key, not a rendering — and it is deliberately
+what `compare`'s per-character `{caseInsensitive: true}` is not: `ß`/`SS` needs the fold.
+
+**The tree gained one dependency**, `caseless` (the folding table at Unicode 16.0, pure Rust), with
+`unicode-normalization` under it — which is the crate § 1's last row wants, so `normalize` now owes a
+`CoreEnum` and a binding rather than a dependency argument. `cargo deny check` green,
+`THIRD-PARTY-LICENSES.txt` regenerated, no licence identifier new to `deny.toml`.
 
 **The loop's gate is the ratchet in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`**, now at
-**38 keys** for §§ 1-12; when it is empty, Part I is registered whole. That test's own module doc says
-why it is a ratchet rather than a red assertion. Conformance is **391** of 600; differential is 86 of
-150 and has not moved.
+**36 keys** for §§ 1-12; when it is empty, Part I is registered whole. Conformance is **393** of 600;
+differential is 86 of 150 and has not moved.
 
 **`examples/collect.mwl`'s frontier is unchanged** — `Core\Uri::parseQuery` at `collect.mwl:36`, then
 `Core\Csv::parse`, `Core\Validate::isEmail`, `Core\Out::capture`.
 
-**§ 1 now owes three rows**: `compare`, `fold` and `normalize`. Only `compare` needs no new
-dependency; the other two are the group below's second half.
+## Next group — close § 1, then open `Uri`'s query half
 
-## Next group — the last of § 1
+Three slices, and **they do not share one file**: take `normalize` alone unless you are far under the
+gate, because `[2]` opens a file you have not loaded. `[2]` and `[3]` are the pair that shares a file
+set — a session starting there should take both.
 
-Three slices, all in one file. Take `compare` first: it is the only one that needs no dependency, and
-landing it leaves § 1's remainder as a single dependency question rather than two.
+**Shared file set for `[2]`/`[3]`:** `crates/mwl-stdlib/src/uri.rs` (`:122` `CLASS`'s rows, `:126`-`:147`
+the four percent-encoding members already built, `:161` `address()`, `:413` the test module),
+`crates/mwl-stdlib/tests/spec-members-outstanding.txt`, `tests/conformance/core/`, and
+`examples/collect.mwl` + its frozen output.
 
-**Shared file set:** `crates/mwl-stdlib/src/str.rs` (`:49` `CLASS`'s rows — `:120` `countOf` is
-`compare`'s neighbour and `:295` `lowerFirst` is `fold`'s; `:451` `address()`; `:1894` the test
-module), `crates/mwl-stdlib/tests/spec-members-outstanding.txt`, and `tests/conformance/core/`.
-
-- [ ] **`Core\Str::compare`** (`01-core-library.md` § 1 *Comparison*, `:110`).
-      `compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int`, replacing all
-      four of `strcmp`/`strcasecmp`/`strnatcmp`/`strnatcasecmp`. `{natural: true}` is a **different
-      ordering**, not a variant — the spec's prose under that table states it and gives
-      `compare("img12", "img2")` as the sign that flips. Return `-1`/`0`/`1` rather than a byte
-      difference, and say so in the doc comment: PHP 8 already normalized `strcmp` that way, and a
-      comparator is the only consumer. `match_at` at `str.rs:1001` is the case-insensitive comparison
-      already written; ordering itself is `Ord` over `str`, not a collation (`strcoll` is refused by
-      the spec's own note). Strike `§1 compare`.
-- [ ] **`Core\Str::fold`** (§ 1 *Transformation*, `:165`). `fold(string $s): string` is full Unicode
-      case folding for caseless comparison — **not** `lower`, which is why it is its own row. Pick the
-      crate under ADR 0051 § 4 (`unicode-segmentation` at `Cargo.toml:62` is the tree's existing
-      precedent for a Unicode table dependency) and record the pick in `str.rs`'s module doc. A new
-      dependency owes three things — see `playbook.md` § *Adding a `Core` member*. Strike `§1 fold`.
-- [ ] **`Core\Str::normalize`** (§ 1 *Transformation*, `:166`). `normalize(string $s, NormalForm $form)`
-      needs a `Core\NormalForm` enum registered in `registry::ENUMS` (`registry.rs:706`) and referred
-      to as `CoreTy::Enum` (`registry.rs:216`); `unicode-normalization` is the obvious pure-Rust pick,
-      same ADR 0051 § 4 test as `fold`'s. Strike `§1 normalize`.
+- [ ] **`Core\Str::normalize`** (`01-core-library.md` § 1 *Transformation*, `:166`; the enum at `:196`).
+      `normalize(string $s, NormalForm $form): string`, over `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`.
+      The enum is a `CoreEnum` declared beside the member — copy `crate::encoding::CHARSET`'s shape —
+      and listed in `registry::ENUMS` at `crates/mwl-stdlib/src/registry.rs:706`. The binding is
+      `unicode_normalization::UnicodeNormalization`'s four iterators, already in the tree under
+      `caseless`; add it to `[workspace.dependencies]` and `crates/mwl-stdlib/Cargo.toml` explicitly
+      rather than relying on the transitive edge. Member anchors in `str.rs`: `:311` the `fold` row
+      (`normalize`'s neighbour), `:527` `address()`, `:1985` `fold`'s helper, `:2230` the test module's
+      `s()`. Strike `§1 normalize` and § 1 is whole.
+- [ ] **`Core\Uri::parseQuery`** (§ 12; `loop-goal.md` § *Standing decisions* amends the spec row).
+      PHP's bracket convention **in full** — `a[]=1&a[]=2` a list, `a[b]=c` a map, nesting to any
+      depth — so the return type is not `array<string>`; pick the spelling the type system can now
+      state (`?T`/`mixed` landed, `mwl_ir::Ty::Tagged`), write it into the § 12 table, and say in that
+      table that this settles what `Core\Request::query` answers at M8. `decodeFormValue` at
+      `uri.rs:147` is the per-value half, already written. Strike `§12 Uri::parseQuery`.
+- [ ] **`Core\Uri::buildQuery`** (§ 12) — the inverse, same file, same convention, and the round trip
+      with `[2]` is the conformance case both want. `encodeFormValue` at `uri.rs:140` is its per-value
+      half. Strike `§12 Uri::buildQuery`.
 
 ## Backlog
 
 - § 2's `Arr::diff`/`intersect` and ADR 0069's combination members — plan § *Open now*.
-- § 12's `Uri::parseQuery`, the fixture frontier — `docs/agent/loop-goal.md` acceptance list.
+- § 12's `Uri::parse`/`isValid`, which still owe an RFC 3986 dependency picked under ADR 0051 § 4.
 - § 9's `Core\Heap` and the `Iterable` its three rows declare — plan § *Open now*.
 - § 10's `{previous: $e}` constructor options shape and `$e->location` — ADR 0071 § 5.
 - ADR 0088's registry-wide qualifier classification for member rows — plan § *Open now*.
