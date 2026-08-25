@@ -208,7 +208,22 @@ optimising tier will eliminate work; comparing MWL's own releases is
 [ADR 0026](0026-performance-measurement-methodology.md)'s question and uses callgrind, which is why the two
 do not overlap.
 
-## Consequences
+### Probes on is a tested configuration, not a production-only one
+
+The conformance suite runs **at least once with coverage and tracing probes enabled**, and **once per
+Cranelift optimisation level**, so neither is a shape only production ever takes.
+
+This is not defensive box-ticking; it is the one bug class this design is specifically exposed to.
+php-src's `#22158` is the tracing JIT dispatching an observer "begin" handler through the wrong run-time
+cache slot on a megamorphic call, dereferencing NULL — that is *instrumentation × compiled code*, which is
+exactly what this ADR's probe sites are. PHP's neighbouring reports are the same family: a stale base
+pointer in a JIT'd frame, property hooks producing wrong results under the JIT, an optimisation level that
+segfaults where the next one down does not. PHP can retreat behind a JIT that is off by default; MWL has no
+interpreter to fall back to.
+
+The differential oracle cannot find these. It checks that MWL agrees with **PHP**, not that MWL agrees with
+**itself** under different codegen — and a probe-attached run and an optimised run are both MWL. The cost is
+CI wall-clock proportional to the added axes and nothing at all at run time.
 
 **Positive**
 

@@ -139,6 +139,12 @@ reason: browsers reject it, so it is a policy with no meaning rather than a weak
 above ([ADR 0063](0063-core-api-conventions.md) R11) — and each defaults to the configured value. A cookie
 that genuinely needs to be readable by script says so at the call site, in one field, visibly.
 
+A cookie's **name** is not this section's business:
+[ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md) § 3 owns it, and its two rules are that a
+name matches byte for byte with no substitution anywhere, and that the runtime enforces `__Host-` and
+`__Secure-` semantics on read and on write rather than leaving them to each call site. These defaults and
+that rule meet at the same header and are otherwise independent.
+
 ### 4. Every directive is `Runtime`, and `setHeader` still wins
 
 All three blocks are [ADR 0005](0005-config-changeability.md) **`Runtime`** class: `mwl.toml` states the
@@ -279,7 +285,13 @@ regardless, and refusing it would buy nothing.
 - **Edge concerns in `mwl.toml` too** — request-size caps, per-IP connection limits, slow-loris timeouts.
   Rejected as this ADR's business: a proxy in front of MWL does those earlier and better, which is the same
   line [ADR 0075](0075-core-ratelimit.md) draws for flood limiting. M7 still caps a request body, because
-  that is memory it allocates itself.
+  that is memory it allocates itself. **That line covers size and rate, and explicitly not parsing** —
+  request smuggling *is* a proxy/origin parser differential, so delegating leniency to the proxy is the
+  mechanism rather than a mitigation, and [ADR 0048](0048-portable-single-file-executables.md) and
+  [ADR 0093](0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) both describe deployments
+  with no proxy at all. How a message is read is
+  [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)'s, which also caps a multipart **part
+  count** — a cost in bookkeeping and temp files that no body-size cap bounds.
 - **A per-attempt timeout instead of one covering deadline.** What most HTTP clients offer. Rejected: three
   attempts at a "5-second timeout" is a fifteen-second call, and the caller reasoned about five.
 - **Configurable jitter, including off.** Rejected: the one setting whose wrong value harms a service that

@@ -69,7 +69,8 @@ guarantee ADR 0002 already tested from depending on every future `catch` site ge
 
 ### 1. `Core\Fatal::onLimit(closure(LimitReport): void $handler): void`
 
-Fires **only** for a resource-limit `FATAL` — memory, CPU time, wall time, `max_script_depth`. Request-local
+Fires **only** for a resource-limit `FATAL` — memory, CPU time, wall time, `max_script_depth`, and
+**call-stack depth**. Request-local
 registration, living next to the pending-error slot already in `Ctx` per [ADR 0002](0002-error-propagation.md) —
 not global, not ambient, dies with the request like every other per-request slot
 ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md)).
@@ -84,6 +85,37 @@ made by someone other than the code that might be about to need it.
 immediately — no second call, straight to tier 3.
 
 Internal-runtime-panic `FATAL`s **never reach this tier**, per the split below.
+
+**Call-stack depth is the fifth limit, and it is the one that would otherwise not reach the ladder at
+all.** MWL compiles natively, so every user call is a real machine frame — unlike PHP, whose VM does not
+recurse the C stack for userland calls and whose recursion is therefore bounded by `memory_limit` and
+routinely runs 100k+ deep. Exhausting a native stack is a `SIGSEGV`, not a panic, so
+[ADR 0002](0002-error-propagation.md)'s `catch_unwind` does not contain it and nothing below is ever
+entered: one request takes the worker down, and every other request on it. PHP reached the same conclusion
+in 8.3 and shipped `zend.max_allowed_stack_size`; the reserved-slice idea that ADR's
+`zend.reserved_stack_size` embodies is the one this section already had.
+
+The mechanism is **a comparison of the stack pointer against a `stack_limit` field placed in `Ctx`'s
+existing hot cache line, emitted where the safepoint poll already loads that line** — not a new pass and
+not a new emit site, which is why it is cheap now and a backend rewrite later. It is **elided in a leaf
+function whose frame fits the reserved slack**, since that function's caller checked with the slack in
+hand. Measured against `benches/abi-probe`'s own `abi/frame_depth` slope of 1.32 ns per call, the added
+fused compare-branch is ≈0.3 ns: ≈0.06% on a request making 40k calls, 0% in loops and leaf-only code, and
+12–23% on a benchmark that does nothing but call — which `abi/frame_depth` is, so that figure steps once
+and stays.
+
+There are **two tiers, and they cost the same as one**. A catchable `RecursionError` throws at a soft
+depth, so a recursive-descent parser or a tree walk over untrusted-depth data can degrade instead of
+killing the request — safe here in a way it is not in PHP, because ADR 0002's checked-return propagation
+pops frames as it unwinds, so a handler runs with a shallow stack again. The non-catchable `FATAL` at the
+true limit is the floor beneath it, reaching this tier like every other resource limit. The fast path
+compares against the **soft** limit only; the slow path decides which of the two it is.
+
+The ceiling is **8 MB** — about 65,000 frames, the same order as what PHP permits, matching the default
+Linux thread stack. Resident cost is unchanged by the number, because only touched pages commit; what the
+ceiling actually sets is how deep a program may recurse and how much one runaway commits before it is
+stopped, which at 1.32 ns per call is ≈86 µs either way. Stated as [ADR 0004](0004-memory-for-simplicity.md)
+requires: **8 MB of reserved address space per coroutine**, of which only the touched pages are resident.
 
 ### 2. `Core\Fatal::onUncaughtThrow(closure(Throwable): void $handler): void`
 

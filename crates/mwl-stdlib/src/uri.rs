@@ -59,7 +59,14 @@
 //!
 //! Neither decoder is a *validator*. `decodeComponent` will happily decode text
 //! that could never have appeared in a URI; asking whether something is a URI
-//! is `Uri::isValid`, which is not here yet — see gap 1.
+//! is `$text as ?Uri`, which is `parse` with `null` where it throws
+//! ([ADR 0066 §§ 1, 3](../../../../docs/adr/0066-nullable-conversion-operator.md)).
+//! **There is no `Uri::isValid`** — it and `$text as ?Uri != null` are one
+//! predicate, and R17 keeps one of them. Which one is not arbitrary: a
+//! validator that is a *separate implementation* from the parser is how
+//! PHP's `filter_var(FILTER_VALIDATE_URL)` came to accept user-info that
+//! `parse_url` read differently (CVE-2024-5458), so the surviving spelling is
+//! the one that cannot drift from `parse` because it *is* `parse`.
 //!
 //! # The bracket convention, read and written
 //!
@@ -147,6 +154,30 @@
 //! nothing is percent-decoded — `decodeComponent` is one call away for a
 //! caller that wants text, and dot-segment removal happens in `$uri->resolve`,
 //! which is the one place RFC 3986 § 5.2.4 asks for it.
+//!
+//! # Decision: normalization happens at the comparison, not at the parse
+//!
+//! The rule above says what `parse` does not do; this says where the
+//! normalizing does happen. `==` over two `Uri` values applies RFC 3986
+//! § 6.2.2's syntax-based normalization — scheme and host lower-cased, a
+//! default port dropped, unreserved percent-escapes decoded, dot segments
+//! removed — and then compares **component by component, never as strings**.
+//! The two rules are the same rule seen from both ends: § 3.1 makes a scheme
+//! case-insensitive *to compare*, which is a different thing from rewriting
+//! what was sent, so the case survives the parse and stops mattering at the
+//! comparison.
+//!
+//! Every program wants "is this the same URL". Defining it once here is what
+//! stops each of them from writing a weaker version, and a weaker version is
+//! what an SSRF allowlist bypass is made of. PHP shipped `ext/uri` in 8.5 and
+//! took four CVEs in seven months; one of them, CVE-2026-44928, is `EqualsUri`
+//! answering that two unequal URIs are equal.
+//!
+//! Two guards pin it, because a hand-written case list is what every one of
+//! those four CVEs got past: a property test that `parse` → serialize →
+//! `parse` is stable, and a differential corpus against the PHP 8.5 oracle
+//! this repository already keeps for correctness. A `fuzz/fuzz_targets` entry
+//! sits beside `lex.rs` and `parse.rs` for the same reason.
 //!
 //! # What `parse` takes, what `isValid` asks, and what neither does
 //!

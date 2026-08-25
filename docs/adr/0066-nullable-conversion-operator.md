@@ -52,6 +52,13 @@ would throw. Every other property of the conversion — what counts as success, 
 `string → int`, the range checks — is ADR 0007 § 2's, unchanged. This ADR adds no notion of validity of its
 own; it only changes what happens to a failure.
 
+**One family is defined the other way round.** For the closed **parse roster** in *3* — `Core\Uri` and
+`Core\Uuid` — `as ?T` is defined directly as *"that type's `parse`, and `null` where it throws"*, and **no
+`as T` form is implied or added**. The roster's types are classes, so ADR 0007 § 2's conversion table has
+no row for them and adding one would make `$s as Uri` a second spelling of `Core\Uri::parse($s)`, which R17
+forbids. Defining the nullable form directly keeps `parse` as the single implementation and the named
+constructor, and gives the roster the same non-throwing spelling every scalar already has.
+
 ```
 var $id   = Core\Request::query('id') as ?uint;      // ?uint — null if absent, or not a uint
 var $page = Core\Request::query('page') as ?uint ?? 1;
@@ -82,6 +89,7 @@ conflation rather than prevent it, at the cost of a line on the most common shap
 | any row ADR 0007 § 2's conversion table defines | **available**; `null` where the row throws | the row already defines success and failure |
 | into a literal or enum-case type ([ADR 0047](0047-literal-and-enum-case-types.md)) | **available** | that conversion is already checked and throwing; this is its non-throwing twin |
 | from `mixed` | **available** — every target has a checked path from `mixed` | ADR 0007 § 6 |
+| a `string` operand into a **parse-roster** type (`$s as ?Uri`, `$s as ?Uuid`) | **available**; `null` where that type's `parse` throws | *1*'s directly-defined family; the roster is closed and listed under the table |
 | a conversion that **cannot fail** (`decimal as ?string`, `?int as ?int`) | **compile error**, naming `as T` | a `?T` that is never `null` is a lie in the type and forces a pointless check; R17 forbids the second spelling |
 | no conversion exists at all (`array<int> as ?int`) | **compile error**, exactly as today | otherwise `as ?T` becomes a universal escape hatch that erases genuine type errors |
 | a class or interface type (`$obj as ?SomeClass`) | **compile error** | `instanceof` plus ADR 0007 § 6 narrowing already answers class membership; R17 |
@@ -90,6 +98,23 @@ The distinction in the last three rows is the one to keep straight: **a conversi
 is `null`; a conversion that does not exist is a diagnostic.** From `mixed` every conversion exists, so
 `$mixed as ?int` is `null` for a value holding an array — while a statically-known `array<int>` never
 compiles.
+
+**The parse roster is `Core\Uri` and `Core\Uuid`, and nothing else.** A type joins it only by amending this
+list. Membership requires a `parse` that takes **exactly one `string`** and can fail; a parse taking a
+format or an options bag — `Core\Time::parse`, `Core\Csv::parse` — is a member call, not a conversion, and
+stays one. The roster row does **not** reopen the class-type row below it: that row closed *class
+membership*, "is this object already a `SomeClass`?", which `instanceof` answers. Turning text into a value
+is a different question, and `$obj as ?SomeClass` remains the compile error it is.
+
+**`Core\Duration` is deliberately not on the roster**, though its `parse` has the right shape.
+`Duration::parse` **launders** a `tainted` config value ([spec § 4](../spec/01-core-library.md)) and *4*
+below says `as ?T` is never a launderer — so the two are genuinely different operations rather than two
+spellings of one, and R17 has nothing to object to. Both survive.
+
+Each roster type therefore loses its `isValid` member, by *5*'s argument exactly: `Core\Uri::isValid($s)`
+and `$s as ?Uri != null` are the same predicate. That deletion is what keeps a URI's validity question and
+its parse from ever being answered by two different pieces of code — the shape behind PHP's CVE-2024-5458,
+where `filter_var(FILTER_VALIDATE_URL)` accepted user-info that `parse_url` read differently.
 
 ### 4. Qualifiers are untouched
 

@@ -33,6 +33,54 @@
 //! SipHash: priority 1 over priority 3, the one direction the ordering allows.
 //! It also means this module adds no dependency at all.
 //!
+//! # Decision: a list-shaped array is packed, and hashes nothing
+//!
+//! An array whose keys are exactly `"0"`…`"n−1"` in insertion order stores a
+//! `Vec<Value>` and nothing else — no index map, no key strings. The first
+//! operation that breaks that invariant — a `"08"`, a gap, a non-numeric key,
+//! an `unset` anywhere but the end — converts it to the hash form above, which
+//! is PHP's own arrangement. [`key_at`](MwlArray::key_at) synthesizes the
+//! decimal on demand, so `foreach ($a as $v)`, which never asks for a key,
+//! never pays for one.
+//!
+//! **[ADR 0007 § 5](../../../docs/adr/0007-explicit-type-system.md) is
+//! unchanged by this.** Every key is still a `string`, `"08"` is still a
+//! distinct key from `"8"` (it is what forces the degrade), insertion order is
+//! still the iteration order, and `Core\Arr::keys` still answers
+//! `array<string>`. This is representation, not semantics.
+//!
+//! The reason it is not an optimisation to schedule later, measured on this
+//! tree against the PHP 8.5.9 oracle on the same machine — and PHP's figures
+//! include VM opcode dispatch that compiled MWL does not pay, so the
+//! comparison already flatters the interpreter:
+//!
+//! | | PHP 8.5.9 | this module, unpacked |
+//! |---|---|---|
+//! | `$a[] = $v` | 23.4 ns | **219.5 ns** |
+//! | `$a[$i]` | 30.5 ns | **113.8 ns** |
+//! | `$a['name']` | 24.4 ns | 24.1 ns |
+//! | `foreach ($a as $v)` | 21.0 ns | 4.9 ns |
+//!
+//! The 219.5 ns is 37.2 rendering the index to a decimal `String`, 43.1
+//! allocating the [`MwlStr`](crate::MwlStr) key, 23.1 hashing and probing, and
+//! the rest index-map insert and growth. A `Vec<Value>` push is 1.9 ns and an
+//! index 0.34 ns. The assoc and iteration rows are healthy and this changes
+//! neither.
+//!
+//! **The ABI is the part that expires.** [`mwl_array_get`] and
+//! [`mwl_array_set`] take a `*const StrHeader`, so compiled code must build a
+//! key string before it calls, and a packed form would have to parse the
+//! decimal back out — pointless. `mwl_array_get_index`/`mwl_array_set_index`
+//! are a compatible addition while nothing depends on the current set, and a
+//! versioned break once [ADR 0042](../../../docs/adr/0042-on-disk-artifact-cache-format.md)
+//! artifacts and M9's WIT signatures do.
+//!
+//! What it spends, as [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
+//! requires: **nothing — it saves.** A list drops two of its three allocations
+//! and every key string. It also takes list data out of the SipHash path the
+//! decision above exists to justify, which leaves that decision protecting the
+//! case it was actually written for: attacker-controlled *names*.
+//!
 //! # Decision: deletion tombstones, with amortized compaction
 //!
 //! The entry vector is insertion order with a `None` where a key was

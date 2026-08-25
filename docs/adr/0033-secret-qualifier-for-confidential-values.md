@@ -200,6 +200,30 @@ messages, cross-boundary copies a developer didn't think about), not *intentiona
 for the job it exists to do. A future ADR or stdlib design may narrow this further per *Revisiting* if a
 specific one of these proves to be a real leak vector in practice.
 
+### 5. Comparing two `secret` values is constant-time, decided by the compiler
+
+`$provided == $expected`, where both operands are statically `secret`, lowers to a **constant-time**
+comparison helper rather than the short-circuiting one every other operand pair uses. Nothing new is
+spelled: [ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) makes `==` the only
+equality operator, this qualifier is already known at the comparison, and the lowering picks the helper.
+
+The gap this closes is narrow and real. [ADR 0060](0060-application-security-protocols.md) guarantees
+constant-time comparison **inside its own closed protocol roster** — CSRF tokens, TOTP — and
+`Core\Hash::equals` is available to anyone who knows to reach for it. A program comparing its own session
+token, API key or signature with `==` sits outside both, is a timing oracle, and receives no diagnostic
+anywhere. Making the operator right by construction is the only version of this that does not depend on
+every future call site remembering.
+
+The cost, stated: a constant-time compare of two 32-byte values is ≈10 ns against ≈2 ns for a
+short-circuiting one, so **≈+8 ns per comparison** — invisible at any scale a request reaches, and the
+comparison cannot early-exit, which is the entire point. Where exactly one operand is `secret` the
+qualifier has already poisoned the other under § 2, so the pair is `secret` and the rule applies; where
+neither is, nothing changes.
+
+Refusing `==` on `secret` outright, and naming `Core\Hash::equals` in a diagnostic, was the alternative.
+It is more explicit at the call site and it contradicts ADR 0090's premise that `==` is the one equality
+operator for everything — and it makes the qualifier awkward for a thing programs legitimately do.
+
 ## Consequences
 
 **Positive**
