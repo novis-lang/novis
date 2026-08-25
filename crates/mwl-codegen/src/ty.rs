@@ -60,9 +60,12 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
 /// The [`Tag`] a value of this representation carries once it is materialized
 /// into a 16-byte [`mwl_runtime::Value`].
 ///
-/// [`Ty::Bytes`] shares [`Tag::Str`]: the two are one runtime representation
-/// with different content, which is exactly what
-/// [`mwl_runtime::Tag::Str`]'s own doc comment says.
+/// [`Ty::Str`] and [`Ty::Bytes`] share one *heap* shape and take two tags
+/// anyway: the tag is what tells them apart once the static type is gone, and
+/// `mwl-runtime`'s § *`bytes` is a tag, not a second heap shape* owns that
+/// decision. Both still retain and release through `mwl_str_retain`/
+/// `mwl_str_release`, which is why `Emitter::retain_release_symbol` keeps one
+/// arm for the pair.
 ///
 /// # Errors
 ///
@@ -82,7 +85,8 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         // as its two words, the way it writes a tagged value, because the tag
         // byte is only one of the sixteen this representation fills.
         Ty::Decimal => Tag::Decimal,
-        Ty::Str | Ty::Bytes => Tag::Str,
+        Ty::Str => Tag::Str,
+        Ty::Bytes => Tag::Bytes,
         // The one representation whose tag is the whole of it — see
         // `mwl_ir::Ty::Null`.
         Ty::Null => Tag::Null,

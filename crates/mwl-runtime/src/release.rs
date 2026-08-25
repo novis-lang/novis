@@ -121,8 +121,11 @@ pub(crate) unsafe fn step_field(value: Value) -> Option<Dying> {
             let last = unsafe { array::drop_one(ptr) };
             last.then_some(Dying::Array(ptr))
         }
-        Tag::Str => {
-            let ptr = value.str_ptr()?;
+        // One arm for both: a `bytes` is a `string`'s allocation without the
+        // UTF-8 promise, so there is nothing here for a second release path to
+        // do differently (`Value::buffer_ptr`).
+        Tag::Str | Tag::Bytes => {
+            let ptr = value.buffer_ptr()?;
             #[expect(
                 unsafe_code,
                 reason = "the caller guarantees this value owns one reference \

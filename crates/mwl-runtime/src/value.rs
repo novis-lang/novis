@@ -30,7 +30,7 @@ use crate::string::{MwlStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
-/// The roster is the plan's § *Value representation*. Two of the eleven have
+/// The roster is the plan's § *Value representation*. Two of the twelve have
 /// no representation behind them yet — see the crate docs' known gap 1 — but
 /// they are numbered now so the discriminants never have to move.
 #[repr(u8)]
@@ -46,8 +46,10 @@ pub enum Tag {
     Uint = 3,
     /// `float`; the payload is an `f64`'s bit pattern.
     Float = 4,
-    /// `string` or `bytes`; the payload is a [`StrHeader`] pointer and the
-    /// value owns one reference to it.
+    /// `string`; the payload is a [`StrHeader`] pointer and the value owns
+    /// one reference to it. [`Self::Bytes`] points at the same heap shape and
+    /// is a tag of its own anyway — the crate docs' § *`bytes` is a tag, not a
+    /// second heap shape* says why.
     Str = 5,
     /// `array<T>`; no representation exists yet.
     Array = 6,
@@ -71,6 +73,14 @@ pub enum Tag {
     /// [`crate::decimal`]'s own module docs for the bit positions and why one
     /// `Value` shape carries it rather than a representation of its own.
     Decimal = 10,
+    /// `bytes` — [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s
+    /// binary scalar. The payload is a [`StrHeader`] pointer and the value
+    /// owns one reference to it, exactly as [`Self::Str`] does: the two types
+    /// differ only in the UTF-8 promise, which is a checker property rather
+    /// than a layout one. What this tag buys is telling them apart once the
+    /// static type is gone; the crate docs' § *`bytes` is a tag, not a second
+    /// heap shape* is the one home for that decision and for what it spends.
+    Bytes = 11,
 }
 
 impl Tag {
@@ -93,6 +103,7 @@ impl Tag {
             8 => Self::Closure,
             9 => Self::Resource,
             10 => Self::Decimal,
+            11 => Self::Bytes,
             _ => return None,
         })
     }
@@ -100,7 +111,10 @@ impl Tag {
     /// Whether a payload with this tag owns a reference that must be released.
     #[must_use]
     pub const fn is_refcounted(self) -> bool {
-        matches!(self, Self::Str | Self::Array | Self::Object | Self::Closure)
+        matches!(
+            self,
+            Self::Str | Self::Bytes | Self::Array | Self::Object | Self::Closure
+        )
     }
 }
 
@@ -208,6 +222,18 @@ impl Value {
     #[must_use]
     pub fn str(value: MwlStr) -> Self {
         Self::new(Tag::Str, value.into_raw() as usize as u64)
+    }
+
+    /// A `bytes`, taking over the handle's reference.
+    ///
+    /// The handle is an [`MwlStr`] because a `bytes` *is* one, minus the UTF-8
+    /// promise — see [`Tag::Bytes`]. `string as bytes` is therefore this
+    /// constructor over a retained payload rather than a copy, which is what
+    /// makes [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's
+    /// "total, free" row literally free.
+    #[must_use]
+    pub fn bytes(value: MwlStr) -> Self {
+        Self::new(Tag::Bytes, value.into_raw() as usize as u64)
     }
 
     /// A class instance, taking over the handle's reference.
@@ -323,15 +349,53 @@ impl Value {
         Some(unsafe { MwlStr::bytes_of(ptr) })
     }
 
+    /// The `bytes` payload's octets, if this value is a `bytes`.
+    ///
+    /// Deliberately **not** the same reader as [`Self::as_str_bytes`], even
+    /// though both hand back a `&[u8]` from the same heap shape: a caller that
+    /// means "text" must not silently accept a `bytes` it would then treat as
+    /// UTF-8. Where either is genuinely meant, [`Self::buffer_ptr`] is the one
+    /// that spans them.
+    #[must_use]
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        let Some(Tag::Bytes) = self.tag() else {
+            return None;
+        };
+        let ptr = self.buffer_ptr()?;
+        #[expect(
+            unsafe_code,
+            reason = "a Tag::Bytes value owns a reference to a live allocation \
+                      (see this type's Ownership section), so it is live for \
+                      at least this borrow"
+        )]
+        Some(unsafe { MwlStr::bytes_of(ptr) })
+    }
+
     /// The string payload's header pointer, if this value is a string.
+    #[must_use]
+    pub const fn str_ptr(self) -> Option<*mut StrHeader> {
+        match self.tag() {
+            Some(Tag::Str) => self.buffer_ptr(),
+            _ => None,
+        }
+    }
+
+    /// The [`StrHeader`] pointer behind a `string` **or** a `bytes`, the two
+    /// tags that share one heap representation ([`Tag::Bytes`]).
+    ///
+    /// This is what a caller that owns the *allocation* rather than its
+    /// meaning uses — [`crate::release`]'s one arm for both, and codegen's
+    /// retain/release pair, which are the same two symbols either way.
+    /// [`Self::str_ptr`] and [`Self::as_bytes`] stay narrow so that a caller
+    /// who means one of the two types says which.
     #[must_use]
     #[expect(
         clippy::cast_possible_truncation,
-        reason = "the payload of a Tag::Str value is a pointer that was widened to u64 by `Value::str`, so narrowing it back is exact on every target, including the 32-bit wasm32 one of ADR 0025"
+        reason = "the payload of a Tag::Str or Tag::Bytes value is a pointer that was widened to u64 by `Value::str`/`Value::bytes`, so narrowing it back is exact on every target, including the 32-bit wasm32 one of ADR 0025"
     )]
-    pub const fn str_ptr(self) -> Option<*mut StrHeader> {
+    pub const fn buffer_ptr(self) -> Option<*mut StrHeader> {
         match self.tag() {
-            Some(Tag::Str) => Some(self.bits as usize as *mut StrHeader),
+            Some(Tag::Str | Tag::Bytes) => Some(self.bits as usize as *mut StrHeader),
             _ => None,
         }
     }
@@ -400,7 +464,10 @@ impl Value {
         reason = "the payload's liveness is the caller's obligation to state"
     )]
     pub unsafe fn retain(self) {
-        if let Some(ptr) = self.str_ptr() {
+        // `buffer_ptr`, not `str_ptr`: a `bytes` is refcounted through the
+        // very same primitive, so the pair takes one branch here exactly as it
+        // takes one arm in `crate::release`.
+        if let Some(ptr) = self.buffer_ptr() {
             #[expect(
                 unsafe_code,
                 reason = "the caller guarantees the payload is live; \
@@ -550,6 +617,17 @@ impl fmt::Debug for Value {
                 let bytes = self.as_str_bytes().unwrap_or_default();
                 write!(f, "string({:?})", String::from_utf8_lossy(bytes))
             }
+            Some(Tag::Bytes) => {
+                // Length, not content: a `bytes` payload is by definition not
+                // text, so rendering it as one would be the lossy substitution
+                // ADR 0009 exists to refuse — in a `Debug` line as much as in
+                // a conversion.
+                write!(
+                    f,
+                    "bytes({} byte(s))",
+                    self.as_bytes().unwrap_or_default().len()
+                )
+            }
             Some(Tag::Decimal) => match self.as_decimal() {
                 Some(value) => write!(f, "decimal({value})"),
                 None => write!(f, "<invalid decimal>"),
@@ -595,8 +673,40 @@ mod tests {
         #[expect(unsafe_code, reason = "constructing the shape a miscompile would")]
         let bogus = unsafe { Value::from_parts(Tag::Null, 0) };
         assert_eq!(bogus.tag(), Some(Tag::Null));
-        assert_eq!(Tag::from_byte(11), None);
+        assert_eq!(Tag::from_byte(12), None);
         assert_eq!(Tag::from_byte(u8::MAX), None);
+    }
+
+    /// A `bytes` is a `string`'s allocation under a tag of its own — the crate
+    /// docs' § *`bytes` is a tag, not a second heap shape*. So the reference
+    /// bookkeeping is `string`'s, and the two readers are not: neither type's
+    /// accessor answers for the other, which is what stops a `bytes` from
+    /// being read as text by a caller that never asked whether it was.
+    #[test]
+    fn a_bytes_value_is_a_string_allocation_under_a_tag_of_its_own() {
+        let s = MwlStr::new(b"\xff\x00hi");
+        let value = Value::bytes(s.clone());
+        assert_eq!(value.tag(), Some(Tag::Bytes));
+        assert_eq!(s.refcount(), 2);
+        assert_eq!(value.as_bytes(), Some(&b"\xff\x00hi"[..]));
+        assert_eq!(value.as_str_bytes(), None);
+        assert_eq!(value.str_ptr(), None);
+        assert!(value.buffer_ptr().is_some());
+        assert!(Tag::Bytes.is_refcounted());
+
+        let text = Value::str(MwlStr::new(b"hi"));
+        assert_eq!(text.as_bytes(), None);
+        assert!(text.buffer_ptr().is_some());
+
+        #[expect(
+            unsafe_code,
+            reason = "each value owns exactly the reference taken above"
+        )]
+        unsafe {
+            value.release();
+            text.release();
+        }
+        assert_eq!(s.refcount(), 1);
     }
 
     #[test]
@@ -646,9 +756,12 @@ mod tests {
         assert_eq!(format!("{:?}", Value::bool(true)), "bool(true)");
         let value = Value::str(MwlStr::new(b"hi"));
         assert_eq!(format!("{value:?}"), "string(\"hi\")");
+        let raw = Value::bytes(MwlStr::new(b"\xff\x00hi"));
+        assert_eq!(format!("{raw:?}"), "bytes(4 byte(s))");
         #[expect(unsafe_code, reason = "the value owns the reference it releases")]
         unsafe {
             value.release();
+            raw.release();
         }
     }
 }

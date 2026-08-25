@@ -2,10 +2,12 @@
 //! bytes inline behind it.
 //!
 //! This is the first non-scalar representation the runtime owns, and the one
-//! `mwl_ir::ty::Ty::Str` lowers to. `mwl_ir::ty::Ty::Bytes` will share it
-//! verbatim — the two differ only in the UTF-8 guarantee
+//! both `mwl_ir::ty::Ty::Str` and `mwl_ir::ty::Ty::Bytes` lower to. They share
+//! it verbatim — the two differ only in the UTF-8 guarantee
 //! ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)), which is a
 //! checker property, not a layout one — so nothing here validates encoding.
+//! They are told apart at the *tag*, not here; the crate docs'
+//! § *`bytes` is a tag, not a second heap shape* owns that split.
 //!
 //! # Layout
 //!

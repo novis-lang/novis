@@ -548,6 +548,12 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
             Ok(Value::str(MwlStr::new(value.to_string().as_bytes())))
         }
         Some(Tag::Array) => Err(refused("an array")),
+        // Refused on purpose, and it is the only tag here that is refused for
+        // a *semantic* reason rather than a missing one: ADR 0009 § 3 makes
+        // `bytes as string` a checked conversion that validates UTF-8, so
+        // letting an implicit `.` or `echo` do it silently would be exactly
+        // the substitution that ADR exists to remove.
+        Some(Tag::Bytes) => Err(refused("a `bytes` value")),
         Some(Tag::Object) => Err(refused("an object")),
         Some(Tag::Closure) => Err(refused("a closure")),
         Some(Tag::Resource) => Err(refused("a resource")),
@@ -889,6 +895,13 @@ pub fn value_truthy(value: Value) -> bool {
         Some(Tag::Str) => value
             .as_str_bytes()
             .is_some_and(|bytes| !(bytes.is_empty() || bytes == b"0")),
+        // Empty is falsy and everything else is truthy — deliberately *not*
+        // `string`'s row. ADR 0035's table names no `bytes` case at all,
+        // because PHP has no such type, and the one place the two rows differ
+        // is `"0"`, which is PHP's numeric-string rule; a `bytes` never
+        // converts to a number, so carrying that quirk over would make a
+        // one-octet buffer falsy for a reason that does not apply to it.
+        Some(Tag::Bytes) => value.as_bytes().is_some_and(|bytes| !bytes.is_empty()),
         Some(Tag::Array) => value.array_ptr().is_some_and(|array| {
             #[expect(
                 unsafe_code,

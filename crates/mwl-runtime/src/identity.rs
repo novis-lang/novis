@@ -188,6 +188,13 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
             Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal),
         ) => numeric_identical(left, right),
         (Some(Tag::Str), Some(Tag::Str)) => left.as_str_bytes() == right.as_str_bytes(),
+        // A `bytes` is a value rather than a handle, so it compares by
+        // content — and only against another `bytes`. ADR 0090 § 3 gives
+        // `string` and `bytes` the strict reading two disjoint types get, so a
+        // `bytes` whose octets happen to spell UTF-8 is still not the `string`
+        // that spells the same thing: that mixed pair falls to the arm below
+        // and answers `false` on the tag bytes alone.
+        (Some(Tag::Bytes), Some(Tag::Bytes)) => left.as_bytes() == right.as_bytes(),
         (Some(Tag::Array), Some(Tag::Array)) => {
             let (Some(a), Some(b)) = (left.array_ptr(), right.array_ptr()) else {
                 return false;
@@ -264,6 +271,14 @@ fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
         Some(Tag::Str) => {
             state.write_u8(4);
             state.write(value.as_str_bytes().unwrap_or_default());
+        }
+        // Its own discriminant, not `string`'s: the two never compare equal,
+        // so keying them apart keeps a `bytes` out of the bucket its UTF-8
+        // twin already occupies rather than merging two domains that would
+        // then have to be told apart on every probe.
+        Some(Tag::Bytes) => {
+            state.write_u8(7);
+            state.write(value.as_bytes().unwrap_or_default());
         }
         Some(Tag::Array) => {
             state.write_u8(5);
@@ -648,6 +663,26 @@ mod tests {
         assert!(!identical(left, other));
         assert!(!identical(left, Value::int(0)));
         release_all(&[left, right, other]);
+    }
+
+    /// `bytes` takes `string`'s content comparison and none of its domain:
+    /// ADR 0090 § 3 makes the two types disjoint, so a digest is never the
+    /// text that spells it, and the hash keys them apart so that pair does not
+    /// share a bucket either.
+    #[test]
+    fn a_bytes_compares_by_content_and_never_against_a_string() {
+        let left = Value::bytes(MwlStr::new(b"\xff\x00"));
+        let right = Value::bytes(MwlStr::new(b"\xff\x00"));
+        let other = Value::bytes(MwlStr::new(b"\xff\x01"));
+        assert!(identical(left, right));
+        assert!(!identical(left, other));
+
+        let text = Value::str(MwlStr::new(b"abc"));
+        let raw = Value::bytes(MwlStr::new(b"abc"));
+        assert!(!identical(text, raw));
+        assert_ne!(hashed(text), hashed(raw));
+
+        release_all(&[left, right, other, text, raw]);
     }
 
     #[test]

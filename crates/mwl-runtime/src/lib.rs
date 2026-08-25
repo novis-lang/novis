@@ -59,6 +59,47 @@
 //! answers ADR 0007 § 2's string rows, each branching on the tag out of line so
 //! that compiled code keeps knowing exactly one tag layout.
 //!
+//! # `bytes` is a tag, not a second heap shape
+//!
+//! [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) makes `bytes` a
+//! scalar of its own, and it lands here as **one new [`Tag`] row over the
+//! existing [`MwlStr`] allocation**. A `bytes` payload is a [`StrHeader`]
+//! pointer, allocated, retained, released and freed by exactly the machinery
+//! `string` already has; what differs is the tag byte, and nothing else.
+//!
+//! The two halves of that are separate choices, and each is answerable on its
+//! own:
+//!
+//! * **One heap shape**, because the difference between the two types is the
+//!   UTF-8 promise, which is a checker property. A second buffer would be the
+//!   "second arena setup" ADR 0009 § 1 already rejected, and it would make
+//!   § 3's `string as bytes` row — *total, free, the same buffer reinterpreted*
+//!   — allocate. As it stands that conversion is a retain and a tag byte, and
+//!   `bytes as string` is a UTF-8 validation over a borrow. Neither copies.
+//! * **Two tags**, because a tag exists precisely to answer "which type is
+//!   this?" where the static type no longer does. Sharing [`Tag::Str`] costs
+//!   nothing while every `bytes` is statically typed and costs correctness the
+//!   moment one is erased into a `mixed`: [`value_to_string`] would silently
+//!   stringify unvalidated octets, [`value_identical`] would make a digest
+//!   equal to the text that spells it although ADR 0090 § 3 makes the two
+//!   types disjoint, and `Core\Json::encode` could not tell a payload it must
+//!   refuse from one it may emit. Priority 2 over priority 5, per
+//!   [AGENTS.md](../../../AGENTS.md)'s ordering.
+//!
+//! **What it spends is nothing per value** — no wider `Value`, no extra
+//! allocation, no second release path ([`release`] keeps one arm for the pair,
+//! reached through [`Value::buffer_ptr`]). The cost is paid once per *reader*:
+//! every exhaustive match on [`Tag`] grows a row, and the compiler is what
+//! collects that debt rather than a convention anyone has to remember.
+//!
+//! Two readers state a rule of their own rather than copying `string`'s.
+//! [`value_to_string`] **refuses** a `bytes`, because ADR 0009 § 3 makes
+//! `bytes as string` checked and an implicit `.` or `echo` is not that check.
+//! [`value_truthy`] answers *empty is falsy, everything else truthy*, dropping
+//! `string`'s `"0"` case: that case is PHP's numeric-string rule, and a `bytes`
+//! never converts to a number. ADR 0035's table names no `bytes` row at all,
+//! so this is the runtime's own decision and this is its home.
+//!
 //! # What is here, and what is deliberately not
 //!
 //! This is the runtime half of milestone M3's vertical slice (see
