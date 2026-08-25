@@ -42,6 +42,9 @@ except ModuleNotFoundError:  # Python < 3.11
         )
         raise SystemExit(2)
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
+
 ROOT = Path(__file__).resolve().parent.parent
 PROMPT = ROOT / "docs" / "agent" / "session-prompt.md"
 GOAL_MD = ROOT / "docs" / "agent" / "loop-goal.md"
@@ -796,6 +799,32 @@ def collect_subagents(session_id, run_id, index):
 # wrong here would be worse than a stale marker a human deletes.
 
 
+def make_room(opts):
+    """Prune what previous runs left behind, then refuse to start with too little disk.
+
+    Once per *run*, never once per session: both prunes are a single directory listing of a few
+    dozen entries, so a run pays milliseconds and a session pays nothing at all.
+
+    The refusal is the point. A run that fills the disk does not stop cleanly -- it dies inside
+    a session with the tree half-edited and the next session inheriting the mess, which is
+    exactly what happened on 2026-08-25. Failing at the door instead costs one line.
+    `tools/disk.py` owns the policy, the numbers and the explanation."""
+    freed = disk.prune_logs() + disk.prune_scratch()
+    if freed:
+        say(f"pruned {disk.human(freed)} of earlier runs' logs and scratch", C.GRAY)
+    free = disk.free_gb(ROOT)
+    if opts.min_free_gb and free < opts.min_free_gb:
+        say(f"{free:.1f}G free on {ROOT.drive or '/'}; a run needs {opts.min_free_gb:g}G.", C.RED)
+        say(
+            "`python tools/disk.py` says what is holding it. `--clean` drops the superseded "
+            "build generations, which is nearly always all of it.\n"
+            "To start anyway: --min-free-gb 0.",
+            C.YELLOW,
+        )
+        return False
+    return True
+
+
 def claim_run(opts):
     """Write the marker, or explain who already holds it. Returns True when the run may start."""
     if RUNNING.exists() and not opts.force:
@@ -859,6 +888,10 @@ def main():
     ap.add_argument(
         "--force", action="store_true", help="start even if .loop/running says a driver is up"
     )
+    ap.add_argument(
+        "--min-free-gb", type=float, default=disk.MIN_FREE_GB,
+        help="refuse to start below this much free disk; 0 disables the check"
+    )
     opts = ap.parse_args()
 
     if opts.full_output:
@@ -903,6 +936,8 @@ def main():
     if not LEDGER.exists():
         LEDGER.write_text("# Loop ledger\n", encoding="utf-8", newline="\n")
 
+    if not make_room(opts):
+        return 2
     if not claim_run(opts):
         return 2
     try:
