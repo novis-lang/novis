@@ -124,7 +124,9 @@
 > **Open now:** **Stage 0 outranks everything below it, and one of its items is still open.**
 > `loop-goal.toml`'s `stage = "0 catch-up"` block names the test that closes each item in
 > [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 14, 16 and 17 are done, and
-> the tests for item **15** do not exist yet, so `tools/loop.py` short-circuits there and no
+> item **15** is packed and degrading — three of its four tests exist and pass, and the fourth,
+> `an_integer_subscript_allocates_no_key`, waits on the `mwl_array_get_index`/`set_index` ABI
+> addition — so `tools/loop.py` still short-circuits there and no
 > Stage 3 `Core` slice opens ahead of it. Behind that gate the frontier is `examples/collect.mwl`,
 > and [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
