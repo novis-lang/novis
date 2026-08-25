@@ -64,6 +64,12 @@ is why" — is this file.
 - **A plan status field is *one line* on disk, however `orient.py` wrapped it.** `plan.py --get` hands back
   that single line; an anchor copied out of the orientation's re-wrapped rendering will never match, and
   `--set` then silently rewrites the field unchanged. Edit what `--get` produced, in place.
+- **Making a type `pub` owes it a `#[derive(Debug)]`.** The workspace denies `missing_debug_implementations`,
+  so promoting a private struct to the public API compiles and then fails at clippy — step 3 of four, after
+  the tests have already run. Add the derive in the same edit as the `pub`, not after `verify.py` says so.
+- **`/tmp` is not the same directory to Bash and to Python here.** A file written by `>` in the Bash tool is
+  invisible to a `python -` heredoc in the same call, which resolves `/tmp` to `%TEMP%`. Stage a scratch
+  file under `.agent-tmp/` — both halves agree on a repo-relative path.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
   test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe` takes over two minutes.
 

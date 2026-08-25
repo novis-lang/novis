@@ -2,44 +2,41 @@
 
 ## State
 
-**Stage 0 item 8's vehicle is built; item 8c itself is blocked on a slice nobody had named.** A `.mwlt`
-case can now carry more than one file: `--FILE <relative/path>--` repeats, each writing another file into
-the case's own working directory beside `case.mwl`, creating the directories along the way. The path is
-relative, `/`-separated, refuses a `.`/`..`/empty segment, a drive letter, a leading `/` and the four names
-the runner writes itself — so containment is a parse-time property with no sanitiser at the write. The
-format's one home is `crates/mwl-test`'s module doc, whose section table and new *More than one file*
-section carry the worked ADR 0061 example. Eight new unit tests; `python tools/verify.py` green, 1391 tests.
+**`resolve_program` now hands its files back, so half of the multi-file wiring is built.** It returns
+`(Module, Vec<Loaded>)`; `mwl_hir::Loaded` is the public `{ id: SourceId, stmts: Vec<Stmt> }` pair for one
+file, in **entry-first load order** — the entry file's own statements are in the vector, which is what
+`front_end` needed and could not get before. The order contract and why the walk keeps the statements at all
+live in `crates/mwl-hir/src/requires.rs`'s module doc and on `resolve_program` itself. One new unit test
+pins entry-first + each file exactly once over a diamond; `python tools/verify.py` green, 1392 tests.
 
-**`mwl_hir::resolve_program` has no production caller.** `mwl-cli`'s `front_end` (main.rs:222) resolves,
-type-checks, lays out and lowers exactly one `SourceId`, calling `mwl_hir::resolve_file`. So `require
-'./src/Greeter.mwl'; new App\Greeter()` is `E0303: not declared` from `mwl run` today, and the whole
-require/autoload graph — including everything item 8a/8b landed — is exercised only by `mwl-hir`'s own
-unit tests. **No conformance case for ADR 0061 can be written until that is wired**, which is why the next
-group is the wiring rather than the cases. Verified by hand against a real three-file tree, not inferred.
+**The consumer is still unwired, and that is the whole remaining blocker for ADR 0061's conformance cases.**
+`mwl-cli`'s `front_end` (`main.rs:222`) calls `mwl_hir::resolve_file` over exactly one `SourceId`, so
+`require './src/Greeter.mwl'; new App\Greeter()` is still `E0303` from `mwl run`, and the require/autoload
+graph is exercised only by `mwl-hir`'s own unit tests. Nothing in `tests/conformance/` can reach it yet.
 
 ## Next group — make the front end multi-file, then item 8c's cases
 
-**Shared file set:** `crates/mwl-cli/src/main.rs`, `crates/mwl-hir/src/requires.rs`,
-`crates/mwl-types/src/check.rs`, then `tests/conformance/lang/`. The rule is
+**Shared file set:** `crates/mwl-cli/src/main.rs`, `crates/mwl-types/src/check.rs`,
+`crates/mwl-ir/src/lower/mod.rs`, then `tests/conformance/lang/`. The rule is
 [`loop-goal.md`](loop-goal.md) § *Stage 0* item 8; the semantics are
 [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) §§ 1, 2 and 5 and
 [ADR 0021](../adr/0021-single-file-inclusion-construct.md).
 
-- [ ] **Have `resolve_program` hand back the files it loaded.** It owns a `Vec<Loaded>` (`requires.rs:117`,
-      `{ id: SourceId, stmts: Vec<Stmt> }`) and drops it at the end of the walk — the entry file's own
-      statements go with it, which is why `front_end` cannot use it today. Return `(Module, Vec<Loaded>)`
-      with `Loaded` made public, in a deterministic order (entry first, then load order), and update the
-      nine unit tests in `requires.rs` that destructure the current return.
-- [ ] **Call it from `mwl-cli`'s `front_end`** (`main.rs:222`), replacing the `resolve_file` on
-      `main.rs:234`. `mwl_types::check_program` (`check.rs`, one `&SourceFile` + one `&[Stmt]`) and
-      `mwl_types::build_class_layouts` (`main.rs:250`) each take one file's pair; both need to run over the
-      set with one shared `TypeInterner`/`ExprTypeTable`, and `Checked` (`main.rs:209`) must carry the set
-      so `mwl-ir` lowering sees every declaration. Keep `Checked.id` as the entry point's id — it is what
-      names the program.
+- [ ] **Call `resolve_program` from `mwl-cli`'s `front_end`** (`main.rs:222`), replacing the `resolve_file`
+      on `main.rs:234`. `mwl_types::check_program` (`check.rs`, one `&SourceFile` + one `&[Stmt]`) and
+      `mwl_types::build_class_layouts` (`main.rs:250`) each take one file's pair; both must run over the
+      whole `Vec<Loaded>` with one shared `TypeInterner`/`ExprTypeTable`, and `Checked` (`main.rs:209`) must
+      carry the set. Keep `Checked.id` as the entry point's id — it names the program.
+- [ ] **Decide what a non-entry file's top-level statements lower to.** `mwl_ir::lower::lower_file`
+      (`main.rs:288`) synthesizes one `<script>` frame per file (`SCRIPT`, `main.rs:270`), and N files cannot
+      all be `<script>`. ADR 0021 § *no isolation* says a required file's statements run at the `require`
+      site; the cheap correct answer is that only the entry gets a script frame and every other file
+      contributes its *declarations* only, with a diagnostic or a documented gap for a required file that
+      writes a bare statement. Record whichever is chosen in `mwl-ir`'s module doc.
 - [ ] **Then item 8c's `.mwlt` cases**, `tests/conformance/lang/`: a class reached only through `autoload`
       runs; an explicit prefix shadows a `discover` glob; a second root is probed only after the first
       misses; `E0317`'s one-declaration-per-file rule fires with `--EXPECTF-ERROR--`. The format is in
-      `crates/mwl-test/src/lib.rs`'s module doc — the *More than one file* section has a working example.
+      `crates/mwl-test/src/lib.rs`'s module doc — its *More than one file* section has a working example.
 - [ ] **Widen the name harvest to attributes** (`requires.rs`, `record_name` / `walk_stmt`) if it is cheap
       once the cases exist; `mwl-hir`'s module doc records it as a known gap today.
 
@@ -56,6 +53,6 @@ group is the wiring rather than the cases. Verified by hand against a real three
 
 ## Orientation gaps
 
-`orient.py` printed nothing about `mwl-cli`, which is where this item's real blocker lives. Add
-`crates/mwl-cli/**` to `[context] modules` in `loop-goal.toml` — the next session needs `front_end`'s shape
-before it can wire anything.
+`crates/mwl-cli/src/main.rs` is now in `[context] modules` in `loop-goal.toml`, so `orient.py` prints its
+map line — the gap the previous handoff named is closed. `mwl-ir/src/lower/mod.rs` is already selected, so
+the next group needs no further manifest change.

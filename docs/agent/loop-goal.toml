@@ -52,6 +52,7 @@ modules = [
   "crates/mwl-hir/src/resolve.rs",
   "crates/mwl-ir/src/lower/**",
   "crates/mwl-ir/src/ir.rs",
+  "crates/mwl-cli/src/main.rs",
 ]
 
 # The decisions this goal's work sits inside, by ADR number. orient.py prints the one-sentence

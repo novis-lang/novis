@@ -195,19 +195,22 @@
 > directory, documented in `crates/mwl-test`'s module doc — but `mwl_hir::resolve_program` has no
 > production caller at all. `mwl-cli`'s `front_end` resolves, checks, lays out and lowers exactly
 > one `SourceId`, so a plain `require` of a class is `E0303` from `mwl run` today and the whole
-> require/autoload graph is exercised only by `mwl-hir`'s own unit tests. Wiring it up is the next
-> slice: `resolve_program` must hand back every file it loaded, and `check_program`,
-> `build_class_layouts` and `mwl-ir` lowering must each take the set rather than the one. **ADR
-> 0069's refusal is built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay`
-> — leaving that ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
-> `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008` per line over comments, string
-> literals and inline HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink
-> halves are M7's and M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows
-> carry no qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR
-> makes it, and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
-> the test that refuses an unclassified member exists; it lands with M4S's remaining sections.
-> **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are
-> written, § 5 is six of its eight members, and § 1 is missing its eleven text-shaping rows,
+> require/autoload graph is exercised only by `mwl-hir`'s own unit tests. Half the wiring is now
+> built: `resolve_program` returns `(Module, Vec<Loaded>)`, `mwl_hir::Loaded` being the public `{
+> id, stmts }` pair for one file, handed back in entry-first load order, so the statements it parsed
+> are no longer dropped at the end of the walk. What is left is the caller: `mwl-cli`'s `front_end`
+> still runs `resolve_file` over one `SourceId`, and `check_program`, `build_class_layouts` and
+> `mwl-ir` lowering must each take the set rather than the one. **ADR 0069's refusal is built** —
+> `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` — leaving that ADR's
+> combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** — `mwl_syntax::bidi` is
+> the one predicate, the lexer reports `E0008` per line over comments, string literals and inline
+> HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink halves are M7's and
+> M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no qualifier
+> classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it, and
+> neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test that
+> refuses an unclassified member exists; it lands with M4S's remaining sections. **Then `Core`
+> breadth, where Stage 3 stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are written, § 5
+> is six of its eight members, and § 1 is missing its eleven text-shaping rows,
 > `Arr::diff`/`intersect` and ADR 0069's combination members. Every signature shape the spec writes
 > can now be stated: a variadic tail is `registry::CoreTy::Variadic`, a `Core`-owned instance is
 > `CoreClass`'s `instance` roster over `mwl_stdlib::instance`, a class constant may be an instance
