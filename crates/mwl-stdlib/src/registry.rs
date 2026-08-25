@@ -677,6 +677,45 @@ pub fn takes_written_class(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The closed roster of `Core`-owned **generic** classes, each with the type
+/// parameters it declares, in order — spec § 9's three collections.
+///
+/// This is the other half of `docs/agent/loop-goal.md`'s standing decision on
+/// type variables: user code gets an explicit type argument only where the
+/// compiler owns the declaration, and for a `new` target that means this
+/// table. [`mwl_hir::interfaces::type_params`] is the same roster for the
+/// reserved *interfaces*, and answers the same shape for the same reason —
+/// two tables rather than one because a `Core` class and a global interface
+/// are resolved by different rules, not because the question differs.
+///
+/// **The names are positional and load-bearing.** `ObjectMap<K, V>` against
+/// `ObjectSet<T>` is what the checker reads to tell a wrong count
+/// (`E_TYPE_ARG_COUNT`) from a target that is not generic at all
+/// (`E_TYPE_ARGS_NOT_GENERIC`), and the order is the order a call site's
+/// arguments bind in — `ObjectMap<Tag, int>` keys on `Tag`.
+///
+/// A roster rather than a field on [`CoreClass`], for the reason
+/// [`WRITTEN_CLASS_MEMBERS`] gives: it is three entries against every class
+/// in [`CLASSES`], and a field would be empty on all the rest. An entry here
+/// **need not be registered yet** — the arity is a property of the spec's
+/// table, so the grammar and the checker can agree on it before the class's
+/// own members land.
+pub const GENERIC_CLASSES: &[(&str, &[&str])] = &[
+    (r"Core\ObjectMap", &["K", "V"]),
+    (r"Core\ObjectSet", &["T"]),
+    (r"Core\Heap", &["T"]),
+];
+
+/// The type parameters `class` declares, in order — `None` when it is not one
+/// of [`GENERIC_CLASSES`], which is every other name in the program.
+#[must_use]
+pub fn class_type_params(class: &str) -> Option<&'static [&'static str]> {
+    GENERIC_CLASSES
+        .iter()
+        .find(|(name, _)| *name == class)
+        .map(|(_, params)| *params)
+}
+
 /// Looks a `Core`-owned enum up by its fully-qualified name.
 #[must_use]
 pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
@@ -711,6 +750,24 @@ mod tests {
                     "{}::{} is not camelCase",
                     class.name,
                     method.name
+                );
+            }
+        }
+    }
+
+    /// A [`GENERIC_CLASSES`] entry declares at least one parameter, and no
+    /// two of a class's parameters share a name. An empty list would make
+    /// `Foo<>` the only accepted spelling, and a repeated name would make the
+    /// positional binding ambiguous — both are paste errors rather than
+    /// designs, and this is the only place either can be caught.
+    #[test]
+    fn a_generic_class_declares_distinct_named_parameters() {
+        for (name, params) in GENERIC_CLASSES {
+            assert!(!params.is_empty(), "{name} declares no type parameter");
+            for (i, param) in params.iter().enumerate() {
+                assert!(
+                    !params[..i].contains(param),
+                    "{name} declares `{param}` twice"
                 );
             }
         }

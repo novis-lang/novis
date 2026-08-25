@@ -242,3 +242,80 @@ fn a_class_named_inside_a_refused_new_type_argument_list_is_still_resolved() {
         "{diags:?}"
     );
 }
+
+// `mwl_stdlib::registry::GENERIC_CLASSES` — the roster that says which `new`
+// target may carry a list at all, and how many arguments it takes.
+
+/// The accepting half: spec § 9's two collections, each written with exactly
+/// the arguments its roster row declares.
+#[test]
+fn a_core_owned_generic_class_takes_the_arguments_its_roster_row_declares() {
+    let diags = check_src(
+        "<?mwl\n\
+         class Tag {}\n\
+         var $set = new Core\\ObjectSet<Tag>();\n\
+         var $map = new Core\\ObjectMap<Tag, int>();\n\
+         echo \"x\";\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The case that proves the roster is read positionally rather than as a
+/// yes/no: the same list is right for one class and wrong for the other, so
+/// nothing but the declared arity can tell them apart.
+#[test]
+fn a_core_owned_generic_class_written_with_another_s_arity_is_refused() {
+    let diags = check_src(
+        "<?mwl\n\
+         class Tag {}\n\
+         var $set = new Core\\ObjectSet<Tag, int>();\n\
+         var $map = new Core\\ObjectMap<Tag>();\n\
+         echo \"x\";\n",
+    );
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_TYPE_ARG_COUNT))
+            .count(),
+        2,
+        "{diags:?}"
+    );
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_ARGS_NOT_GENERIC)),
+        "{diags:?}"
+    );
+}
+
+/// "Including none at all" — a `Core` collection infers nothing from its
+/// constructor, so the bare spelling is a wrong count rather than a default.
+#[test]
+fn a_core_owned_generic_class_written_bare_is_refused() {
+    let diags = check_src(
+        "<?mwl\n\
+         var $set = new Core\\ObjectSet();\n\
+         echo \"x\";\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_ARG_COUNT)),
+        "{diags:?}"
+    );
+}
+
+/// A class named inside an *accepted* list is resolved too, so the roster
+/// does not become a hole the refusal used to cover.
+#[test]
+fn a_class_named_inside_an_accepted_new_type_argument_list_is_still_resolved() {
+    let diags = check_src(
+        "<?mwl\n\
+         var $set = new Core\\ObjectSet<Nope>();\n\
+         echo \"x\";\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_UNDEFINED_CLASS)),
+        "{diags:?}"
+    );
+}

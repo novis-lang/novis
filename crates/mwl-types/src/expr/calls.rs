@@ -217,7 +217,14 @@ pub(super) fn infer_new(
 ) -> TypeId {
     let target_ty = check_new_target(target, live, scope, ctx, env);
     let target_qname = class_qname_of(target_ty, env.interner);
-    check_new_type_args(type_args, target_qname.as_ref(), ctx, env);
+    let target_ty = check_new_type_args(
+        type_args,
+        target_qname.as_ref(),
+        target_ty,
+        expr.span,
+        ctx,
+        env,
+    );
     let resolved = target_qname
         .clone()
         .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
@@ -269,35 +276,75 @@ pub(super) fn infer_new(
 /// [`super::args::check_written_type_args`]'s rule at a call site, for the
 /// same reason.
 ///
-/// **Nothing accepts a list here yet.** User-declared generic classes are
-/// deferred (ADR 0007 § 3), so the only target that could ever take one is a
-/// compiler-owned generic class, and no such class is registered — the
-/// grammar exists ahead of the roster, which is why this refuses every list
-/// rather than consulting one.
+/// **The roster is [`mwl_stdlib::registry::GENERIC_CLASSES`].** ADR 0007 § 3
+/// makes "which target may carry a list" a resolution question, and the answer
+/// is that table: a `Core`-owned generic class takes exactly the arguments it
+/// declares (`E_TYPE_ARG_COUNT` on any other count, none at all included), and
+/// every other target takes none (`E_TYPE_ARGS_NOT_GENERIC`), because
+/// user-declared generic classes are deferred.
+///
+/// Returns the target's type with the written arguments bound onto it —
+/// `Core\ObjectMap<Tag, int>` rather than a bare `Core\ObjectMap` — so the
+/// receiver-driven substitution in [`super::args`] has something to zip the
+/// parameter names against. A wrong count recovers to the bare class, exactly
+/// as [`crate::lower`] does in type position: an argument the author did not
+/// write has no honest value, and a name with no arguments is a shape
+/// everything downstream already has a rule for.
 fn check_new_type_args(
     type_args: &[Type],
     target: Option<&QName>,
+    target_ty: TypeId,
+    new_span: Span,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) {
-    for ty in type_args {
-        lower_type(ty, ctx, env);
-    }
-    let (Some(first), Some(last)) = (type_args.first(), type_args.last()) else {
-        return;
+) -> TypeId {
+    let written: Vec<TypeId> = type_args
+        .iter()
+        .map(|ty| lower_type(ty, ctx, env))
+        .collect();
+    let span = type_args
+        .first()
+        .zip(type_args.last())
+        .map(|(first, last)| first.span.to(last.span));
+    let generic = target.and_then(|qname| {
+        mwl_stdlib::registry::class_type_params(&qname.to_string()).map(|params| (qname, params))
+    });
+    let Some((qname, params)) = generic else {
+        if let Some(span) = span {
+            let named = target.map_or_else(|| "this target".to_owned(), QName::to_string);
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_TYPE_ARGS_NOT_GENERIC,
+                    format!("`{named}` takes no type arguments"),
+                )
+                .with_primary(span, "type arguments written here")
+                .with_help(
+                    "user-declared generic classes are deferred (ADR 0007 § 3), so the only \
+                     `new` target that may be written with one is a compiler-owned generic class",
+                ),
+            );
+        }
+        return target_ty;
     };
-    let named = target.map_or_else(|| "this target".to_owned(), QName::to_string);
-    env.diags.report(
-        Diagnostic::error(
-            code::E_TYPE_ARGS_NOT_GENERIC,
-            format!("`{named}` takes no type arguments"),
-        )
-        .with_primary(first.span.to(last.span), "type arguments written here")
-        .with_help(
-            "user-declared generic classes are deferred (ADR 0007 § 3), so the only `new` \
-             target that may be written with one is a compiler-owned generic class",
-        ),
-    );
+    if written.len() != params.len() {
+        let (expected, got, names) = (params.len(), written.len(), params.join(", "));
+        env.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_ARG_COUNT,
+                format!("`{qname}` takes {expected} type argument(s), not {got}"),
+            )
+            .with_primary(
+                span.unwrap_or(new_span),
+                format!("write `new {qname}<{names}>(…)`"),
+            )
+            .with_help(format!(
+                "`docs/spec/01-core-library.md` § 9 declares `{qname}<{names}>`; the arguments \
+                 are positional, and nothing about a `Core` collection infers them"
+            )),
+        );
+        return target_ty;
+    }
+    env.interner.generic_class(qname.clone(), written)
 }
 
 /// Builds the [`ExprInfo::Call`] entry [`crate::expr_table::ExprTypeTable`]
