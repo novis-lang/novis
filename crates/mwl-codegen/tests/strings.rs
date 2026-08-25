@@ -43,11 +43,11 @@ fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
 #[test]
 fn two_strings_compare_by_bytes_rather_than_by_pointer() {
     // `Ty::Str` is a pointer, so an `icmp` would compare identity — which is
-    // never what `===` means for a string. Two separately allocated literals
+    // never what `==` means for a string. Two separately allocated literals
     // holding the same bytes are the case that catches it.
     let source = "<?mwl
 class T {
-    public static function same(string $a, string $b): bool { return $a === $b; }
+    public static function same(string $a, string $b): bool { return $a == $b; }
 }
 if (T::same(\"ab\", \"ab\")) { echo \"eq \"; }
 if (T::same(\"ab\", \"ba\")) { echo \"wrong \"; }
@@ -67,7 +67,7 @@ int $hits = 0;
 int $i = 0;
 string $key = \"bad\";
 while ($i < 20000) {
-    if ($key === \"bad\") { $hits = $hits + 1; }
+    if ($key == \"bad\") { $hits = $hits + 1; }
     $i = $i + 1;
 }
 echo $hits;

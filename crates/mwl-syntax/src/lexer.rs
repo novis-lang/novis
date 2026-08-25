@@ -689,6 +689,35 @@ impl<'a> Lexer<'a> {
             }};
         }
 
+        // ADR 0090 § 1: `===` and `!==` are not spellings MWL has. They are
+        // still *recognised* here, for the reason ADR 0049 § 2 recognises
+        // `<?php` — a rejected spelling nobody names reappears as two
+        // confusing tokens — and then reported and lexed as the two-character
+        // operator, so one file reports every one of its own problems in one
+        // run rather than only the first.
+        macro_rules! rejected_equality {
+            ($kind:expr, $wrong:literal, $right:literal) => {{
+                self.pos += 3;
+                let span = self.mk_span(start, self.pos);
+                diags.report(
+                    Diagnostic::error(
+                        code::E_IDENTITY_OPERATOR_UNSUPPORTED,
+                        concat!("`", $wrong, "` is not supported"),
+                    )
+                    .with_primary(span, "MWL keeps exactly one equality operator")
+                    .with_help(concat!(
+                        "use `",
+                        $right,
+                        "` — it never converts either operand, so there is nothing for `",
+                        $wrong,
+                        "` to distinguish"
+                    )),
+                );
+                self.push($kind, span);
+                return;
+            }};
+        }
+
         match c {
             '(' => op!(1, TokenKind::LParen),
             ')' => op!(1, TokenKind::RParen),
@@ -797,7 +826,7 @@ impl<'a> Lexer<'a> {
             }
             '!' => {
                 if self.starts_with("!==") {
-                    op!(3, TokenKind::BangEqualsEquals)
+                    rejected_equality!(TokenKind::BangEquals, "!==", "!=")
                 }
                 if self.starts_with("!=") {
                     op!(2, TokenKind::BangEquals)
@@ -806,7 +835,7 @@ impl<'a> Lexer<'a> {
             }
             '=' => {
                 if self.starts_with("===") {
-                    op!(3, TokenKind::EqualsEqualsEquals)
+                    rejected_equality!(TokenKind::EqualsEquals, "===", "==")
                 }
                 if self.starts_with("==") {
                     op!(2, TokenKind::EqualsEquals)
@@ -1825,7 +1854,7 @@ mod tests {
     #[test]
     fn operators_longest_match_wins() {
         assert_eq!(
-            kinds_ok("<?mwl <=> ??= ?-> **= <<= >>= === !== <> ->"),
+            kinds_ok("<?mwl <=> ??= ?-> **= <<= >>= <> ->"),
             vec![
                 OpenTagMwl,
                 Spaceship,
@@ -1834,13 +1863,47 @@ mod tests {
                 StarStarEquals,
                 LtLtEquals,
                 GtGtEquals,
-                EqualsEqualsEquals,
-                BangEqualsEquals,
                 BangEquals,
                 Arrow,
                 Eof,
             ]
         );
+    }
+
+    /// ADR 0090 § 1: neither rejected spelling reaches the parser, and each
+    /// is still consumed whole — three characters, one diagnostic — so the
+    /// tokens either side of it are the ones the author wrote.
+    #[test]
+    fn a_rejected_equality_spelling_is_a_compile_error() {
+        for (src, spelling) in [
+            ("<?mwl $a === $b;", "`===` is not supported"),
+            ("<?mwl $a !== $b;", "`!==` is not supported"),
+        ] {
+            let (kinds, diags) = kinds(src);
+            assert!(
+                diags.iter().any(|d| {
+                    d.code == Some(mwl_diagnostics::code::E_IDENTITY_OPERATOR_UNSUPPORTED)
+                        && d.message == spelling
+                }),
+                "expected E_IDENTITY_OPERATOR_UNSUPPORTED for {src:?}, got {diags:?}"
+            );
+            assert_eq!(
+                kinds,
+                vec![
+                    OpenTagMwl,
+                    Variable,
+                    if spelling.starts_with("`!") {
+                        BangEquals
+                    } else {
+                        EqualsEquals
+                    },
+                    Variable,
+                    Semicolon,
+                    Eof,
+                ],
+                "recovery for {src:?}"
+            );
+        }
     }
 
     #[test]

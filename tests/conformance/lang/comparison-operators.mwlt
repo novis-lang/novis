@@ -3,7 +3,7 @@ a comparison yields a `bool`, and `echo` renders it as PHP does
 --FILE--
 <?mwl
 echo 1 < 2, "|", 2 < 1, "|\n";
-echo 2 === 2, "|", 2 !== 2, "|\n";
+echo 2 == 2, "|", 2 != 2, "|\n";
 echo 3 >= 3, "|", 3 > 3, "|\n";
 --EXPECT--
 1||

@@ -101,12 +101,7 @@ pub(super) fn binary_result(
             object_comparison_result(op, lhs, rhs, span, env)
                 .unwrap_or_else(|| env.interner.bool_ty())
         }
-        BinaryOp::Eq
-        | BinaryOp::NotEq
-        | BinaryOp::Identical
-        | BinaryOp::NotIdentical
-        | BinaryOp::And
-        | BinaryOp::Or => env.interner.bool_ty(),
+        BinaryOp::Eq | BinaryOp::NotEq | BinaryOp::And | BinaryOp::Or => env.interner.bool_ty(),
         // `$a ?? $b` yields `$b` exactly when `$a` is `null`, so `null` is
         // gone from the result unless `$b` can be one — which is what makes
         // `string $s = $maybe ?? "d";` type-check at all. Recorded for

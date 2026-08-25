@@ -20,10 +20,10 @@ echo "a=", $a, " b=", $b, " steps=", $steps, "\n";
 var $out = "";
 var $j = 0;
 for ($j = 0; $j < 6; $j += 1) {
-    if ($j === 2) {
+    if ($j == 2) {
         continue;
     }
-    if ($j === 5) {
+    if ($j == 5) {
         break;
     }
     $out .= ($j as string);
@@ -34,10 +34,10 @@ var $log = "";
 var $k = 0;
 for ($k = 0; $k < 4; $k += 1) {
     try {
-        if ($k === 1) {
+        if ($k == 1) {
             continue;
         }
-        if ($k === 3) {
+        if ($k == 3) {
             break;
         }
         $log .= "t" . ($k as string);

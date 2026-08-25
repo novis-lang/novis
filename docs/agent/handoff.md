@@ -6,54 +6,42 @@ agent are in [AGENTS.md](../../AGENTS.md); `python tools/brief.py` is the rest o
 
 ## State
 
-**Stage 0 still comes before `Core` breadth, and this session did not touch it.** The catch-up list in
-[loop-goal.md](loop-goal.md) § *Stage 0* is unchanged and item 1 — ADR 0090 § 1's lexer removal — is still
-the next thing to build. This session was documentation only: two new ADRs and their folds. `verify.py` is
-green and no Rust changed.
+**Stage 0 item 1 is done: `===`/`!==` no longer exist.** The lexer consumes either spelling whole, reports
+**`E0232`** (`E_IDENTITY_OPERATOR_UNSUPPORTED`) naming the two-character replacement, and pushes
+`EqualsEquals`/`BangEquals` so one file still reports every one of its own problems in one run.
+`TokenKind::EqualsEqualsEquals`/`BangEqualsEquals` and `BinaryOp::Identical`/`NotIdentical` are deleted, so
+`mwl_types::locals::null_test` and `mwl-ir`'s `lower_null_identity` both read `Eq`/`NotEq` now — that half
+of Stage 0 item 3 moved here because deleting the variants forced it. 48 files and 93 lines of corpus were
+rewritten; a `--ORACLE--` body is PHP and was left alone.
 
-**[ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md) gives MWL a run
-mode, which it did not have.** Two closed values, `development` and `production`, and **with nothing
-configured the mode is production**. It is set by `[mode] default` in root-owned `mwl.toml` and by
-`mwl serve --mode=`, which overrides the file; **no environment variable is ever read for it**. A mode
-selects the defaults of **four** directives and governs nothing else — `[debug] inline`, `[log] format`,
-`[log] level`, `[http.errors] detail` — each still individually settable, which is what keeps it
-enumerable rather than a `NODE_ENV`-style bundle. `Core\Env::mode()` reads it and `Core\Config::set` flips
-it per request, bounded by `[mode] ceiling`, a `System` directive that **defaults to the mode the server
-started in** — so a production host is unreachable from code with nothing written, and one host serving
-mixed applications is one line. It reuses [0005](../adr/0005-config-changeability.md)'s `[limits]` /
-`[limits.hard]` shape and asserts there will be no third instance of it.
+**The band choice is a deviation from what loop-goal.md predicted, made deliberately.** That file said
+E00xx because the lexer emits it; the code is E02xx because that band *is* "rejected PHP constructs", every
+sibling ADR (0034/0045/0049/0050) lives there, and `E_RESERVED_SPELLING_CASE` is already a lexer-emitted
+member of it. The band comment in `mwl-diagnostics` now names the two lexical members explicitly.
 
-**[ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md) makes every developer-facing output
-one record with three renderings.** Plaintext, JSON and HTML, **chosen by the sink already in force** —
-[0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3's binding table gains a
-column and § 5's carrier rule is reused, so there is **no new carrier type and no format argument
-anywhere**. Five producers share the model: `Core\Log`, `Core\Debug::dump`, a `Throwable` and its trace, a
-`#[Test]` result, and a compiler diagnostic. Redaction, control-byte substitution, bidi and elision are
-decided **once, in the model**, which is why the scope is five and not two. `Log\Level` is five cases
-(`Debug`/`Info`/`Warn`/`Error`/`Critical`) with a fixed syslog mapping; a dump goes to the log by default
-and reaches a response body only under `[debug] inline`, **never** for a `Response::json` body.
+Four `.mwlt` cases were renamed from `identity-*` to `equality-*`, and
+`tests/conformance/lang/equality-over-strings-and-bools.mwlt` gained ADR 0090 § 3's divergent string row
+(`"1" == "01"` and `"1e3" == "1000"` are both false) — its old `==` vs `===` contrast became a duplicate.
 
-**[ADR 0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md) arrived in the tree
-from another session while this one was working** and is committed alongside these two; it is not this
-session's work and was not reviewed here.
-
-**None of 0091–0093 is catch-up.** They invalidate no built behaviour and no written fixture, unlike 0090.
-`loop-goal.md`'s *Not in this stage, deliberately* paragraph names them and the milestone each piece
-belongs to. **Do not start any of them while Stage 0 is open.**
+`python tools/verify.py` is green (1303 tests), and `mwl test tests/` is 418 passed / 0 failed with the
+PHP oracle available. `examples/errors.mwl`, the one Stage 1 floor fixture the rewrite touched, still
+prints its frozen output exactly.
 
 ## Next
 
-**ADR 0090 § 1 — delete the two spellings** (Stage 0 item 1, M1), unchanged from the last handoff. The
-lexer stops producing `===`/`!==` with a diagnostic in the E00xx band naming `==`/`!=`, the shape ADR
-0034/0045 already use; `BinaryOp::Identical`/`NotIdentical` come out of the AST with them; and the 45
-`.mwl`/`.mwlt` files that write the rejected spelling are rewritten in the same commit. Name the guard
-test `a_rejected_equality_spelling_is_a_compile_error`, which [loop-goal.toml](loop-goal.toml) already
-requires.
+**ADR 0090 § 2 — two statically disjoint operands do not compile** (Stage 0 item 2, M2). A new E04xx code
+over [that ADR](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 2's table:
+`string` against `int`, `string` against `bytes`, an enum against its underlying integer, two unrelated
+classes, and a non-nullable type against `null`. § 6 makes a `switch` label and a `match` arm the same
+check against the subject. The site is `mwl_types::expr::operators`' equality arm, which returns `bool` for
+every operand pair today. Name the guard test `a_disjoint_equality_does_not_compile`, which
+[loop-goal.toml](loop-goal.toml) already requires — `an_equality_null_test_narrows` is in the same list and
+also still needs writing, though the behaviour it pins now exists.
 
 ## Backlog
 
-- **The rest of Stage 0, in [loop-goal.md](loop-goal.md)'s order** — ADR 0090 § 2's disjoint-operand
-  refusal and § 3's narrowing plus three helpers, ADR 0047 § 4's atoms, `private`/`protected`,
+- **The rest of Stage 0, in [loop-goal.md](loop-goal.md)'s order** — after § 2: § 3's three non-scalar
+  rows (one runtime helper each), ADR 0047 § 4's atoms, `private`/`protected`,
   `Comparable`/`Stringable`'s member signatures, ADR 0061's `autoload`, ADR 0069's `array + array`.
 - **`Core\Path` — spec § 11** — the cheapest slice inside `examples/collect.mwl` and the first thing after
   Stage 0: `join` (variadic, which exists), `basename({withoutExtension})`, `extension(): ?string`,
@@ -67,8 +55,4 @@ requires.
   § 2: a per-parameter field on `mwl-stdlib`'s member rows, the fail-closed default, and the test that
   refuses an unclassified member. Lands with M4S's remaining sections.
 - **`Core\Time\Date`/`TimeOfDay`/`Month`, `DateTime::date`/`timeOfDay`/`withTime`** — `time.rs`'s gap 1;
-  the machinery exists, so each is a registry row and a body. Same for the rest of § 1 and ADR 0069's
-  combination members.
-- **0092's own follow-ons, both deliberately deferred and both named in its § 8** — a compile-time log
-  field schema (`mwl check` refusing two call sites that use one field name with two types) and scoped
-  context fields (`Log::with`). The record model is shaped so neither is a rewrite.
+  the machinery exists, so each is a registry row and a body.

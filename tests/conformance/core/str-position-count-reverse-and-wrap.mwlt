@@ -41,8 +41,8 @@ try {
 // letter comes back whole rather than as two reversed bytes.
 echo Core\Str::reverse("stressed"), "|\n";
 var $back = Core\Str::reverse("cafe\u{301}");
-echo (Core\Str::at($back, 0) === "e\u{301}") as string, "|\n";
-echo (Core\Str::at($back, 3) === "c") as string, "|\n";
+echo (Core\Str::at($back, 0) == "e\u{301}") as string, "|\n";
+echo (Core\Str::at($back, 3) == "c") as string, "|\n";
 
 // `wrap` is PHP's `wordwrap`, with its third and fourth arguments named. The
 // break is shown as `/` so the expectation stays on one line.

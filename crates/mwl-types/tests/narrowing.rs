@@ -27,7 +27,7 @@ fn refuses_nullable_receiver(diags: &Diagnostics) -> bool {
 
 #[test]
 fn a_not_null_test_narrows_the_receiver_inside_the_block() {
-    let diags = check_with_node("if ($n !== null) {\n  echo $n->label();\n}\n");
+    let diags = check_with_node("if ($n !=null) {\n  echo $n->label();\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -42,7 +42,7 @@ fn an_untested_nullable_receiver_is_still_refused() {
 #[test]
 fn an_is_null_test_narrows_its_else_branch() {
     let diags =
-        check_with_node("if ($n === null) {\n  echo \"none\";\n} else {\n  echo $n->label();\n}\n");
+        check_with_node("if ($n == null) {\n  echo \"none\";\n} else {\n  echo $n->label();\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -50,7 +50,7 @@ fn an_is_null_test_narrows_its_else_branch() {
 /// is on the branch where the condition was false.
 #[test]
 fn a_guard_clause_narrows_the_rest_of_the_block() {
-    let diags = check_with_node("if ($n === null) {\n  return;\n}\necho $n->label();\n");
+    let diags = check_with_node("if ($n == null) {\n  return;\n}\necho $n->label();\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -58,7 +58,7 @@ fn a_guard_clause_narrows_the_rest_of_the_block() {
 /// holds for the whole body.
 #[test]
 fn a_while_condition_narrows_its_own_body() {
-    let diags = check_with_node("while ($n !== null) {\n  echo $n->label();\n  $n = null;\n}\n");
+    let diags = check_with_node("while ($n !=null) {\n  echo $n->label();\n  $n = null;\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -66,7 +66,7 @@ fn a_while_condition_narrows_its_own_body() {
 /// otherwise `$n = null;` inside the block would be a mismatch.
 #[test]
 fn assigning_null_inside_a_narrowed_block_is_still_legal() {
-    let diags = check_with_node("if ($n !== null) {\n  $n = null;\n}\n");
+    let diags = check_with_node("if ($n !=null) {\n  $n = null;\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
@@ -74,7 +74,7 @@ fn assigning_null_inside_a_narrowed_block_is_still_legal() {
 /// it.
 #[test]
 fn a_write_inside_a_narrowed_block_widens_it_again() {
-    let diags = check_with_node("if ($n !== null) {\n  $n = null;\n  echo $n->label();\n}\n");
+    let diags = check_with_node("if ($n !=null) {\n  $n = null;\n  echo $n->label();\n}\n");
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
@@ -84,7 +84,7 @@ fn a_write_inside_a_narrowed_block_widens_it_again() {
 #[test]
 fn a_loop_body_does_not_inherit_an_outer_narrowing() {
     let diags = check_with_node(
-        "if ($n === null) {\n  return;\n}\nwhile (true) {\n  echo $n->label();\n}\n",
+        "if ($n == null) {\n  return;\n}\nwhile (true) {\n  echo $n->label();\n}\n",
     );
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
@@ -94,7 +94,7 @@ fn a_loop_body_does_not_inherit_an_outer_narrowing() {
 #[test]
 fn a_write_inside_a_loop_body_widens_the_local_after_it() {
     let diags = check_with_node(
-        "if ($n === null) {\n  return;\n}\nwhile (true) {\n  $n = null;\n}\necho $n->label();\n",
+        "if ($n == null) {\n  return;\n}\nwhile (true) {\n  $n = null;\n}\necho $n->label();\n",
     );
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
@@ -106,7 +106,7 @@ fn a_write_inside_a_loop_body_widens_the_local_after_it() {
 fn a_nullable_scalar_is_deliberately_not_narrowed() {
     let diags = check_src(
         "<?mwl\nclass T {\n  function m(?int $v): void {\n    \
-         if ($v !== null) {\n      int $w = $v;\n      echo $w;\n    }\n  }\n}\n",
+         if ($v !=null) {\n      int $w = $v;\n      echo $w;\n    }\n  }\n}\n",
     );
     assert!(
         diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
@@ -121,7 +121,7 @@ fn a_foreach_binding_over_the_narrowed_name_widens_it() {
     let diags = check_src(
         "<?mwl\nclass Node {\n  function label(): string { return \"n\"; }\n}\n\
          class T {\n  function m(?Node $n, array<?Node> $all): void {\n    \
-         if ($n === null) {\n      return;\n    }\n    \
+         if ($n == null) {\n      return;\n    }\n    \
          foreach ($all as ?Node $n) {\n      echo \"x\";\n    }\n    \
          echo $n->label();\n  }\n}\n",
     );

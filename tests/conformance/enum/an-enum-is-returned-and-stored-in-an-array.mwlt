@@ -15,7 +15,7 @@ class Deck {
     }
 
     public static function isRed(Suit $s): bool {
-        return ($s as int) === (Suit::Diamonds as int) || ($s as int) === (Suit::Hearts as int);
+        return ($s as int) == (Suit::Diamonds as int) || ($s as int) == (Suit::Hearts as int);
     }
 }
 

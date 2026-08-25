@@ -462,8 +462,8 @@ impl<'a> Lowering<'a> {
     ///   `match` identically, but ADR 0090 § 6 gives MWL one equality rule for
     ///   both, and both operands are statically the same MWL type here anyway,
     ///   which is the one condition under which PHP's two agreed; see
-    ///   [`Self::lower_expr`]'s `Binary` arm, where `==` and the not-yet-removed
-    ///   `===` lower to the same instruction for the same reason.
+    ///   [`Self::lower_expr`]'s `Binary` arm, which lowers the operator the
+    ///   same way for the same reason.
     /// * **`default` is the chain's fall-off, wherever it is written.** Every
     ///   label is tried first; only then does control reach the `default`
     ///   body, so a `default` written in the middle still runs last — and

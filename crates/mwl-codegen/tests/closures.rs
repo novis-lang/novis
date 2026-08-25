@@ -32,8 +32,8 @@ fn a_closure_object_carries_its_own_arity_in_slot_zero() {
     // a silent extra argument.
     let source = "<?mwl
 array<string> $a = [\"keep\" => \"x\", \"drop\" => \"y\"];
-var $byKey = Core\\Arr::filter($a, fn(string $v, string $k): bool => $k === \"keep\");
-var $byValue = Core\\Arr::filter($a, fn(string $v): bool => $v === \"y\");
+var $byKey = Core\\Arr::filter($a, fn(string $v, string $k): bool => $k == \"keep\");
+var $byValue = Core\\Arr::filter($a, fn(string $v): bool => $v == \"y\");
 echo Core\\Arr::count($byKey), \"|\", Core\\Arr::count($byValue);
 ";
     assert_eq!(output_of(source), "1|1");
@@ -64,7 +64,7 @@ var $i = 0;
 var $seen = 0;
 while ($i < 10000) {
     string $tag = \"t\" . $i;
-    var $kept = Core\\Arr::filter($nums, fn(int $n): bool => $tag !== \"zzz\");
+    var $kept = Core\\Arr::filter($nums, fn(int $n): bool => $tag != \"zzz\");
     $seen = $seen + Core\\Arr::count($kept) as int;
     $i = $i + 1;
 }

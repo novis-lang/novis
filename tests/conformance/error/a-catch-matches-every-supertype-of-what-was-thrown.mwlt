@@ -5,16 +5,16 @@
 class Ladder {
     public static function of(int $n): string {
         try {
-            if ($n === 0) {
+            if ($n == 0) {
                 throw new IOError("io");
             }
-            if ($n === 1) {
+            if ($n == 1) {
                 throw new ParseError("parse");
             }
-            if ($n === 2) {
+            if ($n == 2) {
                 throw new TimeoutError("timeout");
             }
-            if ($n === 3) {
+            if ($n == 3) {
                 throw new RuntimeError("plain");
             }
             throw new ArithmeticError("math");

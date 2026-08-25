@@ -129,7 +129,7 @@
 //!    operand's, which is what a `mixed` source costs, and is the shape the
 //!    rest of this gap closes in. `.` and `echo` read one the same way
 //!    ([`ir::Helper::TaggedToString`]). `?->` reads one only to *test* it
-//!    ([`lower::Lowering::open_nullsafe`]), as does `=== null`/`!== null`,
+//!    ([`lower::Lowering::open_nullsafe`]), as does `== null`/`!= null`,
 //!    which is one [`ir::InstKind::IsNull`] rather than a comparison against
 //!    a `null` constant — and a plain `->` on the receiver that test narrowed
 //!    is one unchecked [`ir::InstKind::Untag`]
@@ -277,16 +277,13 @@
 //!     in this crate that looks like a destructor
 //!     ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
 //!     says MWL has none), so it is a design call, not a patch.
-//! 19. **ADR 0090's equality is decided but not built.** `===`/`!==` still
-//!     parse and still lower to the same [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`]
-//!     as `==`/`!=`, which is the right answer for every operand that lowers
-//!     today — every one is a scalar, where the strict and loose readings
-//!     agree. Three things are open, none of them blocking each other: the
-//!     lexer must stop producing the two rejected spellings; `== null` must
-//!     take [`lower::Lowering::lower_null_identity`]'s tag test, which is
-//!     currently keyed on the `Identical` spelling alone; and the string,
-//!     array and object rows of that ADR's § 3 table need a runtime helper
-//!     each — text-not-numeric, ordered element-wise, and
+//! 19. **ADR 0090's § 3 table is built only for the scalar rows.** The
+//!     spelling half is done — `===`/`!==` no longer lex, and `== null` takes
+//!     [`lower::Lowering::lower_null_identity`]'s tag test — so every operand
+//!     that lowers today is a scalar reaching
+//!     [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], which is that table's answer
+//!     for it. What is open is the string, array and object rows: one runtime
+//!     helper each, text-not-numeric, ordered element-wise, and
 //!     `mwl_runtime::identity` respectively. The disjoint-operand refusal of
 //!     its § 2 is `mwl_types`' half, not this crate's.
 

@@ -14,7 +14,7 @@ class Chain {
     public static function bottom(int $n): int {
         int $i = 0;
         while ($i < 10) {
-            if ($i === $n) {
+            if ($i == $n) {
                 throw new RuntimeError("stopped at " . $i);
             }
             echo $i, ";";

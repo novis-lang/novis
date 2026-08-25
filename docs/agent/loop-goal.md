@@ -18,32 +18,29 @@ stated. **What comes first now is Stage 0 below, not `Core` breadth.**
 **Eleven ADRs (0080–0090) landed after the milestones that own their work were reported done.** Two of
 them change a milestone's *built* behaviour rather than adding to a later one, and the debt beside them is
 what M1 and M2 never finished. Until this section is empty, **a session picks its slice from here, in this
-order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: every
-fixture and `.mwlt` case written in the meantime is written in a spelling ADR 0090 deletes, and there are
-already 45 files and 112 sites to rewrite.
+order, and does not open a Stage 3 `Core` slice.** The reason is compounding cost, not tidiness: the
+spelling ADR 0090 deletes had reached 48 files and 93 lines before item 1 rewrote them, and every fixture
+written while an item here is open is written against a rule that is about to change.
 
 The machine-checkable half is `loop-goal.toml`'s `stage = "0 catch-up"` block, which `tools/loop.py` runs
 **before** the program legs. Every test it names must exist and pass; most do not exist yet, and writing
 one is how an item finishes.
 
-1. **ADR 0090 § 1 — `===`/`!==` stop parsing** (M1). The lexer must not produce the two tokens; the
-   diagnostic names the fix in the shape ADR 0034/0045 already use, in the E00xx band. `BinaryOp::Identical`
-   and `NotIdentical` come out of `mwl-syntax`'s AST with them, and the 45 `.mwl`/`.mwlt` files that write
-   the rejected spelling are rewritten in the same slice — the Stage 1–3 fixtures are among them, so this
-   is one commit, not two. `crates/mwl-syntax/tests/corpus_parse.rs` needs nothing: it holds "the parser
-   does not panic", not "php-src parses cleanly".
+1. ~~**ADR 0090 § 1 — `===`/`!==` stop parsing** (M1).~~ **Done.** `E0232` names each spelling at the
+   lexer, which consumes the three characters and pushes the two-character token so one file still
+   reports every one of its own problems; `TokenKind::EqualsEqualsEquals`/`BangEqualsEquals` and
+   `BinaryOp::Identical`/`NotIdentical` are gone, and the whole corpus is rewritten.
 2. **ADR 0090 § 2 — two statically disjoint operands do not compile** (M2). A new E04xx code, over the
    table in that ADR: `string` against `int`, `string` against `bytes`, an enum against its underlying
    integer, two unrelated classes, and a non-nullable type against `null`. Its § 6 makes a `switch` label
    and a `match` arm the same check against the subject. `mwl_types::expr::operators`' equality arm returns
    `bool` for every operand pair today, and `mwl-types`' own gap list says no such check exists for *any*
    pair — this is that pass.
-3. **ADR 0090 § 3 — the null test and the three non-scalar rows** (M2 for the narrowing, M3/M4 for the
-   lowering; `mwl-ir`'s gap 19 and `mwl_types::locals::null_test`'s doc own the halves). `mwl_types::locals`
-   narrows on `Identical`/`NotIdentical` today and must narrow on `Eq`/`NotEq`; `lower_null_identity`'s tag
-   test is keyed on the same rejected spelling. Then one runtime helper each for strings (text, never
-   numeric), arrays (ordered, element-wise, recursive) and objects (`mwl_runtime::identity`), with § 5's
-   `mixed` pairing answering `false` and never throwing.
+3. **ADR 0090 § 3 — the three non-scalar rows** (M3/M4; `mwl-ir`'s gap 19 owns it). The null test moved
+   with item 1, because deleting the spelling forced it: `mwl_types::locals::null_test` and
+   `lower_null_identity` both read `Eq`/`NotEq` now. What is left is one runtime helper each for strings
+   (text, never numeric), arrays (ordered, element-wise, recursive) and objects
+   (`mwl_runtime::identity`), with § 5's `mixed` pairing answering `false` and never throwing.
 4. **ADR 0047 § 4 — the literal and enum-case type atoms are checked** (M2). They have parsed since M1 and
    `mwl_types::lower` refuses all three by name; that ADR's *Verification* names the step its own table
    understates.

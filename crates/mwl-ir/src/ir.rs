@@ -1164,11 +1164,11 @@ pub enum BinOp {
     /// `%`
     Mod,
     /// `==` — ADR 0090 makes this the language's only equality operator, with
-    /// no conversion of either operand. `===` still parses and still lowers
-    /// here; deleting it, and the string/array/object rows of that ADR's
-    /// table, is the crate docs' gap 19.
+    /// no conversion of either operand. The string, array and object rows of
+    /// that ADR's § 3 table still need a helper each, which is the crate
+    /// docs' gap 19.
     Eq,
-    /// `!=` (and, until ADR 0090's removal slice lands, `!==`).
+    /// `!=`
     NotEq,
     /// `<`
     Lt,

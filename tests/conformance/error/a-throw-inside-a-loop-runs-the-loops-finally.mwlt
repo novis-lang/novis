@@ -22,7 +22,7 @@ class Tally {
         int $i = 0;
         while ($i < $n) {
             try {
-                if ($i % 2 === 0) {
+                if ($i % 2 == 0) {
                     throw new RuntimeError("even");
                 }
                 $out = $out . "odd" . ($i as string) . ";";

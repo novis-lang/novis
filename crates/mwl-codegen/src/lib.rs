@@ -184,7 +184,7 @@
 //!    knows only the numeric and `bool` ones.** `emit`'s `binary` refuses two
 //!    shapes a conformance case reaches for: `1 + 1.5`, where PHP widens the
 //!    `int` to `float` and nothing here inserts that conversion — so an
-//!    `int`/`float` mix must be spelled `0.0 - 1.5` today — and `===` over two
+//!    `int`/`float` mix must be spelled `0.0 - 1.5` today — and `==` over two
 //!    enum values, whose `Enum(Int)` representation is not on the integral
 //!    list even though comparing the two integers is exactly right. Both are a
 //!    missing arm rather than a missing mechanism; the enum one is the smaller,

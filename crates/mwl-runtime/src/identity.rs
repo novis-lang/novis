@@ -5,10 +5,11 @@
 //! `docs/spec/01-core-library.md` § 2 says `contains`, `keyOf`, `unique`,
 //! `diff` and `intersect` "compare by **strict identity**", and a second
 //! answer living in `mwl-stdlib` would be a second set of PHP-divergence
-//! decisions nothing keeps in step. It is *not* wired to the `===` operator
-//! yet: `mwl_ir::BinOp::Eq` still lowers both equalities to one machine
-//! comparison, which is correct exactly while every operand is a scalar of a
-//! statically known type.
+//! decisions nothing keeps in step. It is *not* wired to the `==` operator
+//! yet: `mwl_ir::BinOp::Eq` still lowers to one machine comparison, which is
+//! correct exactly while every operand is a scalar of a statically known
+//! type. [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+//! § 3's array and object rows are that wiring, and this is what they call.
 //!
 //! # What identity means, one row per representation
 //!

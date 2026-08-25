@@ -291,8 +291,6 @@ impl<'src, 'd> Parser<'src, 'd> {
             &[
                 (TokenKind::EqualsEquals, BinaryOp::Eq),
                 (TokenKind::BangEquals, BinaryOp::NotEq),
-                (TokenKind::EqualsEqualsEquals, BinaryOp::Identical),
-                (TokenKind::BangEqualsEquals, BinaryOp::NotIdentical),
                 (TokenKind::Spaceship, BinaryOp::Cmp),
             ],
         )

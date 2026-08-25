@@ -12,7 +12,7 @@ echo Core\Math::asinh(0.0), "|", Core\Math::acosh(1.0), "|", Core\Math::atanh(0.
 
 // The two conversions are inverses, and a half turn is the value to say so at.
 echo Core\Math::toRadians(180.0), "|", Core\Math::toDegrees(Core\Math::toRadians(180.0)), "\n";
-echo (Core\Math::sin(Core\Math::toRadians(90.0)) === 1.0) as string, "|\n";
+echo (Core\Math::sin(Core\Math::toRadians(90.0)) == 1.0) as string, "|\n";
 --EXPECT--
 0|1|0
 0|0|0

@@ -13,22 +13,25 @@
 > `loop-goal.toml`'s `stage = "0 catch-up"` block runs before the program legs so an unfinished item
 > is what the ledger names. **ADR 0087's lexer half is built** — `mwl_syntax::bidi` is the one
 > predicate an unterminated directional control is rejected by, `E0008` at the lexer and, at M7/M8,
-> a substitution at both sinks. **ADR 0090 is the largest unbuilt item**: `==` becomes the only
-> equality operator, so `===`/`!==` stop parsing (M1), two statically disjoint operands stop
-> compiling (M2), and the null tag test plus the string, array and object rows want a helper each
-> (M3/M4). **The goal behind the catch-up is unchanged: M4S Part I in full — spec §§ 1-12 — plus the
-> M4 surface it cannot be written without.** Every representation that blocked a section is built
-> and recorded in the crate that owns it: `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`, strict
-> identity is `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned instance
-> is an ordinary MWL object (`mwl_stdlib::instance`), and a variadic tail is one `array<T>` argument
-> (`registry::CoreTy::Variadic`) — so **every signature shape the spec writes can now be stated**,
-> and a section that is not built is only unwritten. **Every M4 control-flow statement lowers but
-> `do`/`while`**, and ADR 0070's duration literal lexes, types and runs. Sections whole or nearly:
-> **§ 3** (thirty-eight `Core\Math` rows plus eleven class constants), **§ 4** (over `jiff` and the
-> CLDR pattern grammar in `mwl_stdlib::cldr`; `Date`/`TimeOfDay` are that module's gap 1), **§ 5**
-> (both ADR 0056 tiers), and **§ 6** — `Core\Json::encode`/`decode`/`isValid` over `serde_json`,
-> driven through a visitor so a document becomes `MwlArray`s directly; `decodeAs<T>` is
-> `mwl_stdlib::json`'s gap 2. **A helper's failure names its own spec § 10 class**:
+> a substitution at both sinks. **ADR 0090 § 1 is built**: `==`/`!=` are the only equality
+> spellings, `===`/`!==` are `E0232` at the lexer (consumed whole, reported, then lexed as the
+> two-character operator so a file still reports its other problems),
+> `BinaryOp::Identical`/`NotIdentical` are gone from the AST, and both the narrowing in
+> `mwl_types::locals` and `mwl-ir`'s null tag test read `Eq`/`NotEq`. **What that ADR still owes**
+> is § 2's disjoint-operand refusal (M2) and § 3's string, array and object rows, one runtime helper
+> each (M3/M4). **The goal behind the catch-up is unchanged: M4S Part I in full — spec §§ 1-12 —
+> plus the M4 surface it cannot be written without.** Every representation that blocked a section is
+> built and recorded in the crate that owns it: `mixed`/`?T`/every union is `mwl_ir::Ty::Tagged`,
+> strict identity is `mwl_runtime::identity`, `decimal` is `mwl_runtime::decimal`, a `Core`-owned
+> instance is an ordinary MWL object (`mwl_stdlib::instance`), and a variadic tail is one `array<T>`
+> argument (`registry::CoreTy::Variadic`) — so **every signature shape the spec writes can now be
+> stated**, and a section that is not built is only unwritten. **Every M4 control-flow statement
+> lowers but `do`/`while`**, and ADR 0070's duration literal lexes, types and runs. Sections whole
+> or nearly: **§ 3** (thirty-eight `Core\Math` rows plus eleven class constants), **§ 4** (over
+> `jiff` and the CLDR pattern grammar in `mwl_stdlib::cldr`; `Date`/`TimeOfDay` are that module's
+> gap 1), **§ 5** (both ADR 0056 tiers), and **§ 6** — `Core\Json::encode`/`decode`/`isValid` over
+> `serde_json`, driven through a visitor so a document becomes `MwlArray`s directly; `decodeAs<T>`
+> is `mwl_stdlib::json`'s gap 2. **A helper's failure names its own spec § 10 class**:
 > `mwl_runtime::ThrownClass` is the closed roster, `Fault::thrown_as` is how a member picks one, and
 > `catch (ParseError $e)` matches a bad JSON document or a bad `Core\Time::parse`. **A call site can
 > write its own type argument** — `decodeAs<User>($b)` parses, and a member declares which variables
@@ -87,17 +90,19 @@
 > 2's wider codec-reachable set and § 4's two default-bearing rows, both `mwl_stdlib::json`'s own
 > gaps. and **0087's lexer half in full** — `mwl_syntax::bidi` is the one predicate, `E0008` is a
 > hard error with no suppression over comments, string literals and inline HTML per line, and that
-> ADR's two sink callers are M7's and M8's. Instance calls dispatch on the receiver's runtime class.
+> ADR's two sink callers are M7's and M8's, and **0090 § 1 in full** — `===`/`!==` are `E0232` at
+> the lexer, the two token kinds and the two `BinaryOp` variants are deleted, and the null test
+> narrows and lowers through `Eq`/`NotEq`. Instance calls dispatch on the receiver's runtime class.
 > Each ADR's own *Verification* section says what its slice covers, not this field.
 >
 > **Open now:** **Catch-up outranks `Core` breadth.** Eleven ADRs (0080-0090) landed after the
 > milestones that own their work were reported done, and
 > [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* is the ordered list the loop works
 > before opening another `Core` slice; `loop-goal.toml`'s `stage = "0 catch-up"` block is its
-> machine half and runs before the program legs. In order: **ADR 0090** in three slices — § 1's
-> lexer removal of `===`/`!==` plus the 45 `.mwl`/`.mwlt` files that write them, § 2's
-> disjoint-operand refusal (no equality-operand check exists for any type pair today), and § 3's `==
-> null` tag test plus a helper each for the string, array and object rows; **ADR 0047 § 4**'s
+> machine half and runs before the program legs. In order: **ADR 0090**, whose § 1 is built
+> (`===`/`!==` are `E0232` at the lexer, `BinaryOp::Identical` is gone, and the whole 48-file corpus
+> is rewritten), leaving § 2's disjoint-operand refusal — no equality-operand check exists for any
+> type pair today — and § 3's helper each for the string, array and object rows; **ADR 0047 § 4**'s
 > literal and enum-case atoms, which parse and are refused by name; **`private`/`protected`**, which
 > nothing enforces; **`Comparable`/`Stringable`**, which carry no member signatures, so
 > `$s->toString()` is `E0405` and `instanceof Stringable` panics `mwl-ir`; **ADR 0061**'s `autoload`

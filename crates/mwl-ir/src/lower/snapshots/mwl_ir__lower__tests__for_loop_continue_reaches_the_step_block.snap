@@ -41,7 +41,7 @@ fn count(object, int) -> int {
     v11 = add v5, v10  ; int
     jump bb3
   bb6:
-    ; stmt s5 @7:21-9:8
+    ; stmt s5 @7:20-9:8
     ; stmt s6 @8:9-8:18
     safepoint
     jump bb3

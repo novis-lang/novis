@@ -2,7 +2,7 @@
 a --SKIPIF-- whose output does not start with `skip` lets the case run
 --SKIPIF--
 <?mwl
-if (Core\Str::length("abc") !== 3) {
+if (Core\Str::length("abc") != 3) {
     echo "skip strings are broken, so this proves nothing";
 }
 --FILE--

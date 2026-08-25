@@ -1,0 +1,24 @@
+--TEST--
+`==` and `!=` compare value without converting, over ints, strings, floats and bools alike — ADR 0090 § 3
+--FILE--
+<?mwl
+echo (1 == 1) as string, "|", (1 == 2) as string, "|\n";
+echo (1 != 2) as string, "|", (1 != 1) as string, "|\n";
+
+echo ("a" == "a") as string, "|", ("a" == "b") as string, "|\n";
+echo ("a" != "b") as string, "|", ("" == "") as string, "|\n";
+
+echo (1.5 == 1.5) as string, "|", (1.5 == 2.5) as string, "|\n";
+echo (true == true) as string, "|", (true == false) as string, "|\n";
+
+string $left = "same";
+string $right = "sa" . "me";
+echo ($left == $right) as string, "|\n";
+--EXPECT--
+1||
+1||
+1||
+1|1|
+1||
+1||
+1|

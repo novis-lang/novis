@@ -864,7 +864,8 @@ impl Emitter<'_, '_> {
 
         // A `string` comparison is a byte comparison in the runtime, not a
         // machine instruction: `Ty::Str` is a pointer, so `icmp` would compare
-        // *identity*, which is never what `===` means for a string.
+        // *identity*, which is never what `==` means for a string (ADR 0090
+        // § 3's string row).
         if matches!(ty, Ty::Str | Ty::Bytes) && matches!(op, BinOp::Eq | BinOp::NotEq) {
             let callee = self.runtime_ref("mwl_str_eq", RuntimeSig::StrEq)?;
             let call = self.b.ins().call(callee, &[l, r]);

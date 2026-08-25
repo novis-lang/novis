@@ -2373,7 +2373,7 @@ class T {
     #[test]
     fn for_loop_continue_reaches_the_step_block() {
         let (f, map, file) = lower_first_method(
-            "<?mwl\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      if ($i === 2) {\n        continue;\n      }\n      $hits += 1;\n    }\n    return $hits;\n  }\n}\n",
+            "<?mwl\nclass T {\n  function count(int $n): int {\n    int $hits = 0;\n    int $i = 0;\n    for ($i = 0; $i < $n; $i += 1) {\n      if ($i == 2) {\n        continue;\n      }\n      $hits += 1;\n    }\n    return $hits;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }
@@ -2552,7 +2552,7 @@ class T {
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// `if ($obj !== null) { $obj->greet(); }` — the receiver's slot is still
+    /// `if ($obj != null) { $obj->greet(); }` — the receiver's slot is still
     /// one tagged value, so the plain `->` reads it back with a single
     /// unchecked `untag` and no test of its own. The `!== null` in the
     /// condition is the *only* tag test, and it is one `is.null` rather than
@@ -2561,7 +2561,7 @@ class T {
     #[test]
     fn a_narrowed_receiver_untags_once_with_no_guard_of_its_own() {
         let (f, map, file) = lower_first_method(
-            "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): int {\n    if ($obj !== null) {\n      return $obj->greet();\n    }\n    return 0;\n  }\n}\n",
+            "<?mwl\nclass Foo {\n  function greet(): int {\n    return 1;\n  }\n}\nclass T {\n  function m(?Foo $obj): int {\n    if ($obj != null) {\n      return $obj->greet();\n    }\n    return 0;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

@@ -15,7 +15,7 @@ class Fin {
         int $i = 0;
         while ($i < 5) {
             try {
-                if ($i === $stopAt) {
+                if ($i == $stopAt) {
                     return $i * 100;
                 }
             } finally {
@@ -28,7 +28,7 @@ class Fin {
 
     public static function afterACatch(int $n): string {
         try {
-            if ($n === 0) {
+            if ($n == 0) {
                 throw new RuntimeError("zero");
             }
             return "ok";

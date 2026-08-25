@@ -252,20 +252,17 @@ impl Narrowing {
     }
 }
 
-/// The `$x !== null`/`$x === null` test `cond` is, if it is one at all: the
+/// The `$x != null`/`$x == null` test `cond` is, if it is one at all: the
 /// tested variable's name span, and whether the test *holding* means the
 /// variable is not `null`.
 ///
-/// `===`/`!==` only, which ADR 0090 turns into a gap rather than a rule:
-/// that ADR makes `==` strict and `===` a rejected spelling, so `== null`
-/// is the null test and belongs here too. It was excluded because PHP's
-/// loose `==` against `null` was a different question (`0 == null` is
-/// true), and reading a laundering rule out of the truthy table is exactly
-/// the kind of almost-right that ADR 0007 § 4 keeps out of this checker.
-/// Widening this to `Eq`/`NotEq` is one arm, and waits only on the lexer
-/// half so the two spellings never both exist. A bare
-/// `if ($x)` is likewise not a null test: ADR 0035 § 4 makes it one for a
-/// nullable object today, but not for a `?string` holding `""`.
+/// `==`/`!=` are the whole of it, because
+/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// § 1 leaves one spelling and its § 3 makes it a tag test rather than PHP's
+/// truthy-table question — `0 == null` was *true* in PHP, which is why this
+/// read only `===`/`!==` while both spellings existed. A bare `if ($x)` is
+/// still not a null test: ADR 0035 § 4 makes it one for a nullable object,
+/// but not for a `?string` holding `""`.
 fn null_test(cond: &Expr) -> Option<(Span, bool)> {
     match &cond.kind {
         ExprKind::Paren(inner) => null_test(inner),
@@ -276,10 +273,10 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
         ExprKind::Binary { op, lhs, rhs }
             if matches!(
                 op,
-                mwl_syntax::ast::BinaryOp::Identical | mwl_syntax::ast::BinaryOp::NotIdentical
+                mwl_syntax::ast::BinaryOp::Eq | mwl_syntax::ast::BinaryOp::NotEq
             ) =>
         {
-            let non_null = *op == mwl_syntax::ast::BinaryOp::NotIdentical;
+            let non_null = *op == mwl_syntax::ast::BinaryOp::NotEq;
             match (&lhs.kind, &rhs.kind) {
                 (ExprKind::Variable(span), ExprKind::Null)
                 | (ExprKind::Null, ExprKind::Variable(span)) => Some((*span, non_null)),

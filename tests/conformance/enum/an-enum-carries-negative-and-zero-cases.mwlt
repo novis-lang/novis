@@ -16,7 +16,7 @@ class Move {
         if ($v < 0) {
             return "reverse" . $v;
         }
-        if ($v === 0) {
+        if ($v == 0) {
             return "hold";
         }
         return "forward" . $v;

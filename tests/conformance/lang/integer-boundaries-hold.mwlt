@@ -11,7 +11,7 @@ echo $max - 1, "\n";
 echo $min + 1, "\n";
 echo $max as string, "|", $min as string, "|\n";
 echo ($max > $min) as string, "|", ($min < 0) as string, "|\n";
-echo (0 - $max) === $min, "|\n";
+echo (0 - $max) == $min, "|\n";
 --EXPECT--
 9223372036854775807
 -9223372036854775807

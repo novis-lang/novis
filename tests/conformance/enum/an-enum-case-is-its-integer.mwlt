@@ -19,7 +19,7 @@ echo Signal::Stop as int, ",", Signal::Go as int, "\n";
 Rank $held = Rank::Silver;
 echo $held as int, "\n";
 echo (($held as int) < (Rank::Gold as int)) as string, "\n";
-echo (($held as int) === (Rank::Silver as int)) as string, "\n";
+echo (($held as int) == (Rank::Silver as int)) as string, "\n";
 --EXPECT--
 0,1,2
 10,20

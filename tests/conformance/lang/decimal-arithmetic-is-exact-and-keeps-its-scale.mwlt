@@ -15,7 +15,7 @@ echo $price + $shipping, "|", $price - $shipping, "|", $price * 2, "\n";
 // Scale is carried for rendering (§ 4), so a trailing zero survives -- and is
 // invisible to equality, which compares values.
 decimal $padded = 19.90;
-echo $padded, "|", ($padded == 19.9) as string, "|", ($padded === 19.900) as string, "\n";
+echo $padded, "|", ($padded == 19.9) as string, "|", ($padded == 19.900) as string, "\n";
 
 // `as` is itself a placing position (§ 2), so the full 29 significant digits
 // survive rather than round-tripping through an `f64`'s ~17.

@@ -1,6 +1,6 @@
 <?mwl
 array<int> $nums = Core\Arr::range(1, 10);
-var $evens = Core\Arr::filter($nums, fn(int $n) => $n % 2 === 0);
+var $evens = Core\Arr::filter($nums, fn(int $n) => $n % 2 == 0);
 echo "evens=" . Core\Arr::count($evens) . "\n";
 
 array<string> $words = ["pear", "Apple", "fig", "banana"];

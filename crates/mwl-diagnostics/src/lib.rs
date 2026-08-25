@@ -162,8 +162,11 @@ pub mod code {
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // MWL accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
-    // parse — so the diagnostic can be precise and suggest a replacement —
-    // and are then rejected. See docs/spec.
+    // are recognised — so the diagnostic can be precise and suggest a
+    // replacement — and are then rejected. Most parse first; the two that a
+    // *lexical* rule refuses (`E_RESERVED_SPELLING_CASE`,
+    // `E_IDENTITY_OPERATOR_UNSUPPORTED`) are named where they are recognised,
+    // which is the lexer. See docs/spec.
     /// `eval()`: MWL compiles ahead of execution.
     pub const E_EVAL_UNSUPPORTED: Code = Code::new("E0201");
     /// `$$name` and `${$name}`: defeats name resolution and type inference.
@@ -263,6 +266,14 @@ pub mod code {
     /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
     /// `if`.
     pub const E_RESERVED_SPELLING_CASE: Code = Code::new("E0231");
+    /// PHP's `===`/`!==` — MWL keeps exactly one equality operator, `==`, and
+    /// its negation `!=`. See
+    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 1. This is the one construct in this band the *lexer* reports rather
+    /// than the parser: there is nothing to parse precisely here, so the
+    /// three characters are consumed, named, and lexed as the two-character
+    /// operator so the rest of the file still reports its own problems.
+    pub const E_IDENTITY_OPERATOR_UNSUPPORTED: Code = Code::new("E0232");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.
@@ -604,10 +615,10 @@ pub mod code {
     /// pass the arity check with the receiver written as an ordinary argument.
     pub const E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY: Code = Code::new("E0458");
     /// A plain `->` on a receiver whose type includes `null` — `?->`, or a
-    /// `!== null` test around it, is how a member of one is reached. PHP
+    /// `!= null` test around it, is how a member of one is reached. PHP
     /// throws for this at run time; MWL refuses it while compiling, because
     /// `?T` is one union with no class to resolve a member against. Inside a
-    /// block a `!== null`/`=== null` test proved the receiver non-`null`
+    /// block a `!= null`/`== null` test proved the receiver non-`null`
     /// (`mwl_types::locals`' narrowing) this does not fire at all — until
     /// something in that block assigns the local again, which takes the
     /// narrowing back off.

@@ -15,7 +15,7 @@ echo Core\Arr::find($empty, fn(int $v) => true) ?? -1, "|",
      Core\Arr::findKey($empty, fn(int $v) => true) ?? "none", "\n";
 
 // The predicate is offered ($value, $key) and may declare either arity.
-echo Core\Arr::find($map, fn(string $v, string $k) => $k === "a") ?? "none", "\n";
+echo Core\Arr::find($map, fn(string $v, string $k) => $k == "a") ?? "none", "\n";
 
 echo Core\Arr::any($nums, fn(int $v) => $v > 5) as string, "|",
      Core\Arr::all($nums, fn(int $v) => $v > 5) as string, "|\n";

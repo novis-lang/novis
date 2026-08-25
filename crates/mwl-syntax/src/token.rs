@@ -212,14 +212,10 @@ pub enum TokenKind {
     Bang,
     /// `!=` / `<>`
     BangEquals,
-    /// `!==`
-    BangEqualsEquals,
     /// `=`
     Equals,
     /// `==`
     EqualsEquals,
-    /// `===`
-    EqualsEqualsEquals,
     /// `<`
     Lt,
     /// `<=`

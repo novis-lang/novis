@@ -1,9 +1,9 @@
 --TEST--
-Assigning the local again inside an `if ($m !== null)` block takes the narrowing back off, so `->` is refused from that point on
+Assigning the local again inside an `if ($m != null)` block takes the narrowing back off, so `->` is refused from that point on
 --FILE--
 <?mwl
 var $m = Core\Regex::match("order-4711", "order-(\\d+)");
-if ($m !== null) {
+if ($m != null) {
     $m = Core\Regex::match("nothing", "\\d+");
     echo $m->text(), "\n";
 }

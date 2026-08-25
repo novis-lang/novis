@@ -13,14 +13,14 @@ class Fib {
 
 class Parity {
     public static function isEven(int $n): bool {
-        if ($n === 0) {
+        if ($n == 0) {
             return true;
         }
         return Parity::isOdd($n - 1);
     }
 
     public static function isOdd(int $n): bool {
-        if ($n === 0) {
+        if ($n == 0) {
             return false;
         }
         return Parity::isEven($n - 1);

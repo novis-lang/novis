@@ -278,7 +278,7 @@ pub(super) fn strip_nullsafe_receiver(
             )
             .with_primary(span, "this receiver is nullable")
             .with_help(
-                "test it first — inside `if ($x !== null) { … }` the receiver is no longer \
+                "test it first — inside `if ($x != null) { … }` the receiver is no longer \
                  nullable — or use `?->`, which answers `null` instead of reaching the member",
             ),
         );

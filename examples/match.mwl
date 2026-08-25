@@ -35,7 +35,7 @@ echo "letters=" . $line . "\n";
 
 var $passes = 0;
 foreach ($scores as int $score) {
-    if (Grade::tier(Grade::letter($score)) === "pass") {
+    if (Grade::tier(Grade::letter($score)) == "pass") {
         $passes += 1;
     }
 }

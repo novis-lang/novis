@@ -30,13 +30,13 @@ class Logger {
 
 class Name {
     public static function of(Level $l): string {
-        if (($l as int) === (Level::Debug as int)) {
+        if (($l as int) == (Level::Debug as int)) {
             return "debug";
         }
-        if (($l as int) === (Level::Info as int)) {
+        if (($l as int) == (Level::Info as int)) {
             return "info";
         }
-        if (($l as int) === (Level::Warn as int)) {
+        if (($l as int) == (Level::Warn as int)) {
             return "warn";
         }
         return "error";

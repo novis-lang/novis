@@ -1,11 +1,11 @@
 --TEST--
-`!== null` narrows a nullable local so `->` reaches a member of it — ADR 0066, in both branches and after a guard clause
+`!= null` narrows a nullable local so `->` reaches a member of it — ADR 0066, in both branches and after a guard clause
 --FILE--
 <?mwl
 class Finder {
     static function idOf(string $subject): string {
         var $m = Core\Regex::match($subject, "id-(\\d+)");
-        if ($m === null) {
+        if ($m == null) {
             return "none";
         }
         return $m->group(1) ?? "none";
@@ -13,26 +13,26 @@ class Finder {
 }
 
 var $hit = Core\Regex::match("order-4711", "order-(\\d+)");
-if ($hit !== null) {
+if ($hit != null) {
     echo "then=" . ($hit->group(1) ?? "?") . "\n";
 } else {
     echo "then=missing\n";
 }
 
 var $miss = Core\Regex::match("nothing", "order-(\\d+)");
-if ($miss === null) {
+if ($miss == null) {
     echo "else=missing\n";
 } else {
     echo "else=" . ($miss->group(1) ?? "?") . "\n";
 }
 
 var $flip = Core\Regex::match("order-42", "order-(\\d+)");
-if (null !== $flip) {
+if (null != $flip) {
     echo "flipped=" . ($flip->group(1) ?? "?") . "\n";
 }
 
 var $negated = Core\Regex::match("order-7", "order-(\\d+)");
-if (!($negated === null)) {
+if (!($negated == null)) {
     echo "negated=" . ($negated->group(1) ?? "?") . "\n";
 }
 

@@ -39,7 +39,7 @@ echo "queryKeys=" . Core\Str::join(Core\Arr::keys($query), ",") . "\n";
 var $rows = Core\Csv::parse("name,qty\nfig,2\npear,5\n", {header: true});
 echo "rows=" . Core\Arr::count($rows) . "\n";
 var $head = Core\Arr::first($rows);
-if ($head !== null) {
+if ($head != null) {
     echo "first=" . $head["name"] . "x" . $head["qty"] . "\n";
 }
 

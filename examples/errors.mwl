@@ -4,11 +4,11 @@ class ConfigError extends Throwable {
 
 class Loader {
     public static function load(string $key): string {
-        if ($key === "bad") {
+        if ($key == "bad") {
             throw new ConfigError("bad key");
         }
 
-        if ($key === "missing") {
+        if ($key == "missing") {
             throw new LogicError("no such key: " . $key);
         }
 

@@ -159,7 +159,7 @@ impl<'a> Lowering<'a> {
                 self.lower_object_comparison(*op, expr, lhs, rhs, env, cur)
             }
             ExprKind::Binary {
-                op: op @ (BinaryOp::Identical | BinaryOp::NotIdentical),
+                op: op @ (BinaryOp::Eq | BinaryOp::NotEq),
                 lhs,
                 rhs,
             } if matches!(lhs.kind, ExprKind::Null) != matches!(rhs.kind, ExprKind::Null) => {
@@ -320,12 +320,8 @@ impl<'a> Lowering<'a> {
             BinaryOp::Mul => (Helper::DecimalMul, Ty::Decimal, vec![lhs, rhs], false),
             BinaryOp::Div => (Helper::DecimalDiv, Ty::Decimal, vec![lhs, rhs], false),
             BinaryOp::Mod => (Helper::DecimalMod, Ty::Decimal, vec![lhs, rhs], false),
-            BinaryOp::Eq | BinaryOp::Identical => {
-                (Helper::DecimalEq, Ty::Bool, vec![lhs, rhs], false)
-            }
-            BinaryOp::NotEq | BinaryOp::NotIdentical => {
-                (Helper::DecimalEq, Ty::Bool, vec![lhs, rhs], true)
-            }
+            BinaryOp::Eq => (Helper::DecimalEq, Ty::Bool, vec![lhs, rhs], false),
+            BinaryOp::NotEq => (Helper::DecimalEq, Ty::Bool, vec![lhs, rhs], true),
             BinaryOp::Lt => (Helper::DecimalLt, Ty::Bool, vec![lhs, rhs], false),
             BinaryOp::Gt => (Helper::DecimalLt, Ty::Bool, vec![rhs, lhs], false),
             BinaryOp::LtEq => (Helper::DecimalLtEq, Ty::Bool, vec![lhs, rhs], false),
@@ -1893,12 +1889,12 @@ impl<'a> Lowering<'a> {
     /// `mwl_types::locals`' narrowing reads, so the two agree on
     /// exactly one spelling.
     ///
-    /// `==`/`!=` against `null` still goes to the general arm, which is
-    /// a bug rather than a decision: ADR 0090 makes `==` strict, so it
-    /// is exactly this tag test and should be keyed on both spellings.
-    /// It stayed behind because PHP's `0 == null` was *true* — a
-    /// truthy-table question rather than a tag one — which ADR 0090
-    /// removes. The crate docs' gap 19 owns the move.
+    /// `==`/`!=` are the whole of it:
+    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// § 1 leaves one spelling, and its § 3 makes that spelling this tag
+    /// test rather than PHP's truthy-table question (`0 == null` was
+    /// *true* there, which is why this arm read `===`/`!==` while both
+    /// spellings existed).
     fn lower_null_identity(
         &mut self,
         op: BinaryOp,
@@ -1927,14 +1923,14 @@ impl<'a> Lowering<'a> {
             return self.emit(
                 *cur,
                 Ty::Bool,
-                InstKind::ConstBool(is_null == (op == BinaryOp::Identical)),
+                InstKind::ConstBool(is_null == (op == BinaryOp::Eq)),
             );
         }
         let (is_null, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: v });
         if !self.aliasing_read(operand) {
             self.emit_release(*cur, v);
         }
-        if op == BinaryOp::Identical {
+        if op == BinaryOp::Eq {
             return (is_null, Ty::Bool);
         }
         self.emit(
@@ -1971,8 +1967,8 @@ impl<'a> Lowering<'a> {
             BinaryOp::Mul => (BinOp::Mul, lty),
             BinaryOp::Div => (BinOp::Div, lty),
             BinaryOp::Mod => (BinOp::Mod, lty),
-            BinaryOp::Eq | BinaryOp::Identical => (BinOp::Eq, Ty::Bool),
-            BinaryOp::NotEq | BinaryOp::NotIdentical => (BinOp::NotEq, Ty::Bool),
+            BinaryOp::Eq => (BinOp::Eq, Ty::Bool),
+            BinaryOp::NotEq => (BinOp::NotEq, Ty::Bool),
             BinaryOp::Lt => (BinOp::Lt, Ty::Bool),
             BinaryOp::LtEq => (BinOp::LtEq, Ty::Bool),
             BinaryOp::Gt => (BinOp::Gt, Ty::Bool),

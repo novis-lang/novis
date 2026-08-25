@@ -4,7 +4,7 @@ Two classes calling each other's static methods recurse and unwind correctly, an
 <?mwl
 class Even {
     public static function is(int $n): bool {
-        if ($n === 0) {
+        if ($n == 0) {
             return true;
         }
         return Odd::is($n - 1);
@@ -20,7 +20,7 @@ class Even {
 
 class Odd {
     public static function is(int $n): bool {
-        if ($n === 0) {
+        if ($n == 0) {
             return false;
         }
         return Even::is($n - 1);

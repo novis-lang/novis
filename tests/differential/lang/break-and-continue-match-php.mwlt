@@ -6,10 +6,10 @@ var $i = 0;
 var $sum = 0;
 while ($i < 100) {
     $i = $i + 1;
-    if ($i === 3) {
+    if ($i == 3) {
         continue;
     }
-    if ($i === 6) {
+    if ($i == 6) {
         break;
     }
     $sum = $sum + $i;

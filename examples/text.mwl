@@ -10,7 +10,7 @@ var $slug = Core\Str::lower(Core\Regex::replace($tidy, "[^A-Za-z]+", "-"));
 echo "slug=" . Core\Str::trim($slug, {characters: "-"}) . "\n";
 
 var $found = Core\Regex::match("order-4711-eu", "order-(\\d+)-(\\w+)");
-if ($found !== null) {
+if ($found != null) {
     echo "id=" . $found->group(1) . " region=" . $found->group(2) . "\n";
 }
 

@@ -18,7 +18,7 @@ fn m(object, tagged) -> int {
     release v0
     return v6
   bb2:
-    ; stmt s1 @9:24-11:6
+    ; stmt s1 @9:23-11:6
     ; stmt s2 @10:7-10:28
     v4 = untag v1  ; object
     retain v4

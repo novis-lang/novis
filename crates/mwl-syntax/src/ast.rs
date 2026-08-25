@@ -262,12 +262,10 @@ pub enum BinaryOp {
     And,
     /// `||`
     Or,
+    // `==` and `!=` are the whole of equality: ADR 0090 § 1 makes `===`/`!==`
+    // a rejected spelling the lexer names, so there is no second pair here.
     Eq,
     NotEq,
-    /// `===`
-    Identical,
-    /// `!==`
-    NotIdentical,
     Lt,
     LtEq,
     Gt,
