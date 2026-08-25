@@ -68,6 +68,17 @@ is why" — is this file.
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
   `python tools/check-links.py` — broken *and* mis-cased relative links.
 - **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file.
+- **A `Core\Name` inside a `python - <<'PY'` heredoc is a Python escape error, not just a Bash one.**
+  The heredoc bullet above is about the Bash tool eating a backslash; this is the second half of the
+  same trap and it fails differently — `"""… Core\Uri …"""` reaches Python intact and *Python* then
+  rejects `\U` as a truncated `\UXXXXXXXX`, so a patch script that quotes any `Core\U…`/`Core\N…`
+  path dies at parse time with nothing about the real edit in the message. Use the Edit tool for a
+  targeted replacement, or `splice.py` with a Write-tool patch file.
+- **A test failing in a file your slice never touched is probably inherited, not caused.** A red
+  `-p mwl-stdlib --lib` arrived this session from the previous one's `validate.rs`, and the first
+  instinct — "my registry rows broke something" — costs a bisect. `git status --short` showing that
+  file unmodified is the whole diagnosis. Fix it, but in **its own commit**, so `git log` does not
+  read as though the feature slice touched it.
 - **Never `plan.py --get "Open now"` just to check an edit landed.** That field is one logical line of
   about 10,000 tokens, and `--get` unwraps and prints the whole of it — five per cent of a session's
   ceiling to confirm a sentence you already wrote. `grep -n` the phrase in `docs/implementation-plan.md`

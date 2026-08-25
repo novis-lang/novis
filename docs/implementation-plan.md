@@ -130,7 +130,7 @@
 > each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
 > `{previous: $e}` options shape and
 > `$e->location`; § 11 owes `Random::bytes` and `Hash::stream`, its one-shot half being built; § 12 owes
-> `Uri::parse`/`isValid` and `Out::capture`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
+> `Out::capture` alone, `Uri`, `Csv` and `Validate` being whole. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
 > `Union` and `Decimal`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
 > unwritten. **The runtime hole that sat under four of those is closed** — `mwl_runtime::Tag` has a
@@ -139,12 +139,12 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Random::bytes`, `Hash::stream` and the honest return type of `Uri`'s two decoders are unwritten
 > rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 398 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 400 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **31 remaining keys are the machine-readable work list for
+> own module doc states, and that file's **27 remaining keys are the machine-readable work list for
 > §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test
@@ -173,17 +173,14 @@
 > its seven fixtures produce their frozen output — `examples/core.mwl`, `report.mwl`, `numbers.mwl`,
 > `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
-> `Core\Path`, § 11's `Core\Uuid`, § 12's `Core\Uri` percent-encoding half and query pair, and § 12's
-> `Core\Csv` are
-> built; `Uri::parse`
-> and its instance still owe the RFC 3986 dependency, and it is the last § 12 dependency still to
-> pick — `Csv` took `csv-core` for its reader,
+> `Core\Path`, § 11's `Core\Uuid` and § 12's `Core\Uri`, `Core\Csv` and `Core\Validate` are all
+> built and whole. **Every § 12 dependency is now picked** — `Uri`'s grammar half took `fluent-uri`
+> for RFC 3986 over `url`'s WHATWG reading, `Csv` took `csv-core` for its reader,
 > hex needed none, `Encoding`'s base64 and base32 pairs took `base64` and
-> `data-encoding`, its text trio `encoding_rs`, and `Hash` the RustCrypto family. §§ 7 and 12's
-> `Core\Csv` are now whole, and so is § 12's `Core\Validate` — all six members, with
-> `isIp`'s `{version?: 4|6}` as the registry's first union-typed option — so the
-> fixture's first report has moved past them to `Core\Out::capture` at
-> `collect.mwl:47`.
+> `data-encoding`, its text trio `encoding_rs`, and `Hash` the RustCrypto family, while `Validate`
+> argued none at all; each module's own doc holds its reasoning. So the
+> fixture's first report has moved past all of them to `Core\Out::capture` at
+> `collect.mwl:47`, which lands with M4S's sink work rather than before it.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

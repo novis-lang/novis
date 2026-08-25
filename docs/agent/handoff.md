@@ -2,65 +2,71 @@
 
 ## State
 
-**§ 12's `Core\Validate` is whole** — all six members (`isEmail`, `isDomain`, `isIp`, `isMac`,
-`isAscii`, `isPrintable`) in a new `crates/mwl-stdlib/src/validate.rs`, pinned by one conformance
-case, `tests/conformance/core/validate-members.mwlt`. That module's own doc owns the whole design:
-why it binds **no dependency** (a validator draws a *line*, and where the line falls is a policy the
-caller must be able to read — the opposite of `csv.rs`'s parser argument), exactly where each line
-falls, and every divergence from `filter_var`/`ctype_*` it takes deliberately. Spec § 12 states
-these as prose rather than table rows, so nothing was struck from the ratchet.
+**§ 12's `Core\Uri` is whole** — the grammar half landed beside the percent-encoding half that was
+already there: `Uri::parse`, `Uri::isValid`, the eight readers on the `Uri` instance
+(`scheme`/`userInfo`/`host`/`port`/`path`/`query`/`fragment`/`toString`), `$uri->with` and
+`$uri->resolve`. `crates/mwl-stdlib/src/uri.rs`'s module doc owns the whole design; the short of
+it is that RFC 3986 is a grammar with an external specification so ground-rules.md forced a
+dependency, and the pick was **`fluent-uri` over `url`** because WHATWG's reading rewrites its
+input and cannot hold a relative reference. `parse` reports and never normalizes; `toString` is the
+text that was parsed, byte for byte. § 12's table gained two rows for the readers, the way
+`parseQuery`'s row was amended before.
 
-**The registry can state a literal union now.** `registry::CoreTy::IntLiteral(i64)` is new, and an
-option's type may be a `CoreTy::Union` of them defaulting to `Const::Null` — the guard test is
-`a_union_option_is_a_closed_set_of_literals` (`registry.rs`), and `a_literal_type_only_appears_inside_a_union`
-is its placement rule. `Core\Validate::isIp($s, {version: 5})` is now `E0401: expected 4|6, found
-int` end to end; `mwl-types`' `core_lib` test `a_literal_union_option_interns_to_its_two_literals`
-pins the interned shape.
+**Every § 12 dependency is now picked**, so `Core\Uri`, `Core\Csv` and `Core\Validate` are all
+built and whole and `examples/collect.mwl`'s frontier is still `Core\Out::capture` at
+`collect.mwl:47` — which lands with M4S's sink work (ADR 0088 §§ 3, 5), not before. `collect.mwl:43`'s
+`?array<T>` panic is still queued behind it, unreported because resolution errors print before
+lowering runs.
 
-**Conformance is 398** of 600; differential is 86 of 150 and has not moved. The ratchet is still at
-**31 keys**. `examples/collect.mwl`'s frontier has moved to **`Core\Out::capture` at
-`collect.mwl:47`** — which is not a cheap next slice: spec § 12 line 818 makes its return the
-**carrier of the sink in force** (ADR 0088 §§ 3, 5), so it lands with M4S's sink work, not before.
-`collect.mwl:43`'s `?array<T>` panic is still waiting behind it, unreported because resolution
-errors print before lowering runs.
+Conformance is **400** of 600; differential is 86 of 150 and has not moved. The ratchet is at
+**27 keys**, and **20 of them are `Core\Arr`** — which is what the next group is.
 
-## Next group — `Core\Uri`'s remaining half, then the `?array<T>` hole
+`Core\Uri` opened one hole, recorded as `uri.rs` gap 1: `$uri->with` replaces a component and
+cannot **remove** one, because an omitted option and a written `null` would both arrive as
+`Tag::Null`. The fix is an options bag that can tell them apart, not a `""`-means-remove rule.
 
-**Shared file set for `[1]`/`[2]`:** `crates/mwl-stdlib/src/uri.rs` (`:179` `NAME`, `:183` `CLASS`,
-`:229` `instance:`, `:230` `slots:`, `:236` `address`), `crates/mwl-stdlib/src/registry.rs:669`
-(`crate::uri::CLASS` is already in `CLASSES`), `crates/mwl-stdlib/tests/spec-members-outstanding.txt`
-(strike `§12 Uri::parse`, `§12 Uri::isValid`, then `§12 $uri->with`, `§12 $uri->resolve`), and
-`tests/conformance/core/`. `csv.rs` and `validate.rs` are the two freshest models — the first for a
-dependency pick, the second for arguing none.
+## Next group — `Core\Arr`, in three slices off one file
 
-- [ ] **`Core\Uri::parse` and `Uri::isValid`** — spec rows at `docs/spec/01-core-library.md:767-768`,
-      prose at `:776`. This is **the last § 12 dependency still to pick**: RFC 3986, and the
-      WHATWG-URL crates are a different specification rather than a stricter one, so state which
-      question the member answers before choosing. `parse` returns a `CoreTy::Instance` and so needs
-      `CoreClass::slots` filled for the first time in this module — `objmap.rs` is the shape.
-      `Uri::parse` is an ADR 0057 intrinsic; `isValid` is neutral and must not launder (§ 12's
-      `Core\Http::allowUrl` at § 16 is the SSRF question, not this one).
-- [ ] **`$uri->with({scheme?, host?, port?, path?, query?, fragment?})` and `$uri->resolve`** — spec
-      rows at `docs/spec/01-core-library.md:773-774`, same file, reached through `instance:` at
-      `uri.rs:229`. An instance member's receiver is argument slot 0 and is not in `params`, so
-      `with`'s `args:` is 1 + the bag's six.
-- [ ] **The `?array<T>` index hole** (different file set — `crates/mwl-ir/src/lower/expr.rs:2952`):
-      a narrowed nullable array loses its element type, so `$head["name"]` panics at
-      `collect.mwl:43` even inside a `!= null` guard. The playbook's *Writing a test case* bullet has
-      the three spellings that do lower.
+**Shared file set for all three:** `crates/mwl-stdlib/src/arr.rs` (`:23` `CLASS`, `:90` the
+`contains` row to copy a set-member's shape from, `:254` `unique`, `:402` `address`),
+`crates/mwl-stdlib/src/registry.rs:733` (`ENUMS`, where a `SetOn` line goes),
+`crates/mwl-stdlib/tests/spec-members-outstanding.txt`'s § 2 block, and `tests/conformance/core/`.
+`crates/mwl-runtime/src/identity.rs:137` (`value_identical`) and `:255` (`value_hash`) are already
+built and are what the set half needs. `uri.rs` is the freshest model for an options bag whose
+options must be told apart from `null`, and `arr.rs`'s own `ORDER` enum is the model for `SetOn`.
+
+- [ ] **ADR 0069's combination members** — `overlay`, `overlayDeep`, `underlay`, `appendAll`, spec
+      rows at `docs/spec/01-core-library.md:283-286`, rule at
+      [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md). The refusal half is
+      already built (`E0467` for `array + array`), so this is the replacement half. **First
+      question to settle:** the spec writes `array<T|U>` and `registry`'s own
+      `a_union_is_only_ever_a_parameter` says a union cannot be a return type — pick the spelling
+      the registry can state (`array<mixed>` is the safe one) and record it in `arr.rs`'s module
+      doc, per loop-goal.md § *Standing decisions*. All four take a `CoreTy::Variadic` tail, which
+      is one ABI argument whatever the call writes.
+- [ ] **The set half** — `diff` and `intersect`, spec rows at `:287-288`. Needs `SetOn { Values,
+      Keys, Both }` added to `registry::ENUMS` beside the member (`registry.rs:724`'s doc says why
+      it is deliberately absent today) and an `{on?: SetOn, by?: callable, comparator?: callable}`
+      bag. `mwl-stdlib`'s own gap 3 (`lib.rs:165`) says everything else these need already exists.
+- [ ] **The structure members** — `append`, `prepend`, `slice`, spec rows at `:239`, `:242-243`.
+      `append`/`prepend` are variadic; `slice` takes `?int $length = null` and a
+      `{preserveKeys?: bool}` bag, both shapes the registry already states
+      (`Core\Str::slice` is the `?int` model at `str.rs:119`).
 
 ## Backlog
 
-- § 2 owes 19 of the ratchet's 31 keys — `Arr::diff`/`intersect` and ADR 0069's combination members
-  ([docs/adr/0069](../adr/0069-array-combination-is-key-type-independent.md)).
-- `Core\Out::capture` waits on ADR 0088's sink carrier — `docs/spec/01-core-library.md:818`.
-- § 9 owes `Core\Heap` and the `Iterable` its three rows declare (`mwl_stdlib::objmap` module doc).
-- § 5 owes `compile`/`replaceWith`, which need `Pattern` (`mwl_stdlib::regex` gap 1).
-- § 10 owes the constructor's `{previous: $e}` shape and `$e->location` ([ADR 0071](../adr/0071-derived-codecs.md) § 5).
-- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` module doc).
+- `Core\Out::capture` — the last § 12 key; blocked on M4S's sink work (ADR 0088 §§ 3, 5).
+- The `?array<T>` index hole — `mwl-ir` panics at `crates/mwl-ir/src/lower/expr.rs:2952`; playbook
+  § *Writing a test case* has the three spellings that work around it.
+- § 4's `Date`, `TimeOfDay` and `Core\Month` — `mwl_stdlib::time` gap 1.
+- § 5's `compile`/`replaceWith`, which need `Pattern` — `mwl_stdlib::regex` gap 1.
+- § 10's `{previous: $e}` options shape and `$e->location` — ADR 0071 § 5 needs them.
+- § 11's `Random::bytes` and `Hash::stream` — the `bytes` tag they waited on exists now.
 
-## Notes for the driver
+## Gap in `orient.py`'s pack
 
-`orient.py`'s pack was complete for this goal — nothing outside it was needed. Both slices landed in
-**one commit** rather than one each: they share every file (`validate.rs`, `registry.rs`, `lib.rs`,
-one conformance case), so a per-slice staging would have had nothing to separate.
+`loop-goal.toml`'s `[context] rules` did not include ground-rules.md's **"anything with an external
+specification is a dependency, and if no crate exists the feature is not built"** (README.md
+§ *Decisions taken at project start*). That rule decided this whole session's first question, and
+it was only found because `uri.rs`'s own module doc happened to quote it. Every remaining `Core`
+slice that might bind a crate needs it printed — add its selector.
