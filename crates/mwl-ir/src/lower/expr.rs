@@ -183,6 +183,7 @@ impl<'a> Lowering<'a> {
                 object, nullsafe, ..
             } => self.lower_property_access(object, *nullsafe, expr, env, cur),
             ExprKind::ArrayLiteral(items) => self.lower_array_literal(items, env, cur),
+            ExprKind::ObjectLiteral(fields) => self.lower_object_literal(fields, env, cur),
             ExprKind::Index { base, index } => {
                 self.lower_index(base, index.as_deref(), expr, env, cur)
             }
@@ -2929,6 +2930,87 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
         }
         self.close_nullsafe(guard, v, ty, cur)
+    }
+
+    /// `{x: 1, y: 2}` — [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
+    /// § 2's anonymous object literal, which is an ordinary instance of a
+    /// class this function invents: one [`InstKind::New`] with no constructor,
+    /// then one [`InstKind::FieldSet`] per field.
+    ///
+    /// **The class is per *shape*, not per site** — [`shape_class_label`]
+    /// renders the sorted field-name list into the label, so every occurrence
+    /// of `{x: …, y: …}` anywhere in the unit names the same synthesized
+    /// class and the table carries one copy of it ([`super::lower_file`]
+    /// dedups). Sorted because that is the order
+    /// `mwl_types::ty::TypeInterner::shape` interns a shape's fields in, and
+    /// therefore the order [`InstKind::SlotGet`]'s index counts through: the
+    /// read side resolved its slot number from the checker's field list, so
+    /// the write side has to lay the slots out the same way. That agreement
+    /// is the whole reason a shape needs no layout table.
+    ///
+    /// Nothing else is synthesized. The class is methodless, conforms to
+    /// nothing and declares no constructor — the literal assigns every field
+    /// itself, which is ADR 0022 § 2's definite-assignment obligation
+    /// discharged by construction — so `mwl-codegen` defines it through
+    /// `Classes::define` like any other class and no codegen knows a shape
+    /// exists.
+    ///
+    /// The field values are lowered in **source** order, whatever the sorted
+    /// slot order is: a field initializer can call, and a call can have
+    /// effects. Each is written by name, so the two orders never have to meet.
+    /// A value that is an aliasing read is retained before the slot durably
+    /// owns it, exactly as [`Self::lower_array_literal`]'s elements are; the
+    /// object under construction is not on the owned-temporaries stack, so a
+    /// throw from a later field's initializer abandons it — the identical
+    /// edge a keyed array literal already has, and closed for both at once or
+    /// not at all.
+    ///
+    /// # Panics
+    ///
+    /// Panics for a literal that writes one field name twice. `mwl_types`
+    /// interns that as a shape with a repeated field, and its reader resolves
+    /// the *first* of the two, while a class can only carry one slot under a
+    /// name — so the two sides would disagree silently. Diagnosing it belongs
+    /// to the checker; see the crate docs' known gaps.
+    fn lower_object_literal(
+        &mut self,
+        fields: &[ObjectLiteralField],
+        env: &Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let names: Vec<String> = fields
+            .iter()
+            .map(|field| span_text(self.src, field.name).to_owned())
+            .collect();
+        let mut sorted = names.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert!(
+            sorted.len() == names.len(),
+            "mwl-ir does not lower an object literal that writes one field name twice — \
+             `mwl_types` records the shape with the name repeated and reads the first of \
+             them, so there is no slot layout the two sides agree on; see the crate docs' \
+             known gaps"
+        );
+        let class = shape_class_label(&sorted);
+        let (obj, _) = self.emit(
+            *cur,
+            Ty::Object,
+            InstKind::New {
+                class: class.clone(),
+                ctor: None,
+                args: Vec::new(),
+            },
+        );
+        for (field, name) in fields.iter().zip(names) {
+            let (v, ty) = self.lower_expr(&field.value, None, env, cur);
+            if ty.is_refcounted() && self.aliasing_read(&field.value) {
+                self.emit_retain(*cur, v);
+            }
+            self.emit_field_set(*cur, obj, class.clone(), name, v);
+        }
+        self.record_shape_class(class, sorted);
+        (obj, Ty::Object)
     }
 
     /// `$issue->path` — the shape half of [`Self::lower_property_access`],

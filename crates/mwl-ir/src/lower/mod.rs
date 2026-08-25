@@ -73,7 +73,8 @@ use mwl_diagnostics::{SourceFile, Span};
 use mwl_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchClause, ClassMemberKind, Expr, ExprKind,
     FnBody, FnExpr, ForeachBinding, MatchArm, MethodMember, Modifier, NamespaceDecl, NewTarget,
-    Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    ObjectLiteralField, Stmt, StmtKind, StringPart, SwitchCase, Type, TypeAtom, TypeKind,
+    UnaryOp as AstUnaryOp,
 };
 use mwl_types::EnumTable;
 use mwl_types::expr_table::{ExprInfo, ExprTypeTable, ForeachDrive};
@@ -535,6 +536,11 @@ pub fn lower_program(
     // unchanged file, the same stability `crate::ids` already guarantees for a
     // statement id.
     classes.sort_by(|a, b| a.label.cmp(&b.label));
+    // A shape literal's synthesized class is keyed on the shape, not the site
+    // — see `shape_class_label` — so two bodies both writing `{x: 1, y: 2}`
+    // each record one. Nothing else here can repeat a label: `layouts` is a
+    // map, and a closure's and a generator's class are named for the site.
+    classes.dedup_by(|a, b| a.label == b.label);
 
     crate::ir::Program { functions, classes }
 }
@@ -677,8 +683,11 @@ pub fn lower_method(
     }
 
     let pending = std::mem::take(&mut low.closures);
+    // Beside the closures, and out the same channel: see `Lowering::shapes`.
+    let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    let (closures, mut classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    classes.extend(shapes);
     Lowered {
         function: Function {
             name: name.to_owned(),
@@ -815,8 +824,11 @@ pub fn lower_property_hook(
     }
 
     let pending = std::mem::take(&mut low.closures);
+    // Beside the closures, and out the same channel: see `Lowering::shapes`.
+    let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    let (closures, mut classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    classes.extend(shapes);
     Lowered {
         function: Function {
             name: name.to_owned(),
@@ -882,8 +894,11 @@ pub fn lower_script(
     }
 
     let pending = std::mem::take(&mut low.closures);
+    // Beside the closures, and out the same channel: see `Lowering::shapes`.
+    let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
-    let (closures, classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    let (closures, mut classes) = drain_closures(pending, src, exprs, checked_types, enums);
+    classes.extend(shapes);
     Lowered {
         function: Function {
             name: name.to_owned(),
@@ -1040,6 +1055,15 @@ struct Lowering<'a> {
     /// by whichever entry point built this frame, since a
     /// [`crate::ir::Function`] has nowhere to carry a second one.
     closures: Vec<PendingClosure>,
+    /// One synthesized class per distinct ADR 0036 § 2 shape literal this
+    /// body writes — see [`Lowering::lower_object_literal`], which builds
+    /// them, and [`shape_class_label`], which names them.
+    ///
+    /// Travels out beside `closures` for the same reason: a class is
+    /// something only [`lower_file`] can hold, and an expression met in the
+    /// middle of a body has nowhere else to put one. Deduplicated by label as
+    /// it is filled, so a body writing `{x: 1}` in a loop records one entry.
+    shapes: Vec<crate::ir::Class>,
 }
 
 /// One by-reference argument staged at a call site, and where its written-back
@@ -1219,7 +1243,29 @@ impl<'a> Lowering<'a> {
             pending_refs: Vec::new(),
             generator: None,
             closures: Vec::new(),
+            shapes: Vec::new(),
         }
+    }
+    /// Records the synthesized class a shape literal named, unless this body
+    /// already recorded one under the same label — see [`Self::shapes`].
+    pub(super) fn record_shape_class(&mut self, label: String, fields: Vec<String>) {
+        if self.shapes.iter().any(|class| class.label == label) {
+            return;
+        }
+        self.shapes.push(crate::ir::Class {
+            label,
+            fields,
+            // ADR 0036 § 5: a shape literal's class has no methods, no
+            // supertypes and no `implements`, it carries no attribute, and
+            // every one of its slots is written by the literal that built it
+            // — so there is nothing for a codec, a constructor arity or a
+            // declared default to say.
+            conforms: Vec::new(),
+            methods: Vec::new(),
+            codec: Vec::new(),
+            ctor_arity: 0,
+            defaults: Vec::new(),
+        });
     }
     pub(super) fn new_block(&mut self) -> BlockId {
         let id = self.ids.next_block();
@@ -2042,6 +2088,23 @@ fn options_defaults(
              — mwl_types::core_lib is trusted to record one `ConstArg::Options` per bag"
         ),
     }
+}
+
+/// The label the class synthesized for an ADR 0036 § 2 shape literal carries
+/// — `$shape{x,y}` for `{x: 1, y: 2}`, from the field names **already
+/// sorted**.
+///
+/// A label, not a name: it identifies the class in [`crate::ir::Program`]'s
+/// table and nowhere else, and it is never a symbol, since a shape class has
+/// no methods to emit one for. `$` cannot start an MWL identifier, so no
+/// declaration can collide with it — the same guarantee the `Owner$fn0` a
+/// closure's environment class carries relies on.
+///
+/// Keyed on the sorted field names alone, so two literals with the same
+/// fields share one class whatever their field *types* are: a class carries
+/// slot names, not slot types, and both sides count slots the same way.
+pub(super) fn shape_class_label(sorted_fields: &[String]) -> String {
+    format!("$shape{{{}}}", sorted_fields.join(","))
 }
 
 fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {

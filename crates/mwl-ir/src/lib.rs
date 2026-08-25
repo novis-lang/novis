@@ -176,9 +176,16 @@
 //!    panics; the checker defers that runtime check to M4. A shape receiver
 //!    naming one of its own fields does lower — one
 //!    [`ir::InstKind::SlotGet`] at the index the checker resolved — but only
-//!    as a **read**: writing a shape's field still panics, and so does an
-//!    anonymous `{a: 1}` literal, so every shape value a program can hold
-//!    today is one a `Core` member built. Nullsafe `?->` *reads* — a call and a property alike, over
+//!    as a **read**: writing a shape's field still panics. An anonymous
+//!    `{a: 1}` literal now constructs, as an instance of the class
+//!    [`lower::shape_class_label`] names, and that fixed-offset read is
+//!    **wrong through a widened view** — ADR 0036 § 4 calls for a name-keyed
+//!    fetch precisely because two values satisfying one shape lay their
+//!    fields out differently, and nothing here does that yet, so a `{y: int}`
+//!    parameter handed a `{x: 1, y: 2}` reads slot 0 and answers `1`. The
+//!    same hole is open for a *named class* flowing into a shape-typed
+//!    binding, which predates the literal. Until it closes, a shape type is
+//!    sound only where it is the value's own exact shape. Nullsafe `?->` *reads* — a call and a property alike, over
 //!    the one guard [`lower::Lowering::open_nullsafe`] opens — but a nullsafe
 //!    assignment target (`$a?->b = v`) panics, which PHP refuses outright and
 //!    `mwl_types` does not diagnose yet. An

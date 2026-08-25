@@ -361,12 +361,19 @@ pub(super) fn check_property_member(
     // yet to throw from); see the crate docs' known gaps.
     match env.interner.get(object_ty).clone() {
         Ty::Shape(fields) => {
-            // A field the shape names is proven present *and* proven to be at
-            // one slot: the interner sorted this list by name, and every
-            // producer of a shape value lays its slots out in that same order.
-            // So the position resolved here is what `mwl-ir` reads, and
+            // A field the shape names is proven present, and — where this
+            // shape is the value's own exact type — proven to be at one slot:
+            // the interner sorted this list by name, and every producer of a
+            // shape value lays its slots out in that same order. So the
+            // position resolved here is what `mwl-ir` reads, and
             // `ExprInfo::ShapeProperty` carries it instead of the declaring
             // class an anonymous methodless value does not have.
+            //
+            // Where the receiver is a *widened view* — ADR 0036 § 3's width
+            // subtyping, or a named class satisfying the shape — the position
+            // is not the runtime one, and the read answers the wrong field.
+            // That is why § 4 specifies a name-keyed fetch; `mwl-ir`'s crate
+            // docs' gap 6 owns the hole and what closing it costs.
             return fields
                 .iter()
                 .position(|(n, _)| *n == name)

@@ -54,9 +54,9 @@ pub(super) fn drain_closures(
     let mut functions = Vec::new();
     let mut classes = Vec::new();
     while let Some(next) = pending.pop() {
-        let (function, class, more) = lower_closure(&next, src, exprs, checked_types, enums);
+        let (function, synthesized, more) = lower_closure(&next, src, exprs, checked_types, enums);
         functions.push(function);
-        classes.push(class);
+        classes.extend(synthesized);
         pending.extend(more);
     }
     (functions, classes)
@@ -106,13 +106,18 @@ pub(super) fn drain_closures(
 ///
 /// Panics naming the shape for a `fn` literal the checker recorded no
 /// [`ExprInfo::Closure`] for, and for a parameter with no declared type.
+///
+/// # Returns
+///
+/// The environment class first, then one per ADR 0036 § 2 shape literal the
+/// body wrote — [`Lowering::shapes`], which has nowhere else to travel.
 pub(super) fn lower_closure(
     pending: &PendingClosure,
     src: &SourceFile,
     exprs: &ExprTypeTable,
     checked_types: &TypeInterner,
     enums: &EnumTable,
-) -> (Function, crate::ir::Class, Vec<PendingClosure>) {
+) -> (Function, Vec<crate::ir::Class>, Vec<PendingClosure>) {
     let PendingClosure {
         class,
         fn_expr,
@@ -189,6 +194,10 @@ pub(super) fn lower_closure(
     }
 
     let more = std::mem::take(&mut low.closures);
+    // A shape literal written *inside* a closure body synthesizes its class
+    // here rather than in the enclosing function, so it rides out beside the
+    // environment class — see `Lowering::shapes`.
+    let shapes = std::mem::take(&mut low.shapes);
     let (blocks, stmt_spans, edge_spans) = low.finish();
     (
         Function {
@@ -200,7 +209,7 @@ pub(super) fn lower_closure(
             stmt_spans,
             edge_spans,
         },
-        crate::ir::Class {
+        std::iter::once(crate::ir::Class {
             label: class.clone(),
             // `FN_ARITY` first, always — a native caller reads it by index,
             // not by name. See that constant.
@@ -214,7 +223,9 @@ pub(super) fn lower_closure(
             codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
-        },
+        })
+        .chain(shapes)
+        .collect(),
         more,
     )
 }
