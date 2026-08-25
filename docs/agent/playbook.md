@@ -188,6 +188,11 @@ is why" — is this file.
 
 ## Writing a test case
 
+- **An array literal written *directly* as a `Core` argument infers `array<mixed>` and is refused.**
+  `Core\Arr::replaceRange($a, 1, 2, ["X"])` is `E0401: expected array<string>, found array<mixed>` — the
+  parameter's type is not pushed into the literal, whether the parameter is `array<T>` or concrete. Declare
+  a typed local one line above and pass it, which is what every existing case already does; a scratch probe
+  written the obvious way fails at the checker before it ever reaches the member you are testing.
 - **A case cannot index into an `array<mixed>`'s elements, and `Core\Json::encode` is the way round
   it.** `$q["b"] as array<string>` panics `mwl-ir` outright — *"got `Tagged as Array`"*, ADR 0007 § 2's
   `array<T> as array<U>` row being the one still missing — so a member answering a nested shape has no

@@ -2,65 +2,65 @@
 
 ## State
 
-**§ 2's four positional structure members are whole.** `slice`, `chunk`, `append` and `prepend` are
-built, tested and committed, so `Core\Arr` now owes nine rows rather than thirteen. The design call
-they forced is `append`'s keys, and `crates/mwl-stdlib/src/arr.rs`'s member doc comments own it: it
-**keeps** the subject's keys and puts each added value under the next free integer key, because
-being `$a[] = $v`'s expression form is the whole claim of the row; `prepend` cannot, so it
-renumbers everything, which is `padStart`'s answer for `padStart`'s reason. Neither is key-*type*
-dependent in ADR 0069 § 3's sense. `slice`'s new `window` (`arr.rs:1178`) is deliberately
-`crate::str::window`'s sign rule one unit up, in entries rather than characters.
+**§ 2 owes six structure members.** `replaceRange`, `flatten` and `flattenDeep` are built, tested and
+committed, leaving `column`, `from`, `groupBy`, `mapKeys`, `reduce` and `sortByKey`. Two design calls
+they forced are recorded where the work lives:
 
-Conformance is **404** of 600, differential **89** of 150, and the ratchet
-(`crates/mwl-stdlib/tests/spec-members-outstanding.txt`) is at **17 keys**, of which **9 are
+- **`registry::Const::EmptyArray` is new**, with its `ConstArg` twin and the `InstKind::ArrayNew`
+  arm a written `[]` already lowers to. It is the only array constant the registry can state, and
+  its own doc comment in `registry.rs` says why a populated one is not worth a second literal
+  grammar. It costs one allocation per use site, like `Const::Str`.
+- **`flatten` and `flattenDeep` do not share a signature**, and `docs/spec/01-core-library.md`'s two
+  rows were amended to say so: `flatten(array<array<T>>): array<T>` is exact, while `flattenDeep`'s
+  depth is the caller's data, so a nested `T` would bind one level too shallow over a three-deep
+  argument and declare a nesting its answer does not have. `array<mixed>` both ways is the *sound*
+  spelling; `arr.rs`'s member doc owns the reasoning.
+
+Conformance is **406** of 600, differential **89** of 150, and the ratchet
+(`crates/mwl-stdlib/tests/spec-members-outstanding.txt`) is at **14 keys**, of which **6 are
 `Core\Arr`**. `examples/collect.mwl`'s frontier is unchanged: `Core\Out::capture` at
 `collect.mwl:47`, which lands with M4S's sink work (ADR 0088 §§ 3, 5). `uri.rs` gap 1 (an options
 bag that can tell an omitted option from a written `null`) is still open.
 
-Both slices landed in **one commit** rather than one each: they share `arr.rs`'s one contiguous
-row insertion and `carry_entry` is written on `append_borrowed`, extracted by the first. The commit
-message says so.
+A valgrind run over the new default covers the one new refcount edge — an omitted `array<T>`
+argument materializes a fresh refcounted value inside an argument list — and it is clean.
 
-## Next group — § 2's remaining structure members, in three slices off one file
+## Next group — § 2's key-shaped structure members, in three slices off one file
 
-**Shared file set for all three:** `crates/mwl-stdlib/src/arr.rs` (`:55` `CLASS`, `:197` the
-`chunk` row to insert beside, `:498` `PRESERVE_KEYS`, `:883` `preserve_keys`, `:916` `key_bytes`,
-`:976` `append_borrowed`, `:1178` `window`, `:1215` `carry_entry`, `:2745` `copy_all`, and
-`address()` below the rows), `crates/mwl-stdlib/tests/spec-members-outstanding.txt`'s § 2 block,
-and `tests/conformance/core/`. `arr.rs:821` `mwl_core_arr_map` is the closure-calling shape slice 3
-does not need but slices after this group will.
+**Shared file set for all three:** `crates/mwl-stdlib/src/arr.rs` (`:55` `CLASS`, `:590`
+`SORT_OPTIONS`, `:618` `address()`, `:850` `mwl_core_arr_map` — the closure-calling shape, `:945`
+`key_bytes`, `:1005` `append_borrowed`, `:1023` `append_values`, `:1051` `copy_entry`, `:2072`
+`mwl_core_arr_count_by` — a callback keyed by its answer, which is `groupBy` minus the bucket,
+`:2215` `mwl_core_arr_sort`, `:2463` `subject`, `:2481` `array_at`),
+`crates/mwl-stdlib/tests/spec-members-outstanding.txt`'s § 2 block, and `tests/conformance/core/`.
 
-- [ ] **`replaceRange`** — spec row at `docs/spec/01-core-library.md:240`,
-      `(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>`. It is
-      `slice`'s window with the entries *substituted*, so read both positions through `window`
-      (`arr.rs:1178`) and the pair is exact for every sign, as `Core\Str`'s two already are. **Check
-      this first:** `registry::Const` has no array variant (`registry.rs:372-383`), so the written
-      `= []` default has nowhere to come from — either add `Const::EmptyArray` and its arm in
-      `mwl-types/src/core_lib.rs:220`'s `lower_const` (whose `panic!` arm is explicit that a
-      missing variant fails at build time), or make the parameter required and amend the spec row.
-      Adding the variant is the smaller change and the spec already wrote the default. The result
-      renumbers, like `slice`'s; no `preserveKeys` option, because the spec row declares none.
-- [ ] **`flatten` and `flattenDeep`** — spec rows at `:250` and `:251`, both
-      `(array<T> $a): array<T>`, one level and all levels. **The signature is the open question:**
-      `T` binds from the subject's element type, so over an `array<array<string>>` the row promises
-      `array<array<string>>` back, which is not what either member returns. Decide it under
-      loop-goal.md § *Standing decisions* — `array<mixed>`, or amending the spec rows — and record
-      it in `arr.rs`'s module doc beside the `array<T|U>` call the combination members made. A
-      non-array element passes through rather than throwing (that is what "one level" means over a
-      mixed array), and keys are discarded: there is no non-arbitrary key for an entry lifted out
-      of a nested array, which is `prepend`'s reasoning again.
-- [ ] **`column`** — spec row at `:257`,
-      `(array<array<T>> $a, int|string $column, {indexBy?: int|string}): array<T>`. `key_bytes`
-      (`arr.rs:916`) is the `int|string` key reader both arguments want; `ARRAY_KEY` beside it is
-      the union `flip`'s row already names. A row missing the column key is skipped, as
-      `array_column` does; `indexBy` naming a missing key falls back to the appended position.
+- [ ] **`column`** — spec row at `docs/spec/01-core-library.md:257`,
+      `(array<array<T>> $a, int|string $column, {indexBy?: int|string}): array<T>`. The nested-`T`
+      parameter is `flatten`'s, already proven to bind (`generics.rs:126` recurses through
+      `Ty::Array`), and `array_at` (`:2481`) is how each row is borrowed. Two option questions the
+      spec does not answer and this slice must: a row **missing** the named column — skip it, as
+      PHP's `array_column` does — and a missing `indexBy` key on a row that *has* the column. Take
+      PHP's answer there too (fall back to the next integer key) and say so in the member doc.
+      `key_bytes` (`:945`) normalizes both option values, since either may be an `int`.
+- [ ] **`mapKeys` and `groupBy`** — spec rows at `:315` and `:322`, both a `callable` over each
+      value. `mwl_core_arr_map` (`:850`) is the closure-calling shape to copy — note it takes `ctx`,
+      not `_ctx` — and `mwl_core_arr_count_by` (`:2072`) is nearer still: it already keys a result
+      by what a callback answered, so `groupBy` is that with an `array<T>` bucket instead of a
+      counter. `mapKeys`'s answer collides when two values map to one key; last-wins matches
+      `flip`'s recorded rule, so say so rather than inventing a third.
+- [ ] **`sortByKey`** — spec row at `:343`,
+      `(array<T> $a, {order?: Order, comparator?: callable}): array<T>`. It is
+      `mwl_core_arr_sort` (`:2215`) with the *key* compared instead of the value, and `SORT_OPTIONS`
+      (`:590`) is the bag to model the new one on — minus `by`, which a key has no use for. Keys
+      preserved, necessarily: sorting by key and then discarding them answers nothing.
 
 ## Backlog
 
-- `Core\Arr`'s four remaining § 2 rows after this group — `from`, `groupBy`, `mapKeys`, `reduce`,
-  `sortByKey` — spec `:256`, `:317`, `:310`, `:312`, `:338`; `from` needs `Iterable` (§ 9's gap).
-- `Core\Out::capture` at `examples/collect.mwl:47` — the gate's frontier, M4S sink work, ADR 0088.
-- § 4's `Date`/`TimeOfDay`/`Core\Month` — `mwl_stdlib::time` gap 1.
-- § 10's constructor `{previous: $e}` shape and `$e->location` — ADR 0071 § 5 needs them.
-- Stage 4's counts are their own work: conformance 404/600, differential 89/150.
-- `uri.rs` gap 1 — an options bag that distinguishes an omitted option from a written `null`.
+- `§2 from` needs `Iterable<T>`/`Iterator<T>` and `{limit}` — spec `:256`; ADR 0053 § 5 owns the
+  no-keys rule, and § 9's `Core\Heap` waits on the same `Iterable`.
+- `§2 reduce` needs a `U` return bound from a third argument — spec `:317`; check
+  `generics.rs`'s `callback_result_var` before budgeting it.
+- `§4 date`/`timeOfDay`/`withTime` — `mwl_stdlib::time` gap 1's component views.
+- `§5 compile`/`replaceWith` need a `Pattern` instance — `mwl_stdlib::regex` gap 1.
+- `§11 Random::bytes` and `Hash::stream`; `§12 Out::capture` lands with M4S's sinks (ADR 0088 § 3).
+- ADR 0088's registry-wide qualifier classification for every member row — plan's `Open now`.
