@@ -2850,7 +2850,19 @@ impl<'a> Lowering<'a> {
         let field_name = name.clone();
         // See the `MethodCall` arm above: `?->` guards the access on
         // the receiver not being `null`, `->` opens no guard.
+        let mark = self.temporaries_mark();
         let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
+        // A base that is itself a fresh producer — `$m->make()->name` — has
+        // no other owner, so this frame owes its release. Only the slot read
+        // stages it: a `get` hook's receiver is parameter 0 and the callee's
+        // own exit sweep releases it, which is what the retain below is
+        // deliberately skipped for. Staged before the read so a throw on the
+        // way drops it too, exactly like the `Core`-call arm's receiver.
+        let base_is_temporary =
+            get.is_none() && receiver_ty.is_refcounted() && !self.aliasing_read(object);
+        if base_is_temporary {
+            self.own_temporary(object_v);
+        }
         let (v, ty) = match get {
             Some(label) => {
                 // The receiver is parameter 0, so it is an ordinary
@@ -2882,6 +2894,20 @@ impl<'a> Lowering<'a> {
                 },
             ),
         };
+        if base_is_temporary {
+            // The slot's reference dies with the base, so the value read out
+            // of it needs one of its own first — `FieldGet` borrows, and
+            // releasing the object underneath a borrowed result is a
+            // use-after-free rather than a leak. That makes this whole
+            // expression a *fresh producer*, which is why
+            // `Lowering::aliasing_read` reports a property read off a
+            // temporary as non-aliasing: the consumer must not retain it a
+            // second time.
+            if ty.is_refcounted() {
+                self.emit_retain(*cur, v);
+            }
+            self.release_temporaries_since(mark, *cur);
+        }
         self.close_nullsafe(guard, v, ty, cur)
     }
 

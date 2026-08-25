@@ -1654,14 +1654,29 @@ impl<'a> Lowering<'a> {
     /// `mwl_types`' resolution can tell the two apart, which is why this is a
     /// method on the lowering rather than a free function over the AST —
     /// every retain decision in this file goes through it.
+    ///
+    /// The second case a syntactic judgment cannot make is the *base*: a slot
+    /// is only durable if whatever holds it is. `$m->make()->name` reads a
+    /// field of an object nothing else owns, so
+    /// [`Lowering::lower_property_access`] retains the value it reads and
+    /// releases the object underneath it — the whole expression is a fresh
+    /// producer, exactly like the call inside it, and a consumer that
+    /// retained it again would leak one reference per read. `$a["k"]->name`
+    /// is still an aliasing read, because the base is.
     pub(super) fn aliasing_read(&self, e: &Expr) -> bool {
         if !is_aliasing_read(&e.kind) {
             return false;
         }
-        !matches!(
+        if matches!(
             self.exprs.lookup(e.span),
             Some(ExprInfo::HookedProperty { get: Some(_), .. })
-        )
+        ) {
+            return false;
+        }
+        match &e.kind {
+            ExprKind::PropertyAccess { object, .. } => self.aliasing_read(object),
+            _ => true,
+        }
     }
     /// Releases every refcounted local still live in `env`, in a fixed
     /// (name-sorted) order for deterministic output — the function-exit half
@@ -3125,6 +3140,19 @@ class T {
     fn writing_a_fresh_string_literal_to_a_property_releases_its_previous_value() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass T {\n  function m(): void {\n    Foo $obj = new Foo();\n    $obj->name = \"new\";\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->make()->name` — a field read whose base is a *temporary*. The
+    /// call hands back the only reference to the object, and `FieldGet`
+    /// borrows out of its slot, so the read retains its own result before the
+    /// base is released: the two together make the whole expression a fresh
+    /// producer, which is what `Lowering::aliasing_read` reports it as.
+    #[test]
+    fn a_field_read_off_a_temporary_retains_its_result_and_releases_the_base() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass Maker {\n  function make(): Foo { return new Foo(); }\n}\nclass T {\n  function m(): void {\n    Maker $obj = new Maker();\n    string $s = $obj->make()->name;\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

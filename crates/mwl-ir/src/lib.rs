@@ -71,9 +71,12 @@
 //! - **Refcount insertion is naive and syntactic, not a liveness analysis.**
 //!   Correctness first; elision is a named later optimizer pass. Reading a
 //!   value out of storage another binding still owns — [`lower::is_aliasing_read`]
-//!   names the three shapes — and copying it into a second durable slot needs
-//!   a retain; a freshly constructed value needs none, since it already has
-//!   one natural owner. A slot's previous value is released when overwritten,
+//!   names the three shapes, and `Lowering::aliasing_read` is the judgment
+//!   every decision actually goes through, because two of them are not
+//!   syntactic: an ADR 0014 `get` hook is a call, and a field read whose
+//!   *base* is a temporary owns its own result — and copying it into a second
+//!   durable slot needs a retain; a freshly constructed value needs none,
+//!   since it already has one natural owner. A slot's previous value is released when overwritten,
 //!   every live slot is released at frame exit, and a binding **control flow
 //!   drops** is released at the point it disappears — a local declared inside
 //!   a loop body or inside one `if` branch. That last half was missed until

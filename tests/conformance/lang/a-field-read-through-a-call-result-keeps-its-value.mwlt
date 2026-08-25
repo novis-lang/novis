@@ -1,0 +1,68 @@
+--TEST--
+Reading a property straight through a call result keeps the value alive after the temporary object is dropped (ADR 0004's refcounting policy; `mwl_ir::lower::Lowering::aliasing_read`)
+--FILE--
+<?mwl
+// The call hands back the only reference to the object, and a field read
+// borrows out of its slot — so `mwl-ir` retains the value it read before it
+// releases the base. Every shape below reads through a temporary; the point
+// of each is that the value survives the read rather than being freed with
+// the object it came out of.
+class Name {
+    public string $text;
+    public int $len;
+
+    public function constructor(string $text, int $len) {
+        $this->text = $text;
+        $this->len = $len;
+    }
+}
+
+class Box {
+    public Name $name;
+
+    public function constructor(Name $name) {
+        $this->name = $name;
+    }
+}
+
+class Maker {
+    public function make(): Name {
+        return new Name("hello", 5);
+    }
+
+    public function box(): Box {
+        return new Box(new Name("inner", 5));
+    }
+
+    public function maybe(): ?Name {
+        return new Name("maybe", 5);
+    }
+}
+
+var $m = new Maker();
+
+// bound to a local
+var $s = $m->make()->text;
+echo $s, "\n";
+
+// a field that is not refcounted at all
+echo $m->make()->len, "\n";
+
+// a chain: a field read whose base is itself a field read off a temporary
+echo $m->box()->name->text, "\n";
+
+// as a `Core` argument, and as a method receiver
+echo Core\Str::upper($m->box()->name->text), "\n";
+
+// two of them in one expression
+echo $m->make()->text . "/" . $m->box()->name->text, "\n";
+
+// `?->` off a temporary
+echo $m->maybe()?->text, "\n";
+--EXPECT--
+hello
+5
+inner
+INNER
+hello/inner
+maybe

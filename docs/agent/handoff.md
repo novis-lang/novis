@@ -2,61 +2,66 @@
 
 ## State
 
-**Spec § 9 owes only its `Iterable` now.** `Core\Heap<T>` landed whole —
-`crates/mwl-stdlib/src/heap.rs` is one `array<T>` slot kept as a binary heap plus a `comparator` slot,
-and its own module doc owns the three decisions: `peek` answers the *smallest* element, `peek`/`pop`
-throw on an empty heap rather than answering `?T`, and the ordering is the constructor's comparator,
-else ADR 0013's `Comparable::compareTo`, else `crate::ordering::compare_values`. `comparator_sign`
-moved to `ordering.rs` (two domains read a verdict now); `arr.rs` keeps a one-line wrapper that
-qualifies the member name.
+**The `->`-through-a-call-result leak is closed.** `lower_property_access` stages a *temporary* base
+on the owned-temporaries stack, retains the value it read out of the slot, then releases the base —
+so `$m->make()->name` no longer loses an object per run. The matching half is
+`Lowering::aliasing_read`, which now recurses into a property access's own base: a field read off a
+temporary is a **fresh producer**, so no consumer retains it a second time. `mwl-ir`'s module doc §
+*Refcount insertion is naive and syntactic* owns the rule; the IR shape is pinned by
+`a_field_read_off_a_temporary_retains_its_result_and_releases_the_base` and the observable behaviour
+by `tests/conformance/lang/a-field-read-through-a-call-result-keeps-its-value.mwlt`.
 
-Two capabilities landed under it, both general rather than heap-shaped:
+Verify is green (1531 tests). Valgrind is clean over the new edge (a chain, a `Core` argument, a
+method receiver, a non-refcounted field, `?->` on both legs) and over six of the seven `examples/`
+fixtures; `collect.mwl` still exits 1 at `Core\Out::capture` with **0 bytes lost**, which is the
+known frontier and not a leak.
 
-- **A `Core` class's constructor may take arguments.** `registry::CONSTRUCTORS`'s second half is a
-  whole `CoreMethod` named `constructor`, `mwl_types::core_lib::seed` seeds it as an ordinary instance
-  signature, and `mwl-ir`'s `lower_new` lowers a `Core` `new` with **borrowed** arguments like every
-  other `CoreCall`. So `new Core\Heap<int>(3)` is `E0401` from the same machinery every `Core` call
-  uses. `Core\ObjectMap`/`ObjectSet` declare zero-parameter rows and are unchanged.
-- **A compiled instance member is reachable from native code by name** — `mwl_runtime::dispatch`,
-  promoted out of `sequence.rs` (which now uses it) and given an argument list. That is what closes
-  ADR 0013's "reaching an instance method from a helper is not built yet", and `Core\Arr::sort`'s
-  natural order over objects can now use it too — see the backlog.
+**The same shape is still open one door along:** `$m->rows()["0"]` leaks the array (112 direct + 248
+indirect, measured). `lower_index` releases nothing, exactly as `lower_property_access` did. It is
+item 2 below and it is a near-copy of what just landed.
 
-Verify is green (1530 tests). Valgrind is clean over the heap's own refcount edges
-(`.agent-tmp/heap-probe.mwl`, `heap-comparable.mwl`, `heap-empty.mwl`, `heap-peek-bind.mwl`).
+**Spec § 9 still owes only its `Iterable`.**
 
-**A call result read straight through `->` is never released** — `$m->make()->name` loses the object
-every run, with no `Core` member involved. Found while valgrinding this slice; recorded in the plan's
-*Open now* and in `playbook.md`. It is a leak rather than a missing feature, so it outranks breadth,
-and it is item 1 below.
+## Next group — the two remaining `mwl-ir` lowering holes, then § 9's `Iterable`
 
-## Next group — the two `mwl-ir` lowering holes that produce wrong runtime behaviour
+**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` (`lower_property_access` at `expr.rs:2814`
+is the worked example for both of the first two), `crates/mwl-ir/src/lower/mod.rs`
+(`aliasing_read` at `mod.rs:1657`, `lower_program`), plus for item 1
+`crates/mwl-types/src/{defaults.rs,signatures.rs,layout.rs}`,
+`crates/mwl-codegen/src/emit.rs:1367` (`emit_new`) and `crates/mwl-runtime/src/object.rs`.
 
-**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` (`lower_property_access` at `expr.rs:2814`, its
-`InstKind::FieldGet` at `expr.rs:2878`, the `new` arms at `expr.rs:2331`/`2479`), `lower/mod.rs`'s
-owned-temporaries stack, and `crates/mwl-codegen/src/emit.rs:471` (`InstKind::New`).
-
-- [ ] **1. A field read releases its base when the base is a temporary.** The producer hands back a
-      fresh reference and a field read consumes nothing, so `$h->peek()->name` leaks. The Core-call
-      arm at `expr.rs:2500`-ish is the shape to copy (`own_temporary` + `release_temporaries_since`),
-      but the field read must retain its *own* result first — today it borrows out of the object, which
-      is why binding to a local works and reading through does not.
-- [ ] **2. A property's declared default runs.** `public int $n = 4;` reads back `0` unless a
-      constructor assigns it (plan's *Open now*). Decide where it belongs — a synthesized prologue in
-      `mwl-ir` before the constructor body, or the slot fill at `emit.rs:471` — and say so in the
-      crate's module doc.
-- [ ] **3. § 9's `Iterable`**, which all three of its rows declare —
-      `docs/spec/01-core-library.md:683-685`. `mwl_runtime::sequence` already drives a cursor by name;
-      what is missing is a `Core` class *satisfying* `Iterable<T>`, which is
-      `crates/mwl-stdlib/src/instance.rs`'s question (a `Core` descriptor carries no method table).
+- [ ] **1. A property's declared default runs.** Bigger and worse than the plan recorded: `public
+      int $n = 4;` reads back `0`, `public string $s = "x";` **aborts with a null-pointer
+      dereference** in `mwl-runtime`'s `string.rs:258`, and `public int $n = "no";` is not even
+      type-checked. Nothing evaluates the expression — `signatures.rs:657` reads `p.default` only to
+      decide ADR 0022's definite-assignment obligation. **`InstKind::New` carries the constructor
+      call**, so no IR site can splice an initializer between allocation and construction; a
+      constructor prologue cannot work either, because the ctor label is the *declaring* class's
+      (`new Dog()` runs `Animal::constructor` and would miss `Dog`'s own defaults). The answer is a
+      per-class **default image on the descriptor**, which also reaches `NewDynamic` and ADR 0071's
+      native decoder. Chain, bottom up, each layer additive: `defaults.rs` gains an
+      `eval_property_default` beside `eval_param_default` at `defaults.rs:149` (same literal decoder, plus `= []` →
+      the existing `ConstArg::EmptyArray`, plus a property-flavoured diagnostic — next free type
+      code is `E0472`); `ClassSignature` (`signatures.rs:299`) gains `property_defaults`;
+      `ClassLayout` (`layout.rs:66`) gains a `defaults: Vec<Option<ConstArg>>` parallel to its
+      already-flattened `fields`; `ir::Class` (`ir.rs:32`) copies it; `mwl-codegen` hands it to a
+      new `ClassTable::set_defaults` (copy `set_codec` at `object.rs:437`); `ClassDesc`
+      (`object.rs:159`) holds it and `MwlObj::new` — behind `mwl_object_new` at `object.rs:1031` —
+      writes the slots instead of leaving them null. `mwl-ir` emits **no new instruction**, so no
+      `print_function` snapshot moves.
+- [ ] **2. An index read releases its base when the base is a temporary.** The direct copy of what
+      just landed: stage the base with `own_temporary`, retain the element, `release_temporaries_since`,
+      and extend `aliasing_read`'s new recursion to `ExprKind::Index`. `ir.rs:789` already documents
+      that `ArrayGet` reads without retaining, the same way `FieldGet` does. Probe:
+      `.agent-tmp/index-temp.mwl`.
+- [ ] **3. § 9's `Iterable`**, which `Core\Heap`/`ObjectMap`/`ObjectSet` all declare — `mwl-stdlib`
+      `heap.rs`/`objmap.rs`/`objset.rs`, ADR 0053 § 2.
 
 ## Backlog
 
-- `Core\Arr::sort` over objects still throws instead of using `Comparable` — `mwl_runtime::dispatch`
-  exists now, so `arr.rs:2710`'s known gap is a small slice (`ordering.rs` owns the message).
-- A `Core`-owned instance has no compiled method table, so a heap of `Core\Time\Instant` needs an
-  explicit comparator — `heap.rs`'s module doc, *Known gap*.
-- § 10 owes the constructor's `{previous: $e}` options shape and `$e->location` — plan's *Open now*.
-- § 6 owes `decodeAs<T>` (`json` gap 2); § 12 owes `Out::capture`, the one key left on the ratchet.
-- `do`/`while` does not lower; ADR 0043's `by`-delegation is off path — plan's *Open now*.
-- Stage 4's counts are their own work: conformance 419 of 600, differential 89 of 150.
+- `Core\Arr::sort`'s natural order over objects can use `mwl_runtime::dispatch` now — `arr.rs`.
+- § 6 owes `decodeAs<T>`; § 10 owes `{previous: $e}`, `$e->location`, `ParseError::issues`.
+- § 12 owes `Core\Out::capture` alone — the `examples/collect.mwl` frontier; lands with M4S/ADR 0092.
+- ADR 0088's qualifier classification on every `mwl-stdlib` member row — plan's *Open now*.
+- `do`/`while` does not lower; an abandoned generator skips its `finally` (`mwl-ir` gap 18).
+- Stage 4 counts: conformance 420 of 600, differential 89 of 150.

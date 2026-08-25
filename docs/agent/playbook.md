@@ -139,13 +139,14 @@ is why" — is this file.
   fair leak check. What is still open is narrower and named in that field's own doc comment (an argument
   being **transferred** when a later one throws) plus the producers that still release inline — a
   normalized subscript key, a `match` subject.
-- **A call result read straight through `->` leaks the object, and it looks exactly like the slice you
-  just wrote.** `$h->peek()->name` loses one object per run; `var $t = $h->peek(); $t->name` is clean.
-  The producer hands back a fresh reference, a *call* on it would consume it (the callee releases its
-  receiver), and a **field read** consumes nothing — so `mwl-ir` never releases the base. It is
-  inherited, not yours: prove that in a minute with a probe naming no `Core` member at all (a user
-  class with a factory method), and bind the result in the `.mwlt` case rather than pinning the leak.
-  The plan's *Open now* holds the shape of the fix.
+- **A field read off a *temporary* is a fresh producer, not an aliasing read.** `$h->peek()->name`
+  used to leak one object per run; it no longer does, because `lower_property_access` retains the
+  value it read and releases the base, and `Lowering::aliasing_read` therefore recurses into a
+  property access's own base and answers `false` for this shape. So a consumer must not retain such
+  a read a second time — every retain decision in `mwl-ir` already goes through `aliasing_read`, and
+  a new one that reaches for the syntactic `is_aliasing_read` instead is how the double-retain gets
+  back in. **`$a["k"]` off a temporary is the same shape and is still open**: `lower_index` releases
+  nothing, so `$m->rows()["0"]` leaks the array.
 
 ## Adding a `Core` member
 
@@ -310,12 +311,14 @@ is why" — is this file.
   never assert a wall-clock value.
 - **Clippy refuses a float literal that approximates π or e**, and refuses `assert!` over two constants —
   a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
-- **A property's declared default never runs, and the symptom is a silently zero field.**
-  `public int $n = 4;` reads back `0` unless a constructor assigns it — no diagnostic, nothing on
-  stderr. A cursor class written for an iteration case (`private int $at = 4;`) therefore drains
+- **A property's declared default never runs, and for a refcounted field it is a crash rather than a
+  zero.** `public int $n = 4;` reads back `0` unless a constructor assigns it — no diagnostic,
+  nothing on stderr — and `public string $s = "x";` aborts with *"null pointer dereference"* in
+  `mwl-runtime`'s `string.rs` the first time anything reads the slot, because the slot was only ever
+  nulled. A cursor class written for an iteration case (`private int $at = 4;`) therefore drains
   *empty* instead of failing, which reads exactly like a broken helper and costs a bisect that never
-  reaches the class. Assign every field inside `constructor` until the plan's *Open now* entry for
-  this is closed.
+  reaches the class. The expression is not type-checked either (`public int $n = "no";` compiles).
+  Assign every field inside `constructor` until the plan's *Open now* entry for this is closed.
 
 ## Splitting a file that got too big
 
