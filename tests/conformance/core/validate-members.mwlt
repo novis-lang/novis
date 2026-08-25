@@ -1,0 +1,99 @@
+--TEST--
+`Core\Validate`'s six members draw the lines spec § 12's prose states, and `{version?: 4|6}` is ADR 0047 § 1's literal union rather than an `int`
+--FILE--
+<?mwl
+// docs/spec/01-core-library.md § 12: "isEmail, isIp(string $s,
+// {version?: 4|6}), isMac, isDomain, isAscii, isPrintable — all
+// (subject, ...): bool, all neutral." `crates/mwl-stdlib/src/validate.rs`'s
+// own module doc owns where each line falls and every divergence from
+// `filter_var` it takes deliberately.
+
+// `isEmail`: one `@`, a dot-atom local part, a domain of two labels or more.
+echo "email ",
+     (Core\Validate::isEmail("ada@example.test") ? "y" : "n"),
+     (Core\Validate::isEmail("ada+list@mail.example.test") ? "y" : "n"),
+     (Core\Validate::isEmail("!#$%&'*+-/=?^_`{|}~@example.test") ? "y" : "n"),
+     "\n";
+
+// Refused, and the last two are legal RFC 5322 the module doc names: an
+// empty atom, a byte outside `atext`, a bare host, and a domain literal.
+echo "email ",
+     (Core\Validate::isEmail("no-at-sign") ? "y" : "n"),
+     (Core\Validate::isEmail("a..b@example.test") ? "y" : "n"),
+     (Core\Validate::isEmail("a b@example.test") ? "y" : "n"),
+     (Core\Validate::isEmail("ada@localhost") ? "y" : "n"),
+     (Core\Validate::isEmail("ada@[192.0.2.1]") ? "y" : "n"),
+     "\n";
+
+// `isDomain` is the hostname question, which is not `isEmail`'s: a single
+// label is a domain and is not an address. A hyphen may sit inside a label
+// and not at either end, `_` is not an LDH byte, and a trailing root dot is
+// a wire-form detail rather than something a field holds.
+echo "domain ",
+     (Core\Validate::isDomain("localhost") ? "y" : "n"),
+     (Core\Validate::isDomain("a-b.example.test") ? "y" : "n"),
+     (Core\Validate::isDomain("-x.test") ? "y" : "n"),
+     (Core\Validate::isDomain("exam_ple.test") ? "y" : "n"),
+     (Core\Validate::isDomain("example.test.") ? "y" : "n"),
+     "\n";
+
+// `isIp` with no option takes either family; `{version: 4}` and
+// `{version: 6}` take exactly one. `{version: 5}` does not compile at all,
+// which is the whole reason the option is `4|6` — the type it is refused
+// against is pinned by `mwl-types`' own `core_lib` tests, since a passing
+// conformance case cannot also hold a compile error.
+echo "ip ",
+     (Core\Validate::isIp("192.0.2.1") ? "y" : "n"),
+     (Core\Validate::isIp("2001:db8::1") ? "y" : "n"),
+     (Core\Validate::isIp("192.0.2.1", {version: 4}) ? "y" : "n"),
+     (Core\Validate::isIp("192.0.2.1", {version: 6}) ? "y" : "n"),
+     (Core\Validate::isIp("::ffff:192.0.2.1", {version: 6}) ? "y" : "n"),
+     "\n";
+
+// A leading zero is refused, so the octal reading `inet_aton` made an SSRF
+// primitive has no spelling here; a zone identifier is not part of an
+// address either.
+echo "ip ",
+     (Core\Validate::isIp("192.000.002.001") ? "y" : "n"),
+     (Core\Validate::isIp("256.1.1.1") ? "y" : "n"),
+     (Core\Validate::isIp("1.2.3") ? "y" : "n"),
+     (Core\Validate::isIp("fe80::1%eth0") ? "y" : "n"),
+     "\n";
+
+// `isMac` takes all three of `FILTER_VALIDATE_MAC`'s spellings, and one
+// separator throughout.
+echo "mac ",
+     (Core\Validate::isMac("00:11:22:33:44:55") ? "y" : "n"),
+     (Core\Validate::isMac("00-11-22-33-44-55") ? "y" : "n"),
+     (Core\Validate::isMac("0011.2233.4455") ? "y" : "n"),
+     (Core\Validate::isMac("aa:BB:cc:DD:ee:FF") ? "y" : "n"),
+     (Core\Validate::isMac("00:11-22:33:44:55") ? "y" : "n"),
+     (Core\Validate::isMac("00:11:22:33:44") ? "y" : "n"),
+     "\n";
+
+// The byte half. `isAscii` is the encoding question and `isPrintable` is the
+// character one: an MWL `string` is UTF-8, so `café` is printable text here
+// where PHP's byte-wise `ctype_print` said `false`, and both members answer
+// `true` for the empty string where every `ctype_*` answers `false`. A tab is
+// general category `Cc` and so is not printable, exactly as in PHP.
+echo "ascii ",
+     (Core\Validate::isAscii("abc def") ? "y" : "n"),
+     (Core\Validate::isAscii("") ? "y" : "n"),
+     (Core\Validate::isAscii("café") ? "y" : "n"),
+     "\n";
+echo "print ",
+     (Core\Validate::isPrintable("abc def") ? "y" : "n"),
+     (Core\Validate::isPrintable("café") ? "y" : "n"),
+     (Core\Validate::isPrintable("") ? "y" : "n"),
+     (Core\Validate::isPrintable("a\tb") ? "y" : "n"),
+     (Core\Validate::isPrintable("a\nb") ? "y" : "n"),
+     "\n";
+--EXPECT--
+email yyy
+email nnnnn
+domain yynnn
+ip yyyny
+ip nnnn
+mac yyyynn
+ascii yyn
+print yyynn

@@ -210,6 +210,7 @@ pub mod str;
 pub mod time;
 pub mod uri;
 pub mod uuid;
+mod validate;
 
 /// ADR 0071's derived-codec field list, re-exported from where it is
 /// *consumed*.
@@ -278,6 +279,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| time::address(symbol))
         .or_else(|| uri::address(symbol))
         .or_else(|| uuid::address(symbol))
+        .or_else(|| validate::address(symbol))
         .unwrap_or_else(|| panic!("mwl-stdlib registers `{symbol}` with no implementation address"))
 }
 

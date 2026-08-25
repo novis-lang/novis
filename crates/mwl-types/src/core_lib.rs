@@ -298,6 +298,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let null = interner.null();
             interner.make_union([null, inner])
         }
+        // ADR 0047 § 1's integer atom, which the interner already has: the
+        // registry variant exists only so a row can *write* one, and there is
+        // nothing to translate beyond the value itself.
+        CoreTy::IntLiteral(value) => interner.int_literal(*value),
         // The registry's order is kept, not sorted: it is the order the bag
         // flattens into ABI arguments. `Ty::Options` owns why.
         CoreTy::Options(options) => {
@@ -448,6 +452,39 @@ mod tests {
         let expected = interner.make_union([null, string]);
         assert_eq!(sig.return_ty, expected);
         assert_eq!(interner.describe(sig.return_ty), "string|null");
+    }
+
+    /// `CoreTy::IntLiteral` inside an option's union interns to exactly the
+    /// two literal types a source-written `4|6` would — which is what makes
+    /// `Core\Validate::isIp($s, {version: 5})` an `E0401` naming `4|6` rather
+    /// than an `int` argument the member has to re-check at run time.
+    ///
+    /// The union is built here rather than compared against a `describe`
+    /// string on purpose: a union orders its members by type id, so seeding a
+    /// member anywhere could otherwise flip `4|6` to `6|4`.
+    #[test]
+    fn a_literal_union_option_interns_to_its_two_literals() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        let (_, sig) = resolve_method(
+            &QName::parse(r"Core\Validate"),
+            "isIp",
+            &table,
+            &ClassGraph::default(),
+        )
+        .expect("Core\\Validate::isIp is registered");
+
+        let four = interner.int_literal(4);
+        let six = interner.int_literal(6);
+        let version = interner.make_union([four, six]);
+        let expected = interner.options(vec![("version".to_owned(), version)]);
+        assert_eq!(sig.params[1], expected);
+        // A literal is its own type, not the `int` it erases to — the whole
+        // point of ADR 0047 § 1 at this position.
+        let int = interner.int();
+        assert_ne!(version, int);
     }
 
     /// A nullable *element* type substitutes like any other: `first`'s `?T`

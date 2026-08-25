@@ -179,11 +179,35 @@ pub enum CoreTy {
     /// value, read back as `mwl_ir::ty::Ty::Tagged` — that variant's own doc
     /// comment owns the representation and what it spends.
     ///
-    /// **Never an option's type**, which is the one restriction left:
-    /// `CoreTy::Options` flattens a bag into one ABI argument per option, and
-    /// an omitted option passes a [`Const`], which has no union-shaped
-    /// spelling. `a_union_is_never_an_option_type` holds that.
+    /// **An option's type only where every member is a literal**, which is
+    /// the one restriction left. `CoreTy::Options` flattens a bag into one ABI
+    /// argument per option and an omitted option passes a [`Const`], which has
+    /// no union-shaped spelling — so a `{a?: int|string}` would have no
+    /// default it could state. A union of [`Self::IntLiteral`]s does: every
+    /// value the position admits is a compile-time constant of one
+    /// representation, and "not given" is [`Const::Null`], exactly as it
+    /// already is for the `{by?: callable}` an option cannot otherwise spell.
+    /// `Core\Validate::isIp`'s `{version?: 4|6}` is the row that wanted this
+    /// and [`crate::validate`]'s docs say why the alternative was worse.
+    /// `a_union_option_is_a_closed_set_of_literals` holds it.
     Union(&'static [CoreTy]),
+    /// **One `int` literal** — [ADR 0047](../../../../docs/adr/0047-literal-and-enum-case-types.md)
+    /// § 1's integer atom, whose only use is inside a [`Self::Union`] that
+    /// spells out a closed set of numbers.
+    ///
+    /// The same relationship to [`Self::Int`] that [`Self::EnumCase`] has to
+    /// [`Self::Enum`], and it exists for the same reason at a different place:
+    /// spec § 12 writes `isIp(string $s, {version?: 4|6})`, and the point of
+    /// that spelling is that `{version: 5}` does not compile. `int` would not
+    /// say that, and a `Core\IpVersion` enum would say it by adding a name to
+    /// the surface — which is precisely what § 12 removed `isIpV4`/`isIpV6` to
+    /// avoid.
+    ///
+    /// Never a whole parameter or a bare option type, for [`Self::EnumCase`]'s
+    /// reason: a position admitting exactly one number admits no choice, and
+    /// would be an argument the caller writes and the member could assume.
+    /// `a_literal_type_only_appears_inside_a_union` holds that.
+    IntLiteral(i64),
     /// `?T` — [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)'s
     /// nullable, which the spec's own tables write at every member that
     /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
@@ -644,6 +668,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::hash::CLASS,
     crate::uri::CLASS,
     crate::csv::CLASS,
+    crate::validate::CLASS,
 ];
 
 /// Every `Core` class a program may write `new` on, with the symbol that
@@ -1063,23 +1088,34 @@ mod tests {
         }
     }
 
-    /// A union is legal in either direction but never as an **option's**
-    /// type — see [`CoreTy::Union`], which owns why: a bag flattens to one ABI
-    /// argument per option, and the [`Const`] an omitted one passes has no
-    /// union-shaped spelling. [`CoreTy::Nullable`] interns as a union, so it
-    /// is refused here on the same terms.
+    /// A union is legal in either direction, and as an **option's** type only
+    /// where every member is a literal — see [`CoreTy::Union`], which owns
+    /// why: a bag flattens to one ABI argument per option, and the [`Const`]
+    /// an omitted one passes has no union-shaped spelling, so the members have
+    /// to be constants and the default has to be [`Const::Null`].
+    /// [`CoreTy::Nullable`] interns as a union of something that is not a
+    /// literal, so it is refused here outright.
     #[test]
-    fn a_union_is_never_an_option_type() {
+    fn a_union_option_is_a_closed_set_of_literals() {
         for class in CLASSES {
             for method in class.members() {
                 for member in method.options().unwrap_or(&[]) {
+                    let closed = match member.ty {
+                        CoreTy::Nullable(_) => false,
+                        CoreTy::Union(members) => {
+                            members
+                                .iter()
+                                .all(|one| matches!(one, CoreTy::IntLiteral(_)))
+                                && matches!(member.default, Const::Null)
+                        }
+                        _ => true,
+                    };
                     assert!(
-                        !matches!(member.ty, CoreTy::Union(_) | CoreTy::Nullable(_)),
-                        "{}::{}'s option `{}` is a union, which no option-bag \
-                         flattening rule covers",
-                        class.name,
-                        method.name,
-                        member.name
+                        closed,
+                        "{}::{}'s option `{}` is a union that is not a closed set of \
+                         literals defaulting to `null`, which no option-bag flattening \
+                         rule covers",
+                        class.name, method.name, member.name
                     );
                 }
             }
@@ -1433,6 +1469,32 @@ mod tests {
                     assert!(
                         !matches!(option.ty, CoreTy::EnumCase(..)),
                         "{}::{}'s option `{}` is a bare enum-case type",
+                        class.name,
+                        method.name,
+                        option.name
+                    );
+                }
+            }
+        }
+    }
+
+    /// A literal type is only ever a member of a union — see
+    /// [`CoreTy::IntLiteral`] for why a position admitting exactly one number
+    /// is not a position at all.
+    #[test]
+    fn a_literal_type_only_appears_inside_a_union() {
+        for (what, ty) in every_type() {
+            assert!(
+                !matches!(ty, CoreTy::IntLiteral(_)),
+                "{what} takes or answers a bare literal type"
+            );
+        }
+        for class in CLASSES {
+            for method in class.members() {
+                for option in method.options().unwrap_or(&[]) {
+                    assert!(
+                        !matches!(option.ty, CoreTy::IntLiteral(_)),
+                        "{}::{}'s option `{}` is a bare literal type",
                         class.name,
                         method.name,
                         option.name
