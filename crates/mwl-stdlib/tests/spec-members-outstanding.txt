@@ -13,7 +13,6 @@
 
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 append
-§2 appendAll
 §2 chunk
 §2 column
 §2 diff
@@ -23,14 +22,11 @@
 §2 groupBy
 §2 intersect
 §2 mapKeys
-§2 overlay
-§2 overlayDeep
 §2 prepend
 §2 reduce
 §2 replaceRange
 §2 slice
 §2 sortByKey
-§2 underlay
 
 # § 4 `Core\Time` — the `Date`/`TimeOfDay` component views
 §4 date

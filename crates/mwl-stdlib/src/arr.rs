@@ -4,6 +4,27 @@
 //! Every member here is pure (ADR 0063 R3) and borrows its subject rather
 //! than consuming it — see [`crate`]'s own docs for why that falls out of
 //! being a helper rather than being a rule this module states.
+//!
+//! # `array<T|U>` is written literally, not flattened to `array<mixed>`
+//!
+//! [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+//! § 1 writes all four combination members as `array<T|U>`, and the registry
+//! can state exactly that: a union is legal in either direction
+//! ([`crate::registry::CoreTy::Union`]), so the return type is
+//! [`COMBINED`] rather than the `array<mixed>` that would be the safe
+//! fallback. It is never worse and usually better — `overlay` over two
+//! `array<string>`s answers `array<string>`, which a call site can index and
+//! read without a cast, where `array<mixed>` would force one at every use.
+//!
+//! What that costs is a *shape* rule the spec's signature already implies and
+//! this is the one place it is written down: `T` binds from the base and `U`
+//! from the **first** trailing layer (`mwl_types::generics` binds
+//! first-occurrence-wins and substitutes before it checks a single argument),
+//! so every later layer is checked against the first layer's element type.
+//! Combining three arrays of three unrelated element types is therefore a
+//! type error rather than an `array<mixed>`; a call that means it widens the
+//! layers to `array<mixed>` itself, which element-covariance-on-read makes
+//! free.
 
 use mwl_runtime::{Decimal, Fault, MwlArray, MwlStr, Tag, Value};
 
@@ -244,6 +265,46 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_arr_from_keys_and_values",
         },
         CoreMethod {
+            name: "overlay",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
+            symbol: "mwl_core_arr_overlay",
+        },
+        CoreMethod {
+            name: "overlayDeep",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
+            symbol: "mwl_core_arr_overlay_deep",
+        },
+        CoreMethod {
+            name: "underlay",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
+            symbol: "mwl_core_arr_underlay",
+        },
+        CoreMethod {
+            name: "appendAll",
+            params: &[
+                CoreTy::Array(&CoreTy::Var("T")),
+                CoreTy::Variadic(&CoreTy::Array(&CoreTy::Var("U"))),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Union(COMBINED)),
+            symbol: "mwl_core_arr_append_all",
+        },
+        CoreMethod {
             name: "countBy",
             params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Options(BY_OPTION)],
             defaults: &[],
@@ -321,6 +382,21 @@ pub const ORDER: CoreEnum = CoreEnum {
 /// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
 /// writes at every member taking or producing a key.
 const ARRAY_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
+
+/// `T|U` — the element type ADR 0069's four combination members answer, and
+/// the spelling this module's own docs record as the one the registry can
+/// state.
+///
+/// A union is legal in either direction ([`CoreTy::Union`]), so the spec's
+/// `array<T|U>` is written literally rather than flattened to `array<mixed>`.
+/// `T` binds from the base and `U` from the *first* trailing layer, and
+/// `mwl_types::generics` substitutes both before a single argument is checked
+/// — so every later layer is checked against the first one's type, and the
+/// union the return type names is exactly what the result holds. A call with
+/// no layers at all leaves `U` unbound, which substitutes to `mixed`, and
+/// `T|mixed` is the honest answer for a combination whose second half the
+/// call did not write.
+const COMBINED: &[CoreTy] = &[CoreTy::Var("T"), CoreTy::Var("U")];
 
 /// `{preserveKeys?: bool}` — the bag the spec's § 2 *Structure* rows share.
 ///
@@ -422,6 +498,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_arr_pad_end" => (mwl_core_arr_pad_end as *const ()).cast(),
         "mwl_core_arr_fill" => (mwl_core_arr_fill as *const ()).cast(),
         "mwl_core_arr_fill_keys" => (mwl_core_arr_fill_keys as *const ()).cast(),
+        "mwl_core_arr_overlay" => (mwl_core_arr_overlay as *const ()).cast(),
+        "mwl_core_arr_overlay_deep" => (mwl_core_arr_overlay_deep as *const ()).cast(),
+        "mwl_core_arr_underlay" => (mwl_core_arr_underlay as *const ()).cast(),
+        "mwl_core_arr_append_all" => (mwl_core_arr_append_all as *const ()).cast(),
         "mwl_core_arr_count_by" => (mwl_core_arr_count_by as *const ()).cast(),
         "mwl_core_arr_first" => (mwl_core_arr_first as *const ()).cast(),
         "mwl_core_arr_last" => (mwl_core_arr_last as *const ()).cast(),
@@ -759,7 +839,9 @@ fn append_copies(out: &mut MwlArray, value: Value, times: u64) {
 
 /// Appends every value of a borrowed subject to a result being built, under
 /// fresh `0, 1, …` keys — [`mwl_core_arr_values`]'s walk, shared by the two
-/// padding members because each one wraps it in padding on a different side.
+/// padding members because each one wraps it in padding on a different side,
+/// and by [`mwl_core_arr_append_all`], which is that walk over every argument
+/// in turn and nothing else.
 fn append_values(subject: &MwlArray, out: &mut MwlArray) {
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
@@ -842,8 +924,6 @@ mwl_runtime::mwl_helper! {
     /// is written into one reused buffer rather than a `String` per entry — the
     /// member is O(n) and this keeps it one allocation rather than n.
     fn mwl_core_arr_is_list(_ctx, args: [1]) {
-        use std::fmt::Write as _;
-
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Arr::isList expected {:?}, got tag {}",
@@ -851,25 +931,37 @@ mwl_runtime::mwl_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        let subject = borrowed(array);
-
-        let mut expected = String::new();
-        let mut from = 0usize;
-        let mut index = 0usize;
-        while let Some(slot) = subject.next_slot(from) {
-            let key = subject
-                .key_at(slot)
-                .expect("next_slot only names live entries");
-            expected.clear();
-            write!(expected, "{index}").expect("writing a usize into a String never fails");
-            if key.as_bytes() != expected.as_bytes() {
-                return Ok(Value::bool(false));
-            }
-            from = slot + 1;
-            index += 1;
-        }
-        Ok(Value::bool(true))
+        Ok(Value::bool(is_list(&borrowed(array))))
     }
+}
+
+/// ADR 0007 § 5's `"0" … "n−1"` test, over a borrowed array.
+///
+/// Lifted out of [`mwl_core_arr_is_list`] rather than left inline because
+/// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// § 1 states `overlayDeep`'s recursion rule in terms of it — two sides of a
+/// key merge only where both hold an array and **neither is a list** — so the
+/// member and the rule now read the same predicate rather than two spellings
+/// of it.
+fn is_list(subject: &MwlArray) -> bool {
+    use std::fmt::Write as _;
+
+    let mut expected = String::new();
+    let mut from = 0usize;
+    let mut index = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        let key = subject
+            .key_at(slot)
+            .expect("next_slot only names live entries");
+        expected.clear();
+        write!(expected, "{index}").expect("writing a usize into a String never fails");
+        if key.as_bytes() != expected.as_bytes() {
+            return false;
+        }
+        from = slot + 1;
+        index += 1;
+    }
+    true
 }
 
 mwl_runtime::mwl_helper! {
@@ -2213,6 +2305,233 @@ mwl_runtime::mwl_helper! {
             }
             out.set(key, value);
         }
+        Ok(Value::array(out))
+    }
+}
+
+/// Calls `each` with every layer of a combination member's variadic tail, in
+/// the order the call wrote them.
+///
+/// The tail arrives as **one** `array` argument holding the trailing
+/// arguments under `"0"`, `"1"`, … — [`crate::registry::CoreTy::Variadic`]
+/// owns why — so all four of ADR 0069's members are ordinary two-slot helpers
+/// and this is the walk they share. A layer whose tag is not `Tag::Array` is
+/// a fatal rather than a skip: the row declares `array<U>`, so meeting
+/// anything else means the value did not come through the checker.
+fn for_each_layer(
+    tail: &Value,
+    member: &str,
+    mut each: impl FnMut(&MwlArray) -> Result<(), Fault>,
+) -> Result<(), Fault> {
+    let layers = tail.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Arr::{member} expected {:?} for its trailing arguments, got tag {}",
+            Tag::Array,
+            tail.tag_byte()
+        ))
+    })?;
+    let layers = borrowed(layers);
+    let mut from = 0usize;
+    while let Some(slot) = layers.next_slot(from) {
+        let value = layers
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+        let layer = value.array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Arr::{member} expected {:?} for a layer, got tag {}",
+                Tag::Array,
+                value.tag_byte()
+            ))
+        })?;
+        each(&borrowed(layer))?;
+    }
+    Ok(())
+}
+
+/// Copies every entry of `subject` into `out`, key and all — [`copy_entry`]
+/// over the whole array.
+fn copy_all(subject: &MwlArray, out: &mut MwlArray) {
+    let mut from = 0usize;
+    while let Some(slot) = subject.next_slot(from) {
+        copy_entry(subject, slot, out);
+        from = slot + 1;
+    }
+}
+
+/// ADR 0069 § 1's overlay walk: `layer`'s entries written over `out`, an
+/// existing key **replacing in place** and a new key landing at the end.
+///
+/// The key order falls out of `MwlArray::set` rather than being arranged
+/// here — replacing an indexed key leaves its slot where it was, and a new
+/// one is pushed — which is what makes `overlay($b, $a)` and
+/// `underlay($a, $b)` two operations rather than one with its arguments
+/// flipped.
+///
+/// `deep` is `overlayDeep`'s one extra rule and the only difference between
+/// the two members; [`merged`] holds it.
+fn overlay_into(out: &mut MwlArray, layer: &MwlArray, deep: bool) {
+    let mut from = 0usize;
+    while let Some(slot) = layer.next_slot(from) {
+        let key = layer
+            .key_at(slot)
+            .expect("next_slot only names live entries");
+        let value = layer
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+
+        if deep && let Some(nested) = merged(out, key.as_bytes(), value) {
+            // `Value::array` takes over the fresh allocation's only reference,
+            // and `set` releases whatever it displaces — the array this one
+            // was built from.
+            out.set(key, Value::array(nested));
+            continue;
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the entry is owned by the layer, which outlives this \
+                      call, so the copy stored here needs a reference of its own"
+        )]
+        unsafe {
+            value.retain();
+        }
+        out.set(key, value);
+    }
+}
+
+/// The recursive half of [`overlay_into`]: what `key` should hold once
+/// `value` is overlaid onto whatever `out` already has there, or `None` where
+/// ADR 0069 § 1's test says the right-hand value replaces the left wholesale.
+///
+/// The test is *both* sides holding an array and **neither** being a list.
+/// A list is replaced rather than merged element-wise because element-wise is
+/// the surprise in PHP's `array_replace_recursive` — overlaying `[9]` onto
+/// `[1, 2, 3]` yielding `[9, 2, 3]` is never what a configuration merge
+/// wanted — and [`is_list`] is the predicate so the rule is stated in terms
+/// the language already has.
+///
+/// The result is a fresh array rather than a mutation of the existing one:
+/// an MWL array is a copy-on-write *value* (ADR 0007 § 5), so the entry `out`
+/// holds may be shared with the caller's own binding and writing through it
+/// would be visible there.
+fn merged(out: &MwlArray, key: &[u8], value: Value) -> Option<MwlArray> {
+    let existing = borrowed(out.get(key)?.array_ptr()?);
+    let incoming = borrowed(value.array_ptr()?);
+    if is_list(&existing) || is_list(&incoming) {
+        return None;
+    }
+    let mut nested = MwlArray::new();
+    copy_all(&existing, &mut nested);
+    overlay_into(&mut nested, &incoming, true);
+    Some(nested)
+}
+
+/// ADR 0069 § 1's underlay walk: `layer`'s entries written *under* `out`, an
+/// existing key ignored and a new key landing at the end.
+fn underlay_into(out: &mut MwlArray, layer: &MwlArray) {
+    let mut from = 0usize;
+    while let Some(slot) = layer.next_slot(from) {
+        let key = layer
+            .key_at(slot)
+            .expect("next_slot only names live entries");
+        from = slot + 1;
+        if out.has_key(key.as_bytes()) {
+            continue;
+        }
+        copy_entry(layer, slot, out);
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::overlay(array<T> $base, array<U> ...$layers): array<T|U>` —
+    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// § 1's right-wins combination, replacing PHP's `array_replace` exactly
+    /// and its `array_merge` over maps.
+    ///
+    /// **Every key is treated the same way**, which is the whole of that ADR:
+    /// PHP's `array_merge` renumbers integer keys and keeps string ones, so
+    /// the same call is a replace or an append depending on data the call site
+    /// cannot see. Here an existing key replaces in place and a new one is
+    /// appended, whatever the key looks like.
+    ///
+    /// [`overlay_into`] owns the walk and the key order; [`COMBINED`] owns
+    /// why the return type is spelled `array<T|U>` rather than `array<mixed>`.
+    fn mwl_core_arr_overlay(_ctx, args: [2]) {
+        let base = subject(args, "overlay")?;
+        let mut out = MwlArray::new();
+        copy_all(&base, &mut out);
+        for_each_layer(&args[1], "overlay", |layer| {
+            overlay_into(&mut out, layer, false);
+            Ok(())
+        })?;
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::overlayDeep(array<T> $base, array<U> ...$layers): array<T|U>`
+    /// — [`mwl_core_arr_overlay`] with ADR 0069 § 1's recursion rule,
+    /// replacing PHP's `array_replace_recursive`.
+    ///
+    /// It recurses only where both sides of a key hold an array and neither
+    /// is a list; [`merged`] holds why, and it is also why
+    /// `array_merge_recursive` has no replacement at all — promoting two
+    /// colliding scalars into a two-element array is a data-shape change
+    /// rather than a merge.
+    fn mwl_core_arr_overlay_deep(_ctx, args: [2]) {
+        let base = subject(args, "overlayDeep")?;
+        let mut out = MwlArray::new();
+        copy_all(&base, &mut out);
+        for_each_layer(&args[1], "overlayDeep", |layer| {
+            overlay_into(&mut out, layer, true);
+            Ok(())
+        })?;
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::underlay(array<T> $base, array<U> ...$layers): array<T|U>` —
+    /// ADR 0069 § 1's left-wins combination, exactly PHP's `$a + $b` and the
+    /// member `E0467` names when a program writes that operator.
+    ///
+    /// Not `overlay` with its arguments flipped: `overlay($b, $a)` holds the
+    /// same entries but in `$b`'s key order, and an MWL array is
+    /// insertion-ordered, so the difference is observable in `foreach`, in
+    /// `Core\Json::encode` and in every `Arr::first`. Two behaviours, two
+    /// names — ADR 0063 R15.
+    fn mwl_core_arr_underlay(_ctx, args: [2]) {
+        let base = subject(args, "underlay")?;
+        let mut out = MwlArray::new();
+        copy_all(&base, &mut out);
+        for_each_layer(&args[1], "underlay", |layer| {
+            underlay_into(&mut out, layer);
+            Ok(())
+        })?;
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Arr::appendAll(array<T> $a, array<U> ...$others): array<T|U>` —
+    /// ADR 0069 § 1's key-discarding combination, replacing PHP's
+    /// `array_merge` over lists and its `array_merge(...$arrays)` flatten
+    /// idiom.
+    ///
+    /// **Always a list**, whatever the arguments were: every value of every
+    /// argument in order, under fresh keys. That is the half of `array_merge`
+    /// a call site actually meant when its arguments were lists, and naming
+    /// it separately is what lets `overlay` be the other half without either
+    /// one deciding by key type at run time.
+    fn mwl_core_arr_append_all(_ctx, args: [2]) {
+        let base = subject(args, "appendAll")?;
+        let mut out = MwlArray::new();
+        append_values(&base, &mut out);
+        for_each_layer(&args[1], "appendAll", |layer| {
+            append_values(layer, &mut out);
+            Ok(())
+        })?;
         Ok(Value::array(out))
     }
 }
