@@ -51,6 +51,83 @@ pub(crate) fn check_src_table(src: &str) -> (Diagnostics, ExprTypeTable) {
     (diags, exprs)
 }
 
+/// Like [`check_src_table`], but hands back the interner too, and a way to name
+/// a written annotation's span — what a fixture asserting *which type an atom
+/// interned to* needs, since a `TypeId` means nothing without the interner that
+/// issued it.
+///
+/// The span is found by locating the annotation's own source text, which is
+/// what [`mwl_types::lower::lower_type`] keys its record by
+/// (`ExprTypeTable::declared_ty`). Written out rather than counted, so a
+/// fixture says which annotation it means.
+pub(crate) fn check_src_declared(src: &str) -> (Diagnostics, DeclaredTypes) {
+    let mut map = SourceMap::new();
+    let file = map.add("t.mwl", src);
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(file), &mut diags);
+    assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+    let module = resolve_file(&stmts, map.file(file), &mut diags);
+    assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+    let mut interner = TypeInterner::new();
+    let mut exprs = ExprTypeTable::new();
+    check_program(
+        &stmts,
+        map.file(file),
+        &module,
+        &mut interner,
+        &mut exprs,
+        &mut diags,
+    );
+    (
+        diags,
+        DeclaredTypes {
+            src: src.to_owned(),
+            file,
+            exprs,
+            interner,
+        },
+    )
+}
+
+/// What [`check_src_declared`] hands back: every annotation the run interned,
+/// reachable by the text it was written as.
+pub(crate) struct DeclaredTypes {
+    src: String,
+    file: mwl_diagnostics::SourceId,
+    exprs: ExprTypeTable,
+    pub interner: TypeInterner,
+}
+
+impl DeclaredTypes {
+    /// The `TypeId` the annotation `ty`, written on the binding `var`,
+    /// interned to — `of("Mode", "$whole")`.
+    ///
+    /// Located by the pair rather than by `ty` alone, because a type's own
+    /// text is rarely unique in a fixture (`Mode` appears in the `enum` header
+    /// too) while `Mode $whole` is.
+    ///
+    /// # Panics
+    /// Panics if `ty var` appears nowhere in the fixture, or if nothing was
+    /// recorded at `ty`'s span — both mean the fixture and the assertion have
+    /// drifted apart, which is worth failing loudly for.
+    pub(crate) fn of(&self, ty: &str, var: &str) -> mwl_types::ty::TypeId {
+        let needle = format!("{ty} {var}");
+        let start = self
+            .src
+            .find(&needle)
+            .unwrap_or_else(|| panic!("the fixture does not contain `{needle}`"));
+        let start = u32::try_from(start).expect("fixtures are small");
+        let span = mwl_diagnostics::Span::new(
+            self.file,
+            start,
+            start + u32::try_from(ty.len()).expect("fixtures are small"),
+        );
+        self.exprs
+            .declared_ty(span)
+            .unwrap_or_else(|| panic!("no type was recorded for the annotation `{needle}`"))
+    }
+}
+
 /// The capture names a fixture's one closure recorded, in order.
 pub(crate) fn captures_of(src: &str) -> Vec<String> {
     let (diags, exprs) = check_src_table(src);

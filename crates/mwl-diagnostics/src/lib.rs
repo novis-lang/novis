@@ -607,14 +607,10 @@ pub mod code {
     /// whose scale exceeds 28 — ADR 0054 § 1's layout. `Core\BigDecimal` (§ 6)
     /// is the type for a value beyond it.
     pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
-    /// A literal or enum-case type ([ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md))
-    /// reaching the checker. The grammar is M1's; § 4's assignability and
-    /// conversion table is M2's, and until that lands the honest answer is to
-    /// refuse the type rather than widen it to its base silently — an
-    /// unchecked `"a"|"b"` would accept every `string`, which is the whole
-    /// hole this ADR exists to close. Removing this arm is that ADR's own
-    /// M2 verification row.
-    pub const E_LITERAL_TYPE_UNCHECKED: Code = Code::new("E0457");
+    // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
+    // [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)'s three
+    // atoms intern as real types now (`mwl_types::lower::lower_atom`), so there
+    // is nothing left for it to refuse.
     /// A `Core` **instance** member written as a static call —
     /// `Core\Regex\Match::text($m)` rather than `$m->text()`. ADR 0063 R20
     /// gives every `Core` operation exactly one spelling, and this is the one
@@ -667,6 +663,14 @@ pub mod code {
     /// union operator rather than migrating it — the diagnostic names
     /// `Core\Arr::underlay`, which is what it always meant.
     pub const E_ARRAY_PLUS_UNSUPPORTED: Code = Code::new("E0467");
+    /// `Foo::BAR` in *type* position where `Foo::BAR` is declared but is not a
+    /// `string`/`int` compile-time constant — ADR 0047 § 2. A class constant is
+    /// sugar that folds to its own literal type, so it folds only when the
+    /// value has a literal type to fold to: a `float` (§ 7 defers those), an
+    /// `array`, an object, or an expression that is not a literal at all has
+    /// none. A name nothing declares is [`E_UNKNOWN_MEMBER`] instead — that is
+    /// a different mistake with a different fix.
+    pub const E_LITERAL_TYPE_NOT_CONST: Code = Code::new("E0468");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

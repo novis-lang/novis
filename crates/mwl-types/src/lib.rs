@@ -65,6 +65,11 @@
 //!   are. Runs from [`check`]'s walk because that is what holds the namespace
 //!   and import set a nominal match needs; its answer is recorded in
 //!   [`expr_table`] and joined against [`layout`]'s slot order by `mwl-ir`.
+//! - [`consts`] — [`consts::build_const_table`]: every declared class
+//!   constant's folded compile-time value, built beside [`enums`] and read
+//!   only where ADR 0047 § 2's `Foo::CONST` appears in *type* position. See
+//!   that module's own docs for why an ineligible value is recorded rather
+//!   than dropped.
 //! - [`layout`] — [`layout::build_class_layouts`]: every declared class's
 //!   instance-field *slot order* and its flattened supertype set, the second
 //!   thing this crate publishes for `mwl-ir` to read back. See that module's
@@ -175,12 +180,15 @@
 //!   the row above: a missing narrowing is a diagnostic, never a wrong
 //!   program.
 //! - References (`&$x`) needing both sides to declare the same type.
-//! - A **user-declared** class constant's type, a promoted
-//!   constructor-parameter property, and a named/spread call argument's
-//!   positional checking — see [`signatures`]/[`expr`]'s own known-gaps
-//!   lists. A `Core` class's constant is not among them: it is stated by
-//!   `mwl_stdlib::registry::CoreConst` and resolved by [`expr`]'s
-//!   `ClassConstAccess` arm.
+//! - A **user-declared** class constant's type *at an expression site*, a
+//!   promoted constructor-parameter property, and a named/spread call
+//!   argument's positional checking — see [`signatures`]/[`expr`]'s own
+//!   known-gaps lists. A `Core` class's constant is not among them: it is
+//!   stated by `mwl_stdlib::registry::CoreConst` and resolved by [`expr`]'s
+//!   `ClassConstAccess` arm. Neither is a user constant in *type* position:
+//!   ADR 0047 § 2 folds one to its own literal type, over [`consts`], which
+//!   holds the constant's **value** rather than its declared type and so does
+//!   not close this gap.
 //! - A class with no explicit `constructor` is not held to a zero-argument
 //!   arity check on `new` — see [`expr`]'s `New` handling.
 //! - A `foreach` **key** binding declared at anything but `string` is not
@@ -203,6 +211,7 @@
 
 pub mod check;
 pub(crate) mod conformance;
+pub mod consts;
 pub mod core_lib;
 pub mod ctor_init;
 pub mod defaults;
@@ -291,6 +300,13 @@ pub(crate) struct Env<'a> {
     /// identity) and wherever `EnumName::CaseName` resolves to its constant.
     /// Built before [`signatures::build_signatures`], which already needs it.
     pub enums: &'a EnumTable,
+    /// Every declared class constant's folded compile-time value
+    /// ([`consts::build_const_table`]) — read only where ADR 0047 § 2's
+    /// `Foo::CONST` appears in *type* position and has to fold to its own
+    /// literal type. Built beside [`Self::enums`], and before
+    /// [`signatures::build_signatures`], for the same reason: an annotation
+    /// interned during signature collection may be one of these.
+    pub consts: &'a crate::consts::ConstTable,
     pub src: &'a SourceFile,
     pub interner: &'a mut TypeInterner,
     /// Where a call's/`new`'s resolved target is persisted for `mwl-ir` to

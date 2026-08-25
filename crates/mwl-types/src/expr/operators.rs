@@ -250,10 +250,21 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
             EqDomain::Str
         }
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => EqDomain::Bytes,
+        // ADR 0047 § 5 gives a literal type its base's representation exactly,
+        // so it lands in its base's domain and nothing more: `$mode == "z"`
+        // where `$mode` is `"a"|"b"` compares two strings and is answered at
+        // run time. Refusing it because the two literal *sets* do not overlap
+        // would be a new row in ADR 0090 § 2's table, not a consequence of
+        // this one.
+        Ty::StringLiteral(_) => EqDomain::Str,
+        Ty::IntLiteral(_) => EqDomain::Numeric,
         Ty::Array(_) => EqDomain::Array,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
         Ty::Callable | Ty::CallableTo(_) => EqDomain::Callable,
-        Ty::Enum(qname, _) => EqDomain::Enum(qname),
+        // Both spellings of "a value of this enum" — ADR 0047 § 3 keeps a case
+        // type a *subtype* of its enum, so it shares its enum's domain and
+        // stays disjoint from every other one, `int` included.
+        Ty::Enum(qname, _) | Ty::EnumCase(qname, _, _) => EqDomain::Enum(qname),
         Ty::Mixed
         | Ty::Iterable
         | Ty::Void

@@ -143,33 +143,208 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
         TypeAtom::Parent => resolve_parent(span, ctx, env),
         TypeAtom::Name(name, args) => resolve_name_type(name, args, span, depth, ctx, env),
-        TypeAtom::StringLiteral(_) | TypeAtom::IntLiteral(_) | TypeAtom::Member(..) => {
-            reject_unchecked_literal_type(atom, span, env)
+        TypeAtom::StringLiteral(lit) => {
+            let value = crate::string_lit::cook_string_literal(env.src, *lit);
+            env.interner.string_literal(value)
         }
+        TypeAtom::IntLiteral(lit) => lower_int_literal_type(*lit, env),
+        TypeAtom::Member(name, member) => lower_member_type(name, *member, span, ctx, env),
         _ => env.interner.mixed(),
     }
 }
 
-/// ADR 0047's three atoms parse (M1) and are not yet checked (M2) — see
-/// [`code::E_LITERAL_TYPE_UNCHECKED`], which owns why refusing is the only
-/// honest answer in between.
-fn reject_unchecked_literal_type(atom: &TypeAtom, span: Span, env: &mut Env<'_>) -> TypeId {
-    let what = match atom {
-        TypeAtom::StringLiteral(_) | TypeAtom::IntLiteral(_) => "a literal type",
-        _ => "a class-constant or enum-case type",
-    };
+/// ADR 0047 § 1's `int` literal atom.
+///
+/// The atom's span covers a leading `-` when one was written
+/// ([`TypeAtom::IntLiteral`]), so the sign is split off here and the digits go
+/// through [`crate::expr::int_literal_digits`] — the one integer grammar, the
+/// same one an `enum` case value and a parameter default already read.
+///
+/// A magnitude no `int` holds is `E_INT_LITERAL_OUT_OF_RANGE`, the same
+/// diagnostic the identical mistake takes in a *value* position, and recovers
+/// as plain `int`: that is the base type the author meant, so nothing
+/// downstream meets a type it has no rule for.
+fn lower_int_literal_type(lit: Span, env: &mut Env<'_>) -> TypeId {
+    let text = span_text(env.src, lit);
+    let digits_text = text.strip_prefix('-').map(str::trim_start);
+    let negated = digits_text.is_some();
+    let offset = u32::try_from(text.len() - digits_text.unwrap_or(text).len()).unwrap_or(0);
+    let digits_span = Span::new(lit.file, lit.start.saturating_add(offset), lit.end);
+    let (radix, digits) = crate::expr::int_literal_digits(env.src, digits_span);
+    let value = u64::from_str_radix(&digits, radix)
+        .ok()
+        .and_then(|magnitude| {
+            if negated {
+                negate_magnitude(magnitude)
+            } else {
+                i64::try_from(magnitude).ok()
+            }
+        });
+    match value {
+        Some(value) => env.interner.int_literal(value),
+        None => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_INT_LITERAL_OUT_OF_RANGE,
+                    "this integer literal type names a value no `int` holds",
+                )
+                .with_primary(lit, "outside `int`'s range")
+                .with_help(
+                    "ADR 0047 § 1's literal atom is an `int` literal, so the value has to be \
+                     one an `int` can hold",
+                ),
+            );
+            env.interner.int()
+        }
+    }
+}
+
+/// `-magnitude` as an `i64`, `i64::MIN`'s own magnitude included — the same
+/// edge [`crate::defaults`] and [`crate::consts`] each answer at the other two
+/// places a written magnitude is negated.
+fn negate_magnitude(magnitude: u64) -> Option<i64> {
+    if magnitude == (i64::MAX as u64) + 1 {
+        return Some(i64::MIN);
+    }
+    i64::try_from(magnitude).ok().and_then(i64::checked_neg)
+}
+
+/// `Foo::BAR` in type position — ADR 0047 §§ 2-3's one atom with two meanings,
+/// told apart here because telling them apart is what resolution is for.
+///
+/// An **enum** name gives § 3's [`crate::ty::Ty::EnumCase`]: a narrowed subtype
+/// of the enum, never its backing value, so a bare `int` still cannot satisfy
+/// it. Anything else is § 2's class constant, which folds to *its own literal
+/// type* — sugar, and safe precisely because a scalar `const` is not a distinct
+/// nominal type, so `Foo::TYPE_A` genuinely is the string `"a"`.
+///
+/// The enum test is [`crate::expr::members::infer_class_const`]'s, verbatim: a
+/// `Core`-owned enum has no [`SymbolKind::Enum`] entry — nothing declared it —
+/// but it is in the same [`crate::enums::EnumTable`], seeded from
+/// `mwl_stdlib::registry::ENUMS`.
+///
+/// **Known gap:** the left-hand name is resolved directly rather than through
+/// [`Env::aliases`] first, so a `type M = Mode;` alias written as `M::Read`
+/// resolves nothing. Unlike [`resolve_name_type`], which substitutes an alias's
+/// expansion and re-lowers it, an alias here would have to expand to a *name*
+/// atom specifically before the `::` could mean anything — a narrow enough case
+/// that it waits for a program that wants it.
+fn lower_member_type(
+    name: &Name,
+    member: Span,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let text = span_text(env.src, name.span);
+    let qname = mwl_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let case = span_text(env.src, member).to_owned();
+
+    let is_enum = matches!(env.symbols.get(&qname), Some(sym) if sym.kind == SymbolKind::Enum)
+        || (qname.is_core() && env.enums.get(&qname).is_some());
+    if is_enum {
+        let backing = env.enums.backing_of(&qname);
+        return match env.enums.case(&qname, &case) {
+            Some(_) => env.interner.enum_case(qname, backing, case),
+            // Recovered as the whole enum rather than as `mixed`: the author
+            // named one of its cases, so the enum is what they meant, and a
+            // later diagnostic about the *value* is more use than one about a
+            // type nothing checks.
+            None => {
+                report_unknown(span, &qname, &case, "case", env);
+                env.interner.enum_(qname, backing)
+            }
+        };
+    }
+    lower_class_const_type(&qname, &case, span, env)
+}
+
+/// ADR 0047 § 2's fold, for a name that resolved to something other than an
+/// enum.
+///
+/// A **declared** class's constants come from [`crate::consts::ConstTable`],
+/// which walked them before the first annotation was interned. A `Core` class's
+/// come from the registry through [`crate::core_lib::constant`], which is where
+/// every other `Core` constant is already read from; a `Core` class the registry
+/// does not state stays trusted and lowers to `mixed`, exactly the narrowing
+/// [`crate::expr::members::infer_class_const`] applies to the same question on
+/// the expression side.
+///
+/// Both of § 2's mistakes are diagnosed at the *use*, not the declaration: a
+/// value with no literal type to fold to is `E_LITERAL_TYPE_NOT_CONST`, and a
+/// name nothing declares is `E_UNKNOWN_MEMBER`. Each recovers as `mixed`,
+/// since neither leaves a narrower type that could honestly be meant.
+fn lower_class_const_type(
+    qname: &mwl_hir::QName,
+    name: &str,
+    span: Span,
+    env: &mut Env<'_>,
+) -> TypeId {
+    if qname.is_core() {
+        return match crate::core_lib::constant(qname, name, env.interner) {
+            Some((_, crate::defaults::ConstArg::Str(value))) => env.interner.string_literal(value),
+            Some((_, crate::defaults::ConstArg::Int(value))) => env.interner.int_literal(value),
+            Some((_, crate::defaults::ConstArg::Uint(value))) => match i64::try_from(value) {
+                Ok(value) => env.interner.int_literal(value),
+                Err(_) => report_not_const(span, qname, name, env),
+            },
+            Some(_) => report_not_const(span, qname, name, env),
+            None => {
+                if crate::core_lib::is_registered(qname) {
+                    report_unknown(span, qname, name, "constant", env);
+                }
+                env.interner.mixed()
+            }
+        };
+    }
+    match env.consts.get(qname, name, env.graph) {
+        Some(crate::consts::ConstValue::Str(value)) => {
+            let value = value.clone();
+            env.interner.string_literal(value)
+        }
+        Some(crate::consts::ConstValue::Int(value)) => {
+            let value = *value;
+            env.interner.int_literal(value)
+        }
+        Some(crate::consts::ConstValue::Ineligible) => report_not_const(span, qname, name, env),
+        None => {
+            report_unknown(span, qname, name, "constant", env);
+            env.interner.mixed()
+        }
+    }
+}
+
+/// ADR 0047 § 2's "a constant backed by a non-scalar type is not eligible, and
+/// using one this way is a diagnostic naming the eligible types."
+fn report_not_const(span: Span, qname: &mwl_hir::QName, name: &str, env: &mut Env<'_>) -> TypeId {
     env.diags.report(
         Diagnostic::error(
-            code::E_LITERAL_TYPE_UNCHECKED,
-            format!("{what} is not checked yet"),
+            code::E_LITERAL_TYPE_NOT_CONST,
+            format!("`{qname}::{name}` is not a `string` or `int` compile-time constant"),
         )
-        .with_primary(span, "parses, but the checker has no rule for it")
+        .with_primary(span, "no literal type to fold to")
         .with_help(
-            "declare the base type (`string`, `int`, or the enum) for now — ADR 0047 § 4's \
-             assignability and conversion table is M2's slice",
+            "ADR 0047 § 2 folds a class constant used as a type to that value's own literal \
+             type, so only a `string` or `int` constant may be written here — write the base \
+             type instead",
         ),
     );
     env.interner.mixed()
+}
+
+/// The `Foo` has no `kind` named `NAME` diagnostic, at the two type-position
+/// spellings that can reach it — the same message
+/// [`crate::expr::members::report_unknown_member`] gives the identical mistake
+/// on the expression side, reported here rather than shared because that one is
+/// `pub(super)` to `expr` and this position is not one of its callers.
+fn report_unknown(span: Span, qname: &mwl_hir::QName, name: &str, kind: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{qname}` has no {kind} named `{name}`"),
+        )
+        .with_primary(span, "referenced here"),
+    );
 }
 
 fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
@@ -447,12 +622,14 @@ mod tests {
         let signatures = crate::signatures::SignatureTable::new();
         let mut exprs = crate::expr_table::ExprTypeTable::new();
         let enums = crate::enums::build_enum_table(&stmts, map.file(file), &mut diags);
+        let consts = crate::consts::build_const_table(&stmts, map.file(file));
         let mut env = Env {
             symbols: &module.symbols,
             aliases: &module.aliases,
             graph: &module.graph,
             signatures: &signatures,
             enums: &enums,
+            consts: &consts,
             src: map.file(file),
             interner: &mut interner,
             exprs: &mut exprs,

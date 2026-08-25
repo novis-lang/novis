@@ -403,6 +403,7 @@ pub fn build_signatures(
     stmts: &[Stmt],
     module: &mwl_hir::Module,
     enums: &crate::enums::EnumTable,
+    consts: &crate::consts::ConstTable,
     src: &SourceFile,
     interner: &mut crate::ty::TypeInterner,
     diags: &mut Diagnostics,
@@ -425,6 +426,7 @@ pub fn build_signatures(
         graph,
         signatures: &placeholder,
         enums,
+        consts,
         src,
         interner,
         exprs: &mut placeholder_exprs,
@@ -1055,10 +1057,12 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
         let mut interner = TypeInterner::new();
         let enums = crate::enums::build_enum_table(&stmts, map.file(file), &mut diags);
+        let consts = crate::consts::build_const_table(&stmts, map.file(file));
         let table = build_signatures(
             &stmts,
             &module,
             &enums,
+            &consts,
             map.file(file),
             &mut interner,
             &mut diags,

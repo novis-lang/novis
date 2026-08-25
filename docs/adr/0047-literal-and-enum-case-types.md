@@ -285,10 +285,15 @@ Verification, in the order it becomes possible:
   `a_class_constant_or_enum_case_parses_in_type_position`,
   `a_float_literal_is_refused_in_type_position`, `an_interpolated_string_is_refused_in_type_position`,
   `a_literal_type_declares_a_local_without_swallowing_literal_expressions` and
-  `a_literal_type_declares_a_parameter`. Until M2 lands, the checker **refuses** all three atoms by name
-  (`E_LITERAL_TYPE_UNCHECKED`, `crates/mwl-types/tests/literal_types.rs`) rather than widening them to
-  their base type: an unchecked `"a"|"b"` would accept every `string`, which is the hole this ADR exists
-  to close.
+  `a_literal_type_declares_a_parameter`.
+- **M2, first half (landed)**: all three atoms **intern** rather than being refused —
+  `mwl_types::ty::Ty::StringLiteral`, `IntLiteral` and `EnumCase`, the last of them deliberately not the
+  second (*3*). *2*'s fold resolves a declared class constant's value through
+  `mwl_types::consts::ConstTable` and a `Core` one through the registry, diagnosing an ineligible value
+  by name; *5*'s "zero additional runtime representation" is `mwl_ir::lower::lower_checked_ty`'s three
+  erasure arms, so nothing below the checker learns a new type.
+  `crates/mwl-types/tests/literal_types.rs`. `E0457` (`E_LITERAL_TYPE_UNCHECKED`), which refused the three
+  atoms while only the grammar existed, is **retired**.
 - **M2**: a corpus covering every row of *4*'s table — a literal/case-subset type widening for free; a
   checked conversion both succeeding and throwing, for a literal union and a case-subset union alike; a
   narrowing guard (`match`, `==`) required before reaching a member's own operations; an ineligible

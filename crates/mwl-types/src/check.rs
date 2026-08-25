@@ -69,13 +69,18 @@ pub fn check_program(
     // needs one, and `build_signatures` interns every declared annotation in
     // the file. See `crate::enums`.
     let enums = crate::enums::build_enum_table(stmts, src, diags);
-    let signatures = build_signatures(stmts, module, &enums, src, interner, diags);
+    // ADR 0047 § 2's fold, on the same terms and for the same reason as the
+    // enum table one line above: `build_signatures` interns every declared
+    // annotation in the file, and one of them may be a `Foo::CONST` type.
+    let consts = crate::consts::build_const_table(stmts, src);
+    let signatures = build_signatures(stmts, module, &enums, &consts, src, interner, diags);
     let mut env = Env {
         symbols: &module.symbols,
         aliases: &module.aliases,
         graph: &module.graph,
         signatures: &signatures,
         enums: &enums,
+        consts: &consts,
         src,
         interner,
         exprs,

@@ -74,6 +74,52 @@ pub enum Ty {
     True,
     /// `false`
     False,
+    /// `"a"` — ADR 0047 § 1: the type inhabited by exactly one string, the
+    /// generalisation of [`Self::True`]/[`Self::False`] from `bool`'s two
+    /// values to `string`'s.
+    ///
+    /// Holds the **cooked** value, not the source text: `crate::lower` runs
+    /// the literal through [`crate::string_lit::cook_string_literal`], the
+    /// same decoder every string literal in a *value* position goes through,
+    /// so `"a\n"` and a literal `"a"` followed by a real newline intern to one
+    /// type and the language never grows a second escape grammar. Interning is
+    /// structural over that value, which is exactly the singleton-ness the
+    /// type claims.
+    ///
+    /// ADR 0047 § 5: no runtime representation of its own — it erases to
+    /// [`Self::String`] at the `mwl-ir` boundary
+    /// (`mwl_ir::lower::lower_checked_ty`), and the singleton-ness is enforced
+    /// entirely by the checker wherever the static type is known.
+    StringLiteral(String),
+    /// `1`, `-1` — ADR 0047 § 1's `int` counterpart of
+    /// [`Self::StringLiteral`], erasing to [`Self::Int`] the same way.
+    ///
+    /// `i64`, so the value is always one an `int` can hold: a magnitude past
+    /// `int`'s range is diagnosed where the atom is lowered rather than
+    /// widened to `uint` here, because ADR 0047 § 1 gives the atom one base
+    /// type and a second one would make `1`'s meaning depend on its
+    /// neighbours. There is deliberately no `float` counterpart (§ 7).
+    IntLiteral(i64),
+    /// `Mode::Read` — ADR 0047 § 3: a subtype of the enum inhabited by exactly
+    /// one of its cases, carrying the enum's `QName`, its backing type, and
+    /// the case's own name.
+    ///
+    /// Deliberately **not** [`Self::IntLiteral`] of the case's backing value,
+    /// which is the whole of § 3: folding it that way would let a bare `int`
+    /// satisfy an enum-typed parameter, reopening the hole
+    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5 closed
+    /// by making `int → Mode` a checked conversion. An enum-case type and an
+    /// int literal type that happen to share a value are never unified by
+    /// canonicalisation, because they are not the same `Ty`.
+    ///
+    /// The backing type rides along for [`Self::Enum`]'s own reason — it is
+    /// part of what the type *is*, and it is what lets this erase to the
+    /// enum's existing zero-byte tag at the `mwl-ir` boundary with no
+    /// re-resolution. The case *name* rides along rather than its value
+    /// because § 6's diagnostic names `Mode::Read`, and the value is one
+    /// [`crate::enums::EnumTable::case`] lookup away for anything that needs
+    /// it.
+    EnumCase(QName, crate::enums::EnumBacking, String),
     /// `iterable`
     Iterable,
     /// `callable`
@@ -304,6 +350,9 @@ impl TypeInterner {
             Ty::Never => "never".to_owned(),
             Ty::True => "true".to_owned(),
             Ty::False => "false".to_owned(),
+            Ty::StringLiteral(value) => quote_string_literal(value),
+            Ty::IntLiteral(value) => value.to_string(),
+            Ty::EnumCase(q, _, case) => format!("{q}::{case}"),
             Ty::Iterable => "iterable".to_owned(),
             // Deliberately the same rendering as `Ty::Callable` — see that
             // variant's own doc comment for why the bound variable's name is
@@ -481,6 +530,54 @@ impl TypeInterner {
         self.intern(Ty::Iterable)
     }
 
+    /// Interns ADR 0047 § 1's string literal type — see
+    /// [`Ty::StringLiteral`], which owns why `value` is the cooked string
+    /// rather than the source text.
+    #[must_use]
+    pub fn string_literal(&mut self, value: impl Into<String>) -> TypeId {
+        self.intern(Ty::StringLiteral(value.into()))
+    }
+
+    /// Interns ADR 0047 § 1's int literal type.
+    #[must_use]
+    pub fn int_literal(&mut self, value: i64) -> TypeId {
+        self.intern(Ty::IntLiteral(value))
+    }
+
+    /// Interns ADR 0047 § 3's enum-case type — see [`Ty::EnumCase`] for why
+    /// this is a type of its own rather than [`Self::int_literal`] of the
+    /// case's backing value.
+    #[must_use]
+    pub fn enum_case(
+        &mut self,
+        qname: QName,
+        backing: crate::enums::EnumBacking,
+        case: impl Into<String>,
+    ) -> TypeId {
+        self.intern(Ty::EnumCase(qname, backing, case.into()))
+    }
+
+    /// The type ADR 0047 § 4's first four rows widen `id` to: a literal type's
+    /// base type, an enum-case type's enum, and anything else unchanged.
+    ///
+    /// The checker-side counterpart of `mwl_ir::lower::lower_checked_ty`'s
+    /// erasure — § 5 gives a literal type no representation of its own, so
+    /// every question about what a value of one can *do* is a question about
+    /// its base. A union is widened member-wise, which is what makes
+    /// `"a"|"b"` widen to `string` rather than to itself.
+    pub fn literal_base(&mut self, id: TypeId) -> TypeId {
+        match self.get(id).clone() {
+            Ty::StringLiteral(_) => self.string(),
+            Ty::IntLiteral(_) => self.int(),
+            Ty::EnumCase(q, backing, _) => self.enum_(q, backing),
+            Ty::Union(members) => {
+                let widened: Vec<TypeId> = members.iter().map(|m| self.literal_base(*m)).collect();
+                self.make_union(widened)
+            }
+            _ => id,
+        }
+    }
+
     /// The interned `callable` singleton.
     #[must_use]
     pub fn callable(&mut self) -> TypeId {
@@ -582,6 +679,30 @@ impl TypeInterner {
     }
 }
 
+/// Renders a [`Ty::StringLiteral`]'s cooked value back as the double-quoted
+/// literal a program would write it as — what a diagnostic naming the accepted
+/// set has to print (ADR 0047 § 6).
+///
+/// Only the four characters that would end or re-open the literal are escaped.
+/// This is a *rendering* for a message, not a round-trip through
+/// [`crate::string_lit`]: a value carrying some other control character prints
+/// it as-is, exactly as every other quoted fragment in a diagnostic does.
+fn quote_string_literal(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            other => out.push(other),
+        }
+    }
+    out.push('"');
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -656,6 +777,36 @@ mod tests {
         let float = i.float();
         let u = i.make_union([int, float]);
         assert_eq!(i.describe(u), "int|float");
+    }
+
+    /// ADR 0047 § 6: a diagnostic names the accepted set by printing the type
+    /// itself, so each atom has to render as the source spelling it came from.
+    #[test]
+    fn describe_renders_adr_0047s_three_atoms() {
+        let mut i = TypeInterner::new();
+        let s = i.string_literal("a");
+        assert_eq!(i.describe(s), "\"a\"");
+        let quoted = i.string_literal("say \"hi\"\n");
+        assert_eq!(i.describe(quoted), "\"say \\\"hi\\\"\\n\"");
+        let n = i.int_literal(-1);
+        assert_eq!(i.describe(n), "-1");
+        let case = i.enum_case(
+            QName::parse("App\\Mode"),
+            crate::enums::EnumBacking::Int,
+            "Read",
+        );
+        assert_eq!(i.describe(case), "App\\Mode::Read");
+    }
+
+    /// § 3's whole point, at the representation: a case and an int literal of
+    /// its backing value are two `TypeId`s, so nothing can unify them by
+    /// accident.
+    #[test]
+    fn an_enum_case_type_never_interns_as_its_backing_value() {
+        let mut i = TypeInterner::new();
+        let case = i.enum_case(QName::parse("Mode"), crate::enums::EnumBacking::Int, "Read");
+        let zero = i.int_literal(0);
+        assert_ne!(case, zero);
     }
 
     #[test]

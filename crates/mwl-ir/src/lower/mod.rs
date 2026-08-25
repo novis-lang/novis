@@ -1762,6 +1762,13 @@ fn lower_decl_type(ty: &Type, exprs: &ExprTypeTable, checked_types: &TypeInterne
         TypeKind::Atom(TypeAtom::Void) => Ty::Void,
         TypeKind::Atom(TypeAtom::String) => Ty::Str,
         TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
+        // ADR 0047 § 5 again, for the one annotation shape that can be
+        // answered without resolution. `TypeAtom::Member(..)` cannot: whether
+        // it erases to a string, an int or an enum tag is exactly the question
+        // the checker answered, so it takes the `declared_ty` shortcut above
+        // or it is a bug.
+        TypeKind::Atom(TypeAtom::StringLiteral(_)) => Ty::Str,
+        TypeKind::Atom(TypeAtom::IntLiteral(_)) => Ty::Int,
         TypeKind::Atom(TypeAtom::Name(..)) => Ty::Object,
         // ADR 0031 § 4's one closure type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
@@ -1850,10 +1857,19 @@ fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
         CheckedTy::Class(..) | CheckedTy::Callable => Ty::Object,
-        CheckedTy::Enum(_, backing) => Ty::Enum(match backing {
-            mwl_types::EnumBacking::Int => EnumRepr::Int,
-            mwl_types::EnumBacking::Uint => EnumRepr::Uint,
-        }),
+        // ADR 0047 § 5: a literal type and an enum-case type add **zero**
+        // runtime representation. Each erases to the base it shares a tag and
+        // payload with, so the singleton-ness stops at this boundary and
+        // nothing below it learns a new type -- which is the whole of what
+        // that section promises.
+        CheckedTy::StringLiteral(_) => Ty::Str,
+        CheckedTy::IntLiteral(_) => Ty::Int,
+        CheckedTy::Enum(_, backing) | CheckedTy::EnumCase(_, backing, _) => {
+            Ty::Enum(match backing {
+                mwl_types::EnumBacking::Int => EnumRepr::Int,
+                mwl_types::EnumBacking::Uint => EnumRepr::Uint,
+            })
+        }
         // The element `TypeId` is discarded — same erasure `lower_decl_type`
         // already gives `TypeAtom::Array(_)`, see `Ty::Array`'s own doc
         // comment for why this crate has no lowering decision that needs it.
