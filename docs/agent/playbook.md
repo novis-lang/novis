@@ -175,6 +175,13 @@ is why" — is this file.
   first, so awk sees a bare `[`, dies with `invalid regexp`, and the surrounding `[ -z "$offenders" ] &&
   exit 0` cheerfully allows the commit. Write it `[[]`, and always capture `$?` from the awk itself and
   refuse on a non-zero status — a gate must fail closed.
+- **A plan field can disagree with `loop-goal.toml`, and the toml wins.** `Open now` opened with
+  "Catch-up is done … every `stage = "0 catch-up"` check in `loop-goal.toml` passes" while **six** of
+  the tests those checks name did not exist in any crate — a session that believed it would have
+  opened a Stage 3 `Core` slice behind a gate `loop.py` short-circuits before reaching. The toml
+  names each test literally, so one `grep -rn "<test_name>" --include=*.rs` over the block settles
+  the question for one call; `handoff.md` § *State* was the half that was right, and the prose was
+  corrected rather than the toml.
 
 ## Running things
 

@@ -2,134 +2,73 @@
 
 ## State
 
-**Stage 0 is re-opened, and it outranks everything below.** [loop-goal.md](loop-goal.md) § *Stage 0* now
-holds items 10 to 17; **16 and 17 are done**, so what is open is **items 10 to 15**, with fourteen named
-tests at `stage = "0 catch-up"` in [loop-goal.toml](loop-goal.toml). `loop.py` short-circuits at stage 0,
-so **Stage 3 is shut until those six clear** and the group named further down this file waits behind
-them. Take item 10 first; they are ordered cheapest first on purpose. Each item points at the ADR section
-or module doc that owns its rule rather than restating it, and `[context]` deliberately adds no selector
-for any of them — a session takes one item, the six share no files, and the union cost +10,869 tokens of
-orientation for five sections nobody reads.
+**Stage 0 is open, and it outranks everything below.** [loop-goal.md](loop-goal.md) § *Stage 0* holds
+items 1 to 17; **1 to 10, 16 and 17 are done**, so what is open is **items 11 to 15**, one named test
+each at `stage = "0 catch-up"` in [loop-goal.toml](loop-goal.toml). `loop.py` short-circuits at stage
+0, so **Stage 3 is shut until those five clear**. One item is a group — they share no files — and
+they are ordered cheapest first, so take item 11.
 
-**Items 16 and 17 landed this session, from a second pass over the same PHP-history ground that produced
-10–15.** Both were small enough that queueing them would have cost more than doing them, and both are
-listed in `loop-goal.md` as done so neither is re-opened:
+**Item 10 landed**: `crates/mwl-runtime/tests/manifest_policy.rs` reads the workspace manifest's
+`[profile.release]` block with its comments stripped and fails if `overflow-checks = true` is gone.
+Nothing else was owed — the cast half is `[workspace.lints.clippy]` plus `verify.py`'s `-D warnings`,
+and the setting's measurement is the manifest comment beside it. Only one slice was taken: item 11 is
+a four-crate change sharing no file with item 10, so the second-slice test in the session prompt fails
+on its file-set half, not on context.
 
-* **16 — Cranelift's stack probes are on.** `enable_probestack` defaults to *false*, so a frame over the
-  4 KiB guard page could step past it: a stack clash rather than a clean crash. Measured at no
-  instruction-count change either way (92,237,951 off vs 92,237,800 inline, call-heavy; 55,399,358 vs
-  55,399,652 at 200 frames deep), because a probe is emitted only above 4 KiB and no MWL frame is that
-  big yet. `Jit::new`'s comment owns the reasoning. **It is not item 14 under another name** — that
-  counts depth, this catches one oversized frame, neither covers the other. Whoever takes 14 should read
-  that comment before assuming the stack story is finished.
-* **17 — one allocation guard.** `mwl_runtime::affordable` is the single seam a count-shaped argument
-  passes through, and its own doc comment owns why, including that it is **not** a budget: ADR 0004's
-  `[limits.hard]` per-request ceiling attaches there when M6's arena carries it. It replaced four
-  hand-written copies and reached the three members that had none — `Core\Arr::fill`/`padStart`/`padEnd`
-  through `append_copies`, `Core\Str::padStart`/`padEnd` through `padding_run`. `Arr::fill($n, 0)` was an
-  unbounded run for any `uint`; it is now a catchable throw.
+**The plan's `Open now` said catch-up was finished and it was not.** That field, `Status`'s and
+`On disk`'s counts now agree with the tree; the playbook carries the trap.
 
-**A field slot is bounds-checked in debug builds.** `field_ptr` had nothing between a wrong index and a
-read outside the allocation — and, on the write half, a `release()` on whatever it landed on. The bound is
-debug-only deliberately: `Classes::define` builds the codegen slot map and the runtime descriptor from one
-`ir::Class::fields` list, so they cannot disagree about a *count*, and carrying the check into release
-measured at ~1.4% of a field-heavy program. The commit body has the numbers. The whole suite passes with
-it on, which is the reassuring result.
+`benches/userland/` (`01-arith-loop.mwl`/`.php`) is **untracked**, left by an earlier session in this
+run. It is item 15's `php_ratio` material — commit it with that item rather than sweeping it into an
+unrelated slice.
 
-Verify is green (1542 tests, 72 suites, clippy and fmt clean). Conformance **433**, differential 89.
+Verify is green (1543 tests, 73 suites, clippy and fmt clean). Conformance **433**, differential 89.
 
-`examples/collect.mwl` still exits 1 at `Core\Out::capture`, and that member is genuinely blocked behind
-ADR 0088's sink carriers (`Core\Html\Markup`/`Cli\Text`), which spec § 12's own prose makes its return
-type. It is M4S work, not a slice to open ahead of the sinks.
+`examples/collect.mwl` still exits 1 at `Core\Out::capture`, genuinely blocked behind ADR 0088's sink
+carriers (`Core\Html\Markup`/`Cli\Text`); it is M4S work, not a slice to open ahead of the sinks.
 
-## Numbers worth carrying, measured this session
+## Next group — Stage 0 items 11 to 15, in order, starting at item 11
 
-Callgrind under WSL, per [ADR 0026](../adr/0026-performance-measurement-methodology.md) — wall-clock on
-this box swung 56% between two runs of the *same* binary, which is what that ADR exists for.
+**These share no file set** — that is why one item is one group, and why the anchors below are per
+item rather than per group. Item 15 is the largest by far (a second array representation with a
+degrade path, ~300–500 lines across `array.rs` and the ABI); do not size the set from its first
+member.
 
-* **Item 15's `php_ratio` gate has its "before" already**: `$a[] = $i` is **2,014.5 Ir/element** against
-  PHP 8.5.9's **148.0** on the same machine, at ~110 vs ~16 bytes per element. That is an independent
-  instrument agreeing with the nanosecond figures in `array.rs`'s module doc (219.5 ns vs 23.4 ns), and
-  `docs/perf/history.ndjson` still does not exist — which that item already names as why nothing caught
-  this.
-* **For `[limits.hard]`'s eventual default**: `Core\Arr::fill` is 110 B and ~1.2 µs *per entry*;
-  `Core\Bytes::fill(1e9)` is 2 GB in 605 ms; `Core\Str::padStart` is ~3 B and ~13 ns per element. None of
-  these are in the docs yet and they are the inputs to picking that number.
-* **`Core\Bytes::fill` double-buffers** — `produced(&vec![octet; length])` builds a `Vec` and copies it
-  into an `MwlStr`, which is the 2 bytes/element peak for a 1-byte result. Halving it is a small refactor
-  for whoever next touches that file; not worth a slice of its own.
-
-## Two open exposures, both under a decided mechanism, neither yet built
-
-Named here because they are *not* bugs to fix ad hoc — the decision that covers each already exists:
-
-* **A helper is an unpollable region.** Safepoints are polled by compiled code, so a single long
-  `Core` member is deaf to `CPU_LIMIT` and `CANCEL`: ADR 0020 lists CPU time as a limit that a runaway
-  cannot currently reach inside a helper loop. A chunked poll measured at **+0.01%** on `Arr::fill`. It
-  wants an ADR 0020 line before an implementation, not a quiet patch.
-* **No per-request memory budget.** `affordable` is now the seam; the ceiling itself is M6's.
-
-## Next group — Stage 0 items 10 to 15, in order, starting at item 10
-
-[loop-goal.md](loop-goal.md) § *Stage 0* holds each item and the ADR section or module doc that owns its
-rule; [loop-goal.toml](loop-goal.toml)'s `stage = "0 catch-up"` blocks hold the tests that close them. One
-item is a group. Item 15 is the largest by far — a second array representation with a degrade path,
-roughly 300 to 500 lines across `array.rs` and the ABI — and item 10 is close to done already, so do not
-size the set from its first member.
-
-## After Stage 0 — M4's three remaining operator/control-flow holes (`mwl-ir` gap 16, `lib.rs:266`)
-
-These are named in the goal's standing decisions as in scope precisely because the corpus cannot be
-written around them, and Stage 4's counts (433 of 600) are now the gate's own work. **They resume once
-Stage 0 is empty**, not before — `loop.py` will not reach a Stage 3 fixture until then.
-
-**Shared file set:** `crates/mwl-ir/src/ir.rs:1380` (`BinOp`),
-`crates/mwl-ir/src/lower/expr.rs:161` (the binary-operator match),
-`crates/mwl-codegen/src/emit.rs:874` (`emit_binop`'s representation rows),
-`crates/mwl-ir/src/lower/stmt.rs:166` (`StmtKind::While`'s arm) and
-`crates/mwl-ir/src/lower/control.rs:102` (`lower_while`).
-
-- [ ] **1. The bitwise and `**` binary operators lower.** `ir::BinOp` stops at the arithmetic,
-      equality and ordering rows, so `&`, `|`, `^`, `<<`, `>>` and `**` panic in `lower_expr`. Each
-      needs a `BinOp` variant and an `emit_binop` row over `Int | Uint`. This also lands `&=`, `|=`,
-      `^=`, `<<=`, `>>=` and `**=` for nothing: `lower_compound_assignment` already rewrites
-      `$x op= e` into `$x = $x op e`, so a compound form arrives the moment its binary form does.
-- [ ] **2. `$x++`, `$x--`, `++$x` and `--$x` lower.** Same rewrite shape as a compound assignment
-      and the same re-evaluation rule — `is_reevaluable_target` is what refuses `f()->count += 1`,
-      and an increment inherits it. Watch the postfix/prefix *value* difference, which the compound
-      form has no analogue for.
-- [ ] **3. `do { … } while (…);` lowers.** The one M4 control-flow statement that does not; every
-      terminator it needs exists, and it is `lower_while` with the body block entered before the
-      test rather than after.
+- [ ] **Item 11 — `secret == secret` lowers to the constant-time helper.** ADR 0033 § 5
+      (`docs/adr/0033-secret-qualifier-for-confidential-values.md:203`) owns the rule and its ≈+8 ns.
+      Closing test: `a_secret_equality_lowers_to_the_constant_time_helper`, `-p mwl-ir`. Anchors:
+      `lower_binary` at `crates/mwl-ir/src/lower/expr.rs:2177` — the `Helper::Identical` arm at
+      `:2201` and `Helper::NumericEq` at `:2241` are the two shapes to copy, and a plain `string` pair
+      falls past both to the `BinOp` table at `:2268`, which `mwl-codegen` turns into `mwl_str_eq`;
+      the `Helper` rows are `crates/mwl-ir/src/ir.rs:1372` and `crates/mwl-ir/src/print.rs:458`; the
+      runtime address table is `crates/mwl-runtime/src/helpers.rs:1040`; a constant-time compare is
+      already written and documented at `crates/mwl-stdlib/src/hash.rs:501` (`mwl_core_hash_equals`,
+      doc at `:483`), but `mwl-runtime` cannot call `mwl-stdlib`, so the helper is a new one there.
+      **Two things to settle before writing the arm**: (1) `mwl_ir::Ty` carries no qualifier, so
+      `lower_binary`'s `lty`/`rty` cannot see `secret` — the checker has to record it, the way
+      `mwl-ir` gap 12 already records a `Stringable` desugar the IR has no call expression for; and
+      (2) `erase_checked_ty` (`crates/mwl-ir/src/lower/mod.rs:2197`) has **no** arm for
+      `Ty::SecretString`/`SecretBytes`/`SecretTainted*` (`crates/mwl-types/src/ty.rs:53`), so they
+      fall to its `_ => return None` — that is `mwl-ir` gap 11, and a scratch `.agent-tmp/*.mwl`
+      declaring a `secret string` local will say in one run whether the erasure is owed first.
+- [ ] **Item 12 — `$s as ?Uri` and `$s as ?Uuid` compile, `isValid` deleted from both.** ADR 0066
+      §§ 1, 3 own the roster; `crates/mwl-stdlib/src/uri.rs`'s module doc owns the call-site
+      consequence. Tests: `a_parse_roster_type_converts_nullably` and
+      `a_class_type_still_refuses_the_nullable_conversion`, `-p mwl-types`.
+- [ ] **Item 13 — `Core\Uri` compares by normalized components**, with a round-trip property and a
+      differential corpus against the PHP 8.5 oracle, plus a `fuzz/fuzz_targets` entry beside
+      `lex.rs`/`parse.rs`. `crates/mwl-stdlib/src/uri.rs`'s module doc owns the rule and both guards.
+      Tests: `two_uris_compare_by_normalized_components`, `a_parsed_uri_round_trips_through_its_own_text`.
+- [ ] **Item 14 — a call-stack limit rides the safepoint's emit site** (ADR 0020 § 1), then **item 15
+      — a list-shaped array is packed** (`crates/mwl-runtime/src/array.rs`'s module doc). Read
+      `Jit::new`'s stack-probe comment before 14: probes catch one oversized frame, this counts depth,
+      and neither covers the other.
 
 ## Backlog
 
-- `Core\Out::capture` — the last key in `spec-members-outstanding.txt`; blocked on ADR 0088's sinks.
-- ADR 0092 (one diagnostic record, three renderings) and 0091 (run modes) — plan § *Open now*.
-- A promoted constructor parameter still claims no slot (`mwl_types::layout`'s own module doc § 38),
-  so `$obj->x` on one is `E0405`. PHP writes them everywhere; the differential corpus will meet it.
-- `Core\Json::decodeAs<T>`'s wider codec-reachable field set — `mwl_stdlib::json`'s gaps.
-- Nullsafe assignment target (`$a?->b = v`) panics rather than being diagnosed — `mwl-ir` gap 6.
-- `$e->message()` on a caught `Throwable` panics in `mwl-ir`'s `lower_expr` — "an instance method call
-  has no resolved target recorded in the typed-expression table". Found while checking item 17's throw by
-  hand; unrelated to it, and it makes a `catch` body hard to write in a scratch fixture.
+- Stage 4's counts are their own work: conformance 433 of 600, differential 89 of 150 — plan `Open now`.
+- `Core\Out::capture` waits on ADR 0088's sink carriers — spec § 12, M4S.
+- § 6 owes `decodeAs<T>` — `mwl_stdlib::json` gap 2, unblocked now a call site can write a type argument.
+- ADR 0088's registry-wide qualifier classification for `Core` member rows — M4S.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1's remainder.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-
-## Orientation gaps found this session
-
-**`--where` has no entry for a backend or runtime *policy* topic.** `python tools/brief.py --where
-probestack`, `--where stack` and `--where "memory limit"` all return nothing, so three decisions with real
-safety weight — stack probes, ADR 0020's stack limit, ADR 0004's `[limits.hard]` — are reachable only by
-already knowing which file to open. That is how this session first proposed a CI cron ADR 0068 § 9
-explicitly refuses, and a per-call allocation ceiling where ADR 0004 had already settled a per-request
-one. Both were caught by reading the ADR afterwards; neither would have been proposed had `--where`
-answered. Worth a routing row each in [docs/adr/README.md](../adr/README.md) § *Where to look*.
-
-**`array.rs`'s packed-array decision sits at lines 36–82 of a 130-line module doc.** A session that opens
-that file at the struct — which is where every task in it starts — does not see it and can spend real time
-re-deriving a settled decision. The `[context]` manifest selecting the file is not the same as selecting
-the section.
-
-`[context]` in `loop-goal.toml` still does not select **ADR 0036 § 4** and names no `mwl-ir` module
-pattern at all, so neither `mwl-ir/src/lib.rs`'s gap list nor `lower/*` appears in the map. Both are worth
-adding before the next group, which lives entirely in `mwl-ir` and `mwl-codegen`.
