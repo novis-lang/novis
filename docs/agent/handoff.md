@@ -3,61 +3,61 @@
 ## State
 
 **Stage 0 is open, and it outranks everything below it.** [loop-goal.md](loop-goal.md) § *Stage 0*
-holds items 1 to 17; **1 to 11, 16 and 17 are done**, so what is open is **items 12 to 15**, one
-named test each at `stage = "0 catch-up"` in [loop-goal.toml](loop-goal.toml). `loop.py`
-short-circuits at stage 0, so **Stage 3 is shut until those four clear**.
+holds items 1 to 17; **1 to 12, 16 and 17 are done**, so what is open is **items 13, 14 and 15**, one
+or three named tests each at `stage = "0 catch-up"` in [loop-goal.toml](loop-goal.toml). `loop.py`
+short-circuits at stage 0, so **Stage 3 is shut until those three clear**.
 
-**Item 11 landed**: `Helper::SecretEq` → `mwl_runtime`'s `mwl_secret_eq` over
-`subtle::ConstantTimeEq`. Two things had to be settled first and both are recorded in the crate docs
-that own them — the qualifier does not survive `mwl_ir::ty::Ty`, so `mwl-types` records
-`ExprInfo::SecretEquality` at the comparison and the lowering reads it back; and `erase_checked_ty`
-had **no arm for any of the six qualified atoms**, so `secret string` did not lower at all. `mwl-ir`
-gap 11 is rewritten to what is left of it: a `secret`-against-`mixed` pair still short-circuits.
+**Item 12 landed, and it was a deletion after all** — both `Core\Uri::isValid` and
+`Core\Uuid::isValid` existed, against what the previous handoff said; the playbook's new *Tooling*
+bullet says how that claim got made. `$s as ?Core\Uri` and `$s as ?Core\Uuid` now type-check *and*
+lower: `mwl_stdlib::registry::PARSE_ROSTER` names one non-member symbol per roster class,
+`mwl_types::expr_table::ExprInfo::ParseRosterConversion` carries it to `mwl-ir`, and every other
+class target is `E0473`. ADR 0066 § 3 carries the one amendment the deletion needed — `Uri::isValid`
+asked "is this an **absolute** URI", one condition more than `!= null`, and that condition is now
+`($s as ?Uri)?->scheme() != null`.
 
-**The workspace manifest was broken before this session started** — `members = ["benches/*"]` globbed
-the untracked `benches/userland/`, so *every* `cargo` command failed. `Cargo.toml` now excludes it;
-the playbook carries the trap. `benches/userland/` and `tools/bench.py` are still untracked, and are
-item 15's `php_ratio` material — commit them with that item.
-
-Verify is green (1545 tests, 73 suites, clippy and fmt clean); valgrind clean on a fresh-operand
-`secret ==` probe. Conformance **434**, differential 89.
+Verify is green (1549 tests, 73 suites, clippy and fmt clean); valgrind clean on the roster
+conversion's new refcount edge. Conformance **434**, differential 89.
 
 `examples/collect.mwl` still exits 1 at `Core\Out::capture`, genuinely blocked behind ADR 0088's sink
 carriers; it is M4S work, not a slice to open ahead of the sinks.
 
-## Next group — Stage 0 items 12 and 13, then 14, then 15
+## Next group — item 13, then 14, then 15
 
-**Items 12 and 13 are one group and share `crates/mwl-stdlib/src/uri.rs`** — take them together.
-Items 14 and 15 share no file with them or with each other; item 15 is by far the largest (a second
-array representation with a degrade path, ~300–500 lines across `array.rs` and the ABI), so do not
-size the set from it.
+**These three share no file with each other**, so a session takes exactly one and stops; the second
+slice the ceiling allows has nothing cheap to be. Item 15 is by far the largest (a second array
+representation with a degrade path, ~300–500 lines across `array.rs` and the ABI).
 
-- [ ] **Item 12 — `$s as ?Uri` and `$s as ?Uuid` compile, `isValid` deleted from both.** ADR 0066
-      §§ 1, 3. `Uri::isValid` is not written yet (`grep isValid` finds only `Encoding` and `Json`), so
-      the work is the roster, not a deletion. Anchors: `crates/mwl-stdlib/src/uri.rs:63` (the module
-      doc already naming ADR 0066 §§ 1, 3), the `?T` row at
-      `crates/mwl-stdlib/src/registry.rs:215`, `Core\Uri`'s `CLASS` at
-      `crates/mwl-stdlib/src/uri.rs:287` and its slots at `:456`. `crates/mwl-uuid` does not exist —
-      `Core\Uuid` lives in `crates/mwl-stdlib/src/uuid.rs`. Closing test:
-      `a_parse_roster_conversion_yields_null`-shaped, `-p mwl-types`; read the exact name out of
-      `loop-goal.toml`'s item 12 block before writing it.
-- [ ] **Item 13 — `Core\Uri` compares by normalized components**, with a round-trip property test.
-      `uri.rs`'s own module doc owns the rule. Same file set as item 12, which is why they are one
-      group; the comparison itself will want `mwl_runtime::identity`'s object-identity answer.
-- [ ] **Item 14 — a call-stack limit rides the safepoint's emit site** (ADR 0020 § 1). Anchors:
-      `crates/mwl-ir/src/ir.rs:266` (`InstKind::Safepoint`), the three emit sites at
-      `crates/mwl-ir/src/lower/control.rs:204`, `lower/exception.rs:491` and `lower/generator.rs:650`,
-      the codegen side at `crates/mwl-codegen/src/lib.rs:956`, and `mwl-ir` gap 14
-      (`crates/mwl-ir/src/lib.rs:262`), which says safepoints are reserved rather than functional.
+- [ ] **Item 13 — `Core\Uri` compares by normalized components**, with a `parse` → serialize →
+      `parse` round-trip property test. Tests: `two_uris_compare_by_normalized_components`,
+      `a_parsed_uri_round_trips_through_its_own_text`, `-p mwl-stdlib`. RFC 3986 § 6.2.2 is the
+      normalization; `parse` still reports verbatim, because the normalizing happens at the
+      comparison. Anchors: `crates/mwl-stdlib/src/uri.rs:453` (the eight slot constants the
+      comparison reads), `crates/mwl-stdlib/src/uri.rs:287` (`CLASS`), and
+      `crates/mwl-runtime/src/identity.rs:137` (`value_identical`, which is what `==` over two
+      `Core` instances reaches today and answers by identity — `mwl-stdlib`'s `uuid` gap 2 is the
+      same hole seen from the other side). Add the `fuzz/fuzz_targets` entry beside `lex.rs`.
+- [ ] **Item 14 — a call-stack limit rides the safepoint's emit site** (ADR 0020 § 1). Tests:
+      `a_function_entry_checks_the_stack_limit`, `a_leaf_function_under_the_slack_emits_no_stack_check`,
+      `a_runaway_recursion_reports_a_limit_rather_than_faulting`, `-p mwl-codegen`. Anchors:
+      `crates/mwl-codegen/src/emit.rs:758` (`emit_safepoint`, the site to ride),
+      `crates/mwl-codegen/src/emit.rs:370` (`InstKind::Safepoint`'s dispatch).
 - [ ] **Item 15 — a second array representation with a degrade path**, plus the `php_ratio`
-      benchmark that `benches/userland/` and `tools/bench.py` are already written for. Its own item in
-      `loop-goal.md` § *Stage 0* holds the shape.
+      benchmark material. Tests: `a_list_shaped_array_holds_no_index_map`,
+      `an_integer_subscript_allocates_no_key`, `a_non_sequential_key_degrades_the_packed_array`,
+      `both_representations_answer_every_primitive_alike`, `-p mwl-runtime`. Anchor:
+      `crates/mwl-runtime/src/array.rs:362` (`MwlArray`). `benches/userland/` and `tools/bench.py`
+      are still untracked and are this item's `php_ratio` material — commit them with it, and note
+      that `Cargo.toml`'s `exclude` line is what keeps that directory from breaking the workspace.
 
 ## Backlog
 
-- `Core\Out::capture` — the last `spec-members-outstanding.txt` key; behind ADR 0088's sink carriers.
-- `decodeAs<T>` for `Core\Json` — `json` gap 2, now that a written call-site type argument lands.
-- ADR 0088's registry-wide qualifier classification for `Core` member rows — `docs/implementation-plan.md` § *Open now*.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s gap list.
+- `Core\Out::capture`, the last `§12` key in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`
+  — M4S sink work, `docs/implementation-plan.md` § *Open now*.
+- ADR 0066 § 3's other two refusals (`$i as ?string` cannot fail; `$arr as ?int` does not exist) —
+  `mwl-ir`'s crate-doc gap 4 names both; each still panics in lowering rather than diagnosing.
+- `Core\Json::decodeAs<T>` — `mwl_stdlib::json` gap 2.
+- `do`/`while` does not lower — `mwl-ir`'s crate-doc control-flow gap.
+- ADR 0088's registry-wide qualifier classification for every `Core` `string`/`bytes` parameter —
+  `docs/implementation-plan.md` § *Open now*.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-- ADRs 0091/0092/0093 are decided and unbuilt; their milestones are M4/M6/M7/M8/M10.

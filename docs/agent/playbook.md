@@ -191,6 +191,16 @@ is why" — is this file.
   language bug instead. `cargo metadata --no-deps >/dev/null; echo $?` is the one-call check, and the
   fix is an `exclude = [...]` line beside the glob. The same hazard waits for any new non-crate
   directory under a globbed member path.
+- **A `grep … | head` that finds nothing is not the same as a grep that finds nothing, and a handoff
+  that reports one as the other sends the next session in with the wrong scope.** This session's item
+  opened with "`Uri::isValid` is not written yet (`grep isValid` finds only `Encoding` and `Json`), so
+  the work is the roster, not a deletion." Both roster classes declared `isValid`; the previous
+  session's grep had a `| head` on it and the ten lines it kept ended one line before `uri.rs`'s rows
+  began. The slice was therefore twice the size the handoff sized it at, and the wrong half —
+  deleting a member touches the spec table, the ratchet, two conformance cases and the ADR that
+  claimed the two spellings were one predicate. Two rules: **never `| head` a grep whose result you
+  are about to assert is empty** (use `-c`, or `-l`, or no pipe at all), and treat "X is not written
+  yet" in a handoff as a claim to re-check in one call before scoping around it.
 
 ## Running things
 

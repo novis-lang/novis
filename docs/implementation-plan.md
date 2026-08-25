@@ -7,10 +7,10 @@
      lives in `git log`, per-crate gaps in each crate's module doc — see AGENTS.md's "Writing docs
      here" section. -->
 
-> **Status:** 2026-08-25. **M3 is done and Stage 0's catch-up list is four items from finished.**
-> Items 1 to 11, 16 and 17 of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done —
-> 11, ADR 0033 § 5's constant-time `secret == secret`, landed today — and `loop-goal.toml`'s
-> `stage = "0 catch-up"` block still names four tests that exist in no crate, so
+> **Status:** 2026-08-26. **M3 is done and Stage 0's catch-up list is three items from finished.**
+> Items 1 to 12, 16 and 17 of [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0* are done —
+> 12, ADR 0066 §§ 1, 3's parse roster, landed today — and `loop-goal.toml`'s
+> `stage = "0 catch-up"` block still names seven tests that exist in no crate, so
 > `python tools/loop.py --goal-only` short-circuits at Stage 0 rather than running the stages below
 > it. Behind that gate is Stage 3's last fixture, `examples/collect.mwl`, itself past its parser
 > hole: `new
@@ -117,10 +117,10 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 outranks everything below it, and four of its items are still open.**
+> **Open now:** **Stage 0 outranks everything below it, and three of its items are still open.**
 > `loop-goal.toml`'s `stage = "0 catch-up"` block names the test that closes each item in
-> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 11, 16 and 17 are done, and
-> the tests for items **12 to 15** do not exist yet, so `tools/loop.py` short-circuits there and no
+> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 12, 16 and 17 are done, and
+> the tests for items **13 to 15** do not exist yet, so `tools/loop.py` short-circuits there and no
 > Stage 3 `Core` slice opens ahead of them. Behind that gate the frontier is `examples/collect.mwl`,
 > and [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this

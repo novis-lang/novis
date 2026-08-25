@@ -121,8 +121,13 @@ one is how an item finishes.
     pair, which has no buffer to read and stays gap 11's remainder.
 12. **`$s as ?Uri` and `$s as ?Uuid` compile, and `isValid` is deleted from both**
     ([ADR 0066 §§ 1, 3](../adr/0066-nullable-conversion-operator.md) owns the roster and why `Duration` is
-    not on it; `uri.rs`'s module doc owns the call-site consequence). `Uri::isValid` is not written yet, so
-    deleting it now costs nothing and costs a member plus its tests once it lands.
+    not on it; `uri.rs`'s module doc owns the call-site consequence). Both `isValid` members **were**
+    written and are gone, against an earlier note here saying `Uri::isValid` was not: `Core\Uuid::isValid`
+    was exactly `parse` asked without the throw, while `Core\Uri::isValid` asked one condition more — "is
+    this an *absolute* URI" — which now reads `($s as ?Uri)?->scheme() != null`, and ADR 0066 § 3 carries
+    that amendment. The conversion lowers as well as type-checks: `mwl_stdlib::registry::PARSE_ROSTER`
+    names one non-member symbol per roster class and `mwl_types::expr_table::ExprInfo::ParseRosterConversion`
+    carries it to `mwl-ir`, since every `?T` erases to one representation.
 13. **`Core\Uri` compares by normalized components, with two guards.**
     `crates/mwl-stdlib/src/uri.rs`'s module doc owns the rule, why it does not contradict
     that module's own "`parse` reports, it does not normalize", and the two guards it requires — a
