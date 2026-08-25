@@ -34,6 +34,7 @@ so you never have to open this file to route a topic.
 | Something that looks like it should work and does not — a `Core` member's four required edits, a `.mwlt` case that skips a leg, an MWL shape that will not compile | [docs/agent/playbook.md](../agent/playbook.md) — the trap list, append-mostly |
 | The *shape* of something you are about to write — a commit message, a `.mwlt` case, a `Core` member, an ADR, a diagnostic code, a splice patch | [docs/agent/conventions.md](../agent/conventions.md) — skeletons plus a worked example CI runs |
 | Running the build, the tests, clippy and fmt; what "verified" means for a session | `python tools/verify.py`, defined in [AGENTS.md](../../AGENTS.md) § *Commands* |
+| Setting a new loop goal; how many slices a session should take; why the context ceiling is 200k; what to pre-authorize so a run never halts on `BLOCKED` | [docs/agent/loop-authoring.md](../agent/loop-authoring.md), and `python tools/loop-stats.py` for the numbers it rests on |
 | Exceptions, the call ABI, helper signatures, panic containment | [0002](0002-error-propagation.md) — the only normative copy of the calling convention |
 | Extensions, wasm, WIT, `.mwlx` | [0003](0003-extension-system.md) |
 | Whether a stdlib feature belongs in `Core`, in the default binary, in an extension or nowhere; which PHP extension maps to what; whether a C dependency is acceptable | [0051](0051-standard-library-tiers.md) |
