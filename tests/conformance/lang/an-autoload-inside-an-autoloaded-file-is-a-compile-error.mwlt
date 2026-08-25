@@ -1,0 +1,35 @@
+--TEST--
+an `autoload` in a file the map itself found does not compile — ADR 0061 § 1
+--FILE--
+<?mwl
+// The map is fixed the moment it is first consulted, so a declaration in a
+// file that consulting it loaded would extend the map that found the file —
+// the map would depend on itself. Only the entry point's own `require` chain
+// declares it.
+require './src/Bootstrap.mwl';
+echo App\Greeter::from(), "\n";
+--FILE src/Bootstrap.mwl--
+<?mwl
+autoload 'App' from './';
+--FILE src/Greeter.mwl--
+<?mwl
+namespace App;
+
+// Reached only through the prefix above, so this line is refused rather than
+// honored. It is not `E0317` as well: § 2 counts declarations, and an
+// `autoload` is not one.
+autoload 'Other' from '../other';
+
+class Greeter
+{
+    public static function from(): string
+    {
+        return "App";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0316]: `autoload` is not honored in a file reached by autoload
+%A
+error: aborting due to 1 error

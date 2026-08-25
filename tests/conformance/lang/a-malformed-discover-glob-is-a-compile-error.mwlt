@@ -1,0 +1,34 @@
+--TEST--
+a `discover` glob whose `*` is not one whole path segment does not compile — ADR 0061 § 1
+--FILE--
+<?mwl
+// A typo that silently discovers nothing is the worst outcome on offer, so a
+// glob's own shape is checked rather than its yield: exactly one `*`,
+// occupying a whole path segment. Both malformed spellings below are
+// reported from the same run, and nothing here names a discovered class —
+// the shape is refused before any directory is scanned.
+require './bootstrap.mwl';
+--FILE bootstrap.mwl--
+<?mwl
+autoload discover './plugin-*/src';
+autoload discover './*/*/src';
+--FILE Plugin/src/Tool.mwl--
+<?mwl
+namespace Plugin;
+
+// What a well-formed './*/src' would have found.
+class Tool
+{
+    public static function from(): string
+    {
+        return "the discovered root";
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0318]: `./plugin-*/src` is not a discovery glob
+%A
+error[E0318]: `./*/*/src` holds more than one `*`
+%A
+error: aborting due to 2 errors
