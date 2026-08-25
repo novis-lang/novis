@@ -101,11 +101,13 @@ one is how an item finishes.
    `reject_array_combination`, naming `Core\Arr::underlay`; `+=` reaches it through `binary_result` and
    reports once, because the recovery type is the array operand rather than `mixed`.
 
-10. **A release build checks integer overflow.** `overflow-checks = true` is already on
-    `[profile.release]`, with the measured basis and the reasoning in the manifest comment beside it. What
-    is left is the test: read the workspace manifest and fail if the line is absent, the same shape as the
-    notice-policy test. Nothing else — the cast half is already enforced by `[workspace.lints.clippy]`
-    plus `verify.py`'s `-D warnings`.
+10. ~~**A release build checks integer overflow.**~~ **Done.** `overflow-checks = true` was already on
+    `[profile.release]`, with the measured basis and the reasoning in the manifest comment beside it; what
+    was missing was the thing that fails when the line is deleted, and that is now
+    `crates/mwl-runtime/tests/manifest_policy.rs` — the shape `mwl-codegen`'s `backend_policy` already
+    uses, reading the `[profile.release]` block with its comments stripped, because that block's own prose
+    names the setting several times while explaining it. Nothing else: the cast half is already enforced
+    by `[workspace.lints.clippy]` plus `verify.py`'s `-D warnings`.
 11. **`secret == secret` lowers to the constant-time helper**
     ([ADR 0033 § 5](../adr/0033-secret-qualifier-for-confidential-values.md) owns the rule and its cost).
     The arm goes in `mwl_ir`'s `lower_binary`, beside the equality work item 4 landed — which is why it is
