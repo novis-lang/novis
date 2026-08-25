@@ -400,7 +400,14 @@ pub(super) fn check_generic_args(
             }
             continue;
         }
-        crate::generics::bind(declared, *actual, env.interner, &mut bindings);
+        crate::generics::bind(
+            declared,
+            *actual,
+            env.interner,
+            env.graph,
+            env.signatures,
+            &mut bindings,
+        );
     }
     let sig = sig.substituted(&bindings, env.interner);
 

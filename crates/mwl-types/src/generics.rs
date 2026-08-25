@@ -68,8 +68,10 @@
 //! that needs `callable` to carry a signature in the type grammar — a typed
 //! `callable` is its own decision, and ADR 0027 § 2 is where it would be taken.
 
+use mwl_hir::ClassGraph;
 use rustc_hash::FxHashMap;
 
+use crate::signatures::SignatureTable;
 use crate::ty::{Ty, TypeId, TypeInterner};
 
 /// Which concrete type each named variable was bound to.
@@ -118,13 +120,27 @@ pub(crate) fn callback_result_var(id: TypeId, interner: &TypeInterner) -> Option
 /// first-binding-wins rule and why there is no failure case: a shape the two
 /// sides do not share simply binds nothing, and the unbound variable becomes
 /// `mixed` in [`substitute`].
-pub(crate) fn bind(declared: TypeId, actual: TypeId, interner: &TypeInterner, out: &mut Bindings) {
+pub(crate) fn bind(
+    declared: TypeId,
+    actual: TypeId,
+    interner: &TypeInterner,
+    graph: &ClassGraph,
+    signatures: &SignatureTable,
+    out: &mut Bindings,
+) {
     match (interner.get(declared), interner.get(actual)) {
         (Ty::TypeVar(name), _) => {
             out.entry(name.clone()).or_insert(actual);
         }
         (Ty::Array(declared_elem), Ty::Array(actual_elem)) => {
-            bind(*declared_elem, *actual_elem, interner, out);
+            bind(
+                *declared_elem,
+                *actual_elem,
+                interner,
+                graph,
+                signatures,
+                out,
+            );
         }
         // `Iterator<T>` against `Iterator<int>` — ADR 0053 § 2's generic
         // interfaces, the only class-shaped type that carries arguments at
@@ -140,7 +156,49 @@ pub(crate) fn bind(declared: TypeId, actual: TypeId, interner: &TypeInterner, ou
                 .zip(actual_args.iter().copied())
                 .collect();
             for (declared_arg, actual_arg) in pairs {
-                bind(declared_arg, actual_arg, interner, out);
+                bind(declared_arg, actual_arg, interner, graph, signatures, out);
+            }
+        }
+        // The same pair reached through `implements` rather than by name:
+        // `Iterable<T>` against a `class Counter implements Iterable<int>`,
+        // whose own class type carries no arguments at all because it declares
+        // none. The arm above cannot see this, since what `Counter` fixed for
+        // the interface lives in its signature rather than in its type — so
+        // this asks `resolve_interface_args` for it, which is the same lookup
+        // `expr::assign`'s nominal rule performs to *accept* the argument.
+        // `mwl_stdlib::registry::CoreTy::Iterated` is what needs it: without
+        // it `Core\Arr::from($counter)` would bind nothing and answer
+        // `array<mixed>` for a sequence whose element type is written down.
+        (Ty::Class(declared_q, declared_args), Ty::Class(actual_q, _))
+            if !declared_args.is_empty() && declared_q != actual_q =>
+        {
+            let Some(actual_args) =
+                crate::signatures::resolve_interface_args(actual_q, declared_q, signatures, graph)
+            else {
+                return;
+            };
+            if declared_args.len() != actual_args.len() {
+                return;
+            }
+            let pairs: Vec<(TypeId, TypeId)> = declared_args
+                .iter()
+                .copied()
+                .zip(actual_args.iter().copied())
+                .collect();
+            for (declared_arg, actual_arg) in pairs {
+                bind(declared_arg, actual_arg, interner, graph, signatures, out);
+            }
+        }
+        // A declared **union**, which is where a registry row's
+        // `array<T>|Iterable<T>|Iterator<T>` and its `?T` both arrive: bind
+        // against every member and let first-binding-wins settle it. At most
+        // one member can match a given argument structurally — an array is not
+        // a class, and `null` binds nothing — so the interner's canonical
+        // member order does not decide the answer.
+        (Ty::Union(members), _) => {
+            let members = members.clone();
+            for member in members {
+                bind(member, actual, interner, graph, signatures, out);
             }
         }
         // A bag never appears on the `actual` side — a call site writes an
@@ -161,7 +219,14 @@ pub(crate) fn bind(declared: TypeId, actual: TypeId, interner: &TypeInterner, ou
                 })
                 .collect();
             for (declared_field, actual_field) in pairs {
-                bind(declared_field, actual_field, interner, out);
+                bind(
+                    declared_field,
+                    actual_field,
+                    interner,
+                    graph,
+                    signatures,
+                    out,
+                );
             }
         }
         _ => {}
@@ -238,6 +303,23 @@ pub(crate) fn substitute(id: TypeId, bindings: &Bindings, interner: &mut TypeInt
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`super::bind`] with the two tables its `implements` arm consults left
+    /// empty — every test below binds structurally, and a class reaching a
+    /// generic interface through an `implements` clause is pinned by
+    /// `crate::core_lib`'s own tests, where a seeded table exists. A local
+    /// item shadows a glob-imported name, so each call site below reads
+    /// exactly as it did before that arm.
+    fn bind(declared: TypeId, actual: TypeId, interner: &TypeInterner, out: &mut Bindings) {
+        super::bind(
+            declared,
+            actual,
+            interner,
+            &ClassGraph::default(),
+            &SignatureTable::new(),
+            out,
+        );
+    }
 
     #[test]
     fn a_bare_variable_binds_to_whatever_it_is_matched_against() {

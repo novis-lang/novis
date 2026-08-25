@@ -24,6 +24,7 @@
 //!   the thing to remove once the registry is complete.
 
 use mwl_hir::QName;
+use mwl_hir::interfaces::{ITERABLE, ITERATOR};
 use mwl_stdlib::registry::{CLASSES, Const, CoreTy};
 use rustc_hash::FxHashMap;
 
@@ -280,6 +281,20 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // `$match->text()` through the machinery `$animal->name()` goes
         // through, and `mwl-ir` lowers the value to `Ty::Object`.
         CoreTy::Instance(name) => interner.class(QName::parse(name)),
+        // ADR 0053 § 3's three iterable shapes, interned as the union of all
+        // three — [`CoreTy::Iterated`] owns why an `array<T>` is one of them
+        // and how a helper reads the argument back. The two interface members
+        // are the same generic class types [`crate::iter_lib`] seeds, so a
+        // user class implementing `Iterable<int>` satisfies this parameter
+        // through the ordinary `class_satisfied` rule rather than through
+        // anything this arm has to know about.
+        CoreTy::Iterated(elem) => {
+            let elem = lower(elem, interner);
+            let array = interner.array(elem);
+            let iterable = interner.generic_class(QName::parse(ITERABLE), vec![elem]);
+            let iterator = interner.generic_class(QName::parse(ITERATOR), vec![elem]);
+            interner.make_union([array, iterable, iterator])
+        }
         // Canonicalized by the interner, unlike an options bag: a union has no
         // ABI order to preserve, so `int|string` and `string|int` are one type
         // here exactly as they are when written in source.
@@ -345,6 +360,23 @@ mod tests {
         assert_eq!(sig.params.len(), 1);
         assert_eq!(interner.describe(sig.params[0]), "array<T>");
         assert_eq!(interner.describe(sig.return_ty), "uint");
+    }
+
+    /// [`CoreTy::Iterated`] is exactly ADR 0053 § 3's three shapes, and the
+    /// union it interns to is the one a program could have written out by
+    /// hand — the property that keeps `Core\Arr::from($x)` accepting the same
+    /// `$x` a `foreach` over it would.
+    #[test]
+    fn an_iterated_parameter_is_the_three_shapes_foreach_accepts() {
+        let mut interner = TypeInterner::new();
+        let lowered = lower(&CoreTy::Iterated(&CoreTy::Int), &mut interner);
+
+        let int = interner.int();
+        let array = interner.array(int);
+        let iterable = interner.generic_class(QName::parse(ITERABLE), vec![int]);
+        let iterator = interner.generic_class(QName::parse(ITERATOR), vec![int]);
+        let expected = interner.make_union([array, iterable, iterator]);
+        assert_eq!(lowered, expected);
     }
 
     /// The two variable kinds part company here and nowhere else: both lower

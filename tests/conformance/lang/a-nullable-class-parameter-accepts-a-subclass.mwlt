@@ -1,0 +1,26 @@
+--TEST--
+A `?T` parameter accepts a subclass of `T`, since `?T` is `T|null` and a union is satisfied member-wise — ADR 0007 § 3
+--FILE--
+<?mwl
+// ADR 0007 § 3: `?Animal` is sugar for `Animal|null` and nothing else, so
+// whatever satisfies `Animal` satisfies it — including a subclass, by the one
+// nominal subtyping rule `implements`/`extends` gives.
+class Animal {}
+
+class Dog extends Animal {}
+
+class Kennel {
+    public static function describe(?Animal $a): string {
+        if ($a == null) {
+            return "empty";
+        }
+        return "occupied";
+    }
+}
+
+var $dog = new Dog();
+echo Kennel::describe($dog), "\n";
+echo Kennel::describe(null), "\n";
+--EXPECT--
+occupied
+empty

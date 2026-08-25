@@ -284,6 +284,43 @@ pub enum CoreTy {
     /// slot 0. So there is no constructor, no property and no subclass — a
     /// program can only receive one from a member that returns it.
     Instance(&'static str),
+    /// **Whatever `foreach` accepts**, over the element type wrapped:
+    /// [ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md) § 3's
+    /// three shapes at once, interned as the union
+    /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s
+    /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+    /// § 2 row is the first to write one, and § 9's collections are the next.
+    ///
+    /// **A plain `array<T>` satisfies it, and the spec row is written that
+    /// way.** ADR 0053 § 3 fixes the set of things that can be iterated at
+    /// exactly three, so a member asking for "a sequence" that accepted only
+    /// two of them would refuse `Core\Arr::from($array)` — the commonest
+    /// argument, and the one PHP's own `iterator_to_array` has accepted since
+    /// 8.2. The alternative was a second, narrower notion of iterability
+    /// living in the registry, which is the drift AGENTS.md's one-home rule
+    /// exists to prevent: this variant *is* § 3's list, and a fourth shape
+    /// added there would be added here.
+    ///
+    /// **A helper reads one by tag, and never as a pre-drained array.** The
+    /// interned union gives the parameter `mwl_ir::ty::Ty::Tagged`, so the
+    /// argument slot holds a whole 16-byte `mwl_runtime::Value`: `Tag::Array`
+    /// is an `MwlArray` the helper walks directly, and `Tag::Obj` is a cursor
+    /// it *drives* — `iterate()` first when the value reaches `Iterable<T>`,
+    /// then `advance()`/`current()` — through the class descriptor's own
+    /// method table, exactly as `mwl_runtime::call_closure` already reaches a
+    /// closure's `invoke`. Every one of those members is bodiless
+    /// (`mwl_types::iter_lib`), so that name lookup *is* the dispatch a
+    /// `foreach` over the same value performs. Materialising the sequence into
+    /// an array in the IR before the call was the rejected alternative: it
+    /// allocates a second copy of every array argument, and it would drain an
+    /// unbounded generator before `Core\Arr::from`'s `{limit: n}` — the spec's
+    /// only guard against exactly that — could stop it.
+    ///
+    /// **Parameter position only.** A member *returning* a sequence would be
+    /// answering with a union whose object half a program can only consume by
+    /// `foreach`, and no spec row does: every row that produces a collection
+    /// produces an `array<T>` or a named [`Self::Instance`].
+    Iterated(&'static CoreTy),
     /// `...$rest` — a **variadic** tail, wrapping the type *each* trailing
     /// argument is checked against (`mixed` in
     /// `format(string $template, mixed ...$arguments)`).
@@ -545,7 +582,10 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
                 found.push(name);
             }
         }
-        CoreTy::Array(inner) | CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => {
+        CoreTy::Array(inner)
+        | CoreTy::Nullable(inner)
+        | CoreTy::Variadic(inner)
+        | CoreTy::Iterated(inner) => {
             collect_written(inner, found);
         }
         CoreTy::Union(members) => {
@@ -1002,7 +1042,9 @@ mod tests {
         fn nests_one(ty: &CoreTy) -> bool {
             match ty {
                 CoreTy::Variadic(_) => true,
-                CoreTy::Array(elem) | CoreTy::Nullable(elem) => nests_one(elem),
+                CoreTy::Array(elem) | CoreTy::Nullable(elem) | CoreTy::Iterated(elem) => {
+                    nests_one(elem)
+                }
                 CoreTy::Union(members) => members.iter().any(nests_one),
                 CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
                 _ => false,
@@ -1086,7 +1128,10 @@ mod tests {
         fn inferred(ty: &CoreTy, found: &mut Vec<&'static str>) {
             match ty {
                 CoreTy::Var(name) | CoreTy::CallableTo(name) => found.push(name),
-                CoreTy::Array(inner) | CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => {
+                CoreTy::Array(inner)
+                | CoreTy::Nullable(inner)
+                | CoreTy::Variadic(inner)
+                | CoreTy::Iterated(inner) => {
                     inferred(inner, found);
                 }
                 CoreTy::Union(members) => members.iter().for_each(|m| inferred(m, found)),
@@ -1164,7 +1209,9 @@ mod tests {
                     );
                     check(inner, what);
                 }
-                CoreTy::Array(elem) | CoreTy::Variadic(elem) => check(elem, what),
+                CoreTy::Array(elem) | CoreTy::Variadic(elem) | CoreTy::Iterated(elem) => {
+                    check(elem, what);
+                }
                 CoreTy::Union(members) => {
                     for member in *members {
                         check(member, what);
@@ -1198,9 +1245,10 @@ mod tests {
         fn nests_one(ty: &CoreTy) -> bool {
             match ty {
                 CoreTy::CallableTo(_) => true,
-                CoreTy::Array(elem) | CoreTy::Nullable(elem) | CoreTy::Variadic(elem) => {
-                    nests_one(elem)
-                }
+                CoreTy::Array(elem)
+                | CoreTy::Nullable(elem)
+                | CoreTy::Variadic(elem)
+                | CoreTy::Iterated(elem) => nests_one(elem),
                 CoreTy::Union(members) => members.iter().any(nests_one),
                 CoreTy::Options(options) => options.iter().any(|option| nests_one(&option.ty)),
                 _ => false,
@@ -1237,9 +1285,10 @@ mod tests {
         fn mentions(ty: &CoreTy, name: &str) -> bool {
             match ty {
                 CoreTy::Var(var) => *var == name,
-                CoreTy::Array(elem) | CoreTy::Nullable(elem) | CoreTy::Variadic(elem) => {
-                    mentions(elem, name)
-                }
+                CoreTy::Array(elem)
+                | CoreTy::Nullable(elem)
+                | CoreTy::Variadic(elem)
+                | CoreTy::Iterated(elem) => mentions(elem, name),
                 CoreTy::Union(members) => members.iter().any(|member| mentions(member, name)),
                 _ => false,
             }
@@ -1459,7 +1508,10 @@ mod tests {
                         "{what} names `{name}::{case}`, which is not a case of it"
                     );
                 }
-                CoreTy::Array(inner) | CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => {
+                CoreTy::Array(inner)
+                | CoreTy::Nullable(inner)
+                | CoreTy::Variadic(inner)
+                | CoreTy::Iterated(inner) => {
                     check(inner, what);
                 }
                 CoreTy::Union(members) => {
@@ -1674,9 +1726,10 @@ mod tests {
                     class(name).is_some(),
                     "{what} names the unregistered class `{name}`"
                 ),
-                CoreTy::Array(elem) | CoreTy::Nullable(elem) | CoreTy::Variadic(elem) => {
-                    check(elem, what)
-                }
+                CoreTy::Array(elem)
+                | CoreTy::Nullable(elem)
+                | CoreTy::Variadic(elem)
+                | CoreTy::Iterated(elem) => check(elem, what),
                 CoreTy::Union(members) => {
                     for member in *members {
                         check(member, what);

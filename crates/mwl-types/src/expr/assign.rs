@@ -80,10 +80,31 @@ pub(crate) fn is_assignable(
     if widened != from && is_assignable(widened, to, interner, graph, signatures) {
         return true;
     }
+    // A union target is satisfied member-wise, and **membership is checked
+    // first because it is the common case** — a union built out of the same
+    // interned ids answers with one `contains` and no recursion at all.
+    //
+    // The recursion behind it is what makes every *other* rule in this
+    // function apply inside a union, and it is not a special case for one
+    // caller: `?Animal` refusing a `Dog` was the same hole as
+    // `array<T>|Iterable<T>|Iterator<T>` (`mwl_stdlib::registry::CoreTy::Iterated`)
+    // refusing a class that implements `Iterable<int>`, since neither the
+    // nominal rule nor the shape rule nor the widening rule was ever reached
+    // for a member. Unions are flattened and canonicalised, so a member is
+    // never itself a union and the recursion is one level deep.
     if let Ty::Union(members) = interner.get(to) {
-        return match interner.get(from) {
-            Ty::Union(from_members) => from_members.iter().all(|m| members.contains(m)),
-            _ => members.contains(&from),
+        let members = members.clone();
+        let satisfies = |from: TypeId, interner: &mut TypeInterner| {
+            members.contains(&from)
+                || members
+                    .iter()
+                    .any(|member| is_assignable(from, *member, interner, graph, signatures))
+        };
+        return match interner.get(from).clone() {
+            Ty::Union(from_members) => from_members
+                .into_iter()
+                .all(|member| satisfies(member, interner)),
+            _ => satisfies(from, interner),
         };
     }
     if matches!(interner.get(to), Ty::Object)
