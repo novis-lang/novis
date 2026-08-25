@@ -120,6 +120,12 @@ spellings rejected, and the reasoning.
   ([0094](0094-visibility-is-written-at-every-member-declaration.md)).
 - **Nothing depends on the case something was typed in, or on the filesystem's opinion of it**
   ([0062](0062-case-sensitivity-is-a-compiler-property.md)).
+- **Input whose spelling and resolution can differ is refused, never repaired** — a closed ambiguity list
+  for an HTTP message in both directions, byte-exact cookie names with the prefixes enforced, a multipart
+  part count, and path components that do not spell what they open
+  ([0095](0095-ambiguous-input-is-refused-never-repaired.md)).
+- **A `#[Route]` without a sibling `#[Access]` does not compile**, and CSRF is on by default for unsafe
+  methods ([0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md)).
 - **A bidirectional control that opens a scope and never closes it is a compile error in source and is
   substituted at both output sinks** ([0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md)).
 
