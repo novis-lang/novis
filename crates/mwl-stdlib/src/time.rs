@@ -60,15 +60,15 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`$d->withTime(TimeOfDay $t)` is not registered.** It is the one § 4
-//!    row left here, and the only one that *takes* a component view rather
-//!    than answering with one: [`DATE`] and [`TIME_OF_DAY`] both exist, so
-//!    what it owes is a [`DATETIME`] row and a helper that rebuilds the
-//!    receiver's date in the receiver's zone at `$t`. There is **no
-//!    `Core\Month`**: § 4 writes no member that takes or answers with one,
-//!    `Core\Weekday` existing only because `$d->weekday()` does, and an enum
-//!    nothing names is surface with no spec home. Two earlier notes here said
-//!    otherwise; they were describing a member the spec never had.
+//! 1. **There is no `Core\Month`, and there is not going to be one.** § 4
+//!    writes no member that takes or answers with one, `Core\Weekday` existing
+//!    only because `$d->weekday()` does, and an enum nothing names is surface
+//!    with no spec home. This is item 1 because it is the question that keeps
+//!    being re-asked, not because anything is missing: three earlier notes
+//!    here described a member the spec never had. **§ 4 itself is whole** —
+//!    `withTime`, its last row and its only one that *takes* a component view
+//!    rather than answering with one, is
+//!    [`mwl_core_time_datetime_with_time`].
 //! 2. **`$d->format` and `Core\Time::parse` compile their pattern per call.**
 //!    ADR 0057 makes both intrinsics whose literal pattern is prepared while
 //!    compiling; [`crate::cldr`]'s own gap 1 owns what that changes and what
@@ -947,6 +947,13 @@ pub const DATETIME: CoreClass = CoreClass {
             symbol: "mwl_core_time_datetime_with",
         },
         CoreMethod {
+            name: "withTime",
+            params: &[CoreTy::Instance(TIME_OF_DAY_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATETIME_NAME),
+            symbol: "mwl_core_time_datetime_with_time",
+        },
+        CoreMethod {
             name: "startOf",
             params: &[CoreTy::Enum(UNIT.name)],
             defaults: &[],
@@ -1038,6 +1045,9 @@ fn datetime_address(symbol: &str) -> Option<*const u8> {
         "mwl_core_time_datetime_next" => (mwl_core_time_datetime_next as *const ()).cast(),
         "mwl_core_time_datetime_previous" => (mwl_core_time_datetime_previous as *const ()).cast(),
         "mwl_core_time_datetime_with" => (mwl_core_time_datetime_with as *const ()).cast(),
+        "mwl_core_time_datetime_with_time" => {
+            (mwl_core_time_datetime_with_time as *const ()).cast()
+        }
         "mwl_core_time_datetime_start_of" => (mwl_core_time_datetime_start_of as *const ()).cast(),
         "mwl_core_time_datetime_end_of" => (mwl_core_time_datetime_end_of as *const ()).cast(),
         "mwl_core_time_datetime_difference" => {
@@ -2241,6 +2251,32 @@ mwl_runtime::mwl_helper! {
             .build()
             .map(|built| datetime_built(&built))
             .map_err(|err| out_of_range(r"Core\Time\DateTime::with", &err.to_string()))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `$d->withTime(TimeOfDay $t): DateTime` — spec § 4's "common half of
+    /// `with`, spelled as the operation it is".
+    ///
+    /// The same body as [`mwl_core_time_datetime_with`] reached from a
+    /// component view instead of an options bag, and the one call of the two
+    /// that cannot be partial: a `TimeOfDay` carries all four clock fields, so
+    /// `nanos` is replaced as surely as `hour` is and there is no
+    /// omitted-option case to leave alone. The date and the zone are what stay,
+    /// which is why this is not `Core\Time::at` with three fields copied over.
+    ///
+    /// Landing in a DST gap resolves the way every other `DateTime` build
+    /// does — `jiff`'s compatible disambiguation, shifting forward by the gap
+    /// — rather than throwing, since the civil time the program named is the
+    /// one the zone skipped and the next real instant is what it meant.
+    fn mwl_core_time_datetime_with_time(_ctx, args: [2]) {
+        let at = zoned_of(args, 0, "withTime")?;
+        let time = clock_of(args, 1, "withTime")?;
+        at.with()
+            .time(time)
+            .build()
+            .map(|built| datetime_built(&built))
+            .map_err(|err| out_of_range(r"Core\Time\DateTime::withTime", &err.to_string()))
     }
 }
 

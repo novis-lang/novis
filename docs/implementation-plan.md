@@ -125,8 +125,8 @@
 > `Iterable`/`Iterator` argument — ADR 0069's four combination members, the `diff`/`intersect` set half
 > with `Core\SetOn`, the positional rows, the callback rows and both sorts are all registered, which the
 > ratchet below is the machine-readable statement of; §
-> 4 owes `withTime` alone, `Core\Time\Date` and `Core\Time\TimeOfDay` and the two views that answer
-> with them being registered, and there is **no** `Core\Month` — § 4 writes no member that takes or
+> 4 is **whole**, `withTime` having landed beside `Core\Time\Date`, `Core\Time\TimeOfDay` and the two
+> views that answer with them, and there is **no** `Core\Month` — § 4 writes no member that takes or
 > answers with one (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
 > 2, which waited on a written type argument at a call site and no longer does); § 7 is **whole** —
@@ -149,7 +149,7 @@
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against
 > `tests/spec-members-outstanding.txt`** rather than a permanently red assertion, for the reason its
-> own module doc states, and that file's **7 remaining keys are the machine-readable work list for
+> own module doc states, and that file's **6 remaining keys are the machine-readable work list for
 > §§ 1-12**: when it holds none, Part I is registered whole. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
 > qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR makes it,
 > and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor the test

@@ -14,10 +14,6 @@
 # § 2 `Core\Arr` — structure, ADR 0069's combination members, and the set half
 §2 from
 
-# § 4 `Core\Time` — the one row that takes a component view rather than
-# answering with one
-§4 withTime
-
 # § 5 `Core\Regex` — both need `Pattern`
 §5 compile
 §5 replaceWith
