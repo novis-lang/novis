@@ -166,6 +166,20 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "mwl_core_str_lines",
         },
         CoreMethod {
+            name: "graphemes",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "mwl_core_str_graphemes",
+        },
+        CoreMethod {
+            name: "codePoints",
+            params: &[CoreTy::Str],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Uint),
+            symbol: "mwl_core_str_code_points",
+        },
+        CoreMethod {
             name: "replace",
             params: &[
                 CoreTy::Str,
@@ -260,6 +274,20 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Str,
             symbol: "mwl_core_str_lower_first",
+        },
+        CoreMethod {
+            name: "fromCodePoint",
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_from_code_point",
+        },
+        CoreMethod {
+            name: "fromCodePoints",
+            params: &[CoreTy::Array(&CoreTy::Uint)],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "mwl_core_str_from_code_points",
         },
         CoreMethod {
             name: "format",
@@ -405,6 +433,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_str_split" => (mwl_core_str_split as *const ()).cast(),
         "mwl_core_str_chunk" => (mwl_core_str_chunk as *const ()).cast(),
         "mwl_core_str_lines" => (mwl_core_str_lines as *const ()).cast(),
+        "mwl_core_str_graphemes" => (mwl_core_str_graphemes as *const ()).cast(),
+        "mwl_core_str_code_points" => (mwl_core_str_code_points as *const ()).cast(),
+        "mwl_core_str_from_code_point" => (mwl_core_str_from_code_point as *const ()).cast(),
+        "mwl_core_str_from_code_points" => (mwl_core_str_from_code_points as *const ()).cast(),
         "mwl_core_str_replace" => (mwl_core_str_replace as *const ()).cast(),
         "mwl_core_str_trim" => (mwl_core_str_trim as *const ()).cast(),
         "mwl_core_str_trim_start" => (mwl_core_str_trim_start as *const ()).cast(),
@@ -802,6 +834,57 @@ fn line_pieces(subject: &str) -> Vec<&str> {
         out.push(&subject[start..]);
     }
     out
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::graphemes(string $s): array<string>` — the split half of
+    /// intl's `grapheme_*` family.
+    ///
+    /// [`crate::granularity::Unit::Grapheme`] written out as a member. This is
+    /// the unit every other length in this class already counts in
+    /// ([`crate::granularity::DEFAULT`]), so `graphemes($s)` is exactly what
+    /// `Str::at` walks and `Str::length` counts — a program that needs the
+    /// pieces themselves does not have to reimplement the boundary rule to get
+    /// them, which is the mistake `str_split` invites.
+    ///
+    /// An empty subject is **no pieces**, matching [`mwl_core_str_chunk`] for
+    /// the same reason: empty text divides into nothing.
+    fn mwl_core_str_graphemes(_ctx, args: [1]) {
+        let subject = text(&args[0], "graphemes", "the subject")?;
+        let mut out = MwlArray::new();
+        for piece in crate::granularity::Unit::Grapheme.pieces(subject) {
+            out.append(Value::str(MwlStr::new(piece.as_bytes())));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::codePoints(string $s): array<uint>` — replacing
+    /// `mb_str_split` + `mb_ord` and `unpack("N*", …)`.
+    ///
+    /// One member rather than the two steps PHP needs, and it answers the
+    /// scalar values rather than one-code-point strings: a program asking for
+    /// code points wants the numbers, and `Str::graphemes` is already the
+    /// member that answers pieces of text. Every element is a Unicode scalar
+    /// value, so it is in `0..=0x10FFFF` and never a surrogate — `string` is
+    /// guaranteed well-formed UTF-8 (ADR 0009 § 1), which is what makes this
+    /// total where PHP's `mb_ord` has a failure mode.
+    ///
+    /// **This is [`crate::granularity::Unit::CodePoint`], not the class
+    /// default**, and that is the point of the member: it is the one place a
+    /// program asks for scalar values on purpose rather than by accident.
+    /// `codePoints("é\u{0301}")` is two, where `graphemes` of the same subject
+    /// is one.
+    fn mwl_core_str_code_points(_ctx, args: [1]) {
+        let subject = text(&args[0], "codePoints", "the subject")?;
+        let mut out = MwlArray::new();
+        for piece in crate::granularity::Unit::CodePoint.pieces(subject) {
+            let point = piece.chars().next().expect("a code point piece is one char");
+            out.append(Value::uint(u64::from(point as u32)));
+        }
+        Ok(Value::array(out))
+    }
 }
 
 /// `subject` with every leading and/or trailing character drawn from
@@ -1405,6 +1488,122 @@ mwl_runtime::mwl_helper! {
     /// `Core\Str::lowerFirst(string $s): string` — replacing PHP's `lcfirst`.
     fn mwl_core_str_lower_first(_ctx, args: [1]) {
         produced(&map_first(text(&args[0], "lowerFirst", "the subject")?, false))
+    }
+}
+
+/// One code point, as the `char` it names, or the throw that says why it names
+/// none.
+///
+/// **Not every `uint` is a scalar value**, and this is where that is enforced
+/// once for both `fromCodePoint` and `fromCodePoints`. Two ranges are refused:
+/// anything above U+10FFFF, and the surrogate range U+D800..=U+DFFF, which
+/// UTF-8 cannot encode and which is the exact hole a UTF-16 round trip leaks.
+/// PHP's `mb_chr` answers `false` for both; MWL throws, because a `string` is
+/// guaranteed well-formed UTF-8 (ADR 0009 § 1) and a substituted replacement
+/// character would be the silent-lossy conversion
+/// [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md) § 2 refuses
+/// everywhere else.
+fn scalar_value(point: i128, member: &str) -> Result<char, Fault> {
+    u32::try_from(point)
+        .ok()
+        .and_then(char::from_u32)
+        .ok_or_else(|| {
+            Fault::thrown(format!(
+                "Core\\Str::{member}(): {point} is not a Unicode scalar value — a code point is \
+                 at most 1114111 and is never in the surrogate range 55296..57343"
+            ))
+        })
+}
+
+/// One code-point argument, whichever integer tag it arrives under.
+///
+/// **Both tags are accepted on purpose**, unlike [`unsigned`], which is what
+/// every other `uint` parameter in this class reads through. A written `int`
+/// literal in an `array<uint>` position type-checks — `Str::fromCodePoints([97,
+/// 98])` is the obvious call, and covariance on read admits it — and reaches
+/// this crate still tagged [`Tag::Int`], so refusing it would answer the
+/// most natural spelling of the member with a fatal rather than a value. A
+/// negative one is no more a scalar value than 1114112 is, so it takes the same
+/// throw from [`scalar_value`] rather than a second message.
+fn code_point(value: &Value, member: &str, position: &str) -> Result<i128, Fault> {
+    value
+        .as_uint()
+        .map(i128::from)
+        .or_else(|| value.as_int().map(i128::from))
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Str::{member} expected {:?} for {position}, got tag {}",
+                Tag::Uint,
+                value.tag_byte()
+            ))
+        })
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::fromCodePoint(uint $codePoint): string` — replacing `chr`
+    /// and `mb_chr`.
+    ///
+    /// One member for both because MWL has only one text type: PHP's `chr`
+    /// builds a *byte*, which is what makes it the wrong half of the pair as
+    /// soon as the argument exceeds 127, and that operation lives on
+    /// `Core\Bytes` here rather than under a name that looks like text.
+    ///
+    /// The argument is a scalar value, not a byte — see [`scalar_value`] for
+    /// the two ranges that throw and why this does not substitute.
+    fn mwl_core_str_from_code_point(_ctx, args: [1]) {
+        let point = code_point(&args[0], "fromCodePoint", "the code point")?;
+        let mut buffer = [0u8; 4];
+        produced(scalar_value(point, "fromCodePoint")?.encode_utf8(&mut buffer))
+    }
+}
+
+mwl_runtime::mwl_helper! {
+    /// `Core\Str::fromCodePoints(array<uint> $codePoints): string` —
+    /// replacing `implode(array_map("mb_chr", …))`.
+    ///
+    /// [`mwl_core_str_code_points`]'s inverse, and the pair round-trips: a
+    /// subject through `codePoints` and back is the same `string`, since both
+    /// halves refuse everything UTF-8 cannot hold. The array form exists
+    /// rather than leaving it to `Str::join` because building one string of
+    /// *n* code points through *n* one-character strings allocates *n* times
+    /// for a result whose length is known — this fills one buffer.
+    ///
+    /// **A bad element throws and nothing is produced**, rather than the
+    /// prefix that was valid: a half-built string is the failure mode that
+    /// gets written to a socket before anyone checks.
+    fn mwl_core_str_from_code_points(_ctx, args: [1]) {
+        let points = args[0].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Str::fromCodePoints expected {:?} for the code points, got tag {}",
+                Tag::Array,
+                args[0].tag_byte()
+            ))
+        })?;
+
+        let mut out = String::new();
+        let mut from = 0usize;
+        loop {
+            #[expect(
+                unsafe_code,
+                reason = "a Tag::Array argument owns a reference to a live \
+                          allocation, so it is live for the length of this \
+                          call, and `from` only ever advances past a slot \
+                          this same cursor reported"
+            )]
+            let (slot, value) = unsafe {
+                let slot = mwl_runtime::mwl_array_next_slot(points, from);
+                let Ok(slot) = usize::try_from(slot) else {
+                    break;
+                };
+                let mut value = Value::null();
+                mwl_runtime::mwl_array_value_at(points, slot, &raw mut value);
+                (slot, value)
+            };
+            from = slot + 1;
+            let point = code_point(&value, "fromCodePoints", "an element")?;
+            out.push(scalar_value(point, "fromCodePoints")?);
+        }
+        produced(&out)
     }
 }
 

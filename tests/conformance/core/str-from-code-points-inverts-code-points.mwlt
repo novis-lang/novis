@@ -1,0 +1,53 @@
+--TEST--
+`Core\Str::fromCodePoint` and `fromCodePoints` invert `Core\Str::codePoints` and refuse anything UTF-8 cannot hold — spec § 1 *Transformation*, ADR 0009 § 1
+--FILE--
+<?mwl
+class Build {
+    public static function one(uint $point): string {
+        try {
+            return Core\Str::fromCodePoint($point);
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    public static function many(array<uint> $points): string {
+        try {
+            return Core\Str::fromCodePoints($points);
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+// `fromCodePoint` takes a scalar value, not a byte — which is where it parts
+// company with `chr`, whose answer above 127 is not text at all.
+echo Build::one(97), "\n";
+echo Build::one(8364), "\n";
+// A written `int` literal is admitted in an `array<uint>` position, so the
+// obvious spelling of the list form is the one that works.
+echo Core\Str::fromCodePoints([104, 105]), "\n";
+echo "[", Core\Str::fromCodePoints([]), "]\n";
+
+// The pair round-trips: every subject survives `codePoints` and back, because
+// both halves refuse everything `string` cannot hold. The flag is the case
+// that matters — two scalar values rebuilt into one cluster.
+echo Core\Str::fromCodePoints(Core\Str::codePoints("héllo")), "\n";
+echo Core\Str::length(Core\Str::fromCodePoints(Core\Str::codePoints("\u{1F1E6}\u{1F1F9}"))), "\n";
+
+// Above U+10FFFF, and the surrogate range, both throw rather than substituting
+// a replacement character — PHP's `mb_chr` answers `false` for each.
+echo Build::one(1114112), "\n";
+echo Build::one(55296), "\n";
+// A bad element throws for the whole call: the valid prefix is not produced.
+echo Build::many([97, 55296, 98]), "\n";
+--EXPECT--
+a
+€
+hi
+[]
+héllo
+1
+threw: Core\Str::fromCodePoint(): 1114112 is not a Unicode scalar value — a code point is at most 1114111 and is never in the surrogate range 55296..57343
+threw: Core\Str::fromCodePoint(): 55296 is not a Unicode scalar value — a code point is at most 1114111 and is never in the surrogate range 55296..57343
+threw: Core\Str::fromCodePoints(): 55296 is not a Unicode scalar value — a code point is at most 1114111 and is never in the surrogate range 55296..57343

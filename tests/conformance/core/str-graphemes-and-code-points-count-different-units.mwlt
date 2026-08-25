@@ -1,0 +1,45 @@
+--TEST--
+`Core\Str::graphemes` answers the class's own unit and `Core\Str::codePoints` answers scalar values — spec § 1 *Extraction*, ADR 0009 § 2
+--FILE--
+<?mwl
+class Render {
+    public static function points(array<uint> $a): string {
+        var $out = "";
+        foreach ($a as string $k => uint $v) {
+            $out = $out . $v . ";";
+        }
+        return $out;
+    }
+}
+
+// `graphemes` hands back the pieces `Str::at` walks and `Str::length` counts.
+echo Core\Str::join(Core\Str::graphemes("abc"), "|"), "\n";
+
+// It is ADR 0009 § 2's unit, so it agrees with `Str::length` by construction:
+// an accented letter built from a combining mark is one piece, not two. The
+// counts are asserted rather than the pieces, because the two spellings of an
+// accented letter print identically and an exact-match block cannot tell them
+// apart.
+echo Core\Arr::count(Core\Str::graphemes("a\u{0301}bc")), "\n";
+echo Core\Str::length("a\u{0301}bc"), "\n";
+// `codePoints` is the one member that asks for scalar values on purpose. The
+// same subject is four of them, and the combining mark is its own.
+echo Render::points(Core\Str::codePoints("a\u{0301}bc")), "\n";
+
+// A regional-indicator pair is one cluster and two code points — the case that
+// makes counting scalar values the wrong answer for "how long is this text".
+echo Core\Str::length("\u{1F1E6}\u{1F1F9}"), "\n";
+echo Render::points(Core\Str::codePoints("\u{1F1E6}\u{1F1F9}")), "\n";
+
+// Empty text divides into nothing in either unit, as `chunk` does.
+echo Core\Arr::count(Core\Str::graphemes("")), "\n";
+echo "[", Render::points(Core\Str::codePoints("")), "]\n";
+--EXPECT--
+a|b|c
+3
+3
+97;769;98;99;
+1
+127462;127481;
+0
+[]

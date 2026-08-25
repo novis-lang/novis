@@ -12,12 +12,8 @@
 # to it.
 
 # § 1 `Core\Str` — the text-shaping half
-§1 codePoints
 §1 compare
 §1 fold
-§1 fromCodePoint
-§1 fromCodePoints
-§1 graphemes
 §1 normalize
 §1 replaceAll
 §1 replaceRange
