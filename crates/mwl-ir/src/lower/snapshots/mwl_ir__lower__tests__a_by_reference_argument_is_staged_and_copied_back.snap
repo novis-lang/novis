@@ -20,5 +20,6 @@ fn <script>() -> tagged {
   bb1:
     propagate "<script>() at t.mwl:6"
   bb2:
+    release v5
     propagate "<script>() at t.mwl:7"
 }

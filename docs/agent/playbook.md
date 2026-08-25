@@ -130,14 +130,15 @@ is why" — is this file.
   lower at file scope now, which is what `tests/conformance/core/time-datetime-is-a-civil-time-in-a-zone.mwlt`
   and both `Date`/`TimeOfDay` cases write; the class-method shape
   `tests/conformance/lang/a-lossy-conversion-throws.mwlt` uses is no longer needed for that.
-- **A throwing `Core` member leaks its `string` argument, so `leak-check.sh` is red for any probe that
-  catches one.** `Core\Encoding::fromHex("zzz…")` inside a `try` loses exactly the argument's `MwlStr`,
-  and that is how you recognize it without a bisect: the "definitely lost" size is `16 + strlen(the
-  literal)` and the allocating stack carries no `mwl_` frame at all. It is `mwl-ir`'s already-recorded gap
-  at `crates/mwl-ir/src/lower/call.rs:435` — call temporaries are released on the normal edge only — and it
-  predates every member slice that trips over it. So when what you are checking is a *new member's* own
-  refcount edges, write the leak probe **without** a `try`, and put the throw rows in the `.mwlt` case,
-  which the valgrind leg does not run.
+- **A leak whose "definitely lost" size is `16 + strlen(a literal in the probe)` is a temporary abandoned
+  on a throwing edge, and the allocating stack carrying no `mwl_` frame at all is the confirmation.** That
+  is the whole recognition test, and it is worth knowing because bisecting to it costs an hour. Most of
+  those are now closed: a call's arguments and receiver, and the operands of `.`, an interpolation and an
+  `echo`, all go on `mwl_ir::lower::Lowering`'s owned-temporaries stack and are released on both edges. A
+  probe that `catch`es a throw from a `Core` member taking a `string` is therefore *green* now and is a
+  fair leak check. What is still open is narrower and named in that field's own doc comment (an argument
+  being **transferred** when a later one throws) plus the producers that still release inline — a
+  normalized subscript key, a `match` subject.
 
 ## Adding a `Core` member
 

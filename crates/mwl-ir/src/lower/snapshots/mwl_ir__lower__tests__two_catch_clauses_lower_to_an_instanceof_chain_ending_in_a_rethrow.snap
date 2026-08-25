@@ -29,6 +29,7 @@ fn <script>() -> tagged {
     v5 = instanceof v2, IOError  ; bool
     branch v5 -> bb7 (e2), bb8 (e3)
   bb6:
+    release v4
     release v2
     propagate "<script>() at t.mwl:8"
   bb7:
@@ -41,6 +42,7 @@ fn <script>() -> tagged {
   bb8:
     throw v2 -> bb10
   bb9:
+    release v6
     release v2
     propagate "<script>() at t.mwl:10"
   bb10:

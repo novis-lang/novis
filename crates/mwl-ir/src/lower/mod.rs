@@ -884,6 +884,33 @@ struct Lowering<'a> {
     /// The stack of enclosing `try` regions currently being lowered, innermost
     /// last — see [`TryFrame`].
     try_stack: Vec<TryFrame<'a>>,
+    /// Every refcounted value this frame owns that is **in flight inside an
+    /// expression** — built here, with no other owner, and not yet released.
+    ///
+    /// The counterpart of [`Env`] for the half of a frame's references that
+    /// has no name: a `Core` member's freshly materialized `string` argument
+    /// lives here between [`Self::account_for_arg`] and
+    /// [`Self::release_temporaries_since`], and nothing else can find it.
+    /// [`Self::landing_block`] releases the whole stack on the error path,
+    /// which is what makes the two edges agree — a throw abandons the
+    /// expression, so every temporary it was holding is this frame's to drop
+    /// whether control leaves the frame or lands in a `catch` inside it.
+    ///
+    /// Strictly stack-disciplined: a nested call completes, and drops its own
+    /// entries, before the call around it accounts for its result. So a
+    /// caller brackets its temporaries with [`Self::temporaries_mark`] and
+    /// [`Self::release_temporaries_since`] rather than tracking values.
+    ///
+    /// # Known gap
+    ///
+    /// A [`ArgOwnership::Transferred`] argument is not here — the callee's own
+    /// exit sweep releases it, including on the callee's throwing edge — so
+    /// the window between staging one and reaching the call still leaks if a
+    /// *later* argument throws (`f($a, g())`, where `$a` was retained for the
+    /// transfer and `g` throws). Closing it means a second entry kind on this
+    /// stack, released on the error edge and *forgotten* on the normal one,
+    /// plus one such forget at each of the three transferring call sites.
+    owned_temporaries: Vec<ValueId>,
     /// This frame's late-static-binding class as a [`Ty::ClassDesc`] value,
     /// once something has asked for one — see [`Self::lsb`], which is the only
     /// thing that sets it after [`lower_method`] seeds a `static` method's
@@ -999,20 +1026,19 @@ enum RefHolder {
     },
 }
 
-/// What [`Lowering::lower_call_args`] produced: the values to pass, and the
-/// ones this frame still owes a release for once the call has been emitted.
+/// What [`Lowering::lower_call_args`] produced: the values to pass.
 ///
-/// `temporaries` is empty for a [`ArgOwnership::Transferred`] call — the
-/// callee's own exit sweep releases every parameter there — and holds exactly
-/// the freshly built refcounted arguments of a [`ArgOwnership::Borrowed`] one,
-/// which is the case with no other owner at all. See
-/// [`Lowering::release_call_temporaries`].
+/// What this frame still *owes a release for* is deliberately not here. A
+/// temporary has to be findable from the moment it exists — a later argument's
+/// call can throw before this struct is ever returned — so
+/// [`Lowering::account_for_arg`] pushes it onto
+/// [`Lowering::owned_temporaries`] instead, and the caller brackets the whole
+/// call with [`Lowering::temporaries_mark`] and
+/// [`Lowering::release_temporaries_since`].
 #[derive(Default)]
 struct LoweredArgs {
     /// The argument values, positional.
     values: Vec<ValueId>,
-    /// The subset of them this frame owns and must release after the call.
-    temporaries: Vec<ValueId>,
 }
 
 /// One resolved signature's argument-shape, as [`Lowering::lower_call_args`]
@@ -1126,6 +1152,7 @@ impl<'a> Lowering<'a> {
             block_terms: Vec::new(),
             loop_stack: Vec::new(),
             try_stack: Vec::new(),
+            owned_temporaries: Vec::new(),
             lsb: None,
             this: None,
             entry: None,
@@ -1255,17 +1282,28 @@ impl<'a> Lowering<'a> {
     ///   binding each one has on the exception path travels through this
     ///   block's own entry in [`TryFrame::edges`] into the handler's phis.
     ///
+    /// [`Self::owned_temporaries`] is released on **both** exits, ahead of
+    /// either, and that is the one thing the asymmetry does not reach: a
+    /// temporary has no `Env` entry for a handler to find it through, so the
+    /// exception path is the last place anything can drop it. The values it
+    /// holds are defined in the block that raised, which dominates this one,
+    /// so the releases need no phi of their own.
+    ///
     /// # Known gap
     ///
-    /// The sweep covers the frame's **locals**, not a temporary still in
-    /// flight inside the expression being evaluated — the fresh string a
-    /// half-built `.` concatenation is holding when its next operand's call
-    /// throws has no `Env` entry to be found through, and leaks. Closing it
-    /// needs an owned-temporaries stack threaded through
-    /// [`Self::lower_expr`], which is a widening of this policy rather than a
-    /// different one.
+    /// The sweep covers what a producer actually **staged**: a call's
+    /// arguments and receiver ([`Self::account_for_arg`]), and the operands
+    /// and partial results of `.`, an interpolation and an `echo`. A site
+    /// that still releases a fresh value inline instead — a normalized
+    /// subscript key, a `match` subject — leaks it if something between the
+    /// two throws. Each is one `own_temporary`/`release_temporaries_since`
+    /// pair away, not a second mechanism. [`Self::owned_temporaries`] names
+    /// the one hole that is *not* shaped like that.
     pub(super) fn landing_block(&mut self, env: &Env) -> BlockId {
         let b = self.new_block();
+        for v in self.owned_temporaries.clone() {
+            self.emit_release(b, v);
+        }
         // The innermost frame that actually has a handler — not simply the
         // innermost frame. See [`TryFrame::handler`] for the one shape that
         // sits on the stack without being a destination.
@@ -2261,6 +2299,24 @@ class T {
         let (f, map, file) = lower_script_src(
             "<?mwl\nclass T {\n  public static function go(): void { }\n}\n\
              string $s = \"held\";\nT::go();\necho $s;\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// A `Core` member borrows its arguments, so a materialized `string`
+    /// literal is this frame's own temporary — and the helper is exactly the
+    /// thing that can throw while it is in flight.
+    /// [`Lowering::landing_block`] releases the whole
+    /// [`Lowering::owned_temporaries`] stack on the error edge, and this pins
+    /// the harder half: the edge that reaches a `catch` in this same frame,
+    /// where the locals sweep deliberately releases nothing. A temporary has
+    /// no `Env` entry for the handler to find it through, so the landing block
+    /// is the last place anything can drop it.
+    #[test]
+    fn a_landing_block_releases_the_call_temporaries_still_in_flight() {
+        let (f, map, file) = lower_script_src(
+            "<?mwl\ntry {\n  bytes $b = Core\\Encoding::fromHex(\"ff\");\n}\
+             \ncatch (Throwable $e) {\n  echo \"caught\";\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

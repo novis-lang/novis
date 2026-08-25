@@ -119,7 +119,7 @@ impl<'a> Lowering<'a> {
                 None => {
                     let (v, ty) = self.lower_expr(&arg.value, None, env, cur);
                     let aliasing = self.aliasing_read(&arg.value);
-                    self.account_for_arg(v, ty, ownership, aliasing, &mut out, *cur);
+                    self.account_for_arg(v, ty, ownership, aliasing, *cur);
                     out.values.push(v);
                     continue;
                 }
@@ -131,7 +131,7 @@ impl<'a> Lowering<'a> {
             }
             let (v, ty) = self.lower_expr(&arg.value, Some(expected), env, cur);
             let aliasing = self.aliasing_read(&arg.value);
-            self.account_for_arg(v, ty, ownership, aliasing, &mut out, *cur);
+            self.account_for_arg(v, ty, ownership, aliasing, *cur);
             // A parameter declared wider than the argument -- `?T` or another
             // union -- is `Ty::Tagged`, so the argument is widened into the
             // slot's representation here. `Self::coerce` transfers whatever
@@ -152,7 +152,7 @@ impl<'a> Lowering<'a> {
             if let mwl_types::ConstArg::Options(options) = default {
                 for (_, value) in options {
                     let (v, ty) = self.emit_const_arg(value, env, *cur);
-                    self.account_for_arg(v, ty, ownership, false, &mut out, *cur);
+                    self.account_for_arg(v, ty, ownership, false, *cur);
                     out.values.push(v);
                 }
                 continue;
@@ -161,7 +161,7 @@ impl<'a> Lowering<'a> {
             // A materialized default is always freshly built, never a read of
             // storage someone else owns — so `aliasing` is `false` here by
             // construction.
-            self.account_for_arg(v, ty, ownership, false, &mut out, *cur);
+            self.account_for_arg(v, ty, ownership, false, *cur);
             out.values.push(v);
         }
         if sig.variadic {
@@ -228,7 +228,7 @@ impl<'a> Lowering<'a> {
             entries.push((index.to_string(), v));
         }
         let (array, ty) = self.emit(*cur, Ty::Array, InstKind::ArrayNew { entries });
-        self.account_for_arg(array, ty, ownership, false, out, *cur);
+        self.account_for_arg(array, ty, ownership, false, *cur);
         out.values.push(array);
     }
 
@@ -248,13 +248,17 @@ impl<'a> Lowering<'a> {
     /// Shared by the written arguments, the materialized defaults and each
     /// flattened option, so a bag's options are accounted exactly as the
     /// arguments beside them are.
+    ///
+    /// The second case is the only one that leaves anything behind, and it
+    /// goes on [`Self::owned_temporaries`] rather than into a list the caller
+    /// gets back: a later argument's own call can throw before this call is
+    /// ever emitted, and [`Self::landing_block`] has to be able to find it.
     pub(super) fn account_for_arg(
         &mut self,
         v: ValueId,
         ty: Ty,
         ownership: ArgOwnership,
         aliasing: bool,
-        out: &mut LoweredArgs,
         cur: BlockId,
     ) {
         if !ty.is_refcounted() {
@@ -262,7 +266,7 @@ impl<'a> Lowering<'a> {
         }
         match (ownership, aliasing) {
             (ArgOwnership::Borrowed, true) | (ArgOwnership::Transferred, false) => {}
-            (ArgOwnership::Borrowed, false) => out.temporaries.push(v),
+            (ArgOwnership::Borrowed, false) => self.own_temporary(v),
             (ArgOwnership::Transferred, true) => self.emit_retain(cur, v),
         }
     }
@@ -323,7 +327,7 @@ impl<'a> Lowering<'a> {
                 let expected = lower_checked_ty(*option_ty, checked_types);
                 let (v, ty) = self.lower_expr(value, Some(expected), env, cur);
                 let aliasing = self.aliasing_read(value);
-                self.account_for_arg(v, ty, ownership, aliasing, out, *cur);
+                self.account_for_arg(v, ty, ownership, aliasing, *cur);
                 out.values.push(v);
                 continue;
             }
@@ -339,7 +343,7 @@ impl<'a> Lowering<'a> {
                     )
                 });
             let (v, ty) = self.emit_const_arg(default, env, *cur);
-            self.account_for_arg(v, ty, ownership, false, out, *cur);
+            self.account_for_arg(v, ty, ownership, false, *cur);
             out.values.push(v);
         }
     }
@@ -373,11 +377,20 @@ impl<'a> Lowering<'a> {
         cur: BlockId,
     ) -> (ValueId, Ty) {
         if let mwl_types::ConstArg::Built { symbol, args } = default {
-            let lowered: Vec<(ValueId, Ty)> = args
+            let mark = self.temporaries_mark();
+            // A `Core` member *borrows* its arguments (`InstKind::CoreCall`),
+            // and each of these was freshly materialized here, so this frame
+            // is the only owner — a `Const::Str` argument leaks without this,
+            // once per use site of the constant. Staged the same way a written
+            // argument is, so the builder's own failure edge drops them too.
+            let values: Vec<ValueId> = args
                 .iter()
-                .map(|arg| self.emit_const_arg(arg, env, cur))
+                .map(|arg| {
+                    let (v, ty) = self.emit_const_arg(arg, env, cur);
+                    self.account_for_arg(v, ty, ArgOwnership::Borrowed, false, cur);
+                    v
+                })
                 .collect();
-            let values = lowered.iter().map(|(v, _)| *v).collect();
             let built = self.emit_fallible(
                 cur,
                 Ty::Object,
@@ -387,16 +400,7 @@ impl<'a> Lowering<'a> {
                 },
                 env,
             );
-            // A `Core` member *borrows* its arguments (`InstKind::CoreCall`),
-            // and each of these was freshly materialized here, so this frame
-            // is the only owner — a `Const::Str` argument leaks without this,
-            // once per use site of the constant. Normal edge only, which is
-            // [`Self::release_call_temporaries`]' own known gap.
-            for (value, ty) in lowered {
-                if ty.is_refcounted() {
-                    self.emit_release(cur, value);
-                }
-            }
+            self.release_temporaries_since(mark, cur);
             return built;
         }
         let (ty, kind) = match default {
@@ -429,18 +433,42 @@ impl<'a> Lowering<'a> {
         };
         self.emit(cur, ty, kind)
     }
-    /// Releases what [`LoweredArgs::temporaries`] collected, after the call
-    /// that borrowed them has been emitted into `cur`.
+    /// Records `v` as a reference this frame owns and nothing else can find —
+    /// see [`Self::owned_temporaries`], which owns the whole protocol.
+    pub(super) fn own_temporary(&mut self, v: ValueId) {
+        self.owned_temporaries.push(v);
+    }
+    /// The height of [`Self::owned_temporaries`] before a call's arguments are
+    /// lowered — what [`Self::release_temporaries_since`] releases back down
+    /// to once the call has been emitted.
     ///
-    /// **Known gap, and the same one [`Self::landing_block`] already has:**
-    /// these sit on the normal edge only, so a helper that fails leaves each
-    /// of them unreleased. Closing it means the owned-temporaries stack
-    /// threaded through [`Self::lower_expr`] that `docs/agent/loop-goal.md`
-    /// already names — this is one more caller for it, not a second design.
-    pub(super) fn release_call_temporaries(&mut self, temporaries: Vec<ValueId>, cur: BlockId) {
+    /// Taken **before the receiver**, not before the argument list: a
+    /// freshly-built receiver is this frame's temporary too, and an argument
+    /// that throws while it is in flight has to drop it.
+    pub(super) fn temporaries_mark(&self) -> usize {
+        self.owned_temporaries.len()
+    }
+    /// Releases every temporary staged since `mark` into `cur`, in the order
+    /// they were staged — the normal edge of the call that borrowed them.
+    ///
+    /// The error edge is [`Self::landing_block`]'s, and it releases the same
+    /// values off the same stack: one set of temporaries, two exits, which is
+    /// why nothing here is handed a list to keep in step with.
+    pub(super) fn release_temporaries_since(&mut self, mark: usize, cur: BlockId) {
+        let temporaries: Vec<ValueId> = self.owned_temporaries.drain(mark..).collect();
         for v in temporaries {
             self.emit_release(cur, v);
         }
+    }
+    /// Drops every entry staged since `mark` **without** releasing it — the
+    /// one expression whose in-flight temporary is its own answer.
+    ///
+    /// [`Self::lower_interpolation`] accumulates through the stack, so the
+    /// last `Concat`'s result is still on it when the expression finishes;
+    /// from there it is the caller's value, released wherever that caller
+    /// puts it. Everything else releases.
+    pub(super) fn forget_temporaries_since(&mut self, mark: usize) {
+        self.owned_temporaries.truncate(mark);
     }
     /// Stages one by-reference argument, returning the [`Ty::Ref`] the callee
     /// is handed — see [`Ty::Ref`], which owns the representation, and

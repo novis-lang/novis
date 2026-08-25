@@ -23,6 +23,7 @@ fn <script>() -> tagged {
   bb3:
     catch -> bb1
   bb4:
+    release v2
     catch -> bb1
   bb5:
     ; stmt s3 @9:3-9:20

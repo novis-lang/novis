@@ -1,0 +1,39 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn <script>() -> tagged {
+  bb0:
+    safepoint
+    ; stmt s0 @2:1-7:2
+    ; stmt s1 @3:3-3:43
+    v0 = const.str "ff"  ; string
+    v1 = core.call mwl_core_encoding_from_hex(v0) ! bb3  ; bytes
+    release v0
+    release v1
+    jump bb2
+  bb1:
+    v2 = take.thrown  ; object
+    v3 = instanceof v2, Throwable  ; bool
+    branch v3 -> bb4 (e0), bb5 (e1)
+  bb2:
+    return
+  bb3:
+    release v0
+    catch -> bb1
+  bb4:
+    ; stmt s2 @6:3-6:17
+    v4 = const.str "caught"  ; string
+    helper.echo_str v4 ! bb6
+    release v4
+    release v2
+    jump bb2
+  bb5:
+    throw v2 -> bb7
+  bb6:
+    release v4
+    release v2
+    propagate "<script>() at t.mwl:6"
+  bb7:
+    propagate "<script>() at t.mwl:6"
+}

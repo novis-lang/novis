@@ -112,9 +112,14 @@
 //!    [`lower::Lowering::lower_try`] owns that one — every other exit from a
 //!    protected region runs its `finally`, including a `return`, a `break` and
 //!    a `continue`. A second, narrower gap sits inside what does lower: a
-//!    landing block sweeps the frame's locals, not a temporary still in flight
-//!    inside the expression that threw — which is what leaks a closure literal
-//!    written directly as a call argument.
+//!    landing block now sweeps the frame's owned-temporaries stack as well as
+//!    its locals, so a call's arguments and receiver, and the operands of `.`,
+//!    an interpolation and an `echo`, are released on both edges. A producer
+//!    that still releases its fresh value inline — a normalized subscript key,
+//!    a `match` subject — is not on that stack yet and leaks.
+//!    [`lower::Lowering::landing_block`] states the boundary and
+//!    `lower::Lowering`'s own field doc states the one hole shaped differently
+//!    (an argument being *transferred* when a later one throws).
 //! 3. **A tagged value can be built, carried and narrowed, but not yet
 //!    dispatched on.** [`ty::Ty::Tagged`] is the one representation `mixed`,
 //!    `?T` and every other union erase to, and its own doc comment owns the

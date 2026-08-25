@@ -255,11 +255,17 @@ impl<'a> Lowering<'a> {
     /// result) is released right after the write reads it, since nothing
     /// else ever will — the same "release a fresh value once its one and
     /// only use is done" policy the [`ExprKind::Binary`] concatenation arm
-    /// already applies. No safepoint is emitted: `echo` is neither of the
-    /// two reserved sites (function entry, a loop's back edge).
+    /// already applies. It goes through [`Self::owned_temporaries`] to get
+    /// there, so the write's own failure edge drops it too. No safepoint is
+    /// emitted: `echo` is neither of the two reserved sites (function entry,
+    /// a loop's back edge).
     pub(super) fn lower_echo(&mut self, operands: &[Expr], cur: &mut BlockId, env: &Env) {
         for operand in operands {
+            let mark = self.temporaries_mark();
             let (v, aliasing) = self.concat_operand(operand, env, cur);
+            if !aliasing {
+                self.own_temporary(v);
+            }
             // The one conversion-free helper that can genuinely fail: a write
             // to the request's output. See `Inst::on_error` for why the
             // scalar-to-string conversions around it carry no landing block.
@@ -273,9 +279,7 @@ impl<'a> Lowering<'a> {
                 },
                 on_error: Some(landing),
             });
-            if !aliasing {
-                self.emit_release(*cur, v);
-            }
+            self.release_temporaries_since(mark, *cur);
         }
     }
     /// Whether the checker *placed* the numeric literal at `span` at
@@ -1767,6 +1771,12 @@ impl<'a> Lowering<'a> {
         let last_text_idx = is_heredoc
             .then(|| parts.iter().rposition(|p| matches!(p, StringPart::Text(_))))
             .flatten();
+        // Every piece, and every partial `Concat` result, is in flight for as
+        // long as the pieces after it are still being lowered — and one of
+        // those can be a call that throws. So the accumulator itself lives on
+        // [`Self::owned_temporaries`], and only the finished string leaves it
+        // ([`Self::forget_temporaries_since`]).
+        let mark = self.temporaries_mark();
         let mut acc: Option<(ValueId, bool)> = None;
         for (i, part) in parts.iter().enumerate() {
             let piece = match part {
@@ -1789,23 +1799,27 @@ impl<'a> Lowering<'a> {
                 }
                 StringPart::Expr(e) => self.concat_operand(e, env, cur),
             };
+            if !piece.1 {
+                self.own_temporary(piece.0);
+            }
             acc = Some(match acc {
                 None => piece,
-                Some((lv, l_alias)) => {
-                    let (rv, r_alias) = piece;
+                Some((lv, _)) => {
+                    let (rv, _) = piece;
                     let (result, _) =
                         self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
-                    if !l_alias {
-                        self.emit_release(*cur, lv);
-                    }
-                    if !r_alias {
-                        self.emit_release(*cur, rv);
-                    }
+                    // Both operands are consumed here, and whichever of them
+                    // was fresh is on the stack — so this releases exactly
+                    // what the two `if !alias` guards used to.
+                    self.release_temporaries_since(mark, *cur);
+                    self.own_temporary(result);
                     (result, false)
                 }
             });
         }
         let (v, alias) = acc.expect("checked non-empty above");
+        // From here the value is the caller's, not this expression's.
+        self.forget_temporaries_since(mark);
         if alias {
             // The single-part-alias degenerate case this function's own doc
             // comment names — no `Concat` ran, so `v` is still someone
@@ -2046,6 +2060,10 @@ impl<'a> Lowering<'a> {
     /// nothing else ever will — the same "release a fresh value once
     /// its one and only use is done" precedent `Self::lower_expr_stmt`
     /// already sets for a bare call/`new` statement.
+    ///
+    /// The left operand is staged on [`Self::owned_temporaries`] *before*
+    /// the right one is lowered, which is what makes `"x" . $obj` — where
+    /// the `toString()` throws — release the `"x"` rather than leak it.
     fn lower_concat(
         &mut self,
         lhs: &Expr,
@@ -2053,15 +2071,17 @@ impl<'a> Lowering<'a> {
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
         let (lv, l_alias) = self.concat_operand(lhs, env, cur);
-        let (rv, r_alias) = self.concat_operand(rhs, env, cur);
-        let result = self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
         if !l_alias {
-            self.emit_release(*cur, lv);
+            self.own_temporary(lv);
         }
+        let (rv, r_alias) = self.concat_operand(rhs, env, cur);
         if !r_alias {
-            self.emit_release(*cur, rv);
+            self.own_temporary(rv);
         }
+        let result = self.emit(*cur, Ty::Str, InstKind::Concat { lhs: lv, rhs: rv });
+        self.release_temporaries_since(mark, *cur);
         result
     }
 
@@ -2477,19 +2497,21 @@ impl<'a> Lowering<'a> {
             let sig = ArgSig::of_helper(call);
             let return_ty = lower_checked_ty(call.return_ty, self.checked_types);
             let checked_types = self.checked_types;
+            let mark = self.temporaries_mark();
             let (object_v, receiver_ty, guard) = self.open_nullsafe(object, nullsafe, env, cur);
-            let LoweredArgs {
-                values,
-                mut temporaries,
-            } = self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             // The receiver is borrowed like every other argument to a
             // `Core` member, so a *freshly built* one — a nested
             // call's own result — has no other owner and this frame
             // owes its release. A receiver read out of a local or a
             // field is that binding's to release, not this call's.
+            // Staged *before* the arguments, since it is already in
+            // flight while they are evaluated and an argument that
+            // throws has to drop it.
             if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
-                temporaries.push(object_v);
+                self.own_temporary(object_v);
             }
+            let LoweredArgs { values } =
+                self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             let mut arg_values = Vec::with_capacity(values.len() + 1);
             arg_values.push(object_v);
             arg_values.extend(values);
@@ -2502,7 +2524,7 @@ impl<'a> Lowering<'a> {
                 },
                 env,
             );
-            self.release_call_temporaries(temporaries, *cur);
+            self.release_temporaries_since(mark, *cur);
             return self.close_nullsafe(guard, v, ty, cur);
         }
         let target_label = format!("{}::{}", call.class, call.method);
@@ -2658,6 +2680,7 @@ impl<'a> Lowering<'a> {
                         v
                     },
                 );
+            let mark = self.temporaries_mark();
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
             let arg_values = written_class
@@ -2676,7 +2699,7 @@ impl<'a> Lowering<'a> {
             // A `Core` member borrows, so a freshly built argument —
             // an `fn` literal, a nested `Core` call's own result — has
             // no other owner and would leak without this.
-            self.release_call_temporaries(lowered.temporaries, *cur);
+            self.release_temporaries_since(mark, *cur);
             return result;
         }
         let target_label = format!("{}::{}", call.class, call.method);
