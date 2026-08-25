@@ -33,17 +33,25 @@ added; that file is authoritative for steps 1–5.
 3. **Verify once, at the end of the group:** `python tools/verify.py`, plus a `valgrind` run for any new
    refcount edge (`docs/agent/commands.md`). **This is the only place verification happens**, and the whole
    group shares one run — it is the same build either way.
-4. **Write the docs and the handoff, once for the whole group.** The plan's status block via
-   `python tools/plan.py --set`, any doc the change invalidates, then overwrite `docs/agent/handoff.md`
-   under the contract below. If the session cost you a *trap* — something that looked like it should work
-   and did not — add one bullet to `docs/agent/playbook.md` instead. **Choosing the next group is part of
-   this step**, not the next session's problem: you are holding the context that makes it cheap.
+4. **Write the docs and the handoff, once for the whole group.** The plan's status block, any doc the
+   change invalidates, and `docs/agent/handoff.md` overwritten under the contract below. If the session
+   cost you a *trap* — something that looked like it should work and did not — add one bullet to
+   `docs/agent/playbook.md`. **Choosing the next group is part of this step**, not the next session's
+   problem: you are holding the context that makes it cheap.
 5. **Commit — one per slice**, staging each slice's own files so `git log` still reads a slice at a time.
 6. **Write one line to `.loop/status.txt`** (overwrite, no newline needed), then exit:
    - `CONTINUE <one-line summary of what you landed>` — normal case.
    - `DONE <what goal was reached>` — the goal in `docs/agent/loop-goal.md` is met.
    - `BLOCKED <the decision only the user can make>` — a real tradeoff. Use this sparingly: prefer the safe
      option and note it in the handoff. Reserve `BLOCKED` for a decision expensive to reverse.
+
+**Steps 4 to 6 are two calls, not thirty.** Write one wrap file — a `## plan: <Field>` per field you are
+changing, `## playbook: <Heading>` for a trap, `## handoff` for the whole handoff, a `## commit: <paths>`
+per slice, and `## status` — then `python tools/session.py --wrap <file>`. It validates every section
+before writing anything, so it either does the whole tail or does none of it and tells you why.
+`python tools/session.py --check` first, to see what the tree says is still owed; `--help` is the format.
+Measured before it existed, this tail was **33 of a session's 98 calls and 42% of its token bill**,
+because context is at its peak by the time you reach it.
 
 **After step 6 the session is over.** Do not re-run the verification, do not re-read the orientation, do
 not re-check any doc against a length. Prose cannot break a build, so a second verification pass can only
@@ -66,14 +74,17 @@ with the rest is the whole game.
 - **Do not re-read what `orient.py` already printed.** It is in your context from call one.
 - **Do not open a whole ADR.** `orient.py` printed the sections the goal named; if you need another, slice
   it — `sed -n` around the heading — and say in the handoff which section to add to `[context] adrs`.
-- **Batch every independent probe into one message.** Several tool calls in one message run concurrently
-  and each keeps its own exit status. Four greps to locate a symbol is one turn, not four. Measured
-  sessions do this at a rate of **zero** — 297 consecutive calls, not one sharing a message. It is the
-  single largest saving on this list and the one nobody collects.
+- **Read with `peek.py`, not one `grep` at a time.** `python tools/peek.py A.rs:120-160 B.rs:@symbol
+  C.md:"## 4" "crates/**/*.rs:re:pattern"` answers as many questions as you can ask in one call, and
+  `--locate <symbol> ...` returns `file:line` anchors with no bodies at all. This replaces the *rule* that
+  used to sit here, which asked sessions to batch independent probes into one message: measured over a
+  full run they did that **0 times in 3,647 calls**, including runs of 52 and 57 consecutive greps. The
+  saving was real and nobody ever collected it, so it is a tool now.
 - **Delegate a read-heavy search to a subagent, and keep its findings rather than its reading.** A
   subagent has its own window: what it reads is charged to *that* window and only its answer comes back to
-  yours. `python tools/loop-stats.py --attribute` charges **12% of a session to discovery** and reports
-  **zero** subagents ever spawned, so this is the second uncollected saving after batching. Send one when
+  yours. `python tools/loop-stats.py --attribute` charges **19% of a session to discovery** and reports
+  **zero** subagents ever spawned across 39 sessions, so with batching now handled by `peek.py` this is
+  the largest saving still going uncollected — and the one no tool can take for you. Send one when
   the question is "where is X, and what are its anchors" over files you will not otherwise open — a spec
   section's rows, every call site of a helper, which of forty cases already covers a member. Do **not**
   send one to write code, to decide anything, or to read a file you are about to edit: a slice's own files

@@ -135,6 +135,29 @@ is why" — is this file.
   sites, not the struct field.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
   test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe` takes over two minutes.
+- **One call reads many places: `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"`.** Locators are
+  `120-160`, `120+30`, `@symbol`, `re:pattern` (`re:pattern:3` for context lines), `"## Heading"`, or
+  nothing for a whole file under 400 lines; the path may be a glob, so one target can sweep a crate.
+  `--locate <symbol> ...` answers with `file:line` and no bodies, which is what a handoff's anchors are
+  made of. Reach for it instead of a `grep` and then a `sed` and then another `grep`: measured over a full
+  run, sessions issued 3,647 tool calls and put two in one message **zero** times, including runs of 52 and
+  57 consecutive reads, so the batching rule in `AGENTS.md` has never once been collected by hand.
+- **Prefer `re:pattern` to `/pattern/` in a `peek.py` target on Windows.** Git Bash rewrites any argument
+  that *starts* with a slash into a Win32 path before the process sees it, so `file.rs:/fn foo/` arrives as
+  `file.rs;C:/Program Files/Git/fn foo/` and the tool reports no such file. Quoting does not help — the
+  conversion happens in the shell's argv handling, not its parser. The same trap catches any tool argument
+  spelled as a leading-slash path.
+- **The end of a session is one call: `python tools/session.py --wrap <file>`.** Write one markdown file
+  whose `## ` headings are instructions — `## plan: <Field>`, `## playbook: <Heading>`, `## handoff`,
+  `## commit: <paths>` once per slice, `## status` — and it applies all of them in a fixed order, or
+  validates one of them as broken and writes *nothing*. `--check` first says what the tree still owes,
+  including any plan field whose prose names a conformance or differential count the tree contradicts.
+  Doing this by hand measured 33 of a session's 98 calls, and because context peaks by then, 42% of its
+  whole token bill.
+- **A `[context] playbook` entry may name one bullet, not just a whole section.** `"Tooling > A whole ADR"`
+  prints that bullet; `"Tooling"` still prints all 11 KB of the section. The playbook grew 61% during one
+  run and its four selected sections were 35% of the entire orientation pack, so a goal that needs three
+  traps should name three traps. `python tools/orient.py --audit` prices the difference.
 
 ## Running things
 

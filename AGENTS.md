@@ -27,8 +27,8 @@ Those three route to everything else. The four files behind them, none of which 
 
 - **[docs/adr/ground-rules.md](docs/adr/ground-rules.md)** — one sentence per settled decision, with its
   ADR. The index of what has already been decided; the linked ADR's body is the rule.
-- **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `verify.py`, `splice.py`,
-  `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
+- **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `peek.py`, `verify.py`,
+  `session.py`, `splice.py`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.mwlt`
@@ -62,7 +62,7 @@ When choosing between designs:
 - Saving memory at the cost of an invariant every future contributor must remember is the wrong direction —
   that is the account the unsafe modules are already drawing on.
 
-## The four rules you will otherwise break
+## The five rules you will otherwise break
 
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
 [docs/agent/commands.md](docs/agent/commands.md).
@@ -70,13 +70,16 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
    it runs anything. An edit those tools cannot express goes through `python tools/splice.py`.
-2. **One shell call runs one command** — a `;`-chain reports only the last one's exit status — **but
-   independent calls go out together in one message**, and that batching is the largest unclaimed saving
-   this repository has.
+2. **One shell call runs one command** — a `;`-chain reports only the last one's exit status. Independent
+   calls may go out together in one message, but measured sessions never do it, so **read with
+   `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"` instead** — as many targets as you have
+   questions, one call, and `--locate <symbol> ...` for `file:line` anchors alone.
 3. **Read a big file in the region you need.** Whole file under ~400 lines; past that, `grep -n` for the
    anchor and read around it. Context, not the clock, is what caps a session.
 4. **Verify with one call, once, at the end:** `python tools/verify.py` — build, test, clippy and fmt in
    order, stopping at the first failure.
+5. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
+   fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
 
 ## Session workflow
 
@@ -96,14 +99,20 @@ Every session runs the same five steps, in this order, and **stops**:
 3. **Verify what you touched, once, at the end of the group** — `python tools/verify.py`, plus whatever the
    change specifically warrants (a `valgrind` run for a new refcount edge). **This is the only place
    verification happens**, and a group shares one run: the build is the same build.
-4. **Write the docs and the handoff, once for the whole group.** Update the plan's status block with
-   `python tools/plan.py --set` and any doc the change invalidates, then overwrite
-   `docs/agent/handoff.md` with where the work stands now. It is *state* — a fact that will still be true
-   in ten sessions belongs in the playbook, an ADR, or a crate's module doc instead. Naming the **next**
-   group, and the file set it shares, is this step's job: you are the only one holding the context to
-   decide it cheaply.
+4. **Write the docs and the handoff, once for the whole group.** The plan's status block, a playbook bullet
+   if a trap cost you time, and `docs/agent/handoff.md` overwritten with where the work stands now. The
+   handoff is *state* — a fact that will still be true in ten sessions belongs in the playbook, an ADR, or
+   a crate's module doc instead. Naming the **next** group, and the file set it shares, is this step's job:
+   you are the only one holding the context to decide it cheaply, and `python tools/peek.py --locate` turns
+   its `file.rs:NN` anchors into one call.
 5. **Commit — one per slice, all after step 3 is green**, staging each slice's own files so `git log`
    still reads a slice at a time. Then you are done.
+
+**Steps 4 and 5 are one call.** Write a single wrap file — plan fields, playbook bullet, handoff, a
+`## commit:` per slice, the status line — and apply it with `python tools/session.py --wrap <file>`
+(`--help` is the format, `--check` first says what the tree still owes). It applies everything or refuses
+everything, so there is no half-written tail. Measured before the tool existed, this was 33 of a session's
+98 calls and 42% of its token bill, because context is at its peak by then.
 
 **After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the orientation,
 do not re-check a doc against a length. Writing prose cannot break a build, so there is nothing a second

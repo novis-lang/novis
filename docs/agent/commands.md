@@ -64,6 +64,25 @@ constant, and read-only probing is where the turns go — an unbatched orientati
 repository a quarter of a session's clock, one `grep` at a time. Serialize only what genuinely depends on
 a previous answer.
 
+**And when it is reading you are batching, use the tool instead of remembering to.** Over a measured run
+of 39 sessions, **0 of 3,647** tool-call messages carried more than one call — against the rule in the
+paragraph above, which every one of those sessions had in its context, and including runs of 52 and 57
+consecutive `grep`/`sed` calls. A rule that loses 3,647 times is not a rule anyone is going to start
+following. `tools/peek.py` takes as many targets as you have questions and answers them in one call:
+
+```sh
+python tools/peek.py crates/mwl-ir/src/lower/expr.rs:3065-3120 \
+                     crates/mwl-types/src/expr/members.rs:@lower_shape_property \
+                     docs/adr/0036-shapes.md:"## 4" \
+                     "crates/mwl-runtime/src/*.rs:re:slot_get"
+python tools/peek.py --locate mwl_object_slot_get SlotSet ClassDesc   # file:line, no bodies
+```
+
+Locators are `120-160`, `120+30`, `@symbol`, `re:pattern` (optionally `re:pattern:3` for context),
+`"## Heading"`, or nothing for a whole small file — and the path may be a glob, which is how one call
+sweeps a crate. Prefer `re:` to the `/pattern/` spelling: Git Bash rewrites a leading `/` into a Win32
+path before the tool sees it. `--locate` is what a handoff's `file.rs:NN` anchors are made of.
+
 ## Verifying
 
 ```sh
@@ -90,6 +109,36 @@ has edited only documentation prints the verdict it already holds rather than re
 a check being skipped: the inputs are bit-identical. Only green is cached, the entry expires after an
 hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
 run; a wider one does satisfy a narrower.
+
+## Finishing a session: steps 4 and 5 in one call
+
+```sh
+python tools/session.py --check                      # what steps 4-5 still owe, off the tree
+<Write one wrap file>                                # the whole tail as data
+python tools/session.py --wrap .agent-tmp/wrap.md    # apply it, or refuse and change nothing
+python tools/session.py --wrap .agent-tmp/wrap.md --dry-run   # say what it would do
+```
+
+The wrap file is markdown whose `## ` headings are instructions: `## plan: <Field>` rewrites one status
+field, `## playbook: <Heading>` appends a bullet, `## handoff` replaces the handoff, `## commit: <paths>`
+stages those paths and commits with that message — one section per slice, in order — and `## status` is
+the loop's one line. `python tools/session.py --help` is the format in full.
+
+It is applied in a fixed order — plan, playbook, handoff, commits, status — so the docs are on disk before
+anything is staged, and **nothing is applied unless every section validates**: an unknown plan field, a
+commit subject that is not `type(scope): subject`, a handoff missing `## Next group` or its `file.rs:NN`
+anchors, a status line that does not start `CONTINUE`/`DONE`/`BLOCKED`, all refuse the whole file and
+write nothing. A half-finished tail is the one failure mode worth designing out.
+
+Why it exists: measured over a run, the tail of a session — first `verify.py` to last commit — was **33 of
+98 tool calls**, and since context peaks by then those turns carried **42% of the session's whole token
+bill**. Almost none of it was thinking; it was 6.0 calls a session on the plan, 5.2 re-deriving anchors
+already known, and the rest handoff, playbook, `git add`, `git commit`, `status.txt`. `--check` is the one
+to run *before* writing the wrap file: it reports plan fields whose prose names a count the tree
+contradicts, whether the handoff still matches its contract, and what is uncommitted.
+
+`session.py` is not loop-only. Steps 4 and 5 are the same steps in an interactive session, and `## status`
+simply reports itself skipped when there is no `.loop/` directory.
 
 ## Disk
 
