@@ -1,0 +1,62 @@
+--TEST--
+A `mixed` converts into an enum case by converting to the backing integer first and then testing membership — ADR 0010 § 5's second row, and ADR 0047 § 3's named subset over the same operand
+--FILE--
+<?mwl
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+    Admin = 3,
+}
+
+class Gate {
+    // ADR 0010 § 5: "exactly the shape `as uint` already has for untrusted
+    // input". The operand is converted to the enum's backing scalar by ADR
+    // 0007 § 2's own rows *before* the membership chain runs, which is why the
+    // string "1" reaches `Mode::Read` — the ADR's own example converts a
+    // request parameter, a string at run time, into a case whose value is an
+    // integer.
+    public static function toMode(mixed $m): string {
+        try {
+            Mode $mode = $m as Mode;
+            return "mode " . (($mode as int) as string);
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+
+    // ADR 0047 § 3's named subset, over the same untyped operand: the same
+    // conversion first, then a chain naming only the cases written at the site.
+    public static function narrow(mixed $m): string {
+        try {
+            Mode::Read|Mode::Write $allowed = $m as Mode::Read|Mode::Write;
+            return "allowed " . (($allowed as int) as string);
+        } catch (Throwable $e) {
+            return "threw: " . $e->message;
+        }
+    }
+}
+
+mixed $one = "1";
+mixed $two = "2";
+mixed $three = 3;
+mixed $nine = 9;
+mixed $yes = true;
+
+echo Gate::toMode($one), "\n";
+echo Gate::toMode($three), "\n";
+echo Gate::toMode($nine), "\n";
+echo Gate::narrow($two), "\n";
+echo Gate::narrow($three), "\n";
+echo Gate::narrow($nine), "\n";
+
+// The first step can fail on its own: `bool` is a tag ADR 0007 § 2 writes no
+// numeric row from, so the throw names the conversion rather than the set.
+echo Gate::toMode($yes), "\n";
+--EXPECT--
+mode 1
+mode 3
+threw: `9` is not one of `Mode::Read`, `Mode::Write`, `Mode::Admin`
+allowed 2
+threw: `3` is not one of `Mode::Read`, `Mode::Write`
+threw: `9` is not one of `Mode::Read`, `Mode::Write`
+threw: cannot convert this value to `int`
