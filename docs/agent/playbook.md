@@ -113,6 +113,13 @@ is why" — is this file.
   panic names "a resolved call's parameter or return type" — so the message points at a call boundary,
   a `var` binding or a `foreach` element rather than at the feature you just built. `Ty::Shape` needed
   exactly that: `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`.
+- **A class synthesized while lowering an *expression* has four exits, not one.** `Lowering` builds
+  one function, so a `crate::ir::Class` an expression invents (a closure's environment, a shape
+  literal's) has nowhere to go until `lower_file` — it rides out of `lower_method`/`lower_hook`/
+  `lower_script` at each of their three identical `std::mem::take(&mut low.closures)` sites, *and* out
+  of `lower_closure`'s own recursion, or a body nested one level deeper silently contributes no class
+  and codegen fails much later on a `New` naming a label the table has no entry for. Grep the take
+  sites, not the struct field.
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
   test needs its old `.snap` deleted. `cargo test --release -p mwl-abi-probe` takes over two minutes.
 

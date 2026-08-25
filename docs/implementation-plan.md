@@ -86,8 +86,9 @@
 > **ADR slices landed:** checker-side rules for ADRs 0007, 0010, 0013, 0014, 0015, 0021, 0022, 0024,
 > 0027, 0028, 0029/0030, 0033, 0036, 0037, 0038, 0054, 0062, and 0043's syntax +
 > default/private-method slice; end-to-end for 0007 §§ 2 and 4's `%` row, 0010, 0013, 0014 § 1, 0023
-> § 1, 0035 § 4, 0031 §§ 1-2, 0065, 0036 § 4's shape-field *read* (its write half and the anonymous
-> literal are `mwl-ir` gap 6), **0029/0030** (the casing checker existed but no pipeline called
+> § 1, 0035 § 4, 0031 §§ 1-2, 0065, 0036 § 2's anonymous literal and § 4's shape-field *read* (the
+> write half, and § 4's name-keyed fetch through a widened view, are `mwl-ir` gap
+> 6), **0029/0030** (the casing checker existed but no pipeline called
 > it), **0053 and 0009 in full**, **0054 §§ 1–4 in full** (`Core\Decimal`'s own roster is M8's, and
 > that ADR's *Verification* says so), and **0066 §§ 1–3 for the checked numeric targets** — a
 > nullable binding, parameter, property and return, `null` itself, `??` and now `as
@@ -151,7 +152,7 @@
 > § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
 > `Core\Hash\Stream` is the first *mutable* `Core` instance and the honest return type of `Uri`'s
 > two decoders is still unwritten rather than blocked. **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 428 of the 600 that gate requires, differential is
+> side effect of member slices** — conformance is 429 of the 600 that gate requires, differential is
 > 89 of 150, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > exists now, in `crates/mwl-stdlib/tests/spec_registry_coverage.rs`. It is a **ratchet against

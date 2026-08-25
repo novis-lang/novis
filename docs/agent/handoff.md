@@ -2,58 +2,59 @@
 
 ## State
 
-**Spec § 10 is whole: a shape's field is readable.** `$issue->path` type-checks to a *slot index* —
-`ExprInfo::ShapeProperty` (`expr_table.rs`), resolved at `members.rs:363`'s shape arm — and `mwl-ir`
-reads that slot by number through the new `InstKind::SlotGet`, so no class label and no layout table
-is involved at all. The two sides agree because a shape's field list is sorted when it is interned
-(`TypeInterner::shape`) and every producer lays its slots out that way; `mwl_stdlib::issue`'s `FIELDS`
-is that agreement written down, and its module doc now says what reordering it would cost. The other
-half of the slice was **`erase_checked_ty` gaining a `Ty::Shape` arm** — a shape value is an ordinary
-refcounted instance, so its representation is `Ty::Object`, which is what makes a shape-typed local,
-`foreach` binding, array element and property lower at all.
+**An anonymous shape value constructs.** `{x: 1, y: 2}` lowers to one `InstKind::New` of a
+compiler-synthesized class plus one `FieldSet` per field (`expr.rs`'s `lower_object_literal`). The
+class is keyed on the **sorted** field names, not on the site — `lower::shape_class_label` renders
+`$shape{x,y}` — so every literal of one shape shares one `ir::Class`, and its slot numbering is the
+same one `ExprInfo::ShapeProperty` hands the read side. It travels out of a body through
+`Lowering::shapes`, beside `closures`, because only `lower_file` can hold a class; that file dedups
+by label. Nothing was added to codegen: the synthesized class goes through `Classes::define` like
+any other.
 
-Verify is green (1539 tests, clippy and fmt clean). Valgrind is clean over the new read edge — 200
-iterations of a failed `Core\Json::decode` and a failed `decodeAs<Row>`, reading `path`/`message` off
-every issue by index and by `foreach`. Conformance is **428** (two existing cases grew; no new file),
-differential 89. `examples/collect.mwl` still exits 1 at `Core\Out::capture`, which is the frontier.
+Verify is green (1539 tests, clippy and fmt clean). Conformance is **429** — the new case is
+`tests/conformance/lang/an-anonymous-object-literal-constructs-and-reads-its-fields.mwlt`;
+differential 89. Valgrind is clean over the new refcount edges (200 iterations of a literal owning a
+retained aliasing read, a fresh producer's result and a nested shape object).
 
-**Still not lowered, and the next group's work:** an anonymous `{a: 1}` literal (`expr.rs:230` panics
-naming `ObjectLiteral`) and a shape field *write* (`stmt.rs:417`). `mwl-ir`'s crate-doc gap 6 states
-both.
+**A defect this slice made reachable, and the next group's first job.** A fixed-offset `SlotGet` is
+only right where the receiver's static shape is the value's *own* shape. Through a **widened view**
+— ADR 0036 § 3's width subtyping, or a named class satisfying a shape — it reads the wrong field:
+a `{y: int}` parameter handed `{x: 1, y: 2}` answers `1`. That is exactly why § 4 specifies a
+name-keyed fetch rather than an offset. The class-receiver half predates this session's work.
+`mwl-ir` crate-doc gap 6 and `mwl_types::expr::members`' shape arm both say so; nothing in the
+corpus writes a widened view, so no test asserts the wrong answer.
 
-## Next group — an anonymous shape value, which is one file set
+`examples/collect.mwl` still exits 1 at `Core\Out::capture`, which is the gate's frontier.
 
-**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` (the `ObjectLiteral` arm at `expr.rs:230`,
-beside `lower_shape_property_access` at `expr.rs:2944`), `crates/mwl-ir/src/ir.rs` (`Program.classes`
-at `ir.rs:19`, `Class` at `ir.rs:32`, `InstKind::SlotGet` at `ir.rs:505`) and
-`crates/mwl-codegen/src/lib.rs` (`Classes::define`, ~`lib.rs:446`). ADR 0036 § 2 specifies the value;
-§ 4 is the read that already works.
+## Next group — shape values, which is one file set
 
-- [ ] **1. `{x: 1, y: 2}` constructs.** ADR 0036 § 2 makes each literal a *compiler-synthesized*
-      class — methodless, no constructor, ordinary reference semantics — so the cheapest shape is for
-      lowering to append one `ir::Class` per distinct shape to `Program.classes` (fields in **sorted**
-      name order, so the slot numbering `ExprInfo::ShapeProperty` already hands out is the same one)
-      and emit the `New` + `FieldSet` sequence that exists. Nothing new is needed in codegen if the
-      synthesized class goes through `Classes::define` like any other. `mwl_types::expr::mod.rs:158`
-      is where the literal is typed today, so the checker half is done.
+**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` (`lower_object_literal` at `expr.rs:2975`,
+`lower_shape_property_access` at `expr.rs:3026`), `crates/mwl-ir/src/lower/stmt.rs:416` (the
+assignment arm's `ExprInfo` match), `crates/mwl-ir/src/ir.rs:505` (`InstKind::SlotGet`),
+`crates/mwl-codegen/src/emit.rs:1462` (`emit_slot_get`) and
+`crates/mwl-types/src/expr/members.rs:386` (the shape arm that records the slot).
+
+- [ ] **1. A shape read through a widened view is name-keyed, not offset-keyed.** ADR 0036 § 4 in
+      full. The runtime class table carries no field *names* today
+      (`mwl-codegen/src/lib.rs`'s `Classes::define` passes `fields.len()` alone to
+      `mwl_runtime::ClassTable::define`), so the shape is: names on `ClassDesc`, one helper that
+      answers a slot by name, and `SlotGet` carrying the name beside the index. § 4 also makes a
+      missing name a catchable throw, so the instruction becomes fallible with a landing block.
+      Weigh keeping the offset fast path where the receiver's type is a literal's own shape.
 - [ ] **2. A shape field write.** `stmt.rs:417`'s assignment arm takes `ExprInfo::Property` /
-      `HookedProperty` only and panics for a `ShapeProperty` target; the symmetric `InstKind::SlotSet`
-      is a copy of `SlotGet` plus the release-the-previous-value pair that arm already emits for a
-      class field. Only reachable once slice 1 lands — every shape value today is `Core`-built and
-      never written to.
-- [ ] **3. The `tests/conformance/lang/` case.** ADR 0036 §§ 2 and 4 pinned on the language's own
-      receiver rather than only through `Core\Issue`: a literal, a field read, a field write, and the
-      parenthesis rule § 2's grammar note states (a statement-initial `{` is a block, so a discarded
-      literal is written `({a: 1})`).
+      `ExprInfo::Index` and panics for `ExprInfo::ShapeProperty`; it needs the `SlotSet` counterpart
+      of `SlotGet` (release the old value, store the new), and slice 1 decides how it addresses the
+      slot, so do it second.
+- [ ] **3. `{a: 1}` as a statement-level expression and out of an arrow body.** ADR 0036 § 2's
+      grammar note — both need `({...})`, and `E0117` already says so; a conformance case pinning
+      the two spellings costs one file and is independent of 1 and 2.
 
 ## Backlog
 
-- `Core\Out::capture` — the last `§12` key in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`,
-  and what `examples/collect.mwl` stops on; it lands with M4S's sink work (ADR 0092).
-- `Core\Json::decodeAs<T>` still owes ADR 0071 § 2's wider codec set and § 4's default-bearing rows —
-  `mwl_stdlib::json`'s own known gaps.
-- `$e->previous` cannot be read *through* without a `!= null` narrowing first — `mwl_ir::Ty::Tagged`'s
-  known gap, stated in `mwl_types::error_lib`'s module doc.
-- Stage 4's counts are their own work: conformance 428 of 600, differential 89 of 150
-  (`docs/implementation-plan.md`, *Open now*).
-- `do`/`while` does not lower; an abandoned generator skips its `finally` (`mwl-ir` gaps).
+- `Core\Out::capture` — the gate's frontier fixture (`examples/collect.mwl:47`); M4S sink work.
+- A repeated field name in one literal (`{a: 1, a: 2}`) is undiagnosed; `mwl-ir` panics on it
+  rather than lowering — `mwl_types::expr` owns the missing check.
+- `do`/`while` does not lower (`mwl-ir` gap 1's remainder).
+- ADR 0088's qualifier classification for every `mwl-stdlib` member row.
+- ADR 0071's decode gaps: no enum/`decimal`/`Instant`/`array`/nested-class field.
+- `docs/spec/02-php-migration.md` is 31% classified (`python tools/check-migration.py`).
