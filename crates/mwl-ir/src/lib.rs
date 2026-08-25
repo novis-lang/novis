@@ -303,8 +303,9 @@
 //!     equality that widening *is* the semantics rather than an approximation
 //!     of it, so it belongs in [`lower::Lowering::convert`]'s existing rows.
 //!
-//! 20. **ADR 0047 § 5 runs whole; ADR 0010 § 5's `int` *into* an enum is what
-//!     is left of it.** A union whose members all erase to one representation
+//! 20. **ADR 0047 § 5 and ADR 0010 § 5 both run whole; what is left is a
+//!     `mixed` operand, which is ADR 0007 § 2's row rather than either of
+//!     theirs.** A union whose members all erase to one representation
 //!     is that representation ([`lower::lower_checked_ty`]), so `"a"|"b"` is a
 //!     `Ty::Str`, `1|2` a `Ty::Int` and `Mode::Read|Mode::Write` the enum's
 //!     own tag rather than the `Ty::Tagged` every union used to be, and § 4's
@@ -321,16 +322,34 @@
 //!     to its backing integer for the chain, because `mwl-codegen` lowers
 //!     `BinOp::Eq` over `Ty::Int`/`Ty::Uint` and not over `Ty::Enum`.
 //!
-//!     What is missing is the *base* conversion underneath it: `Tagged as
-//!     Enum(_)` — and `Int as Enum(_)` — has no arm in
-//!     [`lower::Lowering::convert`], so `$any as Mode::Read|Mode::Write` over
-//!     a `mixed` runs its membership test and then panics converting, and a
-//!     plain `$n as Mode` never gets that far. That row is ADR 0010 § 5's own:
-//!     it throws on a value no case names, which is the same check
-//!     `lower_literal_membership` already emits, run against **every** case of
-//!     the declaration rather than a named subset. The table it needs is now
-//!     in hand ([`lower::Lowering::enums`]); what it still owes is a
-//!     whole-enum accepted set and the missing `convert` rows.
+//!     ADR 0010 § 5's other direction runs too, so that section is whole for
+//!     a statically typed operand. `$n as Mode` is one free
+//!     [`ir::InstKind::Reinterpret`] — an enum is a tag over its backing
+//!     integer — in front of which
+//!     [`lower::Lowering::lower_literal_membership`] emits the same chain,
+//!     built from **every** case of the declaration
+//!     ([`lower::whole_enum_set`], sorted by the case's constant because the
+//!     table behind it is a hash map). An operand that is not already the
+//!     backing scalar is converted to it by ADR 0007 § 2's own rows first, by
+//!     recursion inside [`lower::Lowering::convert`] rather than a row per
+//!     source, so `$f as Rank` and `$s as Rank` each throw naming whichever
+//!     of the two steps failed. An operand already at the enum's own
+//!     representation is skipped entirely: `mwl_types` refuses a conversion
+//!     between two *different* enums, so it names a case by construction.
+//!
+//!     What is missing is no longer anything about enums: it is the checked
+//!     `Ty::Tagged` source, which belongs to
+//!     [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2. A
+//!     `mixed` converts to `string` ([`ir::Helper::TaggedToString`]) and to
+//!     `decimal` ([`ir::Helper::ToDecimal`]) and to nothing else, because
+//!     `mixed as int` needs a helper that *throws* where
+//!     [`ir::Helper::ToIntOrNull`] — ADR 0066's non-throwing form, which does
+//!     exist — answers `null`. So `$any as int`, `$any as Mode` and
+//!     `$any as Mode::Read|Mode::Write` all panic in
+//!     [`lower::Lowering::convert`] naming themselves, the last of them only
+//!     after running its membership test correctly. The slice is three
+//!     runtime helpers beside `mwl_str_to_int`'s trio and their `mwl-codegen`
+//!     symbol rows; nothing in this crate needs a new shape for it.
 //!
 //!     A statically settled operand needs no check and already worked, since
 //!     `mwl_types` refuses `E0470` before lowering ever sees it. `as ?"a"`

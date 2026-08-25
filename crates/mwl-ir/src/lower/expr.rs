@@ -602,10 +602,19 @@ impl<'a> Lowering<'a> {
     /// * **Checked.** `int` ↔ `uint`, `float` → an integer and `string` → a
     ///   number each go through a [`Helper`] that either produces the value or
     ///   throws, emitted through [`Self::emit_fallible`] so it carries
-    ///   ADR 0002's error edge like any other call. ADR 0010 § 5's remaining
-    ///   row — an integer *into* an enum — is the one still missing: it throws
-    ///   on a value no case names, which needs the declaration's case set
-    ///   carried to the check. It panics naming itself.
+    ///   ADR 0002's error edge like any other call.
+    /// * **Into an enum.** ADR 0010 § 5's other direction is row 1 run
+    ///   backwards: the operand is converted to the enum's *backing* scalar
+    ///   through whichever row above applies, and a free
+    ///   [`InstKind::Reinterpret`] puts the tag back on.
+    ///
+    /// That last row does **not** emit the section's "throws on a value no
+    /// case names" itself, and cannot: the case set lives on the enum's
+    /// declaration, which [`Ty::Enum`] has already erased to a backing type by
+    /// the time this runs. [`Self::lower_conversion`] emits it instead — the
+    /// same membership chain ADR 0047 § 5's closed set gets, built from every
+    /// case of the declaration ([`Self::closed_literal_set`]) — and it is this
+    /// function's only caller, so the two halves cannot come apart.
     ///
     /// `operand` is the un-lowered source expression, used only to decide
     /// whether a refcounted operand this conversion consumed was borrowed
@@ -639,6 +648,31 @@ impl<'a> Lowering<'a> {
             // ADR 0010 § 5, row 1 — an enum to its own underlying type.
             (Ty::Enum(EnumRepr::Int), Ty::Int) | (Ty::Enum(EnumRepr::Uint), Ty::Uint) => {
                 self.emit(cur, to, InstKind::Reinterpret { operand: v })
+            }
+            // ADR 0010 § 5, row 2 — the underlying type back into the enum,
+            // and free for the same reason row 1 is: `Ty::Enum` is a
+            // zero-byte tag over that integer, so the tag costs one
+            // reinterpret and no test.
+            //
+            // An operand that is not already the backing scalar is converted
+            // to it by the rows below *first*, by recursion rather than by a
+            // row per source: `$f as Rank` is ADR 0007 § 2's checked
+            // `float → int` and then this, which is the same two steps the
+            // author wrote and keeps every one of those rows' throw messages
+            // naming the conversion that actually failed. A `Ty::Tagged`
+            // operand still panics inside that recursion — `mixed` into an
+            // integer has no checked helper at all (the crate docs' gap 20).
+            //
+            // The value is not tested against the declaration's cases here;
+            // see this function's own doc comment for where that happens and
+            // why it cannot happen at this point.
+            (_, Ty::Enum(repr)) => {
+                let backing = match repr {
+                    EnumRepr::Int => Ty::Int,
+                    EnumRepr::Uint => Ty::Uint,
+                };
+                let (backed, _) = self.convert(v, from, backing, operand, env, cur);
+                self.emit(cur, to, InstKind::Reinterpret { operand: backed })
             }
             (_, Ty::Bool) => {
                 let b = self.truthy_convert(v, from, cur);
@@ -748,11 +782,11 @@ impl<'a> Lowering<'a> {
                 out
             }
             _ => panic!(
-                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows and ADR 0010 § 5's \
-                 enum-to-backing one — got `{from:?} as {to:?}`. An integer into an *enum* is \
-                 the row still missing: it throws on a value no case names, which needs the \
-                 declaration's case set carried to the check, and nothing in this IR expresses \
-                 one. See the crate docs' known gaps"
+                "mwl-ir lowers ADR 0007 § 2's scalar conversion rows and both of ADR 0010 § 5's \
+                 enum ones — got `{from:?} as {to:?}`. A `Ty::Tagged` operand into anything but \
+                 `string` or `decimal` is the shape still missing: a checked `mixed as int` \
+                 needs a helper that throws where `Helper::ToIntOrNull` answers `null`, and \
+                 there is none. See the crate docs' known gaps"
             ),
         }
     }
@@ -2961,10 +2995,21 @@ impl<'a> Lowering<'a> {
                 // arm, operand shape included — without it
                 // `19.99 as decimal` would round-trip through an
                 // `f64` and lose everything past ~17 digits.
+                //
+                // An enum target places at its *backing* scalar rather than
+                // at `Ty::Enum` itself, because ADR 0010 § 5's row 2 is
+                // written on that integer: without it `5 as Rank` over a
+                // `uint`-backed enum would lower its literal to the `Ty::Int`
+                // an unplaced one defaults to and then need a checked
+                // `int → uint` to undo it.
                 let placed =
-                    matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)).then_some(to);
+                    matches!(inner.kind, ExprKind::Int(_) | ExprKind::Float(_)).then(|| match to {
+                        Ty::Enum(EnumRepr::Int) => Ty::Int,
+                        Ty::Enum(EnumRepr::Uint) => Ty::Uint,
+                        other => other,
+                    });
                 let (v, from) = self.lower_expr(inner, placed, env, cur);
-                let Some(accepted) = self.closed_literal_set(ty, inner) else {
+                let Some(accepted) = self.closed_literal_set(ty, inner, from) else {
                     return self.convert(v, from, to, inner, env, *cur);
                 };
                 // ADR 0047 § 5's membership test, on whichever side of
@@ -3004,6 +3049,13 @@ impl<'a> Lowering<'a> {
     /// "the only place either type costs anything at runtime" — or `None`
     /// where this conversion is one of § 4's ordinary rows.
     ///
+    /// A **whole enum** is one of these sets too, and is where
+    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5's
+    /// "throws on a value no case names" is emitted from: the annotation
+    /// names no members, but the declaration does, so the set is built from
+    /// every case of it ([`whole_enum_set`]) and the chain that follows
+    /// is the same one a named subset gets.
+    ///
     /// Read off the **checked** type rather than the annotation, because that
     /// is where the values still are: § 2's `Foo::TYPE_A` folded to the string
     /// it names during checking, and nothing in the AST says which string that
@@ -3023,9 +3075,31 @@ impl<'a> Lowering<'a> {
     ///   comparison and an enum case needs none either.
     /// * There is no recorded checked type for the annotation, which is the
     ///   shape `lower_decl_type` answers from the AST alone.
-    fn closed_literal_set(&self, ty: &Type, inner: &Expr) -> Option<AcceptedSet> {
+    /// * The target is a whole enum and `from` is already that enum's own
+    ///   representation, so every value the operand can hold is a case by
+    ///   construction. It is the *same* enum and not merely one with the same
+    ///   backing type, because `mwl_types` refuses a conversion between two
+    ///   different enums outright (`reject_enum_to_enum_conversion`).
+    fn closed_literal_set(&self, ty: &Type, inner: &Expr, from: Ty) -> Option<AcceptedSet> {
         let types = self.checked_types;
         let target = self.exprs.declared_ty(ty.span)?;
+        if let CheckedTy::Enum(qname, backing) = types.get(target) {
+            let repr = match backing {
+                mwl_types::EnumBacking::Int => EnumRepr::Int,
+                mwl_types::EnumBacking::Uint => EnumRepr::Uint,
+            };
+            if from == Ty::Enum(repr) {
+                return None;
+            }
+            let info = self.enums.get(qname).unwrap_or_else(|| {
+                panic!(
+                    "mwl-ir: `{qname}` is an interned enum type with no entry in the run's \
+                     enum table — `mwl_types` interns one only for an enum it resolved, so \
+                     the two tables disagree"
+                )
+            });
+            return Some(whole_enum_set(info, &qname.to_string()));
+        }
         let atoms: Vec<TypeId> = match types.get(target) {
             CheckedTy::Union(members) => members.clone(),
             _ => vec![target],
@@ -3233,13 +3307,60 @@ impl<'a> Lowering<'a> {
 /// Absent (`None`) whenever the receiver's representation proved it cannot be
 /// `null`, which is what makes a nullsafe access on a non-nullable receiver
 /// cost exactly nothing.
+/// Every case of one enum declaration, as the [`AcceptedSet`] an
+/// `expr as EnumName` tests its operand against —
+/// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5's "throws
+/// on a value no case names" made concrete, and the one thing that keeps an
+/// enum a *closed* set once a plain integer can be converted into it.
+///
+/// A free function rather than a method because it needs nothing of the
+/// lowering state: `name` is the enum's resolved name already rendered, which
+/// is how this stays clear of `mwl_hir::QName` — this crate does not depend on
+/// `mwl-hir`, and [`Lowering::closed_literal_set`] holds the one reference to
+/// one long enough to do the table lookup itself.
+///
+/// **Sorted by the case's own constant**, which is not cosmetic:
+/// `EnumInfo::cases` is an `FxHashMap`, so an unsorted set would render the
+/// throw's accepted list in a different order from run to run and no test
+/// could pin the message. By the constant rather than by the name so that the
+/// ordinary declaration — no `= n` clause anywhere, values auto-incrementing
+/// from 0 (ADR 0010 § 2) — reads back in the order it was written; the name
+/// breaks a tie, so the order is total either way.
+fn whole_enum_set(info: &mwl_types::EnumInfo, name: &str) -> AcceptedSet {
+    let mut cases: Vec<(&str, mwl_types::EnumValue)> = info
+        .cases
+        .iter()
+        .map(|(case, value)| (case.as_str(), *value))
+        .collect();
+    cases.sort_by_key(|(case, value)| {
+        let ordinal = match value {
+            mwl_types::EnumValue::Int(n) => i128::from(*n),
+            mwl_types::EnumValue::Uint(n) => i128::from(*n),
+        };
+        (ordinal, *case)
+    });
+    AcceptedSet {
+        members: cases
+            .iter()
+            .map(|(_, value)| LiteralAtom::EnumCase(*value))
+            .collect(),
+        rendered: cases
+            .iter()
+            .map(|(case, _)| format!("`{name}::{case}`"))
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
+}
+
 /// The closed set of values a checked `as` into an
 /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) literal
 /// type accepts — see [`Lowering::closed_literal_set`], which is the only
 /// thing that builds one, and [`Lowering::lower_literal_membership`], which is
 /// the only thing that consumes it.
 struct AcceptedSet {
-    /// The values themselves, in the order the target type states them.
+    /// The values themselves, in the order the target type states them — or,
+    /// for a whole enum, in the order [`whole_enum_set`] sorts the
+    /// declaration's cases into, since a hash map states no order at all.
     members: Vec<LiteralAtom>,
     /// Those same values rendered for the throw's message — built here rather
     /// than at run time because a literal type does not survive erasure, so

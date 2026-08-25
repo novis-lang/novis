@@ -4572,17 +4572,25 @@ var $b = clone $a;
         assert_snapshot!(print_function(&f, map.file(file)));
     }
 
-    /// The one conversion row still missing, named rather than miscompiled:
-    /// ADR 0010 § 5's integer *into* an enum throws on a value no case names.
+    /// ADR 0010 § 5's integer *into* an enum: the conversion is free, and
+    /// what it costs is the check in front of it — one comparison per case of
+    /// the declaration, throwing with every case named. The accepted set is
+    /// built from the declaration rather than from the site, which is the
+    /// whole difference between this and ADR 0047 § 3's named subset.
     #[test]
-    #[should_panic(expected = "An integer into an *enum* is")]
-    fn converting_into_an_enum_panics_naming_itself() {
-        let _ = lower_script_src(
+    fn converting_into_an_enum_tests_every_case_of_the_declaration() {
+        let (f, map, file) = lower_script_src(
             "<?mwl
 enum Rank { Bronze, Gold }
 int $n = 1;
 Rank $r = $n as Rank;
 ",
+        );
+        let text = print_function(&f, map.file(file));
+        assert!(text.contains("reinterpret"), "{text}");
+        assert!(
+            text.contains("`Rank::Bronze`, `Rank::Gold`"),
+            "the throw names every case, in the declaration's own order: {text}"
         );
     }
 

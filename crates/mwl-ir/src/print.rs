@@ -95,17 +95,18 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         );
         return;
     }
-    // The one value-less `HelperCall`: `Helper::EchoStr` is invoked for its
-    // effect, so it has no `result` for the general arm below to print.
-    if let InstKind::HelperCall {
-        helper: Helper::EchoStr,
-        ref args,
-    } = inst.kind
+    // A value-less `HelperCall`, of which there are two kinds and both are
+    // invoked for an effect: `Helper::EchoStr` writes and returns nothing, and
+    // `Helper::LiteralMismatch` never returns at all. Neither has a `result`
+    // for the general arm below to print, so both print here.
+    if let InstKind::HelperCall { helper, ref args } = inst.kind
+        && inst.result.is_none()
     {
         let operands: Vec<String> = args.iter().map(|a| format!("v{}", a.index())).collect();
         let _ = writeln!(
             out,
-            "    helper.echo_str {}{}",
+            "    helper.{} {}{}",
+            helper_name(helper),
             operands.join(", "),
             error_edge(inst)
         );
