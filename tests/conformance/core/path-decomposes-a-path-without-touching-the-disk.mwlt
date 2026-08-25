@@ -1,0 +1,54 @@
+--TEST--
+Core\Path::basename, dirname, extension, withExtension, split and isAbsolute take a path apart as pure string algebra — spec § 8
+--FILE--
+<?mwl
+// Spec § 8: no member here touches the disk, so none of these paths exists.
+// Every *built* path is read back through Core\Path::SEPARATOR, which is the
+// one platform-dependent thing in the section — a member emits it, and a case
+// that baked in one leg's separator would fail the other.
+string $p = "/var/www/html/index.php";
+
+echo Core\Path::basename($p), "|", Core\Path::basename($p, {withoutExtension: true}), "|\n";
+
+// A trailing separator names nothing, and a root has no name at all.
+echo Core\Path::basename("/var/www/"), "|", Core\Path::basename("/"), "|\n";
+
+// Both separators are accepted on every platform, whichever leg this runs on.
+echo Core\Path::basename("/var\\www\\index.php"), "|\n";
+
+echo Core\Str::replace(Core\Path::dirname($p), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::dirname($p, {levels: 3}), Core\Path::SEPARATOR, "/"), "|\n";
+
+// Walking up further than there are components stops at the root, and a
+// relative path with nothing left is `.` — including the empty path, where
+// PHP's own dirname answers "" and hands back something no program can use.
+echo Core\Str::replace(Core\Path::dirname($p, {levels: 9}), Core\Path::SEPARATOR, "/"), "|", Core\Path::dirname("a/b", {levels: 9}), "|", Core\Path::dirname(""), "|\n";
+
+// The extension carries no dot, and absence is `null` rather than "" (R5).
+// A dotfile and a trailing dot both have none — the two rows where this
+// diverges from PHP's pathinfo, so that withExtension stays its inverse.
+echo Core\Path::extension($p) ?? "none", "|", Core\Path::extension("/etc/hosts") ?? "none", "|", Core\Path::extension(".gitignore") ?? "none", "|", Core\Path::extension("report.") ?? "none", "|\n";
+
+// withExtension takes exactly what extension answers: undotted, or null to
+// remove one. A refused extension throws, which is pinned in the module's own
+// unit tests instead — a `catch` does not lower at file scope.
+echo Core\Str::replace(Core\Path::withExtension($p, "html"), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::withExtension($p, null), Core\Path::SEPARATOR, "/"), "|\n";
+
+// An absolute path's first element is its root, and no element is ever empty
+// — PHP's explode(DIRECTORY_SEPARATOR, …) answers ["", "var", …] instead.
+echo Core\Str::replace(Core\Str::join(Core\Path::split($p), "|"), Core\Path::SEPARATOR, "/"), "|\n";
+echo Core\Str::join(Core\Path::split("etc//hosts/"), "|"), "|", Core\Arr::count(Core\Path::split("")), "|\n";
+
+// One grammar on every platform: a leading separator or a drive followed by
+// one is absolute wherever this runs.
+echo Core\Path::isAbsolute($p) as string, "|", Core\Path::isAbsolute("C:/log") as string, "|", Core\Path::isAbsolute("var/www") as string, "|", Core\Path::isAbsolute("") as string, "|\n";
+--EXPECT--
+index.php|index|
+www||
+index.php|
+/var/www/html|/var|
+/|.|.|
+php|none|none|none|
+/var/www/html/index.html|/var/www/html/index|
+/|var|www|html|index.php|
+etc|hosts|0|
+1|1|||

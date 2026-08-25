@@ -74,8 +74,8 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The registry holds part of §§ 1–2, all of §§ 3–4, most of §§ 5–6, and
-//!    none of §§ 7–12.**
+//! 1. **The registry holds part of §§ 1–2, all of §§ 3–4 and § 8, most of
+//!    §§ 5–6, and none of § 7 or §§ 9–12.**
 //!    `Core\Arr::count` was the first, and landed with the mechanism rather
 //!    than after it, on this repository's standing "narrow slice, end to end"
 //!    rule. Two more members proved the two things the mechanism still had to:
@@ -109,6 +109,11 @@
 //!    [`json::CLASS`] holds `encode`, `decode` and `isValid` over
 //!    `serde_json`, and that module's own gap 2 owns `decodeAs<T>`, which
 //!    waits on ADR 0071 and on an explicit type argument at a call site.
+//!    Section 8 is whole and needed no dependency at all — [`path`] is `&str`
+//!    arithmetic, and its own docs own the one-grammar-on-every-platform rule
+//!    that makes a `Core\Path` case pinnable on both legs, the three rows
+//!    where it diverges from `pathinfo`/`dirname`, and the two path *shapes*
+//!    (UNC, drive-relative) it does not model.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
@@ -186,6 +191,7 @@ mod issue;
 pub mod json;
 pub mod math;
 mod ordering;
+pub mod path;
 pub mod regex;
 pub mod registry;
 pub mod str;
@@ -231,6 +237,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
                 .or_else(|| arr::address(method.symbol))
                 .or_else(|| json::address(method.symbol))
                 .or_else(|| math::address(method.symbol))
+                .or_else(|| path::address(method.symbol))
                 .or_else(|| regex::address(method.symbol))
                 .or_else(|| time::address(method.symbol))
                 .unwrap_or_else(|| {

@@ -1,0 +1,44 @@
+--TEST--
+Core\Path::join, ::normalize and ::relativeTo do spec § 8's path algebra, and none of the three is a launderer
+--FILE--
+<?mwl
+// Every built path is read back through Core\Path::SEPARATOR: these three
+// members emit it, and it differs between the two legs.
+string $root = "/var/www";
+
+// join only ever appends. A segment's own leading separator and its own drive
+// are dropped rather than allowed to replace the base — the rule that keeps
+// a segment taken from a request from escaping the base it was joined to.
+echo Core\Str::replace(Core\Path::join($root, "html", "index.php"), Core\Path::SEPARATOR, "/"), "|\n";
+echo Core\Str::replace(Core\Path::join($root, "/etc/passwd"), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::join($root), Core\Path::SEPARATOR, "/"), "|\n";
+
+// It is not a launderer, and does not pretend to be one: a `..` segment still
+// walks up. Spec § 8 names Core\IO::within as the member that knows the base.
+echo Core\Str::replace(Core\Path::join($root, "..", "etc"), Core\Path::SEPARATOR, "/"), "|\n";
+
+// normalize resolves `.` and `..` by counting components, and re-renders, so
+// a repeated and a trailing separator go with them.
+echo Core\Str::replace(Core\Path::normalize("/var/www/../log/./app.log"), Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::normalize("a//b/./c/"), Core\Path::SEPARATOR, "/"), "|\n";
+
+// A root has no parent, so a `..` there is dropped; a relative `..` that
+// cannot be cancelled names something real and is kept.
+echo Core\Str::replace(Core\Path::normalize("/a/../.."), Core\Path::SEPARATOR, "/"), "|", Core\Path::normalize("a/../.."), "|", Core\Path::normalize(""), "|\n";
+
+// relativeTo drops the shared components and walks up once per component of
+// the base that is left. Where the two name the same place the answer is ".".
+echo Core\Str::replace(Core\Path::relativeTo("/var/www/index.php", $root) ?? "none", Core\Path::SEPARATOR, "/"), "|", Core\Str::replace(Core\Path::relativeTo("/var/log/app.log", "/var/www/html") ?? "none", Core\Path::SEPARATOR, "/"), "|\n";
+echo Core\Path::relativeTo($root, $root) ?? "none", "|\n";
+
+// Null — R5's one absence spelling — where no relative path exists at all:
+// one side absolute and the other not, and a base holding a `..` this would
+// have to walk back into without knowing what it left.
+echo Core\Path::relativeTo("/var/www", "var/www") ?? "none", "|", Core\Path::relativeTo("a", "..") ?? "none", "|\n";
+--EXPECT--
+/var/www/html/index.php|
+/var/www/etc/passwd|/var/www|
+/var/www/../etc|
+/var/log/app.log|a/b/c|
+/|..|.|
+index.php|../../log/app.log|
+.|
+none|none|

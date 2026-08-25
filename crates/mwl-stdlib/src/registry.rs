@@ -594,6 +594,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::regex::CLASS,
     crate::regex::MATCH,
     crate::json::CLASS,
+    crate::path::CLASS,
     crate::time::TIME,
     crate::time::INSTANT,
     crate::time::DATETIME,
