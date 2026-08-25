@@ -2,73 +2,62 @@
 
 ## State
 
-**Stage 0 is open, and it outranks everything below.** [loop-goal.md](loop-goal.md) § *Stage 0* holds
-items 1 to 17; **1 to 10, 16 and 17 are done**, so what is open is **items 11 to 15**, one named test
-each at `stage = "0 catch-up"` in [loop-goal.toml](loop-goal.toml). `loop.py` short-circuits at stage
-0, so **Stage 3 is shut until those five clear**. One item is a group — they share no files — and
-they are ordered cheapest first, so take item 11.
+**Stage 0 is open, and it outranks everything below it.** [loop-goal.md](loop-goal.md) § *Stage 0*
+holds items 1 to 17; **1 to 11, 16 and 17 are done**, so what is open is **items 12 to 15**, one
+named test each at `stage = "0 catch-up"` in [loop-goal.toml](loop-goal.toml). `loop.py`
+short-circuits at stage 0, so **Stage 3 is shut until those four clear**.
 
-**Item 10 landed**: `crates/mwl-runtime/tests/manifest_policy.rs` reads the workspace manifest's
-`[profile.release]` block with its comments stripped and fails if `overflow-checks = true` is gone.
-Nothing else was owed — the cast half is `[workspace.lints.clippy]` plus `verify.py`'s `-D warnings`,
-and the setting's measurement is the manifest comment beside it. Only one slice was taken: item 11 is
-a four-crate change sharing no file with item 10, so the second-slice test in the session prompt fails
-on its file-set half, not on context.
+**Item 11 landed**: `Helper::SecretEq` → `mwl_runtime`'s `mwl_secret_eq` over
+`subtle::ConstantTimeEq`. Two things had to be settled first and both are recorded in the crate docs
+that own them — the qualifier does not survive `mwl_ir::ty::Ty`, so `mwl-types` records
+`ExprInfo::SecretEquality` at the comparison and the lowering reads it back; and `erase_checked_ty`
+had **no arm for any of the six qualified atoms**, so `secret string` did not lower at all. `mwl-ir`
+gap 11 is rewritten to what is left of it: a `secret`-against-`mixed` pair still short-circuits.
 
-**The plan's `Open now` said catch-up was finished and it was not.** That field, `Status`'s and
-`On disk`'s counts now agree with the tree; the playbook carries the trap.
+**The workspace manifest was broken before this session started** — `members = ["benches/*"]` globbed
+the untracked `benches/userland/`, so *every* `cargo` command failed. `Cargo.toml` now excludes it;
+the playbook carries the trap. `benches/userland/` and `tools/bench.py` are still untracked, and are
+item 15's `php_ratio` material — commit them with that item.
 
-`benches/userland/` (`01-arith-loop.mwl`/`.php`) is **untracked**, left by an earlier session in this
-run. It is item 15's `php_ratio` material — commit it with that item rather than sweeping it into an
-unrelated slice.
-
-Verify is green (1543 tests, 73 suites, clippy and fmt clean). Conformance **433**, differential 89.
+Verify is green (1545 tests, 73 suites, clippy and fmt clean); valgrind clean on a fresh-operand
+`secret ==` probe. Conformance **434**, differential 89.
 
 `examples/collect.mwl` still exits 1 at `Core\Out::capture`, genuinely blocked behind ADR 0088's sink
-carriers (`Core\Html\Markup`/`Cli\Text`); it is M4S work, not a slice to open ahead of the sinks.
+carriers; it is M4S work, not a slice to open ahead of the sinks.
 
-## Next group — Stage 0 items 11 to 15, in order, starting at item 11
+## Next group — Stage 0 items 12 and 13, then 14, then 15
 
-**These share no file set** — that is why one item is one group, and why the anchors below are per
-item rather than per group. Item 15 is the largest by far (a second array representation with a
-degrade path, ~300–500 lines across `array.rs` and the ABI); do not size the set from its first
-member.
+**Items 12 and 13 are one group and share `crates/mwl-stdlib/src/uri.rs`** — take them together.
+Items 14 and 15 share no file with them or with each other; item 15 is by far the largest (a second
+array representation with a degrade path, ~300–500 lines across `array.rs` and the ABI), so do not
+size the set from it.
 
-- [ ] **Item 11 — `secret == secret` lowers to the constant-time helper.** ADR 0033 § 5
-      (`docs/adr/0033-secret-qualifier-for-confidential-values.md:203`) owns the rule and its ≈+8 ns.
-      Closing test: `a_secret_equality_lowers_to_the_constant_time_helper`, `-p mwl-ir`. Anchors:
-      `lower_binary` at `crates/mwl-ir/src/lower/expr.rs:2177` — the `Helper::Identical` arm at
-      `:2201` and `Helper::NumericEq` at `:2241` are the two shapes to copy, and a plain `string` pair
-      falls past both to the `BinOp` table at `:2268`, which `mwl-codegen` turns into `mwl_str_eq`;
-      the `Helper` rows are `crates/mwl-ir/src/ir.rs:1372` and `crates/mwl-ir/src/print.rs:458`; the
-      runtime address table is `crates/mwl-runtime/src/helpers.rs:1040`; a constant-time compare is
-      already written and documented at `crates/mwl-stdlib/src/hash.rs:501` (`mwl_core_hash_equals`,
-      doc at `:483`), but `mwl-runtime` cannot call `mwl-stdlib`, so the helper is a new one there.
-      **Two things to settle before writing the arm**: (1) `mwl_ir::Ty` carries no qualifier, so
-      `lower_binary`'s `lty`/`rty` cannot see `secret` — the checker has to record it, the way
-      `mwl-ir` gap 12 already records a `Stringable` desugar the IR has no call expression for; and
-      (2) `erase_checked_ty` (`crates/mwl-ir/src/lower/mod.rs:2197`) has **no** arm for
-      `Ty::SecretString`/`SecretBytes`/`SecretTainted*` (`crates/mwl-types/src/ty.rs:53`), so they
-      fall to its `_ => return None` — that is `mwl-ir` gap 11, and a scratch `.agent-tmp/*.mwl`
-      declaring a `secret string` local will say in one run whether the erasure is owed first.
 - [ ] **Item 12 — `$s as ?Uri` and `$s as ?Uuid` compile, `isValid` deleted from both.** ADR 0066
-      §§ 1, 3 own the roster; `crates/mwl-stdlib/src/uri.rs`'s module doc owns the call-site
-      consequence. Tests: `a_parse_roster_type_converts_nullably` and
-      `a_class_type_still_refuses_the_nullable_conversion`, `-p mwl-types`.
-- [ ] **Item 13 — `Core\Uri` compares by normalized components**, with a round-trip property and a
-      differential corpus against the PHP 8.5 oracle, plus a `fuzz/fuzz_targets` entry beside
-      `lex.rs`/`parse.rs`. `crates/mwl-stdlib/src/uri.rs`'s module doc owns the rule and both guards.
-      Tests: `two_uris_compare_by_normalized_components`, `a_parsed_uri_round_trips_through_its_own_text`.
-- [ ] **Item 14 — a call-stack limit rides the safepoint's emit site** (ADR 0020 § 1), then **item 15
-      — a list-shaped array is packed** (`crates/mwl-runtime/src/array.rs`'s module doc). Read
-      `Jit::new`'s stack-probe comment before 14: probes catch one oversized frame, this counts depth,
-      and neither covers the other.
+      §§ 1, 3. `Uri::isValid` is not written yet (`grep isValid` finds only `Encoding` and `Json`), so
+      the work is the roster, not a deletion. Anchors: `crates/mwl-stdlib/src/uri.rs:63` (the module
+      doc already naming ADR 0066 §§ 1, 3), the `?T` row at
+      `crates/mwl-stdlib/src/registry.rs:215`, `Core\Uri`'s `CLASS` at
+      `crates/mwl-stdlib/src/uri.rs:287` and its slots at `:456`. `crates/mwl-uuid` does not exist —
+      `Core\Uuid` lives in `crates/mwl-stdlib/src/uuid.rs`. Closing test:
+      `a_parse_roster_conversion_yields_null`-shaped, `-p mwl-types`; read the exact name out of
+      `loop-goal.toml`'s item 12 block before writing it.
+- [ ] **Item 13 — `Core\Uri` compares by normalized components**, with a round-trip property test.
+      `uri.rs`'s own module doc owns the rule. Same file set as item 12, which is why they are one
+      group; the comparison itself will want `mwl_runtime::identity`'s object-identity answer.
+- [ ] **Item 14 — a call-stack limit rides the safepoint's emit site** (ADR 0020 § 1). Anchors:
+      `crates/mwl-ir/src/ir.rs:266` (`InstKind::Safepoint`), the three emit sites at
+      `crates/mwl-ir/src/lower/control.rs:204`, `lower/exception.rs:491` and `lower/generator.rs:650`,
+      the codegen side at `crates/mwl-codegen/src/lib.rs:956`, and `mwl-ir` gap 14
+      (`crates/mwl-ir/src/lib.rs:262`), which says safepoints are reserved rather than functional.
+- [ ] **Item 15 — a second array representation with a degrade path**, plus the `php_ratio`
+      benchmark that `benches/userland/` and `tools/bench.py` are already written for. Its own item in
+      `loop-goal.md` § *Stage 0* holds the shape.
 
 ## Backlog
 
-- Stage 4's counts are their own work: conformance 433 of 600, differential 89 of 150 — plan `Open now`.
-- `Core\Out::capture` waits on ADR 0088's sink carriers — spec § 12, M4S.
-- § 6 owes `decodeAs<T>` — `mwl_stdlib::json` gap 2, unblocked now a call site can write a type argument.
-- ADR 0088's registry-wide qualifier classification for `Core` member rows — M4S.
-- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1's remainder.
+- `Core\Out::capture` — the last `spec-members-outstanding.txt` key; behind ADR 0088's sink carriers.
+- `decodeAs<T>` for `Core\Json` — `json` gap 2, now that a written call-site type argument lands.
+- ADR 0088's registry-wide qualifier classification for `Core` member rows — `docs/implementation-plan.md` § *Open now*.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir`'s gap list.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
+- ADRs 0091/0092/0093 are decided and unbuilt; their milestones are M4/M6/M7/M8/M10.

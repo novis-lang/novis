@@ -182,6 +182,15 @@ is why" — is this file.
   names each test literally, so one `grep -rn "<test_name>" --include=*.rs` over the block settles
   the question for one call; `handoff.md` § *State* was the half that was right, and the prose was
   corrected rather than the toml.
+- **An untracked *directory* under `benches/` breaks the whole cargo workspace, and the first symptom
+  is a stale binary.** The root manifest globs `members = ["crates/*", "benches/*"]`, so
+  `benches/userland/` — MWL and PHP benchmark *sources*, left untracked by an earlier session — made
+  every `cargo` invocation die with `failed to read benches/userland/Cargo.toml` before a single crate
+  was read. Piped through `| tail -3` the error scrolls past, `$?` belongs to `tail`, and the run that
+  follows uses whatever `target/debug/mwl.exe` was built last, so the session diagnoses a phantom
+  language bug instead. `cargo metadata --no-deps >/dev/null; echo $?` is the one-call check, and the
+  fix is an `exclude = [...]` line beside the glob. The same hazard waits for any new non-crate
+  directory under a globbed member path.
 
 ## Running things
 
