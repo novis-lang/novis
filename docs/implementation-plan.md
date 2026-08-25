@@ -177,29 +177,35 @@
 > `Stringable` itself stringify and one typed `Comparable` order through `<`; that function's own
 > doc says why the zero-step walk is the answer all five callers wanted. One shape stays out and is
 > `mwl-ir` gap 12's whole remainder: a `Core`-owned class, which `require_stringable` exempts and so
-> records no target for. **ADR 0061's grammar half is built** — both file-scope forms parse to
-> `StmtKind::AutoloadDecl`, `autoload` is a reserved word while `discover` stays contextual, and a
-> path that is not a plain string literal (a concatenation, an interpolated `"$dir"`) is `E0123`
-> reported once per declaration; a prefix is written without a trailing separator, since
-> `'Acme\Legacy\'` cannot be spelled in a single-quoted string at all. What that ADR still owes is
-> the name-to-file fixpoint over the require-graph worklist, § 2's one-declaration-per-file rule and
-> § 5's probe trace. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`
-> naming `Core\Arr::underlay` — leaving that ADR's combination *members* to § 1's `Core` breadth
-> below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008`
-> per line over comments, string literals and inline HTML, and seven `.mwlt` cases pin it; its
-> `Core\Html` and `Core\Cli` sink halves are M7's and M8's. **ADR 0088 opens one registry-wide
-> item**: `mwl-stdlib`'s member rows carry no qualifier classification, so `Core\Str::format`'s
-> template is not yet the sink that ADR makes it, and neither the fail-closed default for an
-> unclassified `string`/`bytes` parameter nor the test that refuses an unclassified member exists;
-> it lands with M4S's remaining sections. **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3
-> and 6 are whole, § 2's aggregations are written, § 5 is six of its eight members, and § 1 is
-> missing its eleven text-shaping rows, `Arr::diff`/`intersect` and ADR 0069's combination members.
-> Every signature shape the spec writes can now be stated: a variadic tail is
-> `registry::CoreTy::Variadic`, a `Core`-owned instance is `CoreClass`'s `instance` roster over
-> `mwl_stdlib::instance`, a class constant may be an instance through `registry::Const::Built`, and
-> a member may be handed the class its call site wrote through `registry::WRITTEN_CLASS_MEMBERS`. §
-> 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that module's gap 1). **ADR 0071 is built
-> end to end for a scalar-fielded class**; its gaps are no
+> records no target for. **ADR 0061 resolves names to files now** — both file-scope forms parse to
+> `StmtKind::AutoloadDecl` (`autoload` reserved, `discover` contextual, a non-literal path `E0123`
+> once per declaration), and `mwl_hir::requires::resolve_program` runs § 1's lookup as a fixpoint on
+> the same worklist that walks `require`: one AST walk per file harvests its requires, its
+> `autoload` declarations and every name it uses where a class is meant, and when the `require`
+> graph drains, `mwl_hir::autoload::AutoloadMap` places the first still-undeclared name and pushes
+> that file back onto the worklist. Longest prefix wins, roots are probed in declaration order, the
+> on-disk spelling is compared exactly (a mis-cased entry is a miss, not a diagnostic), an explicit
+> prefix shadows a `discover` glob and any other duplicate is `E0315`; `E0316` refuses an `autoload`
+> anywhere in the autoloaded sub-graph, `E0317` is § 2's one-declaration-per-file rule and `E0318` a
+> malformed glob. § 5's probe trace is produced and dropped — folding it into the cache key is the
+> ADR 0042 slice's work — and the name harvest is a deliberate over-approximation that does not yet
+> reach an attribute's name (`mwl-hir`'s own module doc owns both gaps). **ADR 0069's refusal is
+> built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` — leaving that
+> ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
+> `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008` per line over comments, string
+> literals and inline HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink
+> halves are M7's and M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows
+> carry no qualifier classification, so `Core\Str::format`'s template is not yet the sink that ADR
+> makes it, and neither the fail-closed default for an unclassified `string`/`bytes` parameter nor
+> the test that refuses an unclassified member exists; it lands with M4S's remaining sections.
+> **Then `Core` breadth, where Stage 3 stopped.** Spec §§ 3 and 6 are whole, § 2's aggregations are
+> written, § 5 is six of its eight members, and § 1 is missing its eleven text-shaping rows,
+> `Arr::diff`/`intersect` and ADR 0069's combination members. Every signature shape the spec writes
+> can now be stated: a variadic tail is `registry::CoreTy::Variadic`, a `Core`-owned instance is
+> `CoreClass`'s `instance` roster over `mwl_stdlib::instance`, a class constant may be an instance
+> through `registry::Const::Built`, and a member may be handed the class its call site wrote through
+> `registry::WRITTEN_CLASS_MEMBERS`. § 4 runs whole but owes `Date`/`TimeOfDay`/`Core\Month` (that
+> module's gap 1). **ADR 0071 is built end to end for a scalar-fielded class**; its gaps are no
 > enum/`decimal`/`Instant`/`array`/nested-class field decode and no optional key from a parameter
 > default. **Next on the path is `examples/collect.mwl`**, which needs §§ 7-9 and 11-12 at once:
 > `Core\Path` is the cheapest slice, then `Encoding`/`Hash`/`Uuid`, then `ObjectSet`/`ObjectMap`,

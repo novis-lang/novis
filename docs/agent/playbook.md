@@ -116,6 +116,12 @@ is why" — is this file.
 
 ## Writing a test case
 
+- **A `.mwlt` case is exactly one file, and `tests/` holds no multi-file fixture at all.** `--FILE--` is
+  singular in `crates/mwl-test`'s section table, so anything needing a second file on disk — `require`'s
+  static resolution, ADR 0061's autoload map, a shadowing root — has no conformance vehicle today and is
+  pinned in the owning crate's own `tests/` instead. Check that before planning a slice's coverage: the
+  Rust-side test is invisible to the Stage 4 conformance count, so "write the `.mwlt` cases" can be an
+  instruction that cannot be followed as written.
 - **A rule added to `mwl_syntax::check_declarations` reaches far less of the corpus than a grep
   suggests.** Only `mwl-cli` and `mwl_hir::requires` call that walk, so every `mwl-types` fixture, every
   parser test and every `mwl-codegen` fixture goes straight past it — ADR 0094's estimated "sixty inline
