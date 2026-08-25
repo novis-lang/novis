@@ -110,8 +110,11 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy};
 /// every [`CoreTy::Instance`] naming it cannot drift apart.
 pub const NAME: &str = r"Core\Uuid";
 
-/// `Core\Uuid`'s registry rows — all four of § 11's second table's static
-/// members, plus the rendering member that section's table now writes.
+/// `Core\Uuid`'s registry rows — § 11's second table's three static members,
+/// plus the rendering member that section's table now writes. `isValid` was a
+/// fourth until ADR 0066 § 3 replaced it with `$s as ?Uuid`; the symbol that
+/// answers that conversion is [`crate::registry::PARSE_ROSTER`]'s, and is
+/// deliberately not a member row.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -135,13 +138,6 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "mwl_core_uuid_parse",
-        },
-        CoreMethod {
-            name: "isValid",
-            params: &[CoreTy::Str],
-            defaults: &[],
-            return_ty: CoreTy::Bool,
-            symbol: "mwl_core_uuid_is_valid",
         },
     ],
     instance: &[CoreMethod {
@@ -167,7 +163,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "mwl_core_uuid_v4" => (mwl_core_uuid_v4 as *const ()).cast(),
         "mwl_core_uuid_v7" => (mwl_core_uuid_v7 as *const ()).cast(),
         "mwl_core_uuid_parse" => (mwl_core_uuid_parse as *const ()).cast(),
-        "mwl_core_uuid_is_valid" => (mwl_core_uuid_is_valid as *const ()).cast(),
+        "mwl_core_uuid_parse_or_null" => (mwl_core_uuid_parse_or_null as *const ()).cast(),
         "mwl_core_uuid_to_string" => (mwl_core_uuid_to_string as *const ()).cast(),
         _ => return None,
     })
@@ -329,8 +325,8 @@ mwl_runtime::mwl_helper! {
     /// **Throws on anything else** (ADR 0063 R4), which is what makes the
     /// return type `Uuid` rather than `?Uuid`: a caller asking to *parse* has
     /// asserted that the text is one, and the non-throwing question is
-    /// `isValid` beside it. The message quotes the offending text, bounded, so
-    /// a log line cannot be flooded through it.
+    /// `$s as ?Uuid` beside it. The message quotes the offending text,
+    /// bounded, so a log line cannot be flooded through it.
     fn mwl_core_uuid_parse(_ctx, args: [1]) {
         let text = text_of(args, "parse")?;
 
@@ -346,17 +342,21 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
-    /// `Core\Uuid::isValid(string $s): bool` — replacing the regex, and
-    /// answering exactly the question [`mwl_core_uuid_parse`] would throw on.
+    /// `$text as ?Core\Uuid` —
+    /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// §§ 1, 3's parse-roster entry point: [`mwl_core_uuid_parse`] exactly,
+    /// with `null` where it throws.
     ///
-    /// The two members share [`read`], so there is one definition of "is a
-    /// UUID" rather than a validator and a parser that can drift apart — which
-    /// is the failure mode the regex-plus-constructor idiom has in every
-    /// language that leaves both to the program.
-    fn mwl_core_uuid_is_valid(_ctx, args: [1]) {
-        let text = text_of(args, "isValid")?;
+    /// **Not a member.** This replaces the `isValid` that used to sit here,
+    /// which was already [`read`] asked without the throw — so there is still
+    /// one definition of "is a UUID", now with one spelling instead of two.
+    /// It is listed in [`crate::registry::PARSE_ROSTER`] rather than in a
+    /// [`CoreClass`]'s member roster, and no `Core\Uuid::` call site can name
+    /// it.
+    fn mwl_core_uuid_parse_or_null(_ctx, args: [1]) {
+        let text = text_of(args, "parse")?;
 
-        Ok(Value::bool(read(text).is_some()))
+        Ok(read(text).map_or_else(Value::null, built))
     }
 }
 
@@ -503,23 +503,25 @@ mod tests {
         );
     }
 
-    /// Whether `Core\Uuid::isValid` accepts `text`, releasing the string this
-    /// test built.
+    /// Whether `$text as ?Core\Uuid` answers a UUID rather than `null` — the
+    /// spelling ADR 0066 § 3 left standing when the roster type lost its
+    /// `isValid`. Releases the string this test built and whatever came back.
     fn valid(text: &str) -> bool {
         let subject = Value::str(mwl_runtime::MwlStr::new(text.as_bytes()));
-        let answer = run(super::mwl_core_uuid_is_valid, &[subject])
-            .expect("`isValid` answers rather than throwing")
-            .as_bool()
-            .expect("`isValid` answers with a `bool`");
+        let answer = run(super::mwl_core_uuid_parse_or_null, &[subject])
+            .expect("the roster conversion answers rather than throwing");
+        let parsed = answer.tag() != Some(mwl_runtime::Tag::Null);
         #[expect(
             unsafe_code,
-            reason = "this test owns the one reference it built, and the \
-                      helper borrowed rather than consumed it"
+            reason = "this test owns the one reference it built and the one \
+                      the conversion answered with; the helper borrowed its \
+                      argument rather than consuming it"
         )]
         unsafe {
+            answer.release();
             subject.release();
         }
-        answer
+        parsed
     }
 
     #[test]

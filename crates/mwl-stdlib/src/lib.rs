@@ -262,6 +262,11 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // rosters are chained rather than the constructor being folded into
         // one of them.
         .chain(registry::CONSTRUCTORS.iter().map(|(_, new)| new.symbol))
+        // Nor is ADR 0066's `as ?T` entry point one — see
+        // [`registry::PARSE_ROSTER`]: it is reached from the conversion
+        // lowering and from no call site, so it is a third roster rather than
+        // a member row that would give `Core\Uri::` a name it must not have.
+        .chain(registry::PARSE_ROSTER.iter().map(|(_, symbol)| *symbol))
         .map(|symbol| (symbol, address_of(symbol)))
         .collect()
 }
@@ -312,6 +317,7 @@ mod tests {
                 .map(|class| class.members().count())
                 .sum::<usize>()
                 + registry::CONSTRUCTORS.len()
+                + registry::PARSE_ROSTER.len()
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

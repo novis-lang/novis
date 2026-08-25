@@ -4,9 +4,9 @@
 //! `encodeFormValue`/`decodeFormValue`, which replace PHP's
 //! `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode`, plus
 //! `parseQuery` and `buildQuery`, which are those four applied to a whole
-//! query string. The **grammar half** is `parse`, `isValid` and the `Uri`
-//! instance they answer with, plus `$uri->with` and `$uri->resolve` on it —
-//! RFC 3986, read by `fluent-uri`, argued four sections below.
+//! query string. The **grammar half** is `parse` and the `Uri` instance it
+//! answers with, plus `$uri->with` and `$uri->resolve` on it — RFC 3986, read
+//! by `fluent-uri`, argued four sections below.
 //!
 //! # Two encodings, because PHP has two and the wire has two
 //!
@@ -179,7 +179,7 @@
 //! this repository already keeps for correctness. A `fuzz/fuzz_targets` entry
 //! sits beside `lex.rs` and `parse.rs` for the same reason.
 //!
-//! # What `parse` takes, what `isValid` asks, and what neither does
+//! # What `parse` takes, and what it does not ask
 //!
 //! `parse` takes a **URI reference** — RFC 3986 § 4.1's `URI / relative-ref` —
 //! because a request line carries one and `$uri->resolve` is defined over one.
@@ -188,13 +188,14 @@
 //! byte, a bare `%`, a `<`, and every non-ASCII byte, which is an IRI's
 //! business (RFC 3987) and not this member's.
 //!
-//! `isValid` is therefore **not** "does `parse` throw". It is "**is this an
-//! absolute URI**" — `parse` succeeding *and* a scheme being present — which
-//! is the question `filter_var(…, FILTER_VALIDATE_URL)` is actually asked. The
-//! answer differs from PHP's in both directions and deliberately: PHP accepts
-//! a space in a path and this refuses it, PHP refuses a URI whose host is
-//! empty and this accepts `file:///tmp`. And it **launders nothing** — whether
-//! a URL may be *fetched* is `Core\Http::allowUrl` at § 16
+//! **"Is this an absolute URI" is a second question, and it has no member.**
+//! It is `parse` succeeding *and* a scheme being present —
+//! `($s as ?Uri)?->scheme() != null` — which is what
+//! `filter_var(…, FILTER_VALIDATE_URL)` is actually asked. The answer differs
+//! from PHP's in both directions and deliberately: PHP accepts a space in a
+//! path and this refuses it, PHP refuses a URI whose host is empty and this
+//! accepts `file:///tmp`. And it **launders nothing** — whether a URL may be
+//! *fetched* is `Core\Http::allowUrl` at § 16
 //! ([ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md)); a
 //! `true` here says only that the text is a URI.
 //!
@@ -293,13 +294,6 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             symbol: "mwl_core_uri_parse",
-        },
-        CoreMethod {
-            name: "isValid",
-            params: &[CoreTy::Str],
-            defaults: &[],
-            return_ty: CoreTy::Bool,
-            symbol: "mwl_core_uri_is_valid",
         },
         CoreMethod {
             name: "encodeComponent",
@@ -477,7 +471,7 @@ const FRAGMENT_SLOT: usize = 7;
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "mwl_core_uri_parse" => (mwl_core_uri_parse as *const ()).cast(),
-        "mwl_core_uri_is_valid" => (mwl_core_uri_is_valid as *const ()).cast(),
+        "mwl_core_uri_parse_or_null" => (mwl_core_uri_parse_or_null as *const ()).cast(),
         "mwl_core_uri_scheme" => (mwl_core_uri_scheme as *const ()).cast(),
         "mwl_core_uri_user_info" => (mwl_core_uri_user_info as *const ()).cast(),
         "mwl_core_uri_host" => (mwl_core_uri_host as *const ()).cast(),
@@ -1183,21 +1177,30 @@ mwl_runtime::mwl_helper! {
 }
 
 mwl_runtime::mwl_helper! {
-    /// `Core\Uri::isValid(string $uri): bool` — replacing
-    /// `filter_var(…, FILTER_VALIDATE_URL)`.
+    /// `$text as ?Core\Uri` —
+    /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// §§ 1, 3's parse-roster entry point: [`mwl_core_uri_parse`] exactly,
+    /// with `null` where it throws.
     ///
-    /// "Is this an **absolute** URI": [`read`] succeeding *and* a scheme
-    /// being present, which is why `isValid("/a/b")` is `false` while
-    /// `Uri::parse("/a/b")` answers a `Uri`. The module docs own both
-    /// directions this differs from PHP in, and the fact that a `true` here
-    /// launders nothing — `Core\Http::allowUrl` at § 16 is the question about
-    /// *fetching* one.
-    fn mwl_core_uri_is_valid(_ctx, args: [1]) {
-        let text = text_of(args, "isValid")?;
+    /// **Not a member**, which is the whole point of the roster: R17 allows
+    /// the question "is this text a URI" one spelling, and the ADR keeps the
+    /// one that cannot drift from `parse` because it *is* `parse`. So this
+    /// symbol is reached only from `mwl_ir`'s conversion lowering, listed in
+    /// [`crate::registry::PARSE_ROSTER`] rather than in a [`CoreClass`]'s
+    /// member roster, and no `Core\Uri::` call site can name it.
+    ///
+    /// Only a *thrown* fault becomes `null`. A `Fault::Fatal` — a wrong
+    /// argument tag, an engine invariant — is not a failed conversion and
+    /// propagates unchanged, which is the same line ADR 0066 § 3 draws
+    /// between "a conversion that exists and failed" and everything else.
+    fn mwl_core_uri_parse_or_null(_ctx, args: [1]) {
+        let text = text_of(args, "parse")?;
 
-        Ok(Value::bool(
-            UriRef::parse(text).is_ok_and(|reference| reference.has_scheme()),
-        ))
+        match read(text, "parse") {
+            Ok(reference) => built(&reference, "parse"),
+            Err(Fault::Thrown(..)) => Ok(Value::null()),
+            Err(other) => Err(other),
+        }
     }
 }
 

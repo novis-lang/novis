@@ -21,7 +21,10 @@
 //! `as` is here too, as the conversion's *operand* rule
 //! ([`reject_enum_to_enum_conversion`], and ADR 0047 § 6's
 //! [`reject_impossible_literal_conversion`] for a conversion whose operand
-//! already names a value the target's closed set does not contain); what a
+//! already names a value the target's closed set does not contain), plus
+//! ADR 0066 § 3's target rule for `as ?T`
+//! ([`check_class_target_conversion`]: a class target is refused, and its
+//! parse roster is the exception it records for `mwl_ir` to lower); what a
 //! conversion does to a qualifier is [`super::quals`], and what its target type
 //! may be spelled as is [`crate::lower`].
 //!
@@ -76,6 +79,7 @@ pub(super) fn infer_conversion(
     if matches!(env.interner.get(result), Ty::String) {
         require_stringable(inner_ty, inner.span, env);
     }
+    check_class_target_conversion(ty, inner_ty, result, expr.span, env);
     reject_enum_to_enum_conversion(inner_ty, result, expr.span, env);
     reject_secret_markup_conversion(inner_ty, result, expr.span, env);
     reject_non_literal_markup_conversion(inner, result, expr.span, env);
@@ -637,6 +641,126 @@ pub(super) fn reject_arithmetic_on_object(op: UnaryOp, ty: TypeId, span: Span, e
              `Core\\Time\\Duration` negates with `->negated()` and subtracts with `->minus(…)`",
         ),
     );
+}
+
+/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3's
+/// last table row and the **parse-roster** row above it, which are one
+/// decision read twice: `$obj as ?SomeClass` is a compile error because
+/// `instanceof` plus ADR 0007 § 6's narrowing already answers class
+/// membership, while `$s as ?Core\Uri` and `$s as ?Core\Uuid` are the closed
+/// roster that ADR defines directly as "that type's `parse`, and `null` where
+/// it throws". Turning text into a value is a different question from class
+/// membership, which is why the roster does not reopen the row.
+///
+/// Keyed on the **written `?T` sugar**, not on the interned target: § 1
+/// deliberately leaves the `Core\Uri|null` union spelling out of the form, so
+/// a target reached any other way is not this ADR's and is left alone. A
+/// plain `as SomeClass` is left alone too — that is ADR 0007 § 2's table
+/// having no row for a class type, which is a separate refusal this slice
+/// does not add.
+///
+/// Recording [`ExprInfo::ParseRosterConversion`] is the other half of the
+/// job, and it is what `mwl_ir` lowers from: nothing survives into
+/// `mwl_ir::ty::Ty` that says which class was written, and the roster is
+/// `mwl_stdlib`'s to state, so the symbol travels through the table the way
+/// [`ExprInfo::SecretEquality`] travels.
+fn check_class_target_conversion(
+    ty: &Type,
+    from: TypeId,
+    to: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) {
+    if !is_written_nullable(ty) {
+        return;
+    }
+    let Some(class) = nullable_class_target(to, env) else {
+        return;
+    };
+    let roster = mwl_stdlib::registry::parse_roster_symbol(&class);
+    if let Some(symbol) = roster
+        && operand_is_text(from, env.interner)
+    {
+        env.exprs
+            .record(span, ExprInfo::ParseRosterConversion { symbol });
+        return;
+    }
+    let (message, help) = if roster.is_some() {
+        let described = env.interner.describe(from);
+        (
+            format!("`{described}` is not text, so there is no `{class}` to parse out of it"),
+            "`as ?T` over a parse-roster type reads a `string` — convert the operand to one first",
+        )
+    } else {
+        (
+            format!("`{class}` is a class, so `as ?{class}` is not a conversion"),
+            "ask `$x instanceof Name` and use the value the test narrows; text becomes a value \
+             through that class's own named constructor",
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(code::E_CLASS_CONVERSION_TARGET, message)
+            .with_primary(span, "converted here")
+            .with_help(help),
+    );
+}
+
+/// Whether the target was written as the `?T` sugar, `(...)` transparent —
+/// `mwl_ir::lower`'s own `nullable_target` reads it the same way, and the two
+/// have to agree or a target this leaves alone reaches a lowering that
+/// expects it to have been decided here.
+fn is_written_nullable(ty: &Type) -> bool {
+    match &ty.kind {
+        TypeKind::Nullable(_) => true,
+        TypeKind::Paren(inner) => is_written_nullable(inner),
+        _ => false,
+    }
+}
+
+/// The class an `as ?T` target names, or `None` for every other target.
+///
+/// `?T` interns as exactly `Union([Null, T])` — the checker has no separate
+/// nullable type ([`crate::lower::lower_type`]) — so this reads the one
+/// non-`null` member back out. A union with more than one is not the `?T`
+/// sugar's shape and is left to the caller's `None` path.
+fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
+    let Ty::Union(members) = env.interner.get(to) else {
+        return None;
+    };
+    let mut named = members
+        .iter()
+        .filter(|member| !matches!(env.interner.get(**member), Ty::Null));
+    let only = *named.next()?;
+    if named.next().is_some() {
+        return None;
+    }
+    match env.interner.get(only) {
+        Ty::Class(name, _) => Some(name.to_string()),
+        _ => None,
+    }
+}
+
+/// Whether an operand is text a roster type's `parse` can read — ADR 0066
+/// § 3's row says "a `string` operand", and its `mixed` row says every target
+/// has a checked path from there.
+///
+/// All four qualified spellings are text, and the qualifier is not this
+/// conversion's question: `as ?Core\Uri` *is* `Core\Uri::parse`, so whatever
+/// that member does with a `tainted` argument it does here too. Classifying
+/// a `Core` parameter's qualifier at all is
+/// [ADR 0088](../../../docs/adr/0088-taint-carriers-and-sinks.md)'s
+/// registry-wide item, still open, and closing it closes both spellings at
+/// once rather than one of them here.
+fn operand_is_text(from: TypeId, interner: &TypeInterner) -> bool {
+    matches!(
+        interner.get(from),
+        Ty::String
+            | Ty::TaintedString
+            | Ty::SecretString
+            | Ty::SecretTaintedString
+            | Ty::StringLiteral(_)
+            | Ty::Mixed
+    )
 }
 
 /// ADR 0010 § 5: "`EnumName` → a different `EnumName`, even with the same

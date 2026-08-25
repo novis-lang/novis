@@ -191,3 +191,51 @@ fn a_ternary_expressions_type_mismatch_is_diagnosed() {
     );
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
+
+#[test]
+fn a_parse_roster_type_converts_nullably() {
+    // ADR 0066 §§ 1, 3: `Core\Uri` and `Core\Uuid` are the closed parse
+    // roster, where `as ?T` is defined directly as "that type's `parse`, and
+    // `null` where it throws" — so the conversion compiles from text.
+    for class in [r"Core\Uri", r"Core\Uuid"] {
+        let diags = check_src(&format!(
+            "<?mwl\nclass T {{\n  function m(string $s): void {{\n    ?{class} $v = $s as ?{class};\n  }}\n}}\n"
+        ));
+        assert!(!diags.has_errors(), "{class}: {diags:?}");
+    }
+    // The `null` is in the *type*, not only in what happens at run time: the
+    // non-nullable binding does not accept what the conversion answers.
+    let diags = check_src(
+        "<?mwl\nclass T {\n  function m(string $s): void {\n    Core\\Uri $v = $s as ?Core\\Uri;\n  }\n}\n",
+    );
+    assert!(
+        diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn a_class_type_still_refuses_the_nullable_conversion() {
+    // ADR 0066 § 3's last row: `instanceof` plus ADR 0007 § 6's narrowing
+    // already answers class membership, so the roster does not reopen it.
+    let diags = check_src(
+        "<?mwl\nclass P {\n  public int $n = 1;\n}\nclass T {\n  function m(object $o): void {\n    var $p = $o as ?P;\n  }\n}\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CLASS_CONVERSION_TARGET)),
+        "{diags:?}"
+    );
+    // A roster type reached from something that is not text takes the same
+    // code: there is no `parse` to reach.
+    let diags = check_src(
+        "<?mwl\nclass T {\n  function m(int $n): void {\n    var $u = $n as ?Core\\Uri;\n  }\n}\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_CLASS_CONVERSION_TARGET)),
+        "{diags:?}"
+    );
+}

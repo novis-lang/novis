@@ -1,5 +1,5 @@
 --TEST--
-Core\Uuid::parse and isValid answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, ADR 0063 R4
+Core\Uuid::parse and `$s as ?Uuid` answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, ADR 0063 R4, ADR 0066 §§ 1, 3
 --FILE--
 <?mwl
 // `Read` exists because a `catch` does not lower at file scope; every throwing
@@ -12,6 +12,14 @@ class Read {
             return "threw";
         }
     }
+
+    // ADR 0066 §§ 1, 3: `Core\Uuid` is on the parse roster, so the
+    // non-throwing question is `$s as ?Uuid` and there is no `isValid`
+    // beside it — one predicate, one spelling, one implementation.
+    public static function valid(string $s): string {
+        var $u = $s as ?Core\Uuid;
+        return $u != null ? "valid" : "invalid";
+    }
 }
 
 // Spec § 11: the canonical form reads in either case and renders lower, so
@@ -23,25 +31,26 @@ echo Read::parsed("F9168C5E-CEB2-4FAA-B6BF-329BF39FA1E4"), "\n";
 // UUIDs all the same — the version nibble is a statement about how a value was
 // generated, never a checksum over it.
 echo Read::parsed("00000000-0000-0000-0000-000000000000"), "\n";
-echo Core\Uuid::isValid("ffffffff-ffff-ffff-ffff-ffffffffffff") ? "valid" : "invalid", "\n";
-echo Core\Uuid::isValid("00000000-0000-4000-8000-000000000000") ? "valid" : "invalid", "\n";
+echo Read::valid("ffffffff-ffff-ffff-ffff-ffffffffffff"), "\n";
+echo Read::valid("00000000-0000-4000-8000-000000000000"), "\n";
 
 // The three other spellings a UUID library usually accepts are each a second
 // name for one value, so `Core\Uuid` takes none of them — that module's own
 // docs own why, and ADR 0007 § 2's `string -> int` row draws the same line.
-echo Core\Uuid::isValid("f9168c5eceb24faab6bf329bf39fa1e4") ? "valid" : "invalid", "\n";
-echo Core\Uuid::isValid("{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}") ? "valid" : "invalid", "\n";
-echo Core\Uuid::isValid("urn:uuid:f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4") ? "valid" : "invalid", "\n";
+echo Read::valid("f9168c5eceb24faab6bf329bf39fa1e4"), "\n";
+echo Read::valid("{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}"), "\n";
+echo Read::valid("urn:uuid:f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4"), "\n";
 
 // A near miss is a miss: right length with one non-hex character, right
 // characters with a hyphen moved, and surrounding whitespace.
-echo Core\Uuid::isValid("f9168c5e-ceb2-4faa-b6bf-329bf39fa1eg") ? "valid" : "invalid", "\n";
-echo Core\Uuid::isValid("f9168c5ec-eb2-4faa-b6bf-329bf39fa1e4") ? "valid" : "invalid", "\n";
-echo Core\Uuid::isValid(" f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4") ? "valid" : "invalid", "\n";
-echo Core\Uuid::isValid("") ? "valid" : "invalid", "\n";
+echo Read::valid("f9168c5e-ceb2-4faa-b6bf-329bf39fa1eg"), "\n";
+echo Read::valid("f9168c5ec-eb2-4faa-b6bf-329bf39fa1e4"), "\n";
+echo Read::valid(" f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4"), "\n";
+echo Read::valid(""), "\n";
 
 // ADR 0063 R4: `parse` asserts that the text is a UUID, so it throws where
-// `isValid` answers `false`. The two share one definition of the shape.
+// `as ?Uuid` answers `null`. That is not two definitions of the shape agreeing
+// — the conversion *is* `parse`, with the throw turned into a `null`.
 echo Read::parsed("not a uuid"), "\n";
 
 // A drawn UUID round-trips through its own rendering, which is what makes

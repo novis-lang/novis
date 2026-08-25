@@ -42,7 +42,7 @@ use mwl_diagnostics::{Diagnostic, SourceFile, Span, code};
 use mwl_hir::{ClassGraph, QName, SymbolKind};
 use mwl_syntax::ast::{
     Arg, ArrayItem, AssignOp, BinaryOp, CallArgs, Expr, ExprKind, FnBody, FnExpr, ForeachBinding,
-    MemberName, NewTarget, StringPart, Type, UnaryOp,
+    MemberName, NewTarget, StringPart, Type, TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashSet;
 

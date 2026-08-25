@@ -240,7 +240,7 @@ impl<'a> Lowering<'a> {
                 ),
             },
             ExprKind::Conversion { expr: inner, ty } => {
-                self.lower_conversion(inner, ty, env, cur)
+                self.lower_conversion(inner, ty, expr.span, env, cur)
             }
             other => panic!(
                 "mwl-ir's control-flow slice only lowers literals, locals, unary/binary \
@@ -3429,6 +3429,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         inner: &Expr,
         ty: &Type,
+        span: Span,
         env: &Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
@@ -3438,6 +3439,41 @@ impl<'a> Lowering<'a> {
         // `from == to` — the one shape `Self::convert` answers by
         // doing nothing at all.
         match nullable_target(ty) {
+            // ADR 0066 §§ 1, 3's parse roster is the one `as ?T` family
+            // defined directly rather than as a row of ADR 0007 § 2's table,
+            // so it does not reach `Self::convert_or_null` at all: it is that
+            // class's own `parse`, answering `null` where it throws, which is
+            // one `Core` symbol and no error edge.
+            //
+            // Which class was written cannot be recovered here — every `?T`
+            // erases to `Ty::Tagged` — so the symbol arrives through
+            // `mwl_types::expr_table::ExprInfo::ParseRosterConversion`, whose
+            // presence is also the checker's statement that this target is on
+            // the roster at all. A class that is not takes `E0473` there and
+            // never gets here.
+            Some(_) if self.parse_roster_symbol(span).is_some() => {
+                let symbol = self
+                    .parse_roster_symbol(span)
+                    .expect("the guard just answered with one");
+                let (v, from) = self.lower_expr(inner, None, env, cur);
+                let out = self.emit(
+                    *cur,
+                    Ty::Tagged,
+                    InstKind::CoreCall {
+                        symbol,
+                        args: vec![v],
+                    },
+                );
+                // A `Core` call borrows its arguments, so the operand is
+                // still this frame's to drop — the same decision
+                // `Self::convert_or_null` makes for a checked row, and for
+                // the same reason: a fresh, non-aliasing operand has no
+                // other owner.
+                if from.is_refcounted() && !self.aliasing_read(inner) {
+                    self.emit_release(*cur, v);
+                }
+                out
+            }
             Some(target) => {
                 // No placement here, unlike the arm below: placing a
                 // literal at the target would make `3 as ?uint` the
@@ -3863,6 +3899,23 @@ pub(super) struct NullsafeGuard {
     null_block: BlockId,
     /// Where both arms rejoin, holding the merged value.
     merge_block: BlockId,
+}
+
+impl Lowering<'_> {
+    /// The `Core` symbol an `as ?T` at `span` converts through, or `None`
+    /// where the target is not on ADR 0066 § 3's parse roster.
+    ///
+    /// A method rather than a free function because the answer is
+    /// `mwl_types`': the checker resolved the written name, decided the
+    /// roster question, and refused every class target that failed it, so all
+    /// that is left here is reading its answer back out of the expression
+    /// table.
+    fn parse_roster_symbol(&self, span: Span) -> Option<&'static str> {
+        match self.exprs.lookup(span) {
+            Some(ExprInfo::ParseRosterConversion { symbol }) => Some(*symbol),
+            _ => None,
+        }
+    }
 }
 
 /// The `T` of an `as ?T` annotation, or `None` for any other target.

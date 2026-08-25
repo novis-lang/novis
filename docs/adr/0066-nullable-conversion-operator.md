@@ -111,10 +111,20 @@ is a different question, and `$obj as ?SomeClass` remains the compile error it i
 below says `as ?T` is never a launderer — so the two are genuinely different operations rather than two
 spellings of one, and R17 has nothing to object to. Both survive.
 
-Each roster type therefore loses its `isValid` member, by *5*'s argument exactly: `Core\Uri::isValid($s)`
-and `$s as ?Uri != null` are the same predicate. That deletion is what keeps a URI's validity question and
-its parse from ever being answered by two different pieces of code — the shape behind PHP's CVE-2024-5458,
-where `filter_var(FILTER_VALIDATE_URL)` accepted user-info that `parse_url` read differently.
+Each roster type therefore loses its `isValid` member, by *5*'s argument exactly: `Core\Uuid::isValid($s)`
+and `$s as ?Uuid != null` are the same predicate. That deletion is what keeps a value's validity question
+and its parse from ever being answered by two different pieces of code — the shape behind PHP's
+CVE-2024-5458, where `filter_var(FILTER_VALIDATE_URL)` accepted user-info that `parse_url` read
+differently.
+
+`Core\Uri::isValid` was **one condition narrower** than that and goes all the same. It asked "is this an
+**absolute** URI" — the parse succeeding *and* a scheme being present, which is what `FILTER_VALIDATE_URL`
+is actually asked — so it was not literally a second spelling of `$s as ?Uri != null`. It was still a
+second *member* answering a question about the grammar, and the extra condition survives as one reader
+call on the parsed value: `($s as ?Uri)?->scheme() != null`. That is the whole cost of the deletion, and it
+is the right side of the trade, because a reader on the parsed value cannot disagree with the parse the way
+a separate predicate can. [`docs/spec/01-core-library.md`](../spec/01-core-library.md) § 12 states the
+replacement; the roster itself is `mwl_stdlib::registry::PARSE_ROSTER`.
 
 ### 4. Qualifiers are untouched
 

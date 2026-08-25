@@ -26,7 +26,7 @@
 //!   operator, ADR 0035's truthy conversion, ADR 0031 closure literals,
 //!   `instanceof`, `??`, the literal `null`, ADR 0007 § 2's scalar conversion
 //!   rows — free, total and checked alike — and ADR 0066's non-throwing
-//!   `as ?T` over the checked numeric targets.
+//!   `as ?T` over the checked numeric targets and over its § 3 parse roster.
 //! - **Types** — `int`/`uint`/`float`/`bool`/`decimal` scalars, `string`,
 //!   `bytes`,
 //!   `array<T>` (element type erased — see [`ty::Ty`]), `object` (a class or
@@ -156,10 +156,20 @@
 //!    it throws on a value no case names, which needs the declaration's case
 //!    set carried to the check, and nothing here expresses one. `EnumName` ↔
 //!    `string` is not a gap — ADR 0010 § 5 leaves it out of the language.
+//!    ADR 0066 § 3's **parse roster** — `$s as ?Core\Uri`, `$s as ?Core\Uuid`
+//!    — is not a row of that table at all and does not reach
+//!    [`lower::Lowering::convert_or_null`]: it is one
+//!    [`ir::InstKind::CoreCall`] on the symbol
+//!    `mwl_types::expr_table::ExprInfo::ParseRosterConversion` carries, since
+//!    every `?T` erases to [`ty::Ty::Tagged`] and the class written does not
+//!    survive here.
 //!    Separately, ADR 0066 § 3 makes `as ?T` a **compile error** where the
 //!    conversion cannot fail (`$i as ?string`) or does not exist at all
 //!    (`$arr as ?int`); `mwl_types` refuses neither yet, so both reach
-//!    lowering and panic naming that ADR instead of being diagnosed.
+//!    lowering and panic naming that ADR instead of being diagnosed. The
+//!    **class-target** refusal is the one of § 3's that does exist —
+//!    `mwl_diagnostics::code::E_CLASS_CONVERSION_TARGET`, which is also what
+//!    keeps a roster target off the panic path here.
 //! 5. **A ternary — or a `match` — whose branches lower to two different
 //!    [`ty::Ty`] representations panics.** Neither has a recorded result type
 //!    to widen its arms to, which is the one thing

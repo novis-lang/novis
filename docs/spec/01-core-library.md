@@ -764,7 +764,6 @@ have no equivalent, because seeding the global generator is exactly what that se
 | `Uuid::v4` | `v4(): Uuid` | `uniqid`, `com_create_guid`, userland UUID libraries | neutral |
 | `Uuid::v7` | `v7(): Uuid` | nothing — time-ordered, for database keys | neutral |
 | `Uuid::parse` | `parse(string $s): Uuid` | manual validation | |
-| `Uuid::isValid` | `isValid(string $s): bool` | a regex | neutral |
 | `$uuid->toString` | `$uuid->toString(): string` | `(string)` on a userland UUID object | neutral |
 | `Hash::of` | `of(bytes\|string $data, Digest $digest): bytes` | `hash`, `md5`, `sha1`, `crc32`, `openssl_digest` | neutral |
 | `Hash::hmac` | `hmac(bytes\|string $data, secret bytes $key, StrongDigest $digest): bytes` | `hash_hmac` | neutral |
@@ -795,7 +794,6 @@ input opens two streams.
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
 | `Uri::parse` | `parse(string $uri): Uri` | `parse_url` | |
-| `Uri::isValid` | `isValid(string $uri): bool` | `filter_var(…, FILTER_VALIDATE_URL)` | neutral |
 | `Uri::encodeComponent` / `decodeComponent` | `encodeComponent(string $s): string` | `rawurlencode`, `rawurldecode` | |
 | `Uri::encodeFormValue` / `decodeFormValue` | `encodeFormValue(string $s): string` | `urlencode`, `urldecode` (the `+`-for-space variant) | |
 | `Uri::parseQuery` | `parseQuery(string $query): array<mixed>` | `parse_str` — returns, never populates variables | |
@@ -814,9 +812,15 @@ may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
 was written, still percent-encoded and still in its own case, and dot segments are removed only by
 `$uri->resolve`, where RFC 3986 § 5.2.4 asks for it. The WHATWG URL Standard is the other specification a
 `Uri` could have read, and it is the wrong one here: it rewrites its input on the way through, so a program
-comparing `$uri->host()` against an allowlist would be comparing against text no client sent. `isValid` is
-therefore not "does `parse` throw" — it is "is this an **absolute** URI", `parse` succeeding *and* a scheme
-being present, which is what `FILTER_VALIDATE_URL` is asked. It launders nothing.
+comparing `$uri->host()` against an allowlist would be comparing against text no client sent.
+
+**Asking whether text is a URI is `$s as ?Uri`**, `Core\Uri` being on
+[ADR 0066](../adr/0066-nullable-conversion-operator.md) § 3's parse roster — `parse` with `null` where it
+throws. There is no `Uri::isValid`, by that ADR's argument and R17's: a validator written as a *separate*
+implementation from the parser is how `filter_var(FILTER_VALIDATE_URL)` came to accept user-info that
+`parse_url` read differently (CVE-2024-5458). The narrower question `FILTER_VALIDATE_URL` is actually asked
+— "is this an **absolute** URI" — is one reader call further on, `($s as ?Uri)?->scheme() != null`, and it
+launders nothing either way: whether a URL may be *fetched* is `Core\Http::allowUrl` at § 16.
 
 The eight readers are what `parse_url`'s array keys become, with two differences that array cannot express:
 `host()` is `null` where no authority was written and `""` where an empty one was (`file:///tmp`), and
@@ -840,7 +844,7 @@ launders anything.**
 `(subject, …): bool`, all neutral. Replaces `filter_var`'s validate half and its 20 `FILTER_*` constants.
 
 Three members that were here are gone as duplicates, each with a one-line rewrite: `isUrl` is
-`Uri::isValid`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
+`($s as ?Uri)?->scheme() != null`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
 PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{version: 4}`/`{version: 6}`,
 a closed literal set ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) rather than two more names.
 

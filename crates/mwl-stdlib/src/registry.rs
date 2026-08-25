@@ -736,6 +736,46 @@ pub const CLASSES: &[CoreClass] = &[
     crate::validate::CLASS,
 ];
 
+/// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
+/// §§ 1, 3's **parse roster**: the closed set of `Core` classes `as ?T` is
+/// defined over, each with the symbol that answers it.
+///
+/// The roster's conversion is defined *directly* — "that type's `parse`, and
+/// `null` where it throws" — rather than as the non-throwing twin of an
+/// `as T` row, because ADR 0007 § 2's conversion table has no row for a class
+/// type and adding one would make `$s as Core\Uri` a second spelling of
+/// `Core\Uri::parse($s)`. So there is no `as T` form for a roster type, and
+/// `mwl_types::expr` refuses `as ?T` into every class name that is *not*
+/// here — the class row at the foot of that ADR's § 3 table.
+///
+/// Membership requires a `parse` taking **exactly one `string`** that can
+/// fail; `Core\Time::parse` and `Core\Csv::parse` take a format or an options
+/// bag and stay member calls. `parse_roster_symbol_shadows_no_member` and
+/// `a_parse_roster_class_declares_no_is_valid_member` hold both halves of
+/// what that costs: the symbol is reachable only through the conversion, and
+/// the `isValid` the roster type used to carry is gone, since it and
+/// `$s as ?T != null` are one predicate asked twice.
+///
+/// The symbols are **not members** and are therefore absent from
+/// [`CoreClass::methods`]: nothing a `Core\Uri::` call site writes can name
+/// one. [`crate::symbols`] chains them in beside [`CONSTRUCTORS`] for the
+/// same reason it chains those — the JIT still has to resolve the address.
+pub const PARSE_ROSTER: &[(&str, &str)] = &[
+    (crate::uri::NAME, "mwl_core_uri_parse_or_null"),
+    (crate::uuid::NAME, "mwl_core_uuid_parse_or_null"),
+];
+
+/// The symbol `$s as ?{class}` lowers to, or `None` for a class name that is
+/// not on [`PARSE_ROSTER`] — which is every class but two, and is what makes
+/// the conversion a compile error there.
+#[must_use]
+pub fn parse_roster_symbol(class: &str) -> Option<&'static str> {
+    PARSE_ROSTER
+        .iter()
+        .find(|(name, _)| *name == class)
+        .map(|(_, symbol)| *symbol)
+}
+
 /// Every `Core` class a program may write `new` on, with the constructor that
 /// builds one — `docs/spec/01-core-library.md` § 9's collections and nothing
 /// else.
@@ -937,6 +977,57 @@ pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ADR 0066 § 3: "Each roster type therefore loses its `isValid` member",
+    /// because `Core\Uri::isValid($s)` and `$s as ?Core\Uri != null` are one
+    /// predicate and R17 keeps one spelling of it. Named for `Core\Uri`
+    /// because that is the one where the deletion cost something: its
+    /// `isValid` asked the *narrower* "is this an absolute URI", which is now
+    /// `->scheme() != null` on the parsed value — one reader call rather than
+    /// a second implementation of the grammar, which is the drift ADR 0066
+    /// cites CVE-2024-5458 for.
+    #[test]
+    fn core_uri_declares_no_is_valid_member() {
+        for (name, _) in PARSE_ROSTER {
+            let class = class(name).expect("a roster class is registered");
+            assert!(
+                class.members().all(|method| method.name != "isValid"),
+                "{name} still declares `isValid`"
+            );
+        }
+    }
+
+    /// The other half of the same rule: a roster type joins by having a
+    /// `parse` that takes exactly one `string` and can fail, and its
+    /// conversion symbol is **not** a member — no `Core\Uri::` call site may
+    /// name it.
+    #[test]
+    fn a_parse_roster_class_parses_one_string_and_hides_its_symbol() {
+        let members: Vec<&str> = CLASSES
+            .iter()
+            .flat_map(CoreClass::members)
+            .map(|method| method.symbol)
+            .collect();
+        for (name, symbol) in PARSE_ROSTER {
+            let class = class(name).expect("a roster class is registered");
+            let parse = class
+                .members()
+                .find(|method| method.name == "parse")
+                .unwrap_or_else(|| panic!("{name} is on the parse roster without a `parse`"));
+            assert!(
+                matches!(parse.params, [CoreTy::Str]),
+                "{name}::parse takes something other than one `string`"
+            );
+            assert!(
+                matches!(parse.return_ty, CoreTy::Instance(answered) if answered == *name),
+                "{name}::parse does not answer with one"
+            );
+            assert!(
+                !members.contains(symbol),
+                "{symbol} is reachable as a member, so `Core` has two spellings of one parse"
+            );
+        }
+    }
 
     /// Every registered name is one the spec's own naming rules allow: a
     /// class under `Core`, a `camelCase` member (ADR 0029), and no leading

@@ -731,6 +731,22 @@ pub mod code {
     /// [`E_PARAM_DEFAULT_NOT_LITERAL`] because the two accept different sets:
     /// a property may be defaulted to `[]` and a parameter may not.
     pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472");
+    /// `$obj as ?SomeClass` — ADR 0066 § 3's class row: `instanceof` plus
+    /// ADR 0007 § 6's narrowing already answers class membership, so the
+    /// conversion would be R17's second spelling of a question the language
+    /// already has one for. Reported for the written `?T` sugar only, since
+    /// § 1 deliberately leaves the `SomeClass|null` union spelling out of the
+    /// form.
+    ///
+    /// The one exception is that ADR's **parse roster** —
+    /// `mwl_stdlib::registry::PARSE_ROSTER`, today `Core\Uri` and `Core\Uuid`
+    /// — where `as ?T` is defined directly as "that type's `parse`, and
+    /// `null` where it throws". Turning text into a value is a different
+    /// question from class membership, which is why the roster does not
+    /// reopen the row. A roster target reached from an operand that is not
+    /// text takes this same code, with its own wording: there is no `parse`
+    /// to reach.
+    pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.
