@@ -4,6 +4,10 @@
 //!
 //! * `mwl ast` (M1) — dump what the parser produced.
 //! * `mwl check` (M2) — parse, resolve, type-check, report every diagnostic.
+//!   `--autoload-map` prints the resolved `autoload` map in place of the
+//!   success line, which is
+//!   [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//!   § 1's last sentence; the shape is `mwl_hir::autoload`'s module doc.
 //! * `mwl run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
@@ -78,6 +82,10 @@ enum Command {
     Check {
         /// The file to check.
         file: PathBuf,
+        /// Print the resolved `autoload` map instead of `no errors`,
+        /// including what a `discover` glob skipped and what was shadowed.
+        #[arg(long)]
+        autoload_map: bool,
     },
     /// Check a `.mwl`/`.php` file, then compile and run it.
     Run {
@@ -164,7 +172,7 @@ fn main() -> ExitCode {
 
     match command {
         Command::Ast { file } => run_ast(&file),
-        Command::Check { file } => run_check(&file),
+        Command::Check { file, autoload_map } => run_check(&file, autoload_map),
         Command::Run {
             file,
             dump_ir,
@@ -217,6 +225,9 @@ struct Checked {
     interner: mwl_types::TypeInterner,
     exprs: mwl_types::ExprTypeTable,
     layouts: mwl_types::ClassLayoutTable,
+    /// The autoload map the graph walk consulted, kept for
+    /// `check --autoload-map` and read by nothing else here.
+    autoload: mwl_hir::AutoloadMap,
 }
 
 impl Checked {
@@ -269,7 +280,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
     // Every other file's parse and `check_declarations` happen inside the
     // walk, as each `require` target is discovered; only the entry point is
     // this function's to load.
-    let (module, loaded) = mwl_hir::resolve_program(id, stmts, &mut map, &mut diags);
+    let (module, loaded, autoload) = mwl_hir::resolve_program(id, stmts, &mut map, &mut diags);
 
     let mut interner = mwl_types::TypeInterner::new();
     let mut exprs = mwl_types::ExprTypeTable::new();
@@ -298,13 +309,32 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
         interner,
         exprs,
         layouts,
+        autoload,
     })
 }
 
-fn run_check(path: &std::path::Path) -> ExitCode {
+/// `mwl check`, and with `--autoload-map` also ADR 0061 § 1's last sentence:
+/// the resolved prefix → roots map, what a `discover` glob passed over and
+/// what an explicit prefix shadowed.
+///
+/// The map is printed only when the check succeeded, because a program that
+/// does not resolve has not necessarily finished building one — the walk
+/// stops probing the moment the `require` graph is in doubt, and printing a
+/// partial map beside a wall of errors would be read as the whole of it.
+/// Paths are shown relative to the entry point's own directory, which is what
+/// `autoload`'s literals are written against (§ 1).
+fn run_check(path: &std::path::Path, autoload_map: bool) -> ExitCode {
     match front_end(path) {
-        Ok(_) => {
-            println!("no errors");
+        Ok(checked) => {
+            if autoload_map {
+                let base = match path.parent() {
+                    Some(dir) if !dir.as_os_str().is_empty() => dir,
+                    _ => std::path::Path::new("."),
+                };
+                print!("{}", checked.autoload.render(base));
+            } else {
+                println!("no errors");
+            }
             ExitCode::SUCCESS
         }
         Err(code) => code,

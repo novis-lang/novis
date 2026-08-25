@@ -40,11 +40,36 @@
 //!   ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //!   § 3).
 //!
+//! `mwl check --autoload-map` prints the result, which is why the two things
+//! a `discover` glob does *quietly* — passing over a directory that cannot
+//! name a namespace, and producing a prefix an explicit declaration already
+//! owns — are kept on the map rather than dropped where they happen.
+//! [`AutoloadMap::render`] is that printer. Its shape is three counted
+//! sections, one line per prefix with its roots in probe order:
+//!
+//! ```text
+//! prefixes (2)
+//!   App       explicit  override
+//!   Plugin    discover  Plugin/src
+//! shadowed (1)
+//!   App       discover  App/src
+//! skipped (1)
+//!   vendor    not a PascalCase namespace segment
+//! ```
+//!
+//! A count sits on every header, so an empty section still says so — the
+//! answer someone reaching for the flag is usually after, since a glob that
+//! discovers nothing is § 1's worst outcome and looks exactly like a glob
+//! nobody wrote. Paths are printed relative to the directory `render` is
+//! given and with `/` separators, so both legs of the test suite render one
+//! string.
+//!
 //! Path traversal is structurally impossible with no sanitizer, per § 1: a
 //! probed suffix is built only out of namespace segments, and
 //! [ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md) leaves
 //! no way to spell `.`, `..` or a separator in one.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use mwl_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
@@ -104,6 +129,14 @@ struct Entry {
 #[derive(Clone, Debug, Default)]
 pub struct AutoloadMap {
     entries: Vec<Entry>,
+    /// Every directory a `discover` glob matched and did not turn into a
+    /// prefix, with the reason, kept only so [`Self::render`] can print it:
+    /// resolution never consults this.
+    skipped: Vec<(PathBuf, &'static str)>,
+    /// Every prefix a `discover` glob produced that an explicit declaration
+    /// already owned, with the root the glob would have given it — the
+    /// vendor-override rule, made visible.
+    shadowed: Vec<(String, PathBuf)>,
 }
 
 /// What one [`AutoloadMap::resolve`] call did: the file it landed on, if
@@ -150,15 +183,17 @@ impl AutoloadMap {
             let SiteKind::Discover { glob } = &site.kind else {
                 continue;
             };
-            for (name, root) in discover(&site.base_dir, glob, site.span, diags) {
-                let segments = vec![name];
+            let expanded = discover(&site.base_dir, glob, site.span, diags);
+            map.skipped.extend(expanded.skipped);
+            for (name, root) in expanded.found {
+                let segments = vec![name.clone()];
                 match map.entry(&segments).map(|e| (e.span, e.explicit)) {
                     // § 1: an explicit prefix beats a glob that would produce
                     // the same one, and the glob skips the name rather than
                     // colliding with it — the rule a vendor override rides on.
-                    Some((_, true)) => {}
+                    Some((_, true)) => map.shadowed.push((name, root)),
                     Some((first, false)) => {
-                        report_duplicate(&segments.join("\\"), first, site.span, diags);
+                        report_duplicate(&name, first, site.span, diags);
                     }
                     None => map.entries.push(Entry {
                         segments,
@@ -230,8 +265,83 @@ impl AutoloadMap {
         probe
     }
 
+    /// Renders the resolved map for `mwl check --autoload-map` — ADR 0061
+    /// § 1's last sentence, which asks for what was *skipped* and what was
+    /// *shadowed* beside the prefixes that resolve.
+    ///
+    /// Paths are shown relative to `base` where they sit under it. The module
+    /// docs hold the shape, and why every header carries a count.
+    #[must_use]
+    pub fn render(&self, base: &Path) -> String {
+        let base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
+
+        let mut entries: Vec<&Entry> = self.entries.iter().collect();
+        entries.sort_by(|a, b| a.segments.cmp(&b.segments));
+        let mut shadowed = self.shadowed.clone();
+        shadowed.sort_by(|a, b| a.0.cmp(&b.0));
+        let skipped: Vec<(String, &str)> = self
+            .skipped
+            .iter()
+            .map(|(path, reason)| (show(path, &base), *reason))
+            .collect();
+
+        let width = entries
+            .iter()
+            .map(|entry| entry.segments.join("\\").chars().count())
+            .chain(shadowed.iter().map(|(prefix, _)| prefix.chars().count()))
+            .max()
+            .unwrap_or(0);
+
+        let mut out = String::new();
+        let _ = writeln!(out, "prefixes ({})", entries.len());
+        for entry in &entries {
+            let roots: Vec<String> = entry.roots.iter().map(|root| show(root, &base)).collect();
+            let _ = writeln!(
+                out,
+                "  {:width$}  {}  {}",
+                entry.segments.join("\\"),
+                if entry.explicit {
+                    "explicit"
+                } else {
+                    "discover"
+                },
+                roots.join(", "),
+            );
+        }
+
+        let _ = writeln!(out, "shadowed ({})", shadowed.len());
+        for (prefix, root) in &shadowed {
+            let _ = writeln!(out, "  {prefix:width$}  discover  {}", show(root, &base));
+        }
+
+        let _ = writeln!(out, "skipped ({})", skipped.len());
+        let skip_width = skipped
+            .iter()
+            .map(|(path, _)| path.chars().count())
+            .max()
+            .unwrap_or(0);
+        for (path, reason) in &skipped {
+            let _ = writeln!(out, "  {path:skip_width$}  {reason}");
+        }
+
+        out
+    }
+
     fn entry(&self, segments: &[String]) -> Option<&Entry> {
         self.entries.iter().find(|e| e.segments == segments)
+    }
+}
+
+/// One path the way [`AutoloadMap::render`] prints it: relative to `base`
+/// where it sits under it, whole where it does not, and always `/`-separated
+/// so the Windows and WSL legs render one string.
+fn show(path: &Path, base: &Path) -> String {
+    let shown = path.strip_prefix(base).unwrap_or(path);
+    let text = shown.to_string_lossy().replace('\\', "/");
+    if text.is_empty() {
+        ".".to_owned()
+    } else {
+        text
     }
 }
 
@@ -258,13 +368,22 @@ fn canonical(base_dir: &Path, root: &str) -> PathBuf {
     joined.canonicalize().unwrap_or(joined)
 }
 
+/// What one `autoload discover '<glob>'` expanded to.
+///
+/// The skipped half is not resolution's business — nothing probes it — but
+/// § 1 promises `mwl check --autoload-map` prints it, and this is the only
+/// place that knows why a matched directory produced no prefix.
+#[derive(Debug, Default)]
+struct Discovered {
+    /// The `(prefix, root)` pairs the glob produced, sorted by prefix.
+    found: Vec<(String, PathBuf)>,
+    /// Each directory passed over in silence, with the reason, sorted by
+    /// path.
+    skipped: Vec<(PathBuf, &'static str)>,
+}
+
 /// Expands `autoload discover '<glob>'` into its `(prefix, root)` pairs.
-fn discover(
-    base_dir: &Path,
-    glob: &str,
-    span: Span,
-    diags: &mut Diagnostics,
-) -> Vec<(String, PathBuf)> {
+fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) -> Discovered {
     let parts: Vec<&str> = glob.split(['/', '\\']).collect();
     let stars = parts.iter().filter(|p| p.contains('*')).count();
     let Some(star) = parts.iter().position(|p| *p == "*") else {
@@ -276,7 +395,7 @@ fn discover(
             .with_primary(span, "no `*` occupying a whole path segment")
             .with_note("a `discover` glob holds exactly one `*`, and it is a whole segment"),
         );
-        return Vec::new();
+        return Discovered::default();
     };
     if stars != 1 {
         diags.report(
@@ -287,7 +406,7 @@ fn discover(
             .with_primary(span, "only one segment may be matched")
             .with_note("a `discover` glob holds exactly one `*`, and it is a whole segment"),
         );
-        return Vec::new();
+        return Discovered::default();
     }
 
     let mut scanned = base_dir.to_path_buf();
@@ -302,31 +421,48 @@ fn discover(
             )
             .with_primary(span, "no directory to discover modules in"),
         );
-        return Vec::new();
+        return Discovered::default();
     };
 
-    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    let mut out = Discovered::default();
     for entry in listing.flatten() {
+        // The `*` matches a *directory*; a plain file sitting beside them can
+        // never become a root — the `is_dir` test below already refused it —
+        // and reporting one as skipped would fill `--autoload-map` with every
+        // source file in the tree.
+        if !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            continue;
+        }
         let name = entry.file_name().to_string_lossy().into_owned();
+        // Canonical from here down. `--autoload-map` prints every path
+        // against a canonical base, and the tail pushed on below may not
+        // exist to canonicalize on its own.
+        let matched = entry.path();
+        let matched = matched.canonicalize().unwrap_or(matched);
         // § 1: a directory whose name is not a legal namespace segment is
         // skipped in silence. `.git` and `vendor` are always there.
         if !is_namespace_segment(&name) {
+            out.skipped
+                .push((matched, "not a PascalCase namespace segment"));
             continue;
         }
-        let mut root = entry.path();
+        let mut root = matched;
         for part in &parts[star + 1..] {
             root.push(part);
         }
         if !root.is_dir() {
+            out.skipped
+                .push((root, "the glob's remaining segments name no directory"));
             continue;
         }
-        found.push((name, root.canonicalize().unwrap_or(root)));
+        out.found.push((name, root.canonicalize().unwrap_or(root)));
     }
     // `read_dir` yields in whatever order the filesystem hands back, and the
     // duplicate diagnostic below has to name the same two sites on every
-    // machine.
-    found.sort_by(|a, b| a.0.cmp(&b.0));
-    found
+    // machine — as does anything `--autoload-map` prints.
+    out.found.sort_by(|a, b| a.0.cmp(&b.0));
+    out.skipped.sort_by(|a, b| a.0.cmp(&b.0));
+    out
 }
 
 /// ADR 0029's namespace-segment shape: `PascalCase`, ASCII alphanumeric, and

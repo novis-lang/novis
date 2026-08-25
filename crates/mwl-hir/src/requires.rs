@@ -153,13 +153,19 @@ pub struct Loaded {
 /// the graph and each file's own `require` order. A caller that must run a
 /// per-file phase in a stable sequence (a diagnostic's file order, a codegen
 /// unit's) can take this vector as given rather than sorting it.
+///
+/// The third element is the [`AutoloadMap`] the walk consulted, handed back
+/// rather than dropped so `mwl check --autoload-map` can print it (ADR 0061
+/// § 1). It is complete for any program that reached the first probe — which
+/// is every program, since the walk consults the map once the `require` graph
+/// drains, whether or not a name is still waiting on it.
 #[must_use]
 pub fn resolve_program(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
     map: &mut SourceMap,
     diags: &mut Diagnostics,
-) -> (Module, Vec<Loaded>) {
+) -> (Module, Vec<Loaded>, AutoloadMap) {
     let mut resolver = Resolver::new();
     let mut hierarchy = HierarchyResolver::new();
     let mut members = MemberResolver::new();
@@ -339,7 +345,7 @@ pub fn resolve_program(
     module.members = members.into_table();
     module.aliases = aliases.resolve(diags);
 
-    (module, loaded)
+    (module, loaded, autoload_map.unwrap_or_default())
 }
 
 fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
@@ -1148,7 +1154,7 @@ mod tests {
         let entry_id = map.load(&entry_path).expect("load entry fixture");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(entry_id), &mut diags);
-        let (module, loaded) = resolve_program(entry_id, stmts, &mut map, &mut diags);
+        let (module, loaded, _autoload) = resolve_program(entry_id, stmts, &mut map, &mut diags);
         (module, loaded, map, diags)
     }
 
@@ -1383,7 +1389,7 @@ require './Lib/Helper.mwl';
         let id = map.add("virtual.mwl", "<?mwl\nrequire 'lib.mwl';\n");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(id), &mut diags);
-        let (_module, _loaded) = resolve_program(id, stmts, &mut map, &mut diags);
+        let (_module, _loaded, _autoload) = resolve_program(id, stmts, &mut map, &mut diags);
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
@@ -1551,6 +1557,56 @@ require './Lib/Helper.mwl';
                 .ends_with(Path::new("override").join("Thing.mwl"))
         );
         assert!(built.resolve(&QName::parse(r"Other\Thing")).hit.is_some());
+    }
+
+    /// § 1's last sentence: `mwl check --autoload-map` prints the resolved
+    /// map *including what was skipped and what was shadowed*, which is the
+    /// only way to tell a glob that discovered nothing from a glob nobody
+    /// wrote. The whole rendering is asserted rather than sampled, since its
+    /// shape is the contract — `crate::autoload`'s module doc owns it.
+    #[test]
+    fn the_rendered_map_names_what_was_skipped_and_what_was_shadowed() {
+        let dir = TempDir::new("autoload-render");
+        for module in ["Acme", "Other", ".git", "vendor"] {
+            fs::create_dir_all(dir.path.join(module).join("src")).expect("create module");
+        }
+        fs::create_dir_all(dir.path.join("override")).expect("create override");
+
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build(
+            &[
+                site(&dir, id, prefix("Acme", &["./override"])),
+                site(
+                    &dir,
+                    id,
+                    autoload::SiteKind::Discover {
+                        glob: "./*/src".to_owned(),
+                    },
+                ),
+            ],
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+
+        // `override` is swept by the glob like any other directory and passed
+        // over for the same reason `.git` and `vendor` are; that it is also
+        // `Acme`'s explicit root is not something the glob knows.
+        assert_eq!(
+            built.render(&dir.path),
+            concat!(
+                "prefixes (2)\n",
+                "  Acme   explicit  override\n",
+                "  Other  discover  Other/src\n",
+                "shadowed (1)\n",
+                "  Acme   discover  Acme/src\n",
+                "skipped (3)\n",
+                "  .git      not a PascalCase namespace segment\n",
+                "  override  not a PascalCase namespace segment\n",
+                "  vendor    not a PascalCase namespace segment\n",
+            )
+        );
     }
 
     /// § 1's exact-name rule: a case-insensitive filesystem must not accept
