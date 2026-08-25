@@ -1205,13 +1205,13 @@ measured.
 ### M10 — Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined)
 `mwl fmt` (canonical, idempotent — the **only** formatting implementation; neither editor client below gets
 its own; its PER-based, unconfigurable, no-reflow style and `--check`/`--diff` surface are
-[ADR 0039](adr/0039-canonical-code-formatting.md)). **One prerequisite slice lands in `mwl-syntax` before
-any of it:** `Lexer::skip_trivia` discards `//`, `#` and `/* */` without emitting a token, so the parse tree
-carries no comments and a formatter walking it would delete every one — the tree needs comment spans plus an
-attachment rule (which declaration or statement a comment belongs to) for ADR 0039 § 4 to be implementable
-at all. [ADR 0089](adr/0089-convert-is-one-rule-table-with-two-modes.md) requires the same capability of the
-converter's front end, so it is one slice with two consumers and can land any time from M4 onward. Then
-`mwl-lsp` grows past M4B's minimal slice into full
+[ADR 0039](adr/0039-canonical-code-formatting.md)) — reading **M4B's lossless entry point, not the strict
+parse**, because `Lexer::skip_trivia` discards `//`, `#` and `/* */` without emitting a token, so a
+formatter walking the strict tree would delete every comment in the file and ADR 0039 § 4 promises the
+opposite. [ADR 0040](adr/0040-vscode-deep-tooling-and-resilient-parsing.md) § 2 already schedules that tree
+at M4B and already names `mwl fmt` as its second consumer, so nothing new is owed here beyond the
+comment-attachment rule ADR 0039 § 1's blank-line rules need. Then `mwl-lsp` grows past M4B's minimal slice
+into full
 workspace-wide symbol search, incremental reparse, rename, and code actions; `mwl dap` using safepoints for
 breakpoints plus deopt-to-debug in codegen; a sampling profiler, emitting output in the open speedscope
 format so it opens in existing viewers rather than a bespoke flamegraph renderer

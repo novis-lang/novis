@@ -46,7 +46,7 @@
 - **Modifier order is canonical, not author-chosen**: `abstract`/`final`, then visibility (`public`/
   `protected`/`private`, including the asymmetric-visibility form `private(set)`), then `static`, then
   `readonly`, then `lateinit` — one space between each. The parser itself accepts these in any order
-  (`crates/mwl-syntax/src/parser.rs::parse_modifiers` loops over the modifier keywords with no ordering
+  (`crates/mwl-syntax/src/parser/decl.rs::parse_modifiers` loops over the modifier keywords with no ordering
   check), which is exactly why this needs a formatting rule: without one, `static public $x;` and
   `public static $x;` would both compile and never converge.
 
@@ -281,15 +281,17 @@ diff-visible code action; it is not something a formatter does on save.
 (M10, once `mwl-fmt` exists — mirrors the plan's existing M10 verify line, now specified precisely enough
 to test against)
 
-- **Prerequisite, ahead of every line below: `mwl-syntax` must retain comment trivia.** `Lexer::skip_trivia`
-  consumes `//`, `#` and `/* */` today and pushes no token, so a formatter walking the current parse tree
-  would delete every comment in the file — which § 4's "comments are left byte-for-byte untouched" cannot
-  survive. The tree needs comment spans and an attachment rule (which declaration or statement a comment
-  belongs to) before any rule here is implementable.
-  [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md) already books the same requirement for the
-  converter's PHP front end — it picked `php-rs-parser` partly because it returns "comments in source order
-  and doc-blocks attached to the declaration they document" — so this is one capability with two consumers,
-  not two pieces of work.
+- **Prerequisite: `mwl fmt` reads M4B's lossless tree, not the strict parse.** `Lexer::skip_trivia` consumes
+  `//`, `#` and `/* */` and pushes no token, so the strict entry point `mwl check`/`mwl run` use carries no
+  comments at all, and a formatter walking *that* tree would delete every one — which § 4's "comments are
+  left byte-for-byte untouched" cannot survive.
+  [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 2 already closes this: M4B's second,
+  error-recovering entry point produces a **lossless** tree — "every byte of the source, including
+  whitespace/comments, is recoverable from it" — and that ADR already names `mwl fmt` as its later second
+  consumer. So the capability is scheduled two milestones ahead of this ADR and needs no slice of its own;
+  what M10 owes is using that entry point rather than the strict one, plus the attachment rule § 1's
+  blank-line rules need (a comment between two members belongs to the one below it, so the blank line goes
+  above the comment rather than between it and its member).
 - `mwl fmt` run twice on the same file produces byte-identical output the second time, across the whole
   fixture corpus (idempotence, § 8), and a file containing a comment in every position the grammar allows
   one round-trips through it with the comments intact and attached where they started.
