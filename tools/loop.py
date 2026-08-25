@@ -583,18 +583,31 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         if pack:
             threading.Thread(target=feed, args=(proc.stdin, pack), daemon=True).start()
         assert proc.stdout is not None
-        for line in proc.stdout:
-            fh.write(line)
-            fh.flush()
-            if not session_id and '"session_id"' in line:
-                try:
-                    e = json.loads(line)
-                    if e.get("type") == "system" and e.get("subtype") == "init":
-                        session_id = str(e.get("session_id") or "")
-                except json.JSONDecodeError:
-                    pass
-            renderer.event(line)
-        proc.wait()
+        try:
+            for line in proc.stdout:
+                fh.write(line)
+                fh.flush()
+                if not session_id and '"session_id"' in line:
+                    try:
+                        e = json.loads(line)
+                        if e.get("type") == "system" and e.get("subtype") == "init":
+                            session_id = str(e.get("session_id") or "")
+                    except json.JSONDecodeError:
+                        pass
+                renderer.event(line)
+            proc.wait()
+        except BaseException:
+            # The child does not outlive its supervisor. It is an autonomous agent writing
+            # this tree with permissions bypassed, and when the driver died on an encoding
+            # error its child kept going unwatched -- committing work the next session then
+            # found beside its own, which is what a `BLOCKED two writers` ledger line is
+            # made of. Ctrl-C reaches the child on its own; every other exit did not.
+            proc.kill()
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                pass
+            raise
     return proc.returncode, log, session_id
 
 
