@@ -2,60 +2,57 @@
 
 ## State
 
-**A shape field read is name-keyed, so a widened view answers the field it names.** ADR 0036 § 4's
-fetch is one call to `mwl_runtime::mwl_object_slot_get` (`object.rs:1571`), which resolves the name
-on the receiver's *own* descriptor: `ClassDesc` now carries `fields: Vec<String>` in slot order and
-`ClassDesc::field_slot(name, hint)` (`object.rs:363`) tries the hint first, then scans. The hint is
-the slot the receiver's *static* shape gave, so it hits on every unwidened read and is simply wrong
-through a `{y: int}` view of a `{x: 1, y: 2}` — which is the bug this closed. `ClassTable::define`
-takes the field *names* now rather than a count; the count is `fields.len()`, so the two cannot
-disagree. `InstKind::SlotGet` carries the name beside the hint and is **fallible** (a name the
-concrete class lacks is § 4's catchable throw), so every shape read has a landing block. That costs
-a call where there used to be one inline load; § 4 mandates exactly this and defers the
-per-call-site specialization to its own *Revisiting*, so the offset fast path was not kept.
+**ADR 0036 is built except for the plain-`object` receiver.** A shape field is read *and* written by
+name (`InstKind::SlotGet`/`SlotSet` → `mwl_runtime::mwl_object_slot_get`/`_slot_set`), so both are
+right through a widened view, and a literal lowers in every position § 2 spells — including
+discarded as `({a: 1});` and returned from an arrow body as `fn() => ({a: 1})`. What is left of
+`mwl-ir` gap 6 is exactly the erased receiver: `$o->x` on a plain `object` records no `ExprInfo`
+and panics, read or write.
 
-Verify is green (1539 tests, clippy and fmt clean). Conformance is **430** — the new case is
-`tests/conformance/lang/a-shape-read-through-a-widened-view-is-name-keyed.mwlt`; differential 89.
-Valgrind is clean over the new landing block (200 iterations of a widened read off a fresh producer
-and off a held literal, each with a refcounted field).
+**The write's type check is tag-granular, and that was the session's one design call.** § 4 wants
+the incoming value checked against the field's *real* declared type, because § 3 compares shape
+field types by ordinary assignability while a shape value is aliased — `{n: int|string}` is a legal
+view of a `{n: int}` value. The declared type cannot live on the descriptor: a shape class is named
+for its field *names* alone (`$shape{x}`), so `{x: 1}` and `{x: "s"}` are one class. `ClassDesc`
+therefore carries one `Tag` per slot, or `None` where the type admits several — closing
+representation confusion and leaving class identity and array element types uncaught.
+`mwl_runtime::object`'s module doc § *What a shape write checks* is the home of that decision and
+its five named gaps; do not re-open it without reading that section.
 
-**A named class does not satisfy a shape type** — `E0401`, checked this session. Width subtyping is
-shape-to-shape only, so that is the only widening; the doc comments claiming otherwise are fixed and
-`playbook.md` says so.
+Verify is green (1540 tests, clippy and fmt clean). Conformance **432**, differential 89. Valgrind
+clean over the new write edges — fresh producer, aliasing read, self-assignment, the refusing
+throw edge, and the discarded literal — 200 iterations each.
 
 `examples/collect.mwl` still exits 1 at `Core\Out::capture`, which is the gate's frontier.
 
-## Next group — shape values, still one file set
+## Next group — the erased receiver, closing `mwl-ir` gap 6
 
-**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` (`ShapeField` at `expr.rs:14`,
-`lower_object_literal` at `expr.rs:2993`, `lower_shape_property_access` at `expr.rs:3052`),
-`crates/mwl-ir/src/lower/stmt.rs:417` (the assignment arm's `ExprInfo` match),
-`crates/mwl-ir/src/ir.rs:525` (`InstKind::SlotGet`), `crates/mwl-codegen/src/emit.rs:1472`
-(`emit_slot_get`), `crates/mwl-runtime/src/object.rs:1571` (`mwl_object_slot_get`) and
-`crates/mwl-types/src/expr/members.rs:383` / `expr_table.rs:262` (`ExprInfo::ShapeProperty`).
+**Shared file set:** `crates/mwl-types/src/expr/members.rs:393` (the `Ty::Object => mixed` arm that
+records nothing) and `expr_table.rs:262` (`ExprInfo::ShapeProperty`),
+`crates/mwl-ir/src/lower/expr.rs` (`lower_shape_property_access` at `:3065`,
+`lower_shape_property_assign` just below it), `crates/mwl-ir/src/lower/stmt.rs:441`'s
+`ShapeProperty` arm, `crates/mwl-ir/src/ir.rs` (`SlotGet`/`SlotSet`),
+`crates/mwl-ir/src/lower/mod.rs:488` (`ir::Class` from `layout`), `crates/mwl-codegen/src/lib.rs:483`
+(`set_field_tags`).
 
-- [ ] **1. A shape field write.** ADR 0036 § 4's write half, which is this session's read mirrored:
-      a `SlotSet` keyed on the name with the same hint, the same missing-name throw, and *no* new
-      field ever created. `stmt.rs:417`'s arm matches only `ExprInfo::Property`/`HookedProperty`, so
-      a shape target falls through to the panic below it. **One thing the read did not have to
-      answer:** § 4 also wants the incoming value checked against the field's *real* declared type,
-      and `ClassDesc` carries names but no field types. Decide it — either add types beside
-      `fields`, or check the runtime tag alone and record what that does not catch in
-      `mwl-runtime`'s module doc.
-- [ ] **2. `{a: 1}` as a statement-level expression and out of an arrow body.** ADR 0036 § 2.
-      `lower_object_literal` (`expr.rs:2993`) works from every expression position that reaches it;
-      what to check is the four exits a synthesized class has (`playbook.md`'s own bullet) and
-      whether a statement-position literal is dropped without releasing its fields.
-- [ ] **3. An *erased* receiver's read — `$o->x` on a plain `object`.** `mwl-ir` gap 6's remaining
-      half, and it is newly cheap: `SlotGet` is already the name-keyed fallible fetch § 4 asks for,
-      so what is missing is only `mwl_types::expr::members` recording an entry for the erased case
-      (`members.rs`'s `Ty::Object => return env.interner.mixed()` arm) instead of nothing.
+- [ ] **1. `$o->x` on a plain `object` reads.** ADR 0036 § 4's erased half. The checker's
+      `Ty::Object` arm returns `mixed` and records nothing; record an `ExprInfo` for it (a new
+      variant, or `ShapeProperty` with no slot to hint) so `SlotGet` lowers at `Ty::Tagged` with a
+      hint of 0. The missing-name throw already exists and is currently unreachable — this is what
+      reaches it, so a `.mwlt` case can finally pin it.
+- [ ] **2. The erased *write*.** Same `ExprInfo`, straight into the `SlotSet` that now exists —
+      `stmt.rs`'s shape arm needs only to accept the new variant. Nothing else changes.
+- [ ] **3. Field tags for a named class.** `ir::Class::field_reprs` is empty for every class
+      `lower/mod.rs:488` builds, so slice 2's write into an ordinary object is unchecked. Fill it
+      from `mwl_types::layout`'s declared field types through the same `erase_checked_ty` map, and
+      strike gap 5 from `mwl-runtime`'s § *What a shape write checks*.
 
 ## Backlog
 
-- `Core\Out::capture` — § 12's last member, gated behind M4S's sink work (`docs/implementation-plan.md`).
+- `Core\Out::capture` — the last `§12` key in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`.
 - `Core\Json::decodeAs<T>` — `mwl_stdlib::json` gap 2; a written call-site type argument exists now.
-- ADR 0088's qualifier classification on every `mwl-stdlib` registry row (plan, *Open now*).
-- `do`/`while` is the one M4 control-flow statement that does not lower (`mwl-ir` gap 1).
+- Calling a closure held in a local (`$f()`) does not lower at all — `mwl-ir`, `Call` with a
+  `Variable` callee. Blocks observing any closure result without a `Core` member in the middle.
+- `do`/`while` is the one M4 control-flow statement that does not lower — `mwl-ir` gap 1.
+- ADR 0088's qualifier classification on `mwl-stdlib` member rows — see the plan's *Open now*.
 - `docs/spec/02-php-migration.md` is 31% classified — `python tools/check-migration.py`.
-- ADR 0071's non-scalar decode: enum, `decimal`, `Instant`, `array` and nested-class fields.

@@ -38,6 +38,14 @@ is why" — is this file.
   errors — the real message (`no space on device`) only appears without a `Select-String` filter. `cargo
   clean` frees it in seconds; the rebuild is a few minutes. Check `Get-PSDrive D` before diagnosing a
   linker failure.
+- **A Python `str.index` anchor that is not unique cuts the wrong region and *duplicates* the file, with
+  no error.** A one-off script that spliced a block out of `lower/stmt.rs` with `s[:a] + s[b:]` found an
+  earlier `other => panic!(` for `b`, so `b < a`, the "removed" block measured zero characters, and the
+  file came back 118 lines longer than it went in. Nothing failed; the only notice was
+  `git diff --stat` reporting three times the expected insertions. Two rules follow: **use the Edit tool
+  to remove a block** (it refuses a non-unique `old_string`, which is the whole point), and if a script
+  really must cut, `assert a < b` and print the slice length. Recovery is `git checkout -- <file>` plus
+  re-applying the edits, which costs less than reading the damage.
 - **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
   exact-match splice — a `\\` written in a `python - <<'PY'` heredoc arrives as `\`, and a `"\n"` arrives
   as a real newline, so a block containing either will silently fail to match. Use the Write/Edit tools, or
