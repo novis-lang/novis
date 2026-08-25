@@ -117,11 +117,11 @@
 > Instance calls dispatch on the receiver's runtime class. Each ADR's own *Verification* section
 > says what its slice covers, not this field.
 >
-> **Open now:** **Stage 0 outranks everything below it, and two of its items are still open.**
+> **Open now:** **Stage 0 outranks everything below it, and one of its items is still open.**
 > `loop-goal.toml`'s `stage = "0 catch-up"` block names the test that closes each item in
-> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 13, 16 and 17 are done, and
-> the tests for items **14 and 15** do not exist yet, so `tools/loop.py` short-circuits there and no
-> Stage 3 `Core` slice opens ahead of them. Behind that gate the frontier is `examples/collect.mwl`,
+> [docs/agent/loop-goal.md](agent/loop-goal.md) § *Stage 0*; items 1 to 14, 16 and 17 are done, and
+> the tests for item **15** do not exist yet, so `tools/loop.py` short-circuits there and no
+> Stage 3 `Core` slice opens ahead of it. Behind that gate the frontier is `examples/collect.mwl`,
 > and [docs/agent/handoff.md](agent/handoff.md) names the group it stops on. **What has already landed is not restated here** — `git log` holds the
 > session-by-session history and the crate's own module doc holds its per-file gaps, which is this
 > field's contract in AGENTS.md § *Keep each slice small*. What follows is what is **not** built.

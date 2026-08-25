@@ -308,6 +308,14 @@ is why" — is this file.
   nothing else, and `CoreTy::Union`'s doc says "legal in **either** direction" outright. One
   `grep -n 'fn [a-z_]*(' registry.rs` over the test names costs one call and settles it; designing around
   a constraint that is not there costs a member's whole surface.
+- **Adding a row to `mwl_hir::errors::TREE` fails a test in `mwl-ir`, and the message names neither
+  the tree nor the class you added.** Spec § 10's exception tree is restated as a hard-coded label
+  list in `lower/mod.rs`'s `a_file_with_no_class_still_carries_every_compiler_declared_class`, so
+  `RecursionError` arrived as a bare `left: [... 12 names ...]` / `right: [... 11 names ...]` diff in
+  `-p mwl-ir --lib` with nothing pointing back at the one-line `errors.rs` edit that caused it. The
+  full roster a new § 10 class owes is: the `TREE` row, `mwl_runtime::ThrownClass`'s variant, its
+  `name()` arm, its `ALL` entry, that assertion, and the spec's own tree drawing. Nothing else
+  restates it — `mwl_types::error_lib` seeds whatever `TREE` holds.
 
 ## Writing a test case
 
