@@ -12,10 +12,11 @@
 //! ([`reject_decimal_float_operands`]), and ADR 0010 refuses arithmetic on an
 //! enum and a conversion between two of them.
 //!
-//! One more refusal is about which operands may *meet* rather than about what
-//! they produce: ADR 0090 § 2 refuses `==`/`!=` between two statically
-//! **disjoint** types ([`reject_disjoint_equality`]), and its § 6 points a
-//! `switch` label and a `match` arm at the same check.
+//! Two more refusals are about which operands may *meet* rather than what they
+//! produce. ADR 0090 § 2 refuses `==`/`!=` between two statically **disjoint**
+//! types ([`reject_disjoint_equality`]), and its § 6 points a `switch` label
+//! and a `match` arm at the same check; ADR 0069 § 2 refuses `+`/`+=` with an
+//! array operand ([`reject_array_combination`]), naming `Core\Arr::underlay`.
 //!
 //! `as` is here too, as the conversion's *operand* rule
 //! ([`reject_enum_to_enum_conversion`]); what a conversion does to a qualifier
@@ -91,9 +92,9 @@ pub(super) fn binary_result(
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
-        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Mod => {
-            arithmetic_result(lhs, rhs, span, env)
-        }
+        BinaryOp::Add => reject_array_combination(lhs, rhs, span, env)
+            .unwrap_or_else(|| arithmetic_result(lhs, rhs, span, env)),
+        BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Mod => arithmetic_result(lhs, rhs, span, env),
         BinaryOp::Pow => power_result(lhs, rhs, span, env),
         BinaryOp::Div => division_result(lhs, rhs, span, env),
         BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor | BinaryOp::Shl | BinaryOp::Shr => {
@@ -412,6 +413,42 @@ pub(super) fn reject_enum_operand(
         .with_help("convert to the underlying type first: `... as int`/`... as uint`"),
     );
     Some(env.interner.mixed())
+}
+
+/// [ADR 0069](../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// § 2: binary `+` and `+=` with an array operand are a compile error naming
+/// `Core\Arr::underlay`. PHP's array union operator is *removed*, not migrated,
+/// so there is no silent behaviour change to fall into — the operator simply
+/// stops compiling, and `mwl convert` rewrites `$a + $b` to the member.
+///
+/// Returns `Some` once diagnosed, `None` for every other operand pair so
+/// [`arithmetic_result`]'s own table runs unchanged. The recovery type is the
+/// array operand rather than `mixed`, so `$a += $b` reports this once instead
+/// of also failing [`check_compound_assign`]'s write-back check with a second,
+/// less useful diagnostic.
+fn reject_array_combination(
+    lhs: TypeId,
+    rhs: TypeId,
+    span: Span,
+    env: &mut Env<'_>,
+) -> Option<TypeId> {
+    let lhs_is_array = matches!(env.interner.get(lhs), Ty::Array(_));
+    let rhs_is_array = matches!(env.interner.get(rhs), Ty::Array(_));
+    if !lhs_is_array && !rhs_is_array {
+        return None;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ARRAY_PLUS_UNSUPPORTED,
+            "`+` is not defined with an array operand",
+        )
+        .with_primary(span, "array operand of `+`")
+        .with_help(concat!(
+            r"use `Core\Arr::underlay($a, $b)`, which keeps the left array's value at every ",
+            "key both of them have — the one operation `$a + $b` ever meant",
+        )),
+    );
+    Some(if lhs_is_array { lhs } else { rhs })
 }
 
 pub(super) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) -> TypeId {

@@ -655,6 +655,10 @@ pub mod code {
     /// already knows the answer. ADR 0090 § 2's table, and § 6 for the two
     /// comparison forms that are not written with the operator.
     pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466");
+    /// `+` or `+=` with an array operand. ADR 0069 § 2 removes PHP's array
+    /// union operator rather than migrating it — the diagnostic names
+    /// `Core\Arr::underlay`, which is what it always meant.
+    pub const E_ARRAY_PLUS_UNSUPPORTED: Code = Code::new("E0467");
 
     // --- E05xx IR and codegen ----------------------------------------------
     /// The IR verifier rejected a function. Always an MWL bug.

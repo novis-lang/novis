@@ -121,3 +121,33 @@ fn an_int_subscript_key_is_fine() {
     let diags = check_in_method("array<int> $a = [1, 2, 3];\nint $x = $a[1];\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+/// ADR 0069 § 2: PHP's array union operator is removed rather than migrated,
+/// and the diagnostic names the member that replaces it.
+#[test]
+fn two_arrays_do_not_combine_with_plus() {
+    let diags = check_in_method("array<int> $a = [1];\narray<int> $b = [2];\n$a + $b;\n");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_ARRAY_PLUS_UNSUPPORTED)),
+        "{diags:?}"
+    );
+}
+
+/// `+=` is the same operator, and reports the same thing **once** — the
+/// recovery type is the array so the write-back check does not pile a type
+/// mismatch on top of it.
+#[test]
+fn two_arrays_do_not_combine_with_plus_equals() {
+    let diags = check_in_method("array<int> $a = [1];\narray<int> $b = [2];\n$a += $b;\n");
+    assert_eq!(
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_ARRAY_PLUS_UNSUPPORTED))
+            .count(),
+        1,
+        "{diags:?}"
+    );
+    assert_eq!(diags.error_count(), 1, "{diags:?}");
+}

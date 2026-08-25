@@ -1,0 +1,17 @@
+--TEST--
+`+` and `+=` with an array operand do not compile, and the diagnostic names the member that replaced them — ADR 0069 § 2
+--FILE--
+<?mwl
+// PHP's array union operator is removed rather than migrated, so there is no
+// silent behaviour change to fall into: the operator stops compiling, and
+// both spellings are reported from the same run.
+array<int> $a = [1, 2];
+array<int> $b = [3, 4];
+echo Core\Arr::count($a + $b), "\n";
+$a += $b;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0467]: `+` is not defined with an array operand
+%A
+error: aborting due to 2 errors
