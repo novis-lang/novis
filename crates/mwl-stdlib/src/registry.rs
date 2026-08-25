@@ -600,10 +600,34 @@ pub const CLASSES: &[CoreClass] = &[
     crate::time::DATETIME,
     crate::time::DURATION,
     crate::time::ZONE,
+    crate::objset::CLASS,
     crate::random::CLASS,
     crate::uuid::CLASS,
     crate::uri::CLASS,
 ];
+
+/// Every `Core` class a program may write `new` on, with the symbol that
+/// builds one — `docs/spec/01-core-library.md` § 9's collections and nothing
+/// else.
+///
+/// A roster rather than a synthetic `constructor` row on [`CoreClass`], for
+/// the reason [`crate::instance`]'s module docs give: a `Core` class has no
+/// member a program resolves here, and `mwl-ir` reads this to lower `new` on
+/// one to an ordinary helper call. A name here **must** be in [`CLASSES`] —
+/// unlike [`GENERIC_CLASSES`], whose arity is a property of the spec's table
+/// rather than of anything on disk — because the helper builds an instance
+/// against that class's declared [`CoreClass::slots`].
+pub const CONSTRUCTORS: &[(&str, &str)] = &[(crate::objset::NAME, crate::objset::NEW_SYMBOL)];
+
+/// The symbol that builds a `class` instance, or `None` when `new` on it is
+/// not a thing a program may write — which is every other name.
+#[must_use]
+pub fn constructor_symbol(class: &str) -> Option<&'static str> {
+    CONSTRUCTORS
+        .iter()
+        .find(|(name, _)| *name == class)
+        .map(|(_, symbol)| *symbol)
+}
 
 /// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
 /// closed, named integer type, declared here rather than in MWL source.
@@ -770,6 +794,26 @@ mod tests {
                     "{name} declares `{param}` twice"
                 );
             }
+        }
+    }
+
+    /// Every [`CONSTRUCTORS`] entry names a class this crate registers, and
+    /// one that declares slots. The helper builds an instance against that
+    /// class's own layout ([`crate::instance::build`]), so a name that is not
+    /// in [`CLASSES`] would panic at the first `new`, and a slotless one has
+    /// no descriptor at all.
+    #[test]
+    fn every_constructible_class_is_registered_with_slots() {
+        for (name, symbol) in CONSTRUCTORS {
+            let found = class(name).unwrap_or_else(|| panic!("`{name}` is not a registered class"));
+            assert!(
+                !found.slots.is_empty(),
+                "`{name}` is constructible but declares no slots"
+            );
+            assert!(
+                found.members().all(|member| member.symbol != *symbol),
+                "`{name}`'s constructor symbol `{symbol}` is also a member's"
+            );
         }
     }
 

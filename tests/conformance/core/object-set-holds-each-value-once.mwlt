@@ -1,0 +1,49 @@
+--TEST--
+`Core\ObjectSet<T>` holds each value once by strict identity, and `add`/`has`/`count`/`isEmpty`/`clear` answer over it — docs/spec/01-core-library.md § 9, ADR 0007 § 3
+--FILE--
+<?mwl
+// § 9's second row: an identity-keyed set, constructed with a written type
+// argument. ADR 0007 § 3 makes a `new` target's `<...>` legal only on a
+// compiler-owned generic class, which this is.
+final class Tag {
+    public function constructor(public readonly string $name) {}
+}
+
+Tag $first = new Tag("a");
+Tag $second = new Tag("b");
+
+Core\ObjectSet<Tag> $seen = new Core\ObjectSet<Tag>();
+echo $seen->isEmpty() ? "empty" : "filled", "\n";
+echo $seen->count(), "\n";
+
+// `add` is idempotent: the second `$first` is identical to the first, so the
+// set still holds two values.
+$seen->add($first);
+$seen->add($first);
+$seen->add($second);
+echo $seen->count(), " ", $seen->isEmpty() ? "empty" : "filled", "\n";
+
+// Identity, not equality: a second `Tag` with the same name is a different
+// object (`mwl_runtime::identity`'s object row is pointer identity).
+echo $seen->has($first) ? "yes" : "no", "\n";
+echo $seen->has(new Tag("a")) ? "yes" : "no", "\n";
+
+$seen->clear();
+echo $seen->count(), " ", $seen->has($first) ? "yes" : "no", "\n";
+
+// The element type is whatever the written argument says: identity over
+// scalars is the same one `Core\Arr::contains` uses, so `1` and `1 as uint`
+// are one value.
+Core\ObjectSet<int> $ints = new Core\ObjectSet<int>();
+$ints->add(1);
+$ints->add(2);
+$ints->add(1);
+echo $ints->count(), "\n";
+--EXPECT--
+empty
+0
+2 filled
+yes
+no
+0 no
+2

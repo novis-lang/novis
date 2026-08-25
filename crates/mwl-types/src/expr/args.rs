@@ -586,7 +586,14 @@ pub(super) fn substitute_receiver_args(
     if args.is_empty() || &qname != owner {
         return sig.clone();
     }
-    let Some(params) = mwl_hir::interfaces::type_params(qname.short_name()) else {
+    // Two rosters, one question. ADR 0053 § 2's interfaces are named by their
+    // short name because a program writes `Iterator<int>` unqualified; a
+    // `Core`-owned generic class is named in full, because `Core\ObjectSet` is
+    // the only spelling there is. Neither can answer for the other's names, so
+    // the fallback is a fallback rather than a merged table.
+    let Some(params) = mwl_hir::interfaces::type_params(qname.short_name())
+        .or_else(|| mwl_stdlib::registry::class_type_params(&qname.to_string()))
+    else {
         return sig.clone();
     };
     let bindings: crate::generics::Bindings = params

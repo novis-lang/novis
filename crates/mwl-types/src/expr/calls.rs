@@ -247,7 +247,16 @@ pub(super) fn infer_new(
         // (`mwl_stdlib::registry::CoreTy::Instance`). Reported here rather than
         // left to `mwl-codegen`, which would fail with "this unit declares no
         // descriptor for it" — an internal message for an ordinary mistake.
-        if crate::core_lib::is_registered(qname) {
+        //
+        // The carve-out is `registry::CONSTRUCTORS`: spec § 9's collections are
+        // written `new Core\ObjectSet<Tag>()`, and they still declare no
+        // `constructor` *member* — what makes them constructible is a native
+        // symbol `mwl-ir` lowers straight to, which `mwl_stdlib::instance`'s
+        // module docs own. So the class is a legal `new` target while
+        // `Core\ObjectSet::constructor` remains an unknown member.
+        if crate::core_lib::is_registered(qname)
+            && mwl_stdlib::registry::constructor_symbol(&qname.to_string()).is_none()
+        {
             report_unknown_member(expr.span, qname, "constructor", "member", env);
         }
         // `mwl-ir` needs the constructed class and its resolved constructor (if

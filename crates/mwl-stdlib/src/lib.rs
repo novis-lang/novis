@@ -75,7 +75,7 @@
 //! # Known gaps
 //!
 //! 1. **The registry holds part of §§ 1–2, all of §§ 3–4 and § 8, most of
-//!    §§ 5–6, and none of § 7 or §§ 9–12.**
+//!    §§ 5–6 and § 9, and none of § 7 or §§ 10–12.**
 //!    `Core\Arr::count` was the first, and landed with the mechanism rather
 //!    than after it, on this repository's standing "narrow slice, end to end"
 //!    rule. Two more members proved the two things the mechanism still had to:
@@ -113,7 +113,10 @@
 //!    arithmetic, and its own docs own the one-grammar-on-every-platform rule
 //!    that makes a `Core\Path` case pinnable on both legs, the three rows
 //!    where it diverges from `pathinfo`/`dirname`, and the two path *shapes*
-//!    (UNC, drive-relative) it does not model.
+//!    (UNC, drive-relative) it does not model. Section 9 is one of its three
+//!    classes: [`objset`] holds every member of its row over the store
+//!    [`identity_store`] owns, and `Core\ObjectMap` and `Core\Heap` are what
+//!    is left.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
@@ -186,10 +189,12 @@ pub mod arr;
 mod cldr;
 mod format;
 pub mod granularity;
+mod identity_store;
 mod instance;
 mod issue;
 pub mod json;
 pub mod math;
+mod objset;
 mod ordering;
 pub mod path;
 pub mod random;
@@ -235,35 +240,44 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
     registry::CLASSES
         .iter()
         .flat_map(CoreClass::members)
-        .map(|method| {
-            let address = str::address(method.symbol)
-                .or_else(|| arr::address(method.symbol))
-                .or_else(|| json::address(method.symbol))
-                .or_else(|| math::address(method.symbol))
-                .or_else(|| path::address(method.symbol))
-                .or_else(|| random::address(method.symbol))
-                .or_else(|| regex::address(method.symbol))
-                .or_else(|| time::address(method.symbol))
-                .or_else(|| uri::address(method.symbol))
-                .or_else(|| uuid::address(method.symbol))
-                .unwrap_or_else(|| {
-                    panic!(
-                        "mwl-stdlib registers `{}` with no implementation address",
-                        method.symbol
-                    )
-                });
-            (method.symbol, address)
-        })
+        .map(|method| method.symbol)
+        // A constructible class's `new` symbol is not a member of it — see
+        // [`registry::CONSTRUCTORS`] and `instance`'s module docs — so the two
+        // rosters are chained rather than the constructor being folded into
+        // one of them.
+        .chain(registry::CONSTRUCTORS.iter().map(|(_, symbol)| *symbol))
+        .map(|symbol| (symbol, address_of(symbol)))
         .collect()
+}
+
+/// One registered symbol's address, asking each domain module in turn.
+///
+/// # Panics
+///
+/// Panics naming the symbol if no domain claims it.
+fn address_of(symbol: &'static str) -> *const u8 {
+    str::address(symbol)
+        .or_else(|| arr::address(symbol))
+        .or_else(|| json::address(symbol))
+        .or_else(|| math::address(symbol))
+        .or_else(|| objset::address(symbol))
+        .or_else(|| path::address(symbol))
+        .or_else(|| random::address(symbol))
+        .or_else(|| regex::address(symbol))
+        .or_else(|| time::address(symbol))
+        .or_else(|| uri::address(symbol))
+        .or_else(|| uuid::address(symbol))
+        .unwrap_or_else(|| panic!("mwl-stdlib registers `{symbol}` with no implementation address"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// Every registered member resolves to an address — the check the
-    /// `symbols` panic exists for, run once rather than left to whichever
-    /// program first calls the missing member.
+    /// Every registered member — and every constructible class's `new` symbol
+    /// — resolves to an address, which is the check the `symbols` panic
+    /// exists for, run once rather than left to whichever program first calls
+    /// the missing one.
     #[test]
     fn every_registered_member_has_an_implementation_address() {
         let symbols = symbols();
@@ -273,6 +287,7 @@ mod tests {
                 .iter()
                 .map(|class| class.members().count())
                 .sum::<usize>()
+                + registry::CONSTRUCTORS.len()
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

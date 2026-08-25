@@ -460,23 +460,31 @@ fn report_not_generic(qname: &mwl_hir::QName, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "type arguments written here")
         .with_help(
-            "user-declared type parameters are deferred (ADR 0007 § 1); only the \
-             compiler-owned `Iterable<T>`/`Iterator<T>` may be written with one \
-             (ADR 0053 § 2)",
+            "user-declared type parameters are deferred (ADR 0007 § 1); only a \
+             compiler-owned generic declaration may be written with one — \
+             `Iterable<T>`/`Iterator<T>` (ADR 0053 § 2) and \
+             `docs/spec/01-core-library.md` § 9's `Core` collections",
         ),
     );
 }
 
 /// `qname`'s declared type parameters when it is a compiler-owned *generic*
-/// interface — `None` for every other name, including the non-generic
+/// declaration — `None` for every other name, including the non-generic
 /// reserved interfaces, which take the ordinary path below.
 ///
-/// The roster is [`mwl_hir::interfaces::RESERVED`] and nothing else: ADR
-/// 0053 § 2's extension is to *compiler-owned* declarations, so a user
-/// interface that happens to be named `Iterable` in its own namespace is not
-/// one (the name must be a single global segment, which
-/// [`mwl_hir::QName::is_reserved_global_interface`] already requires).
+/// Two rosters, because ADR 0007 § 3 makes "which name may carry a list" a
+/// resolution question and there are two kinds of compiler-owned answer.
+/// [`mwl_stdlib::registry::GENERIC_CLASSES`] holds spec § 9's collections,
+/// named in full because `Core\ObjectSet` is the only spelling there is.
+/// [`mwl_hir::interfaces::RESERVED`] holds ADR 0053 § 2's two interfaces,
+/// named by their short name and only as a single global segment — so a user
+/// interface that happens to be called `Iterable` in its own namespace is not
+/// one, which [`mwl_hir::QName::is_reserved_global_interface`] already
+/// requires.
 fn generic_params(qname: &mwl_hir::QName) -> Option<&'static [&'static str]> {
+    if let Some(params) = mwl_stdlib::registry::class_type_params(&qname.to_string()) {
+        return Some(params);
+    }
     if !qname.is_reserved_global_interface() {
         return None;
     }
@@ -510,10 +518,19 @@ fn lower_generic_interface(
             format!("`{qname}` takes {expected} type argument(s), not {got}"),
         )
         .with_primary(span, format!("write `{qname}<{names}>`"))
-        .with_help(format!(
-            "ADR 0053 § 1 declares `{qname}<{names}>`; the argument fixes what it iterates over, \
-             and there is no spelling that leaves it open"
-        )),
+        .with_help(
+            if mwl_stdlib::registry::class_type_params(&qname.to_string()).is_some() {
+                format!(
+                    "`docs/spec/01-core-library.md` § 9 declares `{qname}<{names}>`; the arguments \
+                 are positional, and nothing about a `Core` collection infers them"
+                )
+            } else {
+                format!(
+                    "ADR 0053 § 1 declares `{qname}<{names}>`; the argument fixes what it iterates \
+                 over, and there is no spelling that leaves it open"
+                )
+            },
+        ),
     );
     env.interner.class(qname)
 }

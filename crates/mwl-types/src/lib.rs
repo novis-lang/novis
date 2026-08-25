@@ -230,6 +230,7 @@ pub use derive::{DerivedCodec, DerivedField};
 pub use enums::{EnumBacking, EnumInfo, EnumTable, EnumValue};
 pub use expr_table::{ExprId, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};
 pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
+pub use mwl_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use mwl_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use mwl_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use mwl_stdlib::{CodecField, CodecTy};

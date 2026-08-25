@@ -27,6 +27,27 @@
 //! bytes plus 16 per declared slot, charged to the request that produced it and
 //! released with it.
 //!
+//! # Decision: `new` on a `Core` class lowers to that class's own helper
+//!
+//! Most `Core` instances come from a member that produces one, and those need
+//! nothing here. `docs/spec/01-core-library.md` § 9's collections are the
+//! carve-out — the spec writes `new Core\ObjectSet<Tag>()` — and a `Core`
+//! class still has no `constructor` member for `mwl_types` to resolve, because
+//! its slots are this crate's layout rather than a surface a program fills in.
+//!
+//! So the roster is [`registry::CONSTRUCTORS`], one line per constructible
+//! class, and `mwl-ir` lowers `new` on a name it holds to an ordinary
+//! `InstKind::CoreCall` on that symbol instead of an `InstKind::New`
+//! (`mwl_ir::lower::expr`'s `lower_new`). **Nothing below `mwl-ir` learns that
+//! `Core` owns a class**, which is the promise this module's first decision
+//! makes: codegen emits the same helper call it emits for `Core\Uuid::v4()`,
+//! and the descriptor comes from the leaked table below rather than from the
+//! program's own class list — which would not hold one. The rejected
+//! alternative was a synthetic `constructor` row in [`registry::CLASSES`]: it
+//! would make `Core\ObjectSet::constructor(…)` a spelling the checker
+//! resolves, and every consumer that iterates a class's members would have to
+//! learn to skip it.
+//!
 //! # Decision: the descriptors are one leaked table per core
 //!
 //! A [`ClassDesc`]'s *address* is its identity, and it must outlive every
@@ -37,7 +58,7 @@
 //! this module builds one table per thread, on first use, and **leaks** it.
 //!
 //! **What it spends:** one descriptor per `Core` instance class per core —
-//! O(cores × classes), fixed at two classes' worth today and never growing with
+//! O(cores × classes), bounded by [`registry::CLASSES`] and never growing with
 //! traffic, which is the property
 //! [AGENTS.md](../../../../AGENTS.md)'s memory rule actually asks for. Leaked
 //! rather than dropped at thread exit because a dangling descriptor is a
@@ -228,6 +249,25 @@ pub(crate) fn receiver(
             value.tag_byte()
         ))
     })
+}
+
+/// Overwrites slot `index` of `receiver`, **releasing** what it held and
+/// taking over `value`'s reference — the write half of [`slot`].
+///
+/// The one thing that mutates a built instance, and it exists because
+/// `docs/spec/01-core-library.md` § 9's collections are the spec's only
+/// mutable `Core` types: every other class here is built once and read.
+pub(crate) fn set_slot(receiver: *mut ObjHeader, index: usize, value: Value) {
+    #[expect(
+        unsafe_code,
+        reason = "the receiver argument owns a reference to a live allocation, so \
+                  it is live for the length of the call, the index is one of this \
+                  crate's own slot constants, and the slot held a well-formed \
+                  `Value` this object owned"
+    )]
+    unsafe {
+        mwl_runtime::mwl_object_field_set(receiver, index, value);
+    }
 }
 
 /// Slot `index` of `receiver`, **borrowed** — the caller takes no reference,

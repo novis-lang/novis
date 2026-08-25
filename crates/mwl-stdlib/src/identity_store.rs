@@ -1,0 +1,252 @@
+//! The identity-keyed store behind `docs/spec/01-core-library.md` § 9's
+//! `Core\ObjectMap` and `Core\ObjectSet`: an ordinary MWL array, used as the
+//! hash table it already is.
+//!
+//! # Decision: the store is an `MwlArray` keyed by the identity hash
+//!
+//! A `Core` instance's slots hold values MWL can already hold
+//! ([`crate::instance`]), so a collection's state cannot be a native
+//! `HashMap` — an instance has no destructor to free one with, and a side
+//! table keyed by the object's address would grow with every collection ever
+//! constructed, which is the leak [AGENTS.md](../../../../AGENTS.md)'s memory
+//! rule names outright. So the slot holds an [`MwlArray`], whose keys are
+//! byte strings, and this module chooses those keys.
+//!
+//! **A member is stored under `"<16 hex digits of its identity hash>#<n>"`,**
+//! where `n` is the smallest ordinal at which the chain of equal-hash keys
+//! holds nothing identical to it. [`mwl_runtime::value_hash`] is the hash and
+//! [`mwl_runtime::value_identical`] the comparison, so a collection agrees
+//! with `==` and with `Core\Arr::contains` by construction rather than by a
+//! second set of divergence decisions (`mwl_runtime::identity` owns both).
+//! The ordinal is what makes a collision *correct* rather than merely
+//! unlikely: two distinct values may hash alike, and the chain gives each its
+//! own key.
+//!
+//! **The chain is dense** — an ordinal is never skipped — which is what lets
+//! [`locate`] stop at the first absent key. A removal therefore has to restore
+//! that by moving the chain's last entry into the hole rather than leaving a
+//! tombstone; [`vacate`] is the one place that happens.
+//!
+//! Flat rather than a bucket array per hash because a nested array would have
+//! to be taken out of its parent, mutated and put back on every write; the
+//! ordinal buys the same O(1) average lookup with one level of allocation and
+//! no refcount dance. It also makes `count` free: the store's own entry count
+//! *is* the collection's, so there is no second slot to keep in step.
+//!
+//! **What it spends:** one array allocation per store, plus one entry — a
+//! 16-byte [`Value`] and a 17- to 20-byte key — per distinct member, charged
+//! to the request that built the collection and released with it. A map holds
+//! two stores under one set of keys, so a pair costs two entries.
+//!
+//! The hash is seeded per core from [`RandomState`], so the key an
+//! attacker-chosen member lands on is not predictable across processes — the
+//! collision-flooding concern `mwl_runtime::identity`'s `hash_numeric` already
+//! reasons about, at the one place a program chooses what goes into the table.
+
+use std::cell::OnceCell;
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hasher};
+use std::mem::ManuallyDrop;
+
+use mwl_runtime::{Fault, MwlArray, MwlStr, ObjHeader, Tag, Value};
+
+use crate::registry::CoreClass;
+
+thread_local! {
+    /// This core's hash seed, drawn once. Per core rather than shared because
+    /// the runtime is thread-per-core and a collection never crosses that
+    /// boundary, and drawn at all for the reason this module's docs give.
+    static SEED: OnceCell<RandomState> = const { OnceCell::new() };
+}
+
+/// `value`'s identity hash under this core's seed.
+fn identity_hash(value: Value) -> u64 {
+    SEED.with(|seed| {
+        let mut hasher = seed.get_or_init(RandomState::new).build_hasher();
+        mwl_runtime::value_hash(value, &mut hasher);
+        hasher.finish()
+    })
+}
+
+/// The key at ordinal `n` of `hash`'s chain — see this module's docs.
+fn chain_key(hash: u64, n: usize) -> Vec<u8> {
+    format!("{hash:016x}#{n}").into_bytes()
+}
+
+/// Where `value` lives in `store`, as `(key, present)`.
+///
+/// `present` is whether the key already holds a value identical to `value`;
+/// where it is `false` the key is the first free one in the chain, which is
+/// exactly where a write goes. Walking to the first absent key is what the
+/// chain's density buys.
+pub(crate) fn locate(store: &MwlArray, value: Value) -> (Vec<u8>, bool) {
+    let hash = identity_hash(value);
+    let mut n = 0usize;
+    loop {
+        let key = chain_key(hash, n);
+        match store.get(&key) {
+            None => return (key, false),
+            Some(found) if mwl_runtime::value_identical(found, value) => return (key, true),
+            Some(_) => n += 1,
+        }
+    }
+}
+
+/// Removes `key` from `store`, moving the chain's last entry into the hole so
+/// the chain stays dense — see this module's docs for why it must.
+///
+/// `key` must be one [`locate`] answered `true` for; a key that is not there
+/// leaves the store untouched.
+pub(crate) fn vacate(store: &mut MwlArray, key: &[u8]) {
+    let Some((hash, n)) = split_key(key) else {
+        return;
+    };
+    let mut last = n;
+    while store.get(&chain_key(hash, last + 1)).is_some() {
+        last += 1;
+    }
+    if last == n {
+        store.unset(key);
+        return;
+    }
+    let tail_key = chain_key(hash, last);
+    let tail = store.get(&tail_key).expect("the chain's last key is live");
+    #[expect(
+        unsafe_code,
+        reason = "the store owns the reference at the chain's tail, and the \
+                  write below takes it over, so the removal that follows must \
+                  not release it a second time — hence the retain here and the \
+                  `unset` after"
+    )]
+    unsafe {
+        tail.retain();
+    }
+    store.set(MwlStr::new(key), tail);
+    store.unset(&tail_key);
+}
+
+/// A chain key back as `(hash, ordinal)`, or `None` if it is not one this
+/// module wrote.
+fn split_key(key: &[u8]) -> Option<(u64, usize)> {
+    let text = std::str::from_utf8(key).ok()?;
+    let (hash, ordinal) = text.split_once('#')?;
+    Some((
+        u64::from_str_radix(hash, 16).ok()?,
+        ordinal.parse::<usize>().ok()?,
+    ))
+}
+
+/// Slot `index` of `receiver` as a store, borrowed — the read half.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member if the slot does not hold an array,
+/// which only a bug in this crate can produce: a store slot is written by its
+/// class's constructor and by [`replace`] and by nothing else.
+pub(crate) fn borrow(
+    receiver: *mut ObjHeader,
+    index: usize,
+    class: &CoreClass,
+    member: &str,
+) -> Result<ManuallyDrop<MwlArray>, Fault> {
+    let held = crate::instance::slot(receiver, index);
+    let ptr = held.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{}::{member} expected {:?} in its `{}` slot, got tag {}",
+            class.name,
+            Tag::Array,
+            class.slots[index],
+            held.tag_byte()
+        ))
+    })?;
+    Ok(crate::arr::borrowed(ptr))
+}
+
+/// Runs `edit` over slot `index`'s store, writing the result back.
+///
+/// The common case is that the object holds the store's only reference, and
+/// then the edit happens in place and the slot's pointer never moves. A
+/// `clone`d collection ([ADR 0023](../../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md))
+/// is the other case: two objects share one store, so [`MwlArray::set`]
+/// separates a copy, and the slot has to take over that copy or the write
+/// would land on an allocation this object no longer reads. The retain before
+/// the owning handle is what makes the separation leave the *other* holder the
+/// original rather than dropping it.
+///
+/// # Errors
+///
+/// [`borrow`]'s, unchanged.
+pub(crate) fn edit<R>(
+    receiver: *mut ObjHeader,
+    index: usize,
+    class: &CoreClass,
+    member: &str,
+    edit: impl FnOnce(&mut MwlArray) -> R,
+) -> Result<R, Fault> {
+    let mut shared = borrow(receiver, index, class, member)?;
+    if shared.refcount() == 1 {
+        return Ok(edit(&mut shared));
+    }
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot owns a reference to a live allocation, and this \
+                  retain is the one the owning handle below gives up"
+    )]
+    unsafe {
+        held.retain();
+    }
+    let ptr = held.array_ptr().expect("`borrow` just read an array here");
+    #[expect(
+        unsafe_code,
+        reason = "the retain above is exactly the reference this handle owns"
+    )]
+    let mut owned = unsafe { MwlArray::from_raw(ptr) };
+    let out = edit(&mut owned);
+    crate::instance::set_slot(receiver, index, Value::array(owned));
+    Ok(out)
+}
+
+/// Replaces slot `index` with an empty store, releasing what it held — the
+/// `clear` of every § 9 collection.
+///
+/// A fresh store rather than an entry-by-entry removal: the slot write
+/// releases the old array, which releases every value it held, so the refcount
+/// traffic is identical and there is no chain to keep dense while it happens.
+pub(crate) fn replace(receiver: *mut ObjHeader, index: usize) {
+    crate::instance::set_slot(receiver, index, Value::array(MwlArray::new()));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A chain key survives the round trip [`vacate`] depends on.
+    #[test]
+    fn a_chain_key_reads_back_as_its_hash_and_ordinal() {
+        assert_eq!(
+            split_key(&chain_key(0xdead_beef, 3)),
+            Some((0xdead_beef, 3))
+        );
+        assert_eq!(split_key(b"not-a-chain-key"), None);
+    }
+
+    /// A removal from the middle of a chain pulls the last entry into the
+    /// hole, so [`locate`]'s stop-at-the-first-gap walk still finds what is
+    /// left — the invariant this module's docs make load-bearing.
+    #[test]
+    fn vacating_the_middle_of_a_chain_keeps_it_dense() {
+        let mut store = MwlArray::new();
+        for n in 0..3usize {
+            store.set(
+                MwlStr::new(&chain_key(7, n)),
+                Value::int(i64::try_from(n).expect("a small index is an `int`")),
+            );
+        }
+        vacate(&mut store, &chain_key(7, 1));
+        assert_eq!(store.count(), 2);
+        assert_eq!(store.get(&chain_key(7, 0)).and_then(Value::as_int), Some(0));
+        assert_eq!(store.get(&chain_key(7, 1)).and_then(Value::as_int), Some(2));
+        assert!(store.get(&chain_key(7, 2)).is_none());
+    }
+}

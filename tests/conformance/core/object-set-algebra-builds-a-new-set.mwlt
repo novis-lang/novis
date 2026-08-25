@@ -1,0 +1,47 @@
+--TEST--
+`Core\ObjectSet<T>`'s `remove`, `union`, `intersect` and `diff` each answer without changing either operand — docs/spec/01-core-library.md § 9
+--FILE--
+<?mwl
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+Tag $green = new Tag("green");
+
+Core\ObjectSet<Tag> $left = new Core\ObjectSet<Tag>();
+$left->add($red);
+$left->add($blue);
+
+Core\ObjectSet<Tag> $right = new Core\ObjectSet<Tag>();
+$right->add($blue);
+$right->add($green);
+
+// Each of the three builds a *new* set: § 9's collections are mutable, but
+// the algebra members are not the mutations.
+echo $left->union($right)->count(), "\n";
+echo $left->intersect($right)->count(), "\n";
+echo $left->diff($right)->count(), "\n";
+echo $left->count(), " ", $right->count(), "\n";
+
+echo $left->diff($right)->has($red) ? "yes" : "no", "\n";
+echo $left->diff($right)->has($blue) ? "yes" : "no", "\n";
+
+// `remove` is the mutation, and it is silent about whether the value was
+// there — `has` is the spelling for that question.
+$left->remove($blue);
+$left->remove($green);
+echo $left->count(), " ", $left->has($blue) ? "yes" : "no", "\n";
+--EXPECT--
+3
+1
+1
+2 2
+yes
+no
+1 no
