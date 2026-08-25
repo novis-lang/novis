@@ -69,9 +69,10 @@ one is how an item finishes.
    constructor is the singleton idiom it was written to be. Where ADR 0043 § 3's private-interface-method
    rule already fired, only that more specific diagnostic is reported. The one declaration still outside
    it is a promoted constructor parameter, which no table records as a property.
-7. **`Comparable`/`Stringable` carry their member signatures** (M2). Both are reserved and empty, so
-   `$s->toString()` on a `Stringable` is `E0405` and `$x instanceof Stringable` records no resolved class,
-   which `mwl-ir` then panics on. `Core\Heap`'s ordering and `Duration`'s `Stringable` both need it.
+7. ~~**`Comparable`/`Stringable` carry their member signatures** (M2).~~ **Done.** `iter_lib` seeds all
+   four reserved interfaces with their members, `layout` seeds each a descriptor so `instanceof` answers,
+   `require_stringable` records the `toString()` ADR 0028 § 1's four implicit sites desugar to, and
+   `implements_interface` is reflexive so a value typed at the interface itself satisfies it.
 8. **ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint). The two file-scope declaration
    forms `docs/spec/00-overview.md` § 2 fixes, then name-to-file resolution as a fixpoint over the
    require-graph worklist `mwl_hir::requires` already walks.

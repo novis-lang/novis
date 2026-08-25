@@ -168,13 +168,18 @@
 > name the way it already seeds the exception tree, so a descriptor exists for `mwl-codegen` to bake
 > in and an implementor's `conforms` keeps the edge to it — `$m instanceof Stringable` is `true`, a
 > subclass of an implementor inherits it, and a generator's synthesized class answers for
-> `Iterator`. One half of that item still trails: `echo $s` on a value typed at the interface itself
-> is `E0412`, because `mwl_hir::implements_interface` answers `false` for a name against itself, and
-> widening it there is not enough on its own — `echo $m` on a *concrete* implementor already
-> type-checks and panics in `mwl-ir` gap 12, so the `toString` desugar lands with it or the refusal
-> only moves. Then **ADR 0061**'s `autoload` grammar and its name-to-file fixpoint. **ADR 0069's
-> refusal is built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` —
-> leaving that ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
+> `Iterator`. **ADR 0028 § 1's implicit conversion now runs too**:
+> `mwl_types::expr::operators::require_stringable` records the resolved `toString()` in the new
+> `ExprTypeTable::to_string_call` side map, and `mwl_ir::lower::Lowering::lower_to_string_call`
+> desugars all four of that section's sites — `.`, an interpolated piece, `echo`/`print` and `as
+> string` — through one virtual call, so an override wins and a `toString` body may throw like any
+> other. `mwl_hir::implements_interface` is reflexive now, which is what lets a value typed at
+> `Stringable` itself stringify and one typed `Comparable` order through `<`; that function's own
+> doc says why the zero-step walk is the answer all five callers wanted. One shape stays out and is
+> `mwl-ir` gap 12's whole remainder: a `Core`-owned class, which `require_stringable` exempts and so
+> records no target for. Then **ADR 0061**'s `autoload` grammar and its name-to-file fixpoint. **ADR
+> 0069's refusal is built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay`
+> — leaving that ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
 > `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008` per line over comments, string
 > literals and inline HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink
 > halves are M7's and M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows
