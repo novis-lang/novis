@@ -2,63 +2,77 @@
 
 ## State
 
-**Spec § 12's first table now exists as a class, percent-encoding half only**:
-`crates/mwl-stdlib/src/uri.rs` registers `Uri::encodeComponent`, `decodeComponent`,
-`encodeFormValue` and `decodeFormValue` over no dependency at all. That module's own docs own the
-two PHP-exact byte sets (they differ on a space *and* on `~`, deliberately), why a malformed escape
-decodes to itself, why a decoded non-UTF-8 octet throws, and why `isValid` is **not** here.
+**The acceptance gate reaches its real frontier for the first time in this run.** Stage 0 had been
+failing since session 0014 on one name: `an_autoload_declaration_resolves_a_name_to_its_file`, which
+`loop-goal.toml:139` requires and which existed nowhere — ADR 0061 was built and pinned, but never by
+a test with that name. It is now `mwl_hir::requires`' test module, asserting the fixpoint's *output*
+(the `AutoloadMap` names the file, and the walk loaded it) rather than repeating the symbol-arrival
+assertion beside it. Every other Stage 0 test already existed and passed.
 
-**`Uri::isValid` was deliberately left out of its own slice.** It answers exactly the question
-`parse` throws on, and `ground-rules.md`'s "an external specification is a dependency rather than a
-hand-written parser" makes RFC 3986 a dependency — so hand-writing a validator now and binding a
-crate for `parse` next session is the drift `crate::uuid`'s single `read` exists to avoid. It moved
-into the group below, beside the pick that decides it.
+**`python tools/loop.py --goal-only` now passes Stages 0, 1, 2 and six of Stage 3's seven fixtures,
+and stops here:**
 
-`python tools/verify.py` green; `mwl test tests/conformance/` is 369 cases. The two new ones are
-`tests/conformance/core/uri-encodes-a-component-and-a-form-value-differently.mwlt` and
-`uri-decodes-both-spellings-of-a-space.mwlt`. `tools/leak-check.sh` under WSL is clean over
-`.agent-tmp/uri-refcounts.mwl`. No new dependency, so `cargo deny` and the attribution file are
-untouched.
+    NOT GREEN: native examples/collect.mwl [3 Core Part I]: exit 1 -- error[E0102]: expected an expression
+    examples/collect.mwl:13:37   var $seen = new Core\ObjectSet<Tag>();
 
-**`Tag::Bytes` is still the one blocker on this fixture**, unchanged: `Random::bytes`,
-`Core\Encoding`, `Core\Bytes` and `Hash::of`/`hmac`/`equals` cannot construct a value, and it is
-also why both decoders here answer `string` rather than the honest `bytes` (`uri.rs` gap 2).
+So the whole `Core` roster below `collect.mwl` runs, and **the one thing between the loop and Stage 4
+is a parser hole, not a library one.** Beyond it, Stage 4's two counts are the far wall: conformance
+is **369 of 600**, differential **86 of 150** (it has not moved at all this run), and
+`every_part_one_spec_member_is_registered` still does not exist.
 
-## Next group — the rest of `Core\Uri`, spec § 12's first table
+Spec § 12's `Core\Uri` is its percent-encoding half only; `uri.rs`' own docs own why `isValid` waits
+on the RFC 3986 dependency pick. `Tag::Bytes` still blocks `Random::bytes`, `Core\Encoding`,
+`Core\Bytes` and `Hash::*` — `collect.mwl:25-26` asserts a sha256 and a base64, so that is on the
+acceptance path rather than in the backlog, and it is a **design call the loop is pre-authorized to
+settle** (`loop-goal.md` § *Standing decisions*): `mwl_ir::Ty::Bytes` and `registry::CoreTy::Bytes`
+both already exist, and what is missing is a runtime producer — `mwl_runtime::Tag` has no `Bytes`
+row, so nothing can construct a fresh one (`value.rs:49` currently spends `Tag::Str` on both).
 
-**Shared file set:** `crates/mwl-stdlib/src/uri.rs` (`CLASS` at `uri.rs:122`, `instance: &[]` at
-`uri.rs:154`, `address` at `uri.rs:161`, `text_of` at `uri.rs:286`, `produced` at `uri.rs:303`,
-`decode` at `uri.rs:244`), `Cargo.toml:133` (the `uuid` line is the model for a new
-`[workspace.dependencies]` entry) plus `crates/mwl-stdlib/Cargo.toml`, and
-`tests/conformance/core/`. `lib.rs:200`/`lib.rs:247` and `registry.rs:605` are already wired, so
-adding members here touches neither. `uuid.rs` is the nearest model for an instance:
-`CLASS` at `uuid.rs:115`, `built` at `uuid.rs:181`, the receiver read at `uuid.rs:248`.
+## Next group — `new Core\X<T>()`, the one expression `collect.mwl` stops on
 
-- [ ] **Pick the RFC 3986 crate, then land `Uri::parse` + `Uri::isValid` and the `Uri` instance.**
-      Spec § 12's first two rows (`docs/spec/01-core-library.md:754-755`), the pick against
-      ADR 0051 § 4, recorded in `uri.rs`'s own module doc. Both members share one `read`, per
-      `uri.rs` gap 1. The instance needs slots — a `string` per component is the shape the
-      `Tag::Bytes` blocker leaves available. A new dependency owes three things (AGENTS.md): the
-      `[workspace.dependencies]` line saying why that crate, `cargo deny check`, and
-      `python tools/gen-attribution.py`. Candidates worth one probe each: `fluent-uri` (RFC 3986,
-      holds a relative reference, has reference resolution) against `url` (WHATWG, normalizes, and
-      cannot hold the relative reference `$uri->resolve` takes).
-- [ ] **`$uri->with` and `$uri->resolve`.** Spec § 12 rows 7-8 (`:760-761`). `with` is ADR 0063 R2's
-      options bag over the six components — `CoreTy::Options` at `path.rs:76` is the model; `resolve`
-      is RFC 3986 § 5, which is the chosen crate's job, not a hand-written merge.
-- [ ] **`Uri::parseQuery` and `buildQuery`.** Spec § 12 rows 5-6 (`:758-759`) and the prose at
-      `:767`; PHP's bracket convention in full is a **pre-authorized** standing decision, so the
-      return type is `array<mixed>` and the spec row already says so. Both members consume
-      `uri.rs:244`'s `decode`/`encode` rather than re-implementing them.
+**Shared file set:** `crates/mwl-syntax/src/parser/expr.rs` (`parse_new` at `expr.rs:1207`,
+`parse_call_type_args` at `expr.rs:744` — the `<...>` list a *static call* already reads, and the
+tie-break comment above it is the one this reuses), `crates/mwl-syntax/src/ast.rs`
+(`ExprKind::New` at `ast.rs:1197`, and `StaticCall::type_args` at `ast.rs:741` is the field shape to
+copy), `crates/mwl-types/src/expr/calls.rs` (`check_new_target` at `calls.rs:368`, reached from
+`expr/mod.rs:307`), `crates/mwl-ir/src/lower/expr.rs` (`lower_new` at `expr.rs:2303`), and
+`tests/conformance/lang/`.
+
+- [ ] **`new Target<T, U>(...)` parses**, carrying its `type_args: Vec<Type>` on `ExprKind::New`
+      exactly as `StaticCall` and `MethodCall` already do. `parse_call_type_args` is the parser and
+      its ambiguity trade is already argued at `expr.rs:728-744`; a target that declares no type
+      parameter must refuse a written list the way a `Core` member with no `written()` already does.
+- [ ] **The checker binds them**, in `check_new_target`: a `Core`-owned generic class binds its
+      variables from the written list, and `ObjectMap<K, V>`'s two arities are the case that proves
+      the list is positional. Type variables stay compiler-owned — a *user* class with `<T>` is still
+      refused, per `loop-goal.md` § *Standing decisions*.
+- [ ] **`lower_new` erases them**, which is the whole run-time cost: ADR 0047 § 5's rule already
+      applies — a type argument is a checker fact, so the instance lowered is the same
+      `registry::CoreTy::Instance` shape `Core\Uuid` and `Core\Time\Instant` already lower to.
+- [ ] **Conformance cases under `tests/conformance/lang/`**, in the same slice as the rows
+      (`playbook.md` § *Writing a test case*): one that constructs each arity, one that refuses a
+      written list on a class with no type parameter, and one that refuses a user-declared `<T>`.
 
 ## Backlog
 
-- `Core\Validate`, `Core\Csv`, `Core\Out` — the rest of spec § 12's tables (`01-core-library.md:775+`).
-- `Tag::Bytes` in `mwl_runtime` unblocks `Random::bytes`, `Core\Encoding`, `Core\Bytes`, `Hash::*`
-  and turns both `Uri` decoders' return type honest — `crates/mwl-stdlib/src/random.rs` gap 1.
-- `examples/collect.mwl` is the fixture this whole run is aimed at — plan `Open now`, the § 7/8/9/11/12
-  paragraph.
-- `ObjectSet`/`ObjectMap` need `new Core\X<T>()` to parse — same plan paragraph.
-- `Core\Uuid` has no `bytes` round trip and `v7` no intra-millisecond counter — `uuid.rs` gaps 1 and 3.
-- ADR 0090 § 3's non-scalar row means `==` over two `Core`-owned instances is object identity;
-  every such class works around it — `uuid.rs` gap 2.
+Ordered by what the acceptance test blocks on, not by section number — the first three are all on
+`collect.mwl`'s path:
+
+- **Spec § 9's three collections** (`ObjectMap`, `ObjectSet`, `Heap` — 23 rows, spec
+  `01-core-library.md:650-673`), over the `registry::CoreTy::Instance` shape `uuid.rs:115` models.
+  Needs the group above first.
+- **A `bytes` producer** — the `Tag::Bytes` decision above, then § 7's seven rows and `Hash::*`.
+- **`Uri::parse`/`isValid`, `Csv`, `Validate`, `Out::capture`** — the rest of `collect.mwl`'s roster;
+  `Uri`'s own gap 1 owns the dependency pick.
+- **Stage 4's counts are their own work, not a side effect.** 231 conformance and 64 differential
+  cases are owed, and this run has produced ~2 and 0 per session respectively. A case over an
+  *already registered* member costs no new code and shares one file set, so these belong in
+  dedicated groups of a dozen rather than two at a time behind a member slice.
+- **`every_part_one_spec_member_is_registered`** (`loop-goal.toml:339`) — reads the member rows out
+  of the spec's §§ 1-12 and fails naming every one with no registry entry. It is the loop's own
+  definition of done and does not exist yet; `crates/mwl-stdlib/tests/conformance_coverage.rs` is
+  the file it belongs in and the parsing model to copy.
+- `docs/spec/02-php-migration.md` is 31% classified, one pass per PHP domain
+  (`tools/check-migration.py`).
+
+`orient.py` printed everything this session needed.
