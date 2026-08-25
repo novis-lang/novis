@@ -2,44 +2,42 @@
 
 ## State
 
-**ADR 0061 is closed end to end — resolution *and* reporting.** § 1's last sentence runs:
-`mwl check --autoload-map` prints the resolved prefix → roots map, what a `discover` glob passed over in
-silence, and what an explicit prefix shadowed. `mwl_hir::AutoloadMap` keeps the last two rather than
-dropping them where they happen, `mwl_hir::resolve_program` hands the map back as its third element, and
-`AutoloadMap::render` is the printer — its three-counted-section shape, and why paths are rendered relative
-and `/`-separated, are `autoload.rs`'s own module doc.
+**ADR 0047 § 5 runs whole, enum cases included.** Every `mwl_ir::lower` entry point now takes the run's
+`mwl_types::EnumTable`, which `mwl_types::check_program` **hands back** rather than dropping — a caller
+that rebuilt it would report ADR 0010 § 1/§ 2's declaration errors twice — and `Lowering::enums` is where
+lowering reads a case's constant. `$m as Mode::Read|Mode::Write` over an enum-typed operand emits the same
+comparison chain a set of `int` literals gets, run one representation down on the backing integer.
+`crates/mwl-ir/src/lib.rs:306` (gap 20) owns the whole design and states what is left.
 
-**Ten conformance cases pin that ADR** (`tests/conformance/lang/`, the eight `*autoload*` plus the two
-`*discover*`). The one added this session is
-`a-discover-glob-skips-a-directory-that-is-not-a-namespace-segment.mwlt`: a glob sweeping `vendor/`,
-`node_modules/`, `_Private/` and `.git/` beside `Plugin/src/` discovers only the last and diagnoses none of
-the rest. `requires.rs`'s own tests pin the printer's whole rendering
-(`the_rendered_map_names_what_was_skipped_and_what_was_shadowed`), so the group's third item is done too.
+**What is left is the base conversion, not the membership test.** `Tagged as Enum(_)` and `Int as Enum(_)`
+have no arm in `Lowering::convert`, so `$any as Mode::Read|Mode::Write` over a `mixed` runs its test and
+then panics converting, and a plain `$n as Mode` never gets that far. That is ADR 0010 § 5's own row and
+the next group below.
 
-`python tools/verify.py` green, 1393 tests. `loop-goal.md` § *Stage 0* item 8 is struck through and now
-names only the cache half; **item 5 is the one item left unstruck there**, and its text is stale — the plan
-says ADR 0047 §§ 4 and 5 are built, so what item 5 actually still owes is `mwl-ir` gap 20 below.
+`python tools/verify.py` green, 1393 tests; 357 conformance cases pass. `loop-goal.md` § *Stage 0* item 5
+stays unstruck — it is closed by the group below, not by this one.
 
-## Next group — ADR 0047 § 3 / ADR 0010 § 5, the run-time enum-case check (`mwl-ir` gap 20)
+## Next group — ADR 0010 § 5's `int` into an enum (`mwl-ir` gap 20's remainder)
 
-**Shared file set:** `crates/mwl-ir/src/lower/mod.rs` and `crates/mwl-ir/src/lower/expr.rs`, reading
-`crates/mwl-types/src/enums.rs`, with `tests/conformance/lang/` for the cases. The gap states the whole
-design already: `crates/mwl-ir/src/lib.rs:306`.
+**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` alone for the first two, reading
+`crates/mwl-types/src/enums.rs`, then `tests/conformance/enum/` for the cases. The enum table is already
+in hand — `Lowering::enums` — so nothing needs plumbing.
 
-- [ ] **Plumb `mwl_types::EnumTable` into lowering.** `lower_program` (`lower/mod.rs:298`) and
-      `lower_file` (`lower/mod.rs:480`) take the checked tables; the enum table
-      (`mwl-types/src/enums.rs:87`, with `EnumTable::case` at `:114` and `backing_of` at `:106`) is the one
-      they do not, which is why `ir::ExprInfo::EnumCase` carries a backing value only for a case written as
-      an expression. Both remaining rows need it, so this lands once.
-- [ ] **`$any as Mode::Read|Mode::Write` runs its membership test.** `lower_checked_ty`
-      (`lower/mod.rs:1901`) already folds a same-representation union to that representation;
-      `lower_literal_membership` (`lower/expr.rs:3109`, called from `:2984` and `:2988`) emits one
-      comparison per member with `Helper::LiteralMismatch` at the far end. The enum-case arm is the same
-      shape over each case's backing value. `as ?T` runs no test (ADR 0066) — the gap says why.
-- [ ] **ADR 0010 § 5's `int`-into-an-enum row is the same check**, reached from a conversion whose target
-      is the enum rather than a subset of its cases; close it in the same slice and say so in the gap.
-- [ ] **Two conformance cases**, and then strike `loop-goal.md` § *Stage 0* item 5 with what is built.
-      A row the checker accepts is not a row that runs — scratch it under `.agent-tmp/` first (playbook).
+- [ ] **Give `Lowering::convert` its `Int`/`Uint` → `Enum` row.** The `match (from, to)` is at
+      `lower/expr.rs:638` and row 1 (`Enum → backing`) is the line under it at `:639`; the panic naming
+      this gap is `:751`. The conversion itself is the same free `InstKind::Reinterpret`; what it owes
+      first is the check — throw unless the value is one of the declaration's cases.
+- [ ] **Reuse the membership chain for a whole enum.** `closed_literal_set` (`lower/expr.rs:3026`) builds
+      an `AcceptedSet` from a union's atoms; a `CheckedTy::Enum` target wants one built from
+      `EnumTable::get(qname)`'s whole `EnumInfo::cases` map (`mwl-types/src/enums.rs:82`, `:94`).
+      **Sort it** — that map is an `FxHashMap`, so an unsorted set would render in a different order run to
+      run and no snapshot of the throw's message would be stable. `lower_literal_membership`
+      (`lower/expr.rs:3123`) already reinterprets an enum operand to its backing integer and needs nothing.
+      `Tagged → Enum` is the same set tested through `Helper::Identical`, exactly as the literal rows do.
+- [ ] **Two conformance cases** beside
+      `tests/conformance/lang/a-conversion-into-a-closed-set-of-enum-cases-is-checked-at-run-time.mwlt`
+      (this session's, and the shape to copy): `$n as Mode` hitting and missing, and the `mixed` operand.
+      Then strike `loop-goal.md` § *Stage 0* item 5 and rewrite gap 20 as closed.
 
 ## Backlog
 
@@ -55,7 +53,7 @@ design already: `crates/mwl-ir/src/lib.rs:306`.
 
 ## Orientation gaps
 
-None left open. The gap the last two handoffs named is closed in this session's commit:
-`crates/mwl-hir/src/autoload.rs` is now in `[context] modules` in `loop-goal.toml`. Everything the next
-group needs is already selected — `crates/mwl-ir/src/lower/**`, `crates/mwl-ir/src/ir.rs` and
-`crates/mwl-types/src/enums.rs` are all in that list.
+`[context] adrs` in `loop-goal.toml` still selects ADR 0061's sections and ADR 0007 §§ 3/6 — last group's
+set. This group's item named **ADR 0047 § 3 and ADR 0010 § 5** and neither was printed; the work was
+possible only because `mwl-ir`'s own gap 20 restates the design. Swap `0061`'s sections for `0047` §§ 3-5
+and `0010` § 5 before the next session, or it pays the same slice cost again.

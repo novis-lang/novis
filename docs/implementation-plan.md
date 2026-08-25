@@ -144,11 +144,16 @@
 > `Ty::Int` rather than the `Ty::Tagged` every union used to be, and `lower_literal_membership`
 > emits one comparison per member with `Helper::LiteralMismatch` throwing at the far end, naming the
 > accepted set exactly as `E0469` does. A `mixed` operand is tested on its own runtime tag before
-> the base conversion, so `1 as "1"|"b"` throws rather than being rendered into the set it names.
-> What is left is § 3's enum-case subset over an operand only known at run time, which needs each
-> case's backing value plumbed into `mwl-ir` and is the same missing check as ADR 0010 § 5's
-> `int`-into-an-enum row (`mwl-ir` gap 20). **ADR 0094's levels are now enforced for a property** —
-> `E0471` from `mwl_types::expr::members::check_member_visibility`, keyed on the *accessing* class
+> the base conversion, so `1 as "1"|"b"` throws rather than being rendered into the set it names. §
+> 3's enum-case subset runs too: every `mwl_ir::lower` entry point takes the run's
+> `mwl_types::EnumTable`, which `check_program` hands back rather than dropping — rebuilding it
+> would report ADR 0010 § 1/§ 2's declaration errors twice — so `$m as Mode::Read|Mode::Write` emits
+> the same comparison chain a set of `int` literals gets, run one representation down on the enum's
+> backing integer because `mwl-codegen` has no `BinOp::Eq` row for `Ty::Enum`. What is left is the
+> *base* conversion underneath it: `Tagged`/`Int` **into** an enum has no `convert` arm, so ADR 0010
+> § 5's own row — throw on a value no case names, checked against every case of the declaration — is
+> still `mwl-ir` gap 20. **ADR 0094's levels are now enforced for a property** — `E0471` from
+> `mwl_types::expr::members::check_member_visibility`, keyed on the *accessing* class
 > (`Ctx::current_class`) and never on the receiver's type, so `$other->n` inside the declaring class
 > is legal and the same line at file scope is not; it reaches the static `Foo::$n` spelling and a
 > write through the same `PropertyAccess` span, and the one shape still outside it is a promoted
