@@ -114,18 +114,11 @@ fn a_non_nullable_type_against_null_does_not_compile() {
     assert!(refuses(&diags), "{diags:?}");
 }
 
-/// `int`, `uint`, `float` and `decimal` are one domain, so no pairing among
-/// them is ever disjoint — ADR 0007 § 4's and ADR 0054 § 3's rows unchanged.
-#[test]
-fn the_numeric_types_are_one_domain() {
-    let diags = check_src(
-        "<?mwl\nclass T {\n  function m(int $i, float $f, decimal $d, uint $u): void {\n    \
-         if ($i == $f) {\n      echo \"a\";\n    }\n    \
-         if ($d == $i) {\n      echo \"b\";\n    }\n    \
-         if ($u == $f) {\n      echo \"c\";\n    }\n  }\n}\n",
-    );
-    assert!(!diags.has_errors(), "{diags:?}");
-}
+// `int`, `uint`, `float` and `decimal` are one domain, and that row is pinned
+// end to end rather than at the checker alone:
+// `tests/conformance/lang/equality-across-overlapping-types-still-compiles.mwlt`
+// compiles *and runs* every pairing among the four, which is the stronger
+// assertion and the one home for the fact.
 
 /// A `mixed` operand is § 5's runtime case, never § 2's compile error.
 #[test]

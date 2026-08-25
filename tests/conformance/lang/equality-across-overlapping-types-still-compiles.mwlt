@@ -3,12 +3,28 @@ Disjointness, not identity of types, is what `==` refuses — every pair that ca
 --FILE--
 <?mwl
 // A literal against its base type, which the table's literal row keeps
-// compiling. The cross-representation numeric rows — `int` against `float`,
-// `uint` against `int` — type-check under the same table, but `mwl-codegen`
-// does not lower a binary operator over two representations yet, so they are
-// pinned in `crates/mwl-types/tests/equality.rs` instead of here.
+// compiling.
 int $n = 1;
 echo ($n == 1) as string, "|", ($n == 2) as string, "|\n";
+
+// § 2's numeric row: `int`, `uint`, `float` and `decimal` are one domain, so
+// a pairing among them compares mathematically and never by representation.
+float $f = 1.0;
+uint $u = 1;
+decimal $d = 1.00;
+float $half = 1.5;
+echo ($n == $f) as string, "|", ($n == $half) as string, "|\n";
+echo ($u == $f) as string, "|", ($n == $u) as string, "|\n";
+echo ($d == $n) as string, "|", ($d == $f) as string, "|\n";
+echo ($n != $half) as string, "|", ($u != $n) as string, "|\n";
+
+// § 3's "mathematically equal across the whole domain", read at the operands'
+// own values: 2^60 is an `f64` exactly, so it equals the `int` holding the
+// same number even though the two representations agree on almost nothing
+// past 2^53.
+int $big = 1152921504606846976;
+float $same = 1152921504606846976.0;
+echo ($big == $same) as string, "|\n";
 
 // `?T` against `null`, and against `T` — the null test, which narrows.
 class Node {
@@ -29,6 +45,11 @@ string $rank = match ($letter) {
 echo $rank, "\n";
 --EXPECT--
 1||
+1||
+1|1|
+1|1|
+1||
+1|
 1|
 1|
 second
