@@ -64,6 +64,14 @@ with the rest is the whole game.
   and each keeps its own exit status. Four greps to locate a symbol is one turn, not four. Measured
   sessions do this at a rate of **zero** — 297 consecutive calls, not one sharing a message. It is the
   single largest saving on this list and the one nobody collects.
+- **Delegate a read-heavy search to a subagent, and keep its findings rather than its reading.** A
+  subagent has its own window: what it reads is charged to *that* window and only its answer comes back to
+  yours. `python tools/loop-stats.py --attribute` charges **12% of a session to discovery** and reports
+  **zero** subagents ever spawned, so this is the second uncollected saving after batching. Send one when
+  the question is "where is X, and what are its anchors" over files you will not otherwise open — a spec
+  section's rows, every call site of a helper, which of forty cases already covers a member. Do **not**
+  send one to write code, to decide anything, or to read a file you are about to edit: a slice's own files
+  belong in your window, and the handoff you write must rest on what you actually read.
 - **`python tools/verify.py` once, for the whole group.** A measured session ran it four times for one
   slice; three of those rebuilt the same tree to learn the same thing.
 
