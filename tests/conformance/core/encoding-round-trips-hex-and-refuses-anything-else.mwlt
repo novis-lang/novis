@@ -1,0 +1,39 @@
+--TEST--
+`Core\Encoding`'s hex pair round-trips octets and throws rather than guessing — spec § 7, ADR 0009 §§ 1 and 3
+--FILE--
+<?mwl
+class Hex {
+    // ADR 0009 § 3: the decoding direction is the checked one, so the failure
+    // is a throw rather than a value that silently lost a nibble.
+    public static function decode(string $text): string {
+        try {
+            return Core\Encoding::toHex(Core\Encoding::fromHex($text));
+        } catch (Throwable $e) {
+            return "threw";
+        }
+    }
+}
+
+// A `bytes` is a binding like any other (ADR 0009 § 1), and `toHex` is total.
+bytes $raw = Core\Encoding::fromHex("00ff10ab");
+echo Core\Encoding::toHex($raw), "\n";
+
+// Either case reads back, and the answer is always lowercase.
+echo Hex::decode("DEADBEEF"), "\n";
+echo Hex::decode("dEaDbEeF"), "\n";
+
+// The empty string is zero octets, not a failure.
+echo "[", Hex::decode(""), "]\n";
+
+// An odd digit count, a separator and a non-hex letter each throw.
+echo Hex::decode("abc"), "\n";
+echo Hex::decode("de:ad"), "\n";
+echo Hex::decode("zz"), "\n";
+--EXPECT--
+00ff10ab
+deadbeef
+deadbeef
+[]
+threw
+threw
+threw

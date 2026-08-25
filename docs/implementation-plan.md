@@ -69,11 +69,12 @@
 > `Weekday`, `Regex` × 6 plus `Regex\Match` × 4 over `regex`/`fancy-regex`, `Time` × 7 plus
 > `Time\Instant` × 9, `Time\DateTime` × 14, `Time\Duration` × 19 and `Time\Zone` × 4 (+ `UTC`) over
 > `jiff`, `Json` × 4 over `serde_json`, `Path` × 9 (+ `SEPARATOR`) over nothing at all, `Random` × 6
-> over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, `ObjectMap` × 9
+> over `rand`, `Uuid` × 4 (+ `toString`) over `uuid`, `Uri` × 4 over nothing at all, `Encoding` × 2
+> over nothing at all, `ObjectMap` × 9
 > and `ObjectSet` × 9 over `identity_store`, and the conformance-coverage gate), `mwl-codegen`,
 > `mwl-cli`
 > (`ast`, `check`, `run`, `test`, `info`), `mwl-test` (+ `case`, `expect`, `run`),
-> `tests/conformance` × 372 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
+> `tests/conformance` × 375 (in `array`, `class`, `core`, `enum`, `error`, `iter`, `lang` and
 > `reject`) and `tests/differential` × 86, `fuzz/`, `tools/`, `benches/abi-probe`.
 >
 > **Toolchain:** Rust 1.97.1 stable (pinned), Cranelift 0.135.0, wasmtime 48, MSVC 14.44 + Windows
@@ -121,20 +122,22 @@
 > `Arr::diff`/`intersect` and ADR 0069's combination members (its refusal half is built, `E0467`); §
 > 4 owes `Date`, `TimeOfDay` and `Core\Month` (`mwl_stdlib::time` gap 1); § 5 owes
 > `compile`/`replaceWith`, which need `Pattern` (`regex` gap 1); § 6 owes `decodeAs<T>` (`json` gap
-> 2, which waited on a written type argument at a call site and no longer does); § 7 owes all seven
-> rows (`Core\Encoding` and `Core\Bytes`); § 9 owes `Core\Heap` and the `Iterable` its three rows
+> 2, which waited on a written type argument at a call site and no longer does); § 7 owes
+> `Core\Encoding`'s base64, base32 and `Charset` rows and the whole of `Core\Bytes`, its hex pair
+> being the one built; § 9 owes `Core\Heap` and the `Iterable` its three rows
 > each declare, `ObjectMap` and `ObjectSet` being whole otherwise; § 10 owes the constructor's
 > `{previous: $e}` options shape and
 > `$e->location`; § 11 owes `Random::bytes` and `Hash::of`/`hmac`/`equals`; § 12 owes
 > `Uri::parse`/`isValid`, `Csv`, `Validate` and `Out::capture`. §§ 3 and 8 are whole, and every
 > signature shape the spec writes can be stated (`registry::CoreTy`'s `Variadic`, `Instance`,
 > `Union` and `Decimal`, plus `WRITTEN_CLASS_MEMBERS`), so a section that is not built is only
-> unwritten. **One runtime hole sits under four of those** — nothing constructs a fresh `bytes`
-> value, because `mwl_runtime::Tag` has no `Bytes` row even though `mwl_ir::Ty::Bytes` and
-> `registry::CoreTy::Bytes` both exist — it blocks § 7 whole, `Random::bytes`, `Hash::*` and the
-> honest return type of `Uri`'s two decoders, and it is a design call the loop is pre-authorized to
-> settle (loop-goal.md § *Standing decisions*). **Stage 4's counts are their own work rather than a
-> side effect of member slices** — conformance is 370 of the 600 that gate requires, differential is
+> unwritten. **The runtime hole that sat under four of those is closed** — `mwl_runtime::Tag` has a
+> `Bytes` row of its own over the existing `MwlStr` allocation, so a fresh `bytes` value now
+> constructs, refcounts, releases and round-trips through codegen; `mwl-runtime`'s module doc
+> § *`bytes` is a tag, not a second heap shape* owns that decision and what it spends.
+> `Random::bytes`, `Hash::*` and the honest return type of `Uri`'s two decoders are unwritten rather
+> than blocked. **Stage 4's counts are their own work rather than a
+> side effect of member slices** — conformance is 375 of the 600 that gate requires, differential is
 > 86 of 150 and has not moved this run, and `every_part_one_spec_member_is_registered` — the loop's
 > own definition of done, which reads the spec's member rows and checks each against the registry —
 > does not exist yet. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows carry no
@@ -166,9 +169,10 @@
 > `text.mwl`, `dates.mwl` and `json.mwl` — and `collect.mwl` is the first that does not. That one
 > fixture names spec §§ 7, 8, 9, 11 and 12 at once, so it is several slices rather than one: § 8's
 > `Core\Path`, § 11's `Core\Uuid` and § 12's `Core\Uri` percent-encoding half are built; `Uri::parse`
-> and its instance still owe the RFC 3986 dependency, `Encoding`/`Hash`/`Csv` each need one picked
-> under ADR 0051 § 4. § 9's two collections run, so the fixture's first report is now § 7's
-> `Core\Encoding::toHex`/`Core\Hash::of` at `collect.mwl:25`.
+> and its instance still owe the RFC 3986 dependency; `Encoding`'s base64/base32 rows, `Hash` and
+> `Csv` each need one picked under ADR 0051 § 4, hex having needed none. § 7's `Encoding::toHex` is
+> built, so the fixture's first report is now § 11's `Core\Hash::of`/`Core\Digest` at
+> `collect.mwl:25`.
 
 **How this document relates to the ADRs.** This is the plan of record: *what* gets built, in what order,
 and how each milestone is verified. It states decisions but does not argue them. The reasoning lives in

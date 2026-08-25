@@ -188,6 +188,7 @@
 
 pub mod arr;
 mod cldr;
+mod encoding;
 mod format;
 pub mod granularity;
 mod identity_store;
@@ -260,6 +261,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
 fn address_of(symbol: &'static str) -> *const u8 {
     str::address(symbol)
         .or_else(|| arr::address(symbol))
+        .or_else(|| encoding::address(symbol))
         .or_else(|| json::address(symbol))
         .or_else(|| math::address(symbol))
         .or_else(|| objmap::address(symbol))

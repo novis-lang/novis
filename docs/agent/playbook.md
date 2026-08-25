@@ -120,6 +120,10 @@ is why" — is this file.
   `cargo test -p mwl-stdlib` without one. An instance member is covered by a case writing `->name(`.
   [conventions.md](conventions.md) writes all four out; `python tools/brief.py`'s *anchors* block
   resolves each spelling to a file and line.
+- **A new domain module is `mod`, not `pub mod`, so its `CLASS`/`NAME` are `pub(crate)`.** The
+  workspace warns `unreachable_pub`, and half of `mwl-stdlib`'s modules are `pub mod` while the newer
+  half is not — copying `uuid.rs`'s `pub const NAME` into a privately-declared module is a warning at
+  build time, before `verify.py` says anything. `objmap.rs:36` is the shape to copy.
 - **A `Core` symbol that is not a member breaks `every_registered_member_has_an_implementation_address`.**
   `mwl_stdlib::symbols()` used to be exactly one entry per `CLASSES` member, and that test asserts the
   count — so a constructor symbol from `registry::CONSTRUCTORS`, or anything else chained in beside the
