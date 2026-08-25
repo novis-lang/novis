@@ -189,9 +189,17 @@
 > anywhere in the autoloaded sub-graph, `E0317` is § 2's one-declaration-per-file rule and `E0318` a
 > malformed glob. § 5's probe trace is produced and dropped — folding it into the cache key is the
 > ADR 0042 slice's work — and the name harvest is a deliberate over-approximation that does not yet
-> reach an attribute's name (`mwl-hir`'s own module doc owns both gaps). **ADR 0069's refusal is
-> built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay` — leaving that
-> ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
+> reach an attribute's name (`mwl-hir`'s own module doc owns both gaps). **What that ADR still owes
+> is a conformance case, and the blocker is not the test format**: `.mwlt` now has an auxiliary-file
+> section — a repeatable `--FILE <relative/path>--` writing another file into the case's own working
+> directory, documented in `crates/mwl-test`'s module doc — but `mwl_hir::resolve_program` has no
+> production caller at all. `mwl-cli`'s `front_end` resolves, checks, lays out and lowers exactly
+> one `SourceId`, so a plain `require` of a class is `E0303` from `mwl run` today and the whole
+> require/autoload graph is exercised only by `mwl-hir`'s own unit tests. Wiring it up is the next
+> slice: `resolve_program` must hand back every file it loaded, and `check_program`,
+> `build_class_layouts` and `mwl-ir` lowering must each take the set rather than the one. **ADR
+> 0069's refusal is built** — `+`/`+=` with an array operand is `E0467` naming `Core\Arr::underlay`
+> — leaving that ADR's combination *members* to § 1's `Core` breadth below. **ADR 0087 is built** —
 > `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008` per line over comments, string
 > literals and inline HTML, and seven `.mwlt` cases pin it; its `Core\Html` and `Core\Cli` sink
 > halves are M7's and M8's. **ADR 0088 opens one registry-wide item**: `mwl-stdlib`'s member rows

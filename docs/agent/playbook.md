@@ -116,12 +116,14 @@ is why" — is this file.
 
 ## Writing a test case
 
-- **A `.mwlt` case is exactly one file, and `tests/` holds no multi-file fixture at all.** `--FILE--` is
-  singular in `crates/mwl-test`'s section table, so anything needing a second file on disk — `require`'s
-  static resolution, ADR 0061's autoload map, a shadowing root — has no conformance vehicle today and is
-  pinned in the owning crate's own `tests/` instead. Check that before planning a slice's coverage: the
-  Rust-side test is invisible to the Stage 4 conformance count, so "write the `.mwlt` cases" can be an
-  instruction that cannot be followed as written.
+- **A `.mwlt` case can hold more than one file now, but the compiler still cannot read the second one.**
+  `--FILE <relative/path>--` repeats and writes another file into the case's working directory
+  (`crates/mwl-test`'s module doc), so the *format* is no longer the obstacle it was — but
+  `mwl_hir::resolve_program` has no production caller: `mwl-cli`'s `front_end` runs the whole pipeline over
+  one `SourceId`, so `require`-ing a class is `E0303` from `mwl run`. Until that is wired, `require`'s
+  static resolution and ADR 0061's autoload map are pinned in `mwl-hir`'s own tests, which are invisible to
+  the Stage 4 conformance count. Check both halves before planning a slice's coverage: "write the `.mwlt`
+  cases" can still be an instruction that cannot be followed as written.
 - **A rule added to `mwl_syntax::check_declarations` reaches far less of the corpus than a grep
   suggests.** Only `mwl-cli` and `mwl_hir::requires` call that walk, so every `mwl-types` fixture, every
   parser test and every `mwl-codegen` fixture goes straight past it — ADR 0094's estimated "sixty inline
