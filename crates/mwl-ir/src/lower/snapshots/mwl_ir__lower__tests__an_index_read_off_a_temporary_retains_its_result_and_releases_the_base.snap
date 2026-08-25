@@ -1,0 +1,30 @@
+---
+source: crates/mwl-ir/src/lower/mod.rs
+expression: "print_function(&f, map.file(file))"
+---
+fn m(object) -> void {
+  bb0:
+    safepoint
+    v0 = param 0  ; object
+    ; stmt s0 @7:5-7:30
+    v1 = new Maker() ! bb1  ; object
+    ; stmt s1 @8:5-8:35
+    retain v1
+    v2 = call Maker::rows(this: v1) ! bb2  ; array
+    v3 = const.str "k"  ; string
+    v4 = array.get v2, v3  ; string
+    release v3
+    retain v4
+    release v2
+    release v1
+    release v4
+    release v0
+    return
+  bb1:
+    release v0
+    propagate "m() at t.mwl:7"
+  bb2:
+    release v1
+    release v0
+    propagate "m() at t.mwl:8"
+}

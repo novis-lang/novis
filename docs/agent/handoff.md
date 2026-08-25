@@ -2,66 +2,54 @@
 
 ## State
 
-**The `->`-through-a-call-result leak is closed.** `lower_property_access` stages a *temporary* base
-on the owned-temporaries stack, retains the value it read out of the slot, then releases the base —
-so `$m->make()->name` no longer loses an object per run. The matching half is
-`Lowering::aliasing_read`, which now recurses into a property access's own base: a field read off a
-temporary is a **fresh producer**, so no consumer retains it a second time. `mwl-ir`'s module doc §
-*Refcount insertion is naive and syntactic* owns the rule; the IR shape is pinned by
-`a_field_read_off_a_temporary_retains_its_result_and_releases_the_base` and the observable behaviour
-by `tests/conformance/lang/a-field-read-through-a-call-result-keeps-its-value.mwlt`.
+**A property's declared default runs.** `public int $n = 4;` reaches the slot of every fresh
+instance, inherited defaults included, and `public string $s = "x";` no longer dereferences a null
+pointer. The expression is evaluated once, at signature collection, into the same `ConstArg` a
+parameter default becomes (`mwl_types::defaults`, whose module doc owns what one may be and why an
+initializer cannot be spliced between `InstKind::New`'s allocation and its constructor call); it
+travels as data — `ClassSignature::property_defaults` → `ExprTypeTable::property_defaults` →
+`ir::Class::defaults` (joined against the flattened slot order in `lower_program`) →
+`ClassTable::set_defaults` → `ClassDesc::defaults`, written by `MwlObj::new`. A bad one is **E0472**.
+`mwl-ir` emits no new instruction, so no `print_function` snapshot moved.
 
-Verify is green (1531 tests). Valgrind is clean over the new edge (a chain, a `Core` argument, a
-method receiver, a non-refcounted field, `?->` on both legs) and over six of the seven `examples/`
-fixtures; `collect.mwl` still exits 1 at `Core\Out::capture` with **0 bytes lost**, which is the
-known frontier and not a leak.
+**The `->`/`[]`-through-a-call-result leak is closed on both legs.** `lower_index` now mirrors
+`lower_property_access`: it stages a temporary base, retains the element it read, then releases the
+base, and `Lowering::aliasing_read` recurses into an index's own base as well as a property access's.
+Pinned by `an_index_read_off_a_temporary_retains_its_result_and_releases_the_base` and by
+`tests/conformance/lang/an-index-read-through-a-call-result-keeps-its-value.mwlt`.
 
-**The same shape is still open one door along:** `$m->rows()["0"]` leaks the array (112 direct + 248
-indirect, measured). `lower_index` releases nothing, exactly as `lower_property_access` did. It is
-item 2 below and it is a near-copy of what just landed.
+Verify is green (1532 tests). Valgrind is clean over both new edges — a string/array property
+default through `new`, `clone` and an inherited chain, and `$m->all()["0"]` in a loop.
+`examples/collect.mwl` still exits 1 at `Core\Out::capture`, which is the known frontier.
 
 **Spec § 9 still owes only its `Iterable`.**
 
-## Next group — the two remaining `mwl-ir` lowering holes, then § 9's `Iterable`
+## Next group — § 9's `Iterable`, then the two § 10 gaps
 
-**Shared file set:** `crates/mwl-ir/src/lower/expr.rs` (`lower_property_access` at `expr.rs:2814`
-is the worked example for both of the first two), `crates/mwl-ir/src/lower/mod.rs`
-(`aliasing_read` at `mod.rs:1657`, `lower_program`), plus for item 1
-`crates/mwl-types/src/{defaults.rs,signatures.rs,layout.rs}`,
-`crates/mwl-codegen/src/emit.rs:1367` (`emit_new`) and `crates/mwl-runtime/src/object.rs`.
+**Shared file set:** `crates/mwl-stdlib/src/{registry.rs,objmap.rs,heap.rs}` and
+`crates/mwl-types/src/{core_lib.rs,iter_lib.rs}` for item 1;
+`crates/mwl-types/src/error_lib.rs` plus `crates/mwl-ir/src/lower/exception.rs` for items 2 and 3.
 
-- [ ] **1. A property's declared default runs.** Bigger and worse than the plan recorded: `public
-      int $n = 4;` reads back `0`, `public string $s = "x";` **aborts with a null-pointer
-      dereference** in `mwl-runtime`'s `string.rs:258`, and `public int $n = "no";` is not even
-      type-checked. Nothing evaluates the expression — `signatures.rs:657` reads `p.default` only to
-      decide ADR 0022's definite-assignment obligation. **`InstKind::New` carries the constructor
-      call**, so no IR site can splice an initializer between allocation and construction; a
-      constructor prologue cannot work either, because the ctor label is the *declaring* class's
-      (`new Dog()` runs `Animal::constructor` and would miss `Dog`'s own defaults). The answer is a
-      per-class **default image on the descriptor**, which also reaches `NewDynamic` and ADR 0071's
-      native decoder. Chain, bottom up, each layer additive: `defaults.rs` gains an
-      `eval_property_default` beside `eval_param_default` at `defaults.rs:149` (same literal decoder, plus `= []` →
-      the existing `ConstArg::EmptyArray`, plus a property-flavoured diagnostic — next free type
-      code is `E0472`); `ClassSignature` (`signatures.rs:299`) gains `property_defaults`;
-      `ClassLayout` (`layout.rs:66`) gains a `defaults: Vec<Option<ConstArg>>` parallel to its
-      already-flattened `fields`; `ir::Class` (`ir.rs:32`) copies it; `mwl-codegen` hands it to a
-      new `ClassTable::set_defaults` (copy `set_codec` at `object.rs:437`); `ClassDesc`
-      (`object.rs:159`) holds it and `MwlObj::new` — behind `mwl_object_new` at `object.rs:1031` —
-      writes the slots instead of leaving them null. `mwl-ir` emits **no new instruction**, so no
-      `print_function` snapshot moves.
-- [ ] **2. An index read releases its base when the base is a temporary.** The direct copy of what
-      just landed: stage the base with `own_temporary`, retain the element, `release_temporaries_since`,
-      and extend `aliasing_read`'s new recursion to `ExprKind::Index`. `ir.rs:789` already documents
-      that `ArrayGet` reads without retaining, the same way `FieldGet` does. Probe:
-      `.agent-tmp/index-temp.mwl`.
-- [ ] **3. § 9's `Iterable`**, which `Core\Heap`/`ObjectMap`/`ObjectSet` all declare — `mwl-stdlib`
-      `heap.rs`/`objmap.rs`/`objset.rs`, ADR 0053 § 2.
+- [ ] **1. § 9's `Iterable`.** `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` each *declare*
+      `Iterable` and none of them satisfies it, so a `foreach` over one does not compile.
+      `mwl_types::iter_lib` seeds the compiler-owned interfaces and
+      `signatures::resolve_iteration_element` is what a `foreach` asks; ADR 0053 § 2 owns the
+      concrete-type-argument rule. Start by grepping `registry::CLASSES` for the three `Iterable`
+      rows and `iter_lib`'s seeding, and settle whether a `Core` instance answers a `foreach`
+      through the method table or through a native drive — say which in `mwl-stdlib`'s module doc.
+- [ ] **2. § 10's `{previous: $e}` constructor option**, which ADR 0071 § 5's
+      one-throw-lists-every-bad-field rule needs. `mwl_types::error_lib` holds the tree's
+      synthesized signatures; `mwl_ir::lower::exception` holds the synthesized constructors.
+- [ ] **3. § 10's `$e->location`**, the same two files, one slot along.
 
 ## Backlog
 
-- `Core\Arr::sort`'s natural order over objects can use `mwl_runtime::dispatch` now — `arr.rs`.
-- § 6 owes `decodeAs<T>`; § 10 owes `{previous: $e}`, `$e->location`, `ParseError::issues`.
-- § 12 owes `Core\Out::capture` alone — the `examples/collect.mwl` frontier; lands with M4S/ADR 0092.
-- ADR 0088's qualifier classification on every `mwl-stdlib` member row — plan's *Open now*.
-- `do`/`while` does not lower; an abandoned generator skips its `finally` (`mwl-ir` gap 18).
-- Stage 4 counts: conformance 420 of 600, differential 89 of 150.
+- `Core\Json::decodeAs<T>` — `mwl-stdlib`'s `json` gap 2; the written call-site type argument it
+  waited on exists now.
+- `Core\Out::capture` — the last key in `crates/mwl-stdlib/tests/spec-members-outstanding.txt`, and
+  `examples/collect.mwl`'s first failing line. Lands with M4S's sink work (ADR 0092).
+- `do`/`while` does not lower — `mwl-ir`'s own known-gaps list.
+- A `?array<T>` cannot be indexed after a `!= null` guard — `mwl-ir` panics at `lower/expr.rs`;
+  the playbook names the three spellings that do lower.
+- Stage 4's counts: conformance 421 of 600, differential 89 of 150 — `docs/agent/loop-goal.md`.
+- ADR 0088's qualifier classification on `mwl-stdlib`'s member rows — plan § *Open now*.

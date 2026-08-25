@@ -139,14 +139,13 @@ is why" — is this file.
   fair leak check. What is still open is narrower and named in that field's own doc comment (an argument
   being **transferred** when a later one throws) plus the producers that still release inline — a
   normalized subscript key, a `match` subject.
-- **A field read off a *temporary* is a fresh producer, not an aliasing read.** `$h->peek()->name`
-  used to leak one object per run; it no longer does, because `lower_property_access` retains the
-  value it read and releases the base, and `Lowering::aliasing_read` therefore recurses into a
-  property access's own base and answers `false` for this shape. So a consumer must not retain such
-  a read a second time — every retain decision in `mwl-ir` already goes through `aliasing_read`, and
-  a new one that reaches for the syntactic `is_aliasing_read` instead is how the double-retain gets
-  back in. **`$a["k"]` off a temporary is the same shape and is still open**: `lower_index` releases
-  nothing, so `$m->rows()["0"]` leaks the array.
+- **A field or element read off a *temporary* is a fresh producer, not an aliasing read.**
+  `$h->peek()->name` and `$m->rows()["0"]` each used to leak one value per run; neither does now,
+  because `lower_property_access`/`lower_index` retain what they read and release the base, and
+  `Lowering::aliasing_read` therefore recurses into both a property access's and an index's own base
+  and answers `false` for these shapes. So a consumer must not retain such a read a second time —
+  every retain decision in `mwl-ir` already goes through `aliasing_read`, and a new one that reaches
+  for the syntactic `is_aliasing_read` instead is how the double-retain gets back in.
 
 ## Adding a `Core` member
 

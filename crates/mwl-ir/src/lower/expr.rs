@@ -3028,7 +3028,18 @@ impl<'a> Lowering<'a> {
             );
         };
         let result_ty = lower_checked_ty(*elem_ty, self.checked_types);
-        let (array_v, _) = self.lower_expr(base, None, env, cur);
+        // Exactly `Self::lower_property_access`'s rule, one storage kind
+        // along: a base that is itself a fresh producer — `$m->rows()["0"]` —
+        // has no other owner, so this frame owes its release, and the element
+        // read out of it needs a reference of its own first because
+        // `ArrayGet` borrows. Staged on the owned-temporaries stack before the
+        // read, so a throw on the way out of the key drops it too.
+        let mark = self.temporaries_mark();
+        let (array_v, base_ty) = self.lower_expr(base, None, env, cur);
+        let base_is_temporary = base_ty.is_refcounted() && !self.aliasing_read(base);
+        if base_is_temporary {
+            self.own_temporary(array_v);
+        }
         let (key_v, key_aliasing) = self.lower_array_key(index, env, cur);
         let result = self.emit(
             *cur,
@@ -3040,6 +3051,15 @@ impl<'a> Lowering<'a> {
         );
         if !key_aliasing {
             self.emit_release(*cur, key_v);
+        }
+        if base_is_temporary {
+            // That makes the whole expression a *fresh producer*, which is why
+            // `Lowering::aliasing_read` reports an index read off a temporary
+            // as non-aliasing: the consumer must not retain it a second time.
+            if result_ty.is_refcounted() {
+                self.emit_retain(*cur, result.0);
+            }
+            self.release_temporaries_since(mark, *cur);
         }
         result
     }

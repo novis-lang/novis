@@ -1,0 +1,42 @@
+--TEST--
+An element read out of an array a call answered with keeps its value, and the array underneath it is released — ADR 0004
+--FILE--
+<?mwl
+// The sibling of `a-field-read-through-a-call-result-keeps-its-value.mwlt`,
+// one storage kind along: `$m->all()["0"]` reads an element of an array
+// nothing else owns. `mwl_ir::lower::Lowering::lower_index` stages that array
+// as a temporary, retains the element it read, then releases the array — so
+// the read is a fresh producer and `aliasing_read` answers `false` for it,
+// which is what keeps a consumer from retaining it a second time.
+class Rows
+{
+    private array<string> $rows;
+
+    public function constructor(array<string> $rows)
+    {
+        $this->rows = $rows;
+    }
+
+    public function all(): array<string>
+    {
+        return $this->rows;
+    }
+}
+
+array<string> $seed = ["0" => "ada", "1" => "grace"];
+var $m = new Rows($seed);
+
+echo $m->all()["0"], "\n";
+
+// Bound rather than echoed: a local is the consumer that would have retained
+// the borrowed element a second time.
+var $one = $m->all()["1"];
+echo $one, "\n";
+
+// A base that *is* durable stays an aliasing read, and reading it repeatedly
+// leaves the array intact.
+echo $seed["0"], " ", $seed["1"], " ", Core\Arr::count($seed), "\n";
+--EXPECT--
+ada
+grace
+ada grace 2

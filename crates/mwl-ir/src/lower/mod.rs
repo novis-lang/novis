@@ -1718,6 +1718,11 @@ impl<'a> Lowering<'a> {
     /// producer, exactly like the call inside it, and a consumer that
     /// retained it again would leak one reference per read. `$a["k"]->name`
     /// is still an aliasing read, because the base is.
+    ///
+    /// `$m->rows()["0"]` is the same shape over an array's element rather than
+    /// an object's slot, and [`Lowering::lower_index`] answers it identically,
+    /// so the recursion below covers both spellings of "reads a slot of
+    /// something nothing else owns".
     pub(super) fn aliasing_read(&self, e: &Expr) -> bool {
         if !is_aliasing_read(&e.kind) {
             return false;
@@ -1730,6 +1735,7 @@ impl<'a> Lowering<'a> {
         }
         match &e.kind {
             ExprKind::PropertyAccess { object, .. } => self.aliasing_read(object),
+            ExprKind::Index { base, .. } => self.aliasing_read(base),
             _ => true,
         }
     }
@@ -3208,6 +3214,19 @@ class T {
     fn a_field_read_off_a_temporary_retains_its_result_and_releases_the_base() {
         let (f, map, file) = lower_first_method(
             "<?mwl\nclass Foo {\n  public string $name = \"orig\";\n}\nclass Maker {\n  function make(): Foo { return new Foo(); }\n}\nclass T {\n  function m(): void {\n    Maker $obj = new Maker();\n    string $s = $obj->make()->name;\n  }\n}\n",
+        );
+        assert_snapshot!(print_function(&f, map.file(file)));
+    }
+
+    /// `$obj->rows()["k"]` — an *element* read whose base is a temporary, the
+    /// same shape as the field read above one storage kind along.
+    /// `InstKind::ArrayGet` borrows out of the array the call handed back, so
+    /// the read retains its own result before the array is released, and the
+    /// whole expression is a fresh producer.
+    #[test]
+    fn an_index_read_off_a_temporary_retains_its_result_and_releases_the_base() {
+        let (f, map, file) = lower_first_method(
+            "<?mwl\nclass Maker {\n  function rows(): array<string> { return [\"k\" => \"v\"]; }\n}\nclass T {\n  function m(): void {\n    Maker $obj = new Maker();\n    string $s = $obj->rows()[\"k\"];\n  }\n}\n",
         );
         assert_snapshot!(print_function(&f, map.file(file)));
     }

@@ -73,8 +73,8 @@
 //!   value out of storage another binding still owns — [`lower::is_aliasing_read`]
 //!   names the three shapes, and `Lowering::aliasing_read` is the judgment
 //!   every decision actually goes through, because two of them are not
-//!   syntactic: an ADR 0014 `get` hook is a call, and a field read whose
-//!   *base* is a temporary owns its own result — and copying it into a second
+//!   syntactic: an ADR 0014 `get` hook is a call, and a field or element read
+//!   whose *base* is a temporary owns its own result — and copying it into a second
 //!   durable slot needs a retain; a freshly constructed value needs none,
 //!   since it already has one natural owner. A slot's previous value is released when overwritten,
 //!   every live slot is released at frame exit, and a binding **control flow
