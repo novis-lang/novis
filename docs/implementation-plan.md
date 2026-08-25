@@ -188,18 +188,20 @@
 > prefix shadows a `discover` glob and any other duplicate is `E0315`; `E0316` refuses an `autoload`
 > anywhere in the autoloaded sub-graph, `E0317` is § 2's one-declaration-per-file rule and `E0318` a
 > malformed glob. § 5's probe trace is produced and dropped — folding it into the cache key is the
-> ADR 0042 slice's work — and the name harvest is a deliberate over-approximation that does not yet
-> reach an attribute's name (`mwl-hir`'s own module doc owns both gaps). **That ADR is pinned by
-> seven conformance cases now** (`tests/conformance/lang/`, the six named `*autoload*` plus
+> ADR 0042 slice's work — and the name harvest is a deliberate over-approximation that now reaches
+> every declaration site's `#[...]` groups too, so a class named only by `#[Route(...)]` autoloads
+> (`mwl_hir::requires::walk_attributes`; that module's doc owns what is left). **That ADR is pinned
+> by nine conformance cases now** (`tests/conformance/lang/`, the eight named `*autoload*` plus
 > `a-malformed-discover-glob-is-a-compile-error.mwlt`): a class no `require` names is found by its
 > prefix and runs, an explicit prefix shadows a `discover` glob, a prefix's second root answers only
-> where the first misses, and `E0315`, `E0316`, `E0317` and `E0318` each fire from a
-> `--EXPECTF-ERROR--` case. Two things make that observable at all: `.mwlt` has an auxiliary-file
-> section — a repeatable `--FILE <relative/path>--` writing another file into the case's own working
-> directory, documented in `crates/mwl-test`'s module doc — and `mwl-cli`'s `front_end` is
-> multi-file end to end. It calls `mwl_hir::resolve_program`, so the unit of work is the whole
-> require/autoload graph rather than one `SourceId`: `mwl_types::ProgramFile` is the `{ src, stmts
-> }` pair every phase now takes a *slice* of, and `check_program`, `build_signatures`,
+> where the first misses, a name written only inside an `#[...]` group pulls its file in, a
+> mis-cased entry on disk is a miss rather than a diagnostic, and `E0315`, `E0316`, `E0317` and
+> `E0318` each fire from a `--EXPECTF-ERROR--` case. Two things make that observable at all: `.mwlt`
+> has an auxiliary-file section — a repeatable `--FILE <relative/path>--` writing another file into
+> the case's own working directory, documented in `crates/mwl-test`'s module doc — and `mwl-cli`'s
+> `front_end` is multi-file end to end. It calls `mwl_hir::resolve_program`, so the unit of work is
+> the whole require/autoload graph rather than one `SourceId`: `mwl_types::ProgramFile` is the `{
+> src, stmts }` pair every phase now takes a *slice* of, and `check_program`, `build_signatures`,
 > `build_enum_table`, `build_const_table` and `build_class_layouts` each build one table across the
 > whole set before any body is checked, since a class declared in a required file is named from the
 > file that required it. `Checked` carries the files entry-first, and `mwl_ir::lower::lower_program`

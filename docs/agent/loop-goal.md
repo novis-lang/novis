@@ -73,9 +73,15 @@ one is how an item finishes.
    four reserved interfaces with their members, `layout` seeds each a descriptor so `instanceof` answers,
    `require_stringable` records the `toString()` ADR 0028 § 1's four implicit sites desugar to, and
    `implements_interface` is reflexive so a value typed at the interface itself satisfies it.
-8. **ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint). The two file-scope declaration
-   forms `docs/spec/00-overview.md` § 2 fixes, then name-to-file resolution as a fixpoint over the
-   require-graph worklist `mwl_hir::requires` already walks.
+8. ~~**ADR 0061 — `autoload` parses and resolves** (M1 grammar, M2 fixpoint).~~ **Done.** Both file-scope
+   forms parse to `StmtKind::AutoloadDecl`, and `mwl_hir::requires::resolve_program` runs § 1's lookup as
+   a fixpoint over the require-graph worklist: one AST walk per file harvests its requires, its `autoload`
+   declarations and every name it uses where a class is meant — attributes included
+   (`requires::walk_attributes`), so a class named only by `#[Route(...)]` autoloads. `E0315`–`E0318` are
+   its four diagnostics, and nine `tests/conformance/lang/` cases pin the lookup, the shadowing rule,
+   ordered probing, the exact on-disk spelling and each diagnostic. What is left is reporting, not
+   resolution: § 1's `mwl check --autoload-map` does not exist, and § 5's probe trace is dropped rather
+   than folded into ADR 0042's cache key.
 9. ~~**ADR 0069 — `array + array` does not compile** (M4's *Verify* list).~~ **Done.** `E0467` from
    `reject_array_combination`, naming `Core\Arr::underlay`; `+=` reaches it through `binary_result` and
    reports once, because the recovery type is the array operand rather than `mixed`.
