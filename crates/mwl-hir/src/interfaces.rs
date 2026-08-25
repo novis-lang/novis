@@ -5,8 +5,8 @@
 //! these has a source declaration anywhere, so every consumer that needs one
 //! to exist seeds itself from [`RESERVED`] rather than from a `.mwl` file.
 //! [`QName::is_reserved_global_interface`](crate::QName::is_reserved_global_interface)
-//! is the reachability question; `mwl_types::iter_lib` turns the two generic
-//! entries into member signatures the checker can resolve against.
+//! is the reachability question; `mwl_types::iter_lib` turns every entry here
+//! into the member signatures the checker resolves against.
 //!
 //! # Why the type parameters live here and the members do not
 //!
@@ -46,6 +46,14 @@ pub const RESERVED: &[(&str, &[&str])] = &[
     ("Iterable", &["T"]),
     ("Iterator", &["T"]),
 ];
+
+/// ADR 0013's `Comparable` — the one interface `<`, `>`, `<=`, `>=` and `<=>`
+/// accept over two objects, via its sole member `compareTo(self $other): int`.
+pub const COMPARABLE: &str = "Comparable";
+
+/// ADR 0028 § 1's `Stringable` — what an object owes to be converted to
+/// `string`, via its sole member `toString(): string`.
+pub const STRINGABLE: &str = "Stringable";
 
 /// ADR 0053 § 1's `Iterable<T>` — a thing that can produce a fresh cursor.
 pub const ITERABLE: &str = "Iterable";

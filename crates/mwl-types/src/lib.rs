@@ -140,11 +140,10 @@
 //!   initialization) is now done for the shapes its own M2 corpus names —
 //!   see [`ctor_init`]'s docs for what is deliberately still out of scope
 //!   within that ADR specifically. ADR 0013 (`Comparable`) is now done too
-//!   — see [`expr`]'s `object_comparison_result` for the one thing it
-//!   doesn't check: that a class claiming `implements Comparable` actually
-//!   declares a matching `compareTo`. [`conformance`] checks every *other*
-//!   interface's members against its implementers, and its own docs say why
-//!   `Comparable`/`Stringable` are the two it deliberately leaves out. ADR 0028 (`Stringable`, `unset()` refusal) is done too —
+//!   — see [`expr`]'s `object_comparison_result`, and [`conformance`] for
+//!   the half it does not do: a class claiming `implements Comparable` owes
+//!   a `compareTo` there, like an implementer of any other interface, now
+//!   that [`iter_lib`] seeds one. ADR 0028 (`Stringable`, `unset()` refusal) is done too —
 //!   see [`expr::require_stringable`]/[`expr::members::check_property_access`]. ADR
 //!   0036's checker semantics are now done as well: `object` carries real
 //!   subtyping (every class or shape type is `<: object`), a shape type
@@ -202,12 +201,17 @@
 //!   which is a PHP-observable divergence, not a design choice. It wants one
 //!   pass keyed on the accessing class, over both
 //!   [`expr::members::check_property_access`] and method resolution.
-//! - **The reserved `Comparable`/`Stringable` interfaces carry no member
-//!   signatures**, so a parameter declared at either type has no method to
-//!   call — `$s->toString()` on a `Stringable` is `E0405` — and `$x
-//!   instanceof Stringable` records no resolved class, which `mwl_ir` then
-//!   panics on rather than lowering. [`conformance`]'s own docs say why the
-//!   roster leaves them out today; filling it in is what closes both.
+//! - **`$x instanceof Stringable` records no resolved class**, which
+//!   `mwl_ir` then panics on rather than lowering. The member half of that
+//!   gap is closed — [`iter_lib`] seeds `Comparable::compareTo` and
+//!   `Stringable::toString`, so a parameter declared at either type resolves
+//!   its member and [`conformance`] holds an implementor to it — but a
+//!   reserved interface still has no entry the `instanceof` path can name.
+//! - **A value typed at the interface itself is not `Stringable` to
+//!   [`expr::operators`]'s `require_stringable`**, which asks
+//!   [`mwl_hir::implements_interface`] and gets `false` for a name against
+//!   itself. So `echo $s` on a `Stringable $s` is `E0412` even though
+//!   `$s->toString()` now checks.
 
 pub mod check;
 pub(crate) mod conformance;

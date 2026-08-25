@@ -157,9 +157,16 @@
 > `mwl_types::expr::members::check_method_visibility` applies it at `$obj->m()`, `C::m()` and `new
 > C(...)` alike, so a `private` constructor is the singleton idiom it was written to be rather than
 > a keyword that means nothing; where ADR 0043 § 3's private-interface-method rule already fired,
-> that more specific diagnostic is the only one reported. Then, in order:
-> **`Comparable`/`Stringable`**, which carry no member signatures, so `$s->toString()` is `E0405`
-> and `instanceof Stringable` panics `mwl-ir`; and **ADR 0061**'s `autoload` grammar and its
+> that more specific diagnostic is the only one reported. **`Comparable`/`Stringable` now carry
+> their members** — `mwl_types::iter_lib` seeds all four compiler-declared interfaces rather than
+> only the two generic ones, so `Comparable` declares `compareTo(Comparable $other): int` (ADR 0013
+> § 1's `self`, at the declaration it is written on) and `Stringable` declares `toString(): string`;
+> a parameter at either type resolves its member instead of taking `E0405`, and
+> `mwl_types::conformance` now holds an implementer to a body for it, like an implementer of any
+> other interface. Two halves of that item trail: `instanceof Stringable` still records no resolved
+> class and panics `mwl-ir` (no `ClassDesc` exists for an interface nothing declares), and `echo $s`
+> on a value typed at the interface itself is still `E0412`, because `mwl_hir::implements_interface`
+> answers `false` for a name against itself. Then **ADR 0061**'s `autoload` grammar and its
 > name-to-file fixpoint. **ADR 0069's refusal is built** — `+`/`+=` with an array operand is `E0467`
 > naming `Core\Arr::underlay` — leaving that ADR's combination *members* to § 1's `Core` breadth
 > below. **ADR 0087 is built** — `mwl_syntax::bidi` is the one predicate, the lexer reports `E0008`

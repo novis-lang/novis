@@ -50,7 +50,7 @@ fn comparing_two_objects_of_a_non_comparable_class_is_diagnosed() {
 #[test]
 fn comparing_two_different_comparable_classes_is_diagnosed() {
     let diags = check_src(
-        "<?mwl\nclass A implements Comparable {}\nclass B implements Comparable {}\nclass T {\n  function m(): void {\n    A $a = new A();\n    B $b = new B();\n    $a < $b;\n  }\n}\n",
+        "<?mwl\nclass A implements Comparable {\n  function compareTo(self $other): int { return 0; }\n}\nclass B implements Comparable {\n  function compareTo(self $other): int { return 0; }\n}\nclass T {\n  function m(): void {\n    A $a = new A();\n    B $b = new B();\n    $a < $b;\n  }\n}\n",
     );
     assert!(
         diags
@@ -63,7 +63,7 @@ fn comparing_two_different_comparable_classes_is_diagnosed() {
 #[test]
 fn a_subclass_of_a_comparable_class_is_comparable_to_itself() {
     let diags = check_src(
-        "<?mwl\nclass Money implements Comparable {}\nclass Cents extends Money {}\nclass T {\n  function m(): void {\n    Cents $a = new Cents();\n    Cents $b = new Cents();\n    $a < $b;\n  }\n}\n",
+        "<?mwl\nclass Money implements Comparable {\n  function compareTo(self $other): int { return 0; }\n}\nclass Cents extends Money {}\nclass T {\n  function m(): void {\n    Cents $a = new Cents();\n    Cents $b = new Cents();\n    $a < $b;\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }

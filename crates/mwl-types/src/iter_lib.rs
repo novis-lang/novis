@@ -1,13 +1,19 @@
-//! Seeding the checker's signature table with ADR 0053 § 1's two iteration
-//! interfaces.
+//! Seeding the checker's signature table with the members of every
+//! compiler-declared global interface.
 //!
 //! [`mwl_hir::interfaces`] is the one home for *which* global interfaces the
 //! compiler declares and what type parameters each takes; this is the one
-//! place `Iterable<T>` and `Iterator<T>` become member signatures, in exactly
-//! the [`ClassSignature`](crate::signatures::ClassSignature) shape
+//! place all four — `Comparable`, `Stringable`, `Iterable<T>` and
+//! `Iterator<T>` — become member signatures, in exactly the
+//! [`ClassSignature`](crate::signatures::ClassSignature) shape
 //! [`crate::error_lib`] gives the exception tree and [`crate::core_lib`]
 //! gives `Core`. After this point `resolve_method` finds
 //! `Iterator::advance` the way it finds `Animal::name`.
+//!
+//! The module keeps the name it had when ADR 0053 § 1's two iteration
+//! interfaces were the only ones seeded here; the two older ones joined them
+//! rather than getting a second seeding path, because one roster with two
+//! places to look is how the halves drift.
 //!
 //! # Why the members are written here and not in `mwl-hir`
 //!
@@ -18,9 +24,20 @@
 //! the two halves cannot drift: rename `T` there and every signature below
 //! follows.
 //!
+//! # `compareTo`'s parameter is `Comparable`, and that is `self` here
+//!
+//! [ADR 0013](../../../docs/adr/0013-comparable-interface.md) § 1 writes the
+//! member as `compareTo(self $other): int`, and `self` in the declaration
+//! this seeds *is* `Comparable` — an implementation narrows it to its own
+//! class, exactly as the ADR's variance paragraph says. Nothing is lost by
+//! the wider seeded spelling: the rule that two operands of an ordering
+//! operator must be the *same* class is enforced at the operator instead
+//! ([`crate::expr::operators`]), where both operands' static types are in
+//! hand, and never by this parameter.
+//!
 //! # Every member is bodiless, and that is what makes them dispatch
 //!
-//! Neither interface declares a default (ADR 0043 § 2), so
+//! No interface on the roster declares a default (ADR 0043 § 2), so
 //! [`MethodSig::has_body`] is false throughout. That is not bookkeeping: a
 //! call resolving to a bodiless declaration has no compiled function to name,
 //! so it dispatches on the receiver's runtime class — which is precisely what
@@ -31,23 +48,44 @@
 //! A class claiming `implements Iterator<int>` and forgetting `advance` would
 //! end in a dispatch to nothing rather than in a call the author wrote by
 //! hand — which is why [`crate::conformance`] exists and why it landed
-//! alongside these two. That module owns the rule and its three exemptions;
-//! `Comparable`/`Stringable` still require nothing there, for the reason it
-//! gives.
+//! alongside the iteration pair. That module owns the rule and its
+//! exemptions, and it reads this table: seeding `compareTo` and `toString`
+//! here is what makes `class Money implements Comparable {}` owe a body,
+//! which it always should have.
 
 use mwl_hir::QName;
-use mwl_hir::interfaces::{ITERABLE, ITERATOR};
+use mwl_hir::interfaces::{COMPARABLE, ITERABLE, ITERATOR, STRINGABLE};
 use rustc_hash::FxHashMap;
 
 use crate::signatures::{MethodSig, SignatureTable};
 use crate::ty::{TypeId, TypeInterner};
 
-/// Adds `Iterable<T>` and `Iterator<T>` to `table`.
+/// Adds `Comparable`, `Stringable`, `Iterable<T>` and `Iterator<T>` to
+/// `table`.
 ///
 /// Called once, alongside [`crate::core_lib::seed`] and
 /// [`crate::error_lib::seed`], at the head of
 /// [`build_signatures`](crate::signatures::build_signatures).
 pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
+    let comparable = interner.class(QName::parse(COMPARABLE));
+    let int_ty = interner.int();
+    table.seed_class(
+        QName::parse(COMPARABLE),
+        FxHashMap::default(),
+        [("compareTo".to_owned(), bodiless(vec![comparable], int_ty))]
+            .into_iter()
+            .collect(),
+    );
+
+    let string_ty = interner.string();
+    table.seed_class(
+        QName::parse(STRINGABLE),
+        FxHashMap::default(),
+        [("toString".to_owned(), bodiless(Vec::new(), string_ty))]
+            .into_iter()
+            .collect(),
+    );
+
     let iterator_elem = elem_var(ITERATOR, interner);
     let bool_ty = interner.bool_ty();
     table.seed_class(
@@ -75,7 +113,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
 /// The interned type variable standing for `interface`'s sole type parameter.
 ///
 /// Panics if the roster gives it anything other than exactly one — the two
-/// entries this module seeds are the only ones it is called for, and a
+/// *generic* entries are the only ones it is called for, and a
 /// silently-wrong element type would be far worse than a build that stops.
 fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
     let params = mwl_hir::interfaces::type_params(interface)
@@ -107,13 +145,36 @@ fn bodiless(params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
 mod tests {
     use super::*;
     use crate::signatures::resolve_method;
-    use mwl_hir::ClassGraph;
+    use mwl_diagnostics::{Diagnostics, SourceMap};
+    use mwl_hir::{ClassGraph, resolve_file};
+    use mwl_syntax::parse_file;
 
     fn seeded() -> (SignatureTable, TypeInterner) {
         let mut table = SignatureTable::new();
         let mut interner = TypeInterner::new();
         seed(&mut table, &mut interner);
         (table, interner)
+    }
+
+    fn check_src(src: &str) -> Diagnostics {
+        let mut map = SourceMap::new();
+        let file = map.add("t.mwl", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        let mut interner = TypeInterner::new();
+        let mut exprs = crate::expr_table::ExprTypeTable::new();
+        crate::check::check_program(
+            &stmts,
+            map.file(file),
+            &module,
+            &mut interner,
+            &mut exprs,
+            &mut diags,
+        );
+        diags
     }
 
     #[test]
@@ -141,10 +202,58 @@ mod tests {
         assert!(sig.is_generic(&interner));
     }
 
+    /// ADR 0013 § 1's `compareTo(self $other): int`, with `self` seeded as
+    /// `Comparable` — see this module's docs for why the wider spelling costs
+    /// nothing.
     #[test]
-    fn neither_interface_declares_a_default_body() {
+    fn comparable_declares_adr_0013_s_ordering_member() {
+        let (table, interner) = seeded();
+        let graph = ClassGraph::default();
+        let (owner, sig) = resolve_method(&QName::parse(COMPARABLE), "compareTo", &table, &graph)
+            .expect("compareTo");
+        assert_eq!(owner.to_string(), COMPARABLE);
+        assert_eq!(interner.describe(sig.return_ty), "int");
+        let [param] = sig.params[..] else {
+            panic!(
+                "`compareTo` takes exactly one parameter, got {:?}",
+                sig.params
+            )
+        };
+        assert_eq!(interner.describe(param), COMPARABLE);
+    }
+
+    /// ADR 0028 § 1's `toString(): string`.
+    #[test]
+    fn stringable_declares_adr_0028_s_conversion_member() {
+        let (table, interner) = seeded();
+        let graph = ClassGraph::default();
+        let (owner, sig) = resolve_method(&QName::parse(STRINGABLE), "toString", &table, &graph)
+            .expect("toString");
+        assert_eq!(owner.to_string(), STRINGABLE);
+        assert_eq!(interner.describe(sig.return_ty), "string");
+        assert!(sig.params.is_empty());
+    }
+
+    /// The gap this closes: a parameter declared at the interface type had no
+    /// member to resolve, so the call was `E0405` on a member the interface
+    /// plainly declares.
+    #[test]
+    fn a_stringable_parameter_can_call_to_string() {
+        let diags = check_src(
+            "<?mwl\n\
+             class Render {\n\
+             public function label(Stringable $s): string { return $s->toString(); }\n\
+             }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn no_reserved_interface_declares_a_default_body() {
         let (table, _) = seeded();
         for (interface, member) in [
+            (COMPARABLE, "compareTo"),
+            (STRINGABLE, "toString"),
             (ITERATOR, "advance"),
             (ITERATOR, "current"),
             (ITERABLE, "iterate"),

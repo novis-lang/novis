@@ -20,7 +20,7 @@
 //! *does* have a body — its own, an inherited one, or an ADR 0043 § 2
 //! interface default.
 //!
-//! Three things are outside it, each for its own reason:
+//! Two things are outside it, each for its own reason:
 //!
 //! - **An `abstract` class is exempt.** Leaving a member to a subclass is
 //!   what the modifier means.
@@ -28,13 +28,13 @@
 //!   Delegation supplies members from a property's own type, and nothing
 //!   resolves that yet (the plan lists `by`-delegation as open), so checking
 //!   such a class would report members delegation is meant to provide.
-//! - **`Comparable` and `Stringable` require nothing**, because
-//!   [`mwl_hir::interfaces`]'s roster gives them no member signatures —
-//!   `Iterable`/`Iterator` are the only reserved interfaces
-//!   [`crate::iter_lib`] seeds. Both are still enforced where they are
-//!   *used* instead (`crate::expr`'s `require_stringable` and the object
-//!   comparison check), which is the narrower guarantee they had before this
-//!   module and the one they keep.
+//!
+//! The four compiler-declared global interfaces are *inside* it, and reach it
+//! the same way a source-declared one does: [`crate::iter_lib`] seeds every
+//! member on [`mwl_hir::interfaces`]'s roster, so `implements Comparable`
+//! owes `compareTo` and `implements Stringable` owes `toString` here, rather
+//! than only at the use sites (`crate::expr`'s `require_stringable` and the
+//! object comparison check) that were the whole of the guarantee before.
 
 use mwl_diagnostics::{Diagnostic, code};
 use mwl_hir::QName;
@@ -227,11 +227,21 @@ mod tests {
         assert!(missing(&owed), "{owed:?}");
     }
 
-    /// `Comparable` requires nothing here — see the module docs for why, and
-    /// for where it is enforced instead.
+    /// A compiler-declared interface owes its members like any other: once
+    /// [`crate::iter_lib`] seeds `compareTo`, a class claiming `Comparable`
+    /// and declaring nothing is the same `E0449` as a source-declared
+    /// interface left unanswered.
     #[test]
-    fn a_reserved_interface_with_no_seeded_members_owes_nothing() {
-        let diags = check_src("<?mwl\nclass Money implements Comparable {}\n");
-        assert!(!diags.has_errors(), "{diags:?}");
+    fn a_reserved_interface_owes_its_seeded_members() {
+        let owed = check_src("<?mwl\nclass Money implements Comparable {}\n");
+        assert!(missing(&owed), "{owed:?}");
+
+        let answered = check_src(
+            "<?mwl\n\
+             class Money implements Comparable {\n\
+             public function compareTo(self $other): int { return 0; }\n\
+             }\n",
+        );
+        assert!(!answered.has_errors(), "{answered:?}");
     }
 }
